@@ -4,9 +4,8 @@ using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Core.Views;
 using Nexaflow.Features.Common;
-using Nexaflow.Providers.Aria;
+using Nexaflow.Providers.Common;
 using System.Collections.ObjectModel;
-using System.Collections.Specialized;
 using System.Windows.Controls;
 using System.Windows;
 
@@ -34,16 +33,17 @@ public partial class ShellViewModel : ObservableObject
     [ObservableProperty] private bool _notificationsOpen;
 
     // ── Background activity ───────────────────────────────────────────────
-    public ObservableCollection<BackgroundTask> BackgroundTasks { get; } = [];
+    private readonly BackgroundActivityManager _activityManager;
 
-    [ObservableProperty] private string _activityText = "Ready";
+    /// <summary>Bound to the ActivityTicker in MainWindow.xaml.</summary>
+    public ObservableCollection<BackgroundTask> BackgroundTasks => _activityManager.Tasks;
 
     // ── AI interaction ────────────────────────────────────────────────────
     [ObservableProperty] private string _aiInputText = string.Empty;
     [ObservableProperty] private bool   _aiIsBusy;
     [ObservableProperty] private bool   _voiceActive;
 
-    private readonly AriaClientService _ariaClient = new();
+    private readonly ILlmProvider _llmProvider;
 
     // ── Error toast ───────────────────────────────────────────────────────
     [ObservableProperty] private string? _errorToast;
@@ -79,8 +79,14 @@ public partial class ShellViewModel : ObservableObject
     // ── Ribbon edit mode ─────────────────────────────────────────────────
     [ObservableProperty] private bool _ribbonEditOpen;
 
-    public ShellViewModel()
+    public ShellViewModel(BackgroundActivityManager activityManager)
     {
+        _activityManager = activityManager;
+        _activityManager.IsActiveChanged += (_, active) =>
+            Application.Current.Dispatcher.Invoke(() => AiIsBusy = active);
+
+        _llmProvider = LlmProviderRegistry.Current;
+
         FeatureManager.Instance.TabOpenRequested += OnFeatureTabOpenRequested;
         LoadOrBuildRibbon();
         RibbonItems.CollectionChanged += (_, e) =>
@@ -326,27 +332,25 @@ public partial class ShellViewModel : ObservableObject
         // 3. Multiple candidate handlers → ask the LLM to pick the right tool
         if (positives.Count > 0)
         {
-            AiIsBusy = true;
             string? llmReply = null;
             try
             {
                 var toolList = string.Join("\n", positives.Select((x, i) =>
                     $"{i + 1}. {x.handler.Description}"));
-                var prompt =
+                var userPrompt =
                     $"The user asked: \"{text}\"\n" +
                     $"Current context: {context}\n\n" +
                     $"Available tools:\n{toolList}\n\n" +
                     "Which tool number should handle this request? " +
                     "Reply with only the number, or \"ask: <question>\" to request clarification.";
-                var response = await _ariaClient.SendAsync(prompt);
+                var response = await _llmProvider.QueryAsync(string.Empty, userPrompt);
                 llmReply = response?.RawText?.Trim();
             }
-            catch (AriaClientService.AriaConnectionException ex)
+            catch (LlmProviderException ex)
             {
-                ShowError("Aria connection error", ex.Message);
+                ShowError("AI provider error", ex.Message);
                 return;
             }
-            finally { AiIsBusy = false; }
 
             if (llmReply is null) return;
 
@@ -369,36 +373,46 @@ public partial class ShellViewModel : ObservableObject
             return;
         }
 
-        // 4. No handler matched → ask LLM with context and available tab actions
-        AiIsBusy = true;
-        AriaClientService.AriaResponse? actionResponse = null;
+        // 4. No handler matched — use ChatAsync when on AiChat page (history context),
+        //    otherwise QueryAsync with a context-enriched prompt.
+        LlmResponse? actionResponse = null;
         try
         {
-            var actions     = ctxProvider?.GetAvailableActions() ?? [];
-            var actionsText = actions.Count > 0
-                ? string.Join("\n", actions.Select(a =>
-                    $"- {a.Name}: {a.Description}" +
-                    (a.Parameters is { Count: > 0 }
-                        ? " (params: " + string.Join(", ", a.Parameters.Select(p => $"{p.Key}: {p.Value}")) + ")"
-                        : string.Empty)))
-                : "No specific actions available.";
+            var activeChatVm = ActiveChatVm;
+            if (activeChatVm?.ActiveConversation is { Messages.Count: > 0 } conv)
+            {
+                var history = conv.Messages
+                    .Select(m => new LlmMessage(m.IsUser, m.Text))
+                    .ToList();
+                actionResponse = await _llmProvider.ChatAsync(history, text);
+            }
+            else
+            {
+                var actions     = ctxProvider?.GetAvailableActions() ?? [];
+                var actionsText = actions.Count > 0
+                    ? string.Join("\n", actions.Select(a =>
+                        $"- {a.Name}: {a.Description}" +
+                        (a.Parameters is { Count: > 0 }
+                            ? " (params: " + string.Join(", ", a.Parameters.Select(p => $"{p.Key}: {p.Value}")) + ")"
+                            : string.Empty)))
+                    : "No specific actions available.";
 
-            var prompt =
-                $"The user asked: \"{text}\"\n" +
-                $"Current context: {context}\n\n" +
-                $"Available actions:\n{actionsText}\n\n" +
-                "If you can perform an action, reply with JSON only: " +
-                "{\"action\": \"ActionName\", \"paramName\": \"value\", ...}\n" +
-                "Otherwise reply conversationally.";
+                var userPrompt =
+                    $"The user asked: \"{text}\"\n" +
+                    $"Current context: {context}\n\n" +
+                    $"Available actions:\n{actionsText}\n\n" +
+                    "If you can perform an action, reply with JSON only: " +
+                    "{\"action\": \"ActionName\", \"paramName\": \"value\", ...}\n" +
+                    "Otherwise reply conversationally.";
 
-            actionResponse = await _ariaClient.SendAsync(prompt);
+                actionResponse = await _llmProvider.QueryAsync(string.Empty, userPrompt);
+            }
         }
-        catch (AriaClientService.AriaConnectionException ex)
+        catch (LlmProviderException ex)
         {
-            ShowError("Aria connection error", ex.Message);
+            ShowError("AI provider error", ex.Message);
             return;
         }
-        finally { AiIsBusy = false; }
 
         if (actionResponse?.FocusTab is { } ft)
         {
@@ -484,8 +498,8 @@ public partial class ShellViewModel : ObservableObject
         return vm;
     }
 
-    /// <summary>Handles a #focustab instruction returned by Aria.</summary>
-    private void HandleFocusTabInstruction(AriaClientService.FocusTabInstruction ft)
+    /// <summary>Handles a #focustab instruction returned by the LLM provider.</summary>
+    private void HandleFocusTabInstruction(FocusTabInstruction ft)
     {
         // Check if a tab with that name is already open
         var existing = Tabs.FirstOrDefault(t =>
@@ -513,14 +527,8 @@ public partial class ShellViewModel : ObservableObject
 
     // ── Background tasks ──────────────────────────────────────────────────
 
-    /// <summary>
-    /// Adds a background task and scrolls the activity ticker.
-    /// </summary>
-    public void AddBackgroundTask(BackgroundTask task)
-    {
-        BackgroundTasks.Insert(0, task);
-        ActivityText = task.Description;
-    }
+    /// <summary>Adds an externally-created background task to the activity ticker.</summary>
+    public void AddBackgroundTask(BackgroundTask task) => _activityManager.AddTask(task);
 
     // ── FileSystem tab helpers ────────────────────────────────────────────
 

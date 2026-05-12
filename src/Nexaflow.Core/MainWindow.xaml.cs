@@ -5,6 +5,7 @@ using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Core.Views;
+using TaskStatus = Nexaflow.Core.Models.TaskStatus;
 
 namespace Nexaflow.Core;
 
@@ -16,10 +17,10 @@ public partial class MainWindow : Window
     public ShellViewModel ViewModel => _vm;
 
     // ── Primary constructor (application startup) ─────────────────────────
-    public MainWindow()
+    public MainWindow(BackgroundActivityManager activityManager)
     {
         InitializeComponent();
-        _vm = new ShellViewModel();
+        _vm = new ShellViewModel(activityManager);
         DataContext = _vm;
 
         WireCommands();
@@ -48,11 +49,12 @@ public partial class MainWindow : Window
             PageFactory = () => new PlaceholderPage()
         });
 
-        // Seed a background task so the activity ticker has something to show
+        // Seed an initial background task (the manager's "Idle" placeholder
+        // is already shown; this adds a real running task on top of it).
         _vm.AddBackgroundTask(new BackgroundTask
         {
             Description = "Indexing workspace…",
-            Status      = Models.TaskStatus.Running
+            Status      = TaskStatus.Running
         });
 
         FinishInit();
@@ -62,7 +64,7 @@ public partial class MainWindow : Window
     public MainWindow(TabEntry initialTab)
     {
         InitializeComponent();
-        _vm = new ShellViewModel();
+        _vm = new ShellViewModel(new BackgroundActivityManager());
         DataContext = _vm;
 
         WireCommands();

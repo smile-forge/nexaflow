@@ -390,7 +390,7 @@
 
                 <!-- Message -->
                 <StackPanel Grid.Column="1">
-                    <TextBlock Text="Aria connection error"
+                    <TextBlock Text="AI provider error"
                                FontSize="12" FontWeight="SemiBold"
                                Foreground="#FFCCAA"/>
                     <TextBlock Text="{Binding ErrorToast}"

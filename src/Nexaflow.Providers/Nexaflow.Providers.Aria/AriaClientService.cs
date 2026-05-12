@@ -1,3 +1,5 @@
+using Nexaflow.Providers.Common;
+
 namespace Nexaflow.Providers.Aria;
 
 /// <summary>
@@ -17,15 +19,12 @@ public class AriaClientService : IAsyncDisposable
     /// <summary>Parsed result of a call to <see cref="SendAsync"/>.</summary>
     public record AriaResponse(string RawText, FocusTabInstruction? FocusTab);
 
-    /// <summary>Represents a <c>#focustab</c> instruction from Aria.</summary>
-    public record FocusTabInstruction(string TabName, string Params);
-
     /// <summary>
     /// Thrown when the connection to Aria cannot be established or maintained.
     /// <see cref="Exception.InnerException"/> carries the original OS/pipe exception.
     /// </summary>
     public sealed class AriaConnectionException(string message, Exception inner)
-        : Exception(message, inner);
+        : LlmProviderException(message, inner);
 
     public async Task EnsureConnectedAsync()
     {
@@ -65,7 +64,10 @@ public class AriaClientService : IAsyncDisposable
     /// Sends <paramref name="text"/> to Aria and waits for one reply.
     /// Throws <see cref="AriaConnectionException"/> if the pipe cannot be reached.
     /// </summary>
-    public async Task<AriaResponse?> SendAsync(string text, CancellationToken ct = default)
+    public async Task<AriaResponse?> SendAsync(
+        string text,
+        IReadOnlyList<string>? attachments = null,
+        CancellationToken ct = default)
     {
         await EnsureConnectedAsync(); // throws AriaConnectionException on failure
 
@@ -80,7 +82,10 @@ public class AriaClientService : IAsyncDisposable
             SimpleMessage? reply;
             try
             {
-                await _pipe.SendAsync(new SimpleMessage { Text = text }, ct);
+                var message = new SimpleMessage { Text = text };
+                if (attachments is { Count: > 0 })
+                    message.AttachmentPaths.AddRange(attachments);
+                await _pipe.SendAsync(message, ct);
 
                 using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
                 using var linked  = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
