@@ -3,6 +3,7 @@ using Nexaflow.Features.Console;
 using Nexaflow.Features.Projects;
 using Nexaflow.Providers.Aria;
 using Nexaflow.Providers.Common;
+using Nexaflow.Providers.Ollama;
 using System.Windows;
 using Nexaflow.Core.Services;
 
@@ -17,6 +18,10 @@ public partial class App : Application
         // Activity manager needed by providers for status reporting
         var activityManager = new BackgroundActivityManager();
         LlmProviderRegistry.Register("Aria", new AriaLlmProvider(activityManager));
+
+        var ollamaConfig = new OllamaConfig();
+        ConfigManager.Instance.Register(ollamaConfig, ollamaConfig.ConfigName);
+        LlmProviderRegistry.Register("Ollama", new OllamaLlmProvider(activityManager, ollamaConfig));
 
         RegisterFeatures();
 
