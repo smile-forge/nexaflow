@@ -1,5 +1,4 @@
 using Nexaflow.Features.Common.Controls;
-using Nexaflow.Features.Projects.Services;
 using Nexaflow.Features.Projects.Model;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -14,7 +13,7 @@ namespace Nexaflow.Features.Projects.ViewModels;
 
 public partial class ProjectDetailViewModel : ObservableObject
 {
-    private readonly ProjectOperations _svc = ProjectService.Ops;
+    private readonly ProjectOperations _svc;
     public  string FolderName { get; }
 
     // ── Project header ────────────────────────────────────────────────────
@@ -71,8 +70,9 @@ public partial class ProjectDetailViewModel : ObservableObject
     // ── Dirty-save guards ─────────────────────────────────────────────────
     private bool _loading;
 
-    public ProjectDetailViewModel(string folderName)
+    public ProjectDetailViewModel(ProjectOperations ops, string folderName)
     {
+        _svc       = ops;
         FolderName = folderName;
         Load();
     }
@@ -213,7 +213,7 @@ public partial class ProjectDetailViewModel : ObservableObject
 
     [RelayCommand]
     private void OpenFiles()
-        => OpenFilesRequested?.Invoke(ProjectService.GetProjectPath(FolderName));
+        => OpenFilesRequested?.Invoke(System.IO.Path.Combine(_svc.RootPath, FolderName));
 
     // ── Pie chart ─────────────────────────────────────────────────────────
 

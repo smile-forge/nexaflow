@@ -3,6 +3,7 @@ namespace Nexaflow.Features.Projects.Model
     using System.IO;
     using System.Text;
     using System.Text.Json;
+    using global::Nexaflow.Features.Projects;
 
     /// <summary>
     /// Core local implementation of all project operations.
@@ -10,10 +11,13 @@ namespace Nexaflow.Features.Projects.Model
     /// </summary>
     public class ProjectOperations : IProjectTools
     {
-        private readonly string _rootPath;
+        private readonly ProjectsConfig _config;
+
+        // Reads dynamically so config changes are picked up without recreation
+        private string _rootPath => _config.ProjectDirectory;
 
         /// <summary>The root directory under which all project folders live.</summary>
-        public string RootPath => _rootPath;
+        public string RootPath => _config.ProjectDirectory;
 
         /// <summary>
         /// Returns typed (FolderName, DisplayName) entries for every project folder.
@@ -49,15 +53,15 @@ namespace Nexaflow.Features.Projects.Model
 
         private readonly TransactionalFileService _txService;
 
-        public ProjectOperations(string rootPath, TransactionalFileService txService)
+        public ProjectOperations(ProjectsConfig config, TransactionalFileService txService)
         {
-            _rootPath = rootPath;
+            _config   = config;
             _txService = txService;
         }
 
-        public ProjectOperations(string rootPath)
+        public ProjectOperations(ProjectsConfig config)
         {
-            _rootPath = rootPath;
+            _config    = config;
             _txService = new TransactionalFileService();
         }
 

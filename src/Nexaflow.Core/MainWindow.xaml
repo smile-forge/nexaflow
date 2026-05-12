@@ -323,30 +323,8 @@
                 HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                 Background="#CC0F1117" Panel.ZIndex="100">
             <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Width="500" Style="{StaticResource PopupBorder}" Padding="28">
-                <StackPanel>
-                    <Grid Margin="0,0,0,20">
-                        <TextBlock Text="Options" FontSize="16" FontWeight="Bold"
-                                   Foreground="{StaticResource TextBrush}"/>
-                        <Button HorizontalAlignment="Right" Style="{StaticResource TopBarAction}"
-                                Command="{Binding CloseOptionsCommand}">
-                            <TextBlock Text="✕" FontSize="14" Foreground="{StaticResource TextMutedBrush}"/>
-                        </Button>
-                    </Grid>
-
-                    <!-- Settings rows -->
-                    <ctrl:OptionRow Label="Theme"           Value="Dark"/>
-                    <ctrl:OptionRow Label="Language"        Value="English"/>
-                    <ctrl:OptionRow Label="AI Model"        Value="claude-sonnet-4"/>
-                    <ctrl:OptionRow Label="Voice language"  Value="Auto-detect"/>
-                    <ctrl:OptionRow Label="Notifications"   Value="Enabled"/>
-
-                    <Separator Background="{StaticResource BorderBrush}" Margin="0,16"/>
-
-                    <TextBlock Text="About NexaFlow v1.0"
-                               Foreground="{StaticResource TextDimBrush}"
-                               FontSize="11" HorizontalAlignment="Center"/>
-                </StackPanel>
+                    Width="720" Height="500" Style="{StaticResource PopupBorder}">
+                <ctrl:OptionsPanel x:Name="OptionsPanelControl"/>
             </Border>
         </Border>
 

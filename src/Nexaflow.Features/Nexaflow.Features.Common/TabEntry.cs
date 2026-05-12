@@ -15,6 +15,12 @@ public partial class TabEntry : ObservableObject
     /// <summary>The breadcrumb segments shown when this tab is active.</summary>
     public List<BreadcrumbSegment> Breadcrumbs { get; set; } = [];
 
+    /// <summary>The page kind string this tab was created for (e.g. "Projects", "ProjectDetail").</summary>
+    public string? PageKind { get; set; }
+
+    /// <summary>The page parameters this tab was created with.</summary>
+    public Dictionary<string, string>? PageParams { get; set; }
+
     /// <summary>Factory for the page content UserControl.</summary>
     public Func<UserControl>? PageFactory { get; set; }
 

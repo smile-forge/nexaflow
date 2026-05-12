@@ -1,0 +1,231 @@
+<UserControl x:Class="Nexaflow.Core.Controls.OptionsPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Nexaflow.Core.Controls"
+             xmlns:cvn="clr-namespace:Nexaflow.Core.Converters"
+             xmlns:vm="clr-namespace:Nexaflow.Core.ViewModels">
+
+    <UserControl.Resources>
+        <cvn:ValidationErrorToBorderBrushConverter x:Key="ValidationBorderBrush"/>
+        <cvn:BoolToVisibilityConverter x:Key="BoolVis"/>
+
+        <!-- Shared row layout: 180px label + * editor -->
+        <Style x:Key="RowGrid" TargetType="Grid">
+            <Setter Property="Margin" Value="0,6"/>
+        </Style>
+
+        <!-- ── TextBox template ── -->
+        <DataTemplate x:Key="TextBoxTemplate"
+                      DataType="{x:Type vm:PropertyEditViewModel}">
+            <Grid Style="{StaticResource RowGrid}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding Label}"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="12" VerticalAlignment="Center"/>
+                <TextBox Grid.Column="1"
+                         Style="{StaticResource DarkTextBox}"
+                         Text="{Binding Value, UpdateSourceTrigger=LostFocus}"
+                         FontSize="12"/>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ── FolderPath template ── -->
+        <DataTemplate x:Key="FolderPathTemplate"
+                      DataType="{x:Type vm:PropertyEditViewModel}">
+            <Grid Style="{StaticResource RowGrid}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding Label}"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="12" VerticalAlignment="Center"/>
+                <TextBox Grid.Column="1"
+                         Style="{StaticResource DarkTextBox}"
+                         Text="{Binding Value, UpdateSourceTrigger=LostFocus}"
+                         FontSize="12"
+                         BorderBrush="{Binding ValidationError, Converter={StaticResource ValidationBorderBrush}}"
+                         ToolTip="{Binding ValidationError}"/>
+                <Button Grid.Column="2"
+                        Margin="6,0,0,0"
+                        Style="{StaticResource IconButton}"
+                        ToolTip="Browse for folder…"
+                        Command="{Binding BrowseFolderCommand}">
+                    <TextBlock Text="…" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
+                </Button>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ── Enum ComboBox template ── -->
+        <DataTemplate x:Key="EnumComboBoxTemplate"
+                      DataType="{x:Type vm:PropertyEditViewModel}">
+            <Grid Style="{StaticResource RowGrid}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding Label}"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="12" VerticalAlignment="Center"/>
+                <ComboBox Grid.Column="1"
+                          Style="{StaticResource DarkComboBox}"
+                          ItemsSource="{Binding EnumOptions}"
+                          SelectedItem="{Binding Value}"/>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ── List-sourced ComboBox template ── -->
+        <DataTemplate x:Key="ListComboBoxTemplate"
+                      DataType="{x:Type vm:PropertyEditViewModel}">
+            <Grid Style="{StaticResource RowGrid}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding Label}"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="12" VerticalAlignment="Center"/>
+                <ComboBox Grid.Column="1"
+                          Style="{StaticResource DarkComboBox}"
+                          ItemsSource="{Binding ListOptions}"
+                          SelectedItem="{Binding Value}"/>
+            </Grid>
+        </DataTemplate>
+
+        <local:PropertyEditorSelector x:Key="EditorSelector"
+                                      TextBoxTemplate="{StaticResource TextBoxTemplate}"
+                                      FolderPathTemplate="{StaticResource FolderPathTemplate}"
+                                      EnumComboBoxTemplate="{StaticResource EnumComboBoxTemplate}"
+                                      ListComboBoxTemplate="{StaticResource ListComboBoxTemplate}"/>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>  <!-- header -->
+            <RowDefinition Height="*"/>     <!-- main content -->
+            <RowDefinition Height="Auto"/>  <!-- footer buttons -->
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0" Margin="20,16,20,8">
+            <TextBlock Text="Options" FontSize="16" FontWeight="Bold"
+                       Foreground="{StaticResource TextBrush}"/>
+            <!-- CloseOptionsCommand lives on ShellViewModel (the Window's DataContext) -->
+            <Button HorizontalAlignment="Right"
+                    Style="{StaticResource TopBarAction}"
+                    Command="{Binding RelativeSource={RelativeSource AncestorType=Window},
+                                      Path=DataContext.CloseOptionsCommand}">
+                <TextBlock Text="✕" FontSize="14" Foreground="{StaticResource TextMutedBrush}"/>
+            </Button>
+        </Grid>
+
+        <!-- Two-column body -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="180"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: section list -->
+            <Border Grid.Column="0"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,0,1,0">
+                <ListBox ItemsSource="{Binding Sections}"
+                         SelectedItem="{Binding SelectedSection}"
+                         Style="{StaticResource DarkListBox}"
+                         Padding="8,4">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem"
+                               BasedOn="{StaticResource DarkListBoxItem}">
+                            <Setter Property="Padding" Value="10,8"/>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:ConfigEditViewModel}">
+                            <TextBlock Text="{Binding FriendlyName}"
+                                       FontSize="13"
+                                       Foreground="{StaticResource TextBrush}"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+
+            <!-- Right: property grid -->
+            <ScrollViewer Grid.Column="1" Padding="20,12">
+                <ItemsControl ItemsSource="{Binding SelectedSection.Properties}"
+                              ItemTemplateSelector="{StaticResource EditorSelector}"/>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- Footer -->
+        <Border Grid.Row="2"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="16,12">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <!-- Cancel: closes the panel via the Window's ShellViewModel -->
+                <Button Content="Cancel"
+                        Width="90" Height="32"
+                        Margin="0,0,8,0"
+                        FontSize="12"
+                        Background="{StaticResource Surface2Brush}"
+                        Foreground="{StaticResource TextBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        Cursor="Hand"
+                        Command="{Binding RelativeSource={RelativeSource AncestorType=Window},
+                                          Path=DataContext.CloseOptionsCommand}">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="root"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="7" Padding="8,6">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="root" Property="Background" Value="{StaticResource BorderBrush}"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+
+                <!-- Save -->
+                <Button Content="Save"
+                        Width="90" Height="32"
+                        FontSize="12"
+                        Background="{StaticResource AccentBrush}"
+                        Foreground="White"
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        IsEnabled="{Binding CanSave}"
+                        Command="{Binding SaveCommand}">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="root"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="7" Padding="8,6">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="root" Property="Opacity" Value="0.4"/>
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="root" Property="Opacity" Value="0.85"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>
