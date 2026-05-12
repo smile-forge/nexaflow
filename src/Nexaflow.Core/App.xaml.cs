@@ -1,10 +1,10 @@
-using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Console;
 using Nexaflow.Features.Projects;
 using Nexaflow.Providers.Aria;
 using Nexaflow.Providers.Common;
 using System.Windows;
+using Nexaflow.Core.Services;
 
 namespace Nexaflow.Core;
 
@@ -14,24 +14,39 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        // Create the activity manager first so the provider can report
-        // activity through it before any window is shown.
+        // Activity manager needed by providers for status reporting
         var activityManager = new BackgroundActivityManager();
-        LlmProviderRegistry.Register(new AriaLlmProvider(activityManager));
+        LlmProviderRegistry.Register("Aria", new AriaLlmProvider(activityManager));
 
         RegisterFeatures();
-        new MainWindow(activityManager).Show();
+
+        // ShellConfig is not in a feature assembly; register manually after providers are ready
+        var shellConfig = new ShellConfig();
+        ConfigManager.Instance.Register(shellConfig, shellConfig.ConfigName);
+
+        // Apply any persisted provider selections
+        if (!string.IsNullOrEmpty(shellConfig.BasicAiProvider))
+            LlmProviderRegistry.SetBasicProvider(shellConfig.BasicAiProvider);
+        if (!string.IsNullOrEmpty(shellConfig.ConversationAiProvider))
+            LlmProviderRegistry.SetConversationProvider(shellConfig.ConversationAiProvider);
+
+        var win = new MainWindow(activityManager);
+        win.Show();
+
+        // First run: open Options automatically so the user can configure things
+        if (ConfigManager.Instance.IsFirstRun)
+            win.ViewModel.OptionsOpen = true;
     }
 
     /// <summary>
-    /// Registers all feature tab factories with <see cref="FeatureManager"/>.
-    /// Add a new entry here when introducing a new feature assembly.
+    /// Registers all feature tab factories. Pass any type from the feature assembly;
+    /// FeatureManager scans the whole assembly automatically.
     /// </summary>
     private static void RegisterFeatures()
     {
         var fm = FeatureManager.Instance;
-        fm.Register(new ConsoleTabRegistration());
-        fm.Register(new ProjectsTabRegistration());
-        fm.Register(new ProjectDetailTabRegistration());
+        fm.Register(typeof(ConsoleTabRegistration));
+        fm.Register(typeof(ProjectsTabRegistration));
+        // ProjectDetailTabRegistration is in the same Projects assembly and discovered automatically
     }
 }

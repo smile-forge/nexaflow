@@ -1,5 +1,4 @@
 using Nexaflow.Features.Common.Controls;
-using Nexaflow.Features.Projects.Services;
 using Nexaflow.Features.Projects.Model;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -39,7 +38,7 @@ public partial class ProjectSummaryItem : ObservableObject
 
 public partial class ProjectsViewModel : ObservableObject
 {
-    private readonly ProjectOperations _svc = ProjectService.Ops;
+    private readonly ProjectOperations _svc;
 
     public ObservableCollection<ProjectSummaryItem> Projects { get; } = [];
 
@@ -66,7 +65,11 @@ public partial class ProjectsViewModel : ObservableObject
         BrushCancelled.Freeze();
     }
 
-    public ProjectsViewModel() => Load();
+    public ProjectsViewModel(ProjectOperations ops)
+    {
+        _svc = ops;
+        Load();
+    }
 
     [RelayCommand]
     private void Refresh() => Load();
@@ -134,6 +137,6 @@ public partial class ProjectsViewModel : ObservableObject
     {
         var folder = item?.FolderName ?? SelectedProject?.FolderName;
         if (folder is null) return;
-        OpenFilesRequested?.Invoke(ProjectService.GetProjectPath(folder));
+        OpenFilesRequested?.Invoke(System.IO.Path.Combine(_svc.RootPath, folder));
     }
 }

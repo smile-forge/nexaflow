@@ -43,7 +43,7 @@ public partial class ShellViewModel : ObservableObject
     [ObservableProperty] private bool   _aiIsBusy;
     [ObservableProperty] private bool   _voiceActive;
 
-    private readonly ILlmProvider _llmProvider;
+    private ILlmProvider LlmProvider => LlmProviderRegistry.Basic;
 
     // ── Error toast ───────────────────────────────────────────────────────
     [ObservableProperty] private string? _errorToast;
@@ -73,6 +73,27 @@ public partial class ShellViewModel : ObservableObject
         }, TaskScheduler.Default);
     }
 
+    /// <summary>Called by MainWindow when the OptionsViewModel raises a SaveError event.</summary>
+    public void ShowErrorToast(string message) => ShowError("Settings", message);
+
+    /// <summary>
+    /// Closes any open tabs whose PageKind matches one of <paramref name="pageKinds"/>
+    /// and immediately reopens them so they pick up the updated config.
+    /// </summary>
+    public void RefreshTabs(IEnumerable<string> pageKinds)
+    {
+        var kinds = pageKinds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var toRefresh = Tabs.Where(t => kinds.Contains(t.PageKind ?? string.Empty)).ToList();
+        foreach (var tab in toRefresh)
+        {
+            var pageKind = tab.PageKind;
+            var pageParams = tab.PageParams;
+            CloseTab(tab);
+            if (!string.IsNullOrEmpty(pageKind))
+                OpenTabForPageKind(pageKind, pageParams);
+        }
+    }
+
     // ── Options overlay ───────────────────────────────────────────────────
     [ObservableProperty] private bool _optionsOpen;
 
@@ -84,8 +105,6 @@ public partial class ShellViewModel : ObservableObject
         _activityManager = activityManager;
         _activityManager.IsActiveChanged += (_, active) =>
             Application.Current.Dispatcher.Invoke(() => AiIsBusy = active);
-
-        _llmProvider = LlmProviderRegistry.Current;
 
         FeatureManager.Instance.TabOpenRequested += OnFeatureTabOpenRequested;
         LoadOrBuildRibbon();
@@ -343,7 +362,7 @@ public partial class ShellViewModel : ObservableObject
                     $"Available tools:\n{toolList}\n\n" +
                     "Which tool number should handle this request? " +
                     "Reply with only the number, or \"ask: <question>\" to request clarification.";
-                var response = await _llmProvider.QueryAsync(string.Empty, userPrompt);
+                var response = await LlmProvider.QueryAsync(string.Empty, userPrompt);
                 llmReply = response?.RawText?.Trim();
             }
             catch (LlmProviderException ex)
@@ -384,7 +403,7 @@ public partial class ShellViewModel : ObservableObject
                 var history = conv.Messages
                     .Select(m => new LlmMessage(m.IsUser, m.Text))
                     .ToList();
-                actionResponse = await _llmProvider.ChatAsync(history, text);
+                actionResponse = await LlmProvider.ChatAsync(history, text);
             }
             else
             {
@@ -405,7 +424,7 @@ public partial class ShellViewModel : ObservableObject
                     "{\"action\": \"ActionName\", \"paramName\": \"value\", ...}\n" +
                     "Otherwise reply conversationally.";
 
-                actionResponse = await _llmProvider.QueryAsync(string.Empty, userPrompt);
+                actionResponse = await LlmProvider.QueryAsync(string.Empty, userPrompt);
             }
         }
         catch (LlmProviderException ex)
