@@ -428,4 +428,4 @@ FodyWeavers.xsd
 *.msm
 *.msp
 
-/.claude/worktrees/*
+/.claude/*
