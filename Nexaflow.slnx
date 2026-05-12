@@ -9,7 +9,9 @@
   </Folder>
   <Folder Name="/Nexaflow.Providers/">
     <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.Aria/Nexaflow.Providers.Aria.csproj" />
+    <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.Claude/Nexaflow.Providers.Claude.csproj" />
     <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.Common/Nexaflow.Providers.Common.csproj" />
+    <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.Ollama/Nexaflow.Providers.Ollama.csproj" />
   </Folder>
   <Project Path="src/Nexaflow.Core/Nexaflow.Core.csproj" Id="eed52ce5-c185-4a39-af4b-8df86d69359a" />
 </Solution>
