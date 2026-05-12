@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Nexaflow.Core.Controls;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Core.ViewModels;
@@ -87,9 +88,32 @@ public partial class MainWindow : Window
             _vm.OpenTabForPageKind(pageKind, pageParams);
     }
 
+    private ShellViewModel ShellVm => _vm;
+
+    private void WireOptionsPanel()
+    {
+        // Recreate the VM each time the panel opens so Cancel always discards edits cleanly.
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ShellViewModel.OptionsOpen) && _vm.OptionsOpen)
+                ResetOptionsPanel();
+        };
+        ResetOptionsPanel();
+    }
+
+    private void ResetOptionsPanel()
+    {
+        var optionsVm = new OptionsViewModel();
+        optionsVm.SaveError           += msg   => ShellVm.ShowErrorToast(msg);
+        optionsVm.TabRefreshRequested += kinds => ShellVm.RefreshTabs(kinds);
+        optionsVm.SaveCompleted       += ()    => ShellVm.OptionsOpen = false;
+        OptionsPanelControl.DataContext = optionsVm;
+    }
+
     private void FinishInit()
     {
         WindowManager.Register(this);
+        WireOptionsPanel();
 
         // Prevent default WPF shutdown-on-last-window behaviour — WindowManager handles it.
         Closing += (_, _) => WindowManager.Unregister(this);

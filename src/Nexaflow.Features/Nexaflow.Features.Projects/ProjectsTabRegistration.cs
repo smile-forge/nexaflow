@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Projects.Model;
 using Nexaflow.Features.Projects.ViewModels;
 using Nexaflow.Features.Projects.Views;
 
@@ -6,14 +7,20 @@ namespace Nexaflow.Features.Projects;
 
 /// <summary>
 /// Registers the Projects list page with <see cref="FeatureManager"/>.
+/// FeatureManager injects the shared <see cref="ProjectsConfig"/> instance via the constructor.
 /// </summary>
 public sealed class ProjectsTabRegistration : ITabRegistration
 {
+    private readonly ProjectsConfig _config;
+
+    public ProjectsTabRegistration(ProjectsConfig config) => _config = config;
+
     public string PageKind => "Projects";
 
     public TabEntry CreateTab(Dictionary<string, string>? pageParams = null)
     {
-        var vm  = new ProjectsViewModel();
+        var ops = new ProjectOperations(_config);
+        var vm  = new ProjectsViewModel(ops);
         var tab = new TabEntry
         {
             Title       = "Projects",
