@@ -26,6 +26,7 @@
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Web\Nexaflow.Features.Web.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Aria\Nexaflow.Providers.Aria.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Common\Nexaflow.Providers.Common.csproj" />
+    <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Ollama\Nexaflow.Providers.Ollama.csproj" />
   </ItemGroup>
   
 </Project>
