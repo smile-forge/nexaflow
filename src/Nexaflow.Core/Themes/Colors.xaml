@@ -1,0 +1,49 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ── Palette ── -->
+    <Color x:Key="BgColor">#0F1117</Color>
+    <Color x:Key="SurfaceColor">#181C27</Color>
+    <Color x:Key="Surface2Color">#1F2435</Color>
+    <Color x:Key="BorderColor">#2A3047</Color>
+    <Color x:Key="BorderLightColor">#323956</Color>
+    <Color x:Key="AccentColor">#4F8EF7</Color>
+    <Color x:Key="Accent2Color">#7C5CFC</Color>
+    <Color x:Key="TextColor">#E8EAF2</Color>
+    <Color x:Key="TextMutedColor">#7880A0</Color>
+    <Color x:Key="TextDimColor">#4A5270</Color>
+    <Color x:Key="GreenColor">#22D3A5</Color>
+    <Color x:Key="OrangeColor">#F97316</Color>
+    <Color x:Key="DeepBgColor">#080C16</Color>
+
+    <!-- ── Brushes ── -->
+    <SolidColorBrush x:Key="BgBrush"         Color="{StaticResource BgColor}"/>
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="{StaticResource SurfaceColor}"/>
+    <SolidColorBrush x:Key="Surface2Brush"   Color="{StaticResource Surface2Color}"/>
+    <SolidColorBrush x:Key="BorderBrush"     Color="{StaticResource BorderColor}"/>
+    <SolidColorBrush x:Key="BorderLightBrush" Color="{StaticResource BorderLightColor}"/>
+    <SolidColorBrush x:Key="AccentBrush"     Color="{StaticResource AccentColor}"/>
+    <SolidColorBrush x:Key="Accent2Brush"    Color="{StaticResource Accent2Color}"/>
+    <SolidColorBrush x:Key="TextBrush"       Color="{StaticResource TextColor}"/>
+    <SolidColorBrush x:Key="TextMutedBrush"  Color="{StaticResource TextMutedColor}"/>
+    <SolidColorBrush x:Key="TextDimBrush"    Color="{StaticResource TextDimColor}"/>
+    <SolidColorBrush x:Key="GreenBrush"      Color="{StaticResource GreenColor}"/>
+    <SolidColorBrush x:Key="OrangeBrush"     Color="{StaticResource OrangeColor}"/>
+    <SolidColorBrush x:Key="DeepBgBrush"     Color="{StaticResource DeepBgColor}"/>
+
+    <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#A8D4FF" Offset="0"/>
+        <GradientStop Color="#C4A8FF" Offset="1"/>
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="BarGradientBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="{StaticResource AccentColor}" Offset="0"/>
+        <GradientStop Color="{StaticResource Accent2Color}" Offset="1"/>
+    </LinearGradientBrush>
+
+    <!-- Dimensions -->
+    <GridLength x:Key="TopBarHeight">72</GridLength>
+    <GridLength x:Key="TabBarHeight">38</GridLength>
+    <GridLength x:Key="InteractionHeight">90</GridLength>
+
+</ResourceDictionary>

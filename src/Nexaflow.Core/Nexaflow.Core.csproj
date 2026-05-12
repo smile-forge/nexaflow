@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+	<ApplicationIcon>Appicon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="Appicon.ico" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Console\Nexaflow.Features.Console.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Images\Nexaflow.Features.Images.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Markdown\Nexaflow.Features.Markdown.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Projects\Nexaflow.Features.Projects.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Web\Nexaflow.Features.Web.csproj" />
+    <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Aria\Nexaflow.Providers.Aria.csproj" />
+    <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Common\Nexaflow.Providers.Common.csproj" />
+  </ItemGroup>
+  
+</Project>

@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"D:\\\\Projects\\\\nexaflow\" -Recurse -Include \"*.sln\", \"*.csproj\")",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Sort-Object)",
+      "Bash(dotnet build *)",
+      "Bash(Get-ChildItem -Path \"D:\\\\Projects\\\\nexaflow\" -Recurse -Include \"*.csproj\")",
+      "Bash(Select-Object FullName)",
+      "Bash(xargs grep -l \"ServiceCollection\\\\|DependencyInjection\\\\|AddScoped\\\\|AddSingleton\")",
+      "Bash(xargs grep -l \"ViewModel\\\\|TabEntry\\\\|RibbonItem\")",
+      "Bash(xargs grep -l \"class BreadcrumbSegment\")",
+      "Bash(Get-ChildItem -Path \"D:\\\\Projects\\\\nexaflow\" -Recurse -Directory)",
+      "PowerShell(head -50)",
+      "Bash(grep -E \"\\\\.cs$\")"
+    ]
+  }
+}

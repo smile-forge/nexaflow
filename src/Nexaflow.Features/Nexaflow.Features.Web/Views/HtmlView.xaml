@@ -1,0 +1,134 @@
+<UserControl x:Class="Nexaflow.Features.Web.Views.HtmlView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+             Background="{StaticResource BgBrush}">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
+        <Style x:Key="ToolbarBtnStyle" TargetType="Button">
+            <Setter Property="Background"       Value="Transparent"/>
+            <Setter Property="Foreground"       Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="BorderThickness"  Value="0"/>
+            <Setter Property="Padding"          Value="8,5"/>
+            <Setter Property="Cursor"           Value="Hand"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{StaticResource Surface2Brush}"/>
+                                <Setter Property="Foreground"
+                                        Value="{StaticResource TextBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{StaticResource BorderBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.3"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="42"/>   <!-- toolbar -->
+            <RowDefinition Height="*"/>    <!-- WebView2 -->
+        </Grid.RowDefinitions>
+
+        <!-- ── Toolbar ── -->
+        <Border Grid.Row="0"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <Grid Margin="8,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>   <!-- nav buttons  -->
+                    <ColumnDefinition Width="*"/>      <!-- url bar      -->
+                    <ColumnDefinition Width="Auto"/>   <!-- reload       -->
+                </Grid.ColumnDefinitions>
+
+                <!-- Back / Forward -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal"
+                            VerticalAlignment="Center" Margin="0,0,6,0">
+                    <Button x:Name="BackButton"
+                            Style="{StaticResource ToolbarBtnStyle}"
+                            Click="Back_Click"
+                            ToolTip="Back"
+                            Margin="0,0,4,0">
+                        <TextBlock Text="◀" FontSize="11"
+                                   Foreground="{StaticResource TextMutedBrush}"/>
+                    </Button>
+                    <Button x:Name="ForwardButton"
+                            Style="{StaticResource ToolbarBtnStyle}"
+                            Click="Forward_Click"
+                            ToolTip="Forward">
+                        <TextBlock Text="▶" FontSize="11"
+                                   Foreground="{StaticResource TextMutedBrush}"/>
+                    </Button>
+                </StackPanel>
+
+                <!-- URL bar -->
+                <Border Grid.Column="1"
+                        Background="{StaticResource DeepBgBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="8,0"
+                        Margin="0,6">
+                    <TextBlock x:Name="UrlBar"
+                               Text="{Binding CurrentUrl}"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               FontSize="12"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"/>
+                </Border>
+
+                <!-- Reload -->
+                <Button Grid.Column="2"
+                        Style="{StaticResource ToolbarBtnStyle}"
+                        Click="Reload_Click"
+                        ToolTip="Reload"
+                        Margin="6,0,0,0">
+                    <TextBlock Text="↺" FontSize="14"
+                               Foreground="{StaticResource TextMutedBrush}"/>
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- Loading indicator -->
+        <Border Grid.Row="1"
+                Background="{StaticResource BgBrush}"
+                Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}"
+                Panel.ZIndex="10">
+            <TextBlock Text="Loading…"
+                       Foreground="{StaticResource TextMutedBrush}"
+                       FontSize="14"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"/>
+        </Border>
+
+        <!-- WebView2 -->
+        <wv2:WebView2 x:Name="WebView"
+                      Grid.Row="1"
+                      NavigationStarting="WebView_NavigationStarting"
+                      NavigationCompleted="WebView_NavigationCompleted"/>
+    </Grid>
+</UserControl>
