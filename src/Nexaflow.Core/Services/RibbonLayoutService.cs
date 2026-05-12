@@ -20,7 +20,7 @@ public static class RibbonLayoutService
 {
     private static readonly string _path = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "Aria", "Shell", "ribbon.json");
+        "Smile", "Nexaflow", "ribbon.json");
 
     private static readonly JsonSerializerOptions _opts = new()
     {

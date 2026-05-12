@@ -12,7 +12,7 @@ public static class ConversationPersistenceService
 {
     private static readonly string BaseDir =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                     "Aria", "Shell", "Conversations");
+                     "Smile", "Nexaflow", "Conversations");
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
