@@ -2,6 +2,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Console;
 using Nexaflow.Features.Projects;
 using Nexaflow.Providers.Aria;
+using Nexaflow.Providers.Claude;
 using Nexaflow.Providers.Common;
 using Nexaflow.Providers.Ollama;
 using System.Windows;
@@ -22,6 +23,10 @@ public partial class App : Application
         var ollamaConfig = new OllamaConfig();
         ConfigManager.Instance.Register(ollamaConfig, ollamaConfig.ConfigName);
         LlmProviderRegistry.Register("Ollama", new OllamaLlmProvider(activityManager, ollamaConfig));
+
+        var claudeConfig = new ClaudeConfig();
+        ConfigManager.Instance.Register(claudeConfig, claudeConfig.ConfigName);
+        LlmProviderRegistry.Register("Claude", new ClaudeLlmProvider(activityManager, claudeConfig));
 
         RegisterFeatures();
 
