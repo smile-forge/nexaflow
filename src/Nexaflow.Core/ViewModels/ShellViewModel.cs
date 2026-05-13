@@ -50,6 +50,12 @@ public partial class ShellViewModel : ObservableObject
 
     private CancellationTokenSource? _errorToastCts;
 
+    // ── Update toast ──────────────────────────────────────────────────────
+    [ObservableProperty] private string? _updateToastVersion;
+    [ObservableProperty] private string? _updateToastChangelog;
+
+    private CancellationTokenSource? _updateToastCts;
+
     /// <summary>
     /// Displays <paramref name="message"/> in the error toast for a few seconds,
     /// then also adds it as a persistent notification.
@@ -75,6 +81,21 @@ public partial class ShellViewModel : ObservableObject
 
     /// <summary>Called by MainWindow when the OptionsViewModel raises a SaveError event.</summary>
     public void ShowErrorToast(string message) => ShowError("Settings", message);
+
+    public void ShowUpdateToast(string version, string? changelog)
+    {
+        _updateToastCts?.Cancel();
+        _updateToastCts = new CancellationTokenSource();
+        UpdateToastVersion  = version;
+        UpdateToastChangelog = changelog ?? string.Empty;
+
+        var token = _updateToastCts.Token;
+        _ = Task.Delay(TimeSpan.FromMinutes(5), token).ContinueWith(t =>
+        {
+            if (!t.IsCanceled)
+                Application.Current.Dispatcher.Invoke(() => UpdateToastVersion = null);
+        }, TaskScheduler.Default);
+    }
 
     /// <summary>
     /// Closes any open tabs whose PageKind matches one of <paramref name="pageKinds"/>
@@ -310,6 +331,21 @@ public partial class ShellViewModel : ObservableObject
     {
         _errorToastCts?.Cancel();
         ErrorToast = null;
+    }
+
+    [RelayCommand]
+    private void DismissUpdateToast()
+    {
+        _updateToastCts?.Cancel();
+        UpdateToastVersion = null;
+    }
+
+    [RelayCommand]
+    private async Task AcceptUpdate()
+    {
+        _updateToastCts?.Cancel();
+        UpdateToastVersion = null;
+        await ((App)Application.Current).DownloadAndInstallUpdate();
     }
 
     // ── AI ────────────────────────────────────────────────────────────────
