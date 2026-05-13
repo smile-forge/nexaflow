@@ -1056,6 +1056,9 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
         private readonly FileSystemViewModel _vm;
         public TabOpenerBridge(FileSystemViewModel vm) => _vm = vm;
 
+        public void OpenTab(string pageKind, Dictionary<string, string>? pageParams = null)
+            => FeatureManager.Instance.RequestTab(pageKind, pageParams);
+
         public void OpenImageViewer(IReadOnlyList<string> imagePaths)
         {
             if (imagePaths.Count == 0) return;

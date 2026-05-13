@@ -12,7 +12,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.Providers.Common\Nexaflow.Providers.Common.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
   </ItemGroup>
 
 </Project>

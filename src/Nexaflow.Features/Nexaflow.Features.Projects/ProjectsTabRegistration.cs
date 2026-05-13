@@ -12,8 +12,13 @@ namespace Nexaflow.Features.Projects;
 public sealed class ProjectsTabRegistration : ITabRegistration
 {
     private readonly ProjectsConfig _config;
+    private readonly ITabOpener     _tabOpener;
 
-    public ProjectsTabRegistration(ProjectsConfig config) => _config = config;
+    public ProjectsTabRegistration(ProjectsConfig config, ITabOpener tabOpener)
+    {
+        _config    = config;
+        _tabOpener = tabOpener;
+    }
 
     public string PageKind => "Projects";
 
@@ -32,9 +37,9 @@ public sealed class ProjectsTabRegistration : ITabRegistration
         {
             var page = new ProjectsView(vm);
             vm.OpenProjectRequested += folder =>
-                FeatureManager.Instance.RequestTab("ProjectDetail", new() { ["folder"] = folder });
+                _tabOpener.OpenTab("ProjectDetail", new() { ["folder"] = folder });
             vm.OpenFilesRequested += path =>
-                FeatureManager.Instance.RequestTab("FileSystem", new() { ["mode"] = "path", ["path"] = path });
+                _tabOpener.OpenTab("FileSystem", new() { ["mode"] = "path", ["path"] = path });
             return page;
         };
 

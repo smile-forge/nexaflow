@@ -89,8 +89,9 @@ public partial class PropertyEditViewModel : ObservableObject
         _editingClone = editingClone;
         _onChanged   = onChanged;
 
-        var displayAttr   = pi.GetCustomAttribute<ConfigDisplayNameAttribute>();
-        Label = displayAttr?.DisplayName ?? pi.Name;
+        var displayAttr = pi.GetCustomAttribute<Nexaflow.Features.Common.ConfigDisplayNameAttribute>()?.DisplayName
+                       ?? pi.GetCustomAttribute<Nexaflow.Providers.Common.ConfigDisplayNameAttribute>()?.DisplayName;
+        Label = displayAttr ?? pi.Name;
 
         var folderAttr  = pi.GetCustomAttribute<FolderPathAttribute>();
         var listAttr    = pi.GetCustomAttribute<ListSourceAttribute>();

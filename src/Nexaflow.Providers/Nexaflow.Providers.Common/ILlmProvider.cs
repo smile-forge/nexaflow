@@ -8,6 +8,8 @@ namespace Nexaflow.Providers.Common;
 /// </summary>
 public interface ILlmProvider
 {
+    string Name { get; }
+
     /// <summary>
     /// One-shot query: sends a system prompt and user prompt and returns a single response.
     /// Use this from any page for contextual, stateless queries.

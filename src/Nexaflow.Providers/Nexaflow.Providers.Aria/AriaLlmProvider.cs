@@ -10,6 +10,8 @@ namespace Nexaflow.Providers.Aria;
 /// </summary>
 public sealed class AriaLlmProvider : ILlmProvider, IAsyncDisposable
 {
+    public string Name => "Aria";
+
     private readonly AriaClientService        _client;
     private readonly IBackgroundActivityManager _activityManager;
 

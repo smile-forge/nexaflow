@@ -1,4 +1,3 @@
-using Nexaflow.Features.Common;
 using Nexaflow.Features.Console;
 using Nexaflow.Features.Projects;
 using Nexaflow.Providers.Aria;
@@ -16,17 +15,10 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        // Activity manager needed by providers for status reporting
         var activityManager = new BackgroundActivityManager();
-        LlmProviderRegistry.Register("Aria", new AriaLlmProvider(activityManager));
-
-        var ollamaConfig = new OllamaConfig();
-        ConfigManager.Instance.Register(ollamaConfig, ollamaConfig.ConfigName);
-        LlmProviderRegistry.Register("Ollama", new OllamaLlmProvider(activityManager, ollamaConfig));
-
-        var claudeConfig = new ClaudeConfig();
-        ConfigManager.Instance.Register(claudeConfig, claudeConfig.ConfigName);
-        LlmProviderRegistry.Register("Claude", new ClaudeLlmProvider(activityManager, claudeConfig));
+        ProviderManager.Instance.Register(typeof(AriaLlmProvider), activityManager);
+        ProviderManager.Instance.Register(typeof(OllamaLlmProvider), activityManager);
+        ProviderManager.Instance.Register(typeof(ClaudeLlmProvider), activityManager);
 
         RegisterFeatures();
 

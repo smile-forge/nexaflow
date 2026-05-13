@@ -2,7 +2,7 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Nexaflow.Features.Common;
+namespace Nexaflow.Core;
 
 /// <summary>
 /// Singleton registry that loads and persists config POCOs to
