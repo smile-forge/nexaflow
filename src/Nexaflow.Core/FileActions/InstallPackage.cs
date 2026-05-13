@@ -2,7 +2,7 @@ using Nexaflow.Features.Common;
 using System.Collections.Generic;
 using System.Diagnostics;
 
-namespace Nexaflow.Features.WinFileSystem.FileActions
+namespace Nexaflow.Core.FileActions
 {
     /// <summary>
     /// Installs a Windows Installer package (.msi) or an MSIX / MSIXBUNDLE

@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Nexaflow.Features.WinFileSystem.FileActions
+namespace Nexaflow.Core.FileActions
 {
     internal class FileProperties : IFileAction
     {

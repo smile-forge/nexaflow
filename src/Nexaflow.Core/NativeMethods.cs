@@ -3,7 +3,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 
-namespace Nexaflow.Features.WinFileSystem
+namespace Nexaflow.Core
 {
     public static class NativeMethods
     {

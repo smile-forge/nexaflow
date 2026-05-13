@@ -13,20 +13,4 @@ public interface ITabOpener
     /// page-specific parameters (e.g. folder path, file path).
     /// </summary>
     void OpenTab(string pageKind, Dictionary<string, string>? pageParams = null);
-
-    /// <summary>
-    /// Opens an image-viewer tab for the given ordered list of image paths.
-    /// </summary>
-    void OpenImageViewer(IReadOnlyList<string> imagePaths);
-
-    /// <summary>
-    /// Opens an HTML viewer tab for the given file path.
-    /// Accepts .html and .url files.
-    /// </summary>
-    void OpenHtmlViewer(string filePath);
-
-    /// <summary>
-    /// Opens a live markdown editor/preview tab for the given .md file.
-    /// </summary>
-    void OpenMarkdownViewer(string filePath);
 }
