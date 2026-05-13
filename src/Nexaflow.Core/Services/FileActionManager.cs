@@ -1,28 +1,37 @@
-using Nexaflow.Features.WinFileSystem.FileActions;
+using Nexaflow.Core.ViewModels;
+using Nexaflow.Features.Common;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 
-namespace Nexaflow.Core.ViewModels;
+namespace Nexaflow.Core.Services;
 
 /// <summary>
-/// Discovers every <see cref="IFileAction"/> implementation in the executing assembly
-/// and instantiates each one once (singletons) using basic constructor injection.
-/// The registry is built once and cached; use <see cref="GetActionsFor"/> to obtain
-/// a filtered list appropriate for the current selection context.
+/// Discovers every <see cref="IFileAction"/> and <see cref="IFileCreateAction"/>
+/// implementation — both in the executing (Core) assembly and in any feature assembly
+/// registered with <see cref="FeatureManager"/> — and instantiates each one once
+/// (singletons) using basic constructor injection.
+/// Use <see cref="GetActionsFor"/> to obtain a filtered list appropriate for the
+/// current selection context.
 /// </summary>
-public sealed class FileActionRegistry
+public sealed class FileActionManager
 {
-    private readonly IReadOnlyList<IFileAction> _all;
+    private readonly IReadOnlyList<IFileAction>       _all;
+    private readonly IReadOnlyList<IFileCreateAction> _allCreateActions;
+
+    /// <summary>All discovered create-file actions.</summary>
+    public IReadOnlyList<IFileCreateAction> CreateActions => _allCreateActions;
 
     /// <param name="services">
     /// Map of service type → singleton instance that can be injected into action
     /// constructors. Pass an empty dictionary if no extra services are needed.
     /// </param>
-    public FileActionRegistry(IReadOnlyDictionary<Type, object>? services = null)
+    public FileActionManager(IReadOnlyDictionary<Type, object>? services = null)
     {
-        _all = Discover(services ?? new Dictionary<Type, object>());
+        var svc = services ?? new Dictionary<Type, object>();
+        _all              = Discover(svc);
+        _allCreateActions = DiscoverCreate(svc);
     }
 
     // ── Discovery ────────────────────────────────────────────────────────────
@@ -30,14 +39,45 @@ public sealed class FileActionRegistry
     private static IReadOnlyList<IFileAction> Discover(IReadOnlyDictionary<Type, object> services)
     {
         var result = new List<IFileAction>();
+
+        // Core assembly types
         foreach (var type in Assembly.GetExecutingAssembly().GetTypes())
-        {
-            if (type.IsAbstract || type.IsInterface) continue;
-            if (!typeof(IFileAction).IsAssignableFrom(type)) continue;
-            if (TryCreate(type, services) is IFileAction action)
-                result.Add(action);
-        }
+            TryAddAction(type, services, result);
+
+        // Feature assembly types collected by FeatureManager during Register()
+        foreach (var type in FeatureManager.Instance.FileActionTypes)
+            TryAddAction(type, services, result);
+
         return result;
+    }
+
+    private static void TryAddAction(Type type, IReadOnlyDictionary<Type, object> services, List<IFileAction> result)
+    {
+        if (type.IsAbstract || type.IsInterface) return;
+        if (!typeof(IFileAction).IsAssignableFrom(type)) return;
+        if (TryCreate(type, services) is IFileAction action)
+            result.Add(action);
+    }
+
+    private static IReadOnlyList<IFileCreateAction> DiscoverCreate(IReadOnlyDictionary<Type, object> services)
+    {
+        var result = new List<IFileCreateAction>();
+
+        foreach (var type in Assembly.GetExecutingAssembly().GetTypes())
+            TryAddCreateAction(type, services, result);
+
+        foreach (var type in FeatureManager.Instance.FileCreateActionTypes)
+            TryAddCreateAction(type, services, result);
+
+        return result;
+    }
+
+    private static void TryAddCreateAction(Type type, IReadOnlyDictionary<Type, object> services, List<IFileCreateAction> result)
+    {
+        if (type.IsAbstract || type.IsInterface) return;
+        if (!typeof(IFileCreateAction).IsAssignableFrom(type)) return;
+        if (TryCreate(type, services) is IFileCreateAction action)
+            result.Add(action);
     }
 
     /// <summary>
@@ -81,8 +121,6 @@ public sealed class FileActionRegistry
     /// </summary>
     public IReadOnlyList<IFileAction> GetActionsFor(IReadOnlyList<FileSystemEntry> selected)
     {
-        // Snapshot CanPerformAction on the calling (STA) thread — these may call
-        // OLE clipboard APIs that cannot run on an MTA thread-pool thread.
         var canPerform = SnapshotCanPerform();
         return FilterActions(selected, canPerform);
     }
@@ -142,13 +180,10 @@ public sealed class FileActionRegistry
         if (anyDrives && !action.AppliesToDrives)
             return false;
 
-        // Actions that only apply to the root (e.g. Paste) should not appear
-        // when individual files are selected — only when nothing is selected or
-        // only folders are selected and the action also supports folders.
         if (action.AppliesToRoot && !action.AppliesToFolders)
-            return false;   // pure root-only, no individual selection support
+            return false;
         if (action.AppliesToRoot && !onlyFolders)
-            return false;   // e.g. Paste: hide when files are selected
+            return false;
 
         if (onlyFolders)
         {
@@ -158,7 +193,6 @@ public sealed class FileActionRegistry
             return true;
         }
 
-        // At least one file in the selection
         if (action.SupportedFileTypes != "*.*")
         {
             var patterns = action.SupportedFileTypes
@@ -188,7 +222,6 @@ public sealed class FileActionRegistry
         if (supported is "*" or "") return true;
         if (string.IsNullOrEmpty(contentType)) return true;
 
-        // Exact match or wildcard subtype: "text/*" matches "text/plain"
         if (supported.EndsWith("/*"))
         {
             var prefix = supported[..^2];

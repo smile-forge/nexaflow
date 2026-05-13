@@ -1,8 +1,9 @@
 using Nexaflow.Features.Common;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
-namespace Nexaflow.Features.WinFileSystem.FileActions
+namespace Nexaflow.Features.Images.FileActions
 {
     /// <summary>
     /// Displays one or more image files in a new ImageViewer tab.
@@ -40,7 +41,7 @@ namespace Nexaflow.Features.WinFileSystem.FileActions
         public bool PerformAction(IEnumerable<string> filePaths)
         {
             var images = filePaths
-                .Where(p => _exts.Contains(System.IO.Path.GetExtension(p)))
+                .Where(p => _exts.Contains(Path.GetExtension(p)))
                 .ToList();
 
             if (images.Count == 0) return false;

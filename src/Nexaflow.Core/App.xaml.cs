@@ -1,5 +1,8 @@
 using Nexaflow.Features.Console;
+using Nexaflow.Features.Images;
+using Nexaflow.Features.Markdown;
 using Nexaflow.Features.Projects;
+using Nexaflow.Features.Web;
 using Nexaflow.Providers.Aria;
 using Nexaflow.Providers.Claude;
 using Nexaflow.Providers.Common;
@@ -50,5 +53,8 @@ public partial class App : Application
         fm.Register(typeof(ConsoleTabRegistration));
         fm.Register(typeof(ProjectsTabRegistration));
         // ProjectDetailTabRegistration is in the same Projects assembly and discovered automatically
+        fm.Register(typeof(HtmlTabRegistration));
+        fm.Register(typeof(ImageTabRegistration));
+        fm.Register(typeof(MarkdownTabRegistration));
     }
 }

@@ -1,9 +1,7 @@
-﻿using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Windows.Media;
 
-namespace Nexaflow.Features.WinFileSystem.FileActions
+namespace Nexaflow.Features.Common
 {
     public interface IFileAction
     {

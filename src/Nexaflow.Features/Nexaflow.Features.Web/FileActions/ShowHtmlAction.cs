@@ -2,7 +2,7 @@ using Nexaflow.Features.Common;
 using System.Collections.Generic;
 using System.IO;
 
-namespace Nexaflow.Features.WinFileSystem.FileActions
+namespace Nexaflow.Features.Web.FileActions
 {
     /// <summary>
     /// Opens an HTML or Internet Shortcut (.url) file in a new HTMLView tab
@@ -39,7 +39,6 @@ namespace Nexaflow.Features.WinFileSystem.FileActions
 
         public bool PerformAction(IEnumerable<string> filePaths)
         {
-            // Single-file action — open the first matching file
             foreach (var path in filePaths)
             {
                 if (_exts.Contains(Path.GetExtension(path)))

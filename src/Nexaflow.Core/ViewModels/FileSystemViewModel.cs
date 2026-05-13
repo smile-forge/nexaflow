@@ -1,7 +1,8 @@
-using Nexaflow.Features.WinFileSystem.FileActions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.WinFileSystem.FileActions;
 using Nexaflow.Features.Images.ViewModels;
 using Nexaflow.Features.Markdown.ViewModels;
 using Nexaflow.Features.Web.ViewModels;
@@ -169,7 +170,7 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
     [ObservableProperty] private string _entryCountLabel = string.Empty;
 
     // ── File action strip ─────────────────────────────────────────────────────
-    private readonly FileActionRegistry _actionRegistry;
+    private readonly FileActionManager _actionRegistry;
     public ObservableCollection<FileActionViewModel> FileActions { get; } = [];
 
     // Debounce timer — action strip is only rebuilt after input has been idle
@@ -564,7 +565,7 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
 
     private FileSystemViewModel()
     {
-        _actionRegistry = new FileActionRegistry(new Dictionary<Type, object>
+        _actionRegistry = new FileActionManager(new Dictionary<Type, object>
         {
             [typeof(IInputPromptService)] = new InputPromptServiceBridge(this),
             [typeof(ITabOpener)]          = new TabOpenerBridge(this)

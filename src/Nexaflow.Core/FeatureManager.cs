@@ -1,4 +1,6 @@
 using Nexaflow.Features.Common;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 
 namespace Nexaflow.Core;
@@ -18,6 +20,22 @@ public sealed class FeatureManager
         = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly Dictionary<Type, IReadOnlyList<string>> _configToPageKinds = new();
+
+    private readonly List<Type> _fileActionTypes       = [];
+    private readonly List<Type> _fileCreateActionTypes = [];
+
+    /// <summary>
+    /// Types implementing <see cref="IFileAction"/> discovered from all registered
+    /// feature assemblies. Consumed by <see cref="Services.FileActionManager"/> at
+    /// construction time to instantiate cross-assembly file actions.
+    /// </summary>
+    public IReadOnlyList<Type> FileActionTypes       => _fileActionTypes;
+
+    /// <summary>
+    /// Types implementing <see cref="IFileCreateAction"/> discovered from all registered
+    /// feature assemblies.
+    /// </summary>
+    public IReadOnlyList<Type> FileCreateActionTypes => _fileCreateActionTypes;
 
     // ── Registration ──────────────────────────────────────────────────────
 
@@ -74,6 +92,13 @@ public sealed class FeatureManager
             var args = ResolveArgs(ctor, configInstances, _tabOpener);
             var reg  = (ITabRegistration)ctor.Invoke(args);
             _registrations[reg.PageKind] = reg;
+        }
+
+        // 5. Collect IFileAction / IFileCreateAction types for FileActionManager to instantiate
+        foreach (var t in asm.GetTypes().Where(t => !t.IsAbstract && !t.IsInterface))
+        {
+            if (typeof(IFileAction).IsAssignableFrom(t))        _fileActionTypes.Add(t);
+            if (typeof(IFileCreateAction).IsAssignableFrom(t))  _fileCreateActionTypes.Add(t);
         }
     }
 
