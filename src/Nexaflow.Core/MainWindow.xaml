@@ -389,5 +389,96 @@
             </Grid>
         </Border>
 
+        <!-- ═══════════════════════════════════════════════════════════
+             OVERLAY — UPDATE TOAST
+             Appears at the bottom-right when UpdateToastVersion is non-null.
+             Auto-dismisses after 5 minutes.
+             ═══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="0" Grid.RowSpan="4"
+                Visibility="{Binding UpdateToastVersion, Converter={StaticResource StringVis}}"
+                HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                Margin="0,0,24,110"
+                MaxWidth="460"
+                Panel.ZIndex="210"
+                Background="#CC0a1828"
+                BorderBrush="#FF336688"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="16,14">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Header: icon + title + version chip + close -->
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="⬆" FontSize="16"
+                               Foreground="#66AAFF"
+                               VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <TextBlock Grid.Column="1" Text="Update Available"
+                               FontSize="13" FontWeight="SemiBold"
+                               Foreground="#AACCFF"
+                               VerticalAlignment="Center"/>
+                    <Border Grid.Column="2"
+                            Background="#1A336688" BorderBrush="#FF336688"
+                            BorderThickness="1" CornerRadius="4"
+                            Padding="6,2" Margin="8,0,0,0"
+                            VerticalAlignment="Center">
+                        <TextBlock Text="{Binding UpdateToastVersion}"
+                                   FontSize="11" FontWeight="SemiBold"
+                                   Foreground="#88BBFF"/>
+                    </Border>
+                    <Button Grid.Column="3" VerticalAlignment="Top"
+                            Style="{StaticResource TopBarAction}"
+                            Margin="10,0,0,0"
+                            Command="{Binding DismissUpdateToastCommand}">
+                        <TextBlock Text="✕" FontSize="11"
+                                   Foreground="#6688AA"/>
+                    </Button>
+                </Grid>
+
+                <!-- Changelog scroll area -->
+                <ScrollViewer Grid.Row="1"
+                              MaxHeight="120"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Margin="0,10,0,0">
+                    <TextBlock Text="{Binding UpdateToastChangelog}"
+                               FontSize="11"
+                               Foreground="#7799BB"
+                               TextWrapping="Wrap"/>
+                </ScrollViewer>
+
+                <!-- Action buttons -->
+                <StackPanel Grid.Row="2" Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Margin="0,12,0,0">
+                    <Button Content="Not Now"
+                            Style="{StaticResource TopBarAction}"
+                            Padding="12,5"
+                            Foreground="#6688AA"
+                            Margin="0,0,8,0"
+                            Command="{Binding DismissUpdateToastCommand}"/>
+                    <Button Content="Update"
+                            Style="{StaticResource TopBarAction}"
+                            Padding="12,5"
+                            Foreground="#AACCFF"
+                            Background="#1A336688"
+                            BorderBrush="#FF336688"
+                            BorderThickness="1"
+                            Command="{Binding AcceptUpdateCommand}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
     </Grid>
 </Window>

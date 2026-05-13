@@ -100,7 +100,9 @@ public partial class App : Application
             }
             string? changeLog = AppUpdater.GetChangelog(true);
 
-            //show update toast to user and ask if they want to download and install the update
+            var version = release.TagName ?? release.Name ?? "unknown";
+            await win.Dispatcher.InvokeAsync(() =>
+                win.ViewModel.ShowUpdateToast(version, changeLog));
         }
         catch
         {
