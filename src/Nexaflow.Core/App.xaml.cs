@@ -1,3 +1,4 @@
+using Nexaflow.Core.Services;
 using Nexaflow.Features.Console;
 using Nexaflow.Features.Images;
 using Nexaflow.Features.Markdown;
@@ -8,12 +9,39 @@ using Nexaflow.Providers.Claude;
 using Nexaflow.Providers.Common;
 using Nexaflow.Providers.Ollama;
 using System.Windows;
-using Nexaflow.Core.Services;
+using Updatum;
 
 namespace Nexaflow.Core;
 
 public partial class App : Application
 {
+    private const string RepositoryOwner = "smile-forge";
+    private const string RepositoryName = "nexaflow";
+
+    internal static readonly UpdatumManager AppUpdater = new(RepositoryOwner, RepositoryName)
+    {
+        // All below are optional settings with recommended defaults
+        // Regex filter to get the correct asset from running system
+        // Defaults would work here too: EntryApplication.GenericRuntimeIdentifier
+        AssetRegexPattern = $"^{RepositoryName}_{EntryApplication.GenericRuntimeIdentifier}_v",
+        // Specifies the type of windows .exe being used in the assets.
+        // It is highly recommended to set this when having .exe assets.
+        // - When asset is an installer, set to Installer.
+        // - When asset is a single file executable, set to SingleFileExecutable.
+        // - When having both asset types, set to Auto.
+        InstallUpdateWindowsExeType = UpdatumWindowsExeType.Installer,
+        // Displays a basic user interface for MSI package
+        // This will show the installer UI installing without any interaction
+        InstallUpdateWindowsInstallerArguments = "/qb",
+        // Strategy to determine the single file executable name for installation and update
+        InstallUpdateSingleFileExecutableNameStrategy = UpdatumSingleFileExecutableNameStrategy.EntryApplicationName,
+        // Fallback name if unable to determine the executable name from the entry application
+        // This is safe to omit, but as we are using a fake app, we need to set it
+        InstallUpdateSingleFileExecutableName = RepositoryName,
+        // Enable codesign verification for macOS .app bundles
+        InstallUpdateCodesignMacOSApp = true,
+    };
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -41,6 +69,54 @@ public partial class App : Application
         // First run: open Options automatically so the user can configure things
         if (ConfigManager.Instance.IsFirstRun)
             win.ViewModel.OptionsOpen = true;
+        else
+        {
+            Task.Run(async () =>
+            {
+                // Check for updates shortly after startup, so it doesn't impact launch performance
+                await Task.Delay(TimeSpan.FromSeconds(10));
+                await CheckForUpdates(win);
+            });
+        }
+    }
+
+    private async Task CheckForUpdates(MainWindow win)
+    {
+        try
+        {
+            var updateFound = await AppUpdater.CheckForUpdatesAsync();
+            if (!updateFound) return;
+
+            var release = AppUpdater.LatestRelease;
+
+            if (release is null)
+            {
+                return;
+            }
+            var asset = AppUpdater.GetCompatibleReleaseAsset(release);
+            if (asset is null)
+            {
+                return;
+            }
+            string? changeLog = AppUpdater.GetChangelog(true);
+
+            //show update toast to user and ask if they want to download and install the update
+        }
+        catch
+        {
+        }
+    }
+
+    public async Task DownloadAndInstallUpdate()
+    {
+        try
+        {
+            _ = await AppUpdater.DownloadAndInstallUpdateAsync();
+        }
+        catch
+        {
+            return;
+        }
     }
 
     /// <summary>
