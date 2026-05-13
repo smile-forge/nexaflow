@@ -1,6 +1,7 @@
+using Nexaflow.Features.Common;
 using System.Reflection;
 
-namespace Nexaflow.Features.Common;
+namespace Nexaflow.Core;
 
 /// <summary>
 /// Singleton registry of all feature tab factories.
@@ -17,8 +18,6 @@ public sealed class FeatureManager
         = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly Dictionary<Type, IReadOnlyList<string>> _configToPageKinds = new();
-
-    private FeatureManager() { }
 
     // ── Registration ──────────────────────────────────────────────────────
 
@@ -60,7 +59,7 @@ public sealed class FeatureManager
                 if (ctor.GetParameters().Any(p => p.ParameterType == configType))
                 {
                     // Instantiate temporarily to read PageKind
-                    var args = ResolveArgs(ctor, configInstances);
+                    var args = ResolveArgs(ctor, configInstances, _tabOpener);
                     var tempReg = (ITabRegistration)ctor.Invoke(args);
                     pageKinds.Add(tempReg.PageKind);
                 }
@@ -68,11 +67,11 @@ public sealed class FeatureManager
             _configToPageKinds[configType] = pageKinds;
         }
 
-        // 4. Instantiate all ITabRegistration types with injected configs
+        // 4. Instantiate all ITabRegistration types with injected configs and ITabOpener
         foreach (var regType in registrationTypes)
         {
             var ctor = BestConstructor(regType);
-            var args = ResolveArgs(ctor, configInstances);
+            var args = ResolveArgs(ctor, configInstances, _tabOpener);
             var reg  = (ITabRegistration)ctor.Invoke(args);
             _registrations[reg.PageKind] = reg;
         }
@@ -83,10 +82,33 @@ public sealed class FeatureManager
 
     private static object?[] ResolveArgs(
         ConstructorInfo ctor,
-        Dictionary<Type, IFeatureConfig> configs)
+        Dictionary<Type, IFeatureConfig> configs,
+        ITabOpener tabOpener)
         => ctor.GetParameters()
-               .Select(p => (object?)configs.GetValueOrDefault(p.ParameterType))
+               .Select(p =>
+                   typeof(ITabOpener).IsAssignableFrom(p.ParameterType)
+                       ? (object?)tabOpener
+                       : (object?)configs.GetValueOrDefault(p.ParameterType))
                .ToArray();
+
+    // ITabOpener implementation injected into feature registrations
+    private readonly ITabOpener _tabOpener;
+
+    private FeatureManager()
+    {
+        _tabOpener = new FeatureTabOpener(this);
+    }
+
+    private sealed class FeatureTabOpener(FeatureManager manager) : ITabOpener
+    {
+        public void OpenTab(string pageKind, Dictionary<string, string>? pageParams = null)
+            => manager.RequestTab(pageKind, pageParams);
+
+        // Not used by feature registrations — those navigate by page kind via OpenTab
+        public void OpenImageViewer(IReadOnlyList<string> imagePaths) { }
+        public void OpenHtmlViewer(string filePath) { }
+        public void OpenMarkdownViewer(string filePath) { }
+    }
 
     /// <summary>
     /// Returns the page kinds associated with a config type, used by the Options panel

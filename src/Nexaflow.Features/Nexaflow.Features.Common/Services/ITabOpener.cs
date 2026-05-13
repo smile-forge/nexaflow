@@ -3,12 +3,17 @@ using System.Collections.Generic;
 namespace Nexaflow.Features.Common;
 
 /// <summary>
-/// Injectable service that a <see cref="IFileAction"/> can use to open a
-/// new tab in the shell.  The action receives this via constructor injection
-/// so it has no direct dependency on the view-model or view layer.
+/// Injectable service that opens tabs in the shell without a direct dependency
+/// on the view-model or view layer. Received via constructor injection.
 /// </summary>
 public interface ITabOpener
 {
+    /// <summary>
+    /// Requests the shell to open any registered page kind, optionally passing
+    /// page-specific parameters (e.g. folder path, file path).
+    /// </summary>
+    void OpenTab(string pageKind, Dictionary<string, string>? pageParams = null);
+
     /// <summary>
     /// Opens an image-viewer tab for the given ordered list of image paths.
     /// </summary>

@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
+using ConfigDisplayNameAttribute = Nexaflow.Features.Common.ConfigDisplayNameAttribute;
 
 namespace Nexaflow.Core;
 
