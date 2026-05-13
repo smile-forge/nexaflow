@@ -5,6 +5,7 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Images/Nexaflow.Features.Images.csproj" Id="c6846a7e-7649-46bc-a296-62431910ff3e" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Markdown/Nexaflow.Features.Markdown.csproj" Id="5a06ef32-279d-48a9-8d7f-0eba9c1b43f2" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Projects/Nexaflow.Features.Projects.csproj" Id="57e7f577-d6bf-47a8-ae6f-872fd2f52a14" />
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Text/Nexaflow.Features.Text.csproj" Id="77cbeb58-09f2-493e-8b0f-127bed679b92" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Web/Nexaflow.Features.Web.csproj" Id="1d58f28c-ea2b-4bd7-9424-fd71d07ecb6c" />
   </Folder>
   <Folder Name="/Nexaflow.Providers/">
