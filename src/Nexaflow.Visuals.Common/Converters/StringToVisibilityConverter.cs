@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 
-namespace Nexaflow.Features.Common.Converters;
+namespace Nexaflow.Visuals.Common.Converters;
 
 /// <summary>non-null string → Visible, null/empty → Collapsed</summary>
 [ValueConversion(typeof(string), typeof(Visibility))]

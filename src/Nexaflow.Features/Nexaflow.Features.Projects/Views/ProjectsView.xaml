@@ -2,8 +2,8 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:Nexaflow.Features.Projects.ViewModels"
-             xmlns:ctrl="clr-namespace:Nexaflow.Features.Common.Controls;assembly=Nexaflow.Features.Common"
-             xmlns:cv="clr-namespace:Nexaflow.Features.Common.Converters;assembly=Nexaflow.Features.Common"
+             xmlns:ctrl="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>

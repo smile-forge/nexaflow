@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:Nexaflow.Core.Controls"
              xmlns:cvn="clr-namespace:Nexaflow.Core.Converters"
-             xmlns:cv="clr-namespace:Nexaflow.Features.Common.Converters;assembly=Nexaflow.Features.Common"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:vm="clr-namespace:Nexaflow.Core.ViewModels">
 
     <UserControl.Resources>

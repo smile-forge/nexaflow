@@ -2,7 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:Nexaflow.Features.Projects.ViewModels"
-             xmlns:cv="clr-namespace:Nexaflow.Features.Common.Converters;assembly=Nexaflow.Features.Common"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>

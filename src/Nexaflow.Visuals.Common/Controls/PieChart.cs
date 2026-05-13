@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Media;
 
-namespace Nexaflow.Features.Common.Controls;
+namespace Nexaflow.Visuals.Common.Controls;
 
 /// <summary>
 /// A lightweight pie-chart element that draws directly via OnRender.

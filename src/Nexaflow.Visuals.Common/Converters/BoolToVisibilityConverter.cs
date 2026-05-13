@@ -3,7 +3,7 @@ using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 
-namespace Nexaflow.Features.Common.Converters;
+namespace Nexaflow.Visuals.Common.Converters;
 
 /// <summary>true → Visible, false → Collapsed</summary>
 [ValueConversion(typeof(bool), typeof(Visibility))]

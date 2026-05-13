@@ -14,4 +14,5 @@
     <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.Ollama/Nexaflow.Providers.Ollama.csproj" />
   </Folder>
   <Project Path="src/Nexaflow.Core/Nexaflow.Core.csproj" Id="eed52ce5-c185-4a39-af4b-8df86d69359a" />
+  <Project Path="src/Nexaflow.Visuals.Common/Nexaflow.Visuals.Common.csproj" Id="0096f396-9079-4b5a-8288-f593e0c1cadd" />
 </Solution>

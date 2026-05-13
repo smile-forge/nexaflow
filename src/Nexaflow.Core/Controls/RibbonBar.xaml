@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:m="clr-namespace:Nexaflow.Core.Models"
              xmlns:cvn="clr-namespace:Nexaflow.Core.Converters"
-             xmlns:cv="clr-namespace:Nexaflow.Features.Common.Converters;assembly=Nexaflow.Features.Common"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              AllowDrop="True">
     <UserControl.Resources>
         <cvn:RibbonKindVisibilityConverter x:Key="RibbonKindVis"/>

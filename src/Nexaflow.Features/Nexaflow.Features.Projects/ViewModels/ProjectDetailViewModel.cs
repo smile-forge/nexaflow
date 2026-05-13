@@ -1,9 +1,9 @@
-using Nexaflow.Features.Common.Controls;
 using Nexaflow.Features.Projects.Model;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
 using System.Windows.Media;
+using Nexaflow.Visuals.Common.Controls;
 
 namespace Nexaflow.Features.Projects.ViewModels;
 

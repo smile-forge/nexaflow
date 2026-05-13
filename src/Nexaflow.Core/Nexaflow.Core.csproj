@@ -28,6 +28,7 @@
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Common\Nexaflow.Providers.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Claude\Nexaflow.Providers.Claude.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Ollama\Nexaflow.Providers.Ollama.csproj" />
+    <ProjectReference Include="..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
   </ItemGroup>
   
 </Project>
