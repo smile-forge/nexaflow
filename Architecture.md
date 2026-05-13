@@ -24,7 +24,6 @@ nexaflow/src/
 │   ├── Nexaflow.Features.Markdown/       ← Markdown editor/preview tab
 │   ├── Nexaflow.Features.Projects/       ← Project management tabs
 │   ├── Nexaflow.Features.Web/            ← HTML/URL viewer tab
-│   └── Nexaflow.Features.WinFileSystem/  ← File system browser (file actions)
 │
 └── Nexaflow.Providers/
     ├── Nexaflow.Providers.Common/        ← Shared provider types (SimpleMessage, PipeFrame)
@@ -33,7 +32,7 @@ nexaflow/src/
     └── Nexaflow.Providers.Ollama/        ← Ollama AI provider (unused in shell today)
 ```
 
-**Dependency rule:** Features depend on `Features.Common` only. `Nexaflow.Core` depends on all features and providers. Features never reference Core — cross-shell communication goes through `FeatureManager`.
+**Dependency rule:** Features depend on `Features.Common` only. `Nexaflow.Core` depends on all features and providers (for registration in `App.xaml.cs`), but never instantiates feature view or view-model types in its hot-paths — all tab creation goes through `FeatureManager`. Features never reference Core; cross-shell communication goes through `FeatureManager`.
 
 ---
 
@@ -71,7 +70,7 @@ The contract layer. Every feature depends on this; nothing else does.
 | `ITabRegistration.cs` | Interface features implement to register a page kind with the shell |
 | `FeatureManager.cs` | Singleton registry: maps page-kind strings → `ITabRegistration`; raises `TabOpenRequested` event for cross-feature navigation |
 | `IRefreshable.cs` | Implemented by page `UserControl`s to support re-click refresh |
-| `Services/ITabOpener.cs` | Lets file actions open image/HTML/markdown tabs without referencing Core |
+| `Services/ITabOpener.cs` | Single-method `OpenTab(pageKind, params)` contract injected into `IFileAction` constructors; routes through `FeatureManager` so file actions never reference Core or feature view types |
 | `Services/IInputPromptService.cs` | Lets file actions show modal overlays without referencing Core |
 | `Services/IQueryHandler.cs` | Pages can intercept the shell's AI input bar (e.g. path navigation in FileSystem) |
 | `Controls/PieChart.cs` | Lightweight pie chart `FrameworkElement` used by Projects |
@@ -91,7 +90,9 @@ Two tabs: **Projects list** and **Project detail**.
 
 ### Nexaflow.Features.Images / .Markdown / .Web
 
-Single-purpose viewer/editor tabs. Each has one ViewModel owning a file path and a simple command set. These are opened by `FileSystemViewModel`'s `ITabOpener` implementation in Core (specifically `FileSystemViewModel`'s nested `TabOpenerAdapter` class), which calls `TabOpenRequested` to ask the shell to create the tab.
+Single-purpose viewer/editor tabs. Each has one ViewModel owning a file path and a simple command set, one `ITabRegistration` that the shell uses to create the tab, and one `IFileAction` that file actions in the file browser can call.
+
+File actions call `ITabOpener.OpenTab(pageKind, params)`, which routes through `FeatureManager.RequestTab()` → `ShellViewModel.OpenTabForPageKind()` → `FeatureManager.CreateTab()` → the feature's own `ITabRegistration.CreateTab()`. Core never instantiates any feature view or view-model type directly.
 
 ### Nexaflow.Providers.Aria
 
@@ -157,7 +158,7 @@ public sealed class MyTabRegistration : ITabRegistration
 }
 
 // In App.xaml.cs → RegisterFeatures()
-fm.Register(new MyTabRegistration());
+fm.Register(typeof(MyTabRegistration));
 ```
 
 The shell's `ReattachTabFactory`, `OpenTabForPageKind`, and `HandleFocusTabInstruction` all delegate to `FeatureManager.Instance` for any page kind not handled by the Core `switch`. The page kind string also becomes available in the ribbon editor automatically — users can add a ribbon button that persists `PageKind = "MyFeature"` and the factory is re-attached on restart.
@@ -175,7 +176,9 @@ public partial class MyView : UserControl, IRefreshable
 
 ### `IFileAction` — Adding a file context action
 
-Implement in `Nexaflow.Features.WinFileSystem.FileActions`. The interface is large — key properties that control when your action appears:
+Implement in the assembly that owns the concern. Actions that open a viewer tab belong in the feature assembly that owns that viewer (e.g. `ShowMarkdownAction` lives in `Nexaflow.Features.Markdown`); generic system-level actions (copy, delete, rename) belong in `Nexaflow.Core.FileActions`. `FileActionManager.Discover()` picks up both: it scans `Assembly.GetExecutingAssembly()` (Core) and `FeatureManager.Instance.FileActionTypes` (populated when each feature is registered in `App.xaml.cs`).
+
+The interface is large — key properties that control when your action appears:
 
 | Property | Purpose |
 |----------|---------|
@@ -187,15 +190,20 @@ Implement in `Nexaflow.Features.WinFileSystem.FileActions`. The interface is lar
 
 Actions receive `IInputPromptService` (for modal input/confirm overlays) and `ITabOpener` (to open a tab) via constructor — no direct UI or shell dependency.
 
-### `ITabOpener` — Opening media/viewer tabs from a file action
+### `ITabOpener` — Opening a tab from a file action
 
-Implemented by `FileSystemViewModel` in Core and injected into each `IFileAction`.
+Injected into each `IFileAction` constructor. The single method `OpenTab(pageKind, params)` routes through `FeatureManager.RequestTab()` so file actions never reference Core or any feature view type.
 
 ```csharp
-void OpenImageViewer(IReadOnlyList<string> imagePaths);
-void OpenHtmlViewer(string filePath);
-void OpenMarkdownViewer(string filePath);
+// In your IFileAction
+public bool PerformAction(string filePath)
+{
+    _tabOpener.OpenTab("MyFeature", new Dictionary<string, string> { ["path"] = filePath });
+    return true;
+}
 ```
+
+The `pageKind` string must match the `PageKind` of a registered `ITabRegistration`. `FeatureManager` maps the request to that registration's `CreateTab(params)` and the shell opens the resulting `TabEntry`.
 
 ### `IQueryHandler` — Intercepting the AI input bar
 
@@ -270,6 +278,23 @@ ProjectsViewModel.OpenProject()
   → ShellViewModel.OpenTab(tab)
 ```
 
+### Opening a viewer tab from a file action (e.g. "Show" on an image file)
+
+```
+User selects file(s) in the file browser → clicks "Show" action button
+  → FileActionManager.PerformAction(action, paths)
+  → ShowImageAction.PerformAction(paths)
+      _tabOpener.OpenTab("Images", { "paths": "a.png|b.png" })
+  → TabOpenerBridge.OpenTab()
+  → FeatureManager.RequestTab("Images", params)
+  → FeatureManager.TabOpenRequested event fires
+  → ShellViewModel.OnFeatureTabOpenRequested (on Dispatcher)
+  → OpenTabForPageKind("Images", params)
+  → FeatureManager.CreateTab("Images", params)
+  → ImageTabRegistration.CreateTab(params)   ← first time Core touches any feature type
+  → ShellViewModel.OpenTab(tab)
+```
+
 ### Ribbon persistence cycle
 
 ```
@@ -311,19 +336,7 @@ These are real architectural problems, ordered roughly by impact.
 
 ---
 
-### 4. `ITabOpener` has a fixed set of viewer types
-
-**Where:** `Nexaflow.Features.Common/Services/ITabOpener.cs`, implemented in `FileSystemViewModel`
-
-**Problem:** `ITabOpener` only knows about three viewer tabs (image, HTML, markdown). Adding a new viewer requires changing the interface and its implementation in Core. This means Core must know about every viewer feature.
-
-**Impact:** The interface also has a tight implementation in `FileSystemViewModel`'s nested `TabOpenerAdapter` class, which calls `TabOpenRequested` with a fully-constructed `TabEntry`. Adding a fourth viewer means touching `ITabOpener`, `TabOpenerAdapter`, and `FileSystemViewModel`.
-
-**Suggested fix:** Replace the typed methods with a generic `void OpenTab(string pageKind, Dictionary<string, string> pageParams)` that delegates to `FeatureManager.RequestTab`. File actions then just need to know the page-kind string.
-
----
-
-### 5. `WindowManager` has hardcoded layout constants
+### 4. `WindowManager` has hardcoded layout constants
 
 **Where:** `Nexaflow.Core/Services/WindowManager.cs`
 
@@ -335,7 +348,7 @@ These are real architectural problems, ordered roughly by impact.
 
 ---
 
-### 6. `ProjectOperations` is too wide
+### 5. `ProjectOperations` is too wide
 
 **Where:** `Nexaflow.Features.Projects/Model/ProjectOperations.cs`
 
@@ -353,7 +366,7 @@ These are real architectural problems, ordered roughly by impact.
 
 ---
 
-### 7. `ProjectService` uses a static singleton
+### 6. `ProjectService` uses a static singleton
 
 **Where:** `Nexaflow.Features.Projects/Services/ProjectService.cs`
 
@@ -365,7 +378,7 @@ These are real architectural problems, ordered roughly by impact.
 
 ---
 
-### 8. `AriaClientService` is never disposed
+### 7. `AriaClientService` is never disposed
 
 **Where:** `ShellViewModel._ariaClient`
 
@@ -375,7 +388,7 @@ These are real architectural problems, ordered roughly by impact.
 
 ---
 
-### 9. Ribbon default item list references feature page-kind strings as literals
+### 8. Ribbon default item list references feature page-kind strings as literals
 
 **Where:** `ShellViewModel.BuildDefaultItems()`
 
@@ -392,7 +405,7 @@ These literals must match `ConsoleTabRegistration.PageKind` and `ProjectsTabRegi
 
 ---
 
-### 10. `RibbonEditor` mixes model logic with view construction
+### 9. `RibbonEditor` mixes model logic with view construction
 
 **Where:** `Nexaflow.Core/Controls/RibbonEditor.xaml.cs` (~710 lines)
 

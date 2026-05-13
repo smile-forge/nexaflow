@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace Nexaflow.Features.WinFileSystem.FileActions
+namespace Nexaflow.Core.FileActions
 {
     public class RenameFile : IFileAction
     {

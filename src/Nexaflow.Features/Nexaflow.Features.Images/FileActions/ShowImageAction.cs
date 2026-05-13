@@ -34,7 +34,7 @@ namespace Nexaflow.Features.Images.FileActions
 
         public bool PerformAction(string filePath)
         {
-            _tabOpener.OpenImageViewer([filePath]);
+            _tabOpener.OpenTab("Images", new Dictionary<string, string> { ["paths"] = filePath });
             return true;
         }
 
@@ -45,7 +45,7 @@ namespace Nexaflow.Features.Images.FileActions
                 .ToList();
 
             if (images.Count == 0) return false;
-            _tabOpener.OpenImageViewer(images);
+            _tabOpener.OpenTab("Images", new Dictionary<string, string> { ["paths"] = string.Join('|', images) });
             return true;
         }
     }

@@ -70,22 +70,28 @@ On first launch the Options panel will open so you can choose your AI provider a
 
 ```
 src/
-├── Nexaflow.Core/                   # Shell chrome, main window, ribbon, AI input bar
+├── Nexaflow.Core/                      # Shell chrome, main window, ribbon, AI input bar
 ├── Nexaflow.Features/
-│   ├── Nexaflow.Features.Common/    # Shared contracts (ITabRegistration, FeatureManager)
-│   ├── Nexaflow.Features.Console/   # PTY terminal
-│   ├── Nexaflow.Features.Images/    # Image viewer
-│   ├── Nexaflow.Features.Markdown/  # Markdown editor + preview
-│   ├── Nexaflow.Features.Projects/  # Project and backlog management
-│   └── Nexaflow.Features.Web/       # WebView2 browser tab
+│   ├── Nexaflow.Features.Common/       # Shared contracts (ITabRegistration, ITabOpener, FeatureManager)
+│   ├── Nexaflow.Features.Console/      # PTY terminal
+│   ├── Nexaflow.Features.Images/       # Image viewer
+│   ├── Nexaflow.Features.Markdown/     # Markdown editor + preview
+│   ├── Nexaflow.Features.Projects/     # Project and backlog management
+│   └── Nexaflow.Features.Web/          # WebView2 browser tab
 └── Nexaflow.Providers/
-    ├── Nexaflow.Providers.Common/   # LlmProviderRegistry, shared message types
-    ├── Nexaflow.Providers.Aria/     # Aria (named-pipe) provider
-    ├── Nexaflow.Providers.Claude/   # Claude API provider
-    └── Nexaflow.Providers.Ollama/   # Ollama local model provider
+    ├── Nexaflow.Providers.Common/      # LlmProviderRegistry, shared message types
+    ├── Nexaflow.Providers.Aria/        # Aria (named-pipe) provider
+    ├── Nexaflow.Providers.Claude/      # Claude API provider
+    └── Nexaflow.Providers.Ollama/      # Ollama local model provider
 ```
 
-Each feature is a self-contained assembly that registers a `PageKind` string and a tab factory. Adding a new feature means creating a new project and implementing `ITabRegistration` — the shell discovers it automatically.
+The three layers have clearly defined responsibilities and dependency rules:
+
+- **Features** depend only on `Features.Common` — never on Core or on each other.
+- **Core** hosts the shell and registers features at startup; it never instantiates feature view or view-model types directly.
+- **Providers** are independent of features; Core wires them together at startup.
+
+Adding a new tab means implementing `ITabRegistration` in a new feature assembly and calling `fm.Register(typeof(MyTabRegistration))` in `App.xaml.cs`. Adding a new file action means implementing `IFileAction` — viewer-opener actions belong in the same assembly as their viewer, system-level actions (copy, paste, rename…) belong in `Nexaflow.Core.FileActions`.
 
 ---
 

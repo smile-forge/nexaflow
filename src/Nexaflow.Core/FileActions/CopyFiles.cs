@@ -1,7 +1,7 @@
 using Nexaflow.Features.Common;
 using System.Collections.Generic;
 
-namespace Nexaflow.Features.WinFileSystem.FileActions
+namespace Nexaflow.Core.FileActions
 {
     public class CopyFiles : IFileAction
     {

@@ -2,10 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
-using Nexaflow.Features.WinFileSystem.FileActions;
-using Nexaflow.Features.Images.ViewModels;
-using Nexaflow.Features.Markdown.ViewModels;
-using Nexaflow.Features.Web.ViewModels;
+using Nexaflow.Core.FileActions;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -16,9 +13,6 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Threading;
-using ImageView   = Nexaflow.Features.Images.Views.ImageView;
-using HtmlView    = Nexaflow.Features.Web.Views.HtmlView;
-using MarkdownView = Nexaflow.Features.Markdown.Views.MarkdownView;
 
 namespace Nexaflow.Core.ViewModels;
 
@@ -1059,71 +1053,5 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
 
         public void OpenTab(string pageKind, Dictionary<string, string>? pageParams = null)
             => FeatureManager.Instance.RequestTab(pageKind, pageParams);
-
-        public void OpenImageViewer(IReadOnlyList<string> imagePaths)
-        {
-            if (imagePaths.Count == 0) return;
-
-            var tabTitle = imagePaths.Count == 1
-                ? Path.GetFileName(imagePaths[0])
-                : $"Images ({imagePaths.Count})";
-
-            var capturedPaths = imagePaths.ToList();
-
-            var tab = new TabEntry
-            {
-                Title       = tabTitle,
-                Icon        = "🖼",
-                Breadcrumbs = [new BreadcrumbSegment { Label = tabTitle }]
-            };
-            tab.PageFactory = () =>
-            {
-                var imageVm = new ImageViewModel(capturedPaths);
-                return new ImageView(imageVm);
-            };
-
-            System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
-                _vm.TabOpenRequested?.Invoke(tab));
-        }
-
-        public void OpenHtmlViewer(string filePath)
-        {
-            var tabTitle = Path.GetFileName(filePath);
-
-            var tab = new TabEntry
-            {
-                Title       = tabTitle,
-                Icon        = "🌐",
-                Breadcrumbs = [new BreadcrumbSegment { Label = tabTitle }]
-            };
-            tab.PageFactory = () =>
-            {
-                var htmlVm = new HtmlViewModel(filePath);
-                return new HtmlView(htmlVm);
-            };
-
-            System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
-                _vm.TabOpenRequested?.Invoke(tab));
-        }
-
-        public void OpenMarkdownViewer(string filePath)
-        {
-            var tabTitle = Path.GetFileName(filePath);
-
-            var tab = new TabEntry
-            {
-                Title       = tabTitle,
-                Icon        = "📝",
-                Breadcrumbs = [new BreadcrumbSegment { Label = tabTitle }]
-            };
-            tab.PageFactory = () =>
-            {
-                var mdVm = new MarkdownViewModel(filePath);
-                return new MarkdownView(mdVm);
-            };
-
-            System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
-                _vm.TabOpenRequested?.Invoke(tab));
-        }
     }
 }

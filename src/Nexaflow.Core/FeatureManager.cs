@@ -128,11 +128,6 @@ public sealed class FeatureManager
     {
         public void OpenTab(string pageKind, Dictionary<string, string>? pageParams = null)
             => manager.RequestTab(pageKind, pageParams);
-
-        // Not used by feature registrations — those navigate by page kind via OpenTab
-        public void OpenImageViewer(IReadOnlyList<string> imagePaths) { }
-        public void OpenHtmlViewer(string filePath) { }
-        public void OpenMarkdownViewer(string filePath) { }
     }
 
     /// <summary>

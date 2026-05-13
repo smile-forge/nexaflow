@@ -33,7 +33,7 @@ namespace Nexaflow.Features.Web.FileActions
 
         public bool PerformAction(string filePath)
         {
-            _tabOpener.OpenHtmlViewer(filePath);
+            _tabOpener.OpenTab("Html", new Dictionary<string, string> { ["path"] = filePath });
             return true;
         }
 
@@ -43,7 +43,7 @@ namespace Nexaflow.Features.Web.FileActions
             {
                 if (_exts.Contains(Path.GetExtension(path)))
                 {
-                    _tabOpener.OpenHtmlViewer(path);
+                    _tabOpener.OpenTab("Html", new Dictionary<string, string> { ["path"] = path });
                     return true;
                 }
             }
