@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:Nexaflow.Core.ViewModels"
+             xmlns:cv="clr-namespace:Nexaflow.Features.Common.Converters;assembly=Nexaflow.Features.Common" 
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
@@ -568,7 +569,7 @@
                                                                                 <Style TargetType="Image">
                                                                                     <Setter Property="Visibility" Value="Collapsed"/>
                                                                                     <Style.Triggers>
-                                                                                        <DataTrigger Binding="{Binding IconImage, Converter={x:Static vm:NullToBoolConverter.Instance}}" Value="True">
+                                                                                        <DataTrigger Binding="{Binding IconImage, Converter={x:Static cv:NullToBoolConverter.Instance}}" Value="True">
                                                                                             <Setter Property="Visibility" Value="Visible"/>
                                                                                         </DataTrigger>
                                                                                     </Style.Triggers>
@@ -584,7 +585,7 @@
                                                                                 <Style TargetType="TextBlock">
                                                                                     <Setter Property="Visibility" Value="Visible"/>
                                                                                     <Style.Triggers>
-                                                                                        <DataTrigger Binding="{Binding IconImage, Converter={x:Static vm:NullToBoolConverter.Instance}}" Value="True">
+                                                                                        <DataTrigger Binding="{Binding IconImage, Converter={x:Static cv:NullToBoolConverter.Instance}}" Value="True">
                                                                                             <Setter Property="Visibility" Value="Collapsed"/>
                                                                                         </DataTrigger>
                                                                                     </Style.Triggers>

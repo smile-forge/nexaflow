@@ -2,7 +2,7 @@ using System;
 using System.Globalization;
 using System.Windows.Data;
 
-namespace Nexaflow.Core.ViewModels;
+namespace Nexaflow.Features.Common.Converters;
 /// <summary>
 /// Returns <c>true</c> when the bound value is not null; <c>false</c> otherwise.
 /// Used in XAML triggers to toggle visibility based on nullable properties.

@@ -3,11 +3,12 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:Nexaflow.Core.Controls"
              xmlns:cvn="clr-namespace:Nexaflow.Core.Converters"
+             xmlns:cv="clr-namespace:Nexaflow.Features.Common.Converters;assembly=Nexaflow.Features.Common"
              xmlns:vm="clr-namespace:Nexaflow.Core.ViewModels">
 
     <UserControl.Resources>
         <cvn:ValidationErrorToBorderBrushConverter x:Key="ValidationBorderBrush"/>
-        <cvn:BoolToVisibilityConverter x:Key="BoolVis"/>
+        <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
 
         <!-- Shared row layout: 180px label + * editor -->
         <Style x:Key="RowGrid" TargetType="Grid">
