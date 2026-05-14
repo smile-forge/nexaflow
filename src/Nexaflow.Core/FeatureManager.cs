@@ -94,11 +94,13 @@ public sealed class FeatureManager
             _registrations[reg.PageKind] = reg;
         }
 
-        // 5. Collect IFileAction / IFileCreateAction types for FileActionManager to instantiate
+        // 5. Collect IFileAction / IFileCreateAction types for FileActionManager to instantiate.
+        //    Also instantiate any IQueryHandler types found in the assembly and register globally.
         foreach (var t in asm.GetTypes().Where(t => !t.IsAbstract && !t.IsInterface))
         {
             if (typeof(IFileAction).IsAssignableFrom(t))        _fileActionTypes.Add(t);
             if (typeof(IFileCreateAction).IsAssignableFrom(t))  _fileCreateActionTypes.Add(t);
+            if (typeof(IQueryHandler).IsAssignableFrom(t))      _queryHandlers.Add((IQueryHandler)Activator.CreateInstance(t)!);
         }
     }
 
