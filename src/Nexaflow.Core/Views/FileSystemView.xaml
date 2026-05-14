@@ -235,9 +235,29 @@
                     <HierarchicalDataTemplate DataType="{x:Type vm:FileSystemTreeNode}"
                                               ItemsSource="{Binding Children}">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{Binding Icon}"
-                                       FontSize="13" Margin="0,0,5,0"
-                                       VerticalAlignment="Center"/>
+                            <!-- Drive icon + status overlay -->
+                            <Grid Margin="0,0,5,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Icon}" FontSize="13" VerticalAlignment="Center"/>
+                                <!-- Loading / unavailable badge — only visible on Drive nodes -->
+                                <TextBlock FontSize="8" HorizontalAlignment="Right" VerticalAlignment="Top">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DriveStatus}" Value="Loading">
+                                                    <Setter Property="Text"       Value="⏳"/>
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding DriveStatus}" Value="Unavailable">
+                                                    <Setter Property="Text"       Value="✖"/>
+                                                    <Setter Property="Foreground" Value="#FFFF4444"/>
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
                             <TextBlock Text="{Binding Name}"
                                        Foreground="{StaticResource TextBrush}"
                                        VerticalAlignment="Center"/>
@@ -410,18 +430,43 @@
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="Text" Value="📄"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsDirectory}" Value="True">
-                                                            <Setter Property="Text" Value="📁"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
+                                        <!-- File/folder/drive icon + drive status badge -->
+                                        <Grid Margin="0,0,6,0" VerticalAlignment="Center">
+                                            <TextBlock FontSize="13" VerticalAlignment="Center">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Text" Value="📄"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsDirectory}" Value="True">
+                                                                <Setter Property="Text" Value="📁"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsDrive}" Value="True">
+                                                                <Setter Property="Text" Value="💾"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <!-- Loading / unavailable badge — only visible on drive entries -->
+                                            <TextBlock FontSize="8" HorizontalAlignment="Right" VerticalAlignment="Top">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding DriveStatus}" Value="Loading">
+                                                                <Setter Property="Text"       Value="⏳"/>
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding DriveStatus}" Value="Unavailable">
+                                                                <Setter Property="Text"       Value="✖"/>
+                                                                <Setter Property="Foreground" Value="#FFFF4444"/>
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Grid>
                                         <TextBlock Text="{Binding Name}"
                                                    Foreground="{StaticResource TextBrush}"
                                                    FontSize="13" VerticalAlignment="Center"

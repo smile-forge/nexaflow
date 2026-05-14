@@ -134,7 +134,7 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
     {
         if (_isThisPcMode)
         {
-            PopulateThisPcEntries();
+            GoToThisPc(rebuildTree: false);
         }
         else if (!string.IsNullOrEmpty(CurrentPath))
         {
@@ -413,10 +413,76 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
     {
         var vm = new FileSystemViewModel();
         vm.InitDebounceTimer();
-        vm._rootPath    = string.Empty;
-        vm.BuildThisPcTree();
-        vm.PopulateThisPcEntries();
+        vm._rootPath     = string.Empty;
+        vm._isThisPcMode = true;
+        vm.CurrentPath   = string.Empty;
+
+        var thisPc = new FileSystemTreeNode("This PC", string.Empty, TreeNodeKind.ThisPc)
+        {
+            IsExpanded = true
+        };
+        vm.TreeRoots.Add(thisPc);
+
+        // DriveInfo.GetDrives() is fast — just reads the drive table without I/O per drive.
+        // Each drive is shown immediately in a Loading state; readiness is checked per-drive
+        // on a background thread so slow/network drives never block the UI.
+        foreach (var d in DriveInfo.GetDrives())
+        {
+            var node  = new FileSystemTreeNode(d.Name, d.RootDirectory.FullName, TreeNodeKind.Drive);
+            var entry = new FileSystemEntry
+            {
+                Name        = d.Name,
+                FullPath    = d.RootDirectory.FullName,
+                IsDirectory = true,
+                IsDrive     = true,
+                DriveStatus = DriveStatus.Loading
+            };
+            thisPc.Children.Add(node);
+            vm.Entries.Add(entry);
+            _ = CheckDriveAsync(d, node, entry);
+        }
+
+        vm.AiSummaryVisible = false;
+        vm.UpdateEntryCountLabel();
+        vm.NavigationChanged?.Invoke([("This PC", string.Empty)]);
         return vm;
+    }
+
+    private static async Task CheckDriveAsync(DriveInfo drive, FileSystemTreeNode node, FileSystemEntry entry)
+    {
+        try
+        {
+            var (isReady, label, hasChildren) = await Task.Run(() =>
+            {
+                if (!drive.IsReady) return (false, drive.Name, false);
+                var lbl = string.IsNullOrWhiteSpace(drive.VolumeLabel)
+                    ? drive.Name
+                    : $"{drive.VolumeLabel} ({drive.Name.TrimEnd('\\')})";
+                var hasSub = FileSystemTreeNode.HasSubDirectoriesSafe(drive.RootDirectory.FullName);
+                return (true, lbl, hasSub);
+            });
+
+            // Resume on the WPF dispatcher — safe to touch UI objects directly.
+            node.Name  = label;
+            entry.Name = label;
+
+            if (isReady)
+            {
+                if (hasChildren) node.Children.Add(FileSystemTreeNode.Dummy);
+                node.DriveStatus  = DriveStatus.Ready;
+                entry.DriveStatus = DriveStatus.Ready;
+            }
+            else
+            {
+                node.DriveStatus  = DriveStatus.Unavailable;
+                entry.DriveStatus = DriveStatus.Unavailable;
+            }
+        }
+        catch
+        {
+            node.DriveStatus  = DriveStatus.Unavailable;
+            entry.DriveStatus = DriveStatus.Unavailable;
+        }
     }
 
     private FileSystemViewModel()
@@ -447,28 +513,6 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
         TreeRoots.Add(root);
     }
 
-    private void BuildThisPcTree()
-    {
-        _isThisPcMode = true;
-        CurrentPath   = string.Empty;
-        TreeRoots.Clear();
-
-        var thisPc = new FileSystemTreeNode("This PC", string.Empty, TreeNodeKind.ThisPc)
-        {
-            IsExpanded = true
-        };
-
-        foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady))
-        {
-            var label = string.IsNullOrWhiteSpace(drive.VolumeLabel)
-                ? drive.Name
-                : $"{drive.VolumeLabel} ({drive.Name.TrimEnd('\\')})";
-
-            thisPc.Children.Add(new FileSystemTreeNode(label, drive.RootDirectory.FullName, TreeNodeKind.Drive));
-        }
-
-        TreeRoots.Add(thisPc);
-    }
 
     /// <summary>
     /// Re-roots the tree at the current path so the view starts fresh from
@@ -500,11 +544,11 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
     /// Switches to "This PC" mode: refreshes the right-panel drive list and
     /// updates the breadcrumb, exactly as NavigateTo does for a real path.
     /// If the tree is currently a directory tree (not already ThisPc) it is
-    /// rebuilt, but that is done via the <paramref name="rebuildTree"/> flag
-    /// which callers can suppress when they know the tree is already correct
-    /// (e.g. the user clicked the ThisPc root node that already exists).
+    /// rebuilt via the <paramref name="rebuildTree"/> flag.
+    /// Drive readiness is checked per-drive on a background thread to avoid
+    /// blocking the UI for slow/network drives.
     /// </summary>
-    public void GoToThisPc(bool rebuildTree = false)
+    public async void GoToThisPc(bool rebuildTree = false)
     {
         if (_navigating) return;
         _navigating = true;
@@ -513,19 +557,59 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
             _isThisPcMode = true;
             CurrentPath   = string.Empty;
 
-            // Clear the action strip immediately — no actions apply to This PC
             _actionDebounceTimer.Stop();
             FileActions.Clear();
-            // When the user clicked the existing "This PC" tree root we must NOT
-            // clear TreeRoots — that node is the one whose SelectedItemChanged
-            // event is currently on the call stack.
+
+            FileSystemTreeNode? thisPcNode;
             if (rebuildTree)
-                BuildThisPcTree();
+            {
+                TreeRoots.Clear();
+                thisPcNode = new FileSystemTreeNode("This PC", string.Empty, TreeNodeKind.ThisPc)
+                {
+                    IsExpanded = true
+                };
+                TreeRoots.Add(thisPcNode);
+            }
+            else
+            {
+                thisPcNode = TreeRoots.FirstOrDefault(n => n.Kind == TreeNodeKind.ThisPc);
+            }
 
-            PopulateThisPcEntries();   // refreshes Entries, fires NavigationChanged
+            // Populate entries immediately with all drives in Loading state,
+            // then resolve each drive individually on a background thread.
+            Entries.Clear();
+            foreach (var d in DriveInfo.GetDrives())
+            {
+                var entry = new FileSystemEntry
+                {
+                    Name        = d.Name,
+                    FullPath    = d.RootDirectory.FullName,
+                    IsDirectory = true,
+                    IsDrive     = true,
+                    DriveStatus = DriveStatus.Loading
+                };
+                Entries.Add(entry);
 
-            // Sync tree selection to the "This PC" root without rebuilding
-            var thisPcNode = TreeRoots.FirstOrDefault(n => n.Kind == TreeNodeKind.ThisPc);
+                if (rebuildTree && thisPcNode is not null)
+                {
+                    var node = new FileSystemTreeNode(d.Name, d.RootDirectory.FullName, TreeNodeKind.Drive);
+                    thisPcNode.Children.Add(node);
+                    _ = CheckDriveAsync(d, node, entry);
+                }
+                else
+                {
+                    // Tree already has drive nodes — find the matching one and update its entry
+                    var existingNode = thisPcNode?.Children
+                        .FirstOrDefault(c => string.Equals(c.FullPath, d.RootDirectory.FullName,
+                                             StringComparison.OrdinalIgnoreCase));
+                    _ = CheckDriveAsync(d, existingNode ?? new FileSystemTreeNode(d.Name, d.RootDirectory.FullName, TreeNodeKind.Drive), entry);
+                }
+            }
+
+            AiSummaryVisible = false;
+            UpdateEntryCountLabel();
+            NavigationChanged?.Invoke([("This PC", string.Empty)]);
+
             if (thisPcNode is not null)
             {
                 ClearSelection(TreeRoots);
@@ -790,30 +874,6 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
         return false;
     }
 
-    private void PopulateThisPcEntries()
-    {
-        _isThisPcMode = true;
-        CurrentPath   = "This PC";
-        Entries.Clear();
-        foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady))
-        {
-            var label = string.IsNullOrWhiteSpace(drive.VolumeLabel)
-                ? drive.Name
-                : $"{drive.VolumeLabel} ({drive.Name.TrimEnd('\\')})";
-
-            Entries.Add(new FileSystemEntry
-            {
-                Name        = label,
-                FullPath    = drive.RootDirectory.FullName,
-                IsDirectory = true,
-                IsDrive     = true,
-                Modified    = default
-            });
-        }
-        AiSummaryVisible = false;
-        UpdateEntryCountLabel();
-        NavigationChanged?.Invoke([("This PC", string.Empty)]);
-    }
 
     private void RefreshEntries()
     {

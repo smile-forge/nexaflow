@@ -5,6 +5,8 @@ using System.Runtime.CompilerServices;
 
 namespace Nexaflow.Core.ViewModels;
 
+public enum DriveStatus { Ready, Loading, Unavailable }
+
 // ── Tree node ─────────────────────────────────────────────────────────────────
 public enum TreeNodeKind { Folder, Drive, ThisPc }
 
@@ -12,10 +14,24 @@ public class FileSystemTreeNode : INotifyPropertyChanged
 {
     private bool _isExpanded;
     private bool _isSelected;
+    private string _name;
+    private DriveStatus _driveStatus;
 
-    public string       Name     { get; }
     public string       FullPath { get; }
     public TreeNodeKind Kind     { get; }
+
+    public string Name
+    {
+        get => _name;
+        set { _name = value; OnPropertyChanged(); }
+    }
+
+    /// <summary>Drive readiness state — only meaningful for Drive nodes.</summary>
+    public DriveStatus DriveStatus
+    {
+        get => _driveStatus;
+        set { _driveStatus = value; OnPropertyChanged(); }
+    }
 
     /// <summary>Emoji glyph used in the tree item template.</summary>
     public string Icon => Kind switch
@@ -28,7 +44,7 @@ public class FileSystemTreeNode : INotifyPropertyChanged
     public ObservableCollection<FileSystemTreeNode> Children { get; } = [];
 
     // Dummy child keeps the expand arrow visible before real load
-    private static readonly FileSystemTreeNode Dummy = new("…", string.Empty, isDummy: true);
+    internal static readonly FileSystemTreeNode Dummy = new("…", string.Empty, isDummy: true);
     private readonly bool _isDummy;
 
     public bool IsExpanded
@@ -37,6 +53,10 @@ public class FileSystemTreeNode : INotifyPropertyChanged
         set
         {
             if (_isExpanded == value) return;
+            // Don't allow expansion of drive nodes that haven't finished loading or are unavailable
+            if (Kind == TreeNodeKind.Drive &&
+                (DriveStatus == DriveStatus.Loading || DriveStatus == DriveStatus.Unavailable))
+                return;
             _isExpanded = value;
             OnPropertyChanged();
             if (value) LoadChildren();
@@ -52,28 +72,29 @@ public class FileSystemTreeNode : INotifyPropertyChanged
     /// <summary>Regular folder node.</summary>
     public FileSystemTreeNode(string name, string fullPath, bool isDummy = false)
     {
-        Name     = name;
+        _name    = name;
         FullPath = fullPath;
         Kind     = TreeNodeKind.Folder;
         _isDummy = isDummy;
 
-        if (!isDummy && Directory.Exists(fullPath) && HasSubDirectories(fullPath))
+        if (!isDummy && Directory.Exists(fullPath) && HasSubDirectoriesSafe(fullPath))
             Children.Add(Dummy);
     }
 
-    /// <summary>Drive or This PC node.</summary>
+    /// <summary>Drive or This PC node — readiness is checked asynchronously; no blocking I/O here.</summary>
     public FileSystemTreeNode(string name, string fullPath, TreeNodeKind kind)
     {
-        Name     = name;
+        _name    = name;
         FullPath = fullPath;
         Kind     = kind;
 
-        if (kind == TreeNodeKind.Drive && Directory.Exists(fullPath) && HasSubDirectories(fullPath))
-            Children.Add(Dummy);
+        if (kind == TreeNodeKind.Drive)
+            DriveStatus = DriveStatus.Loading;
         // ThisPc children are added externally (one per drive)
+        // Drive children (Dummy) are added by CheckDriveAsync once IsReady is confirmed
     }
 
-    private static bool HasSubDirectories(string path)
+    internal static bool HasSubDirectoriesSafe(string path)
     {
         try { return Directory.EnumerateDirectories(path).Any(); }
         catch { return false; }
