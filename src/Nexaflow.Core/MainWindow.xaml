@@ -6,7 +6,7 @@
         xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
         xmlns:cvn="clr-namespace:Nexaflow.Core.Converters"
         xmlns:ctrl="clr-namespace:Nexaflow.Core.Controls"
-        Title="NexaFlow" Height="780" Width="1280"
+        Title="NexaFlow" Height="880" Width="1280"
         MinHeight="600" MinWidth="900"
         Background="{StaticResource BgBrush}"
         WindowStyle="SingleBorderWindow"
