@@ -90,5 +90,8 @@ public partial class FileActionViewModel : ObservableObject
 
     public void UpdatePaths(IReadOnlyList<string> paths) => _paths = paths;
 
+    /// <summary>Exposes the underlying action so the VM can locate actions by type.</summary>
+    internal IFileAction Action => _action;
+
     public FileActionViewModel(IFileAction action) => _action = action;
 }
