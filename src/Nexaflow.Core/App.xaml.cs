@@ -3,6 +3,7 @@ using Nexaflow.Features.Console;
 using Nexaflow.Features.Images;
 using Nexaflow.Features.Markdown;
 using Nexaflow.Features.Projects;
+using Nexaflow.Features.Text;
 using Nexaflow.Features.Web;
 using Nexaflow.Providers.Aria;
 using Nexaflow.Providers.Claude;
@@ -134,5 +135,6 @@ public partial class App : Application
         fm.Register(typeof(HtmlTabRegistration));
         fm.Register(typeof(ImageTabRegistration));
         fm.Register(typeof(MarkdownTabRegistration));
+        fm.Register(typeof(TextTabRegistration));
     }
 }
