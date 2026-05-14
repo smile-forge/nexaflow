@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Nexaflow.Core.FileSystem;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Core.Views;
@@ -623,7 +624,9 @@ public partial class ShellViewModel : ObservableObject
 
     private Views.FileSystemView CreateFileSystemPage(FileSystemViewModel fsVm, TabEntry tab)
     {
-        var page = new Views.FileSystemView(fsVm);
+        var keyHandler = new FileSystemKeyboardHandler(fsVm);
+        var dropTarget = new FileSystemDropTarget(fsVm);
+        var page = new Views.FileSystemView(fsVm, keyHandler, dropTarget);
         page.NavigationChanged += segments => ApplyFileSystemBreadcrumbs(tab, page, segments);
         fsVm.TabOpenRequested  += OpenTab;
         return page;

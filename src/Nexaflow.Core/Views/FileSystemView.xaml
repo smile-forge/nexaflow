@@ -222,6 +222,7 @@
             <TreeView x:Name="DirectoryTree"
                       Background="Transparent"
                       BorderThickness="0"
+                      AllowDrop="True"
                       ItemsSource="{Binding TreeRoots}"
                       ItemContainerStyle="{StaticResource TreeItemStyle}"
                       SelectedItemChanged="DirectoryTree_SelectedItemChanged"
@@ -403,6 +404,7 @@
                       ItemContainerStyle="{StaticResource FileRowStyle}"
                       Background="{StaticResource BgBrush}"
                       BorderThickness="0"
+                      AllowDrop="True"
                       SelectionMode="Extended"
                       SelectionChanged="FileListView_SelectionChanged"
                       PreviewMouseLeftButtonDown="FileListView_PreviewMouseLeftButtonDown"
@@ -923,5 +925,22 @@
 
         </Grid>
 
+        <!-- ── Drop tooltip: follows cursor during drag-over ────────────── -->
+        <Popup x:Name="DropTooltipPopup"
+               Grid.Column="0" Grid.ColumnSpan="3"
+               AllowsTransparency="True"
+               Placement="Relative"
+               IsOpen="False"
+               IsHitTestVisible="False">
+            <Border Background="#CC000000"
+                    CornerRadius="4"
+                    Padding="8,4">
+                <TextBlock x:Name="DropTooltipText"
+                           Foreground="White"
+                           FontSize="12"/>
+            </Border>
+        </Popup>
+
     </Grid>
+
 </UserControl>

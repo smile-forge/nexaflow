@@ -35,6 +35,9 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
     private readonly DispatcherTimer _actionDebounceTimer = new(DispatcherPriority.Background);
     private IReadOnlyList<FileSystemEntry> _pendingSelection = [];
 
+    // ── Multi-selection (forwarded from view) ─────────────────────────────────
+    public IReadOnlyList<FileSystemEntry> CurrentSelection { get; private set; } = [];
+
     // ── Shift state (forwarded from view key events) ──────────────────────────
     [ObservableProperty] private bool _shiftHeld;
 
@@ -150,6 +153,19 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
     /// given entries, suitable for use in a context menu.
     /// Does <em>not</em> update the main action strip.
     /// </summary>
+    /// <summary>
+    /// Finds the action of type <typeparamref name="T"/> in the current action strip and
+    /// executes it exactly as if the user clicked the button, including flash animation and
+    /// shift-force detection. Returns false when no such action is currently visible.
+    /// </summary>
+    public bool TryExecuteAction<T>() where T : IFileAction
+    {
+        var vm = FileActions.FirstOrDefault(a => a.Action is T);
+        if (vm?.ExecuteCommand.CanExecute(null) != true) return false;
+        vm.ExecuteCommand.Execute(null);
+        return true;
+    }
+
     public IReadOnlyList<FileActionViewModel> BuildContextActions(IReadOnlyList<FileSystemEntry> entries)
     {
         if (_isThisPcMode) return [];
@@ -180,7 +196,7 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
     /// </summary>
     public void OnSelectionChanged(IReadOnlyList<FileSystemEntry> selected)
     {
-        
+        CurrentSelection  = selected;
         _pendingSelection = selected;
 
         // Update the visible count immediately — this is a cheap label update.
@@ -293,6 +309,7 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
     }
 
     private bool   _isThisPcMode;
+    public  bool   IsThisPcMode => _isThisPcMode;
     private string _rootPath      = string.Empty;
     private string _sortColumn    = nameof(FileSystemEntry.Name);
     private bool   _sortAscending = true;

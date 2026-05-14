@@ -23,6 +23,8 @@ public sealed class FeatureManager
 
     private readonly List<Type> _fileActionTypes       = [];
     private readonly List<Type> _fileCreateActionTypes = [];
+    private readonly List<Type> _keyboardHandlerTypes  = [];
+    private readonly List<Type> _dropTargetTypes       = [];
 
     /// <summary>
     /// Types implementing <see cref="IFileAction"/> discovered from all registered
@@ -36,6 +38,18 @@ public sealed class FeatureManager
     /// feature assemblies.
     /// </summary>
     public IReadOnlyList<Type> FileCreateActionTypes => _fileCreateActionTypes;
+
+    /// <summary>
+    /// Types implementing <see cref="IKeyboardHandler"/> discovered from all registered
+    /// feature assemblies.
+    /// </summary>
+    public IReadOnlyList<Type> KeyboardHandlerTypes => _keyboardHandlerTypes;
+
+    /// <summary>
+    /// Types implementing <see cref="IDropTarget"/> discovered from all registered
+    /// feature assemblies.
+    /// </summary>
+    public IReadOnlyList<Type> DropTargetTypes => _dropTargetTypes;
 
     // ── Registration ──────────────────────────────────────────────────────
 
@@ -100,6 +114,8 @@ public sealed class FeatureManager
         {
             if (typeof(IFileAction).IsAssignableFrom(t))        _fileActionTypes.Add(t);
             if (typeof(IFileCreateAction).IsAssignableFrom(t))  _fileCreateActionTypes.Add(t);
+            if (typeof(IKeyboardHandler).IsAssignableFrom(t))   _keyboardHandlerTypes.Add(t);
+            if (typeof(IDropTarget).IsAssignableFrom(t))         _dropTargetTypes.Add(t);
             if (typeof(IQueryHandler).IsAssignableFrom(t))      _queryHandlers.Add((IQueryHandler)Activator.CreateInstance(t)!);
         }
     }
