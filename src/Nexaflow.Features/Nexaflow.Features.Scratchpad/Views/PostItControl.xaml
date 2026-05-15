@@ -18,7 +18,7 @@
         <conv:BoolToVisibilityConverter         x:Key="BoolVis"/>
         <conv:InverseBoolToVisibilityConverter  x:Key="InvBoolVis"/>
 
-        <!-- ── Mini-ribbon button ── -->
+        <!-- Mini-ribbon button -->
         <Style x:Key="RibbonBtn" TargetType="Button">
             <Setter Property="Background"      Value="Transparent"/>
             <Setter Property="Foreground"      Value="#C8D0E8"/>
@@ -81,11 +81,12 @@
     </UserControl.Resources>
 
     <Grid>
-        <!-- Mini ribbon Popup (defined outside the clipped RootGrid) -->
+        <!-- Mini ribbon Popup — outside RootGrid so it is never clipped by the shape clip.
+             Rendered in its own HWND (AllowsTransparency=True), not affected by the note's rotation. -->
         <Popup x:Name="MiniRibbon"
                AllowsTransparency="True"
                StaysOpen="False"
-               Placement="MousePoint">
+               Placement="AbsolutePoint">
             <Border Background="#1A1F2F"
                     BorderBrush="#2A3047"
                     BorderThickness="1"
@@ -95,10 +96,16 @@
                     <DropShadowEffect BlurRadius="16" ShadowDepth="4" Direction="270"
                                       Color="#000000" Opacity="0.6"/>
                 </Border.Effect>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
 
-                    <!-- Color selection dots -->
-                    <StackPanel Orientation="Horizontal" Margin="0,0,4,0" VerticalAlignment="Center">
+                <!-- 2-row grid: row 0 = colors, row 1 = shapes -->
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Row 0: color dots -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
                         <Button Style="{StaticResource ColorDotBtn}" Tag="Yellow" Click="ColorBtn_Click" ToolTip="Yellow">
                             <Ellipse Width="16" Height="16" Fill="#FFF59D"/>
                         </Button>
@@ -122,47 +129,17 @@
                         </Button>
                     </StackPanel>
 
-                    <Border Width="1" Background="#2A3047" Margin="4,2" VerticalAlignment="Stretch"/>
-
-                    <!-- Shape selection -->
-                    <StackPanel Orientation="Horizontal" Margin="4,0" VerticalAlignment="Center">
+                    <!-- Row 1: shape buttons -->
+                    <StackPanel Grid.Row="1" Orientation="Horizontal">
                         <Button x:Name="ShapeBtnSquare"  Tag="Square"  Click="ShapeBtn_Click" ToolTip="Square"  Style="{StaticResource RibbonBtn}">
                             <TextBlock Text="⬜" FontSize="14"/>
                         </Button>
-                        <Button x:Name="ShapeBtnRounded" Tag="Rounded" Click="ShapeBtn_Click" ToolTip="Rounded" Style="{StaticResource RibbonBtn}">
+                        <Button x:Name="ShapeBtnRounded" Tag="Rounded" Click="ShapeBtn_Click" ToolTip="Rounded corners" Style="{StaticResource RibbonBtn}">
                             <Border Width="14" Height="14" CornerRadius="4"
                                     BorderBrush="#C8D0E8" BorderThickness="2"/>
                         </Button>
-                        <Button x:Name="ShapeBtnStar"    Tag="Star"    Click="ShapeBtn_Click" ToolTip="Star"    Style="{StaticResource RibbonBtn}">
-                            <TextBlock Text="⭐" FontSize="14"/>
-                        </Button>
-                        <Button x:Name="ShapeBtnHeart"   Tag="Heart"   Click="ShapeBtn_Click" ToolTip="Heart"   Style="{StaticResource RibbonBtn}">
-                            <TextBlock Text="♥" FontSize="14"/>
-                        </Button>
-                        <Button x:Name="ShapeBtnCloud"   Tag="Cloud"   Click="ShapeBtn_Click" ToolTip="Cloud"   Style="{StaticResource RibbonBtn}">
-                            <TextBlock Text="☁" FontSize="14"/>
-                        </Button>
                     </StackPanel>
-
-                    <Border Width="1" Background="#2A3047" Margin="4,2" VerticalAlignment="Stretch"/>
-
-                    <!-- Action buttons -->
-                    <StackPanel Orientation="Horizontal" Margin="4,0" VerticalAlignment="Center">
-                        <Button x:Name="PinBtn" Click="PinToggle_Click" Style="{StaticResource RibbonBtn}"
-                                ToolTip="Pin / Unpin note">
-                            <TextBlock x:Name="PinBtnText" Text="📌 Pin"/>
-                        </Button>
-                        <Button Command="{Binding BringToFrontCommand}" Style="{StaticResource RibbonBtn}" ToolTip="Bring to front">
-                            <TextBlock Text="⬆"/>
-                        </Button>
-                        <Button Command="{Binding SendToBackCommand}" Style="{StaticResource RibbonBtn}" ToolTip="Send to back">
-                            <TextBlock Text="⬇"/>
-                        </Button>
-                        <Button Command="{Binding RemoveCommand}" Style="{StaticResource RibbonBtn}" ToolTip="Remove note">
-                            <TextBlock Text="🗑" Foreground="#FF6B6B"/>
-                        </Button>
-                    </StackPanel>
-                </StackPanel>
+                </Grid>
             </Border>
         </Popup>
 
@@ -173,7 +150,7 @@
                                   Color="#40000000" Opacity="0.55"/>
             </Grid.Effect>
 
-            <!-- Background fill (clip applied to this in code-behind) -->
+            <!-- Background fill (shape clip applied in code-behind) -->
             <Rectangle x:Name="BgRect"
                        Fill="{Binding Color, Converter={StaticResource ColorBrush}}"/>
 
@@ -200,7 +177,7 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- Rotation handle (drag to rotate) -->
+                        <!-- Rotation handle -->
                         <Border Grid.Column="0"
                                 Width="14" Height="14"
                                 CornerRadius="7"
@@ -216,17 +193,19 @@
                                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
 
-                        <!-- Drag area (blank space, grabs drag) -->
+                        <!-- Drag area -->
                         <Border Grid.Column="1" Background="Transparent"/>
 
-                        <!-- Timer badge / click to pin-toggle -->
-                        <Border Grid.Column="2"
+                        <!-- Timer badge — MouseLeftButtonDown stops event from bubbling to Header drag -->
+                        <Border x:Name="TimerBadge"
+                                Grid.Column="2"
                                 VerticalAlignment="Center"
                                 Cursor="Hand"
                                 Margin="0,0,4,0"
                                 Padding="3,1"
                                 CornerRadius="3"
                                 ToolTip="Click to pin/unpin"
+                                MouseLeftButtonDown="TimerBadge_MouseDown"
                                 MouseLeftButtonUp="TimerBadge_Click">
                             <Border.Style>
                                 <Style TargetType="Border">
@@ -281,7 +260,7 @@
                     </Grid>
                 </Border>
 
-                <!-- Content: rich text area -->
+                <!-- Rich text area -->
                 <ScrollViewer Grid.Row="1"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled"
@@ -300,7 +279,7 @@
                                  IsDocumentEnabled="True"/>
                 </ScrollViewer>
 
-                <!-- Bottom grip (also draggable for complex shapes) -->
+                <!-- Bottom grip (draggable for Rounded shape) -->
                 <Border Grid.Row="2"
                         Background="Transparent"
                         Cursor="SizeAll"

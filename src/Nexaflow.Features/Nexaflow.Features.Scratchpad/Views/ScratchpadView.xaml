@@ -10,7 +10,7 @@
         <conv:BoolToVisibilityConverter        x:Key="BoolVis"/>
         <conv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
 
-        <!-- Toolbar button style (mirrors TextView's TbBtn) -->
+        <!-- Toolbar button style -->
         <Style x:Key="TbBtn" TargetType="Button">
             <Setter Property="Background"        Value="Transparent"/>
             <Setter Property="Foreground"        Value="{StaticResource TextMutedBrush}"/>
@@ -43,39 +43,9 @@
             </Setter>
         </Style>
 
-        <!-- Active toolbar button (for recycle-bin toggle) -->
+        <!-- Active toolbar button -->
         <Style x:Key="TbBtnActive" TargetType="Button" BasedOn="{StaticResource TbBtn}">
             <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
-        </Style>
-
-        <!-- Recycle bin split button: the narrow dropdown part -->
-        <Style x:Key="SplitArrowBtn" TargetType="Button">
-            <Setter Property="Background"   Value="Transparent"/>
-            <Setter Property="Foreground"   Value="{StaticResource TextMutedBrush}"/>
-            <Setter Property="BorderThickness" Value="0,1,1,1"/>
-            <Setter Property="BorderBrush"  Value="{StaticResource BorderBrush}"/>
-            <Setter Property="Padding"      Value="4,5"/>
-            <Setter Property="Cursor"       Value="Hand"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="0,4,4,0"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource Surface2Brush}"/>
-                                <Setter Property="Foreground"                  Value="{StaticResource TextBrush}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
         </Style>
     </UserControl.Resources>
 
@@ -101,41 +71,12 @@
                             Click="ZoomToFit_Click" ToolTip="Zoom to fit all notes"/>
                 </StackPanel>
 
-                <!-- Right: Recycle Bin split button -->
+                <!-- Right: Recycle Bin toggle button -->
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
-
-                    <!-- Main part: toggle recycle bin view -->
                     <Button Click="ToggleBin_Click"
-                            ToolTip="View Recycle Bin"
-                            Padding="8,5"
-                            Cursor="Hand"
-                            Margin="0">
+                            ToolTip="View / hide Recycle Bin">
                         <Button.Style>
-                            <Style TargetType="Button">
-                                <Setter Property="Background"   Value="Transparent"/>
-                                <Setter Property="Foreground"   Value="{StaticResource TextMutedBrush}"/>
-                                <Setter Property="BorderThickness" Value="1,1,0,1"/>
-                                <Setter Property="BorderBrush"  Value="{StaticResource BorderBrush}"/>
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="Button">
-                                            <Border x:Name="Bd"
-                                                    Background="{TemplateBinding Background}"
-                                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                                    BorderThickness="{TemplateBinding BorderThickness}"
-                                                    CornerRadius="4,0,0,4"
-                                                    Padding="{TemplateBinding Padding}">
-                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource Surface2Brush}"/>
-                                                    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
+                            <Style TargetType="Button" BasedOn="{StaticResource TbBtn}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding ShowingRecycleBin}" Value="True">
                                         <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
@@ -145,21 +86,6 @@
                         </Button.Style>
                         <TextBlock Text="🗑 Recycle Bin" VerticalAlignment="Center"/>
                     </Button>
-
-                    <!-- Dropdown arrow -->
-                    <Button Style="{StaticResource SplitArrowBtn}" x:Name="BinDropBtn"
-                            Content="▾" Click="BinDrop_Click" ToolTip="Recycle bin options"/>
-                    <Popup x:Name="BinPopup" StaysOpen="False" Placement="Bottom" PlacementTarget="{Binding ElementName=BinDropBtn}">
-                        <Border Background="{StaticResource SurfaceBrush}"
-                                BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="1" CornerRadius="4" Padding="4">
-                            <StackPanel>
-                                <Button Content="Empty Recycle Bin" Style="{StaticResource TbBtn}"
-                                        Command="{Binding EmptyRecycleBinCommand}"
-                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"/>
-                            </StackPanel>
-                        </Border>
-                    </Popup>
                 </StackPanel>
 
                 <!-- Spacer -->
@@ -170,7 +96,7 @@
         <!-- ── Main canvas area ── -->
         <Grid Grid.Row="1">
 
-            <!-- Canvas container with clipping -->
+            <!-- Canvas container -->
             <Border x:Name="CanvasHost"
                     ClipToBounds="True"
                     AllowDrop="True"
@@ -179,10 +105,8 @@
                     MouseMove="CanvasHost_MouseMove"
                     MouseUp="CanvasHost_MouseUp"
                     DragOver="CanvasHost_DragOver"
-                    Drop="CanvasHost_Drop"
-                    KeyDown="CanvasHost_KeyDown">
+                    Drop="CanvasHost_Drop">
 
-                <!-- Subtle grid pattern (cosmetic) -->
                 <Border.Background>
                     <DrawingBrush TileMode="Tile" Viewport="0,0,40,40" ViewportUnits="Absolute">
                         <DrawingBrush.Drawing>
@@ -235,10 +159,27 @@
                 </Canvas>
             </Border>
 
+            <!-- ── Minimap (top-right overlay) ── -->
+            <Border x:Name="MiniMapBorder"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Margin="0,8,8,0"
+                    Width="160" Height="100"
+                    Background="#CC141824"
+                    BorderBrush="#334060"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Panel.ZIndex="100"
+                    Visibility="Collapsed"
+                    ToolTip="Overview — current viewport shown in blue">
+                <Canvas x:Name="MiniMapCanvas" Width="158" Height="98"/>
+            </Border>
+
             <!-- ── Recycle Bin overlay panel ── -->
             <Border Visibility="{Binding ShowingRecycleBin, Converter={StaticResource BoolVis}}"
                     HorizontalAlignment="Right"
                     Width="300"
+                    Panel.ZIndex="50"
                     Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1,0,0,0">
@@ -248,14 +189,24 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
+                    <!-- Panel header with Empty Bin button inside the window -->
                     <Border Grid.Row="0"
                             Background="{StaticResource Surface2Brush}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="0,0,0,1"
-                            Padding="12,8">
-                        <TextBlock Text="🗑 Recycle Bin"
-                                   Foreground="{StaticResource TextBrush}"
-                                   FontSize="13" FontWeight="SemiBold"/>
+                            Padding="12,6">
+                        <DockPanel>
+                            <TextBlock Text="🗑 Recycle Bin"
+                                       Foreground="{StaticResource TextBrush}"
+                                       FontSize="13" FontWeight="SemiBold"
+                                       VerticalAlignment="Center"/>
+                            <Button DockPanel.Dock="Right"
+                                    Content="Empty Bin"
+                                    Style="{StaticResource TbBtn}"
+                                    Command="{Binding EmptyRecycleBinCommand}"
+                                    HorizontalAlignment="Right"
+                                    Margin="0"/>
+                        </DockPanel>
                     </Border>
 
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
@@ -305,7 +256,6 @@
                                 <ControlTemplate TargetType="ItemsControl">
                                     <StackPanel>
                                         <ItemsPresenter/>
-                                        <!-- Empty state -->
                                         <TextBlock Text="No items in recycle bin"
                                                    Foreground="{StaticResource TextMutedBrush}"
                                                    FontSize="12"

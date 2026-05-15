@@ -4,6 +4,7 @@ using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -61,7 +62,6 @@ public partial class PostItControl : System.Windows.Controls.UserControl
             vm.PropertyChanged += OnVmPropertyChanged;
             LoadContent(vm.Content);
             UpdateClip();
-            UpdatePinButtonText();
         }
     }
 
@@ -77,10 +77,6 @@ public partial class PostItControl : System.Windows.Controls.UserControl
             case nameof(PostItViewModel.Content):
                 if (!_contentLoading) LoadContent(Vm.Content);
                 break;
-            case nameof(PostItViewModel.ExpiresAt):
-            case nameof(PostItViewModel.IsPinned):
-                UpdatePinButtonText();
-                break;
         }
     }
 
@@ -95,32 +91,6 @@ public partial class PostItControl : System.Windows.Controls.UserControl
             System.Globalization.CultureInfo.InvariantCulture)
             as Geometry;
         RootGrid.Clip = clip;
-        UpdateHeaderVisibility();
-    }
-
-    // ── Header visibility for complex shapes ──────────────────────────────
-
-    private void UpdateHeaderVisibility()
-    {
-        if (DataContext is not PostItViewModel vm) return;
-        if (vm.Shape is "Star" or "Heart" or "Cloud")
-            Header.Visibility = Visibility.Collapsed;
-        else
-            Header.Visibility = Visibility.Visible;
-    }
-
-    protected override void OnMouseEnter(MouseEventArgs e)
-    {
-        base.OnMouseEnter(e);
-        if (DataContext is PostItViewModel vm && vm.Shape is "Star" or "Heart" or "Cloud")
-            Header.Visibility = Visibility.Visible;
-    }
-
-    protected override void OnMouseLeave(MouseEventArgs e)
-    {
-        base.OnMouseLeave(e);
-        if (DataContext is PostItViewModel vm && vm.Shape is "Star" or "Heart" or "Cloud")
-            Header.Visibility = Visibility.Collapsed;
     }
 
     // ── Content (RichTextBox) ─────────────────────────────────────────────
@@ -131,6 +101,7 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         ContentBox.TextChanged -= ContentBox_TextChanged;
         try
         {
+            // XAML-serialized rich content starts with <Section
             if (!string.IsNullOrEmpty(content) &&
                 content.TrimStart().StartsWith("<Section", StringComparison.Ordinal))
             {
@@ -144,7 +115,6 @@ public partial class PostItControl : System.Windows.Controls.UserControl
                 catch { /* fall through to plain text */ }
             }
 
-            // Plain text fallback
             ContentBox.Document.Blocks.Clear();
             if (!string.IsNullOrEmpty(content))
                 ContentBox.Document.Blocks.Add(new Paragraph(new Run(content)));
@@ -156,42 +126,23 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         }
     }
 
-    private void ContentBox_TextChanged(object sender, TextChangedEventArgs e)
+    private void ContentBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
         if (_contentLoading || DataContext is not PostItViewModel vm) return;
         _contentLoading = true;
         try
         {
+            // Always serialize as XAML to preserve bold, links, and other formatting from HTML paste
             var range = new TextRange(ContentBox.Document.ContentStart, ContentBox.Document.ContentEnd);
-            if (HasRichContent())
-            {
-                using var ms = new MemoryStream();
-                range.Save(ms, DataFormats.Xaml);
-                ms.Position = 0;
-                vm.Content = new StreamReader(ms).ReadToEnd();
-            }
-            else
-            {
-                vm.Content = range.Text;
-            }
+            using var ms = new MemoryStream();
+            range.Save(ms, DataFormats.Xaml);
+            ms.Position = 0;
+            vm.Content = new StreamReader(ms).ReadToEnd();
         }
         finally
         {
             _contentLoading = false;
         }
-    }
-
-    private bool HasRichContent()
-    {
-        foreach (var block in ContentBox.Document.Blocks)
-        {
-            if (block is not Paragraph para) continue;
-            foreach (var inline in para.Inlines)
-            {
-                if (inline is not Run) return true;
-            }
-        }
-        return false;
     }
 
     private void OnHyperlinkNavigate(object sender, RequestNavigateEventArgs e)
@@ -260,7 +211,6 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         var dy     = pos.Y - _resizeStart.Y;
         const double minSize = 80;
 
-        // Horizontal axis
         if (_resizeEdge.Contains('W'))
         {
             var newW = Math.Max(minSize, _resizeStartW - dx);
@@ -272,7 +222,6 @@ public partial class PostItControl : System.Windows.Controls.UserControl
             Vm.Width = Math.Max(minSize, _resizeStartW + dx);
         }
 
-        // Vertical axis
         if (_resizeEdge.Contains('N'))
         {
             var newH = Math.Max(minSize, _resizeStartH - dy);
@@ -333,41 +282,49 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         e.Handled = true;
     }
 
-    // ── Mini ribbon popup ─────────────────────────────────────────────────
+    // ── Timer badge ───────────────────────────────────────────────────────
 
-    private void OnRightClick(object sender, MouseButtonEventArgs e)
+    private void TimerBadge_MouseDown(object sender, MouseButtonEventArgs e)
     {
-        UpdateShapeButtons();
-        UpdatePinButtonText();
-        MiniRibbon.IsOpen = true;
-        e.Handled = true;
-    }
-
-    private void ColorBtn_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button btn && btn.Tag is string color)
-            Vm.Color = color;
-        MiniRibbon.IsOpen = false;
-    }
-
-    private void ShapeBtn_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button btn && btn.Tag is string shape)
-            Vm.Shape = shape;
-        UpdateShapeButtons();
-        MiniRibbon.IsOpen = false;
-    }
-
-    private void PinToggle_Click(object sender, RoutedEventArgs e)
-    {
-        Vm.TogglePinCommand.Execute(null);
-        MiniRibbon.IsOpen = false;
+        // Stop the click from bubbling to the header and starting a drag
+        if (e.ChangedButton == MouseButton.Left)
+            e.Handled = true;
     }
 
     private void TimerBadge_Click(object sender, MouseButtonEventArgs e)
     {
         Vm.TogglePinCommand.Execute(null);
         e.Handled = true;
+    }
+
+    // ── Mini ribbon popup ─────────────────────────────────────────────────
+
+    private void OnRightClick(object sender, MouseButtonEventArgs e)
+    {
+        UpdateShapeButtons();
+        // Use AbsolutePoint placement with PointToScreen so the popup appears at the cursor
+        // position in screen space, independent of any RenderTransform on the note.
+        var screenPos = PointToScreen(e.GetPosition(this));
+        MiniRibbon.Placement        = PlacementMode.AbsolutePoint;
+        MiniRibbon.HorizontalOffset = screenPos.X;
+        MiniRibbon.VerticalOffset   = screenPos.Y;
+        MiniRibbon.IsOpen           = true;
+        e.Handled = true;
+    }
+
+    private void ColorBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.Button btn && btn.Tag is string color)
+            Vm.Color = color;
+        MiniRibbon.IsOpen = false;
+    }
+
+    private void ShapeBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.Button btn && btn.Tag is string shape)
+            Vm.Shape = shape;
+        UpdateShapeButtons();
+        MiniRibbon.IsOpen = false;
     }
 
     private void UpdateShapeButtons()
@@ -377,15 +334,6 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         var inactive = (Style)FindResource("RibbonBtn");
         ShapeBtnSquare.Style  = vm.Shape == "Square"  ? active : inactive;
         ShapeBtnRounded.Style = vm.Shape == "Rounded" ? active : inactive;
-        ShapeBtnStar.Style    = vm.Shape == "Star"    ? active : inactive;
-        ShapeBtnHeart.Style   = vm.Shape == "Heart"   ? active : inactive;
-        ShapeBtnCloud.Style   = vm.Shape == "Cloud"   ? active : inactive;
-    }
-
-    private void UpdatePinButtonText()
-    {
-        if (DataContext is not PostItViewModel vm) return;
-        PinBtnText.Text = vm.IsPinned ? "📌 Unpin" : "📌 Pin";
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
