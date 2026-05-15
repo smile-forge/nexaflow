@@ -1,0 +1,126 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Nexaflow.Features.Scratchpad.Models;
+
+namespace Nexaflow.Features.Scratchpad.ViewModels;
+
+public sealed partial class PostItViewModel : ObservableObject
+{
+    public PostItNote Note { get; }
+
+    [ObservableProperty] private string  _content;
+    [ObservableProperty] private double  _x;
+    [ObservableProperty] private double  _y;
+    [ObservableProperty] private double  _width;
+    [ObservableProperty] private double  _height;
+    [ObservableProperty] private double  _rotation;
+    [ObservableProperty] private int     _zIndex;
+    [ObservableProperty] private string  _color;
+    [ObservableProperty] private string  _shape;
+    [ObservableProperty] private DateTimeOffset? _expiresAt;
+
+    public bool IsPinned => ExpiresAt is null;
+
+    public string TimeRemainingText
+    {
+        get
+        {
+            if (ExpiresAt is null) return "📌";
+            var remaining = ExpiresAt.Value - DateTimeOffset.Now;
+            if (remaining <= TimeSpan.Zero) return "⏰";
+            if (remaining.TotalHours >= 1)
+                return $"⏱ {(int)remaining.TotalHours}h {remaining.Minutes:D2}m";
+            return $"⏱ {remaining.Minutes}m";
+        }
+    }
+
+    /// <summary>Invoked when this note should be removed from the board.</summary>
+    public Action<PostItViewModel>? RequestRemove { get; set; }
+
+    /// <summary>Invoked after any property change that needs persistence.</summary>
+    public Action<PostItViewModel>? RequestSave { get; set; }
+
+    /// <summary>Returns the highest ZIndex among all sibling notes (for BringToFront).</summary>
+    public Func<int>? GetMaxZIndex { get; set; }
+
+    /// <summary>Returns the configured lifetime for new/unpinned notes.</summary>
+    public Func<TimeSpan>? GetNoteLifetime { get; set; }
+
+    /// <summary>Opens a URL in a web tab. Wired by ScratchpadViewModel via ITabOpener.</summary>
+    public Action<string>? OpenUrl { get; set; }
+
+    public PostItViewModel(PostItNote note)
+    {
+        Note      = note;
+        _content  = note.Content;
+        _x        = note.X;
+        _y        = note.Y;
+        _width    = note.Width;
+        _height   = note.Height;
+        _rotation = note.Rotation;
+        _zIndex   = note.ZIndex;
+        _color    = note.Color;
+        _shape    = note.Shape;
+        _expiresAt = note.ExpiresAt;
+    }
+
+    public void RefreshTimeDisplay() => OnPropertyChanged(nameof(TimeRemainingText));
+
+    protected override void OnPropertyChanged(System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+
+        switch (e.PropertyName)
+        {
+            case nameof(Content):  Note.Content  = Content;  break;
+            case nameof(X):        Note.X        = X;        break;
+            case nameof(Y):        Note.Y        = Y;        break;
+            case nameof(Width):    Note.Width    = Width;    break;
+            case nameof(Height):   Note.Height   = Height;   break;
+            case nameof(Rotation): Note.Rotation = Rotation; break;
+            case nameof(ZIndex):   Note.ZIndex   = ZIndex;   break;
+            case nameof(Color):    Note.Color    = Color;    break;
+            case nameof(Shape):    Note.Shape    = Shape;    break;
+            case nameof(ExpiresAt):
+                Note.ExpiresAt = ExpiresAt;
+                OnPropertyChanged(nameof(IsPinned));
+                OnPropertyChanged(nameof(TimeRemainingText));
+                break;
+        }
+
+        var skip = new[] { nameof(TimeRemainingText), nameof(IsPinned) };
+        if (!skip.Contains(e.PropertyName))
+            RequestSave?.Invoke(this);
+    }
+
+    [RelayCommand]
+    private void ChangeColor(string color) => Color = color;
+
+    [RelayCommand]
+    private void ChangeShape(string shape) => Shape = shape;
+
+    /// <summary>
+    /// Toggles pin state. If pinned → unpin (restarts timer). If counting down → pin permanently.
+    /// Clicking the timer badge calls this.
+    /// </summary>
+    [RelayCommand]
+    private void TogglePin()
+    {
+        if (IsPinned)
+            ExpiresAt = DateTimeOffset.Now + (GetNoteLifetime?.Invoke() ?? TimeSpan.FromHours(2));
+        else
+            ExpiresAt = null;
+    }
+
+    [RelayCommand]
+    private void BringToFront()
+    {
+        ZIndex = (GetMaxZIndex?.Invoke() ?? 0) + 1;
+    }
+
+    [RelayCommand]
+    private void SendToBack() => ZIndex = 0;
+
+    [RelayCommand]
+    private void Remove() => RequestRemove?.Invoke(this);
+}
