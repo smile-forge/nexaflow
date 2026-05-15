@@ -33,6 +33,7 @@ internal static class ShellTypeResolver
         /// <summary>Human-readable type name from the default value of the ProgID key.</summary>
         string ProgIdDescription,
         string ContentType,
+        string PerceivedType,
         string? DefaultIconSpec,
         IReadOnlyList<VerbInfo> Verbs);
 
@@ -64,7 +65,8 @@ internal static class ShellTypeResolver
             using var extKey = Registry.ClassesRoot.OpenSubKey(ext);
             if (extKey is null) return null;
 
-            string contentType = (extKey.GetValue("Content Type") as string) ?? string.Empty;
+            string contentType    = (extKey.GetValue("Content Type")    as string) ?? string.Empty;
+            string perceivedType  = (extKey.GetValue("PerceivedType")   as string) ?? string.Empty;
 
             // ── Step 1: resolve the primary (default) ProgID ──────────────────
             string? defaultProgId = extKey.GetValue(null) as string;
@@ -131,7 +133,7 @@ internal static class ShellTypeResolver
                 }
             }
 
-            return new ExtensionInfo(primaryProgId, progIdDescription, contentType, defaultIconSpec, verbs);
+            return new ExtensionInfo(primaryProgId, progIdDescription, contentType, perceivedType, defaultIconSpec, verbs);
         }
         catch
         {

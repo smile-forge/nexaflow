@@ -1,34 +1,45 @@
 using Nexaflow.Features.Common;
-using System;
 using System.Collections.Generic;
 using System.IO;
 
 namespace Nexaflow.Core.FileActions
 {
-    public class RenameFile : IFileAction
+    public class RenameFile : IFileAction, IFolderAction
     {
         private readonly IInputPromptService _prompt;
 
         public RenameFile(IInputPromptService prompt) => _prompt = prompt;
 
-        public bool   IsDestructive         => false;
+        // ── IFileAction ───────────────────────────────────────────────────────
+
+        public bool   IsDestructive          => false;
         public bool   SupportsMultipleFiles  => false;   // rename only makes sense for one item
         public string Icon                   => "✏";
         public string DisplayName            => "Rename";
-        public string SupportedFileTypes     => "*.*";
-        public bool   AppliesToFolders       => true;
-        public string SupportedFolderNames   => "*";
-        public bool   AppliesToRoot          => false;
-        public bool   AppliesToDrives        => false;
+        public string ExperienceId           => "/";
+        public string ExperienceDescription  => "All files";
         public bool   RequiresRefresh        => false;   // refresh is triggered by the confirm callback
         public bool   CanPerformAction       => true;
 
+        // ── IFolderAction ─────────────────────────────────────────────────────
+
+        bool   IFolderAction.IsDestructive        => false;
+        bool   IFolderAction.SupportsMultipleFiles => false;
+        string IFolderAction.Icon                 => "✏";
+        string IFolderAction.DisplayName          => "Rename";
+        bool   IFolderAction.RequiresRefresh       => false;
+        bool   IFolderAction.CanPerformAction      => true;
+        public bool   AppliesToRoot               => false;
+        public bool   AppliesToDrives             => false;
+
+        // ── Actions ───────────────────────────────────────────────────────────
+
         public bool PerformAction(string path)
         {
-            bool isDir      = Directory.Exists(path);
-            string dir      = Path.GetDirectoryName(path)!;
-            string oldName  = Path.GetFileName(path);
-            string title    = isDir ? "Rename Folder" : "Rename File";
+            bool isDir     = Directory.Exists(path);
+            string dir     = Path.GetDirectoryName(path)!;
+            string oldName = Path.GetFileName(path);
+            string title   = isDir ? "Rename Folder" : "Rename File";
 
             _prompt.Show(
                 title:        title,

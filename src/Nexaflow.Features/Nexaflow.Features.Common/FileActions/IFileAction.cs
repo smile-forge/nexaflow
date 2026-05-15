@@ -9,20 +9,23 @@ namespace Nexaflow.Features.Common
         bool SupportsMultipleFiles { get; }
         string Icon { get; }
         string DisplayName { get; }
-        string SupportedFileTypes { get; }
-        bool AppliesToFolders { get; }
+
+        /// <summary>
+        /// Hierarchical experience identifier, e.g. "/binary/installer" or "/image".
+        /// FileMapManager uses this to match the action against file selection criteria.
+        /// Child IDs automatically satisfy parent experiences (hierarchy propagates upward).
+        /// </summary>
+        string ExperienceId { get; }
+
+        /// <summary>
+        /// Human-readable description of the experience, shown in the File Type Actions
+        /// Options panel when selecting which experience a mapping applies to.
+        /// </summary>
+        string ExperienceDescription { get; }
 
         bool RequiresRefresh { get; }
 
         bool CanPerformAction { get; }
-        string SupportedFolderNames { get; }
-
-        /// <summary>
-        /// Optional MIME content-type selector (e.g. "text/plain").
-        /// Supports a trailing wildcard: "text/*".
-        /// Use <c>"*"</c> to match any content type (the default).
-        /// </summary>
-        string SupportedContentTypes => "*";
 
         /// <summary>
         /// Optional WPF image to display instead of the <see cref="Icon"/> glyph.
@@ -36,31 +39,18 @@ namespace Nexaflow.Features.Common
         /// </summary>
         string? Tooltip => null;
 
-        /// <summary>
-        /// When <c>false</c> this action is hidden when no item is selected
-        /// (i.e. the view is showing the root / nothing is highlighted).
-        /// Set <c>true</c> only for actions that operate on the current folder itself.
-        /// </summary>
-        bool AppliesToRoot { get; }
-
-        /// <summary>
-        /// When <c>false</c> this action will not appear for drive-root entries
-        /// (e.g. C:\). Defaults to <c>true</c> for most actions.
-        /// </summary>
-        bool AppliesToDrives { get; }
-
         bool PerformAction(string filePath);
         bool PerformAction(IEnumerable<string> filePaths);
 
         /// <summary>
-        /// Force-executes the action on a single path, skipping any confirmation
-        /// prompts. Defaults to calling the normal overload.
+        /// Force-executes the action on a single path, skipping any confirmation prompts.
+        /// Defaults to calling the normal overload.
         /// </summary>
         bool PerformAction(string filePath, bool force) => PerformAction(filePath);
 
         /// <summary>
-        /// Force-executes the action on multiple paths, skipping any confirmation
-        /// prompts. Defaults to calling the normal overload.
+        /// Force-executes the action on multiple paths, skipping any confirmation prompts.
+        /// Defaults to calling the normal overload.
         /// </summary>
         bool PerformAction(IEnumerable<string> filePaths, bool force) => PerformAction(filePaths);
     }

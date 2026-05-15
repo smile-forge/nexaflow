@@ -12,17 +12,14 @@ public class ShowMarkdownAction : IFileAction
 
     public ShowMarkdownAction(ITabOpener tabOpener) => _tabOpener = tabOpener;
 
-    public bool   IsDestructive        => false;
-    public bool   SupportsMultipleFiles => false;
-    public string Icon                  => "📝";
-    public string DisplayName           => "Show";
-    public string SupportedFileTypes    => "*.md;*.markdown";
-    public bool   AppliesToFolders      => false;
-    public string SupportedFolderNames  => "";
-    public bool   AppliesToRoot         => false;
-    public bool   AppliesToDrives       => false;
-    public bool   RequiresRefresh       => false;
-    public bool   CanPerformAction      => true;
+    public bool   IsDestructive          => false;
+    public bool   SupportsMultipleFiles  => false;
+    public string Icon                   => "📝";
+    public string DisplayName            => "Show";
+    public string ExperienceId           => "/text/markdown";
+    public string ExperienceDescription  => "Markdown editor";
+    public bool   RequiresRefresh        => false;
+    public bool   CanPerformAction       => true;
 
     public bool PerformAction(string filePath)
     {

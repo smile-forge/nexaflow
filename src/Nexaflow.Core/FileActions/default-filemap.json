@@ -1,0 +1,85 @@
+[
+  {
+    "ExperienceId": "/",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.*" }
+    ]
+  },
+  {
+    "ExperienceId": "/binary/executable",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.exe" }
+    ]
+  },
+  {
+    "ExperienceId": "/binary/installer",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.msi" },
+      { "Type": "Extension", "Value": "*.msix" },
+      { "Type": "Extension", "Value": "*.msixbundle" }
+    ]
+  },
+  {
+    "ExperienceId": "/text",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.txt" },
+      { "Type": "PerceivedType", "Value": "Text" }
+    ]
+  },
+  {
+    "ExperienceId": "/text/html",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.html" },
+      { "Type": "Extension", "Value": "*.htm" },
+      { "Type": "Extension", "Value": "*.url" }
+    ]
+  },
+  {
+    "ExperienceId": "/text/markdown",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.md" },
+      { "Type": "Extension", "Value": "*.markdown" }
+    ]
+  },
+  {
+    "ExperienceId": "/text/log",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.log" }
+    ]
+  },
+  {
+    "ExperienceId": "/image",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "PerceivedType", "Value": "Image" }
+    ]
+  },
+  {
+    "ExperienceId": "/video",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "PerceivedType", "Value": "Video" }
+    ]
+  },
+  {
+    "ExperienceId": "/audio",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "PerceivedType", "Value": "Audio" }
+    ]
+  },
+  {
+    "ExperienceId": "/document",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "PerceivedType", "Value": "Document" }
+    ]
+  }
+]

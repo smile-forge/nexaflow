@@ -1,3 +1,4 @@
+using Nexaflow.Core.FileActions;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Console;
 using Nexaflow.Features.Images;
@@ -59,6 +60,11 @@ public partial class App : Application
         // ShellConfig is not in a feature assembly; register manually after providers are ready
         var shellConfig = new ShellConfig();
         ConfigManager.Instance.Register(shellConfig, shellConfig.ConfigName);
+
+        // FileMapConfig and FileMapManager — not in a feature assembly
+        var fileMapConfig = new FileMapConfig();
+        ConfigManager.Instance.Register(fileMapConfig, fileMapConfig.ConfigName);
+        FileMapManager.Instance.Initialize(fileMapConfig.UseRegistryMapping);
 
         // Apply any persisted provider selections
         if (!string.IsNullOrEmpty(shellConfig.BasicAiProvider))

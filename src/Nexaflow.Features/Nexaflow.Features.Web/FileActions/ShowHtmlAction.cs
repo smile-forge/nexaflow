@@ -19,17 +19,14 @@ namespace Nexaflow.Features.Web.FileActions
 
         public ShowHtmlAction(ITabOpener tabOpener) => _tabOpener = tabOpener;
 
-        public bool   IsDestructive        => false;
-        public bool   SupportsMultipleFiles => false;
-        public string Icon                  => "🌐";
-        public string DisplayName           => "Show";
-        public string SupportedFileTypes    => "*.html;*.htm;*.url";
-        public bool   AppliesToFolders      => false;
-        public string SupportedFolderNames  => "";
-        public bool   AppliesToRoot         => false;
-        public bool   AppliesToDrives       => false;
-        public bool   RequiresRefresh       => false;
-        public bool   CanPerformAction      => true;
+        public bool   IsDestructive          => false;
+        public bool   SupportsMultipleFiles  => false;
+        public string Icon                   => "🌐";
+        public string DisplayName            => "Show";
+        public string ExperienceId           => "/text/html";
+        public string ExperienceDescription  => "Open A browser tab to display HTML content";
+        public bool   RequiresRefresh        => false;
+        public bool   CanPerformAction       => true;
 
         public bool PerformAction(string filePath)
         {

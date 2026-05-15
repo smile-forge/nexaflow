@@ -20,17 +20,14 @@ namespace Nexaflow.Features.Images.FileActions
 
         public ShowImageAction(ITabOpener tabOpener) => _tabOpener = tabOpener;
 
-        public bool   IsDestructive        => false;
-        public bool   SupportsMultipleFiles => true;
-        public string Icon                  => "🖼";
-        public string DisplayName           => "Show";
-        public string SupportedFileTypes    => "*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.ico;*.tiff;*.tif;*.webp";
-        public bool   AppliesToFolders      => false;
-        public string SupportedFolderNames  => "";
-        public bool   AppliesToRoot         => false;
-        public bool   AppliesToDrives       => false;
-        public bool   RequiresRefresh       => false;
-        public bool   CanPerformAction      => true;
+        public bool   IsDestructive          => false;
+        public bool   SupportsMultipleFiles  => true;
+        public string Icon                   => "🖼";
+        public string DisplayName            => "Show";
+        public string ExperienceId           => "/image";
+        public string ExperienceDescription  => "Image Viewer";
+        public bool   RequiresRefresh        => false;
+        public bool   CanPerformAction       => true;
 
         public bool PerformAction(string filePath)
         {

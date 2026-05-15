@@ -1,35 +1,34 @@
-﻿using Nexaflow.Features.Common;
+using Nexaflow.Features.Common;
 using System;
 using System.Collections.Generic;
-using System.Text;
 
 namespace Nexaflow.Core.FileActions
 {
-    internal class FileProperties : IFileAction
+    internal class FileProperties : IFileAction, IFolderAction
     {
-        public bool IsDestructive => false;
+        // ── IFileAction ───────────────────────────────────────────────────────
 
-        public bool SupportsMultipleFiles => false;
+        public bool   IsDestructive          => false;
+        public bool   SupportsMultipleFiles  => false;
+        public string Icon                   => "☶";
+        public string DisplayName            => "Properties";
+        public string ExperienceId           => "/";
+        public string ExperienceDescription  => "All files";
+        public bool   RequiresRefresh        => false;
+        public bool   CanPerformAction       => true;
 
-        public string Icon => "☶";
+        // ── IFolderAction ─────────────────────────────────────────────────────
 
-        public string DisplayName => "Properties";
+        bool   IFolderAction.IsDestructive       => false;
+        bool   IFolderAction.SupportsMultipleFiles => false;
+        string IFolderAction.Icon                => "☶";
+        string IFolderAction.DisplayName         => "Properties";
+        bool   IFolderAction.RequiresRefresh      => false;
+        bool   IFolderAction.CanPerformAction     => true;
+        public bool   AppliesToRoot              => false;
+        public bool   AppliesToDrives            => true;
 
-        public string SupportedFileTypes => "*.*";
-
-        public bool AppliesToFolders => false;
-
-        public string SupportedFolderNames => "";
-
-        public bool AppliesToRoot => false;
-
-        public bool AppliesToDrives => true;
-
-        public bool RequiresRefresh => false;
-
-        public bool RequireRefresh => false;
-
-        public bool CanPerformAction => true;
+        // ── Actions ───────────────────────────────────────────────────────────
 
         public bool PerformAction(string filePath)
         {

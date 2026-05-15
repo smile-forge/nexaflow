@@ -10,17 +10,14 @@ namespace Nexaflow.Core.FileActions
     /// </summary>
     public class ExecuteFile : IFileAction
     {
-        public bool   IsDestructive        => false;
-        public bool   SupportsMultipleFiles => false;
-        public string Icon                  => "▶";
-        public string DisplayName           => "Run";
-        public string SupportedFileTypes    => "*.exe";
-        public bool   AppliesToFolders      => false;
-        public string SupportedFolderNames  => "";
-        public bool   AppliesToRoot         => false;
-        public bool   AppliesToDrives       => false;
-        public bool   RequiresRefresh       => false;
-        public bool   CanPerformAction      => true;
+        public bool   IsDestructive          => false;
+        public bool   SupportsMultipleFiles  => false;
+        public string Icon                   => "▶";
+        public string DisplayName            => "Run";
+        public string ExperienceId           => "/binary/executable";
+        public string ExperienceDescription  => "Executable files (.exe)";
+        public bool   RequiresRefresh        => false;
+        public bool   CanPerformAction       => true;
 
         public bool PerformAction(string filePath)
         {

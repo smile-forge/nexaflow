@@ -1,0 +1,139 @@
+<UserControl x:Class="Nexaflow.Core.Controls.FileMapEditorControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:cvn="clr-namespace:Nexaflow.Core.Converters">
+
+    <UserControl.Resources>
+        <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
+        <cvn:InverseBoolToVisibilityConverter x:Key="InverseBoolVis"/>
+    </UserControl.Resources>
+
+    <DockPanel Margin="12">
+
+        <!-- Top: registry toggle -->
+        <CheckBox DockPanel.Dock="Top"
+                  Margin="0,0,0,12"
+                  Foreground="{StaticResource TextBrush}"
+                  FontSize="12"
+                  Content="Use registry-based file type mapping"
+                  IsChecked="{Binding UseRegistryMapping, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                  Unchecked="RegistryToggle_Unchecked"/>
+
+        <!-- Body: left tree + right criteria editor -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="180" MinWidth="120"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: experience tree -->
+            <Border Grid.Column="0"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="4">
+                <TreeView x:Name="ExperienceTree"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          SelectedItemChanged="ExperienceTree_SelectedItemChanged">
+                    <TreeView.ItemContainerStyle>
+                        <Style TargetType="TreeViewItem">
+                            <Setter Property="IsExpanded" Value="True"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                        </Style>
+                    </TreeView.ItemContainerStyle>
+                    <TreeView.ItemTemplate>
+                        <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                            <TextBlock Text="{Binding Segment}"
+                                       Foreground="{StaticResource TextBrush}"
+                                       FontSize="12" Padding="2"/>
+                        </HierarchicalDataTemplate>
+                    </TreeView.ItemTemplate>
+                </TreeView>
+            </Border>
+
+            <GridSplitter Grid.Column="1" Width="4"
+                          HorizontalAlignment="Stretch"
+                          Background="{StaticResource BorderBrush}"/>
+
+            <!-- Right: criteria editor for selected experience -->
+            <Grid Grid.Column="2" Margin="12,0,0,0">
+                <TextBlock Text="Select an experience on the left to edit its file matching criteria."
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="12" TextWrapping="Wrap"
+                           VerticalAlignment="Center" HorizontalAlignment="Center"
+                           Visibility="{Binding HasSelectedMapping, RelativeSource={RelativeSource AncestorType=UserControl},
+                                                 Converter={StaticResource InverseBoolVis}}"/>
+
+                <DockPanel Visibility="{Binding HasSelectedMapping, RelativeSource={RelativeSource AncestorType=UserControl},
+                                                Converter={StaticResource BoolVis}}">
+
+                    <!-- Header: experience ID + description -->
+                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                        <TextBlock x:Name="ExperienceIdLabel"
+                                   Foreground="{StaticResource TextBrush}"
+                                   FontSize="13" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="ExperienceDescLabel"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   FontSize="11" Margin="0,2,0,0"/>
+                    </StackPanel>
+
+                    <!-- Add criterion button -->
+                    <Button DockPanel.Dock="Bottom"
+                            Content="+ Add Criterion"
+                            HorizontalAlignment="Left"
+                            MinWidth="120"
+                            Margin="0,6,0,0"
+                            Style="{StaticResource IconButton}"
+                            Click="AddCriterion_Click"/>
+
+                    <!-- Criteria list -->
+                    <ListView x:Name="CriteriaList"
+                              Background="Transparent"
+                              BorderBrush="{StaticResource BorderBrush}"
+                              BorderThickness="1"
+                              SelectionMode="Single">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="Type" Width="120">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <ComboBox ItemsSource="{Binding TypeOptions}"
+                                                      SelectedItem="{Binding TypeName}"
+                                                      Style="{StaticResource DarkComboBox}"
+                                                      FontSize="11"
+                                                      MinWidth="100"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="Value" Width="240">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource DarkTextBox}"
+                                                     FontSize="11"
+                                                     MinWidth="200"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="" Width="32">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Button Style="{StaticResource IconButton}"
+                                                    ToolTip="Remove criterion"
+                                                    Tag="{Binding}"
+                                                    Click="RemoveCriterion_Click">
+                                                <TextBlock Text="✕" FontSize="10"
+                                                           Foreground="{StaticResource TextMutedBrush}"/>
+                                            </Button>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </DockPanel>
+            </Grid>
+        </Grid>
+    </DockPanel>
+</UserControl>

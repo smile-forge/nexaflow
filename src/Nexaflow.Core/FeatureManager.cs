@@ -22,6 +22,7 @@ public sealed class FeatureManager
     private readonly Dictionary<Type, IReadOnlyList<string>> _configToPageKinds = new();
 
     private readonly List<Type> _fileActionTypes       = [];
+    private readonly List<Type> _folderActionTypes     = [];
     private readonly List<Type> _fileCreateActionTypes = [];
     private readonly List<Type> _keyboardHandlerTypes  = [];
     private readonly List<Type> _dropTargetTypes       = [];
@@ -32,6 +33,12 @@ public sealed class FeatureManager
     /// construction time to instantiate cross-assembly file actions.
     /// </summary>
     public IReadOnlyList<Type> FileActionTypes       => _fileActionTypes;
+
+    /// <summary>
+    /// Types implementing <see cref="IFolderAction"/> discovered from all registered
+    /// feature assemblies.
+    /// </summary>
+    public IReadOnlyList<Type> FolderActionTypes     => _folderActionTypes;
 
     /// <summary>
     /// Types implementing <see cref="IFileCreateAction"/> discovered from all registered
@@ -113,6 +120,7 @@ public sealed class FeatureManager
         foreach (var t in asm.GetTypes().Where(t => !t.IsAbstract && !t.IsInterface))
         {
             if (typeof(IFileAction).IsAssignableFrom(t))        _fileActionTypes.Add(t);
+            if (typeof(IFolderAction).IsAssignableFrom(t))      _folderActionTypes.Add(t);
             if (typeof(IFileCreateAction).IsAssignableFrom(t))  _fileCreateActionTypes.Add(t);
             if (typeof(IKeyboardHandler).IsAssignableFrom(t))   _keyboardHandlerTypes.Add(t);
             if (typeof(IDropTarget).IsAssignableFrom(t))         _dropTargetTypes.Add(t);

@@ -1,4 +1,4 @@
-﻿using Nexaflow.Features.Common;
+using Nexaflow.Features.Common;
 using System.Collections.Generic;
 using System.IO;
 
@@ -11,25 +11,35 @@ namespace Nexaflow.Core.FileActions;
 ///   <item>Force delete (Shift held) — skips confirmation and permanently deletes immediately.</item>
 /// </list>
 /// </summary>
-public class DeleteFile : IFileAction
+public class DeleteFile : IFileAction, IFolderAction
 {
     private readonly IInputPromptService _prompt;
 
     public DeleteFile(IInputPromptService prompt) => _prompt = prompt;
 
-    public bool   IsDestructive        => true;
-    public bool   SupportsMultipleFiles => true;
-    public string SupportedFileTypes    => "*.*";
-    public string Icon                  => "🗑";
-    public string DisplayName           => "Delete";
-    public bool   AppliesToFolders      => true;
-    public string SupportedFolderNames  => "*";
-    public bool   AppliesToRoot         => false;
-    public bool   AppliesToDrives       => false;
-    public bool   RequiresRefresh       => false;  // refresh triggered inside callbacks
-    public bool   CanPerformAction      => true;
+    // ── IFileAction ───────────────────────────────────────────────────────────
 
-    // ── Single path ──────────────────────────────────────────────────────
+    public bool   IsDestructive          => true;
+    public bool   SupportsMultipleFiles  => true;
+    public string Icon                   => "🗑";
+    public string DisplayName            => "Delete";
+    public string ExperienceId           => "/";
+    public string ExperienceDescription  => "All files";
+    public bool   RequiresRefresh        => false;  // refresh triggered inside callbacks
+    public bool   CanPerformAction       => true;
+
+    // ── IFolderAction ─────────────────────────────────────────────────────────
+
+    bool   IFolderAction.IsDestructive        => true;
+    bool   IFolderAction.SupportsMultipleFiles => true;
+    string IFolderAction.Icon                 => "🗑";
+    string IFolderAction.DisplayName          => "Delete";
+    bool   IFolderAction.RequiresRefresh       => false;
+    bool   IFolderAction.CanPerformAction      => true;
+    public bool   AppliesToRoot               => false;
+    public bool   AppliesToDrives             => false;
+
+    // ── Single path ───────────────────────────────────────────────────────────
 
     public bool PerformAction(string filePath)
         => PerformAction(filePath, force: false);
@@ -37,7 +47,7 @@ public class DeleteFile : IFileAction
     public bool PerformAction(string filePath, bool force)
         => PerformAction(new[] { filePath }, force);
 
-    // ── Multiple paths ───────────────────────────────────────────────────
+    // ── Multiple paths ────────────────────────────────────────────────────────
 
     public bool PerformAction(IEnumerable<string> filePaths)
         => PerformAction(filePaths, force: false);
@@ -49,13 +59,11 @@ public class DeleteFile : IFileAction
 
         if (force)
         {
-            // Shift-held: permanent delete immediately, no confirmation.
             bool ok = NativeMethods.DeleteFilesPermanently(paths);
             _prompt.RequestRefresh();
             return ok;
         }
 
-        // Normal path: ask for confirmation, then recycle.
         string target = paths.Count == 1
             ? $"\"{Path.GetFileName(paths[0])}\""
             : $"{paths.Count} items";
