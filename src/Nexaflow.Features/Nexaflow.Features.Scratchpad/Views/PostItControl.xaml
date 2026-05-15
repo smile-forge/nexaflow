@@ -4,8 +4,7 @@
              xmlns:conv="clr-namespace:Nexaflow.Features.Scratchpad.Converters"
              Width="{Binding Width}" Height="{Binding Height}"
              RenderTransformOrigin="0.5,0.5"
-             UseLayoutRounding="True"
-             MouseRightButtonUp="OnRightClick">
+             UseLayoutRounding="True">
 
     <UserControl.RenderTransform>
         <RotateTransform Angle="{Binding Rotation}"/>
@@ -15,288 +14,161 @@
         <conv:PostItColorToBrushConverter       x:Key="ColorBrush"/>
         <conv:PostItColorToHeaderBrushConverter x:Key="HeaderBrush"/>
         <conv:ShapeToClipConverter              x:Key="ShapeClip"/>
-        <conv:BoolToVisibilityConverter         x:Key="BoolVis"/>
-        <conv:InverseBoolToVisibilityConverter  x:Key="InvBoolVis"/>
-
-        <!-- Mini-ribbon button -->
-        <Style x:Key="RibbonBtn" TargetType="Button">
-            <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="#C8D0E8"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding"         Value="6,4"/>
-            <Setter Property="Cursor"          Value="Hand"/>
-            <Setter Property="FontSize"        Value="13"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                CornerRadius="4" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#30FFFFFF"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#50FFFFFF"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Active/selected state for shape buttons -->
-        <Style x:Key="RibbonBtnActive" TargetType="Button" BasedOn="{StaticResource RibbonBtn}">
-            <Setter Property="Background" Value="#40A0E0FF"/>
-            <Setter Property="Foreground" Value="#A0E0FF"/>
-        </Style>
-
-        <!-- Color dot button -->
-        <Style x:Key="ColorDotBtn" TargetType="Button">
-            <Setter Property="Width"   Value="22"/>
-            <Setter Property="Height"  Value="22"/>
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="Margin"  Value="2,0"/>
-            <Setter Property="Cursor"  Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" CornerRadius="11" Padding="2"
-                                BorderThickness="2" BorderBrush="Transparent">
-                            <ContentPresenter/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="#80FFFFFF"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="#FFFFFFFF"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
     </UserControl.Resources>
 
-    <Grid>
-        <!-- Mini ribbon Popup — outside RootGrid so it is never clipped by the shape clip.
-             Rendered in its own HWND (AllowsTransparency=True), not affected by the note's rotation. -->
-        <Popup x:Name="MiniRibbon"
-               AllowsTransparency="True"
-               StaysOpen="False"
-               Placement="AbsolutePoint">
-            <Border Background="#1A1F2F"
-                    BorderBrush="#2A3047"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="8,6">
-                <Border.Effect>
-                    <DropShadowEffect BlurRadius="16" ShadowDepth="4" Direction="270"
-                                      Color="#000000" Opacity="0.6"/>
-                </Border.Effect>
+    <Grid x:Name="RootGrid">
+        <Grid.Effect>
+            <DropShadowEffect BlurRadius="14" ShadowDepth="4" Direction="315"
+                              Color="#40000000" Opacity="0.55"/>
+        </Grid.Effect>
 
-                <!-- 2-row grid: row 0 = colors, row 1 = shapes -->
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
+        <!-- Background fill (shape clip applied in code-behind) -->
+        <Rectangle x:Name="BgRect"
+                   Fill="{Binding Color, Converter={StaticResource ColorBrush}}"/>
 
-                    <!-- Row 0: color dots -->
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
-                        <Button Style="{StaticResource ColorDotBtn}" Tag="Yellow" Click="ColorBtn_Click" ToolTip="Yellow">
-                            <Ellipse Width="16" Height="16" Fill="#FFF59D"/>
-                        </Button>
-                        <Button Style="{StaticResource ColorDotBtn}" Tag="Blue" Click="ColorBtn_Click" ToolTip="Blue">
-                            <Ellipse Width="16" Height="16" Fill="#90CAF9"/>
-                        </Button>
-                        <Button Style="{StaticResource ColorDotBtn}" Tag="Green" Click="ColorBtn_Click" ToolTip="Green">
-                            <Ellipse Width="16" Height="16" Fill="#A5D6A7"/>
-                        </Button>
-                        <Button Style="{StaticResource ColorDotBtn}" Tag="Pink" Click="ColorBtn_Click" ToolTip="Pink">
-                            <Ellipse Width="16" Height="16" Fill="#F48FB1"/>
-                        </Button>
-                        <Button Style="{StaticResource ColorDotBtn}" Tag="Orange" Click="ColorBtn_Click" ToolTip="Orange">
-                            <Ellipse Width="16" Height="16" Fill="#FFCC80"/>
-                        </Button>
-                        <Button Style="{StaticResource ColorDotBtn}" Tag="Purple" Click="ColorBtn_Click" ToolTip="Purple">
-                            <Ellipse Width="16" Height="16" Fill="#CE93D8"/>
-                        </Button>
-                        <Button Style="{StaticResource ColorDotBtn}" Tag="White" Click="ColorBtn_Click" ToolTip="White">
-                            <Ellipse Width="16" Height="16" Fill="#FAFAFA" Stroke="#CCCCCC" StrokeThickness="1"/>
-                        </Button>
-                    </StackPanel>
+        <!-- Content layout -->
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="26"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="6"/>
+            </Grid.RowDefinitions>
 
-                    <!-- Row 1: shape buttons -->
-                    <StackPanel Grid.Row="1" Orientation="Horizontal">
-                        <Button x:Name="ShapeBtnSquare"  Tag="Square"  Click="ShapeBtn_Click" ToolTip="Square"  Style="{StaticResource RibbonBtn}">
-                            <TextBlock Text="⬜" FontSize="14"/>
-                        </Button>
-                        <Button x:Name="ShapeBtnRounded" Tag="Rounded" Click="ShapeBtn_Click" ToolTip="Rounded corners" Style="{StaticResource RibbonBtn}">
-                            <Border Width="14" Height="14" CornerRadius="4"
-                                    BorderBrush="#C8D0E8" BorderThickness="2"/>
-                        </Button>
-                    </StackPanel>
+            <!-- Header / drag handle — right-click here opens the mini ribbon -->
+            <Border x:Name="Header" Grid.Row="0"
+                    Background="{Binding Color, Converter={StaticResource HeaderBrush}}"
+                    Cursor="SizeAll"
+                    MouseDown="Header_MouseDown"
+                    MouseMove="Header_MouseMove"
+                    MouseUp="Header_MouseUp"
+                    MouseRightButtonUp="Header_RightClick">
+                <Grid Margin="6,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Rotation handle -->
+                    <Border Grid.Column="0"
+                            Width="14" Height="14"
+                            CornerRadius="7"
+                            Background="#30000000"
+                            Cursor="Hand"
+                            ToolTip="Drag to rotate"
+                            Margin="0,0,4,0"
+                            VerticalAlignment="Center"
+                            MouseDown="RotateHandle_MouseDown"
+                            MouseMove="RotateHandle_MouseMove"
+                            MouseUp="RotateHandle_MouseUp">
+                        <TextBlock Text="↻" FontSize="9" Foreground="#80000000"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+
+                    <!-- Drag area -->
+                    <Border Grid.Column="1" Background="Transparent"/>
+
+                    <!-- Timer badge — MouseLeftButtonDown stops event bubbling to header drag -->
+                    <Border x:Name="TimerBadge"
+                            Grid.Column="2"
+                            VerticalAlignment="Center"
+                            Cursor="Hand"
+                            Margin="0,0,4,0"
+                            Padding="3,1"
+                            CornerRadius="3"
+                            ToolTip="Click to pin/unpin"
+                            MouseLeftButtonDown="TimerBadge_MouseDown"
+                            MouseLeftButtonUp="TimerBadge_Click">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#20000000"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="{Binding TimeRemainingText}"
+                                   FontSize="10"
+                                   Foreground="#99000000"/>
+                    </Border>
+
+                    <!-- Close button -->
+                    <Button Grid.Column="3"
+                            Command="{Binding RemoveCommand}"
+                            Width="18" Height="18"
+                            VerticalAlignment="Center"
+                            Cursor="Hand"
+                            ToolTip="Remove note">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Setter Property="FontSize" Value="10"/>
+                                <Setter Property="Foreground" Value="#80000000"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                                    CornerRadius="3" Padding="0">
+                                                <TextBlock Text="✕" HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{TemplateBinding Foreground}"
+                                                           FontSize="{TemplateBinding FontSize}"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Bd" Property="Background" Value="#40000000"/>
+                                                    <Setter Property="Foreground" Value="#CC000000"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                    </Button>
                 </Grid>
             </Border>
-        </Popup>
 
-        <!-- ── Main note body ── -->
-        <Grid x:Name="RootGrid">
-            <Grid.Effect>
-                <DropShadowEffect BlurRadius="14" ShadowDepth="4" Direction="315"
-                                  Color="#40000000" Opacity="0.55"/>
-            </Grid.Effect>
+            <!-- Rich text area -->
+            <ScrollViewer Grid.Row="1"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Padding="0">
+                <RichTextBox x:Name="ContentBox"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             FontSize="13"
+                             Foreground="#CC1C1C1C"
+                             Padding="8,6"
+                             VerticalAlignment="Stretch"
+                             MinHeight="40"
+                             AcceptsReturn="True"
+                             AcceptsTab="False"
+                             SpellCheck.IsEnabled="True"
+                             IsDocumentEnabled="True"/>
+            </ScrollViewer>
 
-            <!-- Background fill (shape clip applied in code-behind) -->
-            <Rectangle x:Name="BgRect"
-                       Fill="{Binding Color, Converter={StaticResource ColorBrush}}"/>
-
-            <!-- Content layout -->
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="26"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="6"/>
-                </Grid.RowDefinitions>
-
-                <!-- Header / drag handle -->
-                <Border x:Name="Header" Grid.Row="0"
-                        Background="{Binding Color, Converter={StaticResource HeaderBrush}}"
-                        Cursor="SizeAll"
-                        MouseDown="Header_MouseDown"
-                        MouseMove="Header_MouseMove"
-                        MouseUp="Header_MouseUp">
-                    <Grid Margin="6,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <!-- Rotation handle -->
-                        <Border Grid.Column="0"
-                                Width="14" Height="14"
-                                CornerRadius="7"
-                                Background="#30000000"
-                                Cursor="Hand"
-                                ToolTip="Drag to rotate"
-                                Margin="0,0,4,0"
-                                VerticalAlignment="Center"
-                                MouseDown="RotateHandle_MouseDown"
-                                MouseMove="RotateHandle_MouseMove"
-                                MouseUp="RotateHandle_MouseUp">
-                            <TextBlock Text="↻" FontSize="9" Foreground="#80000000"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-
-                        <!-- Drag area -->
-                        <Border Grid.Column="1" Background="Transparent"/>
-
-                        <!-- Timer badge — MouseLeftButtonDown stops event from bubbling to Header drag -->
-                        <Border x:Name="TimerBadge"
-                                Grid.Column="2"
-                                VerticalAlignment="Center"
-                                Cursor="Hand"
-                                Margin="0,0,4,0"
-                                Padding="3,1"
-                                CornerRadius="3"
-                                ToolTip="Click to pin/unpin"
-                                MouseLeftButtonDown="TimerBadge_MouseDown"
-                                MouseLeftButtonUp="TimerBadge_Click">
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Setter Property="Background" Value="Transparent"/>
-                                    <Style.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter Property="Background" Value="#20000000"/>
-                                        </Trigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-                            <TextBlock Text="{Binding TimeRemainingText}"
-                                       FontSize="10"
-                                       Foreground="#99000000"/>
-                        </Border>
-
-                        <!-- Close button -->
-                        <Button Grid.Column="3"
-                                Command="{Binding RemoveCommand}"
-                                Width="18" Height="18"
-                                VerticalAlignment="Center"
-                                Cursor="Hand"
-                                ToolTip="Remove note">
-                            <Button.Style>
-                                <Style TargetType="Button">
-                                    <Setter Property="Background" Value="Transparent"/>
-                                    <Setter Property="BorderThickness" Value="0"/>
-                                    <Setter Property="FontSize" Value="10"/>
-                                    <Setter Property="Foreground" Value="#80000000"/>
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate TargetType="Button">
-                                                <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                                        CornerRadius="3" Padding="0">
-                                                    <TextBlock Text="✕" HorizontalAlignment="Center"
-                                                               VerticalAlignment="Center"
-                                                               Foreground="{TemplateBinding Foreground}"
-                                                               FontSize="{TemplateBinding FontSize}"/>
-                                                </Border>
-                                                <ControlTemplate.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter TargetName="Bd" Property="Background" Value="#40000000"/>
-                                                        <Setter Property="Foreground" Value="#CC000000"/>
-                                                    </Trigger>
-                                                </ControlTemplate.Triggers>
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </Button.Style>
-                        </Button>
-                    </Grid>
-                </Border>
-
-                <!-- Rich text area -->
-                <ScrollViewer Grid.Row="1"
-                              VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled"
-                              Padding="0">
-                    <RichTextBox x:Name="ContentBox"
-                                 BorderThickness="0"
-                                 Background="Transparent"
-                                 FontSize="13"
-                                 Foreground="#CC1C1C1C"
-                                 Padding="8,6"
-                                 VerticalAlignment="Stretch"
-                                 MinHeight="40"
-                                 AcceptsReturn="True"
-                                 AcceptsTab="False"
-                                 SpellCheck.IsEnabled="True"
-                                 IsDocumentEnabled="True"/>
-                </ScrollViewer>
-
-                <!-- Bottom grip (draggable for Rounded shape) -->
-                <Border Grid.Row="2"
-                        Background="Transparent"
-                        Cursor="SizeAll"
-                        MouseDown="Header_MouseDown"
-                        MouseMove="Header_MouseMove"
-                        MouseUp="Header_MouseUp"/>
-            </Grid>
-
-            <!-- ── Resize handles ── -->
-            <Rectangle Height="6" VerticalAlignment="Top"    Cursor="SizeNS"   Fill="Transparent" Tag="N"  MouseDown="Resize_MouseDown" MouseMove="Resize_MouseMove" MouseUp="Resize_MouseUp"/>
-            <Rectangle Height="6" VerticalAlignment="Bottom" Cursor="SizeNS"   Fill="Transparent" Tag="S"  MouseDown="Resize_MouseDown" MouseMove="Resize_MouseMove" MouseUp="Resize_MouseUp"/>
-            <Rectangle Width="6"  HorizontalAlignment="Left" Cursor="SizeWE"   Fill="Transparent" Tag="W"  MouseDown="Resize_MouseDown" MouseMove="Resize_MouseMove" MouseUp="Resize_MouseUp"/>
-            <Rectangle Width="6"  HorizontalAlignment="Right" Cursor="SizeWE"  Fill="Transparent" Tag="E"  MouseDown="Resize_MouseDown" MouseMove="Resize_MouseMove" MouseUp="Resize_MouseUp"/>
-            <Rectangle Width="10" Height="10" HorizontalAlignment="Left"  VerticalAlignment="Top"    Cursor="SizeNWSE" Fill="Transparent" Tag="NW" MouseDown="Resize_MouseDown" MouseMove="Resize_MouseMove" MouseUp="Resize_MouseUp"/>
-            <Rectangle Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Top"    Cursor="SizeNESW" Fill="Transparent" Tag="NE" MouseDown="Resize_MouseDown" MouseMove="Resize_MouseMove" MouseUp="Resize_MouseUp"/>
-            <Rectangle Width="10" Height="10" HorizontalAlignment="Left"  VerticalAlignment="Bottom" Cursor="SizeNESW" Fill="Transparent" Tag="SW" MouseDown="Resize_MouseDown" MouseMove="Resize_MouseMove" MouseUp="Resize_MouseUp"/>
-            <Rectangle Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Bottom" Cursor="SizeNWSE" Fill="Transparent" Tag="SE" MouseDown="Resize_MouseDown" MouseMove="Resize_MouseMove" MouseUp="Resize_MouseUp"/>
+            <!-- Bottom grip -->
+            <Border Grid.Row="2"
+                    Background="Transparent"
+                    Cursor="SizeAll"
+                    MouseDown="Header_MouseDown"
+                    MouseMove="Header_MouseMove"
+                    MouseUp="Header_MouseUp"/>
         </Grid>
+
+        <!-- ── Resize handles ── -->
+        <Rectangle Height="6" VerticalAlignment="Top"    Cursor="SizeNS"   Fill="Transparent" Tag="N"  MouseDown="Resize_MouseDown" MouseMove="Resize_MouseMove" MouseUp="Resize_MouseUp"/>
+        <Rectangle Height="6" VerticalAlignment="Bottom" Cursor="SizeNS"   Fill="Transparent" Tag="S"  MouseDown="Resize_MouseDown" MouseMove="Resize_MouseMove" MouseUp="Resize_MouseUp"/>
+        <Rectangle Width="6"  HorizontalAlignment="Left" Cursor="SizeWE"   Fill="Transparent" Tag="W"  MouseDown="Resize_MouseDown" MouseMove="Resize_MouseMove" MouseUp="Resize_MouseUp"/>
+        <Rectangle Width="6"  HorizontalAlignment="Right" Cursor="SizeWE"  Fill="Transparent" Tag="E"  MouseDown="Resize_MouseDown" MouseMove="Resize_MouseMove" MouseUp="Resize_MouseUp"/>
+        <Rectangle Width="10" Height="10" HorizontalAlignment="Left"  VerticalAlignment="Top"    Cursor="SizeNWSE" Fill="Transparent" Tag="NW" MouseDown="Resize_MouseDown" MouseMove="Resize_MouseMove" MouseUp="Resize_MouseUp"/>
+        <Rectangle Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Top"    Cursor="SizeNESW" Fill="Transparent" Tag="NE" MouseDown="Resize_MouseDown" MouseMove="Resize_MouseMove" MouseUp="Resize_MouseUp"/>
+        <Rectangle Width="10" Height="10" HorizontalAlignment="Left"  VerticalAlignment="Bottom" Cursor="SizeNESW" Fill="Transparent" Tag="SW" MouseDown="Resize_MouseDown" MouseMove="Resize_MouseMove" MouseUp="Resize_MouseUp"/>
+        <Rectangle Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Bottom" Cursor="SizeNWSE" Fill="Transparent" Tag="SE" MouseDown="Resize_MouseDown" MouseMove="Resize_MouseMove" MouseUp="Resize_MouseUp"/>
     </Grid>
 </UserControl>

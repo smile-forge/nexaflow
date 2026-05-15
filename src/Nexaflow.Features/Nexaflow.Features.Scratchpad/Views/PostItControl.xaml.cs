@@ -4,7 +4,6 @@ using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -101,7 +100,6 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         ContentBox.TextChanged -= ContentBox_TextChanged;
         try
         {
-            // XAML-serialized rich content starts with <Section
             if (!string.IsNullOrEmpty(content) &&
                 content.TrimStart().StartsWith("<Section", StringComparison.Ordinal))
             {
@@ -126,18 +124,17 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         }
     }
 
-    private void ContentBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    private void ContentBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (_contentLoading || DataContext is not PostItViewModel vm) return;
         _contentLoading = true;
         try
         {
-            // Always serialize as XAML to preserve bold, links, and other formatting from HTML paste
             var range = new TextRange(ContentBox.Document.ContentStart, ContentBox.Document.ContentEnd);
             using var ms = new MemoryStream();
             range.Save(ms, DataFormats.Xaml);
             ms.Position = 0;
-            vm.Content = new StreamReader(ms).ReadToEnd();
+            vm.Content = new System.IO.StreamReader(ms).ReadToEnd();
         }
         finally
         {
@@ -151,13 +148,27 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         e.Handled = true;
     }
 
+    // ── Header right-click → delegate to ScratchpadView-level ribbon ──────
+    // The ribbon lives in ScratchpadView (above any transform) so it always
+    // appears horizontal regardless of the note's rotation.
+
+    private void Header_RightClick(object sender, MouseButtonEventArgs e)
+    {
+        var sv = FindAncestor<ScratchpadView>();
+        if (sv == null) return;
+        // Pass screen-device coordinates; ScratchpadView converts to logical pixels
+        var screenPos = PointToScreen(e.GetPosition(this));
+        sv.ShowNoteRibbon(Vm, screenPos);
+        e.Handled = true;
+    }
+
     // ── Header drag ───────────────────────────────────────────────────────
 
     private void Header_MouseDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ChangedButton != MouseButton.Left) return;
         _isDragging = true;
-        var canvas  = FindAncestorCanvas();
+        var canvas  = FindAncestor<Canvas>();
         _dragStart  = canvas != null ? e.GetPosition(canvas) : e.GetPosition(Parent as UIElement);
         _noteStartX = Vm.X;
         _noteStartY = Vm.Y;
@@ -169,7 +180,7 @@ public partial class PostItControl : System.Windows.Controls.UserControl
     private void Header_MouseMove(object sender, MouseEventArgs e)
     {
         if (!_isDragging) return;
-        var canvas = FindAncestorCanvas();
+        var canvas = FindAncestor<Canvas>();
         var pos    = canvas != null ? e.GetPosition(canvas) : e.GetPosition(Parent as UIElement);
         Vm.X = _noteStartX + (pos.X - _dragStart.X);
         Vm.Y = _noteStartY + (pos.Y - _dragStart.Y);
@@ -191,7 +202,7 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         if (e.ChangedButton != MouseButton.Left) return;
         _isResizing   = true;
         _resizeEdge   = ((FrameworkElement)sender).Tag as string ?? "SE";
-        var canvas    = FindAncestorCanvas();
+        var canvas    = FindAncestor<Canvas>();
         _resizeStart  = canvas != null ? e.GetPosition(canvas) : e.GetPosition(Parent as UIElement);
         _resizeStartX = Vm.X;
         _resizeStartY = Vm.Y;
@@ -205,7 +216,7 @@ public partial class PostItControl : System.Windows.Controls.UserControl
     private void Resize_MouseMove(object sender, MouseEventArgs e)
     {
         if (!_isResizing) return;
-        var canvas = FindAncestorCanvas();
+        var canvas = FindAncestor<Canvas>();
         var pos    = canvas != null ? e.GetPosition(canvas) : e.GetPosition(Parent as UIElement);
         var dx     = pos.X - _resizeStart.X;
         var dy     = pos.Y - _resizeStart.Y;
@@ -251,7 +262,7 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         if (e.ChangedButton != MouseButton.Left) return;
         _isRotating       = true;
         _rotateStartAngle = Vm.Rotation;
-        var canvas = FindAncestorCanvas();
+        var canvas = FindAncestor<Canvas>();
         if (canvas != null)
         {
             var center = new Point(Vm.X + Vm.Width / 2, Vm.Y + Vm.Height / 2);
@@ -265,7 +276,7 @@ public partial class PostItControl : System.Windows.Controls.UserControl
     private void RotateHandle_MouseMove(object sender, MouseEventArgs e)
     {
         if (!_isRotating) return;
-        var canvas = FindAncestorCanvas();
+        var canvas = FindAncestor<Canvas>();
         if (canvas == null) return;
         var center       = new Point(Vm.X + Vm.Width / 2, Vm.Y + Vm.Height / 2);
         var mouse        = e.GetPosition(canvas);
@@ -286,7 +297,6 @@ public partial class PostItControl : System.Windows.Controls.UserControl
 
     private void TimerBadge_MouseDown(object sender, MouseButtonEventArgs e)
     {
-        // Stop the click from bubbling to the header and starting a drag
         if (e.ChangedButton == MouseButton.Left)
             e.Handled = true;
     }
@@ -297,54 +307,15 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         e.Handled = true;
     }
 
-    // ── Mini ribbon popup ─────────────────────────────────────────────────
-
-    private void OnRightClick(object sender, MouseButtonEventArgs e)
-    {
-        UpdateShapeButtons();
-        // Use AbsolutePoint placement with PointToScreen so the popup appears at the cursor
-        // position in screen space, independent of any RenderTransform on the note.
-        var screenPos = PointToScreen(e.GetPosition(this));
-        MiniRibbon.Placement        = PlacementMode.AbsolutePoint;
-        MiniRibbon.HorizontalOffset = screenPos.X;
-        MiniRibbon.VerticalOffset   = screenPos.Y;
-        MiniRibbon.IsOpen           = true;
-        e.Handled = true;
-    }
-
-    private void ColorBtn_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is System.Windows.Controls.Button btn && btn.Tag is string color)
-            Vm.Color = color;
-        MiniRibbon.IsOpen = false;
-    }
-
-    private void ShapeBtn_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is System.Windows.Controls.Button btn && btn.Tag is string shape)
-            Vm.Shape = shape;
-        UpdateShapeButtons();
-        MiniRibbon.IsOpen = false;
-    }
-
-    private void UpdateShapeButtons()
-    {
-        if (DataContext is not PostItViewModel vm) return;
-        var active   = (Style)FindResource("RibbonBtnActive");
-        var inactive = (Style)FindResource("RibbonBtn");
-        ShapeBtnSquare.Style  = vm.Shape == "Square"  ? active : inactive;
-        ShapeBtnRounded.Style = vm.Shape == "Rounded" ? active : inactive;
-    }
-
     // ── Helpers ───────────────────────────────────────────────────────────
 
-    private Canvas? FindAncestorCanvas()
+    private T? FindAncestor<T>() where T : DependencyObject
     {
         DependencyObject? current = this;
         while (current != null)
         {
             current = VisualTreeHelper.GetParent(current);
-            if (current is Canvas canvas) return canvas;
+            if (current is T match) return match;
         }
         return null;
     }

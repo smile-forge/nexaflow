@@ -43,9 +43,96 @@
             </Setter>
         </Style>
 
-        <!-- Active toolbar button -->
-        <Style x:Key="TbBtnActive" TargetType="Button" BasedOn="{StaticResource TbBtn}">
-            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+        <!-- Narrow dropdown arrow part of the recycle-bin split button -->
+        <Style x:Key="SplitArrowBtn" TargetType="Button">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"      Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="BorderThickness" Value="0,1,1,1"/>
+            <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
+            <Setter Property="Padding"         Value="4,5"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="0,4,4,0"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource Surface2Brush}"/>
+                                <Setter Property="Foreground"                  Value="{StaticResource TextBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Note mini-ribbon styles (popup lives at this level to avoid note rotation) ── -->
+
+        <Style x:Key="RibbonBtn" TargetType="Button">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"      Value="#C8D0E8"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="8,5"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="FontSize"        Value="12"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#30FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#50FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="RibbonBtnActive" TargetType="Button" BasedOn="{StaticResource RibbonBtn}">
+            <Setter Property="Background" Value="#40A0E0FF"/>
+            <Setter Property="Foreground" Value="#A0E0FF"/>
+        </Style>
+
+        <Style x:Key="ColorDotBtn" TargetType="Button">
+            <Setter Property="Width"   Value="24"/>
+            <Setter Property="Height"  Value="24"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin"  Value="2,0"/>
+            <Setter Property="Cursor"  Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="12" Padding="2"
+                                BorderThickness="2" BorderBrush="Transparent">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#80FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#FFFFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </UserControl.Resources>
 
@@ -55,6 +142,96 @@
             <RowDefinition Height="*"/>   <!-- canvas -->
             <RowDefinition Height="22"/>  <!-- status bar -->
         </Grid.RowDefinitions>
+
+        <!-- Note mini-ribbon (rendered outside notes' visual subtree → never rotated) -->
+        <Popup x:Name="NoteRibbon"
+               AllowsTransparency="True"
+               StaysOpen="False"
+               Placement="AbsolutePoint">
+            <Border Background="#1A1F2F"
+                    BorderBrush="#2A3047"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="8,6"
+                    MinWidth="130">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="14" ShadowDepth="3" Direction="270"
+                                      Color="#000000" Opacity="0.6"/>
+                </Border.Effect>
+                <StackPanel>
+
+                    <!-- Color row 1: Yellow Blue Green Pink -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+                        <Button Style="{StaticResource ColorDotBtn}" Tag="Yellow" Click="RibbonColorBtn_Click" ToolTip="Yellow">
+                            <Ellipse Width="18" Height="18" Fill="#FFF59D"/>
+                        </Button>
+                        <Button Style="{StaticResource ColorDotBtn}" Tag="Blue" Click="RibbonColorBtn_Click" ToolTip="Blue">
+                            <Ellipse Width="18" Height="18" Fill="#90CAF9"/>
+                        </Button>
+                        <Button Style="{StaticResource ColorDotBtn}" Tag="Green" Click="RibbonColorBtn_Click" ToolTip="Green">
+                            <Ellipse Width="18" Height="18" Fill="#A5D6A7"/>
+                        </Button>
+                        <Button Style="{StaticResource ColorDotBtn}" Tag="Pink" Click="RibbonColorBtn_Click" ToolTip="Pink">
+                            <Ellipse Width="18" Height="18" Fill="#F48FB1"/>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Color row 2: Orange Purple White -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button Style="{StaticResource ColorDotBtn}" Tag="Orange" Click="RibbonColorBtn_Click" ToolTip="Orange">
+                            <Ellipse Width="18" Height="18" Fill="#FFCC80"/>
+                        </Button>
+                        <Button Style="{StaticResource ColorDotBtn}" Tag="Purple" Click="RibbonColorBtn_Click" ToolTip="Purple">
+                            <Ellipse Width="18" Height="18" Fill="#CE93D8"/>
+                        </Button>
+                        <Button Style="{StaticResource ColorDotBtn}" Tag="White" Click="RibbonColorBtn_Click" ToolTip="White">
+                            <Ellipse Width="18" Height="18" Fill="#FAFAFA" Stroke="#CCCCCC" StrokeThickness="1"/>
+                        </Button>
+                    </StackPanel>
+
+                    <Rectangle Height="1" Fill="#2A3047" Margin="0,0,0,6"/>
+
+                    <!-- Shape row 1: Square -->
+                    <Button x:Name="RibbonShapeSquare" Tag="Square" Click="RibbonShapeBtn_Click"
+                            Style="{StaticResource RibbonBtn}" HorizontalAlignment="Stretch" Margin="0,0,0,2">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⬜" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="Square" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Shape row 2: Rounded -->
+                    <Button x:Name="RibbonShapeRounded" Tag="Rounded" Click="RibbonShapeBtn_Click"
+                            Style="{StaticResource RibbonBtn}" HorizontalAlignment="Stretch" Margin="0,0,0,8">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="13" Height="13" CornerRadius="3"
+                                    BorderBrush="#C8D0E8" BorderThickness="2"
+                                    Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="Rounded" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Rectangle Height="1" Fill="#2A3047" Margin="0,0,0,6"/>
+
+                    <!-- Bring to Front / Send to Back -->
+                    <StackPanel Orientation="Horizontal">
+                        <Button Click="RibbonBringToFront_Click" Style="{StaticResource RibbonBtn}" ToolTip="Bring to front" Padding="6,4">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="⬆" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="Front" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Click="RibbonSendToBack_Click" Style="{StaticResource RibbonBtn}" ToolTip="Send to back" Padding="6,4">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="⬇" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="Back" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                </StackPanel>
+            </Border>
+        </Popup>
 
         <!-- ── Toolbar ── -->
         <Border Grid.Row="0"
@@ -71,12 +248,37 @@
                             Click="ZoomToFit_Click" ToolTip="Zoom to fit all notes"/>
                 </StackPanel>
 
-                <!-- Right: Recycle Bin toggle button -->
+                <!-- Right: Recycle Bin split button -->
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
-                    <Button Click="ToggleBin_Click"
-                            ToolTip="View / hide Recycle Bin">
+
+                    <!-- Left part: toggle bin view -->
+                    <Button Click="ToggleBin_Click" ToolTip="View / hide Recycle Bin" Padding="8,5" Cursor="Hand" Margin="0">
                         <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource TbBtn}">
+                            <Style TargetType="Button">
+                                <Setter Property="Background"      Value="Transparent"/>
+                                <Setter Property="Foreground"      Value="{StaticResource TextMutedBrush}"/>
+                                <Setter Property="BorderThickness" Value="1,1,0,1"/>
+                                <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="Bd"
+                                                    Background="{TemplateBinding Background}"
+                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                                    CornerRadius="4,0,0,4"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource Surface2Brush}"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding ShowingRecycleBin}" Value="True">
                                         <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
@@ -85,6 +287,16 @@
                             </Style>
                         </Button.Style>
                         <TextBlock Text="🗑 Recycle Bin" VerticalAlignment="Center"/>
+                    </Button>
+
+                    <!-- Right part: dropdown arrow (ContextMenu stays within window bounds) -->
+                    <Button x:Name="BinDropBtn" Style="{StaticResource SplitArrowBtn}"
+                            Content="▾" Click="BinDrop_Click" ToolTip="Recycle bin options">
+                        <Button.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Empty Recycle Bin" Click="EmptyBin_Click"/>
+                            </ContextMenu>
+                        </Button.ContextMenu>
                     </Button>
                 </StackPanel>
 
@@ -159,11 +371,11 @@
                 </Canvas>
             </Border>
 
-            <!-- ── Minimap (top-right overlay) ── -->
+            <!-- ── Minimap (top-left overlay, only visible when notes are off-screen) ── -->
             <Border x:Name="MiniMapBorder"
-                    HorizontalAlignment="Right"
+                    HorizontalAlignment="Left"
                     VerticalAlignment="Top"
-                    Margin="0,8,8,0"
+                    Margin="8"
                     Width="160" Height="100"
                     Background="#CC141824"
                     BorderBrush="#334060"
@@ -171,15 +383,15 @@
                     CornerRadius="4"
                     Panel.ZIndex="100"
                     Visibility="Collapsed"
-                    ToolTip="Overview — current viewport shown in blue">
+                    ToolTip="Overview — viewport shown in blue">
                 <Canvas x:Name="MiniMapCanvas" Width="158" Height="98"/>
             </Border>
 
-            <!-- ── Recycle Bin overlay panel ── -->
+            <!-- ── Recycle Bin overlay panel (higher ZIndex than minimap) ── -->
             <Border Visibility="{Binding ShowingRecycleBin, Converter={StaticResource BoolVis}}"
                     HorizontalAlignment="Right"
                     Width="300"
-                    Panel.ZIndex="50"
+                    Panel.ZIndex="200"
                     Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1,0,0,0">
@@ -189,24 +401,14 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Panel header with Empty Bin button inside the window -->
                     <Border Grid.Row="0"
                             Background="{StaticResource Surface2Brush}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="0,0,0,1"
-                            Padding="12,6">
-                        <DockPanel>
-                            <TextBlock Text="🗑 Recycle Bin"
-                                       Foreground="{StaticResource TextBrush}"
-                                       FontSize="13" FontWeight="SemiBold"
-                                       VerticalAlignment="Center"/>
-                            <Button DockPanel.Dock="Right"
-                                    Content="Empty Bin"
-                                    Style="{StaticResource TbBtn}"
-                                    Command="{Binding EmptyRecycleBinCommand}"
-                                    HorizontalAlignment="Right"
-                                    Margin="0"/>
-                        </DockPanel>
+                            Padding="12,8">
+                        <TextBlock Text="🗑 Recycle Bin"
+                                   Foreground="{StaticResource TextBrush}"
+                                   FontSize="13" FontWeight="SemiBold"/>
                     </Border>
 
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">

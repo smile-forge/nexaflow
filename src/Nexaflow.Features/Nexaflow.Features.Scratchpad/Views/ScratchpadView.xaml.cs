@@ -27,6 +27,9 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
     private double _panStartOffX;
     private double _panStartOffY;
 
+    // ── Mini-ribbon target ────────────────────────────────────────────────
+    private PostItViewModel? _ribbonTarget;
+
     private const double MinScale = 0.08;
     private const double MaxScale = 4.0;
 
@@ -98,7 +101,7 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
     public string GetDropDescription(IDataObject data, string? targetFolderName, bool isMove)
         => "Create post-it";
 
-    public void Drop(IDataObject data, string destinationPath, bool move)
+    public new void Drop(IDataObject data, string destinationPath, bool move)
     {
         string? content = null;
         if (data.GetDataPresent(DataFormats.UnicodeText))
@@ -110,6 +113,63 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
 
         if (!string.IsNullOrEmpty(content))
             Vm.AddNoteWithContent(content, ViewportCenter());
+    }
+
+    // ── Note mini-ribbon (rendered at ScratchpadView level, never rotated) ─
+
+    public void ShowNoteRibbon(PostItViewModel vm, Point screenDevicePos)
+    {
+        _ribbonTarget = vm;
+
+        // Update shape button active state
+        RibbonShapeSquare.Style  = vm.Shape == "Square"
+            ? (Style)Resources["RibbonBtnActive"]
+            : (Style)Resources["RibbonBtn"];
+        RibbonShapeRounded.Style = vm.Shape == "Rounded"
+            ? (Style)Resources["RibbonBtnActive"]
+            : (Style)Resources["RibbonBtn"];
+
+        // Convert screen device pixels → logical pixels for Popup placement
+        var src = PresentationSource.FromVisual(this);
+        Point logicalPos;
+        if (src?.CompositionTarget != null)
+            logicalPos = src.CompositionTarget.TransformFromDevice.Transform(screenDevicePos);
+        else
+            logicalPos = screenDevicePos;
+
+        NoteRibbon.HorizontalOffset = logicalPos.X;
+        NoteRibbon.VerticalOffset   = logicalPos.Y;
+        NoteRibbon.IsOpen           = true;
+    }
+
+    private void RibbonColorBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (_ribbonTarget == null) return;
+        var color = ((FrameworkElement)sender).Tag as string;
+        if (color != null)
+            _ribbonTarget.ChangeColorCommand.Execute(color);
+        NoteRibbon.IsOpen = false;
+    }
+
+    private void RibbonShapeBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (_ribbonTarget == null) return;
+        var shape = ((FrameworkElement)sender).Tag as string;
+        if (shape != null)
+            _ribbonTarget.ChangeShapeCommand.Execute(shape);
+        NoteRibbon.IsOpen = false;
+    }
+
+    private void RibbonBringToFront_Click(object sender, RoutedEventArgs e)
+    {
+        _ribbonTarget?.BringToFrontCommand.Execute(null);
+        NoteRibbon.IsOpen = false;
+    }
+
+    private void RibbonSendToBack_Click(object sender, RoutedEventArgs e)
+    {
+        _ribbonTarget?.SendToBackCommand.Execute(null);
+        NoteRibbon.IsOpen = false;
     }
 
     // ── Canvas mouse events ───────────────────────────────────────────────
@@ -214,6 +274,21 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
     private void ToggleBin_Click(object sender, RoutedEventArgs e)
         => Vm.ToggleRecycleBinCommand.Execute(null);
 
+    private void BinDrop_Click(object sender, RoutedEventArgs e)
+    {
+        // Open the attached ContextMenu directly below the button
+        var btn = (Button)sender;
+        if (btn.ContextMenu != null)
+        {
+            btn.ContextMenu.PlacementTarget = btn;
+            btn.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            btn.ContextMenu.IsOpen = true;
+        }
+    }
+
+    private void EmptyBin_Click(object sender, RoutedEventArgs e)
+        => Vm.EmptyRecycleBinCommand.Execute(null);
+
     // ── Zoom helpers ─────────────────────────────────────────────────────
 
     private void ZoomBy(double factor)
@@ -272,20 +347,30 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
             return;
         }
 
-        // Bounding box of all notes in canvas space
+        var s  = CanvasScaleTransform.ScaleX;
+        var tx = CanvasTranslateTransform.X;
+        var ty = CanvasTranslateTransform.Y;
+
+        // Viewport bounds in canvas space
+        var viewLeft   = -tx / s;
+        var viewTop    = -ty / s;
+        var viewRight  = viewLeft + CanvasHost.ActualWidth  / s;
+        var viewBottom = viewTop  + CanvasHost.ActualHeight / s;
+
+        // Bounding box of all notes
         var minX = Vm.Notes.Min(n => n.X);
         var minY = Vm.Notes.Min(n => n.Y);
         var maxX = Vm.Notes.Max(n => n.X + n.Width);
         var maxY = Vm.Notes.Max(n => n.Y + n.Height);
 
-        // Current viewport in canvas space
-        var s        = CanvasScaleTransform.ScaleX;
-        var tx       = CanvasTranslateTransform.X;
-        var ty       = CanvasTranslateTransform.Y;
-        var viewLeft   = -tx / s;
-        var viewTop    = -ty / s;
-        var viewRight  = viewLeft + CanvasHost.ActualWidth  / s;
-        var viewBottom = viewTop  + CanvasHost.ActualHeight / s;
+        // Only show minimap if any note is (at least partially) outside the viewport
+        var allVisible = minX >= viewLeft && minY >= viewTop
+                      && maxX <= viewRight && maxY <= viewBottom;
+        if (allVisible)
+        {
+            MiniMapBorder.Visibility = Visibility.Collapsed;
+            return;
+        }
 
         // Expand bounding box to include viewport
         minX = Math.Min(minX, viewLeft);
@@ -305,7 +390,6 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
 
         MiniMapCanvas.Children.Clear();
 
-        // Draw each note
         foreach (var note in Vm.Notes)
         {
             var r = new Rectangle
@@ -320,7 +404,6 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
             MiniMapCanvas.Children.Add(r);
         }
 
-        // Draw viewport indicator
         var vp = new Rectangle
         {
             Width           = Math.Max(4, (viewRight  - viewLeft)  * scale),
