@@ -136,6 +136,13 @@ public partial class ConfigEditViewModel : ObservableObject
 
     [ObservableProperty] private bool _isValid = true;
 
+    /// <summary>
+    /// When set, the Options panel renders this control instead of the property grid.
+    /// The control's DataContext is the live <see cref="RealConfig"/> instance.
+    /// </summary>
+    public object? CustomControlInstance { get; }
+    public bool    HasCustomControl      => CustomControlInstance is not null;
+
     private void RecheckValidity()
     {
         IsValid = Properties.All(p => p.IsValid);
@@ -143,6 +150,12 @@ public partial class ConfigEditViewModel : ObservableObject
 
     public void ApplyToReal()
     {
+        if (HasCustomControl)
+        {
+            if (CustomControlInstance is ICustomConfigApply applyable)
+                applyable.Apply();
+            return;
+        }
         foreach (var pi in EditingClone.GetType().GetProperties()
                      .Where(p => p.CanRead && p.CanWrite))
             pi.SetValue(RealConfig, pi.GetValue(EditingClone));
@@ -154,6 +167,23 @@ public partial class ConfigEditViewModel : ObservableObject
         ConfigName   = configName;
         FriendlyName = friendlyName;
         EditingClone = ConfigManager.Clone(realConfig);
+
+        // Check for a custom control at the class level before doing property reflection
+        var customAttr = realConfig.GetType().GetCustomAttribute<Nexaflow.Features.Common.CustomControlAttribute>();
+        if (customAttr is not null)
+        {
+            try
+            {
+                var ctrl = System.Activator.CreateInstance(customAttr.ControlType);
+                if (ctrl is System.Windows.FrameworkElement fe)
+                    fe.DataContext = realConfig;
+                CustomControlInstance = ctrl;
+            }
+            catch { /* fall back to property grid if control can't be instantiated */ }
+
+            RecheckValidity();
+            return;  // skip property reflection
+        }
 
         // Reflect over the concrete type; skip interface-declared identity members
         var skip = new HashSet<string> { "ConfigName", "FriendlyName" };

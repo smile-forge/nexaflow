@@ -11,17 +11,14 @@ namespace Nexaflow.Core.FileActions
     /// </summary>
     public class InstallPackage : IFileAction
     {
-        public bool   IsDestructive        => false;
-        public bool   SupportsMultipleFiles => false;
-        public string Icon                  => "📦";
-        public string DisplayName           => "Install";
-        public string SupportedFileTypes    => "*.msi;*.msix;*.msixbundle";
-        public bool   AppliesToFolders      => false;
-        public string SupportedFolderNames  => "";
-        public bool   AppliesToRoot         => false;
-        public bool   AppliesToDrives       => false;
-        public bool   RequiresRefresh       => false;
-        public bool   CanPerformAction      => true;
+        public bool   IsDestructive          => false;
+        public bool   SupportsMultipleFiles  => false;
+        public string Icon                   => "📦";
+        public string DisplayName            => "Install";
+        public string ExperienceId           => "/binary/installer";
+        public string ExperienceDescription  => "Windows installer packages (.msi, .msix, .msixbundle)";
+        public bool   RequiresRefresh        => false;
+        public bool   CanPerformAction       => true;
 
         public bool PerformAction(string filePath)
         {

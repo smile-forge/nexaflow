@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using System.Collections.Generic;
 
 namespace Nexaflow.Features.Logs.FileActions;
 
@@ -11,17 +12,14 @@ public sealed class ShowLogAction : IFileAction
 
     public ShowLogAction(ITabOpener tabOpener) => _tabOpener = tabOpener;
 
-    public string DisplayName          => "Open Log";
-    public string Icon                 => "📋";
-    public string SupportedFileTypes   => "*.log";
-    public string SupportedFolderNames => string.Empty;
-    public bool   AppliesToFolders     => false;
-    public bool   AppliesToRoot        => false;
-    public bool   AppliesToDrives      => false;
-    public bool   IsDestructive        => false;
+    public string DisplayName           => "Open Log";
+    public string Icon                  => "📋";
+    public string ExperienceId          => "/text/log";
+    public string ExperienceDescription => "Tail based Log Viewer";
+    public bool   IsDestructive         => false;
     public bool   SupportsMultipleFiles => false;
-    public bool   RequiresRefresh      => false;
-    public bool   CanPerformAction     => true;
+    public bool   RequiresRefresh       => false;
+    public bool   CanPerformAction      => true;
 
     public bool PerformAction(string filePath)
     {

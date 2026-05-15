@@ -33,3 +33,23 @@ public sealed class ListSourceAttribute(Type sourceType, string methodName) : At
         return m?.Invoke(null, null) as IEnumerable<string> ?? [];
     }
 }
+
+/// <summary>
+/// Applied to an <see cref="IFeatureConfig"/> class to replace the default property-grid
+/// editor in Options with a custom WPF UserControl.
+/// The control's DataContext is set to the config instance before display.
+/// </summary>
+[AttributeUsage(AttributeTargets.Class)]
+public sealed class CustomControlAttribute(Type controlType) : Attribute
+{
+    public Type ControlType { get; } = controlType;
+}
+
+/// <summary>
+/// Implemented by a custom Options control to participate in the Options panel Save flow.
+/// <see cref="Apply"/> is called when the user clicks Save in the Options panel.
+/// </summary>
+public interface ICustomConfigApply
+{
+    void Apply();
+}

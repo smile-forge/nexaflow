@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using System.Collections.Generic;
 
 namespace Nexaflow.Features.Text.FileActions;
 
@@ -11,17 +12,14 @@ public sealed class ShowTextAction : IFileAction
 
     public ShowTextAction(ITabOpener tabOpener) => _tabOpener = tabOpener;
 
-    public bool   IsDestructive        => false;
-    public bool   SupportsMultipleFiles => false;
-    public string Icon                  => "📄";
-    public string DisplayName           => "Show";
-    public string SupportedFileTypes    => "*.txt";
-    public bool   AppliesToFolders      => false;
-    public string SupportedFolderNames  => "";
-    public bool   AppliesToRoot         => false;
-    public bool   AppliesToDrives       => false;
-    public bool   RequiresRefresh       => false;
-    public bool   CanPerformAction      => true;
+    public bool   IsDestructive          => false;
+    public bool   SupportsMultipleFiles  => false;
+    public string Icon                   => "📄";
+    public string DisplayName            => "Show";
+    public string ExperienceId           => "/text";
+    public string ExperienceDescription  => "Lightweight Text editor";
+    public bool   RequiresRefresh        => false;
+    public bool   CanPerformAction       => true;
 
     public bool PerformAction(string filePath)
     {

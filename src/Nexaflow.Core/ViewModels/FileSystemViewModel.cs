@@ -158,9 +158,10 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
     /// executes it exactly as if the user clicked the button, including flash animation and
     /// shift-force detection. Returns false when no such action is currently visible.
     /// </summary>
-    public bool TryExecuteAction<T>() where T : IFileAction
+    public bool TryExecuteAction<T>() where T : class
     {
-        var vm = FileActions.FirstOrDefault(a => a.Action is T);
+        var vm = FileActions.FirstOrDefault(a => a.Action is T ||
+                     (a.Action is FolderActionAdapter adapter && adapter.Inner is T));
         if (vm?.ExecuteCommand.CanExecute(null) != true) return false;
         vm.ExecuteCommand.Execute(null);
         return true;
@@ -229,21 +230,33 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
         // Snapshot CanPerformAction here on the STA UI thread (OLE clipboard).
         var canPerform = _actionRegistry.SnapshotCanPerform();
 
+        bool onlyFolders = selected.Count > 0 && selected.All(e => e.IsDirectory);
+        bool anyDrives   = selected.Any(e => e.IsDrive);
+        bool useFolderActions = selected.Count == 0 || onlyFolders || anyDrives;
+
         // Filter built-in actions + resolve shell verbs — both are pure background work.
         var (applicable, shellVerbs) = await Task.Run(() =>
         {
-            var builtIn = _actionRegistry.FilterActions(selected, canPerform);
+            IReadOnlyList<IFileAction> builtIn;
+            if (useFolderActions)
+            {
+                builtIn = _actionRegistry.FilterFolderActions(selected, canPerform.Folder);
+            }
+            else
+            {
+                builtIn = _actionRegistry.FilterActions(selected, canPerform.File);
+            }
 
             // Only look up shell verbs for a single-file selection
             List<ShellVerbAction> verbs = [];
-            if (selected.Count == 1 && !selected[0].IsDirectory)
+            if (!useFolderActions && selected.Count == 1 && !selected[0].IsDirectory)
             {
-                var entry = selected[0];
-                var ext   = Path.GetExtension(entry.Name);
-                var info  = ShellTypeResolver.Resolve(ext);
+                var entry      = selected[0];
+                var ext        = Path.GetExtension(entry.Name);
+                var info       = ShellTypeResolver.Resolve(ext);
                 if (info is not null)
                 {
-                    string filePattern = string.IsNullOrEmpty(ext) ? "*.*" : $"*{ext}";
+                    string experienceId = $"/shell/{ext.TrimStart('.').ToLowerInvariant()}";
                     foreach (var verb in info.Verbs)
                     {
                         // Deduplicate: skip if a built-in already handles the same verb display name
@@ -263,8 +276,7 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
                             verb.Verb,
                             verb.FriendlyName,
                             verb.Command,
-                            filePattern,
-                            info.ContentType,
+                            experienceId,
                             icon,
                             tooltip));
                     }
@@ -507,8 +519,10 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
         _actionRegistry = new FileActionManager(new Dictionary<Type, object>
         {
             [typeof(IInputPromptService)] = new InputPromptServiceBridge(this),
-            [typeof(ITabOpener)]          = new TabOpenerBridge(this)
+            [typeof(ITabOpener)]          = new TabOpenerBridge(this),
+            [typeof(FileMapManager)]      = FileMapManager.Instance,
         });
+        FileMapManager.Instance.RegisterKnownExperiences(_actionRegistry.AllExperiences);
     }
 
     private void InitDebounceTimer()

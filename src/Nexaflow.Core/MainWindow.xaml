@@ -323,7 +323,7 @@
                 HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                 Background="#CC0F1117" Panel.ZIndex="100">
             <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Width="720" Height="500" Style="{StaticResource PopupBorder}">
+                    Width="800" Height="500" Style="{StaticResource PopupBorder}">
                 <ctrl:OptionsPanel x:Name="OptionsPanelControl"/>
             </Border>
         </Border>
