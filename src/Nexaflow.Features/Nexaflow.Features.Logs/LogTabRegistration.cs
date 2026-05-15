@@ -1,0 +1,25 @@
+using Nexaflow.Features.Common;
+using Nexaflow.Features.Logs.ViewModels;
+using Nexaflow.Features.Logs.Views;
+using System.IO;
+
+namespace Nexaflow.Features.Logs;
+
+public sealed class LogTabRegistration : ITabRegistration
+{
+    public string PageKind => "Logs";
+
+    public TabEntry CreateTab(Dictionary<string, string>? pageParams = null)
+    {
+        var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
+        var title = string.IsNullOrEmpty(path) ? "Log" : Path.GetFileName(path);
+
+        return new TabEntry
+        {
+            Title       = title,
+            Icon        = "📋",
+            Breadcrumbs = [new BreadcrumbSegment { Label = title }],
+            PageFactory = () => new LogView(new LogViewModel(path)),
+        };
+    }
+}

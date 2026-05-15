@@ -1,6 +1,7 @@
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Console;
 using Nexaflow.Features.Images;
+using Nexaflow.Features.Logs;
 using Nexaflow.Features.Markdown;
 using Nexaflow.Features.Projects;
 using Nexaflow.Features.Scratchpad;
@@ -138,5 +139,6 @@ public partial class App : Application
         fm.Register(typeof(MarkdownTabRegistration));
         fm.Register(typeof(TextTabRegistration));
         fm.Register(typeof(ScratchpadTabRegistration));
+        fm.Register(typeof(LogTabRegistration));
     }
 }
