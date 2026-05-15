@@ -821,6 +821,7 @@ public partial class ShellViewModel : ObservableObject
             MakeButton("This PC", "🖥", PageKinds.FileSystem, new() { ["mode"] = "thispc" }),
             MakeButton("AI Chat", "💬", PageKinds.AiChat),
             MakeButton("Console", "⌨", "Console"),
+            MakeButton("Scratchpad", "📌", "Scratchpad"),
             new RibbonItem { Kind = RibbonItemKind.Separator },
             MakeButton("Documents", "📄", PageKinds.FileSystem,
                 new() { ["mode"] = "path", ["path"] = KnownFolderService.DocumentsPath }),
