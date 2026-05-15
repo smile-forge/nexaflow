@@ -10,12 +10,18 @@ public interface IQueryHandler
     /// <summary>Human-readable description used in LLM tool-selection prompts.</summary>
     string Description { get; }
 
-    /// <summary>Returns a confidence score (0–1) that this handler can process the given input.</summary>
-    float CanProcess(string input);
+    /// <summary>
+    /// Returns a confidence score (0–1) that this handler can process the given input.
+    /// <paramref name="page"/> is the currently active tab view (may be null for unmigrated views).
+    /// Use <c>page?.GetContextObject()</c> for typed context and <c>page?.ViewModel</c> for
+    /// direct ViewModel access.
+    /// </summary>
+    float CanProcess(string input, IPageView? page = null);
 
     /// <summary>
     /// Processes the input. Returns a response string to show in AI Chat,
     /// or null if the action was handled silently with no output.
+    /// <paramref name="page"/> carries the same context as passed to <see cref="CanProcess"/>.
     /// </summary>
-    Task<string?> ProcessAsync(string input);
+    Task<string?> ProcessAsync(string input, IPageView? page = null);
 }

@@ -331,10 +331,10 @@ public partial class ConsoleViewModel : ObservableObject, IDisposable, IQueryHan
     public string Description =>
         "Executes terminal/shell commands. Prefix the input with '>' to run it, e.g. '>dir'.";
 
-    public float CanProcess(string input) =>
+    public float CanProcess(string input, IPageView? page = null) =>
         input.TrimStart().StartsWith('>') ? 1.0f : 0f;
 
-    public Task<string?> ProcessAsync(string input)
+    public Task<string?> ProcessAsync(string input, IPageView? page = null)
     {
         SendCommand(input.TrimStart()[1..].TrimStart());
         return Task.FromResult<string?>(null);

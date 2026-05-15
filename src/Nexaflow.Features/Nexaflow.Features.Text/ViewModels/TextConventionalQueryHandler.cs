@@ -19,7 +19,7 @@ public sealed class TextConventionalQueryHandler : IQueryHandler
     public string Description =>
         "Searches the open text file for the entered text using plain-text matching.";
 
-    public float CanProcess(string input)
+    public float CanProcess(string input, IPageView? page = null)
     {
         if (ActiveTextViewTracker.Instance.Current is null) return 0f;
 
@@ -40,7 +40,7 @@ public sealed class TextConventionalQueryHandler : IQueryHandler
         };
     }
 
-    public async Task<string?> ProcessAsync(string input)
+    public async Task<string?> ProcessAsync(string input, IPageView? page = null)
     {
         var vm = ActiveTextViewTracker.Instance.Current;
         if (vm is null) return "No text file is currently open.";

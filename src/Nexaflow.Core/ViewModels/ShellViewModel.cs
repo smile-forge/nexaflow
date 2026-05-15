@@ -362,28 +362,27 @@ public partial class ShellViewModel : ObservableObject
         if (string.IsNullOrEmpty(text)) return;
         AiInputText = string.Empty;
 
-        // 1. Score all handlers: globally registered + current tab's VM if applicable
-        var handlers = new List<IQueryHandler>(FeatureManager.Instance.QueryHandlers);
-        if (CurrentPage?.DataContext is IQueryHandler tabHandler)
-            handlers.Add(tabHandler);
+        // 1. Score all globally registered handlers, passing the active IPageView so handlers
+        //    can gate on tab type and access the ViewModel directly.
+        var page      = CurrentPage as IPageView;
+        var handlers  = new List<IQueryHandler>(FeatureManager.Instance.QueryHandlers);
 
-        var scored    = handlers.Select(h => (handler: h, score: h.CanProcess(text))).ToList();
+        var scored    = handlers.Select(h => (handler: h, score: h.CanProcess(text, page))).ToList();
         var positives = scored.Where(x => x.score > 0).ToList();
         var highConf  = scored.Where(x => x.score > 0.8f).ToList();
 
         // 2. Exactly one handler above 0.8 → process directly
         if (highConf.Count == 1)
         {
-            var result = await highConf[0].handler.ProcessAsync(text);
+            var result = await highConf[0].handler.ProcessAsync(text, page);
             if (result is not null)
                 await GetOrCreateChatVm().AddExchangeAsync(text, result);
             return;
         }
 
-        // Gather context from the current tab
-        var ctxProvider = (CurrentPage?.DataContext as IContextProvider)
-                       ?? (CurrentPage as IContextProvider);
-        var context = ctxProvider?.GetContext() ?? "No specific context available.";
+        // Gather context from the current tab (IPageView preferred; IContextProvider as fallback)
+        var ctxProvider = (CurrentPage as IPageView) is { } pv ? null : (CurrentPage?.DataContext as IContextProvider) ?? (CurrentPage as IContextProvider);
+        var context = page?.GetContext() ?? ctxProvider?.GetContext() ?? "No specific context available.";
 
         // 3. Multiple candidate handlers → ask the LLM to pick the right tool
         if (positives.Count > 0)
@@ -418,7 +417,7 @@ public partial class ShellViewModel : ObservableObject
 
             if (int.TryParse(llmReply, out var toolIdx) && toolIdx >= 1 && toolIdx <= positives.Count)
             {
-                var result = await positives[toolIdx - 1].handler.ProcessAsync(text);
+                var result = await positives[toolIdx - 1].handler.ProcessAsync(text, page);
                 if (result is not null)
                     await GetOrCreateChatVm().AddExchangeAsync(text, result);
                 return;
@@ -444,7 +443,7 @@ public partial class ShellViewModel : ObservableObject
             }
             else
             {
-                var actions     = ctxProvider?.GetAvailableActions() ?? [];
+                var actions     = page?.GetAvailableActions() ?? ctxProvider?.GetAvailableActions() ?? [];
                 var actionsText = actions.Count > 0
                     ? string.Join("\n", actions.Select(a =>
                         $"- {a.Name}: {a.Description}" +

@@ -19,7 +19,7 @@ public sealed class TextRegexQueryHandler : IQueryHandler
         "Searches the open text file using a regular expression. " +
         "Use /pattern/ syntax or a string containing regex characters.";
 
-    public float CanProcess(string input)
+    public float CanProcess(string input, IPageView? page = null)
     {
         if (ActiveTextViewTracker.Instance.Current is null) return 0f;
 
@@ -42,7 +42,7 @@ public sealed class TextRegexQueryHandler : IQueryHandler
         }
     }
 
-    public async Task<string?> ProcessAsync(string input)
+    public async Task<string?> ProcessAsync(string input, IPageView? page = null)
     {
         var vm = ActiveTextViewTracker.Instance.Current;
         if (vm is null) return "No text file is currently open.";

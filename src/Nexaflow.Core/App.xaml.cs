@@ -8,6 +8,7 @@ using Nexaflow.Features.Projects;
 using Nexaflow.Features.Scratchpad;
 using Nexaflow.Features.Text;
 using Nexaflow.Features.Web;
+using Nexaflow.Features.WindowsSearch;
 using Nexaflow.Providers.Aria;
 using Nexaflow.Providers.Claude;
 using Nexaflow.Providers.Common;
@@ -146,5 +147,6 @@ public partial class App : Application
         fm.Register(typeof(TextTabRegistration));
         fm.Register(typeof(ScratchpadTabRegistration));
         fm.Register(typeof(LogTabRegistration));
+        fm.Register(typeof(SearchTabRegistration));
     }
 }

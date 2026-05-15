@@ -11,9 +11,24 @@ using Nexaflow.Core.FileSystem;
 
 namespace Nexaflow.Core.Views;
 
-public partial class FileSystemView : UserControl, IRefreshable
+public partial class FileSystemView : UserControl, IRefreshable, IPageView
 {
     public FileSystemViewModel ViewModel { get; }
+
+    // ── IPageView ─────────────────────────────────────────────────────────────
+    object? IPageView.ViewModel => ViewModel;
+    string IPageView.GetContext() => ViewModel.GetContext();
+    IReadOnlyList<ActionDescriptor> IPageView.GetAvailableActions() => ViewModel.GetAvailableActions();
+    IContext? IPageView.GetContextObject()
+    {
+        if (ViewModel.IsThisPcMode || string.IsNullOrEmpty(ViewModel.RootPath)) return null;
+        return new FileSystemContext
+        {
+            RootPath     = ViewModel.RootPath,
+            CurrentPath  = ViewModel.CurrentPath,
+            SelectedItems = ViewModel.CurrentSelection.Select(e => e.FullPath).ToList()
+        };
+    }
 
     private readonly IKeyboardHandler _keyboardHandler;
     private readonly IDropTarget      _dropTarget;

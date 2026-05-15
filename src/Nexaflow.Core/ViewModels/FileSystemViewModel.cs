@@ -323,6 +323,7 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
     private bool   _isThisPcMode;
     public  bool   IsThisPcMode => _isThisPcMode;
     private string _rootPath      = string.Empty;
+    public  string RootPath       => _rootPath;
     private string _sortColumn    = nameof(FileSystemEntry.Name);
     private bool   _sortAscending = true;
     private bool   _navigating;
@@ -696,7 +697,7 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
     public string Description =>
         "Navigates the file browser to a directory. Use when the user types a folder path.";
 
-    public float CanProcess(string input)
+    public float CanProcess(string input, IPageView? page = null)
     {
         var trimmed = input.Trim();
         if (Path.IsPathRooted(trimmed))
@@ -710,7 +711,7 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
         return 0f;
     }
 
-    public Task<string?> ProcessAsync(string input)
+    public Task<string?> ProcessAsync(string input, IPageView? page = null)
     {
         var trimmed = input.Trim();
 

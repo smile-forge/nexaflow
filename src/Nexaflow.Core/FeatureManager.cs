@@ -124,7 +124,16 @@ public sealed class FeatureManager
             if (typeof(IFileCreateAction).IsAssignableFrom(t))  _fileCreateActionTypes.Add(t);
             if (typeof(IKeyboardHandler).IsAssignableFrom(t))   _keyboardHandlerTypes.Add(t);
             if (typeof(IDropTarget).IsAssignableFrom(t))         _dropTargetTypes.Add(t);
-            if (typeof(IQueryHandler).IsAssignableFrom(t))      _queryHandlers.Add((IQueryHandler)Activator.CreateInstance(t)!);
+            if (typeof(IQueryHandler).IsAssignableFrom(t))
+            {
+                try
+                {
+                    var ctor = BestConstructor(t);
+                    var args = ResolveArgs(ctor, configInstances, _tabOpener);
+                    _queryHandlers.Add((IQueryHandler)ctor.Invoke(args));
+                }
+                catch { /* skip — requires unresolvable constructor args (e.g. SearchViewModel) */ }
+            }
         }
     }
 
