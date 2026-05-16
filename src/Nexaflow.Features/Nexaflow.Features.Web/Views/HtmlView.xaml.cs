@@ -1,10 +1,11 @@
 using Microsoft.Web.WebView2.Core;
-using System.Windows.Controls;
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Web.ViewModels;
+using System.Windows.Controls;
 
 namespace Nexaflow.Features.Web.Views;
 
-public partial class HtmlView : UserControl
+public partial class HtmlView : UserControl, IPageView
 {
     public HtmlViewModel ViewModel { get; }
 
@@ -47,4 +48,16 @@ public partial class HtmlView : UserControl
     {
         WebView.Reload();
     }
+
+    // ── IPageView ─────────────────────────────────────────────────────────
+
+    object? IPageView.ViewModel => ViewModel;
+
+    string IPageView.GetContext()
+    {
+        var loading = ViewModel.IsLoading ? " (loading)" : string.Empty;
+        return $"Web view: '{ViewModel.CurrentUrl}'{loading}.";
+    }
+
+    IReadOnlyList<ActionDescriptor> IPageView.GetAvailableActions() => [];
 }

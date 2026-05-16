@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsSearch.ViewModels;
 using System.ComponentModel;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -26,12 +27,37 @@ public partial class SearchView : UserControl, IPageView, IRefreshable
 
     object? IPageView.ViewModel => _vm;
 
-    string IPageView.GetContext() =>
-        $"Search tab: '{_vm.SearchQuery}' in {_vm.SearchRoot}. {_vm.ResultCount} results.";
+    string IPageView.GetContext()
+    {
+        if (string.IsNullOrWhiteSpace(_vm.SearchQuery) || string.IsNullOrEmpty(_vm.SearchRoot))
+            return $"Search tab: no search performed yet. Root: {(string.IsNullOrEmpty(_vm.SearchRoot) ? "not set" : $"'{_vm.SearchRoot}'")}";
+        return $"Search tab: '{_vm.SearchQuery}' in '{_vm.SearchRoot}'. {_vm.ResultCount} result(s).";
+    }
 
     IReadOnlyList<ActionDescriptor> IPageView.GetAvailableActions() => [];
 
-    IContext? IPageView.GetContextObject() => null;
+    IContext? IPageView.GetContextObject()
+    {
+        if (_vm.SelectedEntry is not { } entry) return null;
+
+        if (entry.IsFolder)
+            return new FileSystemContext
+            {
+                RootPath      = entry.FilePath,
+                CurrentPath   = entry.FilePath,
+                SelectedItems = []
+            };
+
+        var dir = Path.GetDirectoryName(entry.FilePath);
+        if (string.IsNullOrEmpty(dir)) return null;
+
+        return new FileSystemContext
+        {
+            RootPath      = dir,
+            CurrentPath   = dir,
+            SelectedItems = [entry.FilePath]
+        };
+    }
 
     // ── IRefreshable ─────────────────────────────────────────────────────────
 

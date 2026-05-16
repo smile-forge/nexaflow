@@ -4,7 +4,7 @@ using Nexaflow.Features.Common;
 
 namespace Nexaflow.Features.Projects.Views;
 
-public partial class ProjectDetailView : UserControl, IRefreshable
+public partial class ProjectDetailView : UserControl, IPageView, IRefreshable
 {
     public ProjectDetailViewModel ViewModel { get; }
 
@@ -14,6 +14,21 @@ public partial class ProjectDetailView : UserControl, IRefreshable
         ViewModel   = viewModel;
         DataContext = viewModel;
     }
+
+    // ── IPageView ─────────────────────────────────────────────────────────
+
+    object? IPageView.ViewModel => ViewModel;
+
+    string IPageView.GetContext()
+    {
+        if (string.IsNullOrEmpty(ViewModel.ProjectName)) return "Project detail: no project loaded.";
+        var count = ViewModel.Backlog.Count;
+        return count == 0
+            ? $"Project: '{ViewModel.ProjectName}'. No backlog items."
+            : $"Project: '{ViewModel.ProjectName}'. {count} backlog item(s).";
+    }
+
+    IReadOnlyList<ActionDescriptor> IPageView.GetAvailableActions() => [];
 
     // ── IRefreshable ──────────────────────────────────────────────────────
     public void Refresh() => ViewModel.RefreshCommand.Execute(null);

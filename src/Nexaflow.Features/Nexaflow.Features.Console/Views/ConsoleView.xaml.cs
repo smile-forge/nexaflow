@@ -6,7 +6,7 @@ using Nexaflow.Features.Common;
 
 namespace Nexaflow.Features.Console.Views;
 
-public partial class ConsoleView : UserControl, IRefreshable
+public partial class ConsoleView : UserControl, IPageView, IRefreshable
 {
     public ConsoleViewModel ViewModel { get; }
 
@@ -54,6 +54,26 @@ public partial class ConsoleView : UserControl, IRefreshable
     {
         if (e.Key == Key.Enter)  { ViewModel.ConfirmInputPromptCommand.Execute(null); e.Handled = true; }
         if (e.Key == Key.Escape) { ViewModel.CancelInputPromptCommand.Execute(null);  e.Handled = true; }
+    }
+
+    // ── IPageView ─────────────────────────────────────────────────────────
+
+    object? IPageView.ViewModel => ViewModel;
+
+    string IPageView.GetContext() =>
+        $"Terminal: '{ViewModel.CurrentPath}'.";
+
+    IReadOnlyList<ActionDescriptor> IPageView.GetAvailableActions() => [];
+
+    IContext? IPageView.GetContextObject()
+    {
+        if (string.IsNullOrEmpty(ViewModel.CurrentPath)) return null;
+        return new FileSystemContext
+        {
+            RootPath      = ViewModel.CurrentPath,
+            CurrentPath   = ViewModel.CurrentPath,
+            SelectedItems = []
+        };
     }
 
     // ── IRefreshable ──────────────────────────────────────────────────────

@@ -187,6 +187,21 @@ public partial class TextView : UserControl, IPageView
         ];
     }
 
+    public IContext? GetContextObject()
+    {
+        if (string.IsNullOrEmpty(_vm.FilePath)) return null;
+
+        var dir = System.IO.Path.GetDirectoryName(_vm.FilePath);
+        if (string.IsNullOrEmpty(dir)) return null;
+
+        return new FileSystemContext
+        {
+            RootPath      = dir,
+            CurrentPath   = dir,
+            SelectedItems = [_vm.FilePath]
+        };
+    }
+
     public void Execute(ActionDescriptor action)
     {
         switch (action.Name)
