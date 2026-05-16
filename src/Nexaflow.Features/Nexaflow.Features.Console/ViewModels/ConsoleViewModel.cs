@@ -1,6 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Nexaflow.Features.Common;
 using Nexaflow.Features.Console;
 using Nexaflow.Features.Console.Models;
 using System.Collections.ObjectModel;
@@ -21,7 +20,7 @@ namespace Nexaflow.Features.Console.ViewModels;
 /// Raw PTY output arrives as arbitrary-length chunks; this class splits them
 /// into lines and appends them to the live entry on the UI thread.
 /// </summary>
-public partial class ConsoleViewModel : ObservableObject, IDisposable, IQueryHandler
+public partial class ConsoleViewModel : ObservableObject, IDisposable
 {
     // ── Terminal back-end ─────────────────────────────────────────────────
     protected readonly PseudoConsoleHostService _pty;
@@ -324,20 +323,6 @@ public partial class ConsoleViewModel : ObservableObject, IDisposable, IQueryHan
         var sorted = EnvVars.OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase).ToList();
         EnvVars.Clear();
         foreach (var v in sorted) EnvVars.Add(v);
-    }
-
-    // ── IQueryHandler ─────────────────────────────────────────────────────
-
-    public string Description =>
-        "Executes terminal/shell commands. Prefix the input with '>' to run it, e.g. '>dir'.";
-
-    public float CanProcess(string input, IPageView? page = null) =>
-        input.TrimStart().StartsWith('>') ? 1.0f : 0f;
-
-    public Task<string?> ProcessAsync(string input, IPageView? page = null)
-    {
-        SendCommand(input.TrimStart()[1..].TrimStart());
-        return Task.FromResult<string?>(null);
     }
 
     // ── IDisposable ───────────────────────────────────────────────────────
