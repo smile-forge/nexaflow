@@ -1,6 +1,7 @@
 using ICSharpCode.AvalonEdit;
 using ICSharpCode.AvalonEdit.Document;
 using ICSharpCode.AvalonEdit.Rendering;
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Text.Rendering;
 using Nexaflow.Features.Text.ViewModels;
 using System.ComponentModel;
@@ -12,10 +13,12 @@ using System.Windows.Media;
 
 namespace Nexaflow.Features.Text.Views;
 
-public partial class TextView : UserControl
+public partial class TextView : UserControl, IPageView
 {
     private readonly TextViewModel            _vm;
     private readonly SearchHighlightRenderer  _renderer = new();
+
+    public object? ViewModel => _vm;
 
     public TextView(TextViewModel vm)
     {
@@ -149,5 +152,54 @@ public partial class TextView : UserControl
     {
         _vm.PropertyChanged -= OnVmPropertyChanged;
         _vm.Dispose();
+    }
+
+    private string GetVisibleText()
+    {
+        var tv    = Editor.TextArea.TextView;
+        var start = tv.GetPosition(new Point(0, 0) + tv.ScrollOffset);
+        var end   = tv.GetPosition(new Point(tv.ActualWidth, tv.ActualHeight) + tv.ScrollOffset);
+
+        if (start is null || end is null) return Editor.Text;
+
+        var startOffset = Editor.Document.GetOffset(start.Value.Location);
+        var endOffset   = Editor.Document.GetOffset(end.Value.Location);
+
+        if (startOffset >= endOffset) return string.Empty;
+        return Editor.Document.GetText(startOffset, endOffset - startOffset);
+    }
+
+    public string GetContext()
+    {
+        var fileName = _vm.FilePath is not null ? System.IO.Path.GetFileName(_vm.FilePath) : "Untitled";
+        var path     = _vm.FilePath ?? string.Empty;
+        var visible  = GetVisibleText();
+        return $"Text file: '{fileName}' at '{path}'\nVisible text:\n{visible}";
+    }
+
+    public IReadOnlyList<ActionDescriptor> GetAvailableActions()
+    {
+        IReadOnlyDictionary<string, string> findParams = new Dictionary<string, string> { { "SearchTerm", string.Empty } };
+        return
+        [
+            new ActionDescriptor("Copy Visible Text", "Copy the text currently visible in the editor to the clipboard."),
+            new ActionDescriptor("Find", "Find text within the editor.", findParams)
+        ];
+    }
+
+    public void Execute(ActionDescriptor action)
+    {
+        switch (action.Name)
+        {
+            case "Copy Visible Text":
+                Clipboard.SetText(GetVisibleText());
+                break;
+
+            case "Find":
+                if (action.Parameters?.TryGetValue("SearchTerm", out var term) == true
+                    && !string.IsNullOrWhiteSpace(term))
+                    _ = _vm.SearchConventionalAsync(term);
+                break;
+        }
     }
 }

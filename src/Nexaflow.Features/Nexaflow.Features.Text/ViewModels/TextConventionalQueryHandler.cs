@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Text.Views;
 using System.Text.RegularExpressions;
 
 namespace Nexaflow.Features.Text.ViewModels;
@@ -21,7 +22,7 @@ public sealed class TextConventionalQueryHandler : IQueryHandler
 
     public float CanProcess(string input, IPageView? page = null)
     {
-        if (ActiveTextViewTracker.Instance.Current is null) return 0f;
+        if (!(page is TextView)) return 0f;
 
         var trimmed = input.Trim();
         if (trimmed.Length == 0) return 0f;
@@ -42,10 +43,12 @@ public sealed class TextConventionalQueryHandler : IQueryHandler
 
     public async Task<string?> ProcessAsync(string input, IPageView? page = null)
     {
-        var vm = ActiveTextViewTracker.Instance.Current;
-        if (vm is null) return "No text file is currently open.";
+        if (page is TextView textView)
+        {
+            var vm = (TextViewModel)textView.ViewModel!;
 
-        await vm.SearchConventionalAsync(input.Trim(), CancellationToken.None);
+            await vm.SearchConventionalAsync(input.Trim(), CancellationToken.None);
+        }
         return null; // results appear as highlights in the view
     }
 }

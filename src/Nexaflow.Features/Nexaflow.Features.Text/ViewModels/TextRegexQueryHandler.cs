@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Text.Views;
 using System.Text.RegularExpressions;
 
 namespace Nexaflow.Features.Text.ViewModels;
@@ -22,7 +23,7 @@ public sealed class TextRegexQueryHandler : IQueryHandler
 
     public float CanProcess(string input, IPageView? page = null)
     {
-        if (ActiveTextViewTracker.Instance.Current is null) return 0f;
+        if (!(page is TextView)) return 0f;
 
         var trimmed = input.Trim();
         if (trimmed.Length == 0) return 0f;
@@ -45,14 +46,16 @@ public sealed class TextRegexQueryHandler : IQueryHandler
 
     public async Task<string?> ProcessAsync(string input, IPageView? page = null)
     {
-        var vm = ActiveTextViewTracker.Instance.Current;
-        if (vm is null) return "No text file is currently open.";
+        if (page is TextView view)
+        {
+            var vm = view.ViewModel as TextViewModel;
 
-        var trimmed = input.Trim();
-        // Strip surrounding slashes if /pattern/ syntax
-        var pattern = SlashSyntax.IsMatch(trimmed) ? trimmed[1..^1] : trimmed;
+            var trimmed = input.Trim();
+            // Strip surrounding slashes if /pattern/ syntax
+            var pattern = SlashSyntax.IsMatch(trimmed) ? trimmed[1..^1] : trimmed;
 
-        await vm.SearchRegexAsync(pattern, CancellationToken.None);
+            await vm.SearchRegexAsync(pattern, CancellationToken.None);
+        }
         return null; // results appear as highlights in the view
     }
 }

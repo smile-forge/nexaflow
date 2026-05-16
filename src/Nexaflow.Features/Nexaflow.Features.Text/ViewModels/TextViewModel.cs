@@ -122,8 +122,6 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable
         _selectedEncoding = AvailableEncodings[0]; // UTF-8
         FilePath = filePath;
         FileName = Path.GetFileName(filePath);
-
-        ActiveTextViewTracker.Instance.Current = this;
     }
 
     // ── Loading ───────────────────────────────────────────────────────────────
@@ -663,9 +661,6 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
-        if (ActiveTextViewTracker.Instance.Current == this)
-            ActiveTextViewTracker.Instance.Current = null;
-
         _watcher?.Dispose();
         _searchCts?.Cancel();
         _fileStream?.Dispose();
