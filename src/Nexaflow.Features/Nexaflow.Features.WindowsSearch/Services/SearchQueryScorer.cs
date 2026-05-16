@@ -28,6 +28,16 @@ public static class SearchQueryScorer
         new(@"\b(how|what|why|best|top|price|fix|error|vs|compare)\b",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    private static readonly Regex FileGlobChars =
+        new(@"^[\w\-\./\\*?]+$", RegexOptions.Compiled);
+
+    private static readonly Regex PropertyFilter =
+        new(@"^(kind|type|ext|name|folder|path|content|body|subject|title|" +
+             @"author|creator|from|to|cc|bcc|date|modified|created|accessed|" +
+             @"sent|received|before|after|size|larger|smaller|album|artist|" +
+             @"genre|duration|rating|tag|tags|store|hasattachment|isread|importance):[^\s]",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     public static float Score(string input)
     {
         if (string.IsNullOrWhiteSpace(input)) return 0f;
@@ -40,11 +50,23 @@ public static class SearchQueryScorer
 
         float score = 0f;
 
-        // --- 1. Length score (peak at ~2–4 terms) ---
-        if (termCount <= 6)
-            score += 0.4f * (1f - Math.Abs(termCount - 3) / 3f); // bell-ish curve
+        // --- 1. Length score (flat top at 1–3 terms, taper above) ---
+        if (termCount <= 3)
+            score += 0.4f;
+        else if (termCount <= 6)
+            score += 0.4f * (1f - (termCount - 3) / 3f);
         else
             score -= 0.2f;
+
+        // --- 1b. File glob pattern boost ---
+        bool hasFileGlob = terms.Cast<Match>().Any(m => IsFileGlobTerm(m.Value));
+        if (hasFileGlob)
+            score += 0.5f;
+
+        // --- 1c. AQS special-syntax boost ---
+        bool hasAqsSyntax = terms.Cast<Match>().Any(m => IsAqsSpecialTerm(m.Value));
+        if (hasAqsSyntax)
+            score += 0.4f;
 
         // --- 2. Search-like tokens ---
         var searchLike = terms.Cast<Match>().Count(m => IsSearchLikeTerm(m.Value));
@@ -69,6 +91,33 @@ public static class SearchQueryScorer
 
         // Clamp
         return Math.Clamp(score, 0f, 1f);
+    }
+
+    private static bool IsAqsSpecialTerm(string term)
+    {
+        if (term.StartsWith('"') && term.EndsWith('"') && term.Length > 2)
+            return true;
+
+        if (term.Length > 1 && (term[0] == '+' || term[0] == '-') && char.IsLetterOrDigit(term[1]))
+            return true;
+
+        return PropertyFilter.IsMatch(term);
+    }
+
+    private static bool IsFileGlobTerm(string term)
+    {
+        if (!FileGlobChars.IsMatch(term)) return false;
+
+        if (term.Contains('*')) return true;
+
+        if (term.Contains('?'))
+        {
+            var idx = term.IndexOf('?');
+            // trailing '?' on a plain word (e.g. "how?") is not a file glob
+            return idx < term.Length - 1 || term.Contains('.');
+        }
+
+        return false;
     }
 
     private static bool IsSearchLikeTerm(string term)
