@@ -12,6 +12,7 @@ namespace Nexaflow.Features.WindowsSearch;
 /// </summary>
 public sealed class WindowsSearchQueryHandler(ITabOpener tabOpener) : IQueryHandler
 {
+    public string  Symbol      => "?";
     public string Description =>
         "Searches for files under the current directory using the Windows Search index. " +
         "Opens a new Search tab with results. " +

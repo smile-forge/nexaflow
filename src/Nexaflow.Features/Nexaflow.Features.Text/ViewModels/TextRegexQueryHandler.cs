@@ -15,6 +15,7 @@ public sealed class TextRegexQueryHandler : IQueryHandler
     private static readonly char[] RegexSpecialChars =
         ['\\', '.', '[', ']', '{', '}', '(', ')', '*', '+', '?', '^', '$', '|'];
 
+    public string  Symbol      => "/";
     public string Description =>
         "Searches the open text file using a regular expression. " +
         "Use /pattern/ syntax or a string containing regex characters.";

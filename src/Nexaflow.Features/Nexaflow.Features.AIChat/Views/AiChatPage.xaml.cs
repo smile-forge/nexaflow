@@ -1,26 +1,27 @@
 using System.Windows;
 using System.Windows.Controls;
-using Nexaflow.Core.Models;
-using Nexaflow.Core.ViewModels;
+using Nexaflow.Features.AIChat.ViewModels;
 using Nexaflow.Features.Common;
 
-namespace Nexaflow.Core.Views;
+namespace Nexaflow.Features.AIChat.Views;
 
-public partial class AiChatPage : UserControl, IRefreshable
+
+
+public partial class AiChatPage : UserControl, IPageView, IRefreshable
 {
     public AiChatViewModel ViewModel { get; }
+    object? IPageView.ViewModel => ViewModel;
 
-    public AiChatPage(AiChatViewModel vm)
+    public AiChatPage(IAIService aIService)
     {
         InitializeComponent();
-        ViewModel   = vm;
-        DataContext = vm;
+        ViewModel = new AiChatViewModel(aIService);
+        DataContext = ViewModel;
 
-        vm.ScrollRequested += (_, _) => ScrollToBottom();
-        vm.Messages.CollectionChanged += (_, _) => UpdateEmptyState();
-
+        ViewModel.ScrollRequested += (_, _) => ScrollToBottom();
+        ViewModel.Messages.CollectionChanged += (_, _) => UpdateEmptyState();
         // Update breadcrumb title when active conversation changes
-        vm.PropertyChanged += (_, e) =>
+        ViewModel.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(AiChatViewModel.ActiveConversation))
                 UpdateBreadcrumbTitle();
@@ -53,4 +54,22 @@ public partial class AiChatPage : UserControl, IRefreshable
 
     // ── IRefreshable ──────────────────────────────────────────────────────
     public void Refresh() => ScrollToBottom();
+
+    public string GetContext()
+    {
+        if (ViewModel.ActiveConversation is not { Messages.Count: > 0 } conv)
+            return string.Empty;
+        return string.Join("\n", conv.Messages.TakeLast(6)
+            .Select(m => (m.IsUser ? "User" : "Aria") + ": " + m.Text));
+    }
+
+    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
+
+    public void Reinitialize(Dictionary<string, string>? pageParams)
+    {
+        if (pageParams is null) return;
+        if (pageParams.TryGetValue("input",  out var input) &&
+            pageParams.TryGetValue("output", out var output))
+            _ = ViewModel.AddExchangeAsync(input, output);
+    }
 }

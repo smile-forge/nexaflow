@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Nexaflow.Core.Models;
+namespace Nexaflow.Features.Common;
 
 /// <summary>A single message in a conversation — from user or from Aria.</summary>
 public class ConversationMessage

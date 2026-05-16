@@ -1,8 +1,8 @@
-<UserControl x:Class="Nexaflow.Core.Views.AiChatPage"
+<UserControl x:Class="Nexaflow.Features.AIChat.Views.AiChatPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="clr-namespace:Nexaflow.Core.ViewModels"
-             xmlns:m="clr-namespace:Nexaflow.Core.Models"
+             xmlns:vm="clr-namespace:Nexaflow.Features.AIChat.ViewModels"
+             xmlns:m="clr-namespace:Nexaflow.Features.Common;assembly=Nexaflow.Features.Common"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              Background="{StaticResource BgBrush}">
 

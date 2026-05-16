@@ -10,6 +10,9 @@ public interface IQueryHandler
     /// <summary>Human-readable description used in LLM tool-selection prompts.</summary>
     string Description { get; }
 
+    /// <summary>Optional single-character prefix that explicitly routes input to this handler.</summary>
+    string? Symbol => null;
+
     /// <summary>
     /// Returns a confidence score (0–1) that this handler can process the given input.
     /// <paramref name="page"/> is the currently active tab view (may be null for unmigrated views).

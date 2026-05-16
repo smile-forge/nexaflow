@@ -25,4 +25,14 @@ public interface IPageView
     /// (e.g. <see cref="FileSystemContext"/>).
     /// </summary>
     IContext? GetContextObject() => null;
+
+    /// <summary>Execute an AI-selected action on this page. Default is a no-op.</summary>
+    void Execute(ActionDescriptor action) { }
+
+    /// <summary>
+    /// Re-initialize the page with a new param set (same dict shape as CreateTab).
+    /// Used to pass a new AI exchange to an already-open tab instead of opening a duplicate.
+    /// Default is a no-op.
+    /// </summary>
+    void Reinitialize(Dictionary<string, string>? pageParams) { }
 }

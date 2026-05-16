@@ -40,11 +40,14 @@ public partial class ShellViewModel : ObservableObject
     public ObservableCollection<BackgroundTask> BackgroundTasks => _activityManager.Tasks;
 
     // ── AI interaction ────────────────────────────────────────────────────
-    [ObservableProperty] private string _aiInputText = string.Empty;
-    [ObservableProperty] private bool   _aiIsBusy;
-    [ObservableProperty] private bool   _voiceActive;
+    [ObservableProperty] private string  _aiInputText      = string.Empty;
+    [ObservableProperty] private bool    _aiIsBusy;
+    [ObservableProperty] private bool    _voiceActive;
+    [ObservableProperty] private string? _aiHandlerSymbol;    // bound to AiStatusDot.HandlerSymbol
+    [ObservableProperty] private bool    _aiIsListening;      // bound to AiStatusDot.IsListening
+    [ObservableProperty] private bool    _aiInputIsAiTyping;  // triggers TextBox colour change
 
-    private ILlmProvider LlmProvider => LlmProviderRegistry.Basic;
+    private CancellationTokenSource? _handlerEvalCts;
 
     // ── Error toast ───────────────────────────────────────────────────────
     [ObservableProperty] private string? _errorToast;
@@ -122,12 +125,14 @@ public partial class ShellViewModel : ObservableObject
     // ── Ribbon edit mode ─────────────────────────────────────────────────
     [ObservableProperty] private bool _ribbonEditOpen;
 
-    public ShellViewModel(BackgroundActivityManager activityManager)
+    private readonly IAIService _aiService;
+
+    public ShellViewModel(BackgroundActivityManager activityManager, IAIService aiService)
     {
         _activityManager = activityManager;
         _activityManager.IsActiveChanged += (_, active) =>
             Application.Current.Dispatcher.Invoke(() => AiIsBusy = active);
-
+        _aiService = aiService;
         FeatureManager.Instance.TabOpenRequested += OnFeatureTabOpenRequested;
         LoadOrBuildRibbon();
         RibbonItems.CollectionChanged += (_, e) =>
@@ -192,7 +197,6 @@ public partial class ShellViewModel : ObservableObject
                                          pageParams?.GetValueOrDefault("label") ?? "Files",
                                          "📁",
                                          pageParams)(),
-            PageKinds.AiChat       => MakeAiChatTabFactory(),
             PageKinds.Placeholder  => MakePlaceholderTab(pageKind, "📄"),
             _ when FeatureManager.Instance.IsRegistered(pageKind)
                                    => FeatureManager.Instance.CreateTab(pageKind, pageParams),
@@ -351,156 +355,184 @@ public partial class ShellViewModel : ObservableObject
 
     // ── AI ────────────────────────────────────────────────────────────────
 
-    // The currently active chat page VM, if any tab is an AI Chat tab
-    private AiChatViewModel? ActiveChatVm =>
-        (CurrentPage as AiChatPage)?.ViewModel;
+    /// <summary>
+    /// Called on every keystroke; debounces handler evaluation so CanProcess
+    /// is not called on every single character.
+    /// </summary>
+    partial void OnAiInputTextChanged(string value)
+    {
+        _handlerEvalCts?.Cancel();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            AiHandlerSymbol = null;
+            AiIsListening   = false;
+            return;
+        }
+
+        _handlerEvalCts = new CancellationTokenSource();
+        var cts = _handlerEvalCts;
+        _ = Task.Delay(150, cts.Token).ContinueWith(t =>
+        {
+            if (t.IsCanceled) return;
+            Application.Current.Dispatcher.Invoke(() => EvaluateHandlers(value));
+        }, TaskScheduler.Default);
+    }
+
+    private void EvaluateHandlers(string text)
+    {
+        var page     = CurrentPage as IPageView;
+        var handlers = FeatureManager.Instance.QueryHandlers;
+
+        var symbolMatch = handlers.FirstOrDefault(
+            h => h.Symbol is { Length: 1 } s && text.StartsWith(s));
+        if (symbolMatch?.Symbol is not null)
+        {
+            AiHandlerSymbol = symbolMatch.Symbol;
+            AiIsListening   = false;
+            return;
+        }
+
+        var matches = handlers.Where(h => h.CanProcess(text, page) > 0).ToList();
+        if (matches.Count == 1 && matches[0].Symbol is not null)
+        {
+            AiHandlerSymbol = matches[0].Symbol;
+            AiIsListening   = false;
+        }
+        else
+        {
+            AiHandlerSymbol = null;
+            AiIsListening   = true;
+        }
+    }
 
     [RelayCommand]
     private async Task SendAiMessage()
     {
         var text = AiInputText.Trim();
         if (string.IsNullOrEmpty(text)) return;
-        AiInputText = string.Empty;
 
-        // 1. Score all globally registered handlers, passing the active IPageView so handlers
-        //    can gate on tab type and access the ViewModel directly.
-        var page      = CurrentPage as IPageView;
-        var handlers  = new List<IQueryHandler>(FeatureManager.Instance.QueryHandlers);
+        AiInputText     = string.Empty;
+        AiHandlerSymbol = null;
+        AiIsListening   = false;
 
-        var scored    = handlers.Select(h => (handler: h, score: h.CanProcess(text, page))).ToList();
-        var positives = scored.Where(x => x.score > 0).ToList();
-        var highConf  = scored.Where(x => x.score > 0.8f).ToList();
+        var page     = CurrentPage as IPageView;
+        var handlers = FeatureManager.Instance.QueryHandlers.ToList();
 
-        // 2. Exactly one handler above 0.8 → process directly
-        if (highConf.Count == 1)
+        // 1. Symbol prefix → explicit handler selection; strip prefix from input
+        IQueryHandler? selected = null;
+        var symbolMatch = handlers.FirstOrDefault(
+            h => h.Symbol is { Length: 1 } s && text.StartsWith(s));
+        if (symbolMatch is not null)
         {
-            var result = await highConf[0].handler.ProcessAsync(text, page);
-            if (result is not null)
-                await GetOrCreateChatVm().AddExchangeAsync(text, result);
-            return;
+            selected = symbolMatch;
+            text = text[1..].TrimStart();
         }
 
-        // Gather context from the current tab (IPageView preferred; IContextProvider as fallback)
-        var ctxProvider = (CurrentPage as IPageView) is { } pv ? null : (CurrentPage?.DataContext as IContextProvider) ?? (CurrentPage as IContextProvider);
-        var context = page?.GetContext() ?? ctxProvider?.GetContext() ?? "No specific context available.";
-
-        // 3. Multiple candidate handlers → ask the LLM to pick the right tool
-        if (positives.Count > 0)
+        // 2. Score candidates when no symbol prefix was used
+        if (selected is null)
         {
-            string? llmReply = null;
-            try
+            var candidates = handlers.Where(h => h.CanProcess(text, page) > 0).ToList();
+
+            if (candidates.Count == 1)
             {
-                var toolList = string.Join("\n", positives.Select((x, i) =>
-                    $"{i + 1}. {x.handler.Description}"));
-                var userPrompt =
-                    $"The user asked: \"{text}\"\n" +
-                    $"Current context: {context}\n\n" +
-                    $"Available tools:\n{toolList}\n\n" +
-                    "Which tool number should handle this request? " +
-                    "Reply with only the number, or \"ask: <question>\" to request clarification.";
-                var response = await LlmProvider.QueryAsync(string.Empty, userPrompt);
-                llmReply = response?.RawText?.Trim();
+                selected = candidates[0];
             }
-            catch (LlmProviderException ex)
-            {
-                ShowError("AI provider error", ex.Message);
-                return;
-            }
-
-            if (llmReply is null) return;
-
-            if (llmReply.StartsWith("ask:", StringComparison.OrdinalIgnoreCase))
-            {
-                await GetOrCreateChatVm().AddExchangeAsync(text, llmReply["ask:".Length..].Trim());
-                return;
-            }
-
-            if (int.TryParse(llmReply, out var toolIdx) && toolIdx >= 1 && toolIdx <= positives.Count)
-            {
-                var result = await positives[toolIdx - 1].handler.ProcessAsync(text, page);
-                if (result is not null)
-                    await GetOrCreateChatVm().AddExchangeAsync(text, result);
-                return;
-            }
-
-            // LLM gave an unexpected response — show it as conversation
-            await GetOrCreateChatVm().AddExchangeAsync(text, llmReply);
-            return;
-        }
-
-        // 4. No handler matched — use ChatAsync when on AiChat page (history context),
-        //    otherwise QueryAsync with a context-enriched prompt.
-        LlmResponse? actionResponse = null;
-        try
-        {
-            var activeChatVm = ActiveChatVm;
-            if (activeChatVm?.ActiveConversation is { Messages.Count: > 0 } conv)
-            {
-                var history = conv.Messages
-                    .Select(m => new LlmMessage(m.IsUser, m.Text))
-                    .ToList();
-                actionResponse = await LlmProvider.ChatAsync(history, text);
-            }
-            else
-            {
-                var actions     = page?.GetAvailableActions() ?? ctxProvider?.GetAvailableActions() ?? [];
-                var actionsText = actions.Count > 0
-                    ? string.Join("\n", actions.Select(a =>
-                        $"- {a.Name}: {a.Description}" +
-                        (a.Parameters is { Count: > 0 }
-                            ? " (params: " + string.Join(", ", a.Parameters.Select(p => $"{p.Key}: {p.Value}")) + ")"
-                            : string.Empty)))
-                    : "No specific actions available.";
-
-                var userPrompt =
-                    $"The user asked: \"{text}\"\n" +
-                    $"Current context: {context}\n\n" +
-                    $"Available actions:\n{actionsText}\n\n" +
-                    "If you can perform an action, reply with JSON only: " +
-                    "{\"action\": \"ActionName\", \"paramName\": \"value\", ...}\n" +
-                    "Otherwise reply conversationally.";
-
-                actionResponse = await LlmProvider.QueryAsync(string.Empty, userPrompt);
-            }
-        }
-        catch (LlmProviderException ex)
-        {
-            ShowError("AI provider error", ex.Message);
-            return;
-        }
-
-        if (actionResponse?.FocusTab is { } ft)
-        {
-            HandleFocusTabInstruction(ft);
-            return;
-        }
-
-        var rawReply = actionResponse?.RawText?.Trim() ?? string.Empty;
-
-        // Try to execute a JSON action via the current tab's IActionExecutor
-        if (rawReply.StartsWith('{'))
-        {
-            var executor = (CurrentPage?.DataContext as IActionExecutor)
-                        ?? (CurrentPage as IActionExecutor);
-            if (executor is not null)
+            else if (candidates.Count > 1)
             {
                 try
                 {
-                    var handled = await executor.TryExecuteActionAsync(rawReply);
-                    if (!handled)
-                        ShowError("Action failed", $"Could not execute: {rawReply}");
+                    selected = await _aiService.DisambiguateToolSelection(page, text, candidates);
                 }
                 catch (Exception ex)
                 {
-                    ShowError("Action error", ex.Message);
+                    ShowError("AI error", ex.Message);
+                    return;
                 }
-                return;
             }
         }
 
-        // Plain conversational reply → show in AI Chat
-        if (!string.IsNullOrEmpty(rawReply))
-            await GetOrCreateChatVm().AddExchangeAsync(text, rawReply);
+        // 3. A handler was identified — run it
+        if (selected is not null)
+        {
+            string? result;
+            try
+            {
+                result = await selected.ProcessAsync(text, page);
+            }
+            catch (Exception ex)
+            {
+                ShowError("AI error", ex.Message);
+                return;
+            }
+
+            if (result is not null)
+                await SendToAiChat(text, result);
+            return;
+        }
+
+        // 4. No handler → contextual LLM call
+        AiResponse? response;
+        try
+        {
+            response = await _aiService.ContextChat(page, text);
+        }
+        catch (Exception ex)
+        {
+            ShowError("AI error", ex.Message);
+            return;
+        }
+
+        if (response is null) return;
+
+        switch (response.Kind)
+        {
+            case AiResponseKind.Action:
+                if (page is not null && response.Action is not null)
+                    page.Execute(response.Action);
+                else
+                    ShowError("Action failed", "No active page to execute action on.");
+                break;
+
+            case AiResponseKind.Prefill:
+                await AnimatePrefillAsync(response.Text!);
+                break;
+
+            case AiResponseKind.Message:
+                await SendToAiChat(text, response.Text!);
+                break;
+        }
+    }
+
+    private async Task SendToAiChat(string input, string response)
+    {
+        var existing = Tabs.FirstOrDefault(t => t.PageKind == "AIChat");
+        if (existing is not null)
+        {
+            ActivateTab(existing);
+            (CurrentPage as IPageView)?.Reinitialize(
+                new Dictionary<string, string> { ["input"] = input, ["output"] = response });
+        }
+        else
+        {
+            var tab = FeatureManager.Instance.CreateTab("AIChat",
+                new Dictionary<string, string> { ["input"] = input, ["output"] = response });
+            if (tab is not null) OpenTab(tab);
+        }
+    }
+
+    private async Task AnimatePrefillAsync(string prefill)
+    {
+        AiInputIsAiTyping = true;
+        AiInputText       = string.Empty;
+
+        foreach (char c in prefill)
+        {
+            AiInputText += c;
+            await Task.Delay(15); // ~65 chars/sec; runs on UI thread via captured SynchronizationContext
+        }
+
+        await Task.Delay(400); // brief pause so user sees the full suggestion
+        AiInputIsAiTyping = false;
     }
 
     [RelayCommand]
@@ -517,40 +549,6 @@ public partial class ShellViewModel : ObservableObject
         {
             // TODO: surface attached files into the active chat
         }
-    }
-
-    /// <summary>
-    /// Returns the AiChatViewModel for the active (or newly opened) AI Chat tab.
-    /// </summary>
-    private AiChatViewModel GetOrCreateChatVm()
-    {
-        var existing = Tabs.FirstOrDefault(t => t.Title == "AI Chat");
-        if (existing is not null)
-        {
-            ActivateTab(existing);
-            return ((AiChatPage)existing.GetOrCreatePage()).ViewModel;
-        }
-
-        var vm  = new AiChatViewModel();
-        var tab = new TabEntry
-        {
-            Title       = "AI Chat",
-            Icon        = "💬",
-            Breadcrumbs = [new BreadcrumbSegment { Label = "AI Chat" }]
-        };
-        tab.PageFactory = () =>
-        {
-            var page = new AiChatPage(vm);
-            page.TitleChanged += title =>
-            {
-                tab.Title = title;
-                tab.Breadcrumbs = [new BreadcrumbSegment { Label = title }];
-                if (tab == ActiveTab) UpdateBreadcrumbs(tab);
-            };
-            return page;
-        };
-        OpenTab(tab);
-        return vm;
     }
 
     /// <summary>Handles a #focustab instruction returned by the LLM provider.</summary>
@@ -570,8 +568,6 @@ public partial class ShellViewModel : ObservableObject
         {
             "filesystem" or "files" or "this pc" =>
                 MakeFileSystemTabFactory(ft.TabName, "🖥", new() { ["mode"] = "thispc" })(),
-            "ai chat" or "chat" =>
-                MakeAiChatTabFactory(),
             _ when FeatureManager.Instance.IsRegistered(ft.TabName)
                 => FeatureManager.Instance.CreateTab(ft.TabName),
             _ => MakePlaceholderTab(ft.TabName, "📄")
@@ -709,7 +705,6 @@ public partial class ShellViewModel : ObservableObject
         item.TabFactory = item.PageKind switch
         {
             PageKinds.FileSystem => MakeFileSystemTabFactory(item.Label, item.Icon, item.PageParams),
-            PageKinds.AiChat     => MakeAiChatTabFactory,
             _ when FeatureManager.Instance.IsRegistered(item.PageKind)
                                  => () => FeatureManager.Instance.CreateTab(item.PageKind, item.PageParams)!,
             _                    => () => MakePlaceholderTab(item.Label, item.Icon)
@@ -740,28 +735,7 @@ public partial class ShellViewModel : ObservableObject
             };
     }
 
-    private TabEntry MakeAiChatTabFactory()
-    {
-        var vm  = new AiChatViewModel();
-        var tab = new TabEntry
-        {
-            Title       = "AI Chat",
-            Icon        = "💬",
-            Breadcrumbs = [new BreadcrumbSegment { Label = "AI Chat" }]
-        };
-        tab.PageFactory = () =>
-        {
-            var page = new AiChatPage(vm);
-            page.TitleChanged += title =>
-            {
-                tab.Title = title;
-                tab.Breadcrumbs = [new BreadcrumbSegment { Label = title }];
-                if (tab == ActiveTab) UpdateBreadcrumbs(tab);
-            };
-            return page;
-        };
-        return tab;
-    }
+
 
     private static TabEntry MakePlaceholderTab(string title, string icon) => new()
     {

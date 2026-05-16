@@ -34,8 +34,10 @@
   </ItemGroup>
   
   <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.AIChat\Nexaflow.Features.AIChat.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Console\Nexaflow.Features.Console.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Json\Nexaflow.Features.Json.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Logs\Nexaflow.Features.Logs.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.WindowsSearch\Nexaflow.Features.WindowsSearch.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Images\Nexaflow.Features.Images.csproj" />

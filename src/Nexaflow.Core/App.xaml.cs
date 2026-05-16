@@ -1,5 +1,7 @@
 using Nexaflow.Core.FileActions;
 using Nexaflow.Core.Services;
+using Nexaflow.Features.AIChat;
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Console;
 using Nexaflow.Features.Images;
 using Nexaflow.Features.Logs;
@@ -56,8 +58,6 @@ public partial class App : Application
         ProviderManager.Instance.Register(typeof(OllamaLlmProvider), activityManager);
         ProviderManager.Instance.Register(typeof(ClaudeLlmProvider), activityManager);
 
-        RegisterFeatures();
-
         // ShellConfig is not in a feature assembly; register manually after providers are ready
         var shellConfig = new ShellConfig();
         ConfigManager.Instance.Register(shellConfig, shellConfig.ConfigName);
@@ -73,7 +73,12 @@ public partial class App : Application
         if (!string.IsNullOrEmpty(shellConfig.ConversationAiProvider))
             LlmProviderRegistry.SetConversationProvider(shellConfig.ConversationAiProvider);
 
-        var win = new MainWindow(activityManager);
+        var aiService = new AIService();
+        FeatureManager.Instance.RegisterSingletonService(typeof(IAIService), aiService);
+
+        RegisterFeatures();
+
+        var win = new MainWindow(activityManager, aiService);
         win.Show();
 
         // First run: open Options automatically so the user can configure things
@@ -148,5 +153,6 @@ public partial class App : Application
         fm.Register(typeof(ScratchpadTabRegistration));
         fm.Register(typeof(LogTabRegistration));
         fm.Register(typeof(SearchTabRegistration));
+        fm.Register(typeof(AIChatTabRegistration));
     }
 }

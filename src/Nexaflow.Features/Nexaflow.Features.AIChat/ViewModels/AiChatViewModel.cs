@@ -1,10 +1,9 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Nexaflow.Core.Models;
-using Nexaflow.Core.Services;
 using System.Collections.ObjectModel;
+using Nexaflow.Features.Common;
 
-namespace Nexaflow.Core.ViewModels;
+namespace Nexaflow.Features.AIChat.ViewModels;
 
 public partial class AiChatViewModel : ObservableObject
 {
@@ -21,8 +20,11 @@ public partial class AiChatViewModel : ObservableObject
     // Events
     public event EventHandler? ScrollRequested;
 
-    public AiChatViewModel()
+    private readonly IAIService _aiService;
+
+    public AiChatViewModel(IAIService aiService)
     {
+        _aiService = aiService;
         _ = LoadConversationsAsync();
     }
 
@@ -38,7 +40,7 @@ public partial class AiChatViewModel : ObservableObject
         AppendMessage(ariaText, isUser: false);
 
         ActiveConversation!.DeriveTitle();
-        await ConversationPersistenceService.SaveAsync(ActiveConversation);
+        await _aiService.SaveAsync(ActiveConversation);
 
         OnScrollRequested();
     }
@@ -89,7 +91,7 @@ public partial class AiChatViewModel : ObservableObject
 
     private async Task LoadConversationsAsync()
     {
-        var records = await ConversationPersistenceService.LoadAllAsync();
+        var records = await _aiService.LoadAllAsync();
         foreach (var r in records)
             Conversations.Add(r);
 

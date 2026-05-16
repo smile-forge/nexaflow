@@ -209,7 +209,9 @@
 
                     <!-- Status dot -->
                     <ctrl:AiStatusDot IsBusy="{Binding AiIsBusy}"
-                                       Width="28" Height="28"/>
+                                      HandlerSymbol="{Binding AiHandlerSymbol}"
+                                      IsListening="{Binding AiIsListening}"
+                                      Width="28" Height="28"/>
 
                     <!-- Mic button -->
                     <Button Style="{StaticResource IconButton}"
@@ -234,14 +236,24 @@
                         Text="{Binding AiInputText, UpdateSourceTrigger=PropertyChanged}"
                         Background="Transparent"
                         BorderThickness="0"
-                        Foreground="{StaticResource TextBrush}"
                         FontSize="13"
                         Padding="14,10"
                         VerticalScrollBarVisibility="Auto"
                         TextWrapping="Wrap"
                         AcceptsReturn="False"
                         SendCommand="{Binding SendAiMessageCommand}"
-                        CaretBrush="#FFD8D8D8"/>
+                        CaretBrush="#FFD8D8D8">
+                        <ctrl:PlaceholderTextBox.Style>
+                            <Style TargetType="ctrl:PlaceholderTextBox">
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding AiInputIsAiTyping}" Value="True">
+                                        <Setter Property="Foreground" Value="#06b6d4"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ctrl:PlaceholderTextBox.Style>
+                    </ctrl:PlaceholderTextBox>
                 </Border>
 
                 <!-- Right: attach + clear — top-aligned -->

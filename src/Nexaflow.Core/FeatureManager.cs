@@ -140,7 +140,7 @@ public sealed class FeatureManager
     private static ConstructorInfo BestConstructor(Type t)
         => t.GetConstructors().OrderByDescending(c => c.GetParameters().Length).First();
 
-    private static object?[] ResolveArgs(
+    private object?[] ResolveArgs(
         ConstructorInfo ctor,
         Dictionary<Type, IFeatureConfig> configs,
         ITabOpener tabOpener)
@@ -148,7 +148,9 @@ public sealed class FeatureManager
                .Select(p =>
                    typeof(ITabOpener).IsAssignableFrom(p.ParameterType)
                        ? (object?)tabOpener
-                       : (object?)configs.GetValueOrDefault(p.ParameterType))
+                       : _singletonServices.TryGetValue(p.ParameterType, out var svc)
+                           ? svc
+                           : (object?)configs.GetValueOrDefault(p.ParameterType))
                .ToArray();
 
     // ITabOpener implementation injected into feature registrations
@@ -220,4 +222,11 @@ public sealed class FeatureManager
     /// </summary>
     public void RequestTab(string pageKind, Dictionary<string, string>? pageParams = null)
         => TabOpenRequested?.Invoke(pageKind, pageParams);
+
+    private readonly Dictionary<Type, object> _singletonServices = new();
+
+    public void RegisterSingletonService(Type interfaceType, object instance)
+    {
+        _singletonServices[interfaceType] = instance;
+    }
 }

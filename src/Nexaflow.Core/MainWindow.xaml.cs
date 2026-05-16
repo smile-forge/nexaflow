@@ -18,25 +18,17 @@ public partial class MainWindow : Window
     public ShellViewModel ViewModel => _vm;
 
     // ── Primary constructor (application startup) ─────────────────────────
-    public MainWindow(BackgroundActivityManager activityManager)
+    public MainWindow(BackgroundActivityManager activityManager, IAIService aiService)
     {
         InitializeComponent();
-        _vm = new ShellViewModel(activityManager);
+        
+        _vm = new ShellViewModel(activityManager, aiService);
         DataContext = _vm;
 
         WireCommands();
 
         // Open default tabs on startup. AI Chat is opened first so it ends
         // up at index 1; Dashboard is prepended on top and gets focus.
-        var chatVm = new AiChatViewModel();
-        _vm.OpenTab(new TabEntry
-        {
-            Title       = "AI Chat",
-            Icon        = "💬",
-            Breadcrumbs = [new BreadcrumbSegment { Label = "AI Chat" }],
-            PageFactory = () => new AiChatPage(chatVm)
-        });
-
         _vm.OpenTab(new TabEntry
         {
             Title = "Dashboard",
@@ -65,7 +57,7 @@ public partial class MainWindow : Window
     public MainWindow(TabEntry initialTab)
     {
         InitializeComponent();
-        _vm = new ShellViewModel(new BackgroundActivityManager());
+        _vm = new ShellViewModel(new BackgroundActivityManager(), new AIService());
         DataContext = _vm;
 
         WireCommands();

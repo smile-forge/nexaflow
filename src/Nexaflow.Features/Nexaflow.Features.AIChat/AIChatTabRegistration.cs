@@ -1,0 +1,44 @@
+﻿using Nexaflow.Features.AIChat.ViewModels;
+using Nexaflow.Features.AIChat.Views;
+using Nexaflow.Features.Common;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace Nexaflow.Features.AIChat
+{
+    public sealed class AIChatTabRegistration : ITabRegistration
+    {
+        public string PageKind => "AIChat";
+
+        private readonly IAIService _aiService;
+
+        public AIChatTabRegistration(IAIService aiService)
+        {
+            _aiService = aiService;
+        }
+
+        public TabEntry CreateTab(Dictionary<string, string>? pageParams = null)
+        {
+            var tab = new TabEntry
+            {
+                Title = "AI Chat",
+                Icon = "💬",
+                Breadcrumbs = [new BreadcrumbSegment { Label = "AI Chat" }]
+            };
+            tab.PageFactory = () =>
+            {
+                var page = new AiChatPage(_aiService);
+                page.TitleChanged += title =>
+                {
+                    tab.Title = title;
+                    tab.Breadcrumbs = [new BreadcrumbSegment { Label = title }];
+                };
+                if (pageParams is not null)
+                    page.Reinitialize(pageParams);
+                return page;
+            };
+            return tab;
+        }
+    }
+}
