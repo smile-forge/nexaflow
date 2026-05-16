@@ -1,3 +1,4 @@
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Markdown.Markdown;
 using Nexaflow.Features.Markdown.ViewModels;
 using System.Collections.Specialized;
@@ -9,7 +10,7 @@ using System.Windows.Media;
 
 namespace Nexaflow.Features.Markdown.Views;
 
-public partial class MarkdownView : UserControl
+public partial class MarkdownView : UserControl, IPageView
 {
     public MarkdownViewModel ViewModel { get; }
 
@@ -236,6 +237,31 @@ public partial class MarkdownView : UserControl
         menu.Items.Add(pin);
 
         return menu;
+    }
+
+    // ── IPageView ─────────────────────────────────────────────────────────
+
+    object? IPageView.ViewModel => ViewModel;
+
+    string IPageView.GetContext()
+    {
+        var dirty = ViewModel.IsDirty ? " (unsaved changes)" : string.Empty;
+        return $"Markdown file: '{ViewModel.FileName}' at '{ViewModel.FilePath}'{dirty}.";
+    }
+
+    IReadOnlyList<ActionDescriptor> IPageView.GetAvailableActions() => [];
+
+    IContext? IPageView.GetContextObject()
+    {
+        if (string.IsNullOrEmpty(ViewModel.FilePath)) return null;
+        var dir = System.IO.Path.GetDirectoryName(ViewModel.FilePath);
+        if (string.IsNullOrEmpty(dir)) return null;
+        return new FileSystemContext
+        {
+            RootPath      = dir,
+            CurrentPath   = dir,
+            SelectedItems = [ViewModel.FilePath]
+        };
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────

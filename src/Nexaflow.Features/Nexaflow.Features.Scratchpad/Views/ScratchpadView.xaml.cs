@@ -15,7 +15,7 @@ namespace Nexaflow.Features.Scratchpad.Views;
 /// centre. External OS-level drops (from other applications) are handled by the XAML
 /// DragOver/Drop event handlers on CanvasHost, which DO have position information.
 /// </summary>
-public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyboardHandler, IDropTarget
+public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyboardHandler, IDropTarget, IPageView
 {
     private ScratchpadViewModel Vm => (ScratchpadViewModel)DataContext;
 
@@ -429,6 +429,20 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
         "Purple" => new SolidColorBrush(Color.FromRgb(0xCE, 0x93, 0xD8)),
         _        => new SolidColorBrush(Color.FromRgb(0xFA, 0xFA, 0xFA))
     };
+
+    // ── IPageView ─────────────────────────────────────────────────────────
+
+    object? IPageView.ViewModel => Vm;
+
+    string IPageView.GetContext()
+    {
+        var count = Vm.Notes.Count;
+        return count == 0
+            ? "Scratchpad: empty."
+            : $"Scratchpad: {count} note(s).";
+    }
+
+    IReadOnlyList<ActionDescriptor> IPageView.GetAvailableActions() => [];
 
     // ── Coordinate helpers ────────────────────────────────────────────────
 

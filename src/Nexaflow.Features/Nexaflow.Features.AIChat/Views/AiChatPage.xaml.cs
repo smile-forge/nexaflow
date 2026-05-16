@@ -58,7 +58,12 @@ public partial class AiChatPage : UserControl, IPageView, IRefreshable
     public string GetContext()
     {
         if (ViewModel.ActiveConversation is not { Messages.Count: > 0 } conv)
-            return string.Empty;
+        {
+            var count = ViewModel.Conversations.Count;
+            return count == 0
+                ? "AI Chat tab: no conversations yet."
+                : $"AI Chat tab: {count} conversation(s), none currently active.";
+        }
         return string.Join("\n", conv.Messages.TakeLast(6)
             .Select(m => (m.IsUser ? "User" : "Aria") + ": " + m.Text));
     }

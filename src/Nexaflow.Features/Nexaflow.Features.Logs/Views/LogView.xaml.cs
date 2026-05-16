@@ -1,7 +1,9 @@
 using ICSharpCode.AvalonEdit.Rendering;
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Logs.Parsing;
 using Nexaflow.Features.Logs.Rendering;
 using Nexaflow.Features.Logs.ViewModels;
+using System.IO;
 using System.Windows.Input;
 using System.ComponentModel;
 using System.Windows;
@@ -11,7 +13,7 @@ using System.Windows.Media;
 
 namespace Nexaflow.Features.Logs.Views;
 
-public partial class LogView : UserControl
+public partial class LogView : UserControl, IPageView
 {
     private readonly LogViewModel                  _vm;
     private readonly LogLevelColorizer             _levelColorizer;
@@ -59,6 +61,31 @@ public partial class LogView : UserControl
 
         Loaded   += async (_, _) => await vm.LoadAsync(CancellationToken.None);
         Unloaded += OnUnloaded;
+    }
+
+    // ── IPageView ─────────────────────────────────────────────────────────
+
+    object? IPageView.ViewModel => _vm;
+
+    string IPageView.GetContext()
+    {
+        if (string.IsNullOrEmpty(_vm.FilePath)) return "Log viewer: no file loaded.";
+        return $"Log file: '{_vm.FileName}' at '{_vm.FilePath}'. {_vm.LineCount} line(s).";
+    }
+
+    IReadOnlyList<ActionDescriptor> IPageView.GetAvailableActions() => [];
+
+    IContext? IPageView.GetContextObject()
+    {
+        if (string.IsNullOrEmpty(_vm.FilePath)) return null;
+        var dir = Path.GetDirectoryName(_vm.FilePath);
+        if (string.IsNullOrEmpty(dir)) return null;
+        return new FileSystemContext
+        {
+            RootPath      = dir,
+            CurrentPath   = dir,
+            SelectedItems = [_vm.FilePath]
+        };
     }
 
     private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
