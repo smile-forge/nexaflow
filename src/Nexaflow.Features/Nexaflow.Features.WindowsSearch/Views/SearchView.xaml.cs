@@ -34,7 +34,34 @@ public partial class SearchView : UserControl, IPageView, IRefreshable
         return $"Search tab: '{_vm.SearchQuery}' in '{_vm.SearchRoot}'. {_vm.ResultCount} result(s).";
     }
 
-    IReadOnlyList<ActionDescriptor> IPageView.GetAvailableActions() => [];
+    IReadOnlyList<ActionDescriptor> IPageView.GetAvailableActions()
+    {
+        IReadOnlyDictionary<string, string> searchParams =
+            new Dictionary<string, string> { { "Query", string.Empty } };
+
+        return
+        [
+            new ActionDescriptor(
+                "Search",
+                "Search files using Windows Search. Supports plain terms (budget report), " +
+                "quoted phrases (\"annual report\"), file globs (*.xml, *.doc*, name.*), " +
+                "property filters (kind:document, size:>1mb, author:john, date:>2024-01, " +
+                "modified:2023, before:2024, after:2023-06), and boolean prefix syntax " +
+                "(+required -excluded).",
+                searchParams)
+        ];
+    }
+
+    void IPageView.Execute(ActionDescriptor action)
+    {
+        if (action.Name == "Search"
+            && action.Parameters?.TryGetValue("Query", out var query) == true
+            && !string.IsNullOrWhiteSpace(query))
+        {
+            _vm.SearchQuery = query;
+            _ = _vm.RunSearchAsync(CancellationToken.None);
+        }
+    }
 
     IContext? IPageView.GetContextObject()
     {
