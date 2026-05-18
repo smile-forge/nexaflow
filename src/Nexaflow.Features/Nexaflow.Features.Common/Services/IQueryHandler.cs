@@ -15,16 +15,15 @@ public interface IQueryHandler
 
     /// <summary>
     /// Returns a confidence score (0–1) that this handler can process the given input.
-    /// <paramref name="page"/> is the currently active tab view (may be null for unmigrated views).
-    /// Use <c>page?.GetContextObject()</c> for typed context and <c>page?.ViewModel</c> for
-    /// direct ViewModel access.
+    /// <paramref name="pageVm"/> is the active tab's ViewModel; use <c>pageVm?.GetContextObject()</c>
+    /// for typed context.
     /// </summary>
-    float CanProcess(string input, IPageView? page = null);
+    float CanProcess(string input, IPageViewModel? pageVm = null);
 
     /// <summary>
     /// Processes the input. Returns a response string to show in AI Chat,
     /// or null if the action was handled silently with no output.
-    /// <paramref name="page"/> carries the same context as passed to <see cref="CanProcess"/>.
+    /// <paramref name="pageVm"/> carries the same context as passed to <see cref="CanProcess"/>.
     /// </summary>
-    Task<string?> ProcessAsync(string input, IPageView? page = null);
+    Task<string?> ProcessAsync(string input, IPageViewModel? pageVm = null);
 }

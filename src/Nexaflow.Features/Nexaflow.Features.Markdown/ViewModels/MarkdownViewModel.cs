@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Markdig;
 using Markdig.Syntax;
+using Nexaflow.Features.Common;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows.Threading;
@@ -15,7 +16,7 @@ namespace Nexaflow.Features.Markdown.ViewModels;
 /// objects — one per top-level Markdig block.  The view renders each block
 /// independently, toggling between a formatted view and a source TextBox.
 /// </summary>
-public sealed partial class MarkdownViewModel : ObservableObject
+public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
 {
     private static readonly MarkdownPipeline Pipeline =
         new MarkdownPipelineBuilder()
@@ -195,5 +196,28 @@ public sealed partial class MarkdownViewModel : ObservableObject
             return BlockEndLine(cb[cb.Count - 1]);
 
         return block.Line;
+    }
+
+    // ── IPageViewModel ────────────────────────────────────────────────────
+
+    public string GetContext()
+    {
+        var dirty = IsDirty ? " (unsaved changes)" : string.Empty;
+        return $"Markdown file: '{FileName}' at '{FilePath}'{dirty}.";
+    }
+
+    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
+
+    public IContext? GetContextObject()
+    {
+        if (string.IsNullOrEmpty(FilePath)) return null;
+        var dir = Path.GetDirectoryName(FilePath);
+        if (string.IsNullOrEmpty(dir)) return null;
+        return new FileSystemContext
+        {
+            RootPath      = dir,
+            CurrentPath   = dir,
+            SelectedItems = [FilePath]
+        };
     }
 }

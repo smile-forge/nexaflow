@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Nexaflow.Features.Common;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -15,7 +16,7 @@ public partial class ImageDotItem : ObservableObject
     [ObservableProperty] private bool _isCurrent;
 }
 
-public partial class ImageViewModel : ObservableObject
+public partial class ImageViewModel : ObservableObject, IPageViewModel
 {
     // ── Image collection ──────────────────────────────────────────────────
 
@@ -120,4 +121,16 @@ public partial class ImageViewModel : ObservableObject
             CurrentImage = null;
         }
     }
+
+    // ── IPageViewModel ────────────────────────────────────────────────────
+
+    public string GetContext()
+    {
+        if (TotalImages == 0) return "Image viewer: no images loaded.";
+        return TotalImages == 1
+            ? $"Image viewer: '{CurrentFileName}'."
+            : $"Image viewer: '{CurrentFileName}' ({CurrentIndex + 1} of {TotalImages}).";
+    }
+
+    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
 }

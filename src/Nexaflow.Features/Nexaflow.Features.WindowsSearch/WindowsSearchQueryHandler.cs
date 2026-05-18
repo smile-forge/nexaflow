@@ -18,23 +18,23 @@ public sealed class WindowsSearchQueryHandler(IShellServices shellServices) : IQ
         "Opens a new Search tab with results. " +
         "Use for globs (*.cs), quoted terms (\"TODO\"), or filters (size:>1mb, +required -excluded).";
 
-    public float CanProcess(string input, IPageView? page = null)
+    public float CanProcess(string input, IPageViewModel? pageVm = null)
     {
-        if (page?.GetContextObject() is not FileSystemContext fs
+        if (pageVm?.GetContextObject() is not FileSystemContext fs
             || string.IsNullOrEmpty(fs.RootPath)) return 0f;
         return SearchQueryScorer.Score(input);
     }
 
-    public Task<string?> ProcessAsync(string input, IPageView? page = null)
+    public Task<string?> ProcessAsync(string input, IPageViewModel? pageVm = null)
     {
-        if (page?.GetContextObject() is not FileSystemContext fs)
+        if (pageVm?.GetContextObject() is not FileSystemContext fs)
             return Task.FromResult<string?>("No file system context is available for search.");
 
         shellServices.OpenTab("Search", new Dictionary<string, string>
         {
             ["query"] = input,
             ["root"]  = fs.RootPath
-        }, page);
+        });
         return Task.FromResult<string?>(null);
     }
 }

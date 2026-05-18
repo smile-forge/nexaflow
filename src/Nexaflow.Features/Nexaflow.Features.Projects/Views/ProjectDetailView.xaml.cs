@@ -17,18 +17,7 @@ public partial class ProjectDetailView : UserControl, IPageView
 
     // ── IPageView ─────────────────────────────────────────────────────────
 
-    object? IPageView.ViewModel => ViewModel;
-
-    string IPageView.GetContext()
-    {
-        if (string.IsNullOrEmpty(ViewModel.ProjectName)) return "Project detail: no project loaded.";
-        var count = ViewModel.Backlog.Count;
-        return count == 0
-            ? $"Project: '{ViewModel.ProjectName}'. No backlog items."
-            : $"Project: '{ViewModel.ProjectName}'. {count} backlog item(s).";
-    }
-
-    IReadOnlyList<ActionDescriptor> IPageView.GetAvailableActions() => [];
+    IPageViewModel? IPageView.ViewModel => ViewModel;
 
     void IPageView.Reinitialize(Dictionary<string, string> pageParams)
     {

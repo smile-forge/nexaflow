@@ -17,12 +17,12 @@ namespace Nexaflow.Features.Common
         /// Returns null when the LLM selects "none of these apply".
         /// </summary>
         Task<IQueryHandler?> DisambiguateToolSelection(
-            IPageView? page, string input, IReadOnlyList<IQueryHandler> candidates);
+            IPageViewModel? pageVm, string input, IReadOnlyList<IQueryHandler> candidates);
 
         /// <summary>
         /// One-shot contextual call that lets the LLM choose between executing an action,
         /// suggesting a prefill for the user to confirm, or replying conversationally.
         /// </summary>
-        Task<AiResponse?> ContextChat(IPageView? page, string input);
+        Task<AiResponse?> ContextChat(IPageViewModel? pageVm, string input);
     }
 }

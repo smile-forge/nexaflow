@@ -65,28 +65,7 @@ public partial class LogView : UserControl, IPageView
 
     // ── IPageView ─────────────────────────────────────────────────────────
 
-    object? IPageView.ViewModel => _vm;
-
-    string IPageView.GetContext()
-    {
-        if (string.IsNullOrEmpty(_vm.FilePath)) return "Log viewer: no file loaded.";
-        return $"Log file: '{_vm.FileName}' at '{_vm.FilePath}'. {_vm.LineCount} line(s).";
-    }
-
-    IReadOnlyList<ActionDescriptor> IPageView.GetAvailableActions() => [];
-
-    IContext? IPageView.GetContextObject()
-    {
-        if (string.IsNullOrEmpty(_vm.FilePath)) return null;
-        var dir = Path.GetDirectoryName(_vm.FilePath);
-        if (string.IsNullOrEmpty(dir)) return null;
-        return new FileSystemContext
-        {
-            RootPath      = dir,
-            CurrentPath   = dir,
-            SelectedItems = [_vm.FilePath]
-        };
-    }
+    IPageViewModel? IPageView.ViewModel => _vm;
 
     private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

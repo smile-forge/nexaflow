@@ -17,15 +17,5 @@ public partial class ImageView : UserControl, IPageView
 
     // ── IPageView ─────────────────────────────────────────────────────────
 
-    object? IPageView.ViewModel => ViewModel;
-
-    string IPageView.GetContext()
-    {
-        if (ViewModel.TotalImages == 0) return "Image viewer: no images loaded.";
-        return ViewModel.TotalImages == 1
-            ? $"Image viewer: '{ViewModel.CurrentFileName}'."
-            : $"Image viewer: '{ViewModel.CurrentFileName}' ({ViewModel.CurrentIndex + 1} of {ViewModel.TotalImages}).";
-    }
-
-    IReadOnlyList<ActionDescriptor> IPageView.GetAvailableActions() => [];
+    IPageViewModel? IPageView.ViewModel => ViewModel;
 }

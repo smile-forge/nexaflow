@@ -58,23 +58,7 @@ public partial class ConsoleView : UserControl, IPageView
 
     // ── IPageView ─────────────────────────────────────────────────────────
 
-    object? IPageView.ViewModel => ViewModel;
-
-    string IPageView.GetContext() =>
-        $"Terminal: '{ViewModel.CurrentPath}'.";
-
-    IReadOnlyList<ActionDescriptor> IPageView.GetAvailableActions() => [];
-
-    IContext? IPageView.GetContextObject()
-    {
-        if (string.IsNullOrEmpty(ViewModel.CurrentPath)) return null;
-        return new FileSystemContext
-        {
-            RootPath      = ViewModel.CurrentPath,
-            CurrentPath   = ViewModel.CurrentPath,
-            SelectedItems = []
-        };
-    }
+    IPageViewModel? IPageView.ViewModel => ViewModel;
 
     void IPageView.Reinitialize(Dictionary<string, string> pageParams) => ScrollToBottom();
 }

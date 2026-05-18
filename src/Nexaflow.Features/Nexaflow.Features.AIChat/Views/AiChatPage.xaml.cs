@@ -10,7 +10,7 @@ namespace Nexaflow.Features.AIChat.Views;
 public partial class AiChatPage : UserControl, IPageView
 {
     public AiChatViewModel ViewModel { get; }
-    object? IPageView.ViewModel => ViewModel;
+    IPageViewModel? IPageView.ViewModel => ViewModel;
 
     public AiChatPage(IAIService aIService)
     {
@@ -51,21 +51,6 @@ public partial class AiChatPage : UserControl, IPageView
         Dispatcher.InvokeAsync(() => MessageScroller.ScrollToEnd(),
             System.Windows.Threading.DispatcherPriority.Loaded);
     }
-
-    public string GetContext()
-    {
-        if (ViewModel.ActiveConversation is not { Messages.Count: > 0 } conv)
-        {
-            var count = ViewModel.Conversations.Count;
-            return count == 0
-                ? "AI Chat tab: no conversations yet."
-                : $"AI Chat tab: {count} conversation(s), none currently active.";
-        }
-        return string.Join("\n", conv.Messages.TakeLast(6)
-            .Select(m => (m.IsUser ? "User" : "Aria") + ": " + m.Text));
-    }
-
-    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
 
     public void Reinitialize(Dictionary<string, string> pageParams)
     {

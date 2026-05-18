@@ -51,13 +51,5 @@ public partial class HtmlView : UserControl, IPageView
 
     // ── IPageView ─────────────────────────────────────────────────────────
 
-    object? IPageView.ViewModel => ViewModel;
-
-    string IPageView.GetContext()
-    {
-        var loading = ViewModel.IsLoading ? " (loading)" : string.Empty;
-        return $"Web view: '{ViewModel.CurrentUrl}'{loading}.";
-    }
-
-    IReadOnlyList<ActionDescriptor> IPageView.GetAvailableActions() => [];
+    IPageViewModel? IPageView.ViewModel => ViewModel;
 }

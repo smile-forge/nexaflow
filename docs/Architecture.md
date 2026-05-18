@@ -72,11 +72,12 @@ The contract layer. Every feature depends on this; nothing else does.
 | `TabEntry.cs` | Observable tab state: title, icon, breadcrumbs, `PageFactory` delegate, cached `Page` |
 | `BreadcrumbSegment` (same file) | One crumb: label, drop-down children, same-tab `Navigate` action, or cross-tab `TargetPageKind` |
 | `ITabRegistration.cs` | Interface features implement to register a page kind with the shell |
-| `IPageView.cs` | Implemented by tab `UserControl`s to expose ViewModel and context to the AI pipeline |
+| `IPageView.cs` | Thin shell-lifecycle contract implemented by tab `UserControl`s: exposes `IPageViewModel? ViewModel` and `Reinitialize` |
+| `IPageViewModel.cs` | AI pipeline contract implemented by ViewModels: `GetContext`, `GetAvailableActions`, `GetContextObject`, `Execute` |
 | `IShellServices.cs` | Application-level singleton injected into feature code for tab management |
 | `IAIService.cs` | AI disambiguation and contextual chat, injected as a singleton service |
 | `IFeatureConfig.cs` | Marks a POCO as a config section; discovered and instantiated by `FeatureManager` |
-| `IContext.cs` / `FileSystemContext.cs` | Typed context objects offered by tab views via `IPageView.GetContextObject()` |
+| `IContext.cs` / `FileSystemContext.cs` | Typed context objects offered by ViewModels via `IPageViewModel.GetContextObject()` |
 | `IActionExecutor.cs` | Implemented by ViewModels to receive and execute AI-generated JSON action payloads |
 | `ConfigAttributes.cs` | `[ConfigDisplayName]`, `[FolderPath]`, `[ListSource]`, `[CustomControl]` / `ICustomConfigApply` |
 | `AiResponse.cs` | `AiResponse` record and `AiResponseKind` enum returned by `IAIService.ContextChat` |
@@ -184,17 +185,28 @@ The page kind string is then available in the ribbon editor automatically.
 
 ---
 
-### `IPageView` — Exposing context to the AI pipeline
+### `IPageView` / `IPageViewModel` — Exposing context to the AI pipeline
 
-Implement on your tab `UserControl`. The shell queries this when routing AI input, building context prompts, and executing AI-selected actions. `Reinitialize` is called on first load and whenever the shell activates the tab with a new param set (including re-clicking the active tab).
+`IPageView` is the shell's typed handle to a tab `UserControl` — implement it on your `UserControl`. It exposes the ViewModel and handles shell lifecycle. `Reinitialize` is called on first load and whenever the shell activates the tab with a new param set (including re-clicking the active tab).
+
+`IPageViewModel` is the AI pipeline contract — implement it on your ViewModel so the shell can query context, enumerate available actions, and execute AI-selected actions.
 
 ```csharp
+// The View — thin shell-lifecycle wrapper
 public partial class MyView : UserControl, IPageView
 {
-    public object? ViewModel => DataContext;
+    private readonly MyViewModel _vm;
+    public MyView(MyViewModel vm) { _vm = vm; DataContext = vm; InitializeComponent(); }
+
+    public IPageViewModel? ViewModel => _vm;
+    public void Reinitialize(Dictionary<string, string> pageParams) { /* react to new params */ }
+}
+
+// The ViewModel — owns all AI pipeline logic
+public partial class MyViewModel : ObservableObject, IPageViewModel
+{
     public string GetContext() => "User is viewing My Feature";
     public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
-    public void Reinitialize(Dictionary<string, string> pageParams) { /* react to new params */ }
 }
 ```
 
@@ -210,12 +222,12 @@ public sealed class MyQueryHandler : IQueryHandler
     public string Description => "Handles my feature's input";
     public string? Symbol => null;                           // optional prefix character
 
-    public float CanProcess(string input, IPageView? page = null)
-        => page?.ViewModel is MyViewModel ? 0.9f : 0f;
+    public float CanProcess(string input, IPageViewModel? pageVm = null)
+        => pageVm is MyViewModel ? 0.9f : 0f;
 
-    public async Task<string?> ProcessAsync(string input, IPageView? page = null)
+    public async Task<string?> ProcessAsync(string input, IPageViewModel? pageVm = null)
     {
-        if (page?.ViewModel is not MyViewModel vm) return "No active tab.";
+        if (pageVm is not MyViewModel vm) return "No active tab.";
         await vm.DoSomethingAsync(input);
         return null;   // null = handled silently; string = shown in AI Chat
     }
@@ -374,8 +386,8 @@ User submits text in AI input bar
   → Check registered IQueryHandler list (Symbol prefix match first, then CanProcess scores)
   → If Symbol match: route directly to that handler
   → If multiple candidates score > 0: IAIService.DisambiguateToolSelection() picks one
-  → If single candidate: ProcessAsync(input, currentPage)
-  → If no handler: IAIService.ContextChat(currentPage, input)
+  → If single candidate: ProcessAsync(input, currentPageVm)
+  → If no handler: IAIService.ContextChat(currentPageVm, input)
       → LLM decides: execute ActionDescriptor, prefill input, or reply conversationally
   → Response text (if any) added to AI Chat conversation
 ```

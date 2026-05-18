@@ -9,7 +9,7 @@ using System.Diagnostics;
 
 namespace Nexaflow.Features.WindowsSearch.ViewModels;
 
-public sealed partial class SearchViewModel : ObservableObject
+public sealed partial class SearchViewModel : ObservableObject, IPageViewModel
 {
     [ObservableProperty] private string             _searchQuery  = string.Empty;
     [ObservableProperty] private string             _searchRoot   = string.Empty;
@@ -159,5 +159,66 @@ public sealed partial class SearchViewModel : ObservableObject
         if (SelectedEntry is null) return;
         try { Process.Start(new ProcessStartInfo(SelectedEntry.FilePath) { UseShellExecute = true }); }
         catch (Exception ex) { Debug.WriteLine($"[SearchView] Open file: {ex.Message}"); }
+    }
+
+    // ── IPageViewModel ────────────────────────────────────────────────────
+
+    public string GetContext()
+    {
+        if (string.IsNullOrWhiteSpace(SearchQuery) || string.IsNullOrEmpty(SearchRoot))
+            return $"Search tab: no search performed yet. Root: {(string.IsNullOrEmpty(SearchRoot) ? "not set" : $"'{SearchRoot}'")}";
+        return $"Search tab: '{SearchQuery}' in '{SearchRoot}'. {ResultCount} result(s).";
+    }
+
+    public IReadOnlyList<ActionDescriptor> GetAvailableActions()
+    {
+        IReadOnlyDictionary<string, string> searchParams =
+            new Dictionary<string, string> { { "Query", string.Empty } };
+
+        return
+        [
+            new ActionDescriptor(
+                "Search",
+                "Search files using Windows Search. Supports plain terms (budget report), " +
+                "quoted phrases (\"annual report\"), file globs (*.xml, *.doc*, name.*), " +
+                "property filters (kind:document, size:>1mb, author:john, date:>2024-01, " +
+                "modified:2023, before:2024, after:2023-06), and boolean prefix syntax " +
+                "(+required -excluded).",
+                searchParams)
+        ];
+    }
+
+    public void Execute(ActionDescriptor action)
+    {
+        if (action.Name == "Search"
+            && action.Parameters?.TryGetValue("Query", out var query) == true
+            && !string.IsNullOrWhiteSpace(query))
+        {
+            SearchQuery = query;
+            _ = RunSearchAsync(CancellationToken.None);
+        }
+    }
+
+    public IContext? GetContextObject()
+    {
+        if (SelectedEntry is not { } entry) return null;
+
+        if (entry.IsFolder)
+            return new FileSystemContext
+            {
+                RootPath      = entry.FilePath,
+                CurrentPath   = entry.FilePath,
+                SelectedItems = []
+            };
+
+        var dir = Path.GetDirectoryName(entry.FilePath);
+        if (string.IsNullOrEmpty(dir)) return null;
+
+        return new FileSystemContext
+        {
+            RootPath      = dir,
+            CurrentPath   = dir,
+            SelectedItems = [entry.FilePath]
+        };
     }
 }

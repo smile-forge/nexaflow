@@ -5,7 +5,7 @@ using Nexaflow.Features.Common;
 
 namespace Nexaflow.Features.AIChat.ViewModels;
 
-public partial class AiChatViewModel : ObservableObject
+public partial class AiChatViewModel : ObservableObject, IPageViewModel
 {
     // Conversation history (left sidebar)
     public ObservableCollection<ConversationRecord> Conversations { get; } = [];
@@ -100,4 +100,21 @@ public partial class AiChatViewModel : ObservableObject
     }
 
     private void OnScrollRequested() => ScrollRequested?.Invoke(this, EventArgs.Empty);
+
+    // ── IPageViewModel ────────────────────────────────────────────────────
+
+    public string GetContext()
+    {
+        if (ActiveConversation is not { Messages.Count: > 0 } conv)
+        {
+            var count = Conversations.Count;
+            return count == 0
+                ? "AI Chat tab: no conversations yet."
+                : $"AI Chat tab: {count} conversation(s), none currently active.";
+        }
+        return string.Join("\n", conv.Messages.TakeLast(6)
+            .Select(m => (m.IsUser ? "User" : "Aria") + ": " + m.Text));
+    }
+
+    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
 }

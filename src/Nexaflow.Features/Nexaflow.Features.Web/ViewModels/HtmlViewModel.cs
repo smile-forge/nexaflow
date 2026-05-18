@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Nexaflow.Features.Common;
 using System.IO;
 
 namespace Nexaflow.Features.Web.ViewModels;
@@ -8,7 +9,7 @@ namespace Nexaflow.Features.Web.ViewModels;
 /// Resolves a local .html or .url file path to a navigable URI and exposes
 /// metadata for the tab title / toolbar.
 /// </summary>
-public partial class HtmlViewModel : ObservableObject
+public partial class HtmlViewModel : ObservableObject, IPageViewModel
 {
     /// <summary>The URI that WebView2 should navigate to.</summary>
     public Uri NavigationUri { get; }
@@ -53,4 +54,14 @@ public partial class HtmlViewModel : ObservableObject
 
         return new Uri("about:blank");
     }
+
+    // ── IPageViewModel ────────────────────────────────────────────────────
+
+    public string GetContext()
+    {
+        var loading = IsLoading ? " (loading)" : string.Empty;
+        return $"Web view: '{CurrentUrl}'{loading}.";
+    }
+
+    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
 }
