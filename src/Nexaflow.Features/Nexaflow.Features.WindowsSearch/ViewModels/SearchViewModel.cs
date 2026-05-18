@@ -28,16 +28,19 @@ public sealed partial class SearchViewModel : ObservableObject
 
     public ObservableCollection<SearchResultEntry> Results { get; } = [];
 
-    private readonly ITabOpener _tabOpener;
+    /// <summary>Set by <see cref="SearchTabRegistration"/> so this VM can keep tab meta in sync.</summary>
+    public TabEntry? Tab { get; set; }
+
+    private readonly IShellServices _shellServices;
     private string _baseQuery  = string.Empty;
     private ParsedQuery? _lastParsed;
     private CancellationTokenSource? _cts;
 
-    public SearchViewModel(string query, string root, ITabOpener tabOpener)
+    public SearchViewModel(string query, string root, IShellServices shellServices)
     {
-        _searchQuery = query;
-        _searchRoot  = root;
-        _tabOpener   = tabOpener;
+        _searchQuery   = query;
+        _searchRoot    = root;
+        _shellServices = shellServices;
     }
 
     [RelayCommand]
@@ -77,6 +80,20 @@ public sealed partial class SearchViewModel : ObservableObject
         SearchQuery = merged.RawInput;
         _lastParsed = merged;
         await ExecuteSearch(merged, CancellationToken.None);
+
+        if (Tab is not null)
+        {
+            var q  = SearchQuery;
+            var r  = SearchRoot;
+            var qs = q.Length > 12 ? q[..12] + "…" : q;
+            var rl = string.IsNullOrEmpty(r) ? "Search" : Path.GetFileName(r.TrimEnd('\\', '/'));
+            _shellServices.UpdateTabMeta(
+                Tab,
+                title:      qs,
+                breadcrumbs: [new BreadcrumbSegment { Label = rl },
+                               new BreadcrumbSegment { Label = $"Query : {qs}" }],
+                pageParams:  new() { ["query"] = q, ["root"] = r });
+        }
     }
 
     private async Task ExecuteSearch(ParsedQuery parsed, CancellationToken externalCt)
@@ -128,7 +145,7 @@ public sealed partial class SearchViewModel : ObservableObject
         if (SelectedEntry is null) return;
         var dir = Path.GetDirectoryName(SelectedEntry.FilePath);
         if (string.IsNullOrEmpty(dir)) return;
-        _tabOpener.OpenTab("FileSystem", new Dictionary<string, string>
+        _shellServices.OpenTab("FileSystem", new Dictionary<string, string>
         {
             ["mode"]  = "path",
             ["path"]  = dir,

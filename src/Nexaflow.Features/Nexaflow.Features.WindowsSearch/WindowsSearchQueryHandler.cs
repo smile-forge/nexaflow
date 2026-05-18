@@ -8,9 +8,9 @@ namespace Nexaflow.Features.WindowsSearch;
 /// Activates only when the active tab is a FileSystem tab (provides <see cref="FileSystemContext"/>).
 /// Opens a new Search tab with Windows Search results.
 /// Auto-discovered by <see cref="Nexaflow.Core.FeatureManager.Register"/> and injected
-/// with <see cref="ITabOpener"/> via its constructor.
+/// with <see cref="IShellServices"/> via its constructor.
 /// </summary>
-public sealed class WindowsSearchQueryHandler(ITabOpener tabOpener) : IQueryHandler
+public sealed class WindowsSearchQueryHandler(IShellServices shellServices) : IQueryHandler
 {
     public string  Symbol      => "?";
     public string Description =>
@@ -30,11 +30,11 @@ public sealed class WindowsSearchQueryHandler(ITabOpener tabOpener) : IQueryHand
         if (page?.GetContextObject() is not FileSystemContext fs)
             return Task.FromResult<string?>("No file system context is available for search.");
 
-        tabOpener.OpenTab("Search", new Dictionary<string, string>
+        shellServices.OpenTab("Search", new Dictionary<string, string>
         {
             ["query"] = input,
             ["root"]  = fs.RootPath
-        });
+        }, page);
         return Task.FromResult<string?>(null);
     }
 }

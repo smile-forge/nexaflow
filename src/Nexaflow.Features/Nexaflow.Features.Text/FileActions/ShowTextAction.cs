@@ -8,9 +8,9 @@ namespace Nexaflow.Features.Text.FileActions;
 /// </summary>
 public sealed class ShowTextAction : IFileAction
 {
-    private readonly ITabOpener _tabOpener;
+    private readonly IShellServices _shellServices;
 
-    public ShowTextAction(ITabOpener tabOpener) => _tabOpener = tabOpener;
+    public ShowTextAction(IShellServices shellServices) => _shellServices = shellServices;
 
     public bool   IsDestructive          => false;
     public bool   SupportsMultipleFiles  => false;
@@ -23,7 +23,7 @@ public sealed class ShowTextAction : IFileAction
 
     public bool PerformAction(string filePath)
     {
-        _tabOpener.OpenTab("Text", new Dictionary<string, string> { ["path"] = filePath });
+        _shellServices.OpenTab("Text", new Dictionary<string, string> { ["path"] = filePath });
         return true;
     }
 
@@ -31,7 +31,7 @@ public sealed class ShowTextAction : IFileAction
     {
         foreach (var path in filePaths)
         {
-            _tabOpener.OpenTab("Text", new Dictionary<string, string> { ["path"] = path });
+            _shellServices.OpenTab("Text", new Dictionary<string, string> { ["path"] = path });
             return true;
         }
         return false;

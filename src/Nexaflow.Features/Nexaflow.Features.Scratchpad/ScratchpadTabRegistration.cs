@@ -4,7 +4,7 @@ using Nexaflow.Features.Scratchpad.Views;
 
 namespace Nexaflow.Features.Scratchpad;
 
-public sealed class ScratchpadTabRegistration(ScratchpadConfig config, ITabOpener tabOpener) : ITabRegistration
+public sealed class ScratchpadTabRegistration(ScratchpadConfig config, IShellServices shellServices) : ITabRegistration
 {
     public string PageKind => "Scratchpad";
 
@@ -13,6 +13,6 @@ public sealed class ScratchpadTabRegistration(ScratchpadConfig config, ITabOpene
         Title       = "Scratchpad",
         Icon        = "📌",
         Breadcrumbs = [new BreadcrumbSegment { Label = "Scratchpad" }],
-        PageFactory = () => new ScratchpadView(new ScratchpadViewModel(config, tabOpener))
+        PageFactory = () => new ScratchpadView(new ScratchpadViewModel(config, shellServices))
     };
 }

@@ -7,7 +7,7 @@ namespace Nexaflow.Features.AIChat.Views;
 
 
 
-public partial class AiChatPage : UserControl, IPageView, IRefreshable
+public partial class AiChatPage : UserControl, IPageView
 {
     public AiChatViewModel ViewModel { get; }
     object? IPageView.ViewModel => ViewModel;
@@ -52,9 +52,6 @@ public partial class AiChatPage : UserControl, IPageView, IRefreshable
             System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
-    // ── IRefreshable ──────────────────────────────────────────────────────
-    public void Refresh() => ScrollToBottom();
-
     public string GetContext()
     {
         if (ViewModel.ActiveConversation is not { Messages.Count: > 0 } conv)
@@ -70,9 +67,9 @@ public partial class AiChatPage : UserControl, IPageView, IRefreshable
 
     public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
 
-    public void Reinitialize(Dictionary<string, string>? pageParams)
+    public void Reinitialize(Dictionary<string, string> pageParams)
     {
-        if (pageParams is null) return;
+        ScrollToBottom();
         if (pageParams.TryGetValue("input",  out var input) &&
             pageParams.TryGetValue("output", out var output))
             _ = ViewModel.AddExchangeAsync(input, output);

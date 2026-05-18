@@ -8,9 +8,9 @@ namespace Nexaflow.Features.Logs.FileActions;
 /// </summary>
 public sealed class ShowLogAction : IFileAction
 {
-    private readonly ITabOpener _tabOpener;
+    private readonly IShellServices _shellServices;
 
-    public ShowLogAction(ITabOpener tabOpener) => _tabOpener = tabOpener;
+    public ShowLogAction(IShellServices shellServices) => _shellServices = shellServices;
 
     public string DisplayName           => "Open Log";
     public string Icon                  => "📋";
@@ -23,7 +23,7 @@ public sealed class ShowLogAction : IFileAction
 
     public bool PerformAction(string filePath)
     {
-        _tabOpener.OpenTab("Logs", new Dictionary<string, string> { ["path"] = filePath });
+        _shellServices.OpenTab("Logs", new Dictionary<string, string> { ["path"] = filePath });
         return true;
     }
 
@@ -31,7 +31,7 @@ public sealed class ShowLogAction : IFileAction
     {
         foreach (var path in filePaths)
         {
-            _tabOpener.OpenTab("Logs", new Dictionary<string, string> { ["path"] = path });
+            _shellServices.OpenTab("Logs", new Dictionary<string, string> { ["path"] = path });
             return true; // open first file only (SupportsMultipleFiles = false)
         }
         return false;

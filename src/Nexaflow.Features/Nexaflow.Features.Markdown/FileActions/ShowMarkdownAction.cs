@@ -8,9 +8,9 @@ namespace Nexaflow.Features.Markdown.FileActions;
 /// </summary>
 public class ShowMarkdownAction : IFileAction
 {
-    private readonly ITabOpener _tabOpener;
+    private readonly IShellServices _shellServices;
 
-    public ShowMarkdownAction(ITabOpener tabOpener) => _tabOpener = tabOpener;
+    public ShowMarkdownAction(IShellServices shellServices) => _shellServices = shellServices;
 
     public bool   IsDestructive          => false;
     public bool   SupportsMultipleFiles  => false;
@@ -23,7 +23,7 @@ public class ShowMarkdownAction : IFileAction
 
     public bool PerformAction(string filePath)
     {
-        _tabOpener.OpenTab("Markdown", new Dictionary<string, string> { ["path"] = filePath });
+        _shellServices.OpenTab("Markdown", new Dictionary<string, string> { ["path"] = filePath });
         return true;
     }
 
@@ -31,7 +31,7 @@ public class ShowMarkdownAction : IFileAction
     {
         foreach (var path in filePaths)
         {
-            _tabOpener.OpenTab("Markdown", new Dictionary<string, string> { ["path"] = path });
+            _shellServices.OpenTab("Markdown", new Dictionary<string, string> { ["path"] = path });
             return true;
         }
         return false;

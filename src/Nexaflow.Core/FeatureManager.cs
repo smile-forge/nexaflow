@@ -27,51 +27,31 @@ public sealed class FeatureManager
     private readonly List<Type> _keyboardHandlerTypes  = [];
     private readonly List<Type> _dropTargetTypes       = [];
 
-    /// <summary>
-    /// Types implementing <see cref="IFileAction"/> discovered from all registered
-    /// feature assemblies. Consumed by <see cref="Services.FileActionManager"/> at
-    /// construction time to instantiate cross-assembly file actions.
-    /// </summary>
     public IReadOnlyList<Type> FileActionTypes       => _fileActionTypes;
-
-    /// <summary>
-    /// Types implementing <see cref="IFolderAction"/> discovered from all registered
-    /// feature assemblies.
-    /// </summary>
     public IReadOnlyList<Type> FolderActionTypes     => _folderActionTypes;
-
-    /// <summary>
-    /// Types implementing <see cref="IFileCreateAction"/> discovered from all registered
-    /// feature assemblies.
-    /// </summary>
     public IReadOnlyList<Type> FileCreateActionTypes => _fileCreateActionTypes;
+    public IReadOnlyList<Type> KeyboardHandlerTypes  => _keyboardHandlerTypes;
+    public IReadOnlyList<Type> DropTargetTypes       => _dropTargetTypes;
+
+    // ── Shell services ────────────────────────────────────────────────────
 
     /// <summary>
-    /// Types implementing <see cref="IKeyboardHandler"/> discovered from all registered
-    /// feature assemblies.
+    /// The application-level shell services singleton.
+    /// Set by <see cref="App"/> before feature registration so that injected
+    /// <see cref="IShellServices"/> constructor parameters are resolved.
     /// </summary>
-    public IReadOnlyList<Type> KeyboardHandlerTypes => _keyboardHandlerTypes;
+    public IShellServices? ShellServices { get; private set; }
 
-    /// <summary>
-    /// Types implementing <see cref="IDropTarget"/> discovered from all registered
-    /// feature assemblies.
-    /// </summary>
-    public IReadOnlyList<Type> DropTargetTypes => _dropTargetTypes;
+    public void SetShellServices(IShellServices shellServices)
+        => ShellServices = shellServices;
 
     // ── Registration ──────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Scans the assembly of <paramref name="featureType"/> for all concrete
-    /// <see cref="ITabRegistration"/> and <see cref="IFeatureConfig"/> types.
-    /// Creates one <see cref="IFeatureConfig"/> instance per discovered type, registers it
-    /// with <see cref="ConfigManager"/>, then instantiates each <see cref="ITabRegistration"/>
-    /// by injecting the matching config into its constructor (DI-style).
-    /// </summary>
     public void Register(Type featureType)
     {
         var asm = featureType.Assembly;
 
-        // 1. Discover and instantiate all IFeatureConfig types in the assembly
+        // 1. Discover and instantiate all IFeatureConfig types
         var configInstances = new Dictionary<Type, IFeatureConfig>();
         foreach (var t in asm.GetTypes()
             .Where(t => !t.IsAbstract && !t.IsInterface
@@ -97,8 +77,7 @@ public sealed class FeatureManager
                 var ctor = BestConstructor(regType);
                 if (ctor.GetParameters().Any(p => p.ParameterType == configType))
                 {
-                    // Instantiate temporarily to read PageKind
-                    var args = ResolveArgs(ctor, configInstances, _tabOpener);
+                    var args   = ResolveArgs(ctor, configInstances);
                     var tempReg = (ITabRegistration)ctor.Invoke(args);
                     pageKinds.Add(tempReg.PageKind);
                 }
@@ -106,33 +85,32 @@ public sealed class FeatureManager
             _configToPageKinds[configType] = pageKinds;
         }
 
-        // 4. Instantiate all ITabRegistration types with injected configs and ITabOpener
+        // 4. Instantiate all ITabRegistration types with injected configs and IShellServices
         foreach (var regType in registrationTypes)
         {
             var ctor = BestConstructor(regType);
-            var args = ResolveArgs(ctor, configInstances, _tabOpener);
+            var args = ResolveArgs(ctor, configInstances);
             var reg  = (ITabRegistration)ctor.Invoke(args);
             _registrations[reg.PageKind] = reg;
         }
 
-        // 5. Collect IFileAction / IFileCreateAction types for FileActionManager to instantiate.
-        //    Also instantiate any IQueryHandler types found in the assembly and register globally.
+        // 5. Collect action/handler types; instantiate IQueryHandler types globally
         foreach (var t in asm.GetTypes().Where(t => !t.IsAbstract && !t.IsInterface))
         {
             if (typeof(IFileAction).IsAssignableFrom(t))        _fileActionTypes.Add(t);
             if (typeof(IFolderAction).IsAssignableFrom(t))      _folderActionTypes.Add(t);
             if (typeof(IFileCreateAction).IsAssignableFrom(t))  _fileCreateActionTypes.Add(t);
             if (typeof(IKeyboardHandler).IsAssignableFrom(t))   _keyboardHandlerTypes.Add(t);
-            if (typeof(IDropTarget).IsAssignableFrom(t))         _dropTargetTypes.Add(t);
+            if (typeof(IDropTarget).IsAssignableFrom(t))        _dropTargetTypes.Add(t);
             if (typeof(IQueryHandler).IsAssignableFrom(t))
             {
                 try
                 {
                     var ctor = BestConstructor(t);
-                    var args = ResolveArgs(ctor, configInstances, _tabOpener);
+                    var args = ResolveArgs(ctor, configInstances);
                     _queryHandlers.Add((IQueryHandler)ctor.Invoke(args));
                 }
-                catch { /* skip — requires unresolvable constructor args (e.g. SearchViewModel) */ }
+                catch { /* skip — requires unresolvable constructor args */ }
             }
         }
     }
@@ -140,37 +118,16 @@ public sealed class FeatureManager
     private static ConstructorInfo BestConstructor(Type t)
         => t.GetConstructors().OrderByDescending(c => c.GetParameters().Length).First();
 
-    private object?[] ResolveArgs(
-        ConstructorInfo ctor,
-        Dictionary<Type, IFeatureConfig> configs,
-        ITabOpener tabOpener)
+    private object?[] ResolveArgs(ConstructorInfo ctor, Dictionary<Type, IFeatureConfig> configs)
         => ctor.GetParameters()
                .Select(p =>
-                   typeof(ITabOpener).IsAssignableFrom(p.ParameterType)
-                       ? (object?)tabOpener
+                   typeof(IShellServices).IsAssignableFrom(p.ParameterType)
+                       ? (object?)ShellServices
                        : _singletonServices.TryGetValue(p.ParameterType, out var svc)
                            ? svc
                            : (object?)configs.GetValueOrDefault(p.ParameterType))
                .ToArray();
 
-    // ITabOpener implementation injected into feature registrations
-    private readonly ITabOpener _tabOpener;
-
-    private FeatureManager()
-    {
-        _tabOpener = new FeatureTabOpener(this);
-    }
-
-    private sealed class FeatureTabOpener(FeatureManager manager) : ITabOpener
-    {
-        public void OpenTab(string pageKind, Dictionary<string, string>? pageParams = null)
-            => manager.RequestTab(pageKind, pageParams);
-    }
-
-    /// <summary>
-    /// Returns the page kinds associated with a config type, used by the Options panel
-    /// to determine which tabs to close and reopen after a config change.
-    /// </summary>
     public IReadOnlyList<string> GetPageKindsForConfig(Type configType)
         => _configToPageKinds.GetValueOrDefault(configType, []);
 
@@ -178,12 +135,6 @@ public sealed class FeatureManager
 
     public bool IsRegistered(string pageKind) => _registrations.ContainsKey(pageKind);
 
-    /// <summary>
-    /// Creates a <see cref="TabEntry"/> for <paramref name="pageKind"/>,
-    /// or returns <c>null</c> if no registration exists for that kind.
-    /// Stamps <see cref="TabEntry.PageKind"/> and <see cref="TabEntry.PageParams"/>
-    /// on the returned entry so the shell can refresh tabs after config changes.
-    /// </summary>
     public TabEntry? CreateTab(string pageKind, Dictionary<string, string>? pageParams = null)
     {
         if (!_registrations.TryGetValue(pageKind, out var reg)) return null;
@@ -200,33 +151,14 @@ public sealed class FeatureManager
 
     private readonly List<IQueryHandler> _queryHandlers = [];
 
-    /// <summary>
-    /// Registers a global <see cref="IQueryHandler"/> that will be scored on every shell input.
-    /// </summary>
     public void RegisterQueryHandler(IQueryHandler handler) => _queryHandlers.Add(handler);
 
-    /// <summary>All globally registered query handlers.</summary>
     public IReadOnlyList<IQueryHandler> QueryHandlers => _queryHandlers.AsReadOnly();
 
-    // ── Cross-feature tab requests ────────────────────────────────────────
-
-    /// <summary>
-    /// Raised when a feature wants the shell to open a tab for another page kind.
-    /// The shell subscribes and calls <see cref="CreateTab"/> + OpenTab.
-    /// </summary>
-    public event Action<string, Dictionary<string, string>?>? TabOpenRequested;
-
-    /// <summary>
-    /// Called by feature code to ask the shell to open or focus a tab without
-    /// holding a direct reference to the shell.
-    /// </summary>
-    public void RequestTab(string pageKind, Dictionary<string, string>? pageParams = null)
-        => TabOpenRequested?.Invoke(pageKind, pageParams);
+    // ── Singleton services ────────────────────────────────────────────────
 
     private readonly Dictionary<Type, object> _singletonServices = new();
 
     public void RegisterSingletonService(Type interfaceType, object instance)
-    {
-        _singletonServices[interfaceType] = instance;
-    }
+        => _singletonServices[interfaceType] = instance;
 }

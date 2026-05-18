@@ -11,7 +11,7 @@ using Nexaflow.Core.FileSystem;
 
 namespace Nexaflow.Core.Views;
 
-public partial class FileSystemView : UserControl, IRefreshable, IPageView
+public partial class FileSystemView : UserControl, IPageView
 {
     public FileSystemViewModel ViewModel { get; }
 
@@ -85,8 +85,20 @@ public partial class FileSystemView : UserControl, IRefreshable, IPageView
         Loaded += (_, _) => DropTooltipPopup.PlacementTarget = this;
     }
 
-    // ── IRefreshable ──────────────────────────────────────────────────────
-    public void Refresh() => ViewModel.Refresh();
+    void IPageView.Reinitialize(Dictionary<string, string> pageParams)
+    {
+        if (pageParams.TryGetValue("path", out var path) && !string.IsNullOrEmpty(path))
+        {
+            if (string.Equals(path, ViewModel.CurrentPath, StringComparison.OrdinalIgnoreCase))
+                ViewModel.Refresh();
+            else
+                ViewModel.NavigateTo(path);
+        }
+        else
+        {
+            ViewModel.GoToThisPc(rebuildTree: true);
+        }
+    }
 
     private void OnViewModelNavigationChanged(IReadOnlyList<(string Label, string Path)> segments)
         => NavigationChanged?.Invoke(segments);

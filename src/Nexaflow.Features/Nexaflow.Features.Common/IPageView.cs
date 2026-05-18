@@ -30,9 +30,10 @@ public interface IPageView
     void Execute(ActionDescriptor action) { }
 
     /// <summary>
-    /// Re-initialize the page with a new param set (same dict shape as CreateTab).
-    /// Used to pass a new AI exchange to an already-open tab instead of opening a duplicate.
-    /// Default is a no-op.
+    /// Called by the shell when this tab is activated with a param set: on first load, when
+    /// routing finds an existing tab, or when the user re-clicks the already-active tab (shell
+    /// passes the tab's current params). The page decides what to do — navigate, reload, or
+    /// nothing. Never called with null; an empty dict means "no params, just activate."
     /// </summary>
-    void Reinitialize(Dictionary<string, string>? pageParams) { }
+    void Reinitialize(Dictionary<string, string> pageParams) { }
 }
