@@ -26,8 +26,10 @@ public partial class ConsoleView : UserControl, IPageView
                 InputPromptTextBox.Focus();
         };
 
-        // Dispose the PTY session when this control is unloaded (tab closed)
-        Unloaded += (_, _) => vm.Dispose();
+        // Dispose the PTY session when the tab is actually closed — not on mere tab switches,
+        // which also trigger Unloaded because the shell swaps CurrentPage in the content presenter.
+        if (vm.Tab is { } t)
+            t.Closed += (_, _) => vm.Dispose();
 
         UpdateEmptyState();
     }
@@ -60,5 +62,12 @@ public partial class ConsoleView : UserControl, IPageView
 
     IPageViewModel? IPageView.ViewModel => ViewModel;
 
-    void IPageView.Reinitialize(Dictionary<string, string> pageParams) => ScrollToBottom();
+    void IPageView.Reinitialize(Dictionary<string, string> pageParams)
+    {
+        ScrollToBottom();
+        var newPath = pageParams.GetValueOrDefault("path");
+        var envName = pageParams.GetValueOrDefault("env");
+        if (newPath is not null || envName is not null)
+            ViewModel.ApplyParams(newPath, envName);
+    }
 }

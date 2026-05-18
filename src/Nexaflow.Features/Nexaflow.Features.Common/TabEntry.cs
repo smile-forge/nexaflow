@@ -32,4 +32,9 @@ public partial class TabEntry : ObservableObject
         Page ??= PageFactory?.Invoke() ?? new UserControl();
         return Page;
     }
+
+    /// <summary>Raised when the tab is permanently closed (not merely deactivated).</summary>
+    public event EventHandler? Closed;
+
+    public void RaiseClosed() => Closed?.Invoke(this, EventArgs.Empty);
 }

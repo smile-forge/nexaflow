@@ -115,6 +115,7 @@ public sealed class ShellServices : IShellServices
     public void CloseTab(TabEntry tab)
     {
         if (!_tabToWindow.TryGetValue(tab, out var host)) return;
+        tab.RaiseClosed();
         _tabToWindow.Remove(tab);
         host.RemoveTab(tab);
     }

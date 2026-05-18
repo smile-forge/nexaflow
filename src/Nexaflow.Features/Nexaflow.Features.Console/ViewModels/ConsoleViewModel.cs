@@ -37,6 +37,20 @@ public partial class ConsoleViewModel : ObservableObject, IDisposable, IPageView
     // The echo of the command we just sent — suppress it from output
     private string? _pendingEcho;
 
+    // ── Environment / tab ─────────────────────────────────────────────────
+    private readonly ConsoleConfig?  _config;
+    private readonly IShellServices? _shellServices;
+    private ConsoleEnvironment?      _activeEnv;
+
+    /// <summary>Set by <see cref="ConsoleTabRegistration"/> inside PageFactory so UpdateTabMeta can be called.</summary>
+    public TabEntry? Tab { get; set; }
+
+    // First-prompt init state machine: 0 = waiting for first prompt,
+    // 1 = cd sent, waiting for next prompt, 2 = normal operation.
+    private int     _initPhase;
+    private string? _pendingInitPath;
+    private string? _pendingInitCmd;
+
     // ── Observable state ──────────────────────────────────────────────────
 
     /// <summary>All entries (commands + their output) shown in the centre panel.</summary>
@@ -100,6 +114,22 @@ public partial class ConsoleViewModel : ObservableObject, IDisposable, IPageView
     // ── Construction / startup ────────────────────────────────────────────
 
     public ConsoleViewModel() : this(new PseudoConsoleHostService()) { }
+
+    /// <summary>Called by <see cref="ConsoleTabRegistration"/> when environment or path params are present.</summary>
+    internal ConsoleViewModel(
+        ConsoleConfig       config,
+        IShellServices      shellServices,
+        string?             initialPath,
+        ConsoleEnvironment? initialEnv)
+        : this(new PseudoConsoleHostService())
+    {
+        _config          = config;
+        _shellServices   = shellServices;
+        _activeEnv       = initialEnv ?? config.GetDefaultEnv();
+        _pendingInitPath = initialPath;
+        _pendingInitCmd  = _activeEnv?.InitialCommand;
+        _initPhase = (_pendingInitPath is not null || _pendingInitCmd is not null) ? 0 : 2;
+    }
 
     /// <summary>Injectable constructor — pass a subclass for PowerShell etc.</summary>
     protected ConsoleViewModel(PseudoConsoleHostService pty, int cols = 220, int rows = 50)
@@ -198,6 +228,8 @@ public partial class ConsoleViewModel : ObservableObject, IDisposable, IPageView
             {
                 CurrentPath = path;
                 RefreshEnvVars();
+                HandlePromptDetected();
+                SyncTabMeta();
             }
             if (_activeEntry is { IsRunning: true })
             {
@@ -285,6 +317,111 @@ public partial class ConsoleViewModel : ObservableObject, IDisposable, IPageView
         return path.Trim();
     }
 
+    // ── Init state machine ────────────────────────────────────────────────
+    //
+    // Called each time a shell prompt is detected.  Drives the three phases:
+    //   0 — awaiting the very first prompt; send cd if a path was requested
+    //   1 — awaiting the post-cd prompt; send InitialCommand if defined
+    //   2 — normal operation; nothing to do
+
+    private void HandlePromptDetected()
+    {
+        if (_initPhase == 0)
+        {
+            if (_pendingInitPath is not null)
+            {
+                var path = _pendingInitPath;
+                _pendingInitPath = null;
+                _initPhase = 1;
+                SendCommand($"cd /d \"{path}\"");
+            }
+            else
+            {
+                if (_pendingInitCmd is not null)
+                {
+                    var cmd = _pendingInitCmd;
+                    _pendingInitCmd = null;
+                    _initPhase = 2;
+                    SendCommand(cmd);
+                }
+                else _initPhase = 2;
+            }
+        }
+        else if (_initPhase == 1)
+        {
+            if (_pendingInitCmd is not null)
+            {
+                var cmd = _pendingInitCmd;
+                _pendingInitCmd = null;
+                _initPhase = 2;
+                SendCommand(cmd);
+            }
+            else _initPhase = 2;
+        }
+    }
+
+    // Keeps the tab's title and PageParams["path"] in sync with actual shell state.
+    // Called on every prompt detection so that Reinitialize correctly sees the current
+    // path and won't issue a spurious cd.  Title is only passed when there's an active env.
+    private void SyncTabMeta()
+    {
+        if (Tab is null || _shellServices is null) return;
+
+        string? title = _activeEnv?.TabTitle;
+        IReadOnlyList<BreadcrumbSegment>? breadcrumbs = title is not null
+            ? [new BreadcrumbSegment { Label = title }]
+            : null;
+
+        var pageParams = string.IsNullOrEmpty(CurrentPath)
+            ? null
+            : new Dictionary<string, string> { ["path"] = CurrentPath };
+
+        _shellServices.UpdateTabMeta(Tab,
+            title:       title,
+            breadcrumbs: breadcrumbs,
+            pageParams:  pageParams);
+    }
+
+    private static bool GlobMatchPath(string path, string pattern)
+    {
+        if (string.IsNullOrEmpty(pattern) || pattern is "*" or "**") return true;
+        if (pattern.EndsWith("\\*") || pattern.EndsWith("/*"))
+            return path.StartsWith(pattern[..^2], StringComparison.OrdinalIgnoreCase);
+        return string.Equals(path, pattern, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Re-applies path/env params when an existing tab is re-activated with new params.</summary>
+    public void ApplyParams(string? newPath, string? envName)
+    {
+        if (envName is not null)
+        {
+            var env = _config?.FindEnvByName(envName);
+            if (env is not null && env != _activeEnv)
+            {
+                _activeEnv = env;
+                _pendingInitCmd = env.InitialCommand;
+                SyncTabMeta();
+            }
+        }
+
+        // Only navigate when the shell is not already at the requested path.
+        // This prevents spurious cd commands when the tab is merely refocused.
+        bool pathChanged = newPath is not null
+            && !string.Equals(newPath, CurrentPath, StringComparison.OrdinalIgnoreCase);
+
+        if (pathChanged)
+        {
+            _initPhase = _pendingInitCmd is not null ? 1 : 2;
+            SendCommand($"cd /d \"{newPath}\"");
+        }
+        else if (_pendingInitCmd is not null && !IsBusy)
+        {
+            var cmd = _pendingInitCmd;
+            _pendingInitCmd = null;
+            SendCommand(cmd);
+        }
+    }
+
     // ── Environment snapshot ──────────────────────────────────────────────
 
     [RelayCommand]
@@ -330,7 +467,45 @@ public partial class ConsoleViewModel : ObservableObject, IDisposable, IPageView
 
     public string GetContext() => $"Terminal: '{CurrentPath}'.";
 
-    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
+    public IReadOnlyList<ActionDescriptor> GetAvailableActions()
+    {
+        if (_config is null || _config.Environments.Count == 0) return [];
+
+        var envs = _config.Environments
+            .Where(e => GlobMatchPath(CurrentPath, e.LocationFilter))
+            .ToList();
+        if (envs.Count == 0) return [];
+
+        var envList = string.Join("; ", envs.Select(e =>
+            $"'{e.Name}'" + (string.IsNullOrEmpty(e.InitialCommand) ? "" : $" (runs: {e.InitialCommand})")));
+
+        return [new ActionDescriptor(
+            "SetEnv",
+            $"Switches the terminal to a configured environment. Provide 'Name' matching one of: {envList}. " +
+            "The environment's initial command is sent and the tab title updates.",
+            new Dictionary<string, string> { ["Name"] = "" })];
+    }
+
+    public void Execute(ActionDescriptor action)
+    {
+        if (action.Name != "SetEnv" || _config is null) return;
+        var name = action.Parameters?.GetValueOrDefault("Name");
+        if (string.IsNullOrEmpty(name)) return;
+
+        var env = _config.FindEnvByName(name);
+        if (env is null) return;
+
+        _activeEnv = env;
+        SyncTabMeta();
+
+        if (!string.IsNullOrEmpty(env.InitialCommand))
+        {
+            if (!IsBusy)
+                SendCommand(env.InitialCommand);
+            else
+                _pendingInitCmd = env.InitialCommand;
+        }
+    }
 
     public IContext? GetContextObject()
     {
