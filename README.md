@@ -22,25 +22,37 @@ The default Windows experience hasn't fundamentally changed in decades. Windows 
 Navigate your drive from a built-in file tree. Open any file as the right kind of tab — markdown files open in the editor, images in the viewer, directories in the explorer — without leaving the app.
 
 ### Terminal
-A full pseudo-terminal (PTY) tab with ANSI/VT support, command history, and interactive shell integration. Type `>` in the AI bar to send a command directly to the console.
+A full pseudo-terminal (PTY) tab with ANSI/VT support, command history, and interactive shell integration. Type `>` in the AI bar to send a command directly to the active console.
 
-### First-Class Markdown Editor
-Write and preview Markdown with live rendering, including LaTeX formula support via WpfMath. A proper replacement for Notepad when you're working with `.md` files.
+### Markdown Editor
+Write and preview Markdown with live rendering, including LaTeX formula support via WpfMath.
 
 ### Image Viewer
-Single and batch image viewing as a native tab — no shelling out to Photos.
+Single and batch image viewing as a native tab.
 
-### Basic Project Management
+### Text Editor
+Lightweight plain-text editor tab for quick edits without shelling out to Notepad.
+
+### Log Viewer
+Tail and inspect log files with filtering, as a tab.
+
+### Windows Search
+Full-text file search backed by the Windows Search index, with AI-powered query refinement.
+
+### Scratchpad
+A virtual corkboard for temporary notes. Post-its auto-expire, can be pinned, and support multiple shapes and colours on an infinite canvas.
+
+### Project Management
 Lightweight project tracking built for developers. Each project lives as a simple `.project` file. Backlog items have a 9-state workflow and the system generates `.aisummary` files to give the AI instant context on what you're working on.
 
 ### Integrated Context-Aware AI
-An AI input bar lives at the bottom of every window. Ask questions, get answers, issue commands — the AI knows which tab is active and what project you're in. Provider support includes a local Aria service, Ollama (local models), and Claude (Anthropic), configurable per use-case.
+An AI input bar lives at the bottom of every window. Ask questions, get answers, issue commands — the AI knows which tab is active and what project you're in. Provider support includes a local Aria service, Ollama (local models), and Claude (Anthropic).
 
 ### Web Viewer
 An embedded Chromium tab (WebView2) for opening URLs and local HTML files without leaving the workspace.
 
 ### Customisable Ribbon
-The toolbar is a ribbon you own — add, remove, and reorder buttons and have the layout persist across sessions.
+Add, remove, and reorder toolbar buttons. The layout persists across sessions.
 
 ---
 
@@ -50,7 +62,7 @@ The toolbar is a ribbon you own — add, remove, and reorder buttons and have th
 
 - Windows 10 or Windows 11
 - [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- Optional: an Aria, Ollama, or Claude API key for AI features
+- Optional: an Aria service, Ollama installation, or Claude API key for AI features
 
 ### Build & Run
 
@@ -68,30 +80,13 @@ On first launch the Options panel will open so you can choose your AI provider a
 
 ## Project Structure
 
-```
-src/
-├── Nexaflow.Core/                      # Shell chrome, main window, ribbon, AI input bar
-├── Nexaflow.Features/
-│   ├── Nexaflow.Features.Common/       # Shared contracts (ITabRegistration, ITabOpener, FeatureManager)
-│   ├── Nexaflow.Features.Console/      # PTY terminal
-│   ├── Nexaflow.Features.Images/       # Image viewer
-│   ├── Nexaflow.Features.Markdown/     # Markdown editor + preview
-│   ├── Nexaflow.Features.Projects/     # Project and backlog management
-│   └── Nexaflow.Features.Web/          # WebView2 browser tab
-└── Nexaflow.Providers/
-    ├── Nexaflow.Providers.Common/      # LlmProviderRegistry, shared message types
-    ├── Nexaflow.Providers.Aria/        # Aria (named-pipe) provider
-    ├── Nexaflow.Providers.Claude/      # Claude API provider
-    └── Nexaflow.Providers.Ollama/      # Ollama local model provider
-```
+Nexaflow is split into three layers with strict dependency rules:
 
-The three layers have clearly defined responsibilities and dependency rules:
+- **Shell** (`Nexaflow.Core`) — window chrome, tab strip, ribbon bar, breadcrumb navigation, AI input bar. Hosts tabs but never renders them directly.
+- **Features** (`Nexaflow.Features.*`) — individual tab implementations. Each feature depends only on the shared contracts in `Nexaflow.Features.Common` and never on Core or other features.
+- **Providers** (`Nexaflow.Providers.*`) — LLM provider adapters (Aria, Claude, Ollama). Independent of features; wired into the shell at startup.
 
-- **Features** depend only on `Features.Common` — never on Core or on each other.
-- **Core** hosts the shell and registers features at startup; it never instantiates feature view or view-model types directly.
-- **Providers** are independent of features; Core wires them together at startup.
-
-Adding a new tab means implementing `ITabRegistration` in a new feature assembly and calling `fm.Register(typeof(MyTabRegistration))` in `App.xaml.cs`. Adding a new file action means implementing `IFileAction` — viewer-opener actions belong in the same assembly as their viewer, system-level actions (copy, paste, rename…) belong in `Nexaflow.Core.FileActions`.
+For a deep dive into the architecture and how to add new features see [docs/Architecture.md](docs/Architecture.md) and [docs/features.md](docs/features.md).
 
 ---
 
@@ -107,19 +102,19 @@ Adding a new tab means implementing `ITabRegistration` in a new feature assembly
 
 ## Roadmap
 
-- [ ] Direct Claude and Ollama provider integration in the shell UI
-- [ ] Windows Explorer context menu integration
-- [ ] Additional file format tabs (CSV, JSON, code with syntax highlighting)
-- [ ] Plugin API for community-contributed tabs
-- [ ] Multi-monitor awareness and saved workspace layouts
+- [ ] **Additional AI providers** — OpenAI, Google Gemini, and local native (ONNX / DirectML) model support
+- [ ] **Additional viewers and editors** — CSV, JSON, syntax-highlighted code, binary/hex
+- [ ] **Improved input handling** — multi-modal input (image paste, file drop to AI bar), richer query routing, structured action confirmation
+- [ ] **Expanded AI capabilities** — agent-style multi-step task execution, per-project memory, inline AI suggestions inside editors
+- [ ] **Expanded search with RAG** — semantic search across local files and project content using a local embedding index, retrieval-augmented answers in the AI bar
+- [ ] **Windows Explorer context menu integration**
+- [ ] **Multi-monitor awareness and saved workspace layouts**
 
 ---
 
 ## Contributing
 
 Nexaflow is in active development and welcomes contributions. Please open an issue before starting significant work so we can coordinate.
-
-For a deep dive into the architecture, data models, and identified improvement areas see [Architecture.md](Architecture.md).
 
 ---
 
