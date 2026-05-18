@@ -8,6 +8,7 @@ using Nexaflow.Features.Logs;
 using Nexaflow.Features.Markdown;
 using Nexaflow.Features.Projects;
 using Nexaflow.Features.Scratchpad;
+using Nexaflow.Features.Json;
 using Nexaflow.Features.Text;
 using Nexaflow.Features.Web;
 using Nexaflow.Features.WindowsSearch;
@@ -128,5 +129,6 @@ public partial class App : Application
         fm.Register(typeof(LogTabRegistration));
         fm.Register(typeof(SearchTabRegistration));
         fm.Register(typeof(AIChatTabRegistration));
+        fm.Register(typeof(JsonTabRegistration));
     }
 }

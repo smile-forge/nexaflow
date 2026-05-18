@@ -1,0 +1,430 @@
+<UserControl x:Class="Nexaflow.Features.Json.Views.JsonView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:avalon="http://icsharpcode.net/sharpdevelop/avalonedit"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:local="clr-namespace:Nexaflow.Features.Json.Views"
+             xmlns:m="clr-namespace:Nexaflow.Features.Json.Models"
+             Background="{StaticResource BgBrush}">
+
+    <UserControl.Resources>
+        <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
+        <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
+        <cv:NullToCollapsedConverter         x:Key="NullCollapsed"/>
+        <cv:StringToVisibilityConverter      x:Key="StringVis"/>
+        <local:DepthToMarginConverter        x:Key="DepthMargin"/>
+        <local:ValueKindToBrushConverter     x:Key="ValueKindBrush"/>
+        <local:ViewModeToVisibilityConverter x:Key="ViewModeVis"/>
+
+        <!-- ── Toolbar button ── -->
+        <Style x:Key="TbBtn" TargetType="Button">
+            <Setter Property="Background"        Value="Transparent"/>
+            <Setter Property="Foreground"        Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="BorderThickness"   Value="0"/>
+            <Setter Property="Padding"           Value="8,5"/>
+            <Setter Property="Cursor"            Value="Hand"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin"            Value="2,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource Surface2Brush}"/>
+                                <Setter Property="Foreground"                  Value="{StaticResource TextBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource BorderBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.35"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Toolbar toggle button ── -->
+        <Style x:Key="TbToggle" TargetType="ToggleButton">
+            <Setter Property="Background"        Value="Transparent"/>
+            <Setter Property="Foreground"        Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="BorderThickness"   Value="0"/>
+            <Setter Property="Padding"           Value="8,5"/>
+            <Setter Property="Cursor"            Value="Hand"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin"            Value="2,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource Surface2Brush}"/>
+                                <Setter Property="Foreground"                  Value="{StaticResource TextBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background"  Value="{StaticResource AccentBrush}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                <Setter Property="Foreground"                  Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource BorderBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Toolbar separator ── -->
+        <Style x:Key="TbSep" TargetType="Separator">
+            <Setter Property="Background"        Value="{StaticResource BorderBrush}"/>
+            <Setter Property="Width"             Value="1"/>
+            <Setter Property="Margin"            Value="4,6"/>
+            <Setter Property="VerticalAlignment" Value="Stretch"/>
+        </Style>
+
+        <!-- ── Expand toggle button ── -->
+        <Style x:Key="ExpandBtn" TargetType="Button">
+            <Setter Property="Background"   Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"      Value="2,0"/>
+            <Setter Property="Cursor"       Value="Hand"/>
+            <Setter Property="Width"        Value="18"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="42"/>   <!-- Toolbar -->
+            <RowDefinition Height="28"/>   <!-- JSON path breadcrumb -->
+            <RowDefinition Height="*"/>    <!-- Display list -->
+            <RowDefinition Height="28"/>   <!-- Status bar -->
+        </Grid.RowDefinitions>
+
+        <!-- ══════════════════════════════════════════════════════════
+             ROW 0: TOOLBAR
+             ══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="0"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <Grid Margin="10,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Left: view mode toggles (apply to selected node) -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ToggleButton Style="{StaticResource TbToggle}"
+                                  IsChecked="{Binding IsTreeModeActive, Mode=OneWay}"
+                                  Command="{Binding SetTreeModeCommand}"
+                                  ToolTip="Tree view (selected node)">
+                        <TextBlock Text="⊞" FontSize="12"/>
+                    </ToggleButton>
+                    <ToggleButton Style="{StaticResource TbToggle}"
+                                  IsChecked="{Binding IsTextModeActive, Mode=OneWay}"
+                                  Command="{Binding SetTextModeCommand}"
+                                  ToolTip="Raw JSON text (selected node)">
+                        <TextBlock Text="{}{  }" FontSize="11"/>
+                    </ToggleButton>
+                    <ToggleButton Style="{StaticResource TbToggle}"
+                                  IsChecked="{Binding IsTableModeActive, Mode=OneWay}"
+                                  IsEnabled="{Binding IsTableModeAvailable}"
+                                  Command="{Binding SetTableModeCommand}"
+                                  ToolTip="Table view (selected array node)">
+                        <TextBlock Text="⊟" FontSize="12"/>
+                    </ToggleButton>
+                </StackPanel>
+
+                <!-- Right: format + save -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource TbBtn}"
+                            Command="{Binding FormatJsonCommand}"
+                            ToolTip="Format JSON (re-indent)">
+                        <TextBlock Text="{}{ }" FontSize="11"/>
+                    </Button>
+                    <Separator Style="{StaticResource TbSep}"
+                               Visibility="{Binding IsModified, Converter={StaticResource BoolVis}}"/>
+                    <Button Style="{StaticResource TbBtn}"
+                            Command="{Binding SaveCommand}"
+                            Visibility="{Binding IsModified, Converter={StaticResource BoolVis}}"
+                            ToolTip="Save (Ctrl+S)">
+                        <TextBlock Text="💾" FontSize="11"/>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ══════════════════════════════════════════════════════════
+             ROW 1: JSON PATH BREADCRUMB (tab-local — not shell breadcrumb)
+             ══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="1"
+                Background="{StaticResource DeepBgBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Disabled"
+                          Margin="10,0">
+                <ItemsControl ItemsSource="{Binding SelectedNodeBreadcrumbs}"
+                              VerticalAlignment="Center">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type m:JsonBreadcrumbItem}">
+                            <StackPanel Orientation="Horizontal">
+                                <Button Command="{Binding NavigateCommand}"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Cursor="Hand"
+                                        Padding="2,0">
+                                    <TextBlock Text="{Binding Label}"
+                                               FontSize="11"
+                                               Foreground="{StaticResource AccentBrush}"
+                                               VerticalAlignment="Center"/>
+                                </Button>
+                                <TextBlock Text=" / "
+                                           FontSize="11"
+                                           Foreground="{StaticResource TextDimBrush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+
+        <!-- ══════════════════════════════════════════════════════════
+             ROW 2: VIRTUALIZING FLAT DISPLAY LIST
+             ══════════════════════════════════════════════════════════ -->
+        <ListBox x:Name="DisplayList"
+                 Grid.Row="2"
+                 ItemsSource="{Binding DisplayItems}"
+                 SelectedItem="{Binding SelectedDisplayItem, Mode=TwoWay}"
+                 Background="{StaticResource BgBrush}"
+                 BorderThickness="0"
+                 ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                 VirtualizingPanel.IsVirtualizing="True"
+                 VirtualizingPanel.VirtualizationMode="Recycling"
+                 AllowDrop="True"
+                 PreviewMouseMove="DisplayList_PreviewMouseMove"
+                 DragOver="DisplayList_DragOver"
+                 Drop="DisplayList_Drop">
+            <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                    <Setter Property="Background"                 Value="Transparent"/>
+                    <Setter Property="Padding"                    Value="2,1"/>
+                    <Setter Property="AllowDrop"                  Value="True"/>
+                    <EventSetter Event="PreviewMouseLeftButtonDown"
+                                 Handler="ListBoxItem_PreviewMouseLeftButtonDown"/>
+                    <Style.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="{StaticResource Surface2Brush}"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </ListBox.ItemContainerStyle>
+
+            <ListBox.Resources>
+
+                <!-- ── Tree row (objects, arrays, values) ── -->
+                <DataTemplate DataType="{x:Type m:JsonTreeDisplayItem}">
+                    <Grid Margin="{Binding Depth, Converter={StaticResource DepthMargin}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="18"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Expand/collapse toggle -->
+                        <Button Grid.Column="0"
+                                Style="{StaticResource ExpandBtn}"
+                                Visibility="{Binding HasChildren, Converter={StaticResource BoolVis}}"
+                                Command="{Binding DataContext.ToggleExpandCommand,
+                                    RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                CommandParameter="{Binding Node}"
+                                ToolTip="Expand / collapse">
+                            <TextBlock FontSize="9" Foreground="{StaticResource TextMutedBrush}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="▶"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                                <Setter Property="Text" Value="▼"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Button>
+
+                        <!-- Key label + type/value label -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <TextBlock Text="{Binding KeyLabel}"
+                                       FontSize="12"
+                                       Foreground="{StaticResource AccentBrush}"
+                                       VerticalAlignment="Center"
+                                       Visibility="{Binding KeyLabel,
+                                           Converter={StaticResource StringVis}}"/>
+                            <TextBlock Text="{Binding TypeLabel}"
+                                       FontSize="12"
+                                       VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsValue}" Value="True">
+                                                <Setter Property="Foreground"
+                                                        Value="{Binding ValueKind,
+                                                            Converter={StaticResource ValueKindBrush}}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Grid>
+                </DataTemplate>
+
+                <!-- ── Inline content: raw JSON (Text mode) or table (Table mode) ── -->
+                <DataTemplate DataType="{x:Type m:JsonInlineContentDisplayItem}">
+                    <Grid>
+                        <!-- AvalonEdit for Text mode -->
+                        <avalon:TextEditor x:Name="InlineEditor"
+                                           Loaded="InlineEditor_Loaded"
+                                           MinHeight="120"
+                                           MaxHeight="500"
+                                           FontFamily="Cascadia Code, Consolas, Courier New, monospace"
+                                           FontSize="13"
+                                           ShowLineNumbers="True"
+                                           Background="{StaticResource BgBrush}"
+                                           Foreground="{StaticResource TextBrush}"
+                                           Padding="{Binding Depth,
+                                               Converter={StaticResource DepthMargin}}"
+                                           Visibility="{Binding ViewMode,
+                                               Converter={StaticResource ViewModeVis},
+                                               ConverterParameter=Text}"/>
+
+                        <!-- DataGrid for Table mode -->
+                        <DataGrid x:Name="InlineTable"
+                                  Loaded="InlineTable_Loaded"
+                                  AutoGenerateColumns="False"
+                                  MaxHeight="400"
+                                  IsReadOnly="True"
+                                  Background="{StaticResource SurfaceBrush}"
+                                  Foreground="{StaticResource TextBrush}"
+                                  BorderThickness="0"
+                                  GridLinesVisibility="Horizontal"
+                                  HorizontalGridLinesBrush="{StaticResource BorderBrush}"
+                                  Margin="{Binding Depth,
+                                      Converter={StaticResource DepthMargin}}"
+                                  Visibility="{Binding ViewMode,
+                                      Converter={StaticResource ViewModeVis},
+                                      ConverterParameter=Table}"/>
+                    </Grid>
+                </DataTemplate>
+
+                <!-- ── Virtual / loading row ── -->
+                <DataTemplate DataType="{x:Type m:JsonVirtualDisplayItem}">
+                    <StackPanel Orientation="Horizontal"
+                                Margin="{Binding Depth, Converter={StaticResource DepthMargin}}">
+                        <TextBlock Text="⟳"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="12"
+                                   Margin="18,0,4,0"/>
+                        <TextBlock Text="Loading…"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="12"
+                                   FontStyle="Italic"/>
+                    </StackPanel>
+                </DataTemplate>
+
+            </ListBox.Resources>
+        </ListBox>
+
+        <!-- Error overlay -->
+        <Border Grid.Row="2"
+                Background="{StaticResource DeepBgBrush}"
+                Visibility="{Binding ErrorMessage, Converter={StaticResource NullCollapsed}}">
+            <TextBlock Text="{Binding ErrorMessage}"
+                       Foreground="{StaticResource OrangeBrush}"
+                       FontSize="13"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Margin="20"/>
+        </Border>
+
+        <!-- Loading overlay -->
+        <Border Grid.Row="2"
+                Background="#80000000"
+                Visibility="{Binding IsLoading, Converter={StaticResource BoolVis}}">
+            <TextBlock Text="Loading…"
+                       Foreground="{StaticResource TextBrush}"
+                       FontSize="14"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"/>
+        </Border>
+
+        <!-- ══════════════════════════════════════════════════════════
+             ROW 3: STATUS BAR
+             ══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="3"
+                Background="{StaticResource DeepBgBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0">
+            <StackPanel Orientation="Horizontal"
+                        VerticalAlignment="Center"
+                        Margin="14,0">
+                <TextBlock Text="{Binding FileSizeText}"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="11"
+                           Margin="0,0,16,0"/>
+                <TextBlock Text="{Binding NodeCount, StringFormat='{}{0} nodes'}"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="11"
+                           Margin="0,0,16,0"/>
+                <TextBlock Text="Streaming"
+                           Foreground="{StaticResource OrangeBrush}"
+                           FontSize="11"
+                           Margin="0,0,16,0"
+                           Visibility="{Binding IsLargeFile, Converter={StaticResource BoolVis}}"/>
+                <TextBlock Text="Modified"
+                           Foreground="{StaticResource OrangeBrush}"
+                           FontSize="11"
+                           Visibility="{Binding IsModified, Converter={StaticResource BoolVis}}"/>
+            </StackPanel>
+        </Border>
+
+    </Grid>
+</UserControl>
