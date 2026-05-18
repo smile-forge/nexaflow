@@ -15,9 +15,9 @@ namespace Nexaflow.Features.Web.FileActions
             ".html", ".htm", ".url"
         };
 
-        private readonly ITabOpener _tabOpener;
+        private readonly IShellServices _shellServices;
 
-        public ShowHtmlAction(ITabOpener tabOpener) => _tabOpener = tabOpener;
+        public ShowHtmlAction(IShellServices shellServices) => _shellServices = shellServices;
 
         public bool   IsDestructive          => false;
         public bool   SupportsMultipleFiles  => false;
@@ -30,7 +30,7 @@ namespace Nexaflow.Features.Web.FileActions
 
         public bool PerformAction(string filePath)
         {
-            _tabOpener.OpenTab("Html", new Dictionary<string, string> { ["path"] = filePath });
+            _shellServices.OpenTab("Html", new Dictionary<string, string> { ["path"] = filePath });
             return true;
         }
 
@@ -40,7 +40,7 @@ namespace Nexaflow.Features.Web.FileActions
             {
                 if (_exts.Contains(Path.GetExtension(path)))
                 {
-                    _tabOpener.OpenTab("Html", new Dictionary<string, string> { ["path"] = path });
+                    _shellServices.OpenTab("Html", new Dictionary<string, string> { ["path"] = path });
                     return true;
                 }
             }

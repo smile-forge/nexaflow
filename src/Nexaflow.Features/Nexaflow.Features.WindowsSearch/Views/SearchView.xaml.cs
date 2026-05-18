@@ -8,7 +8,7 @@ using System.Windows.Data;
 
 namespace Nexaflow.Features.WindowsSearch.Views;
 
-public partial class SearchView : UserControl, IPageView, IRefreshable
+public partial class SearchView : UserControl, IPageView
 {
     private readonly SearchViewModel _vm;
 
@@ -86,9 +86,17 @@ public partial class SearchView : UserControl, IPageView, IRefreshable
         };
     }
 
-    // ── IRefreshable ─────────────────────────────────────────────────────────
+    // ── IPageView (Reinitialize) ──────────────────────────────────────────────
 
-    public void Refresh() => _ = _vm.RefreshAsync();
+    void IPageView.Reinitialize(Dictionary<string, string> pageParams)
+    {
+        var q = pageParams.GetValueOrDefault("query", string.Empty);
+        var r = pageParams.GetValueOrDefault("root",  string.Empty);
+        if (q == _vm.SearchQuery && r == _vm.SearchRoot) return;
+        _vm.SearchQuery = q;
+        _vm.SearchRoot  = r;
+        _ = _vm.RunSearchAsync(CancellationToken.None);
+    }
 
     // ── Column sort ──────────────────────────────────────────────────────────
 

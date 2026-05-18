@@ -13,7 +13,7 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable
 {
     private readonly PostItStore      _store;
     private readonly ScratchpadConfig _config;
-    private readonly ITabOpener?      _tabOpener;
+    private readonly IShellServices?  _shellServices;
     private readonly DispatcherTimer  _expiryTimer;
     private readonly Random           _rng = Random.Shared;
 
@@ -30,10 +30,10 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable
 
     public Func<string, string, bool>? ConfirmAction { get; set; }
 
-    public ScratchpadViewModel(ScratchpadConfig config, ITabOpener? tabOpener = null)
+    public ScratchpadViewModel(ScratchpadConfig config, IShellServices? shellServices = null)
     {
-        _config    = config;
-        _tabOpener = tabOpener;
+        _config        = config;
+        _shellServices = shellServices;
         _store     = new PostItStore();
 
         LoadNotes();
@@ -62,7 +62,7 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable
             RequestSave     = ScheduleSave,
             GetMaxZIndex    = () => Notes.Count > 0 ? Notes.Max(n => n.ZIndex) : 0,
             GetNoteLifetime = () => _config.GetNoteLifetime(),
-            OpenUrl         = url => _tabOpener?.OpenTab("Web", new() { ["url"] = url })
+            OpenUrl         = url => _shellServices?.OpenTab("Web", new() { ["url"] = url })
         };
         Notes.Add(vm);
         return vm;
@@ -155,7 +155,7 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable
         vm.RequestSave      = ScheduleSave;
         vm.GetMaxZIndex     = () => Notes.Count > 0 ? Notes.Max(n => n.ZIndex) : 0;
         vm.GetNoteLifetime  = () => _config.GetNoteLifetime();
-        vm.OpenUrl          = url => _tabOpener?.OpenTab("Web", new() { ["url"] = url });
+        vm.OpenUrl          = url => _shellServices?.OpenTab("Web", new() { ["url"] = url });
         Notes.Add(vm);
         UpdateStatus();
     }

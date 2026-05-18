@@ -11,13 +11,13 @@ namespace Nexaflow.Features.Projects;
 /// </summary>
 public sealed class ProjectDetailTabRegistration : ITabRegistration
 {
-    private readonly ProjectsConfig _config;
-    private readonly ITabOpener     _tabOpener;
+    private readonly ProjectsConfig  _config;
+    private readonly IShellServices  _shellServices;
 
-    public ProjectDetailTabRegistration(ProjectsConfig config, ITabOpener tabOpener)
+    public ProjectDetailTabRegistration(ProjectsConfig config, IShellServices shellServices)
     {
-        _config    = config;
-        _tabOpener = tabOpener;
+        _config        = config;
+        _shellServices = shellServices;
     }
 
     public string PageKind => "ProjectDetail";
@@ -46,7 +46,7 @@ public sealed class ProjectDetailTabRegistration : ITabRegistration
         {
             var page = new ProjectDetailView(vm);
             vm.OpenFilesRequested += path =>
-                _tabOpener.OpenTab("FileSystem", new() { ["mode"] = "path", ["path"] = path });
+                _shellServices.OpenTab("FileSystem", new() { ["mode"] = "path", ["path"] = path }, page);
             return page;
         };
 

@@ -682,18 +682,6 @@ public partial class RibbonEditor : UserControl
     {
         if (ItemsSource is null) return;
 
-        // Reattach runtime-only delegates for any item that came from a live
-        // item (delegate is still on the clone) or is brand-new (needs factory
-        // lookup from ShellViewModel).
-        if (ShellViewModel is not null)
-        {
-            foreach (var d in _draft)
-            {
-                if (d.TabFactory is null && d.Kind == RibbonItemKind.Button)
-                    ShellViewModel.ReattachTabFactory(d);
-            }
-        }
-
         // Commit draft → live collection (edit flag stays true so CollectionChanged
         // does not trigger default-rebuild or a spurious save on the empty state).
         ItemsSource.Clear();

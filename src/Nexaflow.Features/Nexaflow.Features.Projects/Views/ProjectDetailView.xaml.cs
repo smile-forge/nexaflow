@@ -4,7 +4,7 @@ using Nexaflow.Features.Common;
 
 namespace Nexaflow.Features.Projects.Views;
 
-public partial class ProjectDetailView : UserControl, IPageView, IRefreshable
+public partial class ProjectDetailView : UserControl, IPageView
 {
     public ProjectDetailViewModel ViewModel { get; }
 
@@ -30,6 +30,9 @@ public partial class ProjectDetailView : UserControl, IPageView, IRefreshable
 
     IReadOnlyList<ActionDescriptor> IPageView.GetAvailableActions() => [];
 
-    // ── IRefreshable ──────────────────────────────────────────────────────
-    public void Refresh() => ViewModel.RefreshCommand.Execute(null);
+    void IPageView.Reinitialize(Dictionary<string, string> pageParams)
+    {
+        if (pageParams.Count == 0)
+            ViewModel.RefreshCommand.Execute(null);
+    }
 }

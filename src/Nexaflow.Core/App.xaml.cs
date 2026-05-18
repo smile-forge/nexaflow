@@ -27,25 +27,11 @@ public partial class App : Application
 
     internal static readonly UpdatumManager AppUpdater = new(RepositoryOwner, RepositoryName)
     {
-        // All below are optional settings with recommended defaults
-        // Regex filter to get the correct asset from running system
-        // Defaults would work here too: EntryApplication.GenericRuntimeIdentifier
         AssetRegexPattern = $"^{RepositoryName}_{EntryApplication.GenericRuntimeIdentifier}_v",
-        // Specifies the type of windows .exe being used in the assets.
-        // It is highly recommended to set this when having .exe assets.
-        // - When asset is an installer, set to Installer.
-        // - When asset is a single file executable, set to SingleFileExecutable.
-        // - When having both asset types, set to Auto.
         InstallUpdateWindowsExeType = UpdatumWindowsExeType.Installer,
-        // Displays a basic user interface for MSI package
-        // This will show the installer UI installing without any interaction
         InstallUpdateWindowsInstallerArguments = "/qb",
-        // Strategy to determine the single file executable name for installation and update
         InstallUpdateSingleFileExecutableNameStrategy = UpdatumSingleFileExecutableNameStrategy.EntryApplicationName,
-        // Fallback name if unable to determine the executable name from the entry application
-        // This is safe to omit, but as we are using a fake app, we need to set it
         InstallUpdateSingleFileExecutableName = RepositoryName,
-        // Enable codesign verification for macOS .app bundles
         InstallUpdateCodesignMacOSApp = true,
     };
 
@@ -58,16 +44,13 @@ public partial class App : Application
         ProviderManager.Instance.Register(typeof(OllamaLlmProvider), activityManager);
         ProviderManager.Instance.Register(typeof(ClaudeLlmProvider), activityManager);
 
-        // ShellConfig is not in a feature assembly; register manually after providers are ready
         var shellConfig = new ShellConfig();
         ConfigManager.Instance.Register(shellConfig, shellConfig.ConfigName);
 
-        // FileMapConfig and FileMapManager — not in a feature assembly
         var fileMapConfig = new FileMapConfig();
         ConfigManager.Instance.Register(fileMapConfig, fileMapConfig.ConfigName);
         FileMapManager.Instance.Initialize(fileMapConfig.UseRegistryMapping);
 
-        // Apply any persisted provider selections
         if (!string.IsNullOrEmpty(shellConfig.BasicAiProvider))
             LlmProviderRegistry.SetBasicProvider(shellConfig.BasicAiProvider);
         if (!string.IsNullOrEmpty(shellConfig.ConversationAiProvider))
@@ -76,19 +59,30 @@ public partial class App : Application
         var aiService = new AIService();
         FeatureManager.Instance.RegisterSingletonService(typeof(IAIService), aiService);
 
+        // Create the application-level shell services before registering features
+        // so IShellServices is available for constructor injection
+        var shellServices = new ShellServices();
+        FeatureManager.Instance.SetShellServices(shellServices);
+
         RegisterFeatures();
 
-        var win = new MainWindow(activityManager, aiService);
+        // Factory for tearoff windows: creates a window, registers it, returns the host
+        shellServices.CreateWindowFactory = tab =>
+        {
+            var win = new MainWindow(activityManager, aiService, shellServices, openDefaultTabs: false);
+            // RegisterWindow is called inside MainWindow constructor
+            return (IWindowHost)win.ViewModel;
+        };
+
+        var win = new MainWindow(activityManager, aiService, shellServices);
         win.Show();
 
-        // First run: open Options automatically so the user can configure things
         if (ConfigManager.Instance.IsFirstRun)
             win.ViewModel.OptionsOpen = true;
         else
         {
             Task.Run(async () =>
             {
-                // Check for updates shortly after startup, so it doesn't impact launch performance
                 await Task.Delay(TimeSpan.FromSeconds(10));
                 await CheckForUpdates(win);
             });
@@ -103,49 +97,29 @@ public partial class App : Application
             if (!updateFound) return;
 
             var release = AppUpdater.LatestRelease;
-
-            if (release is null)
-            {
-                return;
-            }
+            if (release is null) return;
             var asset = AppUpdater.GetCompatibleReleaseAsset(release);
-            if (asset is null)
-            {
-                return;
-            }
+            if (asset is null) return;
             string? changeLog = AppUpdater.GetChangelog(true);
 
             var version = release.TagName ?? release.Name ?? "unknown";
             await win.Dispatcher.InvokeAsync(() =>
                 win.ViewModel.ShowUpdateToast(version, changeLog));
         }
-        catch
-        {
-        }
+        catch { }
     }
 
     public async Task DownloadAndInstallUpdate()
     {
-        try
-        {
-            _ = await AppUpdater.DownloadAndInstallUpdateAsync();
-        }
-        catch
-        {
-            return;
-        }
+        try { _ = await AppUpdater.DownloadAndInstallUpdateAsync(); }
+        catch { }
     }
 
-    /// <summary>
-    /// Registers all feature tab factories. Pass any type from the feature assembly;
-    /// FeatureManager scans the whole assembly automatically.
-    /// </summary>
     private static void RegisterFeatures()
     {
         var fm = FeatureManager.Instance;
         fm.Register(typeof(ConsoleTabRegistration));
         fm.Register(typeof(ProjectsTabRegistration));
-        // ProjectDetailTabRegistration is in the same Projects assembly and discovered automatically
         fm.Register(typeof(HtmlTabRegistration));
         fm.Register(typeof(ImageTabRegistration));
         fm.Register(typeof(MarkdownTabRegistration));

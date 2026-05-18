@@ -92,8 +92,10 @@ public static class SearchQueryParser
         // ── Plain terms (content + filename) ─────────────────────────────────
         var terms = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var termClauses = terms.Select(t =>
-            $"(CONTAINS(System.Search.Contents,'{EscapeSql(t)}')" +
-            $" OR System.FileName LIKE '%{EscapeLike(t)}%')");
+            GlobChars.IsMatch(t)
+                ? $"System.FileName LIKE '{GlobToLike(t)}'"
+                : $"(CONTAINS(System.Search.Contents,'{EscapeSql(t)}')" +
+                  $" OR System.FileName LIKE '%{EscapeLike(t)}%')");
         return new ParsedQuery
         {
             RawInput    = raw,

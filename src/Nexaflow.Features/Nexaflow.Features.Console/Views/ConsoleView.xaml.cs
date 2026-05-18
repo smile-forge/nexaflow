@@ -6,7 +6,7 @@ using Nexaflow.Features.Common;
 
 namespace Nexaflow.Features.Console.Views;
 
-public partial class ConsoleView : UserControl, IPageView, IRefreshable
+public partial class ConsoleView : UserControl, IPageView
 {
     public ConsoleViewModel ViewModel { get; }
 
@@ -76,6 +76,5 @@ public partial class ConsoleView : UserControl, IPageView, IRefreshable
         };
     }
 
-    // ── IRefreshable ──────────────────────────────────────────────────────
-    public void Refresh() => ScrollToBottom();
+    void IPageView.Reinitialize(Dictionary<string, string> pageParams) => ScrollToBottom();
 }

@@ -421,11 +421,6 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
     /// </summary>
     public event Action<IReadOnlyList<(string Label, string Path)>>? NavigationChanged;
 
-    /// <summary>
-    /// Raised when a file action requests opening a new tab.
-    /// The caller (e.g. ShellViewModel) should open the tab.
-    /// </summary>
-    public event Action<TabEntry>? TabOpenRequested;
 
     // ── Constructors ─────────────────────────────────────────────────────────
 
@@ -520,7 +515,7 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
         _actionRegistry = new FileActionManager(new Dictionary<Type, object>
         {
             [typeof(IInputPromptService)] = new InputPromptServiceBridge(this),
-            [typeof(ITabOpener)]          = new TabOpenerBridge(this),
+            [typeof(IShellServices)]      = FeatureManager.Instance.ShellServices!,
             [typeof(FileMapManager)]      = FileMapManager.Instance,
         });
         FileMapManager.Instance.RegisterKnownExperiences(_actionRegistry.AllExperiences);
@@ -993,19 +988,4 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
         public void RequestRefresh() => _vm.Refresh();
     }
 
-    // ── TabOpenerBridge ───────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Implements <see cref="FileActions.ITabOpener"/> by raising
-    /// <see cref="FileSystemViewModel.TabOpenRequested"/> so the shell can
-    /// create and activate the appropriate tab without any direct coupling.
-    /// </summary>
-    private sealed class TabOpenerBridge : ITabOpener
-    {
-        private readonly FileSystemViewModel _vm;
-        public TabOpenerBridge(FileSystemViewModel vm) => _vm = vm;
-
-        public void OpenTab(string pageKind, Dictionary<string, string>? pageParams = null)
-            => FeatureManager.Instance.RequestTab(pageKind, pageParams);
-    }
 }

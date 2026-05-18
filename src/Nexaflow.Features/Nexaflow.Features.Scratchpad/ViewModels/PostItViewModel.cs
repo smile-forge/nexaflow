@@ -46,7 +46,7 @@ public sealed partial class PostItViewModel : ObservableObject
     /// <summary>Returns the configured lifetime for new/unpinned notes.</summary>
     public Func<TimeSpan>? GetNoteLifetime { get; set; }
 
-    /// <summary>Opens a URL in a web tab. Wired by ScratchpadViewModel via ITabOpener.</summary>
+    /// <summary>Opens a URL in a web tab. Wired by ScratchpadViewModel via IShellServices.</summary>
     public Action<string>? OpenUrl { get; set; }
 
     public PostItViewModel(PostItNote note)

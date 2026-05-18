@@ -5,7 +5,7 @@ using Nexaflow.Features.WindowsSearch.Views;
 
 namespace Nexaflow.Features.WindowsSearch;
 
-public sealed class SearchTabRegistration(ITabOpener tabOpener) : ITabRegistration
+public sealed class SearchTabRegistration(IShellServices shellServices) : ITabRegistration
 {
     public string PageKind => "Search";
 
@@ -22,18 +22,20 @@ public sealed class SearchTabRegistration(ITabOpener tabOpener) : ITabRegistrati
 
         var tabTitle = string.IsNullOrWhiteSpace(query) ? "Search" : queryShort;
 
-        var vm = new SearchViewModel(query, root, tabOpener);
+        var vm = new SearchViewModel(query, root, shellServices);
 
         var tab = new TabEntry
         {
-            Title       = tabTitle,
-            Icon        = "🔍",
+            Title      = tabTitle,
+            Icon       = "🔍",
+            PageParams = new() { ["query"] = query, ["root"] = root },
             Breadcrumbs =
             [
                 new BreadcrumbSegment { Label = rootLabel },
                 new BreadcrumbSegment { Label = $"Query : {queryShort}" }
             ]
         };
+        vm.Tab = tab;
         tab.PageFactory = () => new SearchView(vm);
         return tab;
     }

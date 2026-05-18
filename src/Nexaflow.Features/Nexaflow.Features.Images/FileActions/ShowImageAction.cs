@@ -16,9 +16,9 @@ namespace Nexaflow.Features.Images.FileActions
             ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".tiff", ".tif", ".webp"
         };
 
-        private readonly ITabOpener _tabOpener;
+        private readonly IShellServices _shellServices;
 
-        public ShowImageAction(ITabOpener tabOpener) => _tabOpener = tabOpener;
+        public ShowImageAction(IShellServices shellServices) => _shellServices = shellServices;
 
         public bool   IsDestructive          => false;
         public bool   SupportsMultipleFiles  => true;
@@ -31,7 +31,7 @@ namespace Nexaflow.Features.Images.FileActions
 
         public bool PerformAction(string filePath)
         {
-            _tabOpener.OpenTab("Images", new Dictionary<string, string> { ["paths"] = filePath });
+            _shellServices.OpenTab("Images", new Dictionary<string, string> { ["paths"] = filePath });
             return true;
         }
 
@@ -42,7 +42,7 @@ namespace Nexaflow.Features.Images.FileActions
                 .ToList();
 
             if (images.Count == 0) return false;
-            _tabOpener.OpenTab("Images", new Dictionary<string, string> { ["paths"] = string.Join('|', images) });
+            _shellServices.OpenTab("Images", new Dictionary<string, string> { ["paths"] = string.Join('|', images) });
             return true;
         }
     }
