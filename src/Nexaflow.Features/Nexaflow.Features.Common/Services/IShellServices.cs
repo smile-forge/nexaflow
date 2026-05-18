@@ -42,4 +42,25 @@ public interface IShellServices
 
     /// <summary>Adds a persistent notification in the focused window.</summary>
     void ShowNotification(string message);
+
+    // ── Per-view contextual services ─────────────────────────────────────────
+
+    /// <summary>
+    /// Shows a text-input overlay pre-filled with <paramref name="initialValue"/>.
+    /// No-op on the global singleton; meaningful only on the per-tab implementation.
+    /// </summary>
+    void ShowPrompt(string title, string label, string initialValue,
+                    Action<string> onConfirm, Action onCancel);
+
+    /// <summary>
+    /// Shows a yes/no confirmation overlay.
+    /// No-op on the global singleton; meaningful only on the per-tab implementation.
+    /// </summary>
+    void ShowConfirmation(string title, string message, Action onConfirm, Action onCancel);
+
+    /// <summary>
+    /// Requests a refresh of the file list and tree in the owning tab.
+    /// No-op on the global singleton; meaningful only on the per-tab implementation.
+    /// </summary>
+    void RequestRefresh();
 }

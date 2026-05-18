@@ -109,11 +109,29 @@ namespace Nexaflow.Core
 
             foreach (string source in list)
             {
-                bool sourceIsDir = Directory.Exists(source);
-                string name = Path.GetFileName(source.TrimEnd(Path.DirectorySeparatorChar,
-                                                               Path.AltDirectorySeparatorChar));
-                string dest = Path.Combine(destinationFolder, name);
-                dest = UniqueDestination(dest, sourceIsDir);
+                bool   sourceIsDir = Directory.Exists(source);
+                string sourceTrimmed = source.TrimEnd(Path.DirectorySeparatorChar,
+                                                      Path.AltDirectorySeparatorChar);
+                string name = Path.GetFileName(sourceTrimmed);
+
+                // Guard: refuse to copy a folder into itself or any of its descendants.
+                if (!isCut && sourceIsDir)
+                {
+                    string destNorm = destinationFolder.TrimEnd(Path.DirectorySeparatorChar);
+                    if (string.Equals(destNorm, sourceTrimmed, StringComparison.OrdinalIgnoreCase) ||
+                        destNorm.StartsWith(sourceTrimmed + Path.DirectorySeparatorChar,
+                                            StringComparison.OrdinalIgnoreCase))
+                        continue;
+                }
+
+                // Same-parent copy: use "Copy of <name>" so the result is distinct.
+                bool isSameParent = !isCut &&
+                    string.Equals(Path.GetDirectoryName(sourceTrimmed), destinationFolder,
+                                  StringComparison.OrdinalIgnoreCase);
+
+                string dest = isSameParent
+                    ? CopyOfDestination(destinationFolder, name, sourceIsDir)
+                    : UniqueDestination(Path.Combine(destinationFolder, name), sourceIsDir);
 
                 if (sourceIsDir)
                 {
@@ -162,6 +180,24 @@ namespace Nexaflow.Core
                     string candidate = Path.Combine(dir, $"{stem} ({i}){ext}");
                     if (!File.Exists(candidate)) return candidate;
                 }
+            }
+        }
+
+        /// <summary>
+        /// Returns a "Copy of &lt;name&gt;" path (then "Copy of &lt;name&gt; (2)" etc.)
+        /// used when pasting into the same directory as the source.
+        /// </summary>
+        private static string CopyOfDestination(string folder, string name, bool isDirectory)
+        {
+            string candidate = Path.Combine(folder, $"Copy of {name}");
+            if (isDirectory ? !Directory.Exists(candidate) : !File.Exists(candidate))
+                return candidate;
+
+            for (int i = 2; ; i++)
+            {
+                candidate = Path.Combine(folder, $"Copy of {name} ({i})");
+                if (isDirectory ? !Directory.Exists(candidate) : !File.Exists(candidate))
+                    return candidate;
             }
         }
 

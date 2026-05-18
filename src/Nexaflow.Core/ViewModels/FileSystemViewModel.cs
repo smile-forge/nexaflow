@@ -135,17 +135,27 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
     /// </summary>
     public void Refresh()
     {
-        if (_isThisPcMode)
+        _refreshing = true;
+        try
         {
-            GoToThisPc(rebuildTree: false);
+            if (_isThisPcMode)
+            {
+                GoToThisPc(rebuildTree: false);
+            }
+            else if (!string.IsNullOrEmpty(CurrentPath))
+            {
+                foreach (var root in TreeRoots)
+                    RefreshExpandedNode(root);
+                RefreshEntries();
+                SelectAndExpandPath(CurrentPath);
+            }
+            // Clear selection after a refresh so the action strip re-evaluates
+            OnSelectionChanged([]);
         }
-        else if (!string.IsNullOrEmpty(CurrentPath))
+        finally
         {
-            RefreshEntries();
-            SelectAndExpandPath(CurrentPath);
+            _refreshing = false;
         }
-        // Clear selection after a refresh so the action strip re-evaluates
-        OnSelectionChanged([]);
     }
 
     /// <summary>
@@ -327,6 +337,7 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
     private string _sortColumn    = nameof(FileSystemEntry.Name);
     private bool   _sortAscending = true;
     private bool   _navigating;
+    private bool   _refreshing;
 
     // ── AI Summary ───────────────────────────────────────────────────────────
     private const string AiSummaryFileName = ".aisummary";
@@ -514,9 +525,8 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
     {
         _actionRegistry = new FileActionManager(new Dictionary<Type, object>
         {
-            [typeof(IInputPromptService)] = new InputPromptServiceBridge(this),
-            [typeof(IShellServices)]      = FeatureManager.Instance.ShellServices!,
-            [typeof(FileMapManager)]      = FileMapManager.Instance,
+            [typeof(IShellServices)] = new LocalShellServices(this),
+            [typeof(FileMapManager)] = FileMapManager.Instance,
         });
         FileMapManager.Instance.RegisterKnownExperiences(_actionRegistry.AllExperiences);
     }
@@ -557,9 +567,9 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
 
     public void OnTreeNodeSelected(FileSystemTreeNode node)
     {
-        // Guard: if we're already inside NavigateTo (which called SelectAndExpandPath
-        // which triggered SelectedItemChanged), skip to avoid re-entry.
-        if (_navigating) return;
+        // Guard: if we're already inside NavigateTo or Refresh (which calls SelectAndExpandPath
+        // which triggers SelectedItemChanged), skip to avoid re-entry.
+        if (_navigating || _refreshing) return;
 
         if (node.Kind == TreeNodeKind.ThisPc)
             GoToThisPc(rebuildTree: false);  // tree already has this node — don't rebuild
@@ -887,11 +897,61 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
         }
     }
 
+    /// <summary>
+    /// Diffs an expanded node's children against disk: removes entries that no longer exist,
+    /// inserts new ones in sorted order. Recurses depth-first so deeper expansions are updated
+    /// before their parents, preserving IsExpanded state on all surviving nodes.
+    /// </summary>
+    private static void RefreshExpandedNode(FileSystemTreeNode node)
+    {
+        // Recurse first — virtual roots like "This PC" (FullPath="") must propagate into children
+        foreach (var child in node.Children.ToList())
+            RefreshExpandedNode(child);
+
+        // Only diff nodes with a real filesystem path and loaded children
+        if (string.IsNullOrEmpty(node.FullPath)) return;
+        if (node.Children.Count == 0 || node.Children[0] == FileSystemTreeNode.Dummy) return;
+
+        HashSet<string> diskDirs;
+        try { diskDirs = new HashSet<string>(Directory.GetDirectories(node.FullPath), StringComparer.OrdinalIgnoreCase); }
+        catch { diskDirs = []; }
+
+        // Remove children no longer on disk
+        for (int i = node.Children.Count - 1; i >= 0; i--)
+        {
+            if (!diskDirs.Contains(node.Children[i].FullPath))
+                node.Children.RemoveAt(i);
+        }
+
+        // Insert children new on disk (maintains alphabetical order)
+        var existing = new HashSet<string>(node.Children.Select(c => c.FullPath), StringComparer.OrdinalIgnoreCase);
+        foreach (var dir in diskDirs.OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
+        {
+            if (existing.Contains(dir)) continue;
+            var newNode = new FileSystemTreeNode(Path.GetFileName(dir), dir);
+            InsertSorted(node.Children, newNode);
+        }
+    }
+
+    private static void InsertSorted(ObservableCollection<FileSystemTreeNode> children, FileSystemTreeNode newNode)
+    {
+        for (int i = 0; i < children.Count; i++)
+        {
+            if (string.Compare(newNode.FullPath, children[i].FullPath, StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                children.Insert(i, newNode);
+                return;
+            }
+        }
+        children.Add(newNode);
+    }
+
     private static bool TryExpandTo(FileSystemTreeNode node, string target)
     {
         if (string.Equals(node.FullPath, target, StringComparison.OrdinalIgnoreCase))
         {
             node.IsSelected = true;
+            node.IsExpanded = true;
             return true;
         }
 
@@ -977,26 +1037,41 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
         RefreshEntries();
     }
 
-    // ── InputPromptServiceBridge ──────────────────────────────────────────────
+    // ── LocalShellServices ────────────────────────────────────────────────────
 
     /// <summary>
-    /// Implements <see cref="IInputPromptService"/> by forwarding calls to the
-    /// owning <see cref="FileSystemViewModel"/>'s overlay state.
-    /// Registered in the DI dictionary so <see cref="RenameFile"/> receives it.
+    /// Per-tab <see cref="IShellServices"/> implementation injected into file actions.
+    /// Prompt and refresh methods are handled by this ViewModel; tab-management
+    /// calls are forwarded to the app-level singleton.
     /// </summary>
-    private sealed class InputPromptServiceBridge : IInputPromptService
+    private sealed class LocalShellServices(FileSystemViewModel vm) : IShellServices
     {
-        private readonly FileSystemViewModel _vm;
-        public InputPromptServiceBridge(FileSystemViewModel vm) => _vm = vm;
+        private static IShellServices Global => FeatureManager.Instance.ShellServices!;
 
-        public void Show(string title, string label, string initialValue,
-                         Action<string> onConfirm, Action onCancel)
-            => _vm.ShowInputPrompt(title, label, initialValue, onConfirm, onCancel);
+        // ── Per-tab contextual methods ────────────────────────────────────────
+        public void ShowPrompt(string title, string label, string initialValue,
+                               Action<string> onConfirm, Action onCancel)
+            => vm.ShowInputPrompt(title, label, initialValue, onConfirm, onCancel);
 
         public void ShowConfirmation(string title, string message, Action onConfirm, Action onCancel)
-            => _vm.ShowConfirmation(message, onConfirm, onCancel);
+            => vm.ShowConfirmation(message, onConfirm, onCancel);
 
-        public void RequestRefresh() => _vm.Refresh();
+        public void RequestRefresh() => vm.Refresh();
+
+        // ── Global shell methods — forwarded ──────────────────────────────────
+        public void OpenTab(string pageKind, Dictionary<string, string>? pageParams = null,
+                            IPageView? caller = null)
+            => Global.OpenTab(pageKind, pageParams, caller);
+
+        public void CloseTab(TabEntry tab)           => Global.CloseTab(tab);
+        public void UpdateTabMeta(TabEntry tab, string? title = null,
+                                  IReadOnlyList<BreadcrumbSegment>? breadcrumbs = null,
+                                  Dictionary<string, string>? pageParams = null)
+            => Global.UpdateTabMeta(tab, title, breadcrumbs, pageParams);
+        public TabEntry? FindTab(string pageKind, Dictionary<string, string>? pageParams = null)
+            => Global.FindTab(pageKind, pageParams);
+        public void ShowError(string message)        => Global.ShowError(message);
+        public void ShowNotification(string message) => Global.ShowNotification(message);
     }
 
 }
