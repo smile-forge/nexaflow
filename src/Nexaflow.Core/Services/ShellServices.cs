@@ -323,6 +323,16 @@ public sealed class ShellServices : IShellServices
         return true;
     }
 
+    // ── Per-view contextual stubs (no-op on the global singleton) ────────────
+
+    void IShellServices.ShowPrompt(string title, string label, string initialValue,
+                                   Action<string> onConfirm, Action onCancel) { }
+
+    void IShellServices.ShowConfirmation(string title, string message,
+                                         Action onConfirm, Action onCancel) { }
+
+    void IShellServices.RequestRefresh() { }
+
     // ── Window positioning (tearoff) ──────────────────────────────────────
 
     private static void PositionWindow(Window win, double dropX, double dropY, Rect work)

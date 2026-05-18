@@ -6,9 +6,9 @@ namespace Nexaflow.Core.FileActions
 {
     public class RenameFile : IFileAction, IFolderAction
     {
-        private readonly IInputPromptService _prompt;
+        private readonly IShellServices _shell;
 
-        public RenameFile(IInputPromptService prompt) => _prompt = prompt;
+        public RenameFile(IShellServices shell) => _shell = shell;
 
         // ── IFileAction ───────────────────────────────────────────────────────
 
@@ -41,7 +41,7 @@ namespace Nexaflow.Core.FileActions
             string oldName = Path.GetFileName(path);
             string title   = isDir ? "Rename Folder" : "Rename File";
 
-            _prompt.Show(
+            _shell.ShowPrompt(
                 title:        title,
                 label:        "New name:",
                 initialValue: oldName,
@@ -56,7 +56,7 @@ namespace Nexaflow.Core.FileActions
                     else
                         File.Move(path, dest);
 
-                    _prompt.RequestRefresh();
+                    _shell.RequestRefresh();
                 },
                 onCancel: () => { });
 

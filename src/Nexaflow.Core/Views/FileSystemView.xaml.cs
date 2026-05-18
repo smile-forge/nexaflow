@@ -165,6 +165,25 @@ public partial class FileSystemView : UserControl, IPageView
     {
         if (e.NewValue is FileSystemTreeNode node)
             ViewModel.OnTreeNodeSelected(node);
+
+        // Defer scroll so TreeViewItem containers are realized after the layout pass
+        if (e.NewValue is not null)
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background,
+                () => ScrollTreeItemIntoView(DirectoryTree, e.NewValue));
+    }
+
+    private static void ScrollTreeItemIntoView(ItemsControl container, object item)
+    {
+        if (container.ItemContainerGenerator.ContainerFromItem(item) is TreeViewItem tvi)
+        {
+            tvi.BringIntoView();
+            return;
+        }
+        foreach (var child in container.Items)
+        {
+            if (container.ItemContainerGenerator.ContainerFromItem(child) is TreeViewItem childTvi)
+                ScrollTreeItemIntoView(childTvi, item);
+        }
     }
 
     // ── File list selection ───────────────────────────────────────────────

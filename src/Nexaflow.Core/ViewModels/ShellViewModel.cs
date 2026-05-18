@@ -228,6 +228,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
         ((IWindowHost)this).BringToFront(tab);
         ((IWindowHost)this).SetActiveTab(tab);
+        (CurrentPage as IPageView)?.Reinitialize(tab.PageParams ?? []);
     }
 
     [RelayCommand]

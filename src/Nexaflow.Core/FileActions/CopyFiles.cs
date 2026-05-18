@@ -13,7 +13,7 @@ namespace Nexaflow.Core.FileActions
         public string DisplayName            => "Copy";
         public string ExperienceId           => "/";
         public string ExperienceDescription  => "All files";
-        public bool   RequiresRefresh        => false;
+        public bool   RequiresRefresh        => true;
         public bool   CanPerformAction       => true;
 
         // ── IFolderAction ─────────────────────────────────────────────────────
@@ -22,7 +22,7 @@ namespace Nexaflow.Core.FileActions
         bool   IFolderAction.SupportsMultipleFiles => true;
         string IFolderAction.Icon                 => "📋";
         string IFolderAction.DisplayName          => "Copy";
-        bool   IFolderAction.RequiresRefresh       => false;
+        bool   IFolderAction.RequiresRefresh       => true;
         bool   IFolderAction.CanPerformAction      => true;
         public bool   AppliesToRoot               => false;
         public bool   AppliesToDrives             => false;

@@ -13,9 +13,9 @@ namespace Nexaflow.Core.FileActions;
 /// </summary>
 public class DeleteFile : IFileAction, IFolderAction
 {
-    private readonly IInputPromptService _prompt;
+    private readonly IShellServices _shell;
 
-    public DeleteFile(IInputPromptService prompt) => _prompt = prompt;
+    public DeleteFile(IShellServices shell) => _shell = shell;
 
     // ── IFileAction ───────────────────────────────────────────────────────────
 
@@ -60,7 +60,7 @@ public class DeleteFile : IFileAction, IFolderAction
         if (force)
         {
             bool ok = NativeMethods.DeleteFilesPermanently(paths);
-            _prompt.RequestRefresh();
+            _shell.RequestRefresh();
             return ok;
         }
 
@@ -68,13 +68,13 @@ public class DeleteFile : IFileAction, IFolderAction
             ? $"\"{Path.GetFileName(paths[0])}\""
             : $"{paths.Count} items";
 
-        _prompt.ShowConfirmation(
+        _shell.ShowConfirmation(
             title:     "Move to Recycle Bin?",
             message:   $"Send {target} to the Recycle Bin?",
             onConfirm: () =>
             {
                 NativeMethods.RecycleFiles(paths);
-                _prompt.RequestRefresh();
+                _shell.RequestRefresh();
             },
             onCancel: () => { });
 
