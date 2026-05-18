@@ -10,7 +10,8 @@ A feature is a class library (`Nexaflow.Features.MyFeature`) that references onl
 |------|----------|------|
 | Create project | yes | Class library, reference `Features.Common` |
 | `ITabRegistration` | yes | Factory that produces a `TabEntry` |
-| `IPageView` on your `UserControl` | recommended | Exposes context to the AI pipeline |
+| `IPageView` on your `UserControl` | recommended | Shell lifecycle handle: `ViewModel` property + `Reinitialize` |
+| `IPageViewModel` on your ViewModel | recommended | AI pipeline contract: `GetContext`, `GetAvailableActions`, `Execute` |
 | Register in `App.xaml.cs` | yes | `fm.Register(typeof(MyTabRegistration))` |
 | Add project reference in `Nexaflow.Core.csproj` | yes | So `App.xaml.cs` can see your type |
 | Add ribbon entry in `ShellViewModel.BuildDefaultItems()` | optional | Puts a button on the default toolbar |
@@ -87,17 +88,20 @@ public sealed class MyTabRegistration(MyConfig config, IShellServices shellServi
 
 ---
 
-## 3. `IPageView` — AI Pipeline Integration
+## 3. `IPageView` / `IPageViewModel` — AI Pipeline Integration
 
-Implement on your `UserControl`. The shell queries this interface for:
+`IPageView` is the shell's typed handle to a tab `UserControl`. Implement it on your `UserControl` with:
+- `IPageViewModel? ViewModel` — exposes the ViewModel to the shell
+- `Reinitialize(pageParams)` — called on first activation and whenever the shell routes the tab with a new param set (including re-clicking the already-active tab)
 
+`IPageViewModel` is the AI pipeline contract. Implement it on your ViewModel with:
 - `GetContext()` — short description sent as system context to the LLM
 - `GetAvailableActions()` — `ActionDescriptor` list the AI can select when no handler matched
 - `Execute(action)` — runs the AI-selected action
 - `GetContextObject()` — optional strongly-typed `IContext` for query handlers to consume
-- `Reinitialize(pageParams)` — called on first activation and whenever the shell routes the tab with a new param set (including re-clicking the already-active tab). The page decides whether to reload.
 
 ```csharp
+// The View — thin shell-lifecycle wrapper only
 public partial class MyView : UserControl, IPageView
 {
     private readonly MyViewModel _vm;
@@ -109,27 +113,31 @@ public partial class MyView : UserControl, IPageView
         InitializeComponent();
     }
 
-    public object? ViewModel => _vm;
-
-    public string GetContext() => $"User is viewing My Feature. Current item: {_vm.SelectedItem?.Name ?? "none"}";
-
-    public IReadOnlyList<ActionDescriptor> GetAvailableActions() =>
-    [
-        new ActionDescriptor("Refresh", "Reload the current view"),
-        new ActionDescriptor("Open",    "Open the selected item", new Dictionary<string, string> { ["item"] = _vm.SelectedItem?.Id ?? "" })
-    ];
-
-    public void Execute(ActionDescriptor action)
-    {
-        if (action.Name == "Refresh") _vm.RefreshCommand.Execute(null);
-        if (action.Name == "Open"   ) _vm.OpenCommand.Execute(action.Parameters?["item"]);
-    }
+    public IPageViewModel? ViewModel => _vm;
 
     public void Reinitialize(Dictionary<string, string> pageParams)
     {
         var id = pageParams.GetValueOrDefault("id");
         if (id != null && id != _vm.CurrentId)
             _vm.LoadAsync(id);
+    }
+}
+
+// The ViewModel — owns all AI pipeline logic
+public partial class MyViewModel : ObservableObject, IPageViewModel
+{
+    public string GetContext() => $"User is viewing My Feature. Current item: {SelectedItem?.Name ?? "none"}";
+
+    public IReadOnlyList<ActionDescriptor> GetAvailableActions() =>
+    [
+        new ActionDescriptor("Refresh", "Reload the current view"),
+        new ActionDescriptor("Open",    "Open the selected item", new Dictionary<string, string> { ["item"] = SelectedItem?.Id ?? "" })
+    ];
+
+    public void Execute(ActionDescriptor action)
+    {
+        if (action.Name == "Refresh") RefreshCommand.Execute(null);
+        if (action.Name == "Open"   ) OpenCommand.Execute(action.Parameters?["item"]);
     }
 }
 ```
@@ -155,15 +163,15 @@ public sealed class MyQueryHandler : IQueryHandler
     public string Description => "Does something useful when my tab is active";
     public string? Symbol => null;      // set to e.g. "?" to claim prefix routing
 
-    public float CanProcess(string input, IPageView? page = null)
+    public float CanProcess(string input, IPageViewModel? pageVm = null)
     {
-        if (page?.ViewModel is not MyViewModel vm) return 0f;
+        if (pageVm is not MyViewModel vm) return 0f;
         return LooksLikeMyInput(input) ? 0.85f : 0f;
     }
 
-    public async Task<string?> ProcessAsync(string input, IPageView? page = null)
+    public async Task<string?> ProcessAsync(string input, IPageViewModel? pageVm = null)
     {
-        if (page?.ViewModel is not MyViewModel vm) return "No active tab.";
+        if (pageVm is not MyViewModel vm) return "No active tab.";
         await vm.HandleInputAsync(input);
         return null;    // null = handled silently; non-null string = shown in AI Chat
     }
@@ -270,7 +278,7 @@ public sealed class OpenInMyViewerAction(IShellServices shellServices) : IFileAc
 
 ## 8. `IContext` — Typed Context for Query Handlers
 
-If your tab provides structured data that other query handlers need (beyond a string description), implement `IContext` and return an instance from `IPageView.GetContextObject()`.
+If your tab provides structured data that other query handlers need (beyond a string description), implement `IContext` and return an instance from `IPageViewModel.GetContextObject()`.
 
 ```csharp
 public sealed class MyContext : IContext
@@ -279,20 +287,20 @@ public sealed class MyContext : IContext
     public IReadOnlyList<string> SelectedItems { get; init; } = [];
 }
 
-// In MyView:
+// In MyViewModel:
 public IContext? GetContextObject() => new MyContext
 {
-    CurrentMode   = _vm.Mode,
-    SelectedItems = _vm.Selection.ToList()
+    CurrentMode   = Mode,
+    SelectedItems = Selection.ToList()
 };
 ```
 
 Query handlers then gate on and extract it:
 
 ```csharp
-public float CanProcess(string input, IPageView? page = null)
+public float CanProcess(string input, IPageViewModel? pageVm = null)
 {
-    if (page?.GetContextObject() is not MyContext ctx) return 0f;
+    if (pageVm?.GetContextObject() is not MyContext ctx) return 0f;
     return ctx.CurrentMode == "edit" ? 0.9f : 0f;
 }
 ```
@@ -356,10 +364,10 @@ Injected via `FeatureManager.Instance.RegisterSingletonService`. Use it in ViewM
 
 ```csharp
 // Let the LLM pick the best handler from a candidate list
-IQueryHandler? chosen = await aiService.DisambiguateToolSelection(page, input, candidates);
+IQueryHandler? chosen = await aiService.DisambiguateToolSelection(pageVm, input, candidates);
 
 // One-shot contextual call: LLM returns Action, Prefill, or Message
-AiResponse? response = await aiService.ContextChat(page, input);
+AiResponse? response = await aiService.ContextChat(pageVm, input);
 if (response?.Kind == AiResponseKind.Action)
-    page?.Execute(response.Action!);
+    pageVm?.Execute(response.Action!);
 ```
