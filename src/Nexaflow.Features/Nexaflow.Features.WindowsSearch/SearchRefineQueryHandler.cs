@@ -12,6 +12,8 @@ namespace Nexaflow.Features.WindowsSearch;
 /// </summary>
 public sealed class SearchRefineQueryHandler : IQueryHandler
 {
+    public string Symbol => "?";
+
     public string Description =>
         "Refines the current search by adding more constraints to the existing query. " +
         "Merges with the original search term and re-queries Windows Search.";
