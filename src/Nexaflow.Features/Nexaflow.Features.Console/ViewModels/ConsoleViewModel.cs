@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Console;
 using Nexaflow.Features.Console.Models;
 using System.Collections.ObjectModel;
@@ -20,7 +21,7 @@ namespace Nexaflow.Features.Console.ViewModels;
 /// Raw PTY output arrives as arbitrary-length chunks; this class splits them
 /// into lines and appends them to the live entry on the UI thread.
 /// </summary>
-public partial class ConsoleViewModel : ObservableObject, IDisposable
+public partial class ConsoleViewModel : ObservableObject, IDisposable, IPageViewModel
 {
     // ── Terminal back-end ─────────────────────────────────────────────────
     protected readonly PseudoConsoleHostService _pty;
@@ -323,6 +324,23 @@ public partial class ConsoleViewModel : ObservableObject, IDisposable
         var sorted = EnvVars.OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase).ToList();
         EnvVars.Clear();
         foreach (var v in sorted) EnvVars.Add(v);
+    }
+
+    // ── IPageViewModel ────────────────────────────────────────────────────
+
+    public string GetContext() => $"Terminal: '{CurrentPath}'.";
+
+    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
+
+    public IContext? GetContextObject()
+    {
+        if (string.IsNullOrEmpty(CurrentPath)) return null;
+        return new FileSystemContext
+        {
+            RootPath      = CurrentPath,
+            CurrentPath   = CurrentPath,
+            SelectedItems = []
+        };
     }
 
     // ── IDisposable ───────────────────────────────────────────────────────

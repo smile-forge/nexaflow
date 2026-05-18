@@ -17,7 +17,7 @@ namespace Nexaflow.Core.ViewModels;
 
 // ── Main ViewModel ────────────────────────────────────────────────────────────
 
-public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IContextProvider, IActionExecutor
+public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPageViewModel, IActionExecutor
 {
     [ObservableProperty] private string _currentPath = string.Empty;
     [ObservableProperty] private FileSystemEntry? _selectedEntry;
@@ -692,7 +692,7 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
     public string Description =>
         "Navigates the file browser to a directory. Use when the user types a folder path.";
 
-    public float CanProcess(string input, IPageView? page = null)
+    public float CanProcess(string input, IPageViewModel? pageVm = null)
     {
         var trimmed = input.Trim();
         if (Path.IsPathRooted(trimmed))
@@ -706,7 +706,7 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
         return 0f;
     }
 
-    public Task<string?> ProcessAsync(string input, IPageView? page = null)
+    public Task<string?> ProcessAsync(string input, IPageViewModel? pageVm = null)
     {
         var trimmed = input.Trim();
 
@@ -740,7 +740,7 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
         return Task.FromResult<string?>($"Path not found: {trimmed}");
     }
 
-    // ── IContextProvider ──────────────────────────────────────────────────────
+    // ── IPageViewModel ────────────────────────────────────────────────────────
 
     public string GetContext()
     {
@@ -758,6 +758,17 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, ICon
             new Dictionary<string, string> { ["path"] = "absolute folder path" }),
         new("gotoRoot", "Go back to the This PC drive list"),
     ];
+
+    public IContext? GetContextObject()
+    {
+        if (IsThisPcMode || string.IsNullOrEmpty(RootPath)) return null;
+        return new FileSystemContext
+        {
+            RootPath      = RootPath,
+            CurrentPath   = CurrentPath,
+            SelectedItems = CurrentSelection.Select(e => e.FullPath).ToList()
+        };
+    }
 
     // ── IActionExecutor ───────────────────────────────────────────────────────
 

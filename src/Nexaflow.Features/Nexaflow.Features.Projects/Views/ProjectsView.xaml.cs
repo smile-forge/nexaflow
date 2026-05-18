@@ -17,16 +17,7 @@ public partial class ProjectsView : UserControl, IPageView
 
     // ── IPageView ─────────────────────────────────────────────────────────
 
-    object? IPageView.ViewModel => ViewModel;
-
-    string IPageView.GetContext()
-    {
-        if (ViewModel.ProjectCount == 0) return "Projects list: no projects.";
-        var selected = ViewModel.SelectedProject is { } p ? $" Selected: '{p.DisplayName}'." : string.Empty;
-        return $"Projects list: {ViewModel.ProjectCount} project(s).{selected}";
-    }
-
-    IReadOnlyList<ActionDescriptor> IPageView.GetAvailableActions() => [];
+    IPageViewModel? IPageView.ViewModel => ViewModel;
 
     void IPageView.Reinitialize(Dictionary<string, string> pageParams)
     {

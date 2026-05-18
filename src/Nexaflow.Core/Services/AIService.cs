@@ -63,7 +63,7 @@ public class AIService : IAIService
     // ── AI routing ────────────────────────────────────────────────────────
 
     public async Task<IQueryHandler?> DisambiguateToolSelection(
-        IPageView? page, string input, IReadOnlyList<IQueryHandler> candidates)
+        IPageViewModel? page, string input, IReadOnlyList<IQueryHandler> candidates)
     {
         var context  = page?.GetContext() ?? "No specific context.";
         var toolList = string.Join("\n", candidates.Select((h, i) => $"{i + 1}. {h.Description}"));
@@ -86,7 +86,7 @@ public class AIService : IAIService
         return (idx >= 1 && idx <= candidates.Count) ? candidates[idx - 1] : null;
     }
 
-    public async Task<AiResponse?> ContextChat(IPageView? page, string input)
+    public async Task<AiResponse?> ContextChat(IPageViewModel? page, string input)
     {
         var context = page?.GetContext() ?? "No specific context.";
         var actions = page?.GetAvailableActions() ?? [];

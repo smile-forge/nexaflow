@@ -241,28 +241,7 @@ public partial class MarkdownView : UserControl, IPageView
 
     // ── IPageView ─────────────────────────────────────────────────────────
 
-    object? IPageView.ViewModel => ViewModel;
-
-    string IPageView.GetContext()
-    {
-        var dirty = ViewModel.IsDirty ? " (unsaved changes)" : string.Empty;
-        return $"Markdown file: '{ViewModel.FileName}' at '{ViewModel.FilePath}'{dirty}.";
-    }
-
-    IReadOnlyList<ActionDescriptor> IPageView.GetAvailableActions() => [];
-
-    IContext? IPageView.GetContextObject()
-    {
-        if (string.IsNullOrEmpty(ViewModel.FilePath)) return null;
-        var dir = System.IO.Path.GetDirectoryName(ViewModel.FilePath);
-        if (string.IsNullOrEmpty(dir)) return null;
-        return new FileSystemContext
-        {
-            RootPath      = dir,
-            CurrentPath   = dir,
-            SelectedItems = [ViewModel.FilePath]
-        };
-    }
+    IPageViewModel? IPageView.ViewModel => ViewModel;
 
     // ── Helpers ───────────────────────────────────────────────────────────
 

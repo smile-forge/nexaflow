@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ICSharpCode.AvalonEdit.Document;
+using Nexaflow.Features.Common;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -13,7 +14,7 @@ public sealed record EncodingOption(string Name, Encoding Encoding)
     public override string ToString() => Name;
 }
 
-public sealed partial class TextViewModel : ObservableObject, IDisposable
+public sealed partial class TextViewModel : ObservableObject, IDisposable, IPageViewModel
 {
     private const long SmallFileSizeLimit = 100 * 1024; // 100 KB
     private const int  ChunkSize          = 100 * 1024; // bytes per sliding-window chunk
@@ -655,6 +656,61 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable
             < 1024 * 1024 => $"{bytes / 1024.0:F1} KB",
             _             => $"{bytes / (1024.0 * 1024):F1} MB",
         };
+    }
+
+    // ── IPageViewModel ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Set by the View after construction to give the ViewModel access to the
+    /// currently visible text (a rendering-layer concept).
+    /// </summary>
+    internal Func<string> GetVisibleText { get; set; } = () => string.Empty;
+
+    public string GetContext()
+    {
+        var fileName = FilePath is not null ? Path.GetFileName(FilePath) : "Untitled";
+        var path     = FilePath ?? string.Empty;
+        var visible  = GetVisibleText();
+        return $"Text file: '{fileName}' at '{path}'\nVisible text:\n{visible}";
+    }
+
+    public IReadOnlyList<ActionDescriptor> GetAvailableActions()
+    {
+        IReadOnlyDictionary<string, string> findParams = new Dictionary<string, string> { { "SearchTerm", string.Empty } };
+        return
+        [
+            new ActionDescriptor("Copy Visible Text", "Copy the text currently visible in the editor to the clipboard."),
+            new ActionDescriptor("Find", "Find text within the editor.", findParams)
+        ];
+    }
+
+    public IContext? GetContextObject()
+    {
+        if (string.IsNullOrEmpty(FilePath)) return null;
+        var dir = Path.GetDirectoryName(FilePath);
+        if (string.IsNullOrEmpty(dir)) return null;
+        return new FileSystemContext
+        {
+            RootPath      = dir,
+            CurrentPath   = dir,
+            SelectedItems = [FilePath]
+        };
+    }
+
+    public void Execute(ActionDescriptor action)
+    {
+        switch (action.Name)
+        {
+            case "Copy Visible Text":
+                Clipboard.SetText(GetVisibleText());
+                break;
+
+            case "Find":
+                if (action.Parameters?.TryGetValue("SearchTerm", out var term) == true
+                    && !string.IsNullOrWhiteSpace(term))
+                    _ = SearchConventionalAsync(term);
+                break;
+        }
     }
 
     // ── Dispose ───────────────────────────────────────────────────────────────

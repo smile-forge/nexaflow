@@ -1,5 +1,4 @@
 using Nexaflow.Features.Common;
-using Nexaflow.Features.Text.Views;
 using System.Text.RegularExpressions;
 
 namespace Nexaflow.Features.Text.ViewModels;
@@ -20,9 +19,9 @@ public sealed class TextConventionalQueryHandler : IQueryHandler
     public string Description =>
         "Searches the open text file for the entered text using plain-text matching.";
 
-    public float CanProcess(string input, IPageView? page = null)
+    public float CanProcess(string input, IPageViewModel? pageVm = null)
     {
-        if (!(page is TextView)) return 0f;
+        if (pageVm is not TextViewModel) return 0f;
 
         var trimmed = input.Trim();
         if (trimmed.Length == 0) return 0f;
@@ -41,14 +40,10 @@ public sealed class TextConventionalQueryHandler : IQueryHandler
         };
     }
 
-    public async Task<string?> ProcessAsync(string input, IPageView? page = null)
+    public async Task<string?> ProcessAsync(string input, IPageViewModel? pageVm = null)
     {
-        if (page is TextView textView)
-        {
-            var vm = (TextViewModel)textView.ViewModel!;
-
+        if (pageVm is TextViewModel vm)
             await vm.SearchConventionalAsync(input.Trim(), CancellationToken.None);
-        }
         return null; // results appear as highlights in the view
     }
 }

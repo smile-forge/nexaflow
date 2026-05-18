@@ -432,17 +432,7 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
 
     // ── IPageView ─────────────────────────────────────────────────────────
 
-    object? IPageView.ViewModel => Vm;
-
-    string IPageView.GetContext()
-    {
-        var count = Vm.Notes.Count;
-        return count == 0
-            ? "Scratchpad: empty."
-            : $"Scratchpad: {count} note(s).";
-    }
-
-    IReadOnlyList<ActionDescriptor> IPageView.GetAvailableActions() => [];
+    IPageViewModel? IPageView.ViewModel => Vm;
 
     // ── Coordinate helpers ────────────────────────────────────────────────
 

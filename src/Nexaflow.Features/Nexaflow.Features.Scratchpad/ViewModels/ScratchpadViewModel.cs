@@ -9,7 +9,7 @@ using System.Windows.Threading;
 
 namespace Nexaflow.Features.Scratchpad.ViewModels;
 
-public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable
+public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable, IPageViewModel
 {
     private readonly PostItStore      _store;
     private readonly ScratchpadConfig _config;
@@ -266,4 +266,14 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable
         foreach (var t in _saveTimers.Values) t.Stop();
         _saveTimers.Clear();
     }
+
+    // ── IPageViewModel ────────────────────────────────────────────────────
+
+    public string GetContext()
+    {
+        var count = Notes.Count;
+        return count == 0 ? "Scratchpad: empty." : $"Scratchpad: {count} note(s).";
+    }
+
+    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
 }

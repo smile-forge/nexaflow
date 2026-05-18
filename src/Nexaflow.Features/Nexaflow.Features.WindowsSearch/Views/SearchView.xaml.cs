@@ -1,7 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsSearch.ViewModels;
 using System.ComponentModel;
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -25,66 +24,7 @@ public partial class SearchView : UserControl, IPageView
 
     // ── IPageView ────────────────────────────────────────────────────────────
 
-    object? IPageView.ViewModel => _vm;
-
-    string IPageView.GetContext()
-    {
-        if (string.IsNullOrWhiteSpace(_vm.SearchQuery) || string.IsNullOrEmpty(_vm.SearchRoot))
-            return $"Search tab: no search performed yet. Root: {(string.IsNullOrEmpty(_vm.SearchRoot) ? "not set" : $"'{_vm.SearchRoot}'")}";
-        return $"Search tab: '{_vm.SearchQuery}' in '{_vm.SearchRoot}'. {_vm.ResultCount} result(s).";
-    }
-
-    IReadOnlyList<ActionDescriptor> IPageView.GetAvailableActions()
-    {
-        IReadOnlyDictionary<string, string> searchParams =
-            new Dictionary<string, string> { { "Query", string.Empty } };
-
-        return
-        [
-            new ActionDescriptor(
-                "Search",
-                "Search files using Windows Search. Supports plain terms (budget report), " +
-                "quoted phrases (\"annual report\"), file globs (*.xml, *.doc*, name.*), " +
-                "property filters (kind:document, size:>1mb, author:john, date:>2024-01, " +
-                "modified:2023, before:2024, after:2023-06), and boolean prefix syntax " +
-                "(+required -excluded).",
-                searchParams)
-        ];
-    }
-
-    void IPageView.Execute(ActionDescriptor action)
-    {
-        if (action.Name == "Search"
-            && action.Parameters?.TryGetValue("Query", out var query) == true
-            && !string.IsNullOrWhiteSpace(query))
-        {
-            _vm.SearchQuery = query;
-            _ = _vm.RunSearchAsync(CancellationToken.None);
-        }
-    }
-
-    IContext? IPageView.GetContextObject()
-    {
-        if (_vm.SelectedEntry is not { } entry) return null;
-
-        if (entry.IsFolder)
-            return new FileSystemContext
-            {
-                RootPath      = entry.FilePath,
-                CurrentPath   = entry.FilePath,
-                SelectedItems = []
-            };
-
-        var dir = Path.GetDirectoryName(entry.FilePath);
-        if (string.IsNullOrEmpty(dir)) return null;
-
-        return new FileSystemContext
-        {
-            RootPath      = dir,
-            CurrentPath   = dir,
-            SelectedItems = [entry.FilePath]
-        };
-    }
+    IPageViewModel? IPageView.ViewModel => _vm;
 
     // ── IPageView (Reinitialize) ──────────────────────────────────────────────
 

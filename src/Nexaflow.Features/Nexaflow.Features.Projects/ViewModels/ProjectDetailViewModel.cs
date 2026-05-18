@@ -1,9 +1,10 @@
-using Nexaflow.Features.Projects.Model;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Nexaflow.Features.Common;
+using Nexaflow.Features.Projects.Model;
+using Nexaflow.Visuals.Common.Controls;
 using System.Collections.ObjectModel;
 using System.Windows.Media;
-using Nexaflow.Visuals.Common.Controls;
 
 namespace Nexaflow.Features.Projects.ViewModels;
 
@@ -11,7 +12,7 @@ namespace Nexaflow.Features.Projects.ViewModels;
 
 // ── Main detail view-model ────────────────────────────────────────────────────
 
-public partial class ProjectDetailViewModel : ObservableObject
+public partial class ProjectDetailViewModel : ObservableObject, IPageViewModel
 {
     private readonly ProjectOperations _svc;
     public  string FolderName { get; }
@@ -235,4 +236,17 @@ public partial class ProjectDetailViewModel : ObservableObject
 
         PieSlices = slices;
     }
+
+    // ── IPageViewModel ────────────────────────────────────────────────────
+
+    public string GetContext()
+    {
+        if (string.IsNullOrEmpty(ProjectName)) return "Project detail: no project loaded.";
+        var count = Backlog.Count;
+        return count == 0
+            ? $"Project: '{ProjectName}'. No backlog items."
+            : $"Project: '{ProjectName}'. {count} backlog item(s).";
+    }
+
+    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
 }

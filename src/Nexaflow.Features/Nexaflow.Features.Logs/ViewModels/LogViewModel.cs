@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ICSharpCode.AvalonEdit.Document;
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Logs.Parsing;
 using System.IO;
 using System.Text;
@@ -14,7 +15,7 @@ public sealed record EncodingOption(string Name, Encoding Encoding)
     public override string ToString() => Name;
 }
 
-public sealed partial class LogViewModel : ObservableObject, IDisposable
+public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageViewModel
 {
     // ── File ──────────────────────────────────────────────────────────────────
 
@@ -605,6 +606,29 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable
         < 1024 * 1024 => $"{bytes / 1024.0:F1} KB",
         _             => $"{bytes / (1024.0 * 1024):F1} MB",
     };
+
+    // ── IPageViewModel ────────────────────────────────────────────────────────
+
+    public string GetContext()
+    {
+        if (string.IsNullOrEmpty(FilePath)) return "Log viewer: no file loaded.";
+        return $"Log file: '{FileName}' at '{FilePath}'. {LineCount} line(s).";
+    }
+
+    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
+
+    public IContext? GetContextObject()
+    {
+        if (string.IsNullOrEmpty(FilePath)) return null;
+        var dir = Path.GetDirectoryName(FilePath);
+        if (string.IsNullOrEmpty(dir)) return null;
+        return new FileSystemContext
+        {
+            RootPath      = dir,
+            CurrentPath   = dir,
+            SelectedItems = [FilePath]
+        };
+    }
 
     // ── Dispose ───────────────────────────────────────────────────────────────
 

@@ -316,7 +316,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     private void EvaluateHandlers(string text)
     {
-        var page     = CurrentPage as IPageView;
+        var pageVm   = (CurrentPage as IPageView)?.ViewModel;
         var handlers = FeatureManager.Instance.QueryHandlers;
 
         var symbolMatch = handlers.FirstOrDefault(
@@ -328,7 +328,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
             return;
         }
 
-        var matches = handlers.Where(h => h.CanProcess(text, page) > 0).ToList();
+        var matches = handlers.Where(h => h.CanProcess(text, pageVm) > 0).ToList();
         if (matches.Count == 1 && matches[0].Symbol is not null)
         {
             AiHandlerSymbol = matches[0].Symbol;
@@ -352,6 +352,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         AiIsListening   = false;
 
         var page     = CurrentPage as IPageView;
+        var pageVm   = page?.ViewModel;
         var handlers = FeatureManager.Instance.QueryHandlers.ToList();
 
         // 1. Symbol prefix → explicit handler selection; strip prefix from input
@@ -367,7 +368,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         // 2. Score candidates when no symbol prefix was used
         if (selected is null)
         {
-            var candidates = handlers.Where(h => h.CanProcess(text, page) > 0).ToList();
+            var candidates = handlers.Where(h => h.CanProcess(text, pageVm) > 0).ToList();
 
             if (candidates.Count == 1)
             {
@@ -377,7 +378,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
             {
                 try
                 {
-                    selected = await _aiService.DisambiguateToolSelection(page, text, candidates);
+                    selected = await _aiService.DisambiguateToolSelection(pageVm, text, candidates);
                 }
                 catch (Exception ex)
                 {
@@ -393,7 +394,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
             string? result;
             try
             {
-                result = await selected.ProcessAsync(text, page);
+                result = await selected.ProcessAsync(text, pageVm);
             }
             catch (Exception ex)
             {
@@ -410,7 +411,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         AiResponse? response;
         try
         {
-            response = await _aiService.ContextChat(page, text);
+            response = await _aiService.ContextChat(pageVm, text);
         }
         catch (Exception ex)
         {
@@ -423,8 +424,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         switch (response.Kind)
         {
             case AiResponseKind.Action:
-                if (page is not null && response.Action is not null)
-                    page.Execute(response.Action);
+                if (pageVm is not null && response.Action is not null)
+                    pageVm.Execute(response.Action);
                 else
                     ShowError("Action failed", "No active page to execute action on.");
                 break;

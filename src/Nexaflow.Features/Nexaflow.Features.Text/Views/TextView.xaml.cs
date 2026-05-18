@@ -18,7 +18,7 @@ public partial class TextView : UserControl, IPageView
     private readonly TextViewModel            _vm;
     private readonly SearchHighlightRenderer  _renderer = new();
 
-    public object? ViewModel => _vm;
+    IPageViewModel? IPageView.ViewModel => _vm;
 
     public TextView(TextViewModel vm)
     {
@@ -29,6 +29,8 @@ public partial class TextView : UserControl, IPageView
 
         // Wire AvalonEdit after init — document is owned by the ViewModel
         Editor.Document = vm.Document;
+        // Give the ViewModel access to the visible text region (rendering-layer API)
+        vm.GetVisibleText = GetVisibleText;
         Editor.TextArea.TextView.BackgroundRenderers.Add(_renderer);
         Editor.ShowLineNumbers = vm.ShowLineNumbers;
         Editor.WordWrap        = vm.WordWrap;
@@ -169,52 +171,4 @@ public partial class TextView : UserControl, IPageView
         return Editor.Document.GetText(startOffset, endOffset - startOffset);
     }
 
-    public string GetContext()
-    {
-        var fileName = _vm.FilePath is not null ? System.IO.Path.GetFileName(_vm.FilePath) : "Untitled";
-        var path     = _vm.FilePath ?? string.Empty;
-        var visible  = GetVisibleText();
-        return $"Text file: '{fileName}' at '{path}'\nVisible text:\n{visible}";
-    }
-
-    public IReadOnlyList<ActionDescriptor> GetAvailableActions()
-    {
-        IReadOnlyDictionary<string, string> findParams = new Dictionary<string, string> { { "SearchTerm", string.Empty } };
-        return
-        [
-            new ActionDescriptor("Copy Visible Text", "Copy the text currently visible in the editor to the clipboard."),
-            new ActionDescriptor("Find", "Find text within the editor.", findParams)
-        ];
-    }
-
-    public IContext? GetContextObject()
-    {
-        if (string.IsNullOrEmpty(_vm.FilePath)) return null;
-
-        var dir = System.IO.Path.GetDirectoryName(_vm.FilePath);
-        if (string.IsNullOrEmpty(dir)) return null;
-
-        return new FileSystemContext
-        {
-            RootPath      = dir,
-            CurrentPath   = dir,
-            SelectedItems = [_vm.FilePath]
-        };
-    }
-
-    public void Execute(ActionDescriptor action)
-    {
-        switch (action.Name)
-        {
-            case "Copy Visible Text":
-                Clipboard.SetText(GetVisibleText());
-                break;
-
-            case "Find":
-                if (action.Parameters?.TryGetValue("SearchTerm", out var term) == true
-                    && !string.IsNullOrWhiteSpace(term))
-                    _ = _vm.SearchConventionalAsync(term);
-                break;
-        }
-    }
 }

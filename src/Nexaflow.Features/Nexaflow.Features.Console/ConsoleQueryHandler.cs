@@ -11,12 +11,12 @@ public sealed class ConsoleQueryHandler : IQueryHandler
 
     public string? Symbol => ">";
 
-    public float CanProcess(string input, IPageView? page = null) =>
-        page?.ViewModel is ConsoleViewModel ? 1.0f : 0f;
+    public float CanProcess(string input, IPageViewModel? pageVm = null) =>
+        pageVm is ConsoleViewModel ? 1.0f : 0f;
 
-    public Task<string?> ProcessAsync(string input, IPageView? page = null)
+    public Task<string?> ProcessAsync(string input, IPageViewModel? pageVm = null)
     {
-        if (page?.ViewModel is not ConsoleViewModel vm)
+        if (pageVm is not ConsoleViewModel vm)
             return Task.FromResult<string?>(
                 "No Console tab is active. Open a Console tab and try again.");
 

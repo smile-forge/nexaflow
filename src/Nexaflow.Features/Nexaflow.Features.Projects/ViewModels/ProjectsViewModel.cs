@@ -1,7 +1,8 @@
-using Nexaflow.Visuals.Common.Controls;
-using Nexaflow.Features.Projects.Model;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Nexaflow.Features.Common;
+using Nexaflow.Features.Projects.Model;
+using Nexaflow.Visuals.Common.Controls;
 using System.Collections.ObjectModel;
 using System.Windows.Media;
 
@@ -36,7 +37,7 @@ public partial class ProjectSummaryItem : ObservableObject
 
 // ── Main view-model ───────────────────────────────────────────────────────────
 
-public partial class ProjectsViewModel : ObservableObject
+public partial class ProjectsViewModel : ObservableObject, IPageViewModel
 {
     private readonly ProjectOperations _svc;
 
@@ -139,4 +140,15 @@ public partial class ProjectsViewModel : ObservableObject
         if (folder is null) return;
         OpenFilesRequested?.Invoke(System.IO.Path.Combine(_svc.RootPath, folder));
     }
+
+    // ── IPageViewModel ────────────────────────────────────────────────────
+
+    public string GetContext()
+    {
+        if (ProjectCount == 0) return "Projects list: no projects.";
+        var selected = SelectedProject is { } p ? $" Selected: '{p.DisplayName}'." : string.Empty;
+        return $"Projects list: {ProjectCount} project(s).{selected}";
+    }
+
+    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
 }
