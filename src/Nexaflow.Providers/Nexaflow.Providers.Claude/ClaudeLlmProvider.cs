@@ -8,7 +8,8 @@ namespace Nexaflow.Providers.Claude;
 
 public sealed class ClaudeLlmProvider : ILlmProvider
 {
-    public string Name => "Claude";
+    public const  string ProviderName = "Claude";
+    public string Name => ProviderName;
 
     private readonly ClaudeConfig               _config;
     private readonly IBackgroundActivityManager _activityManager;
