@@ -45,6 +45,12 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
 
     private bool _loadInProgress;
 
+    // Visible viewport range (display list indices), updated by the view's scroll handler.
+    // Defaults assume ~50-row viewport so the initial load auto-fills before any scroll event.
+    private int _firstVisibleDisplayIdx;
+    private int _lastVisibleDisplayIdx = 50;
+    private const int PreloadRows = 50;   // load this many rows past the visible bottom
+
     public JsonViewModel(string filePath, JsonFileLoader loader,
                          JsonPathEvaluator evaluator, IShellServices shellServices)
     {
@@ -203,6 +209,9 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
                 DisplayItems.AddRange(tail.Cast<JsonDisplayItem>());
 
                 OnPropertyChanged(nameof(HasVirtualItems));
+
+                // Kick off loading so the initial viewport fills without a scroll
+                ScheduleNextLoadIfNeeded();
             }, System.Windows.Threading.DispatcherPriority.Background, ct);
         }
         catch (OperationCanceledException) { }
@@ -250,14 +259,27 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
     // ── Virtual node loading ──────────────────────────────────────────────────
 
     /// <summary>
-    /// Called by the scroll handler whenever the user is near the bottom of loaded
-    /// content or the viewport isn't fully filled yet.
+    /// Records the currently visible display-list index range.  Called by the view
+    /// on every ScrollChanged so the VM knows where the user is.
+    /// </summary>
+    internal void SetVisibleRange(int firstDisplayIdx, int lastDisplayIdx)
+    {
+        _firstVisibleDisplayIdx = firstDisplayIdx;
+        _lastVisibleDisplayIdx  = lastDisplayIdx;
+    }
+
+    /// <summary>
+    /// Loads the next batch IF there's a virtual placeholder in or near the visible
+    /// viewport.  Called by the view on every scroll event AND chain-called from the
+    /// load completion path so the viewport fills up smoothly without requiring the
+    /// user to scroll for every batch.
     /// </summary>
     internal void TriggerVirtualLoads()
     {
         if (_loadInProgress) return;
+        if (!HasVirtualItemsInPreloadRange()) return;
 
-        // Priority 1: real VirtualJsonNodeModel sentinel — load the next sequential batch
+        // Priority 1: real VirtualJsonNodeModel sentinel (next-sequential load)
         var sentinel = DisplayItems
             .OfType<JsonVirtualDisplayItem>()
             .FirstOrDefault(i => i.Node is VirtualJsonNodeModel v && !v.IsLoading);
@@ -267,8 +289,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
             return;
         }
 
-        // Priority 2: pre-populated virtual placeholders at or after the loaded window end
-        // (covers the case where the sentinel was already removed but placeholders remain)
+        // Priority 2: pre-populated placeholder at or after the loaded window end
         var prePopBottom = DisplayItems
             .OfType<JsonVirtualDisplayItem>()
             .FirstOrDefault(i => i.RootChildIndex >= _loadWindowEnd);
@@ -278,15 +299,35 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
             return;
         }
 
-        // Priority 3: pre-populated virtual placeholders BEFORE the window (user scrolled back up)
+        // Priority 3: placeholders before the loaded window (user scrolled back up)
         var prePopTop = DisplayItems
             .OfType<JsonVirtualDisplayItem>()
             .LastOrDefault(i => i.RootChildIndex >= 0 && i.RootChildIndex < _loadWindowStart);
         if (prePopTop is not null)
         {
-            var targetIdx  = Math.Max(0, _loadWindowStart - LoadBatchSize);
+            var targetIdx = Math.Max(0, _loadWindowStart - LoadBatchSize);
             _ = LoadFromIndexAsync(targetIdx);
         }
+    }
+
+    private bool HasVirtualItemsInPreloadRange()
+    {
+        // Scan from the top of the visible area down to (lastVisible + PreloadRows).
+        var start = Math.Max(0, _firstVisibleDisplayIdx);
+        var end   = Math.Min(DisplayItems.Count - 1, _lastVisibleDisplayIdx + PreloadRows);
+        for (var i = start; i <= end; i++)
+        {
+            if (DisplayItems[i] is JsonVirtualDisplayItem) return true;
+        }
+        return false;
+    }
+
+    private void ScheduleNextLoadIfNeeded()
+    {
+        if (Application.Current?.Dispatcher is { } dispatcher)
+            dispatcher.BeginInvoke(
+                new Action(TriggerVirtualLoads),
+                System.Windows.Threading.DispatcherPriority.Background);
     }
 
     // Loads the next sequential batch (triggered by VirtualJsonNodeModel sentinel).
@@ -314,6 +355,8 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
         {
             virtualNode.IsLoading = false;
             _loadInProgress = false;
+            // Chain the next load if the viewport still has unloaded placeholders
+            ScheduleNextLoadIfNeeded();
         }
     }
 
@@ -335,7 +378,11 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
                 () => AbsorbBatchFromIndex(startIndex, batch, nextOffset));
         }
         catch { /* ignore */ }
-        finally { _loadInProgress = false; }
+        finally
+        {
+            _loadInProgress = false;
+            ScheduleNextLoadIfNeeded();
+        }
     }
 
     // Replaces the sentinel's display item with real tree items and a new sentinel (if more remain).

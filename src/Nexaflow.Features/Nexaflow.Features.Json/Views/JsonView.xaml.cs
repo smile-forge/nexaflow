@@ -29,16 +29,13 @@ public partial class JsonView : UserControl, IPageView
 
         vm.ScrollToItemRequested += OnScrollToItem;
 
-        Loaded += async (_, _) =>
-        {
-            await vm.LoadAsync(CancellationToken.None);
-            // Wire scroll-triggered pre-loading after the list is populated
-            DisplayList.AddHandler(
-                ScrollViewer.ScrollChangedEvent,
-                new ScrollChangedEventHandler(DisplayList_ScrollChanged),
-                handledEventsToo: true);
-        };
+        // Subscribe BEFORE LoadAsync so the very first layout's scroll change is caught
+        DisplayList.AddHandler(
+            ScrollViewer.ScrollChangedEvent,
+            new ScrollChangedEventHandler(DisplayList_ScrollChanged),
+            handledEventsToo: true);
 
+        Loaded   += async (_, _) => await vm.LoadAsync(CancellationToken.None);
         Unloaded += (_, _) =>
         {
             vm.ScrollToItemRequested -= OnScrollToItem;
@@ -59,22 +56,19 @@ public partial class JsonView : UserControl, IPageView
 
     // ── Scroll-triggered virtual loading ─────────────────────────────────────
 
-    // Pre-load the next batch when the user is within ~one viewport of the end
-    // of loaded content, OR when all content fits without needing to scroll (so
-    // the viewport auto-fills on initial load).
-    // NOTE: ScrollChangedEventArgs carries all needed metrics — do NOT check
-    // `sender is ScrollViewer`: sender is the ListBox, not the inner ScrollViewer.
+    // ListBox uses logical scrolling by default: e.VerticalOffset is the index
+    // of the first visible item, e.ViewportHeight is the visible row count.
+    // We feed that range to the VM, which checks whether any virtual placeholder
+    // sits in (or just below) the viewport — if so, load the next batch.
     private void DisplayList_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
         if (!_vm.HasVirtualItems) return;
-        if (e.ExtentHeight <= 0 || e.ViewportHeight <= 0) return;
+        if (e.ViewportHeight <= 0) return;
 
-        // Fire when within one viewport of the bottom, or when no scroll is needed at all
-        var nearBottom = e.VerticalOffset + e.ViewportHeight >= e.ExtentHeight - e.ViewportHeight;
-        var allVisible = e.ExtentHeight <= e.ViewportHeight;
-
-        if (nearBottom || allVisible)
-            _vm.TriggerVirtualLoads();
+        var first = (int)e.VerticalOffset;
+        var last  = first + (int)e.ViewportHeight;
+        _vm.SetVisibleRange(first, last);
+        _vm.TriggerVirtualLoads();
     }
 
     // ── Inline AvalonEdit (Text mode) ────────────────────────────────────────
