@@ -6,6 +6,11 @@ using System.Text.Json.Nodes;
 
 namespace Nexaflow.Features.Json.Services;
 
+public sealed record EstimateResult(
+    int   EstimatedCount,
+    long  AvgItemBytes,
+    bool  IsLikelyHomogeneous);
+
 public sealed record LoadResult(
     JsonNodeModel? Root,
     List<long>     ChildOffsets,
@@ -190,6 +195,106 @@ internal sealed class JsonFileLoader
 
         return (items.Select(x => (x.key, x.node)).ToList(), nextOffset);
     }
+
+    // ── Structure estimation ─────────────────────────────────────────────────
+    // Reads the first and last objects to estimate total item count and
+    // whether the array is likely homogeneous (all objects share the same keys).
+    // This is used to size the scrollbar without loading the whole file.
+
+    public async Task<EstimateResult?> EstimateAsync(
+        string filePath, long fileSize, bool isArray, CancellationToken ct)
+    {
+        const int SampleBytes = 64 * 1024;
+
+        // ── First item ───────────────────────────────────────────────────
+        await using var fs1 = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        var frontBuf  = new byte[(int)Math.Min(SampleBytes, fileSize)];
+        int frontRead = await fs1.ReadAsync(frontBuf, 0, frontBuf.Length, ct);
+        var frontText = Encoding.UTF8.GetString(frontBuf, 0, frontRead);
+
+        var (frontItems, _) = ExtractFrontChildren(frontText, isArray, 1);
+        if (frontItems.Count == 0) return null;
+
+        var firstNode      = frontItems[0].node;
+        var firstItemBytes = (long)Encoding.UTF8.GetByteCount(firstNode?.ToJsonString() ?? "null");
+        var firstKeys      = GetObjectKeys(firstNode);
+
+        // ── Last item ────────────────────────────────────────────────────
+        await using var fs2 = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        var backStart  = Math.Max(0, fileSize - SampleBytes);
+        fs2.Seek(backStart, SeekOrigin.Begin);
+        var backBuf  = new byte[(int)(fileSize - backStart)];
+        int backRead = await fs2.ReadAsync(backBuf, 0, backBuf.Length, ct);
+        var backText = Encoding.UTF8.GetString(backBuf, 0, backRead);
+
+        var (lastNode, lastItemBytes) = ExtractLastItem(backText, isArray);
+        if (lastItemBytes <= 0) lastItemBytes = firstItemBytes;
+        var lastKeys = GetObjectKeys(lastNode);
+
+        // ── Estimate ─────────────────────────────────────────────────────
+        var avgBytes       = Math.Max(1, (firstItemBytes + lastItemBytes) / 2);
+        var estimatedCount = (int)Math.Clamp(fileSize / avgBytes, 1, 10_000_000);
+
+        var isHomogeneous = firstKeys.Count > 0 && lastKeys.Count > 0
+            && firstKeys.OrderBy(k => k).SequenceEqual(lastKeys.OrderBy(k => k));
+
+        return new EstimateResult(estimatedCount, avgBytes, isHomogeneous);
+    }
+
+    private static (JsonNode? node, long itemBytes) ExtractLastItem(string text, bool isArray)
+    {
+        var closeChar = isArray ? ']' : '}';
+        var i = text.Length - 1;
+        while (i >= 0 && text[i] != closeChar) i--;
+        if (i < 0) return (null, 0);
+
+        // Walk back past whitespace
+        var end = i - 1;
+        while (end >= 0 && char.IsWhiteSpace(text[end])) end--;
+        if (end < 0) return (null, 0);
+
+        int start;
+        if (text[end] == '}' || text[end] == ']')
+        {
+            // Complex item — scan backward for matching open bracket
+            var depth = 1;
+            start = end - 1;
+            while (start >= 0 && depth > 0)
+            {
+                if (text[start] == '}' || text[start] == ']') depth++;
+                else if (text[start] == '{' || text[start] == '[') depth--;
+                start--;
+            }
+            start++; // land on the opening bracket
+        }
+        else
+        {
+            // Scalar — scan back to comma or opening bracket
+            start = end;
+            while (start > 0 && text[start - 1] != ',' &&
+                   text[start - 1] != '[' && text[start - 1] != '{')
+                start--;
+        }
+
+        var span = text[start..(end + 1)].Trim().TrimStart(',').Trim();
+        if (string.IsNullOrWhiteSpace(span)) return (null, 0);
+
+        try
+        {
+            var bytes = (long)Encoding.UTF8.GetByteCount(span);
+            if (!isArray && span.StartsWith('"'))
+            {
+                var colonIdx = FindPropertyColon(span);
+                if (colonIdx >= 0)
+                    return (JsonNode.Parse(span[(colonIdx + 1)..].Trim()), bytes);
+            }
+            return (JsonNode.Parse(span), bytes);
+        }
+        catch { return (null, 0); }
+    }
+
+    private static IReadOnlyList<string> GetObjectKeys(JsonNode? node)
+        => node is JsonObject obj ? obj.Select(kv => kv.Key).ToList() : [];
 
     // ── Item extraction (forward scan) ───────────────────────────────────────
 

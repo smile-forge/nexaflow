@@ -30,4 +30,12 @@ public sealed class JsonInlineContentDisplayItem : JsonDisplayItem
     public string       RawJson  { get; init; } = string.Empty;
 }
 
-public sealed class JsonVirtualDisplayItem : JsonDisplayItem { }
+public sealed class JsonVirtualDisplayItem : JsonDisplayItem
+{
+    /// <summary>
+    /// For pre-populated placeholder items: the zero-based depth-1 root child index
+    /// this row represents in the file. -1 means the item has a real VirtualJsonNodeModel
+    /// sentinel in Root.Children (use Node instead).
+    /// </summary>
+    public int RootChildIndex { get; init; } = -1;
+}

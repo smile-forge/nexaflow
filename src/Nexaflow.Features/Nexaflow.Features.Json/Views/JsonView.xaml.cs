@@ -59,15 +59,21 @@ public partial class JsonView : UserControl, IPageView
 
     // ── Scroll-triggered virtual loading ─────────────────────────────────────
 
-    // Pre-load the next batch when the user scrolls to within ~one viewport of
-    // the virtual sentinel row at the bottom of loaded content.
+    // Pre-load the next batch when the user is within ~one viewport of the end
+    // of loaded content, OR when all content fits without needing to scroll (so
+    // the viewport auto-fills on initial load).
+    // NOTE: ScrollChangedEventArgs carries all needed metrics — do NOT check
+    // `sender is ScrollViewer`: sender is the ListBox, not the inner ScrollViewer.
     private void DisplayList_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
         if (!_vm.HasVirtualItems) return;
-        if (sender is not ScrollViewer sv) return;
+        if (e.ExtentHeight <= 0 || e.ViewportHeight <= 0) return;
 
-        var nearBottom = sv.VerticalOffset + sv.ViewportHeight >= sv.ExtentHeight - sv.ViewportHeight;
-        if (nearBottom)
+        // Fire when within one viewport of the bottom, or when no scroll is needed at all
+        var nearBottom = e.VerticalOffset + e.ViewportHeight >= e.ExtentHeight - e.ViewportHeight;
+        var allVisible = e.ExtentHeight <= e.ViewportHeight;
+
+        if (nearBottom || allVisible)
             _vm.TriggerVirtualLoads();
     }
 
