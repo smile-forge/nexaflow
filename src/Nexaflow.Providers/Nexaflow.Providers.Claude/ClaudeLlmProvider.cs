@@ -105,6 +105,20 @@ public sealed class ClaudeLlmProvider : ILlmProvider
         }
     }
 
+    public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
+    {
+        IReadOnlyList<string> models =
+        [
+            "claude-opus-4-7",
+            "claude-sonnet-4-6",
+            "claude-haiku-4-5-20251001",
+            "claude-3-5-sonnet-20241022",
+            "claude-3-5-haiku-20241022",
+            "claude-3-opus-20240229",
+        ];
+        return Task.FromResult(models);
+    }
+
     private static string BuildUserContent(string prompt, IReadOnlyList<string>? attachments)
     {
         if (attachments is null || attachments.Count == 0)

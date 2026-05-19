@@ -1,6 +1,4 @@
 using Nexaflow.Features.Common;
-using Nexaflow.Providers.Common;
-using ConfigDisplayNameAttribute = Nexaflow.Features.Common.ConfigDisplayNameAttribute;
 
 namespace Nexaflow.Core;
 
@@ -21,12 +19,4 @@ public sealed class ShellConfig : IFeatureConfig
 
     [ConfigDisplayName("Language")]
     public LanguageOption Language { get; set; } = LanguageOption.English;
-
-    [ConfigDisplayName("AI Provider (Basic)")]
-    [ListSource(typeof(LlmProviderRegistry), nameof(LlmProviderRegistry.GetProviderNames))]
-    public string BasicAiProvider { get; set; } = string.Empty;
-
-    [ConfigDisplayName("AI Provider (Conversation)")]
-    [ListSource(typeof(LlmProviderRegistry), nameof(LlmProviderRegistry.GetProviderNames))]
-    public string ConversationAiProvider { get; set; } = string.Empty;
 }

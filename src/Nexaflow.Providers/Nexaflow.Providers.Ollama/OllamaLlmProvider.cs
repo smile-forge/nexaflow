@@ -84,6 +84,23 @@ public sealed class OllamaLlmProvider : ILlmProvider
         }
     }
 
+    public async Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            var client = new OllamaApiClient(new Uri(_config.Url));
+            var models  = await client.ListLocalModelsAsync(ct);
+            return models?.Select(m => m.Name ?? "")
+                          .Where(n => !string.IsNullOrEmpty(n))
+                          .ToList()
+                   ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
     private static string BuildUserContent(string prompt, IReadOnlyList<string>? attachments)
     {
         if (attachments is null || attachments.Count == 0)

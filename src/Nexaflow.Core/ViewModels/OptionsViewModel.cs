@@ -257,16 +257,6 @@ public partial class OptionsViewModel : ObservableObject
             }
         }
 
-        // Apply ShellConfig provider selections to registry
-        var shellSection = Sections.FirstOrDefault(s => s.RealConfig is ShellConfig);
-        if (shellSection?.RealConfig is ShellConfig sc)
-        {
-            if (!string.IsNullOrEmpty(sc.BasicAiProvider))
-                LlmProviderRegistry.SetBasicProvider(sc.BasicAiProvider);
-            if (!string.IsNullOrEmpty(sc.ConversationAiProvider))
-                LlmProviderRegistry.SetConversationProvider(sc.ConversationAiProvider);
-        }
-
         // Request tab refresh for feature configs
         var pageKindsToRefresh = Sections
             .Where(s => s.RealConfig is IFeatureConfig)

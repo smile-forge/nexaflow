@@ -80,5 +80,8 @@ public sealed class AriaLlmProvider : ILlmProvider, IAsyncDisposable
         }
     }
 
+    public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<string>>([]);
+
     public async ValueTask DisposeAsync() => await _client.DisposeAsync();
 }

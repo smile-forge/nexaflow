@@ -1,3 +1,4 @@
+using Nexaflow.Core.Services;
 using Nexaflow.Providers.Common;
 
 namespace Nexaflow.Core;
@@ -7,7 +8,7 @@ namespace Nexaflow.Core;
 /// Call <see cref="Register(Type, IBackgroundActivityManager)"/> at startup with any type
 /// from the provider assembly; the manager scans that assembly for <see cref="ILlmProvider"/>
 /// and <see cref="IProviderConfig"/> implementations, wires configs as constructor dependencies,
-/// and registers everything automatically.
+/// and registers everything with <see cref="AIService.Instance"/> automatically.
 /// </summary>
 public sealed class ProviderManager
 {
@@ -53,7 +54,7 @@ public sealed class ProviderManager
                                        .FirstOrDefault(c => c.GetType() == p.ParameterType))
                            .ToArray();
             var provider = (ILlmProvider)ctor.Invoke(args);
-            LlmProviderRegistry.Register(provider.Name, provider);
+            AIService.Instance.Register(provider.Name, provider);
         }
     }
 }

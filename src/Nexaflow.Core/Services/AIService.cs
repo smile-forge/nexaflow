@@ -1,3 +1,4 @@
+using Nexaflow.Core.AI;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using System.IO;
@@ -6,23 +7,66 @@ using System.Text.Json.Nodes;
 
 namespace Nexaflow.Core.Services;
 
-public class AIService : IAIService
+public sealed class AIService : IAIService
 {
+    public static AIService Instance { get; } = new();
+
+    private AIService() { }
+
+    // ── Provider registry ─────────────────────────────────────────────────
+
+    private readonly Dictionary<string, ILlmProvider> _providers
+        = new(StringComparer.OrdinalIgnoreCase);
+
+    private AiConfig? _abilityConfig;
+
+    /// <summary>Registers a named provider. Called by ProviderManager during startup.</summary>
+    public void Register(string name, ILlmProvider provider)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+        _providers[name] = provider;
+    }
+
+    /// <summary>All registered providers, keyed by name.</summary>
+    public IReadOnlyDictionary<string, ILlmProvider> AllProviders => _providers;
+
+    /// <summary>Loads the ability-to-provider mapping. Called once startup config is ready.</summary>
+    public void LoadAbilityConfig(AiConfig config) => _abilityConfig = config;
+
+    /// <summary>
+    /// Returns the provider assigned to <paramref name="ability"/>, or null if none is
+    /// configured or the configured provider is not registered.
+    /// </summary>
+    public ILlmProvider? GetProvider(AiAbility ability)
+    {
+        if (_abilityConfig is null) return null;
+
+        var key = ability.ToString();
+        if (!_abilityConfig.Assignments.TryGetValue(key, out var columnId)
+            || string.IsNullOrEmpty(columnId))
+            return null;
+
+        var pair = _abilityConfig.Columns.FirstOrDefault(c => c.Id == columnId);
+        if (pair is null) return null;
+
+        return _providers.TryGetValue(pair.ProviderName, out var p) ? p : null;
+    }
+
+    // ── Persistence ───────────────────────────────────────────────────────
+
     private static readonly string BaseDir =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                      "Smile", "Nexaflow", "Conversations");
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
-        WriteIndented              = true,
+        WriteIndented               = true,
         PropertyNameCaseInsensitive = true
     };
 
     private List<ConversationRecord> _conversations = [];
 
     public ConversationRecord? ActiveConversation { get; }
-
-    // ── Persistence ───────────────────────────────────────────────────────
 
     public async Task<IEnumerable<ConversationRecord>> LoadAllAsync()
     {
@@ -65,6 +109,9 @@ public class AIService : IAIService
     public async Task<IQueryHandler?> DisambiguateToolSelection(
         IPageViewModel? page, string input, IReadOnlyList<IQueryHandler> candidates)
     {
+        var provider = GetProvider(AiAbility.Disambiguation);
+        if (provider is null) return null;
+
         var context  = page?.GetContext() ?? "No specific context.";
         var toolList = string.Join("\n", candidates.Select((h, i) => $"{i + 1}. {h.Description}"));
 
@@ -75,10 +122,9 @@ public class AIService : IAIService
             $"Tools:\n0. None of these apply\n{toolList}\n\n" +
             "Which tool number should handle this request?";
 
-        var response = await LlmProviderRegistry.Basic.QueryAsync(systemPrompt, userPrompt);
+        var response = await provider.QueryAsync(systemPrompt, userPrompt);
         var raw      = response?.RawText?.Trim() ?? string.Empty;
 
-        // Extract first digit from the reply
         var digit = raw.FirstOrDefault(char.IsDigit);
         if (digit == default) return null;
 
@@ -88,6 +134,9 @@ public class AIService : IAIService
 
     public async Task<AiResponse?> ContextChat(IPageViewModel? page, string input)
     {
+        var provider = GetProvider(AiAbility.Conversation);
+        if (provider is null) return null;
+
         var context = page?.GetContext() ?? "No specific context.";
         var actions = page?.GetAvailableActions() ?? [];
 
@@ -109,11 +158,10 @@ public class AIService : IAIService
             "3. For a conversational reply, respond normally.\n" +
             "Choose the format that best serves the user's intent.";
 
-        var response = await LlmProviderRegistry.Conversation.QueryAsync(systemPrompt, input);
+        var response = await provider.QueryAsync(systemPrompt, input);
         var raw      = response?.RawText?.Trim() ?? string.Empty;
         if (string.IsNullOrEmpty(raw)) return null;
 
-        // JSON action
         if (raw.StartsWith('{'))
         {
             try
@@ -134,12 +182,10 @@ public class AIService : IAIService
             catch { /* fall through to message */ }
         }
 
-        // Prefill suggestion
         const string prefillPrefix = "PREFILL:";
         if (raw.StartsWith(prefillPrefix, StringComparison.OrdinalIgnoreCase))
             return AiResponse.AsPrefill(raw[prefillPrefix.Length..].TrimStart());
 
-        // Conversational response
         return AiResponse.AsMessage(raw);
     }
 }
