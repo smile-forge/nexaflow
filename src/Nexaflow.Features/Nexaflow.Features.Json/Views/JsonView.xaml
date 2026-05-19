@@ -319,38 +319,68 @@
                 <!-- ── Inline content: raw JSON (Text mode) or table (Table mode) ── -->
                 <DataTemplate DataType="{x:Type m:JsonInlineContentDisplayItem}">
                     <Grid>
-                        <!-- AvalonEdit for Text mode -->
-                        <avalon:TextEditor x:Name="InlineEditor"
-                                           Loaded="InlineEditor_Loaded"
-                                           MinHeight="120"
-                                           MaxHeight="500"
-                                           FontFamily="Cascadia Code, Consolas, Courier New, monospace"
-                                           FontSize="13"
-                                           ShowLineNumbers="True"
-                                           Background="{StaticResource BgBrush}"
-                                           Foreground="{StaticResource TextBrush}"
-                                           Padding="{Binding Depth,
-                                               Converter={StaticResource DepthMargin}}"
-                                           Visibility="{Binding ViewMode,
-                                               Converter={StaticResource ViewModeVis},
-                                               ConverterParameter=Text}"/>
+                        <!-- AvalonEdit for Text mode — left accent line, auto scroll -->
+                        <Border BorderThickness="2,0,0,0"
+                                BorderBrush="{StaticResource AccentBrush}"
+                                Margin="{Binding Depth, Converter={StaticResource DepthMargin}}"
+                                Padding="6,2,0,2"
+                                Visibility="{Binding ViewMode,
+                                    Converter={StaticResource ViewModeVis},
+                                    ConverterParameter=Text}">
+                            <avalon:TextEditor x:Name="InlineEditor"
+                                               Loaded="InlineEditor_Loaded"
+                                               MaxHeight="500"
+                                               FontFamily="Cascadia Code, Consolas, Courier New, monospace"
+                                               FontSize="13"
+                                               ShowLineNumbers="True"
+                                               Background="{StaticResource BgBrush}"
+                                               Foreground="{StaticResource TextBrush}"
+                                               VerticalScrollBarVisibility="Auto"
+                                               HorizontalScrollBarVisibility="Auto"/>
+                        </Border>
 
-                        <!-- DataGrid for Table mode -->
+                        <!-- DataGrid for Table mode — full dark theme styling -->
                         <DataGrid x:Name="InlineTable"
                                   Loaded="InlineTable_Loaded"
                                   AutoGenerateColumns="False"
                                   MaxHeight="400"
                                   IsReadOnly="True"
+                                  HeadersVisibility="Column"
                                   Background="{StaticResource SurfaceBrush}"
+                                  RowBackground="Transparent"
+                                  AlternatingRowBackground="Transparent"
                                   Foreground="{StaticResource TextBrush}"
                                   BorderThickness="0"
                                   GridLinesVisibility="Horizontal"
                                   HorizontalGridLinesBrush="{StaticResource BorderBrush}"
-                                  Margin="{Binding Depth,
-                                      Converter={StaticResource DepthMargin}}"
+                                  Margin="{Binding Depth, Converter={StaticResource DepthMargin}}"
                                   Visibility="{Binding ViewMode,
                                       Converter={StaticResource ViewModeVis},
-                                      ConverterParameter=Table}"/>
+                                      ConverterParameter=Table}">
+                            <DataGrid.RowStyle>
+                                <Style TargetType="DataGridRow">
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                </Style>
+                            </DataGrid.RowStyle>
+                            <DataGrid.CellStyle>
+                                <Style TargetType="DataGridCell">
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                    <Setter Property="BorderThickness" Value="0"/>
+                                    <Setter Property="Padding" Value="6,3"/>
+                                </Style>
+                            </DataGrid.CellStyle>
+                            <DataGrid.ColumnHeaderStyle>
+                                <Style TargetType="DataGridColumnHeader">
+                                    <Setter Property="Background" Value="{StaticResource Surface2Brush}"/>
+                                    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                    <Setter Property="Padding" Value="6,4"/>
+                                    <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                                </Style>
+                            </DataGrid.ColumnHeaderStyle>
+                        </DataGrid>
                     </Grid>
                 </DataTemplate>
 

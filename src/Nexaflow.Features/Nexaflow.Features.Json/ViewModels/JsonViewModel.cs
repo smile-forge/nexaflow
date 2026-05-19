@@ -447,21 +447,29 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
         virtualNode.IsLoading = true;
         try
         {
-            var loaded = await _loader.LoadVirtualNodeAsync(
-                FilePath, virtualNode.ByteOffset,
-                virtualNode.Parent ?? virtualNode,
-                virtualNode.Key, virtualNode.Index,
-                CancellationToken.None);
+            var parent = virtualNode.Parent;
+            if (parent is null) return;
 
-            if (loaded is null) return;
-            await Application.Current.Dispatcher.InvokeAsync(() => ReplaceVirtualNode(virtualNode, loaded, item));
+            var isArray   = parent is JsonArrayNodeModel;
+            var endOffset = virtualNode.EndOffset > virtualNode.ByteOffset
+                ? virtualNode.EndOffset
+                : virtualNode.ByteOffset + 512 * 1024;
+
+            var batch = await _loader.LoadVirtualChunkAsync(
+                FilePath, virtualNode.ByteOffset, endOffset, isArray, CancellationToken.None);
+
+            if (batch.Count == 0) return;
+            await Application.Current.Dispatcher.InvokeAsync(
+                () => ReplaceVirtualNodeWithBatch(virtualNode, batch, item));
         }
         catch { /* ignore */ }
         finally { virtualNode.IsLoading = false; }
     }
 
-    private void ReplaceVirtualNode(VirtualJsonNodeModel virtualNode,
-                                    JsonNodeModel loaded, JsonVirtualDisplayItem displayItem)
+    private void ReplaceVirtualNodeWithBatch(
+        VirtualJsonNodeModel virtualNode,
+        List<(string? key, JsonNode? node)> batch,
+        JsonVirtualDisplayItem displayItem)
     {
         var parent = virtualNode.Parent;
         if (parent is null) return;
@@ -471,15 +479,28 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
 
         var sibIdx = siblings.IndexOf(virtualNode);
         if (sibIdx < 0) return;
-        loaded.Parent = parent;
-        siblings[sibIdx] = loaded;
+        siblings.RemoveAt(sibIdx);
+
+        var startIndex = virtualNode.Index ?? sibIdx;
+        var newNodes   = new List<JsonNodeModel>();
+
+        for (var i = 0; i < batch.Count; i++)
+        {
+            var (key, jsonNode) = batch[i];
+            var nodeCount = 0;
+            var model = JsonFileLoader.BuildModelFromJsonNode(
+                jsonNode, parent, key,
+                parent is JsonArrayNodeModel ? startIndex + i : (int?)null,
+                ref nodeCount);
+            siblings.Insert(sibIdx + i, model);
+            newNodes.Add(model);
+        }
 
         var displayIdx = DisplayItems.IndexOf(displayItem);
-        if (displayIdx >= 0)
-        {
-            DisplayItems.RemoveAt(displayIdx);
-            InsertNodeItem(displayIdx, loaded, displayItem.Depth);
-        }
+        if (displayIdx < 0) return;
+        DisplayItems.RemoveAt(displayIdx);
+        foreach (var node in newNodes)
+            displayIdx = InsertNodeItem(displayIdx, node, displayItem.Depth);
     }
 
     // ── IPageViewModel ────────────────────────────────────────────────────────

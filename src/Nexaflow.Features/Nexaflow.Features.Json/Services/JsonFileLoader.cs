@@ -164,11 +164,10 @@ internal sealed class JsonFileLoader
         return new LoadResult(rootModel, [], true, fileSize, totalNodes, null);
     }
 
-    private static (List<(string? key, JsonNode? node, long endOffset)> items, long endOffset)
-        ExtractFrontChildren(string text, bool isArray)
+    internal static (List<(string? key, JsonNode? node, long endOffset)> items, long endOffset)
+        ExtractFrontChildren(string text, bool isArray, int maxItems = 50)
     {
         var items     = new List<(string? key, JsonNode? node, long endOffset)>();
-        var maxItems  = 50;
         var depth     = 0;
         var inStr     = false;
         var escaped   = false;
@@ -192,11 +191,18 @@ internal sealed class JsonFileLoader
             if (ch == '{' || ch == '[') { depth++; i++; continue; }
             if (ch == '}' || ch == ']')
             {
-                if (depth == 0) break; // hit root close
+                if (depth == 0)
+                {
+                    // Root close: capture any trailing scalar item
+                    var trailing = text[itemStart..i].Trim().TrimStart(',').Trim();
+                    if (!string.IsNullOrWhiteSpace(trailing))
+                        TryParseItem(trailing, isArray, items, i);
+                    break;
+                }
                 depth--;
                 if (depth == 0)
                 {
-                    // Complete item found
+                    // Complete complex item (object or array) found
                     var span = text[itemStart..(i + 1)].Trim().TrimStart(',').Trim();
                     TryParseItem(span, isArray, items, i + 1);
                     itemStart = i + 1;
@@ -204,7 +210,14 @@ internal sealed class JsonFileLoader
                 i++;
                 continue;
             }
-            if (depth == 0 && ch == ',') { itemStart = i + 1; }
+            if (depth == 0 && ch == ',')
+            {
+                // Scalar item ends at this comma
+                var span = text[itemStart..i].Trim().TrimStart(',').Trim();
+                if (!string.IsNullOrWhiteSpace(span))
+                    TryParseItem(span, isArray, items, i);
+                itemStart = i + 1;
+            }
             i++;
         }
 
@@ -253,70 +266,66 @@ internal sealed class JsonFileLoader
     private static (List<(string? key, JsonNode? node, long offsetInChunk)> items, long startOffset)
         ExtractBackChildren(string text, bool isArray, long chunkAbsoluteStart)
     {
-        var items    = new List<(string? key, JsonNode? node, long offsetInChunk)>();
-        var maxItems = 50;
-
-        // Find the root closing bracket from the end
+        var maxItems  = 50;
         var closeChar = isArray ? ']' : '}';
-        var end = text.Length - 1;
-        while (end >= 0 && text[end] != closeChar) end--;
-        if (end < 0) return (items, text.Length);
 
-        // Scan backwards from the root close to find depth-1 item boundaries
-        // This is complex; for simplicity, try to parse a complete tail fragment
-        // by finding the second-to-last depth-0 transition
+        // Find the root closing bracket from the end of the chunk
+        var rootClose = text.Length - 1;
+        while (rootClose >= 0 && text[rootClose] != closeChar) rootClose--;
+        if (rootClose < 0) return ([], text.Length);
 
-        var depth    = 0;
-        var inStr    = false;
+        // Backward scan from just before the root close, collecting item boundary positions.
+        // We record: {/[ at depth 0 (start of a complex item), and , at depth 0 (scalar separators).
         var boundaries = new List<int>();
+        boundaries.Add(rootClose); // end sentinel
 
-        for (var i = end - 1; i >= 0 && items.Count < maxItems; i--)
+        var depth = 0;
+        var inStr = false;
+
+        for (var i = rootClose - 1; i >= 0 && boundaries.Count < maxItems + 2; i--)
         {
             var ch = text[i];
-            // Simplified backward scan (doesn't handle escaped quotes perfectly but good enough for structure detection)
+
+            // Escape-aware quote detection for backward scan
+            if (ch == '"')
+            {
+                var slashes = 0;
+                for (var j = i - 1; j >= 0 && text[j] == '\\'; j--) slashes++;
+                if (slashes % 2 == 0) inStr = !inStr; // unescaped quote
+            }
+            if (inStr) continue;
+
             if (ch == '}' || ch == ']') { depth++; continue; }
             if (ch == '{' || ch == '[')
             {
-                if (depth == 0) { boundaries.Add(i); }
+                if (depth == 0) boundaries.Add(i); // start of a top-level complex item
                 else depth--;
                 continue;
             }
+            if (ch == ',' && depth == 0) boundaries.Add(i); // scalar separator
         }
 
-        boundaries.Reverse();
-        long firstStart = boundaries.Count > 0 ? boundaries[0] : end;
+        boundaries.Sort();
 
-        // Try to parse each found item
-        foreach (var start in boundaries)
+        var allItems = new List<(string? key, JsonNode? node, long offsetInChunk)>();
+        for (var b = 0; b < boundaries.Count - 1; b++)
         {
-            try
-            {
-                // Find the end of this item (next boundary or root close)
-                var nextStart = boundaries.IndexOf(start) + 1 < boundaries.Count
-                    ? boundaries[boundaries.IndexOf(start) + 1]
-                    : end;
-                var raw = text[start..nextStart].Trim().TrimEnd(',').Trim();
-                if (isArray)
-                {
-                    var node = JsonNode.Parse(raw);
-                    items.Add((null, node, start + chunkAbsoluteStart));
-                }
-                else if (raw.StartsWith('"'))
-                {
-                    var colonIdx = FindPropertyColon(raw);
-                    if (colonIdx >= 0)
-                    {
-                        var rawKey    = raw[1..colonIdx].TrimEnd('"');
-                        var valueText = raw[(colonIdx + 1)..].TrimEnd(',').Trim();
-                        var node      = JsonNode.Parse(valueText);
-                        items.Add((rawKey, node, start + chunkAbsoluteStart));
-                    }
-                }
-            }
-            catch { /* skip */ }
+            var start = boundaries[b];
+            var end   = boundaries[b + 1];
+            var span  = text[start..end].Trim().TrimStart(',').Trim();
+            if (string.IsNullOrWhiteSpace(span)) continue;
+            TryParseItem(span, isArray, allItems, chunkAbsoluteStart + start);
         }
 
-        return (items, firstStart);
+        // Take last maxItems (closest to the end of the file)
+        var result = allItems.Count <= maxItems
+            ? allItems
+            : allItems.GetRange(allItems.Count - maxItems, maxItems);
+
+        long firstStart = result.Count > 0
+            ? result[0].offsetInChunk - chunkAbsoluteStart
+            : rootClose;
+        return (result, firstStart);
     }
 
     private static JsonArrayNodeModel BuildLargeArrayModel(
@@ -344,6 +353,7 @@ internal sealed class JsonFileLoader
                 Parent     = arrModel,
                 Index      = idx,
                 ByteOffset = frontEnd,
+                EndOffset  = backAbsStart,
             };
             arrModel.Children.Add(virtualNode);
             idx++;
@@ -381,6 +391,7 @@ internal sealed class JsonFileLoader
             {
                 Parent     = objModel,
                 ByteOffset = frontEnd,
+                EndOffset  = backAbsStart,
             };
             objModel.Children.Add(virtualNode);
         }
@@ -406,6 +417,25 @@ internal sealed class JsonFileLoader
     }
 
     // ── Virtual node loading ─────────────────────────────────────────────────
+
+    public async Task<List<(string? key, JsonNode? node)>> LoadVirtualChunkAsync(
+        string filePath, long startOffset, long endOffset, bool isArray, CancellationToken ct)
+    {
+        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        stream.Seek(startOffset, SeekOrigin.Begin);
+
+        var chunkLen = (int)Math.Min(endOffset - startOffset, 5 * 1024 * 1024);
+        var buf  = new byte[chunkLen];
+        var read = await stream.ReadAsync(buf, 0, chunkLen, ct);
+        var text = Encoding.UTF8.GetString(buf, 0, read);
+
+        // Strip any leading comma/whitespace left over from the preceding item boundary,
+        // then wrap in the appropriate opening bracket so ExtractFrontChildren can parse it.
+        var trimmed = text.TrimStart(',', ' ', '\r', '\n', '\t');
+        var wrapped = (isArray ? "[" : "{") + trimmed;
+        var (items, _) = ExtractFrontChildren(wrapped, isArray, int.MaxValue);
+        return items.Select(x => (x.key, x.node)).ToList();
+    }
 
     public async Task<JsonNodeModel?> LoadVirtualNodeAsync(
         string filePath, long byteOffset, JsonNodeModel parent, string? key, int? index, CancellationToken ct)
