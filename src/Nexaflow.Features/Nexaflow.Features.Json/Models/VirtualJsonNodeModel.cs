@@ -9,4 +9,7 @@ public sealed partial class VirtualJsonNodeModel : JsonNodeModel
     public int  EstimatedItemCount { get; set; } // > 0 when this sentinel represents N unloaded items
 
     [ObservableProperty] private bool _isLoading;
+
+    /// <summary>Set true after a load at this sentinel's offset fails so we don't retry.</summary>
+    public bool IsLoadFailed { get; set; }
 }

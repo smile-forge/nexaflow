@@ -233,6 +233,7 @@
                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
                  VirtualizingPanel.IsVirtualizing="True"
                  VirtualizingPanel.VirtualizationMode="Recycling"
+                 Grid.IsSharedSizeScope="True"
                  AllowDrop="True"
                  PreviewMouseMove="DisplayList_PreviewMouseMove"
                  DragOver="DisplayList_DragOver"
@@ -329,7 +330,7 @@
                                     ConverterParameter=Text}">
                             <avalon:TextEditor x:Name="InlineEditor"
                                                Loaded="InlineEditor_Loaded"
-                                               MaxHeight="500"
+                                               MaxHeight="250"
                                                FontFamily="Cascadia Code, Consolas, Courier New, monospace"
                                                FontSize="13"
                                                ShowLineNumbers="True"
@@ -397,6 +398,23 @@
                                    FontSize="12"
                                    FontStyle="Italic"/>
                     </StackPanel>
+                </DataTemplate>
+
+                <!-- ── Table header row (root array, Table mode) ── -->
+                <DataTemplate DataType="{x:Type m:JsonTableHeaderDisplayItem}">
+                    <Border Background="{StaticResource Surface2Brush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,0,0,1"
+                            Margin="{Binding Depth, Converter={StaticResource DepthMargin}}">
+                        <Grid x:Name="HeaderGrid" Loaded="TableHeader_Loaded"/>
+                    </Border>
+                </DataTemplate>
+
+                <!-- ── Table data row (root array, Table mode) ── -->
+                <DataTemplate DataType="{x:Type m:JsonTableRowDisplayItem}">
+                    <Grid x:Name="RowGrid"
+                          Loaded="TableRow_Loaded"
+                          Margin="{Binding Depth, Converter={StaticResource DepthMargin}}"/>
                 </DataTemplate>
 
             </ListBox.Resources>

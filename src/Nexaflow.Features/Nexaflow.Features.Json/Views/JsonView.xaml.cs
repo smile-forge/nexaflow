@@ -72,14 +72,76 @@ public partial class JsonView : UserControl, IPageView
     }
 
     // ── Inline AvalonEdit (Text mode) ────────────────────────────────────────
+    // Virtualization may recycle the same TextEditor instance to a different
+    // inline content row, so:
+    //   * always read item from DataContext at handler-fire time (no closure capture)
+    //   * subscribe handlers idempotently (clear-tag-then-attach)
+    //   * skip Text reassignment if already in sync, to avoid layout thrash that
+    //     causes the outer ListBox to jitter
 
     private void InlineEditor_Loaded(object sender, RoutedEventArgs e)
     {
         if (sender is not TextEditor editor) return;
         if (editor.DataContext is not JsonInlineContentDisplayItem item) return;
 
-        editor.Text = item.RawJson;
-        editor.LostFocus += (_, _) => _vm.CommitRawJson(item.Node, editor.Text);
+        if (editor.Text != item.RawJson)
+            editor.Text = item.RawJson;
+
+        // Idempotent subscription: remove first in case Loaded already fired for
+        // this instance (recycling, re-template, etc.).
+        editor.LostFocus      -= InlineEditor_LostFocus;
+        editor.LostFocus      += InlineEditor_LostFocus;
+        editor.PreviewMouseWheel -= InlineEditor_PreviewMouseWheel;
+        editor.PreviewMouseWheel += InlineEditor_PreviewMouseWheel;
+        editor.MouseEnter     -= InlineEditor_MouseEnter;
+        editor.MouseEnter     += InlineEditor_MouseEnter;
+    }
+
+    private void InlineEditor_LostFocus(object? sender, RoutedEventArgs e)
+    {
+        // Read item from current DataContext, NOT a captured variable — virtualization
+        // may have recycled this editor to a different row since Loaded ran.
+        if (sender is not TextEditor editor) return;
+        if (editor.DataContext is not JsonInlineContentDisplayItem item) return;
+        if (editor.Text == item.RawJson) return;
+        _vm.CommitRawJson(item.Node, editor.Text);
+    }
+
+    private void InlineEditor_MouseEnter(object sender, MouseEventArgs e)
+    {
+        // Give the editor focus so wheel events go to its internal ScrollViewer first.
+        if (sender is TextEditor editor && !editor.TextArea.IsKeyboardFocusWithin)
+            editor.TextArea.Focus();
+    }
+
+    private void InlineEditor_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        // Manually drive the editor's internal ScrollViewer and mark the event handled,
+        // so wheel scrolling over the editor never bubbles to the outer ListBox.
+        if (sender is not TextEditor editor) return;
+        var sv = FindScrollViewer(editor);
+        if (sv is null) return;
+
+        // 3 lines per wheel notch — same feel as the outer list
+        var delta = e.Delta > 0 ? -3 : 3;
+        for (var i = 0; i < Math.Abs(delta); i++)
+        {
+            if (e.Delta > 0) sv.LineUp();
+            else             sv.LineDown();
+        }
+        e.Handled = true;
+    }
+
+    private static ScrollViewer? FindScrollViewer(DependencyObject root)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is ScrollViewer sv) return sv;
+            var nested = FindScrollViewer(child);
+            if (nested is not null) return nested;
+        }
+        return null;
     }
 
     // ── Inline DataGrid (Table mode) ─────────────────────────────────────────
@@ -129,6 +191,59 @@ public partial class JsonView : UserControl, IPageView
         }
 
         dg.ItemsSource = table.DefaultView;
+    }
+
+    // ── Table mode rows (root array) ─────────────────────────────────────────
+    // Column widths are aligned across rows via SharedSizeGroup (ListBox has
+    // Grid.IsSharedSizeScope="True"). Auto-sized cells with a min width.
+
+    private void TableHeader_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Grid grid) return;
+        if (grid.DataContext is not JsonTableHeaderDisplayItem header) return;
+        BuildTableGrid(grid, header.Columns, header.Columns, isHeader: true);
+    }
+
+    private void TableRow_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Grid grid) return;
+        if (grid.DataContext is not JsonTableRowDisplayItem row) return;
+        BuildTableGrid(grid, row.Columns, row.Values, isHeader: false);
+    }
+
+    private void BuildTableGrid(Grid grid, IReadOnlyList<string> columns,
+                                IReadOnlyList<string> values, bool isHeader)
+    {
+        grid.Children.Clear();
+        grid.ColumnDefinitions.Clear();
+        var headerBrush = (Brush)FindResource("TextBrush");
+        var cellBrush   = (Brush)FindResource("TextBrush");
+
+        for (var i = 0; i < columns.Count; i++)
+        {
+            grid.ColumnDefinitions.Add(new ColumnDefinition
+            {
+                Width           = GridLength.Auto,
+                MinWidth        = 80,
+                SharedSizeGroup = $"JsonCol{i}",
+            });
+        }
+
+        for (var i = 0; i < values.Count && i < columns.Count; i++)
+        {
+            var tb = new TextBlock
+            {
+                Text                = values[i] ?? string.Empty,
+                FontSize            = 12,
+                Margin              = new Thickness(8, 3, 8, 3),
+                VerticalAlignment   = VerticalAlignment.Center,
+                TextTrimming        = TextTrimming.CharacterEllipsis,
+                Foreground          = isHeader ? headerBrush : cellBrush,
+                FontWeight          = isHeader ? FontWeights.SemiBold : FontWeights.Normal,
+            };
+            Grid.SetColumn(tb, i);
+            grid.Children.Add(tb);
+        }
     }
 
     // ── Drag and drop ────────────────────────────────────────────────────────

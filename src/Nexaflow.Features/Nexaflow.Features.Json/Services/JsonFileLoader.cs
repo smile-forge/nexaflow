@@ -17,6 +17,7 @@ public sealed record LoadResult(
     bool           IsLargeFile,
     long           FileSizeBytes,
     int            NodeCount,
+    long           RootContentOffset,   // file byte position of the first item's first byte
     string?        ErrorMessage);
 
 internal sealed class JsonFileLoader
@@ -46,14 +47,14 @@ internal sealed class JsonFileLoader
         {
             var info = new FileInfo(filePath);
             if (!info.Exists)
-                return new LoadResult(null, [], false, 0, 0, $"File not found: {filePath}");
+                return new LoadResult(null, [], false, 0, 0, 0, $"File not found: {filePath}");
 
             return info.Length <= SmallFileSizeLimit
                 ? await LoadSmallAsync(filePath, info.Length, ct)
                 : await LoadLargeAsync(filePath, info.Length, ct);
         }
-        catch (OperationCanceledException) { return new LoadResult(null, [], false, 0, 0, null); }
-        catch (Exception ex) { return new LoadResult(null, [], false, 0, 0, $"Error loading file: {ex.Message}"); }
+        catch (OperationCanceledException) { return new LoadResult(null, [], false, 0, 0, 0, null); }
+        catch (Exception ex) { return new LoadResult(null, [], false, 0, 0, 0, $"Error loading file: {ex.Message}"); }
     }
 
     // ── Small file path ──────────────────────────────────────────────────────
@@ -66,11 +67,11 @@ internal sealed class JsonFileLoader
             var jsonNode = JsonNode.Parse(text, nodeOptions: null, documentOptions: s_documentOptions);
             var nodeCount = 0;
             var root = BuildModelFromJsonNode(jsonNode, parent: null, key: null, index: null, ref nodeCount);
-            return new LoadResult(root, [], false, fileSize, nodeCount, null);
+            return new LoadResult(root, [], false, fileSize, nodeCount, 0, null);
         }
         catch (JsonException ex)
         {
-            return new LoadResult(null, [], false, fileSize, 0, $"Invalid JSON: {ex.Message}");
+            return new LoadResult(null, [], false, fileSize, 0, 0, $"Invalid JSON: {ex.Message}");
         }
     }
 
@@ -92,7 +93,7 @@ internal sealed class JsonFileLoader
             var fullText  = await new StreamReader(stream, Encoding.UTF8).ReadToEndAsync(ct);
             var r         = 0;
             var scalarRoot = BuildModelFromJsonNode(JsonNode.Parse(fullText), null, null, null, ref r);
-            return new LoadResult(scalarRoot, [], true, fileSize, r, null);
+            return new LoadResult(scalarRoot, [], true, fileSize, r, 0, null);
         }
 
         var isArray = rootChar == (byte)'[';
@@ -110,7 +111,9 @@ internal sealed class JsonFileLoader
             : BuildStreamingObjectModel(frontItems, fileSize, frontEndBytes);
 
         var totalNodes = CountNodes(rootModel);
-        return new LoadResult(rootModel, [], true, fileSize, totalNodes, null);
+        // RootContentOffset = byte right after the opening bracket; this is the
+        // exact spot LoadVirtualChunkAsync needs to resume reading item 0 from.
+        return new LoadResult(rootModel, [], true, fileSize, totalNodes, rootStart + 1, null);
     }
 
     // ── Streaming root builders ──────────────────────────────────────────────
@@ -364,8 +367,14 @@ internal sealed class JsonFileLoader
                     if (!reader.Read()) break;
                 }
 
-                // Reader is now positioned at the start of the value (object, array, or scalar).
-                // JsonNode.Parse(ref reader) consumes one complete value of any shape.
+                // Reader is at the start of the value. Probe with a struct-copy of
+                // the reader using TrySkip — it returns false when the value runs
+                // past the available bytes WITHOUT throwing. Only call JsonNode.Parse
+                // once we know the full value is present; that keeps debug output
+                // clean of first-chance JsonReaderException noise at chunk boundaries.
+                var probe = reader;
+                if (!probe.TrySkip()) break;
+
                 JsonNode? node;
                 try
                 {
@@ -373,7 +382,7 @@ internal sealed class JsonFileLoader
                 }
                 catch (JsonException)
                 {
-                    // Value cut off at chunk boundary — stop here, the caller will read more bytes next time
+                    // Defensive: TrySkip succeeded but Parse still failed (malformed value).
                     break;
                 }
 

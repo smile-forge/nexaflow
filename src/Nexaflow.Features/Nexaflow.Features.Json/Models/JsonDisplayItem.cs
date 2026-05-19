@@ -39,3 +39,17 @@ public sealed class JsonVirtualDisplayItem : JsonDisplayItem
     /// </summary>
     public int RootChildIndex { get; init; } = -1;
 }
+
+// Header row shown at the top of the depth-1 list when the root array is in Table mode.
+public sealed class JsonTableHeaderDisplayItem : JsonDisplayItem
+{
+    public IReadOnlyList<string> Columns { get; init; } = [];
+}
+
+// Replaces a JsonTreeDisplayItem at depth 1 when the root array is in Table mode.
+// Renders the node's values as cells in a shared-size-group Grid built in code-behind.
+public sealed class JsonTableRowDisplayItem : JsonDisplayItem
+{
+    public IReadOnlyList<string> Columns  { get; init; } = [];
+    public IReadOnlyList<string> Values   { get; init; } = [];
+}
