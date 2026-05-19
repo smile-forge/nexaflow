@@ -7,7 +7,8 @@ namespace Nexaflow.Providers.Ollama;
 
 public sealed class OllamaLlmProvider : ILlmProvider
 {
-    public string Name => "Ollama";
+    public const  string ProviderName = "Ollama";
+    public string Name => ProviderName;
 
     private readonly OllamaConfig                _config;
     private readonly IBackgroundActivityManager  _activityManager;

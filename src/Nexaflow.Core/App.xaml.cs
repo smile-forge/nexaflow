@@ -13,9 +13,6 @@ using Nexaflow.Features.Json;
 using Nexaflow.Features.Text;
 using Nexaflow.Features.Web;
 using Nexaflow.Features.WindowsSearch;
-using Nexaflow.Providers.Aria;
-using Nexaflow.Providers.Claude;
-using Nexaflow.Providers.Ollama;
 using System.Windows;
 using Updatum;
 
@@ -42,19 +39,19 @@ public partial class App : Application
 
         var activityManager = new BackgroundActivityManager();
 
-        // Register providers — each scanned assembly populates AIService.Instance
-        ProviderManager.Instance.Register(typeof(AriaLlmProvider), activityManager);
-        ProviderManager.Instance.Register(typeof(OllamaLlmProvider), activityManager);
-        ProviderManager.Instance.Register(typeof(ClaudeLlmProvider), activityManager);
+        // Load AI config first so we know which provider assemblies are in use
+        var aiConfig = new AiConfig();
+        ConfigManager.Instance.Register(aiConfig, aiConfig.ConfigName);
+
+        // Load only the provider plugin assemblies referenced in the saved config
+        ProviderManager.Instance.Initialize(activityManager);
+        ProviderManager.Instance.LoadConfigured(aiConfig.Columns.Select(c => c.AssemblyFileName));
+
+        AIService.Instance.LoadAbilityConfig(aiConfig);
 
         // Shell config
         var shellConfig = new ShellConfig();
         ConfigManager.Instance.Register(shellConfig, shellConfig.ConfigName);
-
-        // AI ability assignments config — loaded after providers are registered
-        var aiConfig = new AiConfig();
-        ConfigManager.Instance.Register(aiConfig, aiConfig.ConfigName);
-        AIService.Instance.LoadAbilityConfig(aiConfig);
 
         var fileMapConfig = new FileMapConfig();
         ConfigManager.Instance.Register(fileMapConfig, fileMapConfig.ConfigName);

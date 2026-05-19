@@ -1,33 +1,72 @@
 using Nexaflow.Core.Services;
 using Nexaflow.Providers.Common;
+using System.IO;
+using System.Reflection;
 
 namespace Nexaflow.Core;
 
 /// <summary>
-/// Singleton registry of all LLM provider factories.
-/// Call <see cref="Register(Type, IBackgroundActivityManager)"/> at startup with any type
-/// from the provider assembly; the manager scans that assembly for <see cref="ILlmProvider"/>
-/// and <see cref="IProviderConfig"/> implementations, wires configs as constructor dependencies,
-/// and registers everything with <see cref="AIService.Instance"/> automatically.
+/// Loads LLM provider plugin assemblies at runtime.
+/// Provider assemblies are never referenced at compile time; they are discovered and
+/// loaded by file name so that new providers can be dropped alongside the executable.
 /// </summary>
 public sealed class ProviderManager
 {
     public static ProviderManager Instance { get; } = new();
 
+    private IBackgroundActivityManager? _activityManager;
+    private readonly HashSet<string>            _loadedAssemblies  = [];
+    private readonly Dictionary<string, string> _providerAssemblyMap = []; // provider Name → DLL file name
+
     private ProviderManager() { }
 
-    /// <summary>
-    /// Scans the assembly of <paramref name="providerType"/> for all concrete
-    /// <see cref="IProviderConfig"/> and <see cref="ILlmProvider"/> types.
-    /// Creates one <see cref="IProviderConfig"/> instance per discovered type, registers it
-    /// with <see cref="ConfigManager"/>, then instantiates each <see cref="ILlmProvider"/>
-    /// by injecting <paramref name="activityManager"/> and any matching config.
-    /// </summary>
-    public void Register(Type providerType, IBackgroundActivityManager activityManager)
-    {
-        var asm = providerType.Assembly;
+    /// <summary>Must be called once at startup before any Load method.</summary>
+    public void Initialize(IBackgroundActivityManager activityManager)
+        => _activityManager = activityManager;
 
-        // 1. Discover and instantiate all IProviderConfig types
+    /// <summary>
+    /// Loads only the assemblies listed in <paramref name="assemblyFileNames"/>.
+    /// Called at startup with the file names stored in the saved <see cref="AI.AiConfig"/>.
+    /// </summary>
+    public void LoadConfigured(IEnumerable<string> assemblyFileNames)
+    {
+        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        foreach (var fileName in assemblyFileNames.Where(f => !string.IsNullOrEmpty(f)).Distinct())
+        {
+            var path = Path.Combine(baseDir, fileName);
+            if (File.Exists(path))
+                LoadAssembly(path);
+        }
+    }
+
+    /// <summary>
+    /// Scans the application directory for all <c>Nexaflow.Providers.*.dll</c> files and loads
+    /// any that have not been loaded yet. Called when the options panel is opened.
+    /// </summary>
+    public void DiscoverAll()
+    {
+        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        foreach (var path in Directory.GetFiles(baseDir, "Nexaflow.Providers.*.dll"))
+        {
+            var fileName = Path.GetFileName(path);
+            if (!_loadedAssemblies.Contains(fileName))
+                LoadAssembly(path);
+        }
+    }
+
+    /// <summary>Returns the plugin DLL file name for a registered provider name, or empty string if unknown.</summary>
+    public string GetAssemblyFileName(string providerName)
+        => _providerAssemblyMap.TryGetValue(providerName, out var asm) ? asm : string.Empty;
+
+    private void LoadAssembly(string assemblyPath)
+    {
+        var fileName = Path.GetFileName(assemblyPath);
+        if (_loadedAssemblies.Contains(fileName)) return;
+        _loadedAssemblies.Add(fileName);
+
+        var asm = Assembly.LoadFrom(assemblyPath);
+
+        // Discover and instantiate all IProviderConfig types
         var configs = new Dictionary<Type, IProviderConfig>();
         foreach (var t in asm.GetTypes()
             .Where(t => !t.IsAbstract && !t.IsInterface
@@ -38,23 +77,21 @@ public sealed class ProviderManager
             configs[t] = cfg;
         }
 
-        // 2. Discover and instantiate all ILlmProvider types, injecting known services
+        // Discover and instantiate all ILlmProvider types, injecting known services
         foreach (var t in asm.GetTypes()
             .Where(t => !t.IsAbstract && !t.IsInterface
                         && typeof(ILlmProvider).IsAssignableFrom(t)))
         {
-            var ctor = t.GetConstructors()
-                        .OrderByDescending(c => c.GetParameters().Length)
-                        .First();
+            var ctor = t.GetConstructors().OrderByDescending(c => c.GetParameters().Length).First();
             var args = ctor.GetParameters()
-                           .Select(p =>
-                               typeof(IBackgroundActivityManager).IsAssignableFrom(p.ParameterType)
-                                   ? (object?)activityManager
-                                   : (object?)configs.Values
-                                       .FirstOrDefault(c => c.GetType() == p.ParameterType))
-                           .ToArray();
+                .Select(p =>
+                    typeof(IBackgroundActivityManager).IsAssignableFrom(p.ParameterType)
+                        ? (object?)_activityManager
+                        : (object?)configs.Values.FirstOrDefault(c => c.GetType() == p.ParameterType))
+                .ToArray();
             var provider = (ILlmProvider)ctor.Invoke(args);
             AIService.Instance.Register(provider.Name, provider);
+            _providerAssemblyMap[provider.Name] = fileName;
         }
     }
 }

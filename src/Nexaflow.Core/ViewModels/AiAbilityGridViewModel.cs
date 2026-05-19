@@ -10,16 +10,18 @@ namespace Nexaflow.Core.ViewModels;
 
 public sealed class AiColumnViewModel
 {
-    public string Id           { get; }
-    public string ProviderName { get; }
-    public string Model        { get; }
-    public bool   IsNone       => Id == string.Empty;
+    public string Id               { get; }
+    public string ProviderName     { get; }
+    public string Model            { get; }
+    public string AssemblyFileName { get; }
+    public bool   IsNone           => Id == string.Empty;
 
-    public AiColumnViewModel(string id, string providerName, string model)
+    public AiColumnViewModel(string id, string providerName, string model, string assemblyFileName = "")
     {
-        Id           = id;
-        ProviderName = providerName;
-        Model        = model;
+        Id               = id;
+        ProviderName     = providerName;
+        Model            = model;
+        AssemblyFileName = assemblyFileName;
     }
 
     public static AiColumnViewModel None { get; } = new(string.Empty, "None", string.Empty);
@@ -108,13 +110,16 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
         SuggestedModels.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasModelSuggestions));
 
+        // Load any provider plugins not yet loaded at startup
+        ProviderManager.Instance.DiscoverAll();
+
         foreach (var name in AIService.Instance.AllProviders.Keys)
             AvailableProviders.Add(name);
 
         // Build column list: None first, then saved pairs
         Columns.Add(AiColumnViewModel.None);
         foreach (var pair in config.Columns)
-            Columns.Add(new AiColumnViewModel(pair.Id, pair.ProviderName, pair.Model));
+            Columns.Add(new AiColumnViewModel(pair.Id, pair.ProviderName, pair.Model, pair.AssemblyFileName));
 
         // Build rows for every defined ability
         foreach (AiAbility ability in Enum.GetValues<AiAbility>())
@@ -202,7 +207,8 @@ public partial class AiAbilityGridViewModel : ObservableObject
             return;
 
         var colVm = new AiColumnViewModel(
-            Guid.NewGuid().ToString("N"), NewProviderName, NewModelName);
+            Guid.NewGuid().ToString("N"), NewProviderName, NewModelName,
+            ProviderManager.Instance.GetAssemblyFileName(NewProviderName));
 
         Columns.Add(colVm);
 
@@ -236,7 +242,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
     {
         _config.Columns = Columns
             .Where(c => !c.IsNone)
-            .Select(c => new ProviderModelPair { Id = c.Id, ProviderName = c.ProviderName, Model = c.Model })
+            .Select(c => new ProviderModelPair { Id = c.Id, ProviderName = c.ProviderName, Model = c.Model, AssemblyFileName = c.AssemblyFileName })
             .ToList();
 
         _config.Assignments.Clear();
