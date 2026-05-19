@@ -10,7 +10,6 @@
     <UserControl.Resources>
         <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
         <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
-        <cv:NullToCollapsedConverter         x:Key="NullCollapsed"/>
         <cv:StringToVisibilityConverter      x:Key="StringVis"/>
         <local:DepthToMarginConverter        x:Key="DepthMargin"/>
         <local:ValueKindToBrushConverter     x:Key="ValueKindBrush"/>
@@ -376,7 +375,7 @@
         <!-- Error overlay -->
         <Border Grid.Row="2"
                 Background="{StaticResource DeepBgBrush}"
-                Visibility="{Binding ErrorMessage, Converter={StaticResource NullCollapsed}}">
+                Visibility="{Binding ErrorMessage, Converter={StaticResource StringVis}}">
             <TextBlock Text="{Binding ErrorMessage}"
                        Foreground="{StaticResource OrangeBrush}"
                        FontSize="13"
