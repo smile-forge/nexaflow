@@ -1,3 +1,4 @@
+using Nexaflow.Core.AI;
 using Nexaflow.Core.FileActions;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.AIChat;
@@ -14,7 +15,6 @@ using Nexaflow.Features.Web;
 using Nexaflow.Features.WindowsSearch;
 using Nexaflow.Providers.Aria;
 using Nexaflow.Providers.Claude;
-using Nexaflow.Providers.Common;
 using Nexaflow.Providers.Ollama;
 using System.Windows;
 using Updatum;
@@ -41,41 +41,40 @@ public partial class App : Application
         base.OnStartup(e);
 
         var activityManager = new BackgroundActivityManager();
+
+        // Register providers — each scanned assembly populates AIService.Instance
         ProviderManager.Instance.Register(typeof(AriaLlmProvider), activityManager);
         ProviderManager.Instance.Register(typeof(OllamaLlmProvider), activityManager);
         ProviderManager.Instance.Register(typeof(ClaudeLlmProvider), activityManager);
 
+        // Shell config
         var shellConfig = new ShellConfig();
         ConfigManager.Instance.Register(shellConfig, shellConfig.ConfigName);
+
+        // AI ability assignments config — loaded after providers are registered
+        var aiConfig = new AiConfig();
+        ConfigManager.Instance.Register(aiConfig, aiConfig.ConfigName);
+        AIService.Instance.LoadAbilityConfig(aiConfig);
 
         var fileMapConfig = new FileMapConfig();
         ConfigManager.Instance.Register(fileMapConfig, fileMapConfig.ConfigName);
         FileMapManager.Instance.Initialize(fileMapConfig.UseRegistryMapping);
 
-        if (!string.IsNullOrEmpty(shellConfig.BasicAiProvider))
-            LlmProviderRegistry.SetBasicProvider(shellConfig.BasicAiProvider);
-        if (!string.IsNullOrEmpty(shellConfig.ConversationAiProvider))
-            LlmProviderRegistry.SetConversationProvider(shellConfig.ConversationAiProvider);
-
-        var aiService = new AIService();
-        FeatureManager.Instance.RegisterSingletonService(typeof(IAIService), aiService);
+        FeatureManager.Instance.RegisterSingletonService(typeof(IAIService), AIService.Instance);
 
         // Create the application-level shell services before registering features
-        // so IShellServices is available for constructor injection
         var shellServices = new ShellServices();
         FeatureManager.Instance.SetShellServices(shellServices);
 
         RegisterFeatures();
 
-        // Factory for tearoff windows: creates a window, registers it, returns the host
         shellServices.CreateWindowFactory = tab =>
         {
-            var win = new MainWindow(activityManager, aiService, shellServices, openDefaultTabs: false);
-            // RegisterWindow is called inside MainWindow constructor
+            var win = new MainWindow(activityManager, AIService.Instance, shellServices, openDefaultTabs: false);
             return (IWindowHost)win.ViewModel;
         };
 
-        var win = new MainWindow(activityManager, aiService, shellServices);
+        var win = new MainWindow(activityManager, AIService.Instance, shellServices);
         win.Show();
 
         if (ConfigManager.Instance.IsFirstRun)

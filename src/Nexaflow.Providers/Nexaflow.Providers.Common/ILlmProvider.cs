@@ -29,4 +29,11 @@ public interface ILlmProvider
         string newUserPrompt,
         IReadOnlyList<string>? attachments = null,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns the list of model identifiers available from this provider.
+    /// Implementations may query a remote API or return a static list.
+    /// Returns an empty list on failure; never throws.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default);
 }
