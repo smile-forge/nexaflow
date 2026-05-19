@@ -64,7 +64,8 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
                                   && _activeInlineItem?.ViewMode == NodeViewMode.Text;
     public bool IsTableModeActive => _activeInlineItem?.Node == SelectedNode
                                   && _activeInlineItem?.ViewMode == NodeViewMode.Table;
-    public bool IsTableModeAvailable => SelectedNode is JsonArrayNodeModel;
+    public bool IsTableModeAvailable => SelectedNode is JsonArrayNodeModel arr
+                                     && arr.Children.OfType<JsonObjectNodeModel>().Any();
 
     public event EventHandler<JsonDisplayItem>? ScrollToItemRequested;
 
@@ -249,15 +250,8 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
         var node = SelectedNode;
         if (node is null) return;
 
-        if (mode == NodeViewMode.Table)
-        {
-            if (node is not JsonArrayNodeModel arr) return;
-            if (!arr.Children.OfType<JsonObjectNodeModel>().Any())
-            {
-                _shellServices.ShowError("Table view requires an array of objects.");
-                return;
-            }
-        }
+        if (mode == NodeViewMode.Table && node is not JsonArrayNodeModel)
+            return;
 
         // Remove any existing inline content item
         if (_activeInlineItem is not null)
