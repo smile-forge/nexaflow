@@ -16,10 +16,8 @@ public sealed record LoadResult(
 
 internal sealed class JsonFileLoader
 {
-    private const long SmallFileSizeLimit = 1 * 1024 * 1024;
-    private const int  FrontChunkSize     = 256 * 1024;
-    private const int  BackChunkSize      = 128 * 1024;
-    private const int  ScanChunkSize      = 64  * 1024;
+    private const long SmallFileSizeLimit = 1 * 1024 * 1024;   // 1 MB
+    private const int  FrontChunkSize     = 256 * 1024;         // 256 KB per load batch
 
     public async Task<LoadResult> LoadAsync(string filePath, CancellationToken ct)
     {
@@ -55,6 +53,245 @@ internal sealed class JsonFileLoader
             return new LoadResult(null, [], false, fileSize, 0, $"Invalid JSON: {ex.Message}");
         }
     }
+
+    // ── Large file path ──────────────────────────────────────────────────────
+    // Strategy: parse the first N items from the front of the file, then place a
+    // single VirtualJsonNodeModel sentinel at the end.  As the user scrolls,
+    // the VM calls LoadVirtualChunkAsync to load the next batch, which returns a
+    // new sentinel if more content remains.  This gives seamless infinite-scroll
+    // behaviour without pre-loading the back of the file.
+
+    private async Task<LoadResult> LoadLargeAsync(string filePath, long fileSize, CancellationToken ct)
+    {
+        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+
+        // Read front chunk
+        var frontSize   = (int)Math.Min(FrontChunkSize, fileSize);
+        var frontBuf    = new byte[frontSize];
+        int frontRead   = await stream.ReadAsync(frontBuf, 0, frontSize, ct);
+        var frontText   = Encoding.UTF8.GetString(frontBuf, 0, frontRead);
+
+        // Determine root type
+        var rootChar = frontText.TrimStart().FirstOrDefault();
+        if (rootChar != '{' && rootChar != '[')
+        {
+            // Scalar root — fall back to full parse
+            stream.Seek(0, SeekOrigin.Begin);
+            var fullText  = await new StreamReader(stream, Encoding.UTF8).ReadToEndAsync(ct);
+            var r         = 0;
+            var scalarRoot = BuildModelFromJsonNode(JsonNode.Parse(fullText), null, null, null, ref r);
+            return new LoadResult(scalarRoot, [], true, fileSize, r, null);
+        }
+
+        var isArray = rootChar == '[';
+
+        // Parse the first batch of depth-1 children
+        var (frontItems, frontEndChar) = ExtractFrontChildren(frontText, isArray);
+
+        // Convert character position to absolute byte offset (UTF-8 aware)
+        var frontEndBytes = (long)Encoding.UTF8.GetByteCount(
+            frontText.AsSpan(0, (int)Math.Min(frontEndChar, (long)frontText.Length)));
+
+        JsonNodeModel rootModel = isArray
+            ? BuildStreamingArrayModel(frontItems, fileSize, frontEndBytes)
+            : BuildStreamingObjectModel(frontItems, fileSize, frontEndBytes);
+
+        var totalNodes = CountNodes(rootModel);
+        return new LoadResult(rootModel, [], true, fileSize, totalNodes, null);
+    }
+
+    private static JsonArrayNodeModel BuildStreamingArrayModel(
+        List<(string? key, JsonNode? node, long endOffset)> items,
+        long fileSize, long frontEndBytes)
+    {
+        var arr = new JsonArrayNodeModel();
+        for (var i = 0; i < items.Count; i++)
+        {
+            var nc    = 0;
+            var child = BuildModelFromJsonNode(items[i].node, arr, null, i, ref nc);
+            arr.Children.Add(child);
+        }
+
+        // Sentinel: if there is still content beyond what was parsed, add a virtual node
+        if (frontEndBytes < fileSize - 10)
+        {
+            arr.Children.Add(new VirtualJsonNodeModel
+            {
+                Parent     = arr,
+                Index      = items.Count,
+                ByteOffset = frontEndBytes,
+                EndOffset  = fileSize,
+            });
+        }
+
+        return arr;
+    }
+
+    private static JsonObjectNodeModel BuildStreamingObjectModel(
+        List<(string? key, JsonNode? node, long endOffset)> items,
+        long fileSize, long frontEndBytes)
+    {
+        var obj = new JsonObjectNodeModel();
+        foreach (var (key, node, _) in items)
+        {
+            var nc    = 0;
+            var child = BuildModelFromJsonNode(node, obj, key, null, ref nc);
+            obj.Children.Add(child);
+        }
+
+        if (frontEndBytes < fileSize - 10)
+        {
+            obj.Children.Add(new VirtualJsonNodeModel
+            {
+                Parent     = obj,
+                ByteOffset = frontEndBytes,
+                EndOffset  = fileSize,
+            });
+        }
+
+        return obj;
+    }
+
+    // ── Virtual chunk loading (progressive scroll) ───────────────────────────
+    // Reads the next batch of items starting at startOffset.
+    // Returns the parsed items and the absolute file offset immediately after
+    // the last complete item — the caller uses nextOffset to decide whether to
+    // add a new sentinel (nextOffset < fileSize) or declare loading complete.
+
+    public async Task<(List<(string? key, JsonNode? node)> items, long nextOffset)>
+        LoadVirtualChunkAsync(
+            string filePath, long startOffset, long fileSize, bool isArray, CancellationToken ct)
+    {
+        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        stream.Seek(startOffset, SeekOrigin.Begin);
+
+        var chunkLen = (int)Math.Min(FrontChunkSize, fileSize - startOffset);
+        if (chunkLen <= 0) return ([], startOffset);
+
+        var buf  = new byte[chunkLen];
+        var read = await stream.ReadAsync(buf, 0, chunkLen, ct);
+        var text = Encoding.UTF8.GetString(buf, 0, read);
+
+        // Strip any leading comma/whitespace left over from the preceding item boundary,
+        // then wrap in the appropriate opening bracket so ExtractFrontChildren can parse it.
+        var leadTrimLen = text.Length - text.TrimStart(',', ' ', '\r', '\n', '\t').Length;
+        var trimmed     = text[leadTrimLen..];
+        var wrapped     = (isArray ? "[" : "{") + trimmed;
+
+        var (items, endOffsetInWrapped) = ExtractFrontChildren(wrapped, isArray, 50);
+
+        // Convert position in wrapped back to absolute file byte offset:
+        //   wrapped = "[" + trimmed  →  position in trimmed = endOffsetInWrapped - 1
+        //   position in text         = leadTrimLen + (endOffsetInWrapped - 1)
+        var posInText      = leadTrimLen + (int)Math.Max(0L, endOffsetInWrapped - 1);
+        var bytesConsumed  = (long)Encoding.UTF8.GetByteCount(
+            text.AsSpan(0, Math.Min(posInText, text.Length)));
+        var nextOffset     = startOffset + bytesConsumed;
+
+        return (items.Select(x => (x.key, x.node)).ToList(), nextOffset);
+    }
+
+    // ── Item extraction (forward scan) ───────────────────────────────────────
+
+    internal static (List<(string? key, JsonNode? node, long endOffset)> items, long endOffset)
+        ExtractFrontChildren(string text, bool isArray, int maxItems = 50)
+    {
+        var items     = new List<(string? key, JsonNode? node, long endOffset)>();
+        var depth     = 0;
+        var inStr     = false;
+        var escaped   = false;
+        var i         = 0;
+
+        // Skip past the opening bracket/brace
+        while (i < text.Length && text[i] != (isArray ? '[' : '{')) i++;
+        if (i >= text.Length) return (items, 0);
+        i++; // skip opening
+
+        var itemStart = i;
+
+        while (i < text.Length && items.Count < maxItems)
+        {
+            var ch = text[i];
+            if (escaped)     { escaped = false; i++; continue; }
+            if (ch == '\\' && inStr) { escaped = true; i++; continue; }
+            if (ch == '"') { inStr = !inStr; i++; continue; }
+            if (inStr)     { i++; continue; }
+
+            if (ch == '{' || ch == '[') { depth++; i++; continue; }
+            if (ch == '}' || ch == ']')
+            {
+                if (depth == 0)
+                {
+                    // Root close: capture any trailing scalar item before breaking
+                    var trailing = text[itemStart..i].Trim().TrimStart(',').Trim();
+                    if (!string.IsNullOrWhiteSpace(trailing))
+                        TryParseItem(trailing, isArray, items, i);
+                    break;
+                }
+                depth--;
+                if (depth == 0)
+                {
+                    // Complete complex item (object or array) closed
+                    var span = text[itemStart..(i + 1)].Trim().TrimStart(',').Trim();
+                    TryParseItem(span, isArray, items, i + 1);
+                    itemStart = i + 1;
+                }
+                i++;
+                continue;
+            }
+            if (depth == 0 && ch == ',')
+            {
+                // Scalar item ends at this comma
+                var span = text[itemStart..i].Trim().TrimStart(',').Trim();
+                if (!string.IsNullOrWhiteSpace(span))
+                    TryParseItem(span, isArray, items, i);
+                itemStart = i + 1;
+            }
+            i++;
+        }
+
+        return (items, i);
+    }
+
+    private static void TryParseItem(string span, bool isArray,
+        List<(string? key, JsonNode? node, long endOffset)> items, long offset)
+    {
+        if (string.IsNullOrWhiteSpace(span)) return;
+        try
+        {
+            if (!isArray && span.StartsWith('"'))
+            {
+                // Object property: "key": value
+                var colonIdx = FindPropertyColon(span);
+                if (colonIdx < 0) return;
+                var rawKey    = span[1..colonIdx].TrimEnd('"').Trim();
+                var valueText = span[(colonIdx + 1)..].Trim();
+                var node      = JsonNode.Parse(valueText);
+                items.Add((rawKey, node, offset));
+            }
+            else
+            {
+                var node = JsonNode.Parse(span);
+                items.Add((null, node, offset));
+            }
+        }
+        catch { /* skip unparseable items */ }
+    }
+
+    private static int FindPropertyColon(string span)
+    {
+        var inStr = true; // we start inside the key string (first char is '"')
+        var i     = 1;    // skip leading quote
+        while (i < span.Length)
+        {
+            if (span[i] == '"') { inStr = !inStr; i++; continue; }
+            if (!inStr && span[i] == ':') return i;
+            i++;
+        }
+        return -1;
+    }
+
+    // ── Node model builder ───────────────────────────────────────────────────
 
     internal static JsonNodeModel BuildModelFromJsonNode(
         JsonNode? node, JsonNodeModel? parent, string? key, int? index, ref int nodeCount)
@@ -116,296 +353,6 @@ internal sealed class JsonFileLoader
         return val.ToString();
     }
 
-    // ── Large file path ──────────────────────────────────────────────────────
-
-    private async Task<LoadResult> LoadLargeAsync(string filePath, long fileSize, CancellationToken ct)
-    {
-        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-
-        // Read front chunk
-        var frontBuffer = new byte[Math.Min(FrontChunkSize, fileSize)];
-        int frontRead = await stream.ReadAsync(frontBuffer, 0, frontBuffer.Length, ct);
-        var frontText = Encoding.UTF8.GetString(frontBuffer, 0, frontRead);
-
-        // Determine root type
-        var rootChar = frontText.TrimStart().FirstOrDefault();
-        if (rootChar != '{' && rootChar != '[')
-        {
-            // Fall back to small-file parse (might be a scalar)
-            stream.Seek(0, SeekOrigin.Begin);
-            var fullText = await new StreamReader(stream, Encoding.UTF8).ReadToEndAsync(ct);
-            var r = 0;
-            var root = BuildModelFromJsonNode(JsonNode.Parse(fullText), null, null, null, ref r);
-            return new LoadResult(root, [], true, fileSize, r, null);
-        }
-
-        var isArray = rootChar == '[';
-
-        // Parse front: extract first N complete depth-1 children
-        var (frontChildren, frontEndOffset) = ExtractFrontChildren(frontText, isArray);
-
-        // Read back chunk
-        var backStart  = Math.Max(frontRead, fileSize - BackChunkSize);
-        var backLength = (int)(fileSize - backStart);
-        var backBuffer = new byte[backLength];
-        stream.Seek(backStart, SeekOrigin.Begin);
-        int backRead = await stream.ReadAsync(backBuffer, 0, backBuffer.Length, ct);
-        var backText  = Encoding.UTF8.GetString(backBuffer, 0, backRead);
-
-        // Parse back: extract last N complete depth-1 children
-        var (backChildren, backStartInChunk) = ExtractBackChildren(backText, isArray, backStart);
-
-        // Build root model with front + virtual + back children
-        JsonNodeModel rootModel = isArray
-            ? BuildLargeArrayModel(frontChildren, backChildren, fileSize, frontEndOffset, backStart + backStartInChunk)
-            : BuildLargeObjectModel(frontChildren, backChildren, fileSize, frontEndOffset, backStart + backStartInChunk);
-
-        int totalNodes = CountNodes(rootModel);
-        return new LoadResult(rootModel, [], true, fileSize, totalNodes, null);
-    }
-
-    internal static (List<(string? key, JsonNode? node, long endOffset)> items, long endOffset)
-        ExtractFrontChildren(string text, bool isArray, int maxItems = 50)
-    {
-        var items     = new List<(string? key, JsonNode? node, long endOffset)>();
-        var depth     = 0;
-        var inStr     = false;
-        var escaped   = false;
-        var i         = 0;
-
-        // Skip past the opening bracket/brace
-        while (i < text.Length && text[i] != (isArray ? '[' : '{')) i++;
-        if (i >= text.Length) return (items, 0);
-        i++; // skip opening
-
-        var itemStart = i;
-
-        while (i < text.Length && items.Count < maxItems)
-        {
-            var ch = text[i];
-            if (escaped)     { escaped = false; i++; continue; }
-            if (ch == '\\' && inStr) { escaped = true; i++; continue; }
-            if (ch == '"') { inStr = !inStr; i++; continue; }
-            if (inStr)     { i++; continue; }
-
-            if (ch == '{' || ch == '[') { depth++; i++; continue; }
-            if (ch == '}' || ch == ']')
-            {
-                if (depth == 0)
-                {
-                    // Root close: capture any trailing scalar item
-                    var trailing = text[itemStart..i].Trim().TrimStart(',').Trim();
-                    if (!string.IsNullOrWhiteSpace(trailing))
-                        TryParseItem(trailing, isArray, items, i);
-                    break;
-                }
-                depth--;
-                if (depth == 0)
-                {
-                    // Complete complex item (object or array) found
-                    var span = text[itemStart..(i + 1)].Trim().TrimStart(',').Trim();
-                    TryParseItem(span, isArray, items, i + 1);
-                    itemStart = i + 1;
-                }
-                i++;
-                continue;
-            }
-            if (depth == 0 && ch == ',')
-            {
-                // Scalar item ends at this comma
-                var span = text[itemStart..i].Trim().TrimStart(',').Trim();
-                if (!string.IsNullOrWhiteSpace(span))
-                    TryParseItem(span, isArray, items, i);
-                itemStart = i + 1;
-            }
-            i++;
-        }
-
-        return (items, i);
-    }
-
-    private static void TryParseItem(string span, bool isArray,
-        List<(string? key, JsonNode? node, long endOffset)> items, long offset)
-    {
-        if (string.IsNullOrWhiteSpace(span)) return;
-        try
-        {
-            if (!isArray && span.StartsWith('"'))
-            {
-                // Object property: "key": value
-                var colonIdx = FindPropertyColon(span);
-                if (colonIdx < 0) return;
-                var rawKey    = span[1..colonIdx].TrimEnd('"').Trim();
-                var valueText = span[(colonIdx + 1)..].Trim();
-                var node      = JsonNode.Parse(valueText);
-                items.Add((rawKey, node, offset));
-            }
-            else
-            {
-                var node = JsonNode.Parse(span);
-                items.Add((null, node, offset));
-            }
-        }
-        catch { /* skip unparseable items */ }
-    }
-
-    private static int FindPropertyColon(string span)
-    {
-        // Find the colon after the key string (accounting for nested quotes)
-        var inStr  = true; // we start inside the key string
-        var i = 1; // skip leading quote
-        while (i < span.Length)
-        {
-            if (span[i] == '"') { inStr = !inStr; i++; continue; }
-            if (!inStr && span[i] == ':') return i;
-            i++;
-        }
-        return -1;
-    }
-
-    private static (List<(string? key, JsonNode? node, long offsetInChunk)> items, long startOffset)
-        ExtractBackChildren(string text, bool isArray, long chunkAbsoluteStart)
-    {
-        var maxItems  = 50;
-        var closeChar = isArray ? ']' : '}';
-
-        // Find the root closing bracket from the end of the chunk
-        var rootClose = text.Length - 1;
-        while (rootClose >= 0 && text[rootClose] != closeChar) rootClose--;
-        if (rootClose < 0) return ([], text.Length);
-
-        // Backward scan from just before the root close, collecting item boundary positions.
-        // We record: {/[ at depth 0 (start of a complex item), and , at depth 0 (scalar separators).
-        var boundaries = new List<int>();
-        boundaries.Add(rootClose); // end sentinel
-
-        var depth = 0;
-        var inStr = false;
-
-        for (var i = rootClose - 1; i >= 0 && boundaries.Count < maxItems + 2; i--)
-        {
-            var ch = text[i];
-
-            // Escape-aware quote detection for backward scan
-            if (ch == '"')
-            {
-                var slashes = 0;
-                for (var j = i - 1; j >= 0 && text[j] == '\\'; j--) slashes++;
-                if (slashes % 2 == 0) inStr = !inStr; // unescaped quote
-            }
-            if (inStr) continue;
-
-            if (ch == '}' || ch == ']') { depth++; continue; }
-            if (ch == '{' || ch == '[')
-            {
-                if (depth == 0) boundaries.Add(i); // start of a top-level complex item
-                else depth--;
-                continue;
-            }
-            if (ch == ',' && depth == 0) boundaries.Add(i); // scalar separator
-        }
-
-        boundaries.Sort();
-
-        var allItems = new List<(string? key, JsonNode? node, long offsetInChunk)>();
-        for (var b = 0; b < boundaries.Count - 1; b++)
-        {
-            var start = boundaries[b];
-            var end   = boundaries[b + 1];
-            var span  = text[start..end].Trim().TrimStart(',').Trim();
-            if (string.IsNullOrWhiteSpace(span)) continue;
-            TryParseItem(span, isArray, allItems, chunkAbsoluteStart + start);
-        }
-
-        // Take last maxItems (closest to the end of the file)
-        var result = allItems.Count <= maxItems
-            ? allItems
-            : allItems.GetRange(allItems.Count - maxItems, maxItems);
-
-        long firstStart = result.Count > 0
-            ? result[0].offsetInChunk - chunkAbsoluteStart
-            : rootClose;
-        return (result, firstStart);
-    }
-
-    private static JsonArrayNodeModel BuildLargeArrayModel(
-        List<(string? key, JsonNode? node, long endOffset)> front,
-        List<(string? key, JsonNode? node, long offsetInChunk)> back,
-        long fileSize, long frontEnd, long backAbsStart)
-    {
-        var arrModel = new JsonArrayNodeModel();
-        var idx = 0;
-
-        // Front items
-        foreach (var (_, node, _) in front)
-        {
-            var nodeCount = 0;
-            var child = BuildModelFromJsonNode(node, arrModel, null, idx, ref nodeCount);
-            arrModel.Children.Add(child);
-            idx++;
-        }
-
-        // Virtual placeholder for the middle section (if gap exists)
-        if (backAbsStart > frontEnd && backAbsStart < fileSize - 100)
-        {
-            var virtualNode = new VirtualJsonNodeModel
-            {
-                Parent     = arrModel,
-                Index      = idx,
-                ByteOffset = frontEnd,
-                EndOffset  = backAbsStart,
-            };
-            arrModel.Children.Add(virtualNode);
-            idx++;
-        }
-
-        // Back items
-        foreach (var (_, node, _) in back)
-        {
-            var nodeCount = 0;
-            var child = BuildModelFromJsonNode(node, arrModel, null, idx, ref nodeCount);
-            arrModel.Children.Add(child);
-            idx++;
-        }
-
-        return arrModel;
-    }
-
-    private static JsonObjectNodeModel BuildLargeObjectModel(
-        List<(string? key, JsonNode? node, long endOffset)> front,
-        List<(string? key, JsonNode? node, long offsetInChunk)> back,
-        long fileSize, long frontEnd, long backAbsStart)
-    {
-        var objModel = new JsonObjectNodeModel();
-
-        foreach (var (key, node, _) in front)
-        {
-            var nodeCount = 0;
-            var child = BuildModelFromJsonNode(node, objModel, key, null, ref nodeCount);
-            objModel.Children.Add(child);
-        }
-
-        if (backAbsStart > frontEnd && backAbsStart < fileSize - 100)
-        {
-            var virtualNode = new VirtualJsonNodeModel
-            {
-                Parent     = objModel,
-                ByteOffset = frontEnd,
-                EndOffset  = backAbsStart,
-            };
-            objModel.Children.Add(virtualNode);
-        }
-
-        foreach (var (key, node, _) in back)
-        {
-            var nodeCount = 0;
-            var child = BuildModelFromJsonNode(node, objModel, key, null, ref nodeCount);
-            objModel.Children.Add(child);
-        }
-
-        return objModel;
-    }
-
     private static int CountNodes(JsonNodeModel node)
     {
         var count = 1;
@@ -414,94 +361,5 @@ internal sealed class JsonFileLoader
         else if (node is JsonArrayNodeModel arr)
             foreach (var c in arr.Children) count += CountNodes(c);
         return count;
-    }
-
-    // ── Virtual node loading ─────────────────────────────────────────────────
-
-    public async Task<List<(string? key, JsonNode? node)>> LoadVirtualChunkAsync(
-        string filePath, long startOffset, long endOffset, bool isArray, CancellationToken ct)
-    {
-        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        stream.Seek(startOffset, SeekOrigin.Begin);
-
-        var chunkLen = (int)Math.Min(endOffset - startOffset, 5 * 1024 * 1024);
-        var buf  = new byte[chunkLen];
-        var read = await stream.ReadAsync(buf, 0, chunkLen, ct);
-        var text = Encoding.UTF8.GetString(buf, 0, read);
-
-        // Strip any leading comma/whitespace left over from the preceding item boundary,
-        // then wrap in the appropriate opening bracket so ExtractFrontChildren can parse it.
-        var trimmed = text.TrimStart(',', ' ', '\r', '\n', '\t');
-        var wrapped = (isArray ? "[" : "{") + trimmed;
-        var (items, _) = ExtractFrontChildren(wrapped, isArray, int.MaxValue);
-        return items.Select(x => (x.key, x.node)).ToList();
-    }
-
-    public async Task<JsonNodeModel?> LoadVirtualNodeAsync(
-        string filePath, long byteOffset, JsonNodeModel parent, string? key, int? index, CancellationToken ct)
-    {
-        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        stream.Seek(byteOffset, SeekOrigin.Begin);
-
-        var chunkSize = 32 * 1024;
-        while (chunkSize <= 2 * 1024 * 1024)
-        {
-            var buf  = new byte[Math.Min(chunkSize, stream.Length - stream.Position)];
-            var read = await stream.ReadAsync(buf, ct);
-            if (read == 0) return null;
-            var text = Encoding.UTF8.GetString(buf, 0, read);
-            try
-            {
-                var jsonNode  = JsonNode.Parse(text);
-                var nodeCount = 0;
-                return BuildModelFromJsonNode(jsonNode, parent, key, index, ref nodeCount);
-            }
-            catch (JsonException) { chunkSize *= 2; stream.Seek(byteOffset, SeekOrigin.Begin); }
-        }
-        return null;
-    }
-
-    // ── Background offset scanner ────────────────────────────────────────────
-
-    public async Task<List<long>> ScanChildOffsetsAsync(string filePath, bool isArray, CancellationToken ct)
-    {
-        var offsets = new List<long>();
-        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        var buffer  = new byte[ScanChunkSize];
-        var depth   = 0;
-        var inStr   = false;
-        var escaped = false;
-        var pos     = 0L;
-        var rootSkipped = false;
-
-        while (true)
-        {
-            ct.ThrowIfCancellationRequested();
-            int read = await stream.ReadAsync(buffer, ct);
-            if (read == 0) break;
-
-            for (var i = 0; i < read; i++)
-            {
-                var b = buffer[i];
-                if (escaped) { escaped = false; continue; }
-                if (b == (byte)'\\' && inStr) { escaped = true; continue; }
-                if (b == (byte)'"') { inStr = !inStr; continue; }
-                if (inStr) continue;
-
-                if (b == (byte)'{' || b == (byte)'[')
-                {
-                    if (!rootSkipped) { rootSkipped = true; depth++; continue; }
-                    if (depth == 1) offsets.Add(pos + i);
-                    depth++;
-                }
-                else if (b == (byte)'}' || b == (byte)']')
-                {
-                    depth--;
-                }
-            }
-            pos += read;
-        }
-
-        return offsets;
     }
 }

@@ -22,7 +22,6 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
     private readonly Dictionary<JsonNodeModel, JsonTreeDisplayItem> _nodeItems = [];
     private JsonInlineContentDisplayItem? _activeInlineItem;
     private CancellationTokenSource? _loadCts;
-    private CancellationTokenSource? _scanCts;
 
     public JsonViewModel(string filePath, JsonFileLoader loader,
                          JsonPathEvaluator evaluator, IShellServices shellServices)
@@ -52,6 +51,9 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
 
     public ObservableCollection<JsonDisplayItem>    DisplayItems            { get; } = [];
     public ObservableCollection<JsonBreadcrumbItem> SelectedNodeBreadcrumbs { get; } = [];
+
+    /// <summary>True when the display list contains at least one unloaded virtual sentinel.</summary>
+    public bool HasVirtualItems => DisplayItems.OfType<JsonVirtualDisplayItem>().Any();
 
     [ObservableProperty] private JsonDisplayItem? _selectedDisplayItem;
 
@@ -116,42 +118,9 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
                 ExpandNode(Root);
             }
 
-            if (result.IsLargeFile)
-            {
-                _scanCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                _ = RunBackgroundScanAsync(_scanCts.Token);
             }
-        }
         catch (OperationCanceledException) { }
         finally { IsLoading = false; }
-    }
-
-    private async Task RunBackgroundScanAsync(CancellationToken ct)
-    {
-        try
-        {
-            var isArray = Root is JsonArrayNodeModel;
-            var offsets = await _loader.ScanChildOffsetsAsync(FilePath, isArray, ct);
-            await Application.Current.Dispatcher.InvokeAsync(() => UpdateVirtualNodeOffsets(offsets));
-        }
-        catch (OperationCanceledException) { }
-        catch { /* best-effort */ }
-    }
-
-    private void UpdateVirtualNodeOffsets(List<long> offsets)
-    {
-        if (Root is null) return;
-        var children   = GetChildren(Root);
-        if (children is null) return;
-
-        var offsetIdx = 0;
-        for (var i = 0; i < children.Count; i++)
-        {
-            if (children[i] is not VirtualJsonNodeModel v) continue;
-            if (offsetIdx < offsets.Count)
-                v.ByteOffset = offsets[offsetIdx];
-            offsetIdx++;
-        }
     }
 
     // ── Display list management ───────────────────────────────────────────────
@@ -441,35 +410,48 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
 
     // ── Virtual node loading ──────────────────────────────────────────────────
 
+    /// <summary>
+    /// Called by scroll-triggered pre-loading: triggers the first available
+    /// unloaded virtual sentinel in the display list.
+    /// </summary>
+    internal void TriggerVirtualLoads()
+    {
+        var virtualItem = DisplayItems
+            .OfType<JsonVirtualDisplayItem>()
+            .FirstOrDefault(i => i.Node is VirtualJsonNodeModel v && !v.IsLoading);
+        if (virtualItem is not null)
+            _ = LoadVirtualItemAsync(virtualItem);
+    }
+
     private async Task LoadVirtualItemAsync(JsonVirtualDisplayItem item)
     {
         if (item.Node is not VirtualJsonNodeModel virtualNode) return;
+        if (virtualNode.IsLoading) return;  // guard against double-trigger
         virtualNode.IsLoading = true;
         try
         {
             var parent = virtualNode.Parent;
             if (parent is null) return;
 
-            var isArray   = parent is JsonArrayNodeModel;
-            var endOffset = virtualNode.EndOffset > virtualNode.ByteOffset
-                ? virtualNode.EndOffset
-                : virtualNode.ByteOffset + 512 * 1024;
+            var isArray  = parent is JsonArrayNodeModel;
+            var fileSize = virtualNode.EndOffset;  // EndOffset == file size for all sentinels
 
-            var batch = await _loader.LoadVirtualChunkAsync(
-                FilePath, virtualNode.ByteOffset, endOffset, isArray, CancellationToken.None);
+            var (batch, nextOffset) = await _loader.LoadVirtualChunkAsync(
+                FilePath, virtualNode.ByteOffset, fileSize, isArray, CancellationToken.None);
 
             if (batch.Count == 0) return;
             await Application.Current.Dispatcher.InvokeAsync(
-                () => ReplaceVirtualNodeWithBatch(virtualNode, batch, item));
+                () => ReplaceVirtualNodeWithBatch(virtualNode, batch, item, nextOffset));
         }
         catch { /* ignore */ }
         finally { virtualNode.IsLoading = false; }
     }
 
     private void ReplaceVirtualNodeWithBatch(
-        VirtualJsonNodeModel virtualNode,
+        VirtualJsonNodeModel           virtualNode,
         List<(string? key, JsonNode? node)> batch,
-        JsonVirtualDisplayItem displayItem)
+        JsonVirtualDisplayItem         displayItem,
+        long                           nextOffset)
     {
         var parent = virtualNode.Parent;
         if (parent is null) return;
@@ -496,11 +478,34 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
             newNodes.Add(model);
         }
 
+        // If more content remains, add a new sentinel immediately after the new items
+        VirtualJsonNodeModel? nextVirtual = null;
+        if (nextOffset < virtualNode.EndOffset - 10)
+        {
+            nextVirtual = new VirtualJsonNodeModel
+            {
+                Parent     = parent,
+                Index      = startIndex + batch.Count,
+                ByteOffset = nextOffset,
+                EndOffset  = virtualNode.EndOffset,
+            };
+            siblings.Insert(sibIdx + batch.Count, nextVirtual);
+        }
+
+        // Update the flat display list
         var displayIdx = DisplayItems.IndexOf(displayItem);
         if (displayIdx < 0) return;
         DisplayItems.RemoveAt(displayIdx);
+
         foreach (var node in newNodes)
             displayIdx = InsertNodeItem(displayIdx, node, displayItem.Depth);
+
+        if (nextVirtual is not null)
+            DisplayItems.Insert(displayIdx, new JsonVirtualDisplayItem
+            {
+                Node  = nextVirtual,
+                Depth = displayItem.Depth,
+            });
     }
 
     // ── IPageViewModel ────────────────────────────────────────────────────────
@@ -597,6 +602,5 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
     public void Dispose()
     {
         _loadCts?.Cancel();
-        _scanCts?.Cancel();
     }
 }

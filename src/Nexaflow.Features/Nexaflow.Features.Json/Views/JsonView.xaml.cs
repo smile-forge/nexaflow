@@ -29,7 +29,16 @@ public partial class JsonView : UserControl, IPageView
 
         vm.ScrollToItemRequested += OnScrollToItem;
 
-        Loaded   += async (_, _) => await vm.LoadAsync(CancellationToken.None);
+        Loaded += async (_, _) =>
+        {
+            await vm.LoadAsync(CancellationToken.None);
+            // Wire scroll-triggered pre-loading after the list is populated
+            DisplayList.AddHandler(
+                ScrollViewer.ScrollChangedEvent,
+                new ScrollChangedEventHandler(DisplayList_ScrollChanged),
+                handledEventsToo: true);
+        };
+
         Unloaded += (_, _) =>
         {
             vm.ScrollToItemRequested -= OnScrollToItem;
@@ -47,6 +56,20 @@ public partial class JsonView : UserControl, IPageView
 
     private void OnScrollToItem(object? sender, JsonDisplayItem item)
         => Dispatcher.InvokeAsync(() => DisplayList.ScrollIntoView(item), DispatcherPriority.Loaded);
+
+    // ── Scroll-triggered virtual loading ─────────────────────────────────────
+
+    // Pre-load the next batch when the user scrolls to within ~one viewport of
+    // the virtual sentinel row at the bottom of loaded content.
+    private void DisplayList_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (!_vm.HasVirtualItems) return;
+        if (sender is not ScrollViewer sv) return;
+
+        var nearBottom = sv.VerticalOffset + sv.ViewportHeight >= sv.ExtentHeight - sv.ViewportHeight;
+        if (nearBottom)
+            _vm.TriggerVirtualLoads();
+    }
 
     // ── Inline AvalonEdit (Text mode) ────────────────────────────────────────
 
