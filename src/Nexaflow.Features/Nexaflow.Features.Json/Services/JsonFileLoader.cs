@@ -21,8 +21,24 @@ public sealed record LoadResult(
 
 internal sealed class JsonFileLoader
 {
-    private const long SmallFileSizeLimit = 1 * 1024 * 1024;   // 1 MB
-    private const int  FrontChunkSize     = 256 * 1024;         // 256 KB per load batch
+    private const long SmallFileSizeLimit  = 1 * 1024 * 1024;
+    private const int  FrontChunkSize      = 256 * 1024;
+    private const int  MaxChunkSize        = 8  * 1024 * 1024;   // grow to here if one item won't fit
+    private const int  BatchItemCount      = 50;                  // depth-1 items per load batch
+
+    private static readonly JsonReaderOptions s_readerOptions = new()
+    {
+        AllowTrailingCommas = true,
+        CommentHandling     = JsonCommentHandling.Skip,
+        MaxDepth            = 64,
+    };
+
+    private static readonly JsonDocumentOptions s_documentOptions = new()
+    {
+        AllowTrailingCommas = true,
+        CommentHandling     = JsonCommentHandling.Skip,
+        MaxDepth            = 64,
+    };
 
     public async Task<LoadResult> LoadAsync(string filePath, CancellationToken ct)
     {
@@ -47,8 +63,7 @@ internal sealed class JsonFileLoader
         var text = await File.ReadAllTextAsync(filePath, Encoding.UTF8, ct);
         try
         {
-            var jsonNode = JsonNode.Parse(text, nodeOptions: null,
-                documentOptions: new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
+            var jsonNode = JsonNode.Parse(text, nodeOptions: null, documentOptions: s_documentOptions);
             var nodeCount = 0;
             var root = BuildModelFromJsonNode(jsonNode, parent: null, key: null, index: null, ref nodeCount);
             return new LoadResult(root, [], false, fileSize, nodeCount, null);
@@ -60,25 +75,17 @@ internal sealed class JsonFileLoader
     }
 
     // ── Large file path ──────────────────────────────────────────────────────
-    // Strategy: parse the first N items from the front of the file, then place a
-    // single VirtualJsonNodeModel sentinel at the end.  As the user scrolls,
-    // the VM calls LoadVirtualChunkAsync to load the next batch, which returns a
-    // new sentinel if more content remains.  This gives seamless infinite-scroll
-    // behaviour without pre-loading the back of the file.
 
     private async Task<LoadResult> LoadLargeAsync(string filePath, long fileSize, CancellationToken ct)
     {
-        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
 
-        // Read front chunk
-        var frontSize   = (int)Math.Min(FrontChunkSize, fileSize);
-        var frontBuf    = new byte[frontSize];
-        int frontRead   = await stream.ReadAsync(frontBuf, 0, frontSize, ct);
-        var frontText   = Encoding.UTF8.GetString(frontBuf, 0, frontRead);
+        // Read front chunk; grow if even the first item is bigger than the chunk
+        var (frontBuf, frontRead) = await ReadGrowingChunkAsync(stream, 0, fileSize, ct);
 
-        // Determine root type
-        var rootChar = frontText.TrimStart().FirstOrDefault();
-        if (rootChar != '{' && rootChar != '[')
+        // Find first structural char (skipping BOM/whitespace)
+        var rootStart = FindFirstStructuralChar(frontBuf.AsSpan(0, frontRead), out var rootChar);
+        if (rootChar != (byte)'[' && rootChar != (byte)'{')
         {
             // Scalar root — fall back to full parse
             stream.Seek(0, SeekOrigin.Begin);
@@ -88,63 +95,59 @@ internal sealed class JsonFileLoader
             return new LoadResult(scalarRoot, [], true, fileSize, r, null);
         }
 
-        var isArray = rootChar == '[';
+        var isArray = rootChar == (byte)'[';
 
-        // Parse the first batch of depth-1 children
-        var (frontItems, frontEndChar) = ExtractFrontChildren(frontText, isArray);
+        // Parse front items directly from the buffer (no wrapping needed — chunk starts with the real bracket)
+        var frontItems = new List<(string? key, JsonNode? node)>();
+        var bytesConsumedInContent = ParseItemsFromContent(
+            frontBuf.AsSpan(rootStart, frontRead - rootStart),
+            isArray, BatchItemCount, frontItems);
 
-        // Convert character position to absolute byte offset (UTF-8 aware)
-        var frontEndBytes = (long)Encoding.UTF8.GetByteCount(
-            frontText.AsSpan(0, (int)Math.Min(frontEndChar, (long)frontText.Length)));
+        var frontEndBytes = rootStart + bytesConsumedInContent;
 
         JsonNodeModel rootModel = isArray
-            ? BuildStreamingArrayModel(frontItems, fileSize, frontEndBytes)
+            ? BuildStreamingArrayModel (frontItems, fileSize, frontEndBytes)
             : BuildStreamingObjectModel(frontItems, fileSize, frontEndBytes);
 
         var totalNodes = CountNodes(rootModel);
         return new LoadResult(rootModel, [], true, fileSize, totalNodes, null);
     }
 
+    // ── Streaming root builders ──────────────────────────────────────────────
+
     private static JsonArrayNodeModel BuildStreamingArrayModel(
-        List<(string? key, JsonNode? node, long endOffset)> items,
-        long fileSize, long frontEndBytes)
+        List<(string? key, JsonNode? node)> frontItems, long fileSize, long frontEndBytes)
     {
         var arr = new JsonArrayNodeModel();
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < frontItems.Count; i++)
         {
-            var nc    = 0;
-            var child = BuildModelFromJsonNode(items[i].node, arr, null, i, ref nc);
-            arr.Children.Add(child);
+            var nc = 0;
+            arr.Children.Add(BuildModelFromJsonNode(frontItems[i].node, arr, null, i, ref nc));
         }
 
-        // Sentinel: if there is still content beyond what was parsed, add a virtual node
-        if (frontEndBytes < fileSize - 10)
+        if (frontEndBytes < fileSize - 2)
         {
             arr.Children.Add(new VirtualJsonNodeModel
             {
                 Parent     = arr,
-                Index      = items.Count,
+                Index      = frontItems.Count,
                 ByteOffset = frontEndBytes,
                 EndOffset  = fileSize,
             });
         }
-
         return arr;
     }
 
     private static JsonObjectNodeModel BuildStreamingObjectModel(
-        List<(string? key, JsonNode? node, long endOffset)> items,
-        long fileSize, long frontEndBytes)
+        List<(string? key, JsonNode? node)> frontItems, long fileSize, long frontEndBytes)
     {
         var obj = new JsonObjectNodeModel();
-        foreach (var (key, node, _) in items)
+        foreach (var (key, node) in frontItems)
         {
-            var nc    = 0;
-            var child = BuildModelFromJsonNode(node, obj, key, null, ref nc);
-            obj.Children.Add(child);
+            var nc = 0;
+            obj.Children.Add(BuildModelFromJsonNode(node, obj, key, null, ref nc));
         }
-
-        if (frontEndBytes < fileSize - 10)
+        if (frontEndBytes < fileSize - 2)
         {
             obj.Children.Add(new VirtualJsonNodeModel
             {
@@ -153,85 +156,77 @@ internal sealed class JsonFileLoader
                 EndOffset  = fileSize,
             });
         }
-
         return obj;
     }
 
-    // ── Virtual chunk loading (progressive scroll) ───────────────────────────
-    // Reads the next batch of items starting at startOffset.
-    // Returns the parsed items and the absolute file offset immediately after
-    // the last complete item — the caller uses nextOffset to decide whether to
-    // add a new sentinel (nextOffset < fileSize) or declare loading complete.
+    // ── Virtual-chunk loading (progressive scroll) ───────────────────────────
+    // Reads the next batch starting at startOffset.  Returns the parsed items
+    // and the absolute file offset just past the last successfully consumed item.
+    // Uses Utf8JsonReader (battle-tested JSON tokenizer) — handles strings with
+    // embedded braces, escape sequences, Unicode, etc. correctly.
 
     public async Task<(List<(string? key, JsonNode? node)> items, long nextOffset)>
         LoadVirtualChunkAsync(
             string filePath, long startOffset, long fileSize, bool isArray, CancellationToken ct)
     {
-        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        stream.Seek(startOffset, SeekOrigin.Begin);
+        if (startOffset >= fileSize - 2) return ([], startOffset);
 
-        var chunkLen = (int)Math.Min(FrontChunkSize, fileSize - startOffset);
-        if (chunkLen <= 0) return ([], startOffset);
+        await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
 
-        var buf  = new byte[chunkLen];
-        var read = await stream.ReadAsync(buf, 0, chunkLen, ct);
-        var text = Encoding.UTF8.GetString(buf, 0, read);
+        // Grow chunk if no items found — handles items larger than initial chunk size
+        var chunkSize = FrontChunkSize;
+        while (true)
+        {
+            var (buf, bytesRead) = await ReadGrowingChunkAsync(stream, startOffset, fileSize, ct, chunkSize);
+            if (bytesRead <= 0) return ([], startOffset);
 
-        // Strip any leading comma/whitespace left over from the preceding item boundary,
-        // then wrap in the appropriate opening bracket so ExtractFrontChildren can parse it.
-        var leadTrimLen = text.Length - text.TrimStart(',', ' ', '\r', '\n', '\t').Length;
-        var trimmed     = text[leadTrimLen..];
-        var wrapped     = (isArray ? "[" : "{") + trimmed;
+            var (items, consumedInChunk) = ParseChunkWrapped(buf.AsSpan(0, bytesRead), isArray, BatchItemCount);
 
-        var (items, endOffsetInWrapped) = ExtractFrontChildren(wrapped, isArray, 50);
+            if (items.Count > 0)
+                return (items, startOffset + consumedInChunk);
 
-        // Convert position in wrapped back to absolute file byte offset:
-        //   wrapped = "[" + trimmed  →  position in trimmed = endOffsetInWrapped - 1
-        //   position in text         = leadTrimLen + (endOffsetInWrapped - 1)
-        var posInText      = leadTrimLen + (int)Math.Max(0L, endOffsetInWrapped - 1);
-        var bytesConsumed  = (long)Encoding.UTF8.GetByteCount(
-            text.AsSpan(0, Math.Min(posInText, text.Length)));
-        var nextOffset     = startOffset + bytesConsumed;
+            // If we read everything available (EOF) or hit the chunk cap, stop trying
+            if (bytesRead < chunkSize || chunkSize >= MaxChunkSize)
+                return (items, startOffset + Math.Max(consumedInChunk, 1));
 
-        return (items.Select(x => (x.key, x.node)).ToList(), nextOffset);
+            chunkSize = Math.Min(chunkSize * 2, MaxChunkSize);
+        }
     }
 
-    // ── Structure estimation ─────────────────────────────────────────────────
-    // Reads the first and last objects to estimate total item count and
-    // whether the array is likely homogeneous (all objects share the same keys).
-    // This is used to size the scrollbar without loading the whole file.
+    // ── Estimation (for scrollbar sizing) ────────────────────────────────────
 
     public async Task<EstimateResult?> EstimateAsync(
         string filePath, long fileSize, bool isArray, CancellationToken ct)
     {
         const int SampleBytes = 64 * 1024;
 
-        // ── First item ───────────────────────────────────────────────────
+        // Front sample: parse the first object only
         await using var fs1 = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         var frontBuf  = new byte[(int)Math.Min(SampleBytes, fileSize)];
         int frontRead = await fs1.ReadAsync(frontBuf, 0, frontBuf.Length, ct);
-        var frontText = Encoding.UTF8.GetString(frontBuf, 0, frontRead);
 
-        var (frontItems, _) = ExtractFrontChildren(frontText, isArray, 1);
+        var rootStart = FindFirstStructuralChar(frontBuf.AsSpan(0, frontRead), out var rootChar);
+        if (rootChar != (byte)'[' && rootChar != (byte)'{') return null;
+
+        var frontItems = new List<(string? key, JsonNode? node)>();
+        ParseItemsFromContent(frontBuf.AsSpan(rootStart, frontRead - rootStart), isArray, 1, frontItems);
         if (frontItems.Count == 0) return null;
 
         var firstNode      = frontItems[0].node;
         var firstItemBytes = (long)Encoding.UTF8.GetByteCount(firstNode?.ToJsonString() ?? "null");
         var firstKeys      = GetObjectKeys(firstNode);
 
-        // ── Last item ────────────────────────────────────────────────────
+        // Back sample: parse the LAST object
         await using var fs2 = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         var backStart  = Math.Max(0, fileSize - SampleBytes);
         fs2.Seek(backStart, SeekOrigin.Begin);
         var backBuf  = new byte[(int)(fileSize - backStart)];
         int backRead = await fs2.ReadAsync(backBuf, 0, backBuf.Length, ct);
-        var backText = Encoding.UTF8.GetString(backBuf, 0, backRead);
 
-        var (lastNode, lastItemBytes) = ExtractLastItem(backText, isArray);
+        var (lastNode, lastItemBytes) = ExtractLastItem(Encoding.UTF8.GetString(backBuf, 0, backRead), isArray);
         if (lastItemBytes <= 0) lastItemBytes = firstItemBytes;
         var lastKeys = GetObjectKeys(lastNode);
 
-        // ── Estimate ─────────────────────────────────────────────────────
         var avgBytes       = Math.Max(1, (firstItemBytes + lastItemBytes) / 2);
         var estimatedCount = (int)Math.Clamp(fileSize / avgBytes, 1, 10_000_000);
 
@@ -248,7 +243,6 @@ internal sealed class JsonFileLoader
         while (i >= 0 && text[i] != closeChar) i--;
         if (i < 0) return (null, 0);
 
-        // Walk back past whitespace
         var end = i - 1;
         while (end >= 0 && char.IsWhiteSpace(text[end])) end--;
         if (end < 0) return (null, 0);
@@ -256,7 +250,6 @@ internal sealed class JsonFileLoader
         int start;
         if (text[end] == '}' || text[end] == ']')
         {
-            // Complex item — scan backward for matching open bracket
             var depth = 1;
             start = end - 1;
             while (start >= 0 && depth > 0)
@@ -265,11 +258,10 @@ internal sealed class JsonFileLoader
                 else if (text[start] == '{' || text[start] == '[') depth--;
                 start--;
             }
-            start++; // land on the opening bracket
+            start++;
         }
         else
         {
-            // Scalar — scan back to comma or opening bracket
             start = end;
             while (start > 0 && text[start - 1] != ',' &&
                    text[start - 1] != '[' && text[start - 1] != '{')
@@ -293,100 +285,10 @@ internal sealed class JsonFileLoader
         catch { return (null, 0); }
     }
 
-    private static IReadOnlyList<string> GetObjectKeys(JsonNode? node)
-        => node is JsonObject obj ? obj.Select(kv => kv.Key).ToList() : [];
-
-    // ── Item extraction (forward scan) ───────────────────────────────────────
-
-    internal static (List<(string? key, JsonNode? node, long endOffset)> items, long endOffset)
-        ExtractFrontChildren(string text, bool isArray, int maxItems = 50)
-    {
-        var items     = new List<(string? key, JsonNode? node, long endOffset)>();
-        var depth     = 0;
-        var inStr     = false;
-        var escaped   = false;
-        var i         = 0;
-
-        // Skip past the opening bracket/brace
-        while (i < text.Length && text[i] != (isArray ? '[' : '{')) i++;
-        if (i >= text.Length) return (items, 0);
-        i++; // skip opening
-
-        var itemStart = i;
-
-        while (i < text.Length && items.Count < maxItems)
-        {
-            var ch = text[i];
-            if (escaped)     { escaped = false; i++; continue; }
-            if (ch == '\\' && inStr) { escaped = true; i++; continue; }
-            if (ch == '"') { inStr = !inStr; i++; continue; }
-            if (inStr)     { i++; continue; }
-
-            if (ch == '{' || ch == '[') { depth++; i++; continue; }
-            if (ch == '}' || ch == ']')
-            {
-                if (depth == 0)
-                {
-                    // Root close: capture any trailing scalar item before breaking
-                    var trailing = text[itemStart..i].Trim().TrimStart(',').Trim();
-                    if (!string.IsNullOrWhiteSpace(trailing))
-                        TryParseItem(trailing, isArray, items, i);
-                    break;
-                }
-                depth--;
-                if (depth == 0)
-                {
-                    // Complete complex item (object or array) closed
-                    var span = text[itemStart..(i + 1)].Trim().TrimStart(',').Trim();
-                    TryParseItem(span, isArray, items, i + 1);
-                    itemStart = i + 1;
-                }
-                i++;
-                continue;
-            }
-            if (depth == 0 && ch == ',')
-            {
-                // Scalar item ends at this comma
-                var span = text[itemStart..i].Trim().TrimStart(',').Trim();
-                if (!string.IsNullOrWhiteSpace(span))
-                    TryParseItem(span, isArray, items, i);
-                itemStart = i + 1;
-            }
-            i++;
-        }
-
-        return (items, i);
-    }
-
-    private static void TryParseItem(string span, bool isArray,
-        List<(string? key, JsonNode? node, long endOffset)> items, long offset)
-    {
-        if (string.IsNullOrWhiteSpace(span)) return;
-        try
-        {
-            if (!isArray && span.StartsWith('"'))
-            {
-                // Object property: "key": value
-                var colonIdx = FindPropertyColon(span);
-                if (colonIdx < 0) return;
-                var rawKey    = span[1..colonIdx].TrimEnd('"').Trim();
-                var valueText = span[(colonIdx + 1)..].Trim();
-                var node      = JsonNode.Parse(valueText);
-                items.Add((rawKey, node, offset));
-            }
-            else
-            {
-                var node = JsonNode.Parse(span);
-                items.Add((null, node, offset));
-            }
-        }
-        catch { /* skip unparseable items */ }
-    }
-
     private static int FindPropertyColon(string span)
     {
-        var inStr = true; // we start inside the key string (first char is '"')
-        var i     = 1;    // skip leading quote
+        var inStr = true;
+        var i     = 1;
         while (i < span.Length)
         {
             if (span[i] == '"') { inStr = !inStr; i++; continue; }
@@ -394,6 +296,133 @@ internal sealed class JsonFileLoader
             i++;
         }
         return -1;
+    }
+
+    private static IReadOnlyList<string> GetObjectKeys(JsonNode? node)
+        => node is JsonObject obj ? obj.Select(kv => kv.Key).ToList() : [];
+
+    // ── Core Utf8JsonReader parsers ──────────────────────────────────────────
+
+    // Parses items from a mid-file chunk.  Strips leading whitespace/comma,
+    // prepends the opening bracket, then runs the streaming reader.  Returns
+    // how many bytes of the ORIGINAL chunk we consumed (so the caller can
+    // advance startOffset precisely).
+    private static (List<(string? key, JsonNode? node)> items, long bytesConsumed) ParseChunkWrapped(
+        ReadOnlySpan<byte> chunk, bool isArray, int maxItems)
+    {
+        var items = new List<(string? key, JsonNode? node)>();
+
+        // Strip leading commas and whitespace from the chunk
+        int leadingTrim = 0;
+        while (leadingTrim < chunk.Length && IsStructuralWhitespaceOrComma(chunk[leadingTrim]))
+            leadingTrim++;
+        if (leadingTrim >= chunk.Length) return (items, leadingTrim);
+
+        // Wrap: prepend opening bracket so Utf8JsonReader treats this as a fresh array/object
+        var wrappedLen = chunk.Length - leadingTrim + 1;
+        var wrapped    = new byte[wrappedLen];
+        wrapped[0]     = (byte)(isArray ? '[' : '{');
+        chunk[leadingTrim..].CopyTo(wrapped.AsSpan(1));
+
+        var consumedInWrapped = ParseItemsFromContent(wrapped, isArray, maxItems, items);
+
+        // The fake bracket at wrapped[0] adds 1 to BytesConsumed; subtract it back out.
+        var consumedInChunkPastTrim = Math.Max(0, consumedInWrapped - 1);
+        return (items, leadingTrim + consumedInChunkPastTrim);
+    }
+
+    // Parses items from bytes whose first non-whitespace char is the opening
+    // bracket.  Returns total BytesConsumed (in the span) past the last
+    // successfully parsed item.
+    private static long ParseItemsFromContent(
+        ReadOnlySpan<byte> data, bool isArray, int maxItems,
+        List<(string? key, JsonNode? node)> outItems)
+    {
+        var reader = new Utf8JsonReader(data, isFinalBlock: false, new JsonReaderState(s_readerOptions));
+        long lastGoodBytes = 0;
+
+        try
+        {
+            // Advance past the opening bracket
+            if (!reader.Read()) return 0;
+            var expectedOpen = isArray ? JsonTokenType.StartArray : JsonTokenType.StartObject;
+            if (reader.TokenType != expectedOpen) return 0;
+            lastGoodBytes = reader.BytesConsumed;
+
+            while (outItems.Count < maxItems)
+            {
+                // Advance to the next token: either a value/property or the end bracket
+                if (!reader.Read()) break;
+                if (reader.TokenType == JsonTokenType.EndArray ||
+                    reader.TokenType == JsonTokenType.EndObject) break;
+
+                string? key = null;
+                if (!isArray)
+                {
+                    if (reader.TokenType != JsonTokenType.PropertyName) break;
+                    key = reader.GetString();
+                    if (!reader.Read()) break;
+                }
+
+                // Reader is now positioned at the start of the value (object, array, or scalar).
+                // JsonNode.Parse(ref reader) consumes one complete value of any shape.
+                JsonNode? node;
+                try
+                {
+                    node = JsonNode.Parse(ref reader);
+                }
+                catch (JsonException)
+                {
+                    // Value cut off at chunk boundary — stop here, the caller will read more bytes next time
+                    break;
+                }
+
+                outItems.Add((key, node));
+                lastGoodBytes = reader.BytesConsumed;
+            }
+        }
+        catch (JsonException)
+        {
+            // Truncated stream or malformed JSON in this chunk — return what we got
+        }
+
+        return lastGoodBytes;
+    }
+
+    // ── Byte stream helpers ──────────────────────────────────────────────────
+
+    private static int FindFirstStructuralChar(ReadOnlySpan<byte> data, out byte rootChar)
+    {
+        rootChar = 0;
+        for (var i = 0; i < data.Length; i++)
+        {
+            var b = data[i];
+            // Skip UTF-8 BOM (EF BB BF) at the very start
+            if (i == 0 && data.Length >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF)
+            {
+                i = 2; continue;
+            }
+            if (IsStructuralWhitespaceOrComma(b)) continue;
+            rootChar = b;
+            return i;
+        }
+        return 0;
+    }
+
+    private static bool IsStructuralWhitespaceOrComma(byte b)
+        => b == (byte)',' || b == (byte)' ' || b == (byte)'\t' || b == (byte)'\r' || b == (byte)'\n';
+
+    // Reads up to `initialSize` bytes from `stream` starting at `offset`.
+    // Used for the initial chunk; chunk growing is handled by the caller.
+    private static async Task<(byte[] buf, int read)> ReadGrowingChunkAsync(
+        FileStream stream, long offset, long fileSize, CancellationToken ct, int initialSize = FrontChunkSize)
+    {
+        var size = (int)Math.Min(initialSize, fileSize - offset);
+        if (size <= 0) return ([], 0);
+        var buf = new byte[size];
+        stream.Seek(offset, SeekOrigin.Begin);
+        var read = await stream.ReadAsync(buf, 0, size, ct);
+        return (buf, read);
     }
 
     // ── Node model builder ───────────────────────────────────────────────────
