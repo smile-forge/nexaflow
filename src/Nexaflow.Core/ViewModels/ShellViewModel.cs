@@ -358,34 +358,33 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
         // 1. Symbol prefix → explicit handler selection; strip prefix from input
         IQueryHandler? selected = null;
-        var symbolMatch = handlers.FirstOrDefault(
-            h => h.Symbol is { Length: 1 } s && text.StartsWith(s));
-        if (symbolMatch is not null)
+        // 1. Symbol prefix → filter handlers by symbol; strip prefix from input
+        var symbolHandlers = handlers
+            .Where(h => h.Symbol is { Length: 1 } s && text.StartsWith(s))
+            .ToList();
+        if (symbolHandlers.Count > 0)
         {
-            selected = symbolMatch;
             text = text[1..].TrimStart();
+            handlers = symbolHandlers;
         }
 
-        // 2. Score candidates when no symbol prefix was used
-        if (selected is null)
-        {
-            var candidates = handlers.Where(h => h.CanProcess(text, pageVm) > 0).ToList();
+        // 2. Score candidates in the (possibly reduced) handler list
+        var candidates = handlers.Where(h => h.CanProcess(text, pageVm) > 0).ToList();
 
-            if (candidates.Count == 1)
+        if (candidates.Count == 1)
+        {
+            selected = candidates[0];
+        }
+        else if (candidates.Count > 1)
+        {
+            try
             {
-                selected = candidates[0];
+                selected = await _aiService.DisambiguateToolSelection(pageVm, text, candidates);
             }
-            else if (candidates.Count > 1)
+            catch (Exception ex)
             {
-                try
-                {
-                    selected = await _aiService.DisambiguateToolSelection(pageVm, text, candidates);
-                }
-                catch (Exception ex)
-                {
-                    ShowError("AI error", ex.Message);
-                    return;
-                }
+                ShowError("AI error", ex.Message);
+                return;
             }
         }
 

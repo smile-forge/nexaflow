@@ -771,7 +771,16 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
 
     public IContext? GetContextObject()
     {
-        if (IsThisPcMode || string.IsNullOrEmpty(RootPath)) return null;
+        if (IsThisPcMode) return null;
+        if (string.IsNullOrEmpty(RootPath))
+        {
+            return new FileSystemContext
+            {
+                RootPath = CurrentPath,
+                CurrentPath = "",
+                SelectedItems = CurrentSelection.Select(e => e.FullPath).ToList()
+            };
+        }
         return new FileSystemContext
         {
             RootPath      = RootPath,
