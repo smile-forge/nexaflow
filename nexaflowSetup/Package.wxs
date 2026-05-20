@@ -4,6 +4,7 @@
 
     <Feature Id="Main">
       <ComponentGroupRef Id="AppComponents" />
+      <ComponentGroupRef Id="ShortcutComponents" />
     </Feature>
   </Package>
 </Wix>
