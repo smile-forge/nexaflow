@@ -5,17 +5,19 @@ using System.Runtime.CompilerServices;
 
 namespace Nexaflow.Core.ViewModels;
 
-public enum DriveStatus { Ready, Loading, Unavailable }
+public enum DriveStatus   { Ready, Loading, Unavailable }
+public enum DriveIconType { HDD, SSD, Network, Removable, CDDVD }
 
 // ── Tree node ─────────────────────────────────────────────────────────────────
 public enum TreeNodeKind { Folder, Drive, ThisPc }
 
 public class FileSystemTreeNode : INotifyPropertyChanged
 {
-    private bool _isExpanded;
-    private bool _isSelected;
-    private string _name;
-    private DriveStatus _driveStatus;
+    private bool          _isExpanded;
+    private bool          _isSelected;
+    private string        _name;
+    private DriveStatus   _driveStatus;
+    private DriveIconType _driveIconType = DriveIconType.HDD;
 
     public string       FullPath { get; }
     public TreeNodeKind Kind     { get; }
@@ -33,13 +35,12 @@ public class FileSystemTreeNode : INotifyPropertyChanged
         set { _driveStatus = value; OnPropertyChanged(); }
     }
 
-    /// <summary>Emoji glyph used in the tree item template.</summary>
-    public string Icon => Kind switch
+    /// <summary>Visual icon variant — only meaningful for Drive nodes.</summary>
+    public DriveIconType DriveIconType
     {
-        TreeNodeKind.ThisPc => "🖥",
-        TreeNodeKind.Drive  => DriveIcon(FullPath),
-        _                   => "📁"
-    };
+        get => _driveIconType;
+        set { _driveIconType = value; OnPropertyChanged(); }
+    }
 
     public ObservableCollection<FileSystemTreeNode> Children { get; } = [];
 
@@ -115,23 +116,6 @@ public class FileSystemTreeNode : INotifyPropertyChanged
             }
             catch { /* access denied etc. */ }
         }
-    }
-
-    private static string DriveIcon(string root)
-    {
-        try
-        {
-            var info = new DriveInfo(root);
-            return info.DriveType switch
-            {
-                DriveType.CDRom    => "💿",
-                DriveType.Removable => "🔌",
-                DriveType.Network  => "🌐",
-                DriveType.Fixed    => NativeMethods.IsNoSeekPenalty(root) ? "💾" : "💽",
-                _                  => "💽"
-            };
-        }
-        catch { return "💽"; }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

@@ -477,11 +477,12 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
             var node  = new FileSystemTreeNode(d.Name, d.RootDirectory.FullName, TreeNodeKind.Drive);
             var entry = new FileSystemEntry
             {
-                Name        = d.Name,
-                FullPath    = d.RootDirectory.FullName,
-                IsDirectory = true,
-                IsDrive     = true,
-                DriveStatus = DriveStatus.Loading
+                Name          = d.Name,
+                FullPath      = d.RootDirectory.FullName,
+                IsDirectory   = true,
+                IsDrive       = true,
+                DriveStatus   = DriveStatus.Loading,
+                DriveIconType = DriveIconType.HDD
             };
             thisPc.Children.Add(node);
             vm.Entries.Add(entry);
@@ -503,7 +504,7 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
                 if (!drive.IsReady)
                     return (IsReady: false, Label: drive.Name, HasChildren: false,
                             UsedBytes: 0L, TotalBytes: 0L, FileSystem: string.Empty,
-                            KindLabel: string.Empty, Icon: "💽");
+                            KindLabel: string.Empty, IconType: DriveIconType.HDD);
 
                 var lbl = string.IsNullOrWhiteSpace(drive.VolumeLabel)
                     ? drive.Name
@@ -524,18 +525,19 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
                     _                  => "Local Disk"
                 };
 
-                string icon = drive.DriveType switch
+                var iconType = drive.DriveType switch
                 {
-                    DriveType.CDRom    => "💿",
-                    DriveType.Removable => "🔌",
-                    DriveType.Network  => "🌐",
-                    DriveType.Fixed    => NativeMethods.IsNoSeekPenalty(drive.RootDirectory.FullName) ? "💾" : "💽",
-                    _                  => "💽"
+                    DriveType.CDRom    => DriveIconType.CDDVD,
+                    DriveType.Removable => DriveIconType.Removable,
+                    DriveType.Network  => DriveIconType.Network,
+                    DriveType.Fixed    => NativeMethods.IsNoSeekPenalty(drive.RootDirectory.FullName)
+                                             ? DriveIconType.SSD : DriveIconType.HDD,
+                    _                  => DriveIconType.HDD
                 };
 
                 return (IsReady: true, Label: lbl, HasChildren: hasSub,
                         UsedBytes: used, TotalBytes: total, FileSystem: fs,
-                        KindLabel: kind, Icon: icon);
+                        KindLabel: kind, IconType: iconType);
             });
 
             // Resume on the WPF dispatcher — safe to touch UI objects directly.
@@ -548,7 +550,8 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
                 entry.DriveTotalBytes = result.TotalBytes;
                 entry.FileSystem      = result.FileSystem;
                 entry.DriveKindLabel  = result.KindLabel;
-                entry.DriveIcon       = result.Icon;
+                entry.DriveIconType   = result.IconType;
+                node.DriveIconType    = result.IconType;
 
                 if (result.HasChildren) node.Children.Add(FileSystemTreeNode.Dummy);
                 node.DriveStatus  = DriveStatus.Ready;
@@ -665,11 +668,12 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
             {
                 var entry = new FileSystemEntry
                 {
-                    Name        = d.Name,
-                    FullPath    = d.RootDirectory.FullName,
-                    IsDirectory = true,
-                    IsDrive     = true,
-                    DriveStatus = DriveStatus.Loading
+                    Name          = d.Name,
+                    FullPath      = d.RootDirectory.FullName,
+                    IsDirectory   = true,
+                    IsDrive       = true,
+                    DriveStatus   = DriveStatus.Loading,
+                    DriveIconType = DriveIconType.HDD
                 };
                 Entries.Add(entry);
 

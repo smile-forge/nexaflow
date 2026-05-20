@@ -42,6 +42,7 @@ public partial class FileSystemView : UserControl, IPageView
         ViewModel.NavigationChanged += OnViewModelNavigationChanged;
         ViewModel.PropertyChanged   += OnViewModelPropertyChanged;
         WireDragDrop();
+        Loaded += (_, _) => UpdateColumnsForMode();
     }
 
     public FileSystemView(FileSystemViewModel viewModel, IKeyboardHandler keyboardHandler, IDropTarget dropTarget)
@@ -54,6 +55,7 @@ public partial class FileSystemView : UserControl, IPageView
         ViewModel.NavigationChanged += OnViewModelNavigationChanged;
         ViewModel.PropertyChanged   += OnViewModelPropertyChanged;
         WireDragDrop();
+        Loaded += (_, _) => UpdateColumnsForMode();
     }
 
     private void WireDragDrop()
@@ -89,7 +91,28 @@ public partial class FileSystemView : UserControl, IPageView
     }
 
     private void OnViewModelNavigationChanged(IReadOnlyList<(string Label, string Path)> segments)
-        => NavigationChanged?.Invoke(segments);
+    {
+        NavigationChanged?.Invoke(segments);
+        UpdateColumnsForMode();
+    }
+
+    private GridViewColumn FilesystemColumn => (GridViewColumn)Resources["FilesystemCol"];
+    private GridViewColumn ModifiedColumn   => (GridViewColumn)Resources["ModifiedCol"];
+
+    private void UpdateColumnsForMode()
+    {
+        var cols = ((GridView)FileListView.View).Columns;
+        if (ViewModel.IsThisPcMode)
+        {
+            if (!cols.Contains(FilesystemColumn)) cols.Insert(2, FilesystemColumn);
+            cols.Remove(ModifiedColumn);
+        }
+        else
+        {
+            cols.Remove(FilesystemColumn);
+            if (!cols.Contains(ModifiedColumn)) cols.Add(ModifiedColumn);
+        }
+    }
 
     // ── AI summary row height ─────────────────────────────────────────────
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)

@@ -8,12 +8,12 @@ namespace Nexaflow.Core.ViewModels;
 
 public class FileSystemEntry : INotifyPropertyChanged
 {
-    private DriveStatus _driveStatus;
-    private string      _driveIcon       = "💽";
-    private long        _driveUsedBytes;
-    private long        _driveTotalBytes;
-    private string      _fileSystem      = string.Empty;
-    private string      _driveKindLabel  = string.Empty;
+    private DriveStatus   _driveStatus;
+    private DriveIconType _driveIconType = DriveIconType.HDD;
+    private long          _driveUsedBytes;
+    private long          _driveTotalBytes;
+    private string        _fileSystem     = string.Empty;
+    private string        _driveKindLabel = string.Empty;
 
     public string   Name        { get; set; } = string.Empty;
     public string   FullPath    { get; init; } = string.Empty;
@@ -29,11 +29,11 @@ public class FileSystemEntry : INotifyPropertyChanged
         set { _driveStatus = value; OnPropertyChanged(); }
     }
 
-    /// <summary>Emoji icon for this drive (💽 HDD, 💾 SSD, 🌐 network, 🔌 USB, 💿 CD).</summary>
-    public string DriveIcon
+    /// <summary>Visual icon variant — only meaningful for IsDrive entries.</summary>
+    public DriveIconType DriveIconType
     {
-        get => _driveIcon;
-        set { _driveIcon = value; OnPropertyChanged(); OnPropertyChanged(nameof(EntryIcon)); }
+        get => _driveIconType;
+        set { _driveIconType = value; OnPropertyChanged(); }
     }
 
     /// <summary>Bytes actually used on the drive (TotalSize − TotalFreeSpace).</summary>
@@ -66,9 +66,6 @@ public class FileSystemEntry : INotifyPropertyChanged
 
     // ── Computed display properties ────────────────────────────────────────────
 
-    /// <summary>Icon shown in the list-view Name cell.</summary>
-    public string EntryIcon => IsDrive ? _driveIcon : IsDirectory ? "📁" : "📄";
-
     public string TypeLabel => IsDrive
         ? _driveKindLabel
         : IsDirectory ? "Folder" : Path.GetExtension(Name).TrimStart('.').ToUpperInvariant();
@@ -93,10 +90,11 @@ public class FileSystemEntry : INotifyPropertyChanged
 
     private static string FormatSize(long bytes) => bytes switch
     {
-        < 1024                => $"{bytes} B",
-        < 1024 * 1024         => $"{bytes / 1024.0:F1} KB",
-        < 1024L * 1024 * 1024 => $"{bytes / (1024.0 * 1024):F1} MB",
-        _                     => $"{bytes / (1024.0 * 1024 * 1024):F2} GB"
+        < 1024                            => $"{bytes} B",
+        < 1024 * 1024                     => $"{bytes / 1024.0:F1} KB",
+        < 1024L * 1024 * 1024             => $"{bytes / (1024.0 * 1024):F1} MB",
+        < 1024L * 1024 * 1024 * 1024      => $"{bytes / (1024.0 * 1024 * 1024):F2} GB",
+        _                                 => $"{bytes / (1024.0 * 1024 * 1024 * 1024):F2} TB"
     };
 
     public event PropertyChangedEventHandler? PropertyChanged;
