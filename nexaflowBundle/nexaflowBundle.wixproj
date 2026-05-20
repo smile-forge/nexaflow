@@ -1,0 +1,15 @@
+<Project Sdk="WixToolset.Sdk/7.0.0">
+  <PropertyGroup>
+    <AcceptEula>wix7</AcceptEula>
+    <OutputType>Bundle</OutputType>
+    <_CoreCsproj>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\src\Nexaflow.Core\Nexaflow.Core.csproj'))</_CoreCsproj>
+    <NexaflowVersion>$([System.Text.RegularExpressions.Regex]::Match($(_CoreCsproj), '&lt;Version&gt;([^&lt;]+)&lt;/Version&gt;').Groups[1].Value)</NexaflowVersion>
+    <OutputName>NexaflowSetup_win-x64_v$(NexaflowVersion)</OutputName>
+    <DefineConstants>AppVersion=$(NexaflowVersion)</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Bal.wixext" Version="*" />
+    <PackageReference Include="WixToolset.Util.wixext" Version="*" />
+    <ProjectReference Include="..\nexaflowSetup\nexaflowSetup.wixproj" />
+  </ItemGroup>
+</Project>

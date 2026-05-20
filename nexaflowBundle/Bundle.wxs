@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+
+  <Bundle Name="Nexaflow"
+          Version="$(var.AppVersion)"
+          Manufacturer="Smile-forge"
+          UpgradeCode="{58063FC5-A853-43D8-8A7B-5B4C3C81D569}">
+
+    <BootstrapperApplication>
+      <bal:WixStandardBootstrapperApplication
+        Theme="hyperlinkLicense"
+        LicenseUrl=""
+        ShowVersion="yes" />
+    </BootstrapperApplication>
+
+    <!-- .NET installs a DWORD value named after each version under this key.
+         Update Value= when targeting a newer 10.0.x patch. -->
+    <util:RegistrySearch
+        Id="NetDesktop10Search"
+        Variable="NetDesktop10Installed"
+        Root="HKLM"
+        Key="SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App"
+        Value="10.0.8"
+        Result="exists" />
+
+    <Chain>
+      <ExePackage Id="NetDesktopRuntime10"
+                  SourceFile="..\nexaflowSetup\windowsdesktop-runtime-10.0.8-win-x64.exe"
+                  DisplayName=".NET 10 Desktop Runtime (x64)"
+                  DownloadUrl="https://dotnetcli.azureedge.net/dotnet/WindowsDesktop/10.0.8/windowsdesktop-runtime-10.0.8-win-x64.exe"
+                  Compressed="no"
+                  DetectCondition="NetDesktop10Installed"
+                  InstallArguments="/install /quiet /norestart"
+                  RepairArguments="/repair /quiet /norestart"
+                  UninstallArguments="/uninstall /quiet /norestart"
+                  Permanent="yes"
+                  Vital="yes" />
+
+      <MsiPackage Id="NexaflowApp"
+                  SourceFile="$(var.nexaflowSetup.TargetPath)"
+                  Vital="yes" />
+    </Chain>
+
+  </Bundle>
+</Wix>

@@ -1,0 +1,59 @@
+<Project Sdk="WixToolset.Sdk/7.0.0">
+  <PropertyGroup>
+    <AcceptEula>wix7</AcceptEula>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\src\Nexaflow.Core\Nexaflow.Core.csproj" />
+  </ItemGroup>
+
+  <!--
+    Generate AppComponents.wxs at build time from all files in the Core output directory.
+    This replaces the old hand-authored AppComponents.wxs which only listed Nexacore.exe.
+  -->
+  <Target Name="HarvestCoreOutput" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <_CoreOutDir>$(MSBuildThisFileDirectory)..\src\Nexaflow.Core\bin\x64\$(Configuration)\net10.0-windows\win-x64\</_CoreOutDir>
+      <_HarvestWxs>$(IntermediateOutputPath)AppComponents.wxs</_HarvestWxs>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(IntermediateOutputPath)" />
+
+    <!-- Collect all files from Core output, excluding debug symbols -->
+    <ItemGroup>
+      <_CoreFile Include="$(_CoreOutDir)**\*" Exclude="$(_CoreOutDir)**\*.pdb" />
+    </ItemGroup>
+
+    <!--
+      Generate one <Component> per file.
+      Root-level files use no Subdirectory attribute.
+      Files in subdirs use Subdirectory="path\to\subdir" (trailing backslash stripped via regex).
+    -->
+    <ItemGroup>
+      <_WxsComp Include="@(_CoreFile)" Condition="'%(_CoreFile.RecursiveDir)' == ''">
+        <Line>      &lt;Component&gt;&lt;File Source=&quot;%(_CoreFile.Identity)&quot; /&gt;&lt;/Component&gt;</Line>
+      </_WxsComp>
+      <_WxsComp Include="@(_CoreFile)" Condition="'%(_CoreFile.RecursiveDir)' != ''">
+        <Line>      &lt;Component Subdirectory=&quot;$([System.Text.RegularExpressions.Regex]::Replace('%(_CoreFile.RecursiveDir)', '\\$', ''))&quot;&gt;&lt;File Source=&quot;%(_CoreFile.Identity)&quot; /&gt;&lt;/Component&gt;</Line>
+      </_WxsComp>
+    </ItemGroup>
+
+    <!-- Assemble all lines: header + components + footer -->
+    <ItemGroup>
+      <_WxsLine Include="&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;" />
+      <_WxsLine Include="&lt;Wix xmlns=&quot;http://wixtoolset.org/schemas/v4/wxs&quot;&gt;" />
+      <_WxsLine Include="  &lt;Fragment&gt;" />
+      <_WxsLine Include="    &lt;ComponentGroup Id=&quot;AppComponents&quot; Directory=&quot;INSTALLFOLDER&quot;&gt;" />
+      <_WxsLine Include="@(_WxsComp->'%(Line)')" />
+      <_WxsLine Include="    &lt;/ComponentGroup&gt;" />
+      <_WxsLine Include="  &lt;/Fragment&gt;" />
+      <_WxsLine Include="&lt;/Wix&gt;" />
+    </ItemGroup>
+
+    <WriteLinesToFile File="$(_HarvestWxs)" Lines="@(_WxsLine)" Overwrite="true" />
+
+    <ItemGroup>
+      <Compile Include="$(_HarvestWxs)" />
+    </ItemGroup>
+  </Target>
+</Project>
