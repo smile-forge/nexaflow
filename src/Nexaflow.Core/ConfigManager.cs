@@ -6,15 +6,16 @@ namespace Nexaflow.Core;
 
 /// <summary>
 /// Singleton registry that loads and persists config POCOs to
-/// %AppData%\Smile\nexaflow\{configName}\config.json.
+/// %AppData%\Smile\nexaflow\{configName}\config_{version}.json.
 /// Errors are thrown rather than swallowed so the shell can surface them as toasts.
 /// </summary>
 public sealed class ConfigManager
 {
     public static ConfigManager Instance { get; } = new();
 
-    private readonly List<object>    _configs = [];
-    private readonly HashSet<string> _seen    = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<object>    _configs         = [];
+    private readonly HashSet<string> _seen            = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _defaultedConfigs = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly JsonSerializerOptions _opts = new()
     {
@@ -30,24 +31,42 @@ public sealed class ConfigManager
     /// </summary>
     public bool IsFirstRun { get; private set; } = true;
 
-    private static string GetPath(string configName) => Path.Combine(
+    private static string GetConfigDir(string configName) => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "Smile", "nexaflow", configName, "config.json");
+        "Smile", "nexaflow", configName);
+
+    private static string GetPath(string configName, Version version) =>
+        Path.Combine(GetConfigDir(configName), $"config_{version}.json");
 
     /// <summary>
     /// Registers a config POCO and populates its properties from disk.
     /// Duplicate <paramref name="configName"/> values are silently ignored (first wins).
-    /// Throws <see cref="IOException"/> or <see cref="JsonException"/> if the file exists but is unreadable.
+    /// If a config file exists for a different assembly version it is deleted and the config
+    /// defaults. Throws <see cref="IOException"/> or <see cref="JsonException"/> if the
+    /// matching file exists but is unreadable.
     /// </summary>
     public void Register(object config, string configName)
     {
         if (!_seen.Add(configName)) return;
 
-        var path = GetPath(configName);
-        if (File.Exists(path))
+        var version      = config.GetType().Assembly.GetName().Version ?? new Version(0, 0, 0, 0);
+        var expectedPath = GetPath(configName, version);
+        var dir          = GetConfigDir(configName);
+
+        if (File.Exists(expectedPath))
         {
             IsFirstRun = false;
-            Load(config, path);
+            Load(config, expectedPath);
+        }
+        else
+        {
+            // Delete any stale versioned files left by a previous assembly version
+            if (Directory.Exists(dir))
+            {
+                foreach (var stale in Directory.GetFiles(dir, "config_*.json"))
+                    File.Delete(stale);
+            }
+            _defaultedConfigs.Add(configName);
         }
 
         _configs.Add(config);
@@ -57,14 +76,24 @@ public sealed class ConfigManager
     public IReadOnlyList<object> GetAll() => _configs.AsReadOnly();
 
     /// <summary>
-    /// Persists <paramref name="config"/> to its JSON file.
+    /// Config names whose config file was absent or version-mismatched on load,
+    /// causing the config to be initialised with default values.
+    /// An entry is removed once the config is successfully saved.
+    /// </summary>
+    public IReadOnlyList<string> GetDefaultedConfigs() =>
+        _defaultedConfigs.ToList().AsReadOnly();
+
+    /// <summary>
+    /// Persists <paramref name="config"/> to its versioned JSON file.
     /// Throws <see cref="IOException"/> on write failure.
     /// </summary>
     public void Save(object config, string configName)
     {
-        var path = GetPath(configName);
+        var version = config.GetType().Assembly.GetName().Version ?? new Version(0, 0, 0, 0);
+        var path    = GetPath(configName, version);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, JsonSerializer.Serialize(config, config.GetType(), _opts));
+        _defaultedConfigs.Remove(configName);
     }
 
     /// <summary>Creates a deep clone of a config POCO via JSON round-trip.</summary>
