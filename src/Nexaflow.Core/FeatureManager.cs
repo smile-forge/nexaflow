@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.Viewlets;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -112,6 +113,16 @@ public sealed class FeatureManager
                 }
                 catch { /* skip — requires unresolvable constructor args */ }
             }
+            if (typeof(IFolderViewlet).IsAssignableFrom(t))
+            {
+                try
+                {
+                    var ctor = BestConstructor(t);
+                    var args = ResolveArgs(ctor, configInstances);
+                    _folderViewlets.Add((IFolderViewlet)ctor.Invoke(args));
+                }
+                catch { /* skip — requires unresolvable constructor args */ }
+            }
         }
     }
 
@@ -146,6 +157,11 @@ public sealed class FeatureManager
         }
         return tab;
     }
+
+    // ── Folder viewlets ───────────────────────────────────────────────────
+
+    private readonly List<IFolderViewlet> _folderViewlets = [];
+    public IReadOnlyList<IFolderViewlet> FolderViewlets => _folderViewlets.AsReadOnly();
 
     // ── Query handlers ────────────────────────────────────────────────────
 

@@ -1,0 +1,136 @@
+<UserControl x:Class="Nexaflow.Core.Controls.ViewletHost"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Banner: shown in Large (name only) and Full (name + page-toggle buttons) -->
+        <Border x:Name="BannerBorder"
+                Grid.Row="0"
+                Background="{DynamicResource Surface2Brush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="10,5"
+                Visibility="Collapsed">
+            <Grid>
+                <TextBlock x:Name="DisplayNameText"
+                           Foreground="{DynamicResource TextBrush}"
+                           FontSize="11" FontWeight="SemiBold"
+                           VerticalAlignment="Center"/>
+
+                <!-- Full-mode page-toggle buttons -->
+                <StackPanel x:Name="FullModeButtonsPanel"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Visibility="Collapsed">
+                    <Button x:Name="ViewletViewBtn"
+                            Content="Viewlet View"
+                            Padding="8,3"
+                            FontSize="10"
+                            Margin="0,0,4,0"
+                            Cursor="Hand"
+                            Click="ViewletViewBtn_Click">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background"     Value="{DynamicResource AccentBrush}"/>
+                                <Setter Property="Foreground"     Value="{DynamicResource TextBrush}"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="Bd"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="3"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsEnabled" Value="False">
+                                                    <Setter TargetName="Bd" Property="Opacity" Value="0.4"/>
+                                                </Trigger>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button x:Name="FileViewBtn"
+                            Content="File View"
+                            Padding="8,3"
+                            FontSize="10"
+                            Cursor="Hand"
+                            Click="FileViewBtn_Click">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background"     Value="{DynamicResource Surface2Brush}"/>
+                                <Setter Property="Foreground"     Value="{DynamicResource TextMutedBrush}"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="Bd"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="3"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BorderBrush}"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <!-- Cycle to another full viewlet: shown only when multiple full viewlets exist -->
+                    <Button x:Name="SwitchViewletBtn"
+                            Padding="8,3"
+                            FontSize="10"
+                            Margin="4,0,0,0"
+                            Cursor="Hand"
+                            Visibility="Collapsed"
+                            Click="SwitchViewletBtn_Click">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background"     Value="{DynamicResource Surface2Brush}"/>
+                                <Setter Property="Foreground"     Value="{DynamicResource TextMutedBrush}"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="Bd"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="3"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BorderBrush}"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Viewlet content -->
+        <ContentControl x:Name="ViewletContentArea" Grid.Row="1"/>
+    </Grid>
+</UserControl>

@@ -22,8 +22,6 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
 {
     [ObservableProperty] private string _currentPath = string.Empty;
     [ObservableProperty] private FileSystemEntry? _selectedEntry;
-    [ObservableProperty] private bool   _aiSummaryVisible;
-    [ObservableProperty] private bool   _aiSummaryIsDirty;
     [ObservableProperty] private string _entryCountLabel = string.Empty;
 
     // ── File action strip ─────────────────────────────────────────────────────
@@ -349,65 +347,6 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
     private bool   _navigating;
     private bool   _refreshing;
 
-    // ── AI Summary ───────────────────────────────────────────────────────────
-    private const string AiSummaryFileName = ".aisummary";
-    private string _aiSummaryOriginal    = string.Empty;
-    private string _aiSummaryTextBacking = string.Empty;
-
-    public string AiSummaryText
-    {
-        get => _aiSummaryTextBacking;
-        set
-        {
-            if (SetProperty(ref _aiSummaryTextBacking, value))
-            {
-                AiSummaryIsDirty = value != _aiSummaryOriginal;
-                SaveAiSummaryCommand.NotifyCanExecuteChanged();
-            }
-        }
-    }
-
-    [RelayCommand(CanExecute = nameof(CanSaveAiSummary))]
-    private void SaveAiSummary()
-    {
-        if (!AiSummaryVisible || string.IsNullOrEmpty(CurrentPath)) return;
-        try
-        {
-            File.WriteAllText(Path.Combine(CurrentPath, AiSummaryFileName), _aiSummaryTextBacking);
-            _aiSummaryOriginal = _aiSummaryTextBacking;
-            AiSummaryIsDirty   = false;
-            SaveAiSummaryCommand.NotifyCanExecuteChanged();
-        }
-        catch { /* access denied etc. */ }
-    }
-
-    private bool CanSaveAiSummary() => AiSummaryIsDirty;
-
-    private void LoadAiSummary(string path)
-    {
-        var filePath = Path.Combine(path, AiSummaryFileName);
-        if (File.Exists(filePath))
-        {
-            try
-            {
-                _aiSummaryOriginal    = File.ReadAllText(filePath);
-                _aiSummaryTextBacking = _aiSummaryOriginal;
-                OnPropertyChanged(nameof(AiSummaryText));
-                AiSummaryIsDirty = false;
-                AiSummaryVisible = true;
-                SaveAiSummaryCommand.NotifyCanExecuteChanged();
-                return;
-            }
-            catch { /* fall through */ }
-        }
-        _aiSummaryOriginal    = string.Empty;
-        _aiSummaryTextBacking = string.Empty;
-        OnPropertyChanged(nameof(AiSummaryText));
-        AiSummaryIsDirty = false;
-        AiSummaryVisible = false;
-        SaveAiSummaryCommand.NotifyCanExecuteChanged();
-    }
-
     // ── Entry count ──────────────────────────────────────────────────────────
 
     private int _selectedCount;
@@ -489,7 +428,6 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
             _ = CheckDriveAsync(d, node, entry);
         }
 
-        vm.AiSummaryVisible = false;
         vm.UpdateEntryCountLabel();
         vm.NavigationChanged?.Invoke([("This PC", string.Empty)]);
         return vm;
@@ -693,7 +631,6 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
                 }
             }
 
-            AiSummaryVisible = false;
             UpdateEntryCountLabel();
             NavigationChanged?.Invoke([("This PC", string.Empty)]);
 
@@ -721,7 +658,6 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
             _isThisPcMode = false;
                 CurrentPath   = path;
                 RefreshEntries();
-                LoadAiSummary(path);
                 SelectAndExpandPath(path);  // sync tree
                 FireNavigationChanged(path); // sync breadcrumb
         }

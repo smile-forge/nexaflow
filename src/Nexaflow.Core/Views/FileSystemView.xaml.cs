@@ -5,7 +5,10 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Controls.Primitives;
+using Nexaflow.Core.Controls;
+using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Core.FileSystem;
 
@@ -24,6 +27,11 @@ public partial class FileSystemView : UserControl, IPageView
     // Drag-from-list tracking
     private Point _listDragStartPoint;
     private bool  _listDragPending;
+
+    // ── Viewlet state ─────────────────────────────────────────────────────────
+    private readonly List<ViewletHost> _activeViewletHosts = [];
+    private bool _fileViewActive;
+    private int  _activeFullIndex;
 
     /// <summary>
     /// Raised whenever the current directory changes.
@@ -94,6 +102,7 @@ public partial class FileSystemView : UserControl, IPageView
     {
         NavigationChanged?.Invoke(segments);
         UpdateListViewVisibility();
+        RefreshViewlets(ViewModel.CurrentPath, ViewModel.IsThisPcMode);
     }
 
     private void UpdateListViewVisibility()
@@ -110,16 +119,12 @@ public partial class FileSystemView : UserControl, IPageView
         }
     }
 
-    // ── AI summary row height ─────────────────────────────────────────────
+    // ── Property change handler ───────────────────────────────────────────
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(FileSystemViewModel.AiSummaryVisible))
-            UpdateSummaryRowHeight();
-
         if (e.PropertyName == nameof(FileSystemViewModel.InputPromptVisible)
             && ViewModel.InputPromptVisible)
         {
-            // Give WPF a layout pass so the TextBox is visible before focusing it
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, () =>
             {
                 InputPromptTextBox.Focus();
@@ -128,17 +133,132 @@ public partial class FileSystemView : UserControl, IPageView
         }
     }
 
-    private void UpdateSummaryRowHeight()
+    // ── Viewlet management ────────────────────────────────────────────────
+
+    private void RefreshViewlets(string folderPath, bool isThisPcMode)
     {
-        if (ViewModel.AiSummaryVisible)
+        // Unsubscribe events from old hosts
+        foreach (var host in _activeViewletHosts)
         {
-            var target = Math.Max(80, RightGrid.ActualHeight * 0.25);
-            AiSummaryRow.Height = new GridLength(target, GridUnitType.Pixel);
+            host.DisplayModeChanged       -= OnViewletDisplayModeChanged;
+            host.FileViewRequested        -= OnFileViewRequested;
+            host.ViewletViewRequested     -= OnViewletViewRequested;
+            host.SwitchFullViewletRequested -= OnSwitchFullViewletRequested;
+        }
+        _activeViewletHosts.Clear();
+        _fileViewActive   = false;
+        _activeFullIndex  = 0;
+
+        ViewletStackPanel.Children.Clear();
+        FullViewletContent.Content = null;
+
+        if (isThisPcMode || string.IsNullOrEmpty(folderPath)) return;
+
+        var matched = FolderViewletRegistry.GetMatchingViewlets(folderPath);
+        foreach (var viewlet in matched)
+        {
+            var host = new ViewletHost(viewlet, folderPath);
+            host.DisplayModeChanged        += OnViewletDisplayModeChanged;
+            host.FileViewRequested         += OnFileViewRequested;
+            host.ViewletViewRequested      += OnViewletViewRequested;
+            host.SwitchFullViewletRequested += OnSwitchFullViewletRequested;
+            _activeViewletHosts.Add(host);
+        }
+
+        ApplyViewletLayout();
+    }
+
+    private void ApplyViewletLayout()
+    {
+        var fullHosts    = _activeViewletHosts.Where(h => h.CurrentMode == ViewletDisplayMode.Full).ToList();
+        var nonFullHosts = _activeViewletHosts.Where(h => h.CurrentMode != ViewletDisplayMode.Full).ToList();
+
+        // Keep active full index in range
+        if (_activeFullIndex >= fullHosts.Count) _activeFullIndex = 0;
+
+        ViewletStackPanel.Children.Clear();
+        FullViewletContent.Content = null;
+
+        bool showingFullViewlet = fullHosts.Count > 0 && !_fileViewActive;
+
+        if (showingFullViewlet)
+        {
+            // Full viewlet takes over the main area
+            var activeFullHost = fullHosts[_activeFullIndex];
+
+            // Update the cycle-button label (name of the next full viewlet)
+            if (fullHosts.Count > 1)
+            {
+                var nextIndex = (_activeFullIndex + 1) % fullHosts.Count;
+                activeFullHost.SetSwitchButtonLabel(fullHosts[nextIndex].CurrentMode.ToString());
+            }
+            else
+            {
+                activeFullHost.SetSwitchButtonLabel(null);
+            }
+            activeFullHost.SetPageToggleState(viewletViewActive: true);
+
+            FullViewletContent.Content  = activeFullHost;
+            FullViewletContent.Visibility = Visibility.Visible;
+
+            // Non-full viewlets are shown when the user switches to file view
+            // so just ensure the stack is empty while showing full viewlet
+            ViewletSplitter.Visibility = Visibility.Collapsed;
+
+            // Hide file lists and action strip
+            FileListView.Visibility  = Visibility.Collapsed;
+            DriveListView.Visibility = Visibility.Collapsed;
+            ActionStrip.Visibility   = Visibility.Collapsed;
         }
         else
         {
-            AiSummaryRow.Height = new GridLength(0, GridUnitType.Pixel);
+            FullViewletContent.Visibility = Visibility.Collapsed;
+
+            // If we were in full mode and switched to file view, still show any active full-host in banner mode
+            // For file view: put non-full viewlets in the stack, and if there's a full host, update its toggle state
+            if (fullHosts.Count > 0 && _fileViewActive)
+            {
+                fullHosts[_activeFullIndex].SetPageToggleState(viewletViewActive: false);
+            }
+
+            // Populate the stack with non-full viewlets
+            for (int i = 0; i < nonFullHosts.Count; i++)
+            {
+                if (i > 0)
+                    nonFullHosts[i].Margin = new Thickness(0, 4, 0, 0);
+                else
+                    nonFullHosts[i].Margin = new Thickness(0);
+                ViewletStackPanel.Children.Add(nonFullHosts[i]);
+            }
+
+            ViewletSplitter.Visibility = nonFullHosts.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+            // Restore file list and action strip
+            ActionStrip.Visibility = Visibility.Visible;
+            UpdateListViewVisibility();
         }
+    }
+
+    private void OnViewletDisplayModeChanged(object? sender, EventArgs e) => ApplyViewletLayout();
+
+    private void OnFileViewRequested(object? sender, EventArgs e)
+    {
+        _fileViewActive = true;
+        ApplyViewletLayout();
+    }
+
+    private void OnViewletViewRequested(object? sender, EventArgs e)
+    {
+        _fileViewActive = false;
+        ApplyViewletLayout();
+    }
+
+    private void OnSwitchFullViewletRequested(object? sender, EventArgs e)
+    {
+        var fullHosts = _activeViewletHosts.Where(h => h.CurrentMode == ViewletDisplayMode.Full).ToList();
+        if (fullHosts.Count > 1)
+            _activeFullIndex = (_activeFullIndex + 1) % fullHosts.Count;
+        ApplyViewletLayout();
     }
 
     // ── Keyboard handling ─────────────────────────────────────────────────

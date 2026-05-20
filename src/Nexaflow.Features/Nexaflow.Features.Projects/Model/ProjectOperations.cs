@@ -527,5 +527,20 @@ namespace Nexaflow.Features.Projects.Model
             if (!File.Exists(summaryPath)) return;
             _txService.BackupAndDelete(transactionId, summaryPath);
         }
+
+        // ── Direct summary helpers (no transaction) ────────────────────────────
+
+        public string? ReadDirectorySummary(string directoryPath)
+        {
+            var path = Path.Combine(directoryPath, ".aisummary");
+            return File.Exists(path) ? File.ReadAllText(path) : null;
+        }
+
+        public void WriteDirectorySummary(string directoryPath, string text)
+        {
+            var path = Path.Combine(directoryPath, ".aisummary");
+            File.WriteAllText(path, text);
+            File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.Hidden);
+        }
     }
 }
