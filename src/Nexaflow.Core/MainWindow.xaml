@@ -12,6 +12,13 @@
         WindowStyle="SingleBorderWindow"
         AllowsTransparency="False">
 
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="15"
+                      ResizeBorderThickness="{x:Static SystemParameters.WindowResizeBorderThickness}"
+                      GlassFrameThickness="0"
+                      UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+
     <Window.Resources>
         <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
         <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
@@ -20,22 +27,91 @@
         <cvn:AiStatusBrushConverter           x:Key="AiStatusBrush"/>
         <cvn:RibbonKindVisibilityConverter    x:Key="RibbonKindVis"/>
         <cv:StringToVisibilityConverter      x:Key="StringVis"/>
+
+        <!-- ── Window caption (min/max/close) buttons ── -->
+        <Style x:Key="CaptionButton" TargetType="Button">
+            <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Width" Value="44"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#1AFFFFFF"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CloseCaptionButton" TargetType="Button" BasedOn="{StaticResource CaptionButton}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#E81123"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <!-- Root grid: TopBar | ContentArea | Splitter | Interaction -->
     <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
-            <RowDefinition Height="72"/>    <!-- 0: top bar          -->
-            <RowDefinition Height="*" MinHeight="100"/>     <!-- 1: content area     -->
-            <RowDefinition Height="5"/>     <!-- 2: drag splitter    -->
-            <RowDefinition Height="90" MinHeight="72" x:Name="AiRow"/>    <!-- 3: AI interaction   -->
+            <RowDefinition Height="15"/>    <!-- 0: drag bar         -->
+            <RowDefinition Height="72"/>    <!-- 1: top bar          -->
+            <RowDefinition Height="*" MinHeight="100"/>     <!-- 2: content area     -->
+            <RowDefinition Height="5"/>     <!-- 3: drag splitter    -->
+            <RowDefinition Height="90" MinHeight="72" x:Name="AiRow"/>    <!-- 4: AI interaction   -->
         </Grid.RowDefinitions>
 
         <!-- ═══════════════════════════════════════════════════════════
-             ROW 0 — TOP BAR
+             ROW 0 — DRAG BAR
+             Full-width caption strip; min/max/close pinned top-right.
+             ═══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="0" Background="{StaticResource DeepBgBrush}"/>
+        <StackPanel Grid.Row="0" Orientation="Horizontal"
+                    HorizontalAlignment="Right" VerticalAlignment="Stretch">
+            <Button x:Name="MinimizeButton"
+                    Style="{StaticResource CaptionButton}"
+                    Content="&#xE921;"
+                    ToolTip="Minimise"
+                    Click="OnMinimizeClick"/>
+            <Button x:Name="MaximizeRestoreButton"
+                    Style="{StaticResource CaptionButton}"
+                    Content="&#xE922;"
+                    ToolTip="Maximise"
+                    Click="OnMaximizeRestoreClick"/>
+            <Button x:Name="CloseButton"
+                    Style="{StaticResource CloseCaptionButton}"
+                    Content="&#xE8BB;"
+                    ToolTip="Close"
+                    Click="OnCloseClick"/>
+        </StackPanel>
+
+        <!-- ═══════════════════════════════════════════════════════════
+             ROW 1 — TOP BAR
              Left: logo + activity ticker | Mid: ribbon | Right: actions
              ═══════════════════════════════════════════════════════════ -->
-        <Grid Grid.Row="0" Background="{StaticResource SurfaceBrush}"
+        <Grid Grid.Row="1" Background="{StaticResource SurfaceBrush}"
               x:Name="TopBar">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="220"/>
@@ -100,8 +176,8 @@
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1,0,0,0"
                     Background="{StaticResource SurfaceBrush}">
-                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Right"
-                            Margin="0,0,20,0">
+                <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                            Margin="0,0,20,10">
 
                     <!-- Options button -->
                     <Button Style="{StaticResource TopBarAction}"
@@ -133,10 +209,10 @@
         </Grid>
 
         <!-- ═══════════════════════════════════════════════════════════
-             ROW 1 — CONTENT AREA
+             ROW 2 — CONTENT AREA
              Tab bar (breadcrumb left | tabs right) + page host
              ═══════════════════════════════════════════════════════════ -->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="38"/>   <!-- tab bar -->
                 <RowDefinition Height="*"/>    <!-- page    -->
@@ -177,9 +253,9 @@
         </Grid>
 
         <!-- ═══════════════════════════════════════════════════════════
-             ROW 2 — DRAG SPLITTER
+             ROW 3 — DRAG SPLITTER
              ═══════════════════════════════════════════════════════════ -->
-        <GridSplitter Grid.Row="2"
+        <GridSplitter Grid.Row="3"
                       HorizontalAlignment="Stretch"
                       VerticalAlignment="Stretch"
                       Height="5"
@@ -190,9 +266,9 @@
                       ShowsPreview="False"/>
 
         <!-- ═══════════════════════════════════════════════════════════
-             ROW 3 — AI INTERACTION BAR
+             ROW 4 — AI INTERACTION BAR
              ═══════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="3"
+        <Border Grid.Row="4"
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,0">
@@ -279,10 +355,10 @@
         <!-- ═══════════════════════════════════════════════════════════
              OVERLAY — NOTIFICATIONS PANEL
              ═══════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="0" Grid.RowSpan="4"
+        <Border Grid.Row="0" Grid.RowSpan="5"
                 Visibility="{Binding NotificationsOpen, Converter={StaticResource BoolVis}}"
                 HorizontalAlignment="Right" VerticalAlignment="Top"
-                Margin="0,72,0,0" Width="320"
+                Margin="0,87,0,0" Width="320"
                 Style="{StaticResource PopupBorder}"
                 Padding="12" Panel.ZIndex="50">
             <StackPanel>
@@ -330,7 +406,7 @@
         <!-- ═══════════════════════════════════════════════════════════
              OVERLAY — OPTIONS PANEL
              ═══════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="0" Grid.RowSpan="4"
+        <Border Grid.Row="0" Grid.RowSpan="5"
                 Visibility="{Binding OptionsOpen, Converter={StaticResource BoolVis}}"
                 HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                 Background="#CC0F1117" Panel.ZIndex="100">
@@ -344,7 +420,7 @@
              OVERLAY — RIBBON EDIT PANEL  (full-screen modal)
              ═══════════════════════════════════════════════════════════ -->
         <ctrl:RibbonEditor
-                Grid.Row="0" Grid.RowSpan="4"
+                Grid.Row="0" Grid.RowSpan="5"
                 Visibility="{Binding RibbonEditOpen, Converter={StaticResource BoolVis}}"
                 Panel.ZIndex="60"
                 ItemsSource="{Binding RibbonItems}"
@@ -355,7 +431,7 @@
              OVERLAY — ERROR TOAST
              Appears at the bottom-right when ErrorToast is non-null.
              ═══════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="0" Grid.RowSpan="4"
+        <Border Grid.Row="0" Grid.RowSpan="5"
                 Visibility="{Binding ErrorToast, Converter={StaticResource StringVis}}"
                 HorizontalAlignment="Right" VerticalAlignment="Bottom"
                 Margin="0,0,24,110"
@@ -406,7 +482,7 @@
              Appears at the bottom-right when UpdateToastVersion is non-null.
              Auto-dismisses after 5 minutes.
              ═══════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="0" Grid.RowSpan="4"
+        <Border Grid.Row="0" Grid.RowSpan="5"
                 Visibility="{Binding UpdateToastVersion, Converter={StaticResource StringVis}}"
                 HorizontalAlignment="Right" VerticalAlignment="Bottom"
                 Margin="0,0,24,110"

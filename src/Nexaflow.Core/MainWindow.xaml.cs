@@ -1,6 +1,8 @@
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using Nexaflow.Core.Controls;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
@@ -110,10 +112,42 @@ public partial class MainWindow : Window
 
     private void CapAiRowHeight()
     {
-        double maxAi = (ActualHeight - 72) * 0.5;
+        double maxAi = (ActualHeight - 87) * 0.5;
         if (maxAi < 72) maxAi = 72;
         AiRow.MaxHeight = maxAi;
     }
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        var handle = new WindowInteropHelper(this).Handle;
+        int dark = 1;
+        DwmSetWindowAttribute(handle, 20, ref dark, sizeof(int));
+    }
+
+    protected override void OnStateChanged(EventArgs e)
+    {
+        base.OnStateChanged(e);
+        // Glyph: maximise (E922) when restored, restore (E923) when maximised.
+        MaximizeRestoreButton.Content = ((char)(WindowState == WindowState.Maximized ? 0xE923 : 0xE922)).ToString();
+        MaximizeRestoreButton.ToolTip = WindowState == WindowState.Maximized ? "Restore" : "Maximise";
+        // A maximised WindowChrome frame extends past the screen edge and clips
+        // content; pad to keep the caption buttons fully visible.
+        RootGrid.Margin = WindowState == WindowState.Maximized ? new Thickness(7) : default;
+    }
+
+    private void OnMinimizeClick(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
+
+    private void OnMaximizeRestoreClick(object sender, RoutedEventArgs e)
+    {
+        if (WindowState == WindowState.Maximized) SystemCommands.RestoreWindow(this);
+        else                                      SystemCommands.MaximizeWindow(this);
+    }
+
+    private void OnCloseClick(object sender, RoutedEventArgs e) => SystemCommands.CloseWindow(this);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
 
     private sealed class RelayCommand<T>(Action<T?> execute) : ICommand
     {
