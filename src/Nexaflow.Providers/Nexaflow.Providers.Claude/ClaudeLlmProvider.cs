@@ -22,51 +22,47 @@ public sealed class ClaudeLlmProvider : ILlmProvider
 
     // ── ILlmProvider ───────────────────────────────────────────────────────
 
-    public Task<LlmResponse?> QueryAsync(
-        string systemPrompt,
-        string userPrompt,
-        IReadOnlyList<string>? attachments = null,
-        CancellationToken ct = default)
+    public Task<LlmResponse?> CompleteAsync(
+        IReadOnlyList<LlmMessage>     messages,
+        string                        model,
+        IReadOnlyList<LlmAttachment>? attachments = null,
+        CancellationToken             ct = default)
     {
-        var messages = new List<MessageParam>
+        // Claude's API separates the system prompt from the messages array
+        string? systemPrompt = null;
+        var start = 0;
+        if (messages.Count > 0 && messages[0].Role == LlmRole.System)
         {
-            new() { Role = Role.User, Content = new MessageParamContent(BuildUserContent(userPrompt, attachments)) }
-        };
+            systemPrompt = messages[0].Text;
+            start        = 1;
+        }
 
-        return SendAsync(systemPrompt, messages, ct);
-    }
+        var msgParams = new List<MessageParam>();
+        for (var i = start; i < messages.Count; i++)
+        {
+            var msg        = messages[i];
+            var isLastUser = msg.Role == LlmRole.User && i == messages.Count - 1;
+            var content    = isLastUser ? BuildUserContent(msg.Text, attachments) : msg.Text;
 
-    public Task<LlmResponse?> ChatAsync(
-        IReadOnlyList<LlmMessage> history,
-        string newUserPrompt,
-        IReadOnlyList<string>? attachments = null,
-        CancellationToken ct = default)
-    {
-        var messages = history
-            .Select(m => new MessageParam
+            msgParams.Add(new MessageParam
             {
-                Role    = m.IsUser ? Role.User : Role.Assistant,
-                Content = new MessageParamContent(m.Text)
-            })
-            .ToList();
+                Role    = msg.Role == LlmRole.User ? Role.User : Role.Assistant,
+                Content = new MessageParamContent(content)
+            });
+        }
 
-        messages.Add(new MessageParam
-        {
-            Role    = Role.User,
-            Content = new MessageParamContent(BuildUserContent(newUserPrompt, attachments))
-        });
-
-        return SendAsync(systemPrompt: null, messages, ct);
+        return SendAsync(systemPrompt, model, msgParams, ct);
     }
 
     // ── Internal ───────────────────────────────────────────────────────────
 
     private async Task<LlmResponse?> SendAsync(
         string? systemPrompt,
+        string model,
         IReadOnlyList<MessageParam> messages,
         CancellationToken ct)
     {
-        var activity = _activityManager.StartActivity($"Claude ({_config.Model})…");
+        var activity = _activityManager.StartActivity($"Claude ({model})…");
         try
         {
             var client = new AnthropicClient(new ClientOptions
@@ -77,7 +73,7 @@ public sealed class ClaudeLlmProvider : ILlmProvider
 
             var request = new MessageCreateParams
             {
-                Model     = _config.Model,
+                Model     = model,
                 MaxTokens = 8096,
                 Messages  = messages
             };
@@ -120,7 +116,7 @@ public sealed class ClaudeLlmProvider : ILlmProvider
         return Task.FromResult(models);
     }
 
-    private static string BuildUserContent(string prompt, IReadOnlyList<string>? attachments)
+    private static string BuildUserContent(string prompt, IReadOnlyList<LlmAttachment>? attachments)
     {
         if (attachments is null || attachments.Count == 0)
             return prompt;
@@ -129,8 +125,8 @@ public sealed class ClaudeLlmProvider : ILlmProvider
         sb.AppendLine();
         sb.AppendLine();
         sb.AppendLine("Attached files:");
-        foreach (var path in attachments)
-            sb.AppendLine($"  {path}");
+        foreach (var a in attachments)
+            sb.AppendLine($"  {a.FilePath}");
 
         return sb.ToString();
     }

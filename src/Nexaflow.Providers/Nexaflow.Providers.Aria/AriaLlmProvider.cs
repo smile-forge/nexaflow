@@ -13,7 +13,7 @@ public sealed class AriaLlmProvider : ILlmProvider, IAsyncDisposable
     public const  string ProviderName = "Aria";
     public string Name => ProviderName;
 
-    private readonly AriaClientService        _client;
+    private readonly AriaClientService          _client;
     private readonly IBackgroundActivityManager _activityManager;
 
     public AriaLlmProvider(IBackgroundActivityManager activityManager)
@@ -24,33 +24,31 @@ public sealed class AriaLlmProvider : ILlmProvider, IAsyncDisposable
 
     // ── ILlmProvider ───────────────────────────────────────────────────────
 
-    public Task<LlmResponse?> QueryAsync(
-        string systemPrompt,
-        string userPrompt,
-        IReadOnlyList<string>? attachments = null,
-        CancellationToken ct = default)
+    public Task<LlmResponse?> CompleteAsync(
+        IReadOnlyList<LlmMessage>     messages,
+        string                        model,
+        IReadOnlyList<LlmAttachment>? attachments = null,
+        CancellationToken             ct = default)
     {
-        var text = string.IsNullOrWhiteSpace(systemPrompt)
-            ? userPrompt
-            : $"{systemPrompt}\n\n{userPrompt}";
-
-        return SendCoreAsync(text, attachments, ct);
-    }
-
-    public Task<LlmResponse?> ChatAsync(
-        IReadOnlyList<LlmMessage> history,
-        string newUserPrompt,
-        IReadOnlyList<string>? attachments = null,
-        CancellationToken ct = default)
-    {
-        // Aria uses a simple text pipe, so we serialise the conversation as a
-        // labelled transcript and append the new user turn.
+        // Aria uses a simple text pipe; serialise the conversation as a labelled transcript
         var sb = new StringBuilder();
-        foreach (var msg in history)
-            sb.AppendLine(msg.IsUser ? $"User: {msg.Text}" : $"Assistant: {msg.Text}");
-        sb.Append($"User: {newUserPrompt}");
+        foreach (var msg in messages)
+        {
+            var label = msg.Role switch
+            {
+                LlmRole.System    => "System",
+                LlmRole.Assistant => "Assistant",
+                _                 => "User"
+            };
+            sb.AppendLine($"{label}: {msg.Text}");
+        }
 
-        return SendCoreAsync(sb.ToString(), attachments, ct);
+        // Extract file paths for the named-pipe protocol (model is not applicable to Aria)
+        var paths = attachments is { Count: > 0 }
+            ? (IReadOnlyList<string>)attachments.Select(a => a.FilePath).ToList()
+            : null;
+
+        return SendCoreAsync(sb.ToString().TrimEnd(), paths, ct);
     }
 
     // ── Internal ───────────────────────────────────────────────────────────

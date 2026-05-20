@@ -21,52 +21,43 @@ public sealed class OllamaLlmProvider : ILlmProvider
 
     // ── ILlmProvider ───────────────────────────────────────────────────────
 
-    public Task<LlmResponse?> QueryAsync(
-        string systemPrompt,
-        string userPrompt,
-        IReadOnlyList<string>? attachments = null,
-        CancellationToken ct = default)
+    public Task<LlmResponse?> CompleteAsync(
+        IReadOnlyList<LlmMessage>     messages,
+        string                        model,
+        IReadOnlyList<LlmAttachment>? attachments = null,
+        CancellationToken             ct = default)
     {
-        var messages = new List<Message>();
-
-        if (!string.IsNullOrWhiteSpace(systemPrompt))
-            messages.Add(new Message { Role = ChatRole.System, Content = systemPrompt });
-
-        messages.Add(new Message { Role = ChatRole.User, Content = BuildUserContent(userPrompt, attachments) });
-
-        return SendAsync(messages, ct);
-    }
-
-    public Task<LlmResponse?> ChatAsync(
-        IReadOnlyList<LlmMessage> history,
-        string newUserPrompt,
-        IReadOnlyList<string>? attachments = null,
-        CancellationToken ct = default)
-    {
-        var messages = history
-            .Select(m => new Message
+        // Ollama's API accepts system messages inline in the messages array
+        var msgList = new List<Message>();
+        for (var i = 0; i < messages.Count; i++)
+        {
+            var msg  = messages[i];
+            ChatRole role = msg.Role switch
             {
-                Role    = m.IsUser ? ChatRole.User : ChatRole.Assistant,
-                Content = m.Text
-            })
-            .ToList();
+                LlmRole.System    => ChatRole.System,
+                LlmRole.Assistant => ChatRole.Assistant,
+                _                 => ChatRole.User
+            };
+            var isLastUser = msg.Role == LlmRole.User && i == messages.Count - 1;
+            var content    = isLastUser ? BuildUserContent(msg.Text, attachments) : msg.Text;
 
-        messages.Add(new Message { Role = ChatRole.User, Content = BuildUserContent(newUserPrompt, attachments) });
+            msgList.Add(new Message { Role = role, Content = content });
+        }
 
-        return SendAsync(messages, ct);
+        return SendAsync(model, msgList, ct);
     }
 
     // ── Internal ───────────────────────────────────────────────────────────
 
-    private async Task<LlmResponse?> SendAsync(List<Message> messages, CancellationToken ct)
+    private async Task<LlmResponse?> SendAsync(string model, List<Message> messages, CancellationToken ct)
     {
-        var activity = _activityManager.StartActivity($"Ollama ({_config.Model})…");
+        var activity = _activityManager.StartActivity($"Ollama ({model})…");
         try
         {
             var client  = new OllamaApiClient(new Uri(_config.Url));
             var request = new ChatRequest
             {
-                Model    = _config.Model,
+                Model    = model,
                 Messages = messages
             };
 
@@ -102,7 +93,7 @@ public sealed class OllamaLlmProvider : ILlmProvider
         }
     }
 
-    private static string BuildUserContent(string prompt, IReadOnlyList<string>? attachments)
+    private static string BuildUserContent(string prompt, IReadOnlyList<LlmAttachment>? attachments)
     {
         if (attachments is null || attachments.Count == 0)
             return prompt;
@@ -111,8 +102,8 @@ public sealed class OllamaLlmProvider : ILlmProvider
         sb.AppendLine();
         sb.AppendLine();
         sb.AppendLine("Attached files:");
-        foreach (var path in attachments)
-            sb.AppendLine($"  {path}");
+        foreach (var a in attachments)
+            sb.AppendLine($"  {a.FilePath}");
 
         return sb.ToString();
     }

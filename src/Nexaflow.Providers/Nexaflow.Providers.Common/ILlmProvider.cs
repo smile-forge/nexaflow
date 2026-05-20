@@ -11,24 +11,19 @@ public interface ILlmProvider
     string Name { get; }
 
     /// <summary>
-    /// One-shot query: sends a system prompt and user prompt and returns a single response.
-    /// Use this from any page for contextual, stateless queries.
+    /// Sends an ordered list of messages to the provider and returns the completion.
+    /// The first message may carry <see cref="LlmRole.System"/> to set the system prompt;
+    /// subsequent messages alternate <see cref="LlmRole.User"/> / <see cref="LlmRole.Assistant"/>.
+    /// <para>
+    /// <paramref name="model"/> is the specific model identifier for this call, taken from
+    /// the user's AI ability assignments rather than baked into the provider config.
+    /// </para>
     /// </summary>
-    Task<LlmResponse?> QueryAsync(
-        string systemPrompt,
-        string userPrompt,
-        IReadOnlyList<string>? attachments = null,
-        CancellationToken ct = default);
-
-    /// <summary>
-    /// Conversation-aware call: sends the full message history plus a new user prompt.
-    /// Use this from the AI Chat page so the model has conversational context.
-    /// </summary>
-    Task<LlmResponse?> ChatAsync(
-        IReadOnlyList<LlmMessage> history,
-        string newUserPrompt,
-        IReadOnlyList<string>? attachments = null,
-        CancellationToken ct = default);
+    Task<LlmResponse?> CompleteAsync(
+        IReadOnlyList<LlmMessage>     messages,
+        string                        model,
+        IReadOnlyList<LlmAttachment>? attachments = null,
+        CancellationToken             ct = default);
 
     /// <summary>
     /// Returns the list of model identifiers available from this provider.

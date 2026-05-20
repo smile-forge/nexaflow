@@ -34,10 +34,10 @@ public sealed class AIService : IAIService
     public void LoadAbilityConfig(AiConfig config) => _abilityConfig = config;
 
     /// <summary>
-    /// Returns the provider assigned to <paramref name="ability"/>, or null if none is
-    /// configured or the configured provider is not registered.
+    /// Returns the provider and model assigned to <paramref name="ability"/>, or null if none
+    /// is configured or the configured provider is not registered.
     /// </summary>
-    public ILlmProvider? GetProvider(AiAbility ability)
+    private (ILlmProvider Provider, string Model)? GetProvider(AiAbility ability)
     {
         if (_abilityConfig is null) return null;
 
@@ -49,7 +49,9 @@ public sealed class AIService : IAIService
         var pair = _abilityConfig.Columns.FirstOrDefault(c => c.Id == columnId);
         if (pair is null) return null;
 
-        return _providers.TryGetValue(pair.ProviderName, out var p) ? p : null;
+        return _providers.TryGetValue(pair.ProviderName, out var p)
+            ? (p, pair.Model)
+            : null;
     }
 
     // ── Persistence ───────────────────────────────────────────────────────
@@ -109,8 +111,9 @@ public sealed class AIService : IAIService
     public async Task<IQueryHandler?> DisambiguateToolSelection(
         IPageViewModel? page, string input, IReadOnlyList<IQueryHandler> candidates)
     {
-        var provider = GetProvider(AiAbility.Disambiguation);
-        if (provider is null) return null;
+        var resolved = GetProvider(AiAbility.Disambiguation);
+        if (resolved is null) return null;
+        var (provider, model) = resolved.Value;
 
         var context  = page?.GetContext() ?? "No specific context.";
         var toolList = string.Join("\n", candidates.Select((h, i) => $"{i + 1}. {h.Description}"));
@@ -122,7 +125,9 @@ public sealed class AIService : IAIService
             $"Tools:\n0. None of these apply\n{toolList}\n\n" +
             "Which tool number should handle this request?";
 
-        var response = await provider.QueryAsync(systemPrompt, userPrompt);
+        var response = await provider.CompleteAsync(
+            [new(LlmRole.System, systemPrompt), new(LlmRole.User, userPrompt)],
+            model);
         var raw      = response?.RawText?.Trim() ?? string.Empty;
 
         var digit = raw.FirstOrDefault(char.IsDigit);
@@ -134,8 +139,9 @@ public sealed class AIService : IAIService
 
     public async Task<AiResponse?> ContextChat(IPageViewModel? page, string input)
     {
-        var provider = GetProvider(AiAbility.Conversation);
-        if (provider is null) return null;
+        var resolved = GetProvider(AiAbility.Conversation);
+        if (resolved is null) return null;
+        var (provider, model) = resolved.Value;
 
         var context = page?.GetContext() ?? "No specific context.";
         var actions = page?.GetAvailableActions() ?? [];
@@ -158,7 +164,9 @@ public sealed class AIService : IAIService
             "3. For a conversational reply, respond normally.\n" +
             "Choose the format that best serves the user's intent.";
 
-        var response = await provider.QueryAsync(systemPrompt, input);
+        var response = await provider.CompleteAsync(
+            [new(LlmRole.System, systemPrompt), new(LlmRole.User, input)],
+            model);
         var raw      = response?.RawText?.Trim() ?? string.Empty;
         if (string.IsNullOrEmpty(raw)) return null;
 

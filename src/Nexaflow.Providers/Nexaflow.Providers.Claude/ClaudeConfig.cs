@@ -12,7 +12,4 @@ public sealed class ClaudeConfig : IProviderConfig
 
     [ConfigDisplayName("Base URL")]
     public string BaseUrl { get; set; } = "https://api.anthropic.com";
-
-    [ConfigDisplayName("Model")]
-    public string Model { get; set; } = "claude-opus-4-7";
 }

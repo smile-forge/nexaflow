@@ -9,7 +9,4 @@ public sealed class OllamaConfig : IProviderConfig
 
     [ConfigDisplayName("Ollama URL")]
     public string Url { get; set; } = "http://localhost:11434";
-
-    [ConfigDisplayName("Model")]
-    public string Model { get; set; } = "llama3.2";
 }
