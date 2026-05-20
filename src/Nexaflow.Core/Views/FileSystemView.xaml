@@ -73,11 +73,11 @@
                             <Border.InputBindings>
                                 <MouseBinding MouseAction="LeftDoubleClick"
                                               Command="{Binding DataContext.OpenEntryCommand,
-                                                        Source={x:Reference FileListView}}"
+                                                        RelativeSource={RelativeSource AncestorType=ListView}}"
                                               CommandParameter="{Binding}"/>
                             </Border.InputBindings>
                             <GridViewRowPresenter
-                                Columns="{Binding View.Columns, Source={x:Reference FileListView}}"
+                                Columns="{Binding View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"
                                 Content="{TemplateBinding Content}"/>
                         </Border>
 												<ControlTemplate.Triggers>
@@ -236,11 +236,126 @@
                     <HierarchicalDataTemplate DataType="{x:Type vm:FileSystemTreeNode}"
                                               ItemsSource="{Binding Children}">
                         <StackPanel Orientation="Horizontal">
-                            <!-- Drive icon + status overlay -->
-                            <Grid Margin="0,0,5,0" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding Icon}" FontSize="13" VerticalAlignment="Center"/>
-                                <!-- Loading / unavailable badge — only visible on Drive nodes -->
-                                <TextBlock FontSize="8" HorizontalAlignment="Right" VerticalAlignment="Top">
+                            <!-- Icon area: 18×18, one child visible at a time -->
+                            <Grid Width="18" Height="18" Margin="0,0,5,0" VerticalAlignment="Center">
+
+                                <!-- This PC -->
+                                <TextBlock Text="💻" FontSize="12"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Kind}" Value="ThisPc">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <!-- Folder -->
+                                <TextBlock Text="📁" FontSize="12"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Kind}" Value="Folder">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <!-- HDD / SSD / Network / CDDVD: 🖴 + color dot -->
+                                <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Grid.Style>
+                                        <Style TargetType="Grid">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding Kind}" Value="Drive"/>
+                                                        <Condition Binding="{Binding DriveIconType}" Value="HDD"/>
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </MultiDataTrigger>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding Kind}" Value="Drive"/>
+                                                        <Condition Binding="{Binding DriveIconType}" Value="SSD"/>
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </MultiDataTrigger>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding Kind}" Value="Drive"/>
+                                                        <Condition Binding="{Binding DriveIconType}" Value="Network"/>
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </MultiDataTrigger>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding Kind}" Value="Drive"/>
+                                                        <Condition Binding="{Binding DriveIconType}" Value="CDDVD"/>
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Grid.Style>
+                                    <TextBlock Text="&#x1F5B4;" FontSize="12"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <Ellipse Width="6" Height="6"
+                                             HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="#888888"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding DriveIconType}" Value="HDD">
+                                                        <Setter Property="Fill" Value="#0047AB"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding DriveIconType}" Value="SSD">
+                                                        <Setter Property="Fill" Value="#002D8A"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding DriveIconType}" Value="Network">
+                                                        <Setter Property="Fill" Value="#00AA44"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                </Grid>
+
+                                <!-- USB / Removable -->
+                                <Viewbox Width="11" Height="15"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Viewbox.Style>
+                                        <Style TargetType="Viewbox">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding Kind}" Value="Drive"/>
+                                                        <Condition Binding="{Binding DriveIconType}" Value="Removable"/>
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Viewbox.Style>
+                                    <Canvas Width="20" Height="22">
+                                        <Path Stroke="{StaticResource TextBrush}" StrokeThickness="2"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                              StrokeLineJoin="Round"
+                                              Data="M10,3 L10,14 M10,3 L6,7 M10,3 L14,7 M6,7 L6,11 M14,7 L14,11 M6,11 L10,15 L14,11 M10,15 L10,19"/>
+                                    </Canvas>
+                                </Viewbox>
+
+                                <!-- Drive status badge -->
+                                <TextBlock FontSize="7" HorizontalAlignment="Right" VerticalAlignment="Top">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -259,6 +374,7 @@
                                     </TextBlock.Style>
                                 </TextBlock>
                             </Grid>
+
                             <TextBlock Text="{Binding Name}"
                                        Foreground="{StaticResource TextBrush}"
                                        VerticalAlignment="Center"/>
@@ -397,14 +513,14 @@
                           ResizeDirection="Rows"
                           ResizeBehavior="PreviousAndNext"/>
 
-            <!-- ── File ListView ─────────────────────────────────────── -->
+            <!-- ── Drive ListView (This PC mode) ───────────────────────── -->
             <ListView Grid.Row="2" Grid.Column="0"
-                      x:Name="FileListView"
+                      x:Name="DriveListView"
+                      Visibility="Collapsed"
                       ItemsSource="{Binding Entries}"
                       ItemContainerStyle="{StaticResource FileRowStyle}"
                       Background="{StaticResource BgBrush}"
                       BorderThickness="0"
-                      AllowDrop="True"
                       SelectionMode="Extended"
                       SelectionChanged="FileListView_SelectionChanged"
                       PreviewMouseLeftButtonDown="FileListView_PreviewMouseLeftButtonDown"
@@ -415,9 +531,8 @@
                 <ListView.View>
                     <GridView ColumnHeaderContainerStyle="{StaticResource GvColHeaderStyle}">
 
-                        <!-- Name column (star width, takes remaining space) -->
-                        <GridViewColumn x:Name="ColName" Width="300"
-                                        Header="Name">
+                        <!-- Name -->
+                        <GridViewColumn Width="300">
                             <GridViewColumn.HeaderTemplate>
                                 <DataTemplate>
                                     <Button Content="Name" Style="{x:Null}"
@@ -432,24 +547,74 @@
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <!-- File/folder/drive icon + drive status badge -->
-                                        <Grid Margin="0,0,6,0" VerticalAlignment="Center">
-                                            <TextBlock FontSize="13" VerticalAlignment="Center">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Text" Value="📄"/>
+                                        <Grid Width="20" Height="20" Margin="0,0,6,0" VerticalAlignment="Center">
+
+                                            <!-- HDD / SSD / Network / CDDVD: 🖴 + color dot -->
+                                            <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <Grid.Style>
+                                                    <Style TargetType="Grid">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsDirectory}" Value="True">
-                                                                <Setter Property="Text" Value="📁"/>
+                                                            <DataTrigger Binding="{Binding DriveIconType}" Value="HDD">
+                                                                <Setter Property="Visibility" Value="Visible"/>
                                                             </DataTrigger>
-                                                            <DataTrigger Binding="{Binding IsDrive}" Value="True">
-                                                                <Setter Property="Text" Value="💾"/>
+                                                            <DataTrigger Binding="{Binding DriveIconType}" Value="SSD">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding DriveIconType}" Value="Network">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding DriveIconType}" Value="CDDVD">
+                                                                <Setter Property="Visibility" Value="Visible"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                            <!-- Loading / unavailable badge — only visible on drive entries -->
+                                                </Grid.Style>
+                                                <TextBlock Text="&#x1F5B4;" FontSize="13"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                <Ellipse Width="7" Height="7"
+                                                         HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                                                    <Ellipse.Style>
+                                                        <Style TargetType="Ellipse">
+                                                            <Setter Property="Fill" Value="#888888"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding DriveIconType}" Value="HDD">
+                                                                    <Setter Property="Fill" Value="#0047AB"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding DriveIconType}" Value="SSD">
+                                                                    <Setter Property="Fill" Value="#002D8A"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding DriveIconType}" Value="Network">
+                                                                    <Setter Property="Fill" Value="#00AA44"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Ellipse.Style>
+                                                </Ellipse>
+                                            </Grid>
+
+                                            <!-- USB / Removable -->
+                                            <Viewbox Width="13" Height="17"
+                                                     HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <Viewbox.Style>
+                                                    <Style TargetType="Viewbox">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding DriveIconType}" Value="Removable">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Viewbox.Style>
+                                                <Canvas Width="20" Height="22">
+                                                    <Path Stroke="{StaticResource TextBrush}" StrokeThickness="2"
+                                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                          StrokeLineJoin="Round"
+                                                          Data="M10,3 L10,14 M10,3 L6,7 M10,3 L14,7 M6,7 L6,11 M14,7 L14,11 M6,11 L10,15 L14,11 M10,15 L10,19"/>
+                                                </Canvas>
+                                            </Viewbox>
+
+                                            <!-- Drive status badge -->
                                             <TextBlock FontSize="8" HorizontalAlignment="Right" VerticalAlignment="Top">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
@@ -469,6 +634,7 @@
                                                 </TextBlock.Style>
                                             </TextBlock>
                                         </Grid>
+
                                         <TextBlock Text="{Binding Name}"
                                                    Foreground="{StaticResource TextBrush}"
                                                    FontSize="13" VerticalAlignment="Center"
@@ -478,7 +644,7 @@
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
 
-                        <!-- Type column -->
+                        <!-- Type -->
                         <GridViewColumn Width="90">
                             <GridViewColumn.HeaderTemplate>
                                 <DataTemplate>
@@ -500,7 +666,145 @@
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
 
-                        <!-- Size column -->
+                        <!-- Filesystem -->
+                        <GridViewColumn Width="75">
+                            <GridViewColumn.HeaderTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="Filesystem"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="11" FontWeight="SemiBold"/>
+                                </DataTemplate>
+                            </GridViewColumn.HeaderTemplate>
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                                    <TextBlock Text="{Binding FileSystem}"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="12" VerticalAlignment="Center"/>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+
+                        <!-- Size (wider for drive usage display) -->
+                        <GridViewColumn Width="160">
+                            <GridViewColumn.HeaderTemplate>
+                                <DataTemplate>
+                                    <Button Content="Size" Style="{x:Null}"
+                                            Background="Transparent" BorderThickness="0"
+                                            Foreground="{StaticResource TextMutedBrush}"
+                                            FontSize="11" FontWeight="SemiBold"
+                                            Cursor="Hand" Padding="0"
+                                            Command="{Binding DataContext.SortByCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                            CommandParameter="SizeBytes"/>
+                                </DataTemplate>
+                            </GridViewColumn.HeaderTemplate>
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                                    <TextBlock Text="{Binding SizeLabel}"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="12" VerticalAlignment="Center"/>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+
+                    </GridView>
+                </ListView.View>
+            </ListView>
+
+            <!-- ── File ListView (folder navigation) ────────────────────── -->
+            <ListView Grid.Row="2" Grid.Column="0"
+                      x:Name="FileListView"
+                      ItemsSource="{Binding Entries}"
+                      ItemContainerStyle="{StaticResource FileRowStyle}"
+                      Background="{StaticResource BgBrush}"
+                      BorderThickness="0"
+                      AllowDrop="True"
+                      SelectionMode="Extended"
+                      SelectionChanged="FileListView_SelectionChanged"
+                      PreviewMouseLeftButtonDown="FileListView_PreviewMouseLeftButtonDown"
+                      PreviewMouseRightButtonDown="FileListView_PreviewMouseRightButtonDown"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      Padding="4,4,4,4">
+                <ListView.View>
+                    <GridView ColumnHeaderContainerStyle="{StaticResource GvColHeaderStyle}">
+
+                        <!-- Name -->
+                        <GridViewColumn Width="300">
+                            <GridViewColumn.HeaderTemplate>
+                                <DataTemplate>
+                                    <Button Content="Name" Style="{x:Null}"
+                                            Background="Transparent" BorderThickness="0"
+                                            Foreground="{StaticResource TextMutedBrush}"
+                                            FontSize="11" FontWeight="SemiBold"
+                                            Cursor="Hand" Padding="0"
+                                            Command="{Binding DataContext.SortByCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                            CommandParameter="Name"/>
+                                </DataTemplate>
+                            </GridViewColumn.HeaderTemplate>
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Grid Width="20" Height="20" Margin="0,0,6,0" VerticalAlignment="Center">
+                                            <!-- File icon -->
+                                            <TextBlock Text="📄" FontSize="13"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsDirectory}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <!-- Folder icon -->
+                                            <TextBlock Text="📁" FontSize="13"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsDirectory}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Grid>
+                                        <TextBlock Text="{Binding Name}"
+                                                   Foreground="{StaticResource TextBrush}"
+                                                   FontSize="13" VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+
+                        <!-- Type -->
+                        <GridViewColumn Width="90">
+                            <GridViewColumn.HeaderTemplate>
+                                <DataTemplate>
+                                    <Button Content="Type" Style="{x:Null}"
+                                            Background="Transparent" BorderThickness="0"
+                                            Foreground="{StaticResource TextMutedBrush}"
+                                            FontSize="11" FontWeight="SemiBold"
+                                            Cursor="Hand" Padding="0"
+                                            Command="{Binding DataContext.SortByCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                            CommandParameter="TypeLabel"/>
+                                </DataTemplate>
+                            </GridViewColumn.HeaderTemplate>
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                                    <TextBlock Text="{Binding TypeLabel}"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="12" VerticalAlignment="Center"/>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+
+                        <!-- Size -->
                         <GridViewColumn Width="80">
                             <GridViewColumn.HeaderTemplate>
                                 <DataTemplate>
@@ -522,7 +826,7 @@
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
 
-                        <!-- Modified column -->
+                        <!-- Modified -->
                         <GridViewColumn Width="150">
                             <GridViewColumn.HeaderTemplate>
                                 <DataTemplate>

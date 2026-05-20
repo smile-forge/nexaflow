@@ -42,6 +42,7 @@ public partial class FileSystemView : UserControl, IPageView
         ViewModel.NavigationChanged += OnViewModelNavigationChanged;
         ViewModel.PropertyChanged   += OnViewModelPropertyChanged;
         WireDragDrop();
+        Loaded += (_, _) => UpdateListViewVisibility();
     }
 
     public FileSystemView(FileSystemViewModel viewModel, IKeyboardHandler keyboardHandler, IDropTarget dropTarget)
@@ -54,6 +55,7 @@ public partial class FileSystemView : UserControl, IPageView
         ViewModel.NavigationChanged += OnViewModelNavigationChanged;
         ViewModel.PropertyChanged   += OnViewModelPropertyChanged;
         WireDragDrop();
+        Loaded += (_, _) => UpdateListViewVisibility();
     }
 
     private void WireDragDrop()
@@ -89,7 +91,24 @@ public partial class FileSystemView : UserControl, IPageView
     }
 
     private void OnViewModelNavigationChanged(IReadOnlyList<(string Label, string Path)> segments)
-        => NavigationChanged?.Invoke(segments);
+    {
+        NavigationChanged?.Invoke(segments);
+        UpdateListViewVisibility();
+    }
+
+    private void UpdateListViewVisibility()
+    {
+        if (ViewModel.IsThisPcMode)
+        {
+            DriveListView.Visibility = Visibility.Visible;
+            FileListView.Visibility  = Visibility.Collapsed;
+        }
+        else
+        {
+            DriveListView.Visibility = Visibility.Collapsed;
+            FileListView.Visibility  = Visibility.Visible;
+        }
+    }
 
     // ── AI summary row height ─────────────────────────────────────────────
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -189,15 +208,16 @@ public partial class FileSystemView : UserControl, IPageView
     // ── File list selection ───────────────────────────────────────────────
     private void FileListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        var selected = FileListView.SelectedItems
-            .OfType<FileSystemEntry>()
-            .ToList();
+        if (sender is not ListView lv) return;
+        var selected = lv.SelectedItems.OfType<FileSystemEntry>().ToList();
         ViewModel.OnSelectionChanged(selected);
     }
 
     // Clicking an already-selected item deselects it (works for single and multi-selection)
     private void FileListView_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (sender is not ListView lv) return;
+
         // Walk up from the clicked element to find the ListViewItem
         var element = e.OriginalSource as DependencyObject;
         while (element is not null && element is not ListViewItem)
@@ -209,17 +229,16 @@ public partial class FileSystemView : UserControl, IPageView
         // Never intercept double-clicks — let them reach the MouseBinding.
         if (e.ClickCount > 1) { _listDragPending = false; return; }
 
-        // Record position so PreviewMouseMove can detect a drag gesture.
+        // Record position so PreviewMouseMove can detect a drag gesture (file list only).
         _listDragStartPoint = e.GetPosition(null);
-        _listDragPending    = true;
+        _listDragPending    = lv == FileListView;
 
         // Only deselect when it's the sole selected item and no modifier is held
         bool noModifiers = Keyboard.Modifiers == ModifierKeys.None;
-        bool isAlreadySelected = FileListView.SelectedItems.Count == 1
-                                 && FileListView.SelectedItem == entry;
+        bool isAlreadySelected = lv.SelectedItems.Count == 1 && lv.SelectedItem == entry;
         if (isAlreadySelected && noModifiers)
         {
-            FileListView.SelectedItem = null;
+            lv.SelectedItem = null;
             e.Handled = true;
         }
     }
@@ -228,6 +247,8 @@ public partial class FileSystemView : UserControl, IPageView
 
     private void FileListView_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (sender is not ListView lv) return;
+
         // Identify which entry was right-clicked
         var element = e.OriginalSource as DependencyObject;
         while (element is not null && element is not ListViewItem)
@@ -237,12 +258,10 @@ public partial class FileSystemView : UserControl, IPageView
         if (element is ListViewItem { DataContext: FileSystemEntry clicked })
         {
             // If the clicked item is not already in the selection, select it first.
-            if (!FileListView.SelectedItems.Contains(clicked))
-            {
-                FileListView.SelectedItem = clicked;
-            }
+            if (!lv.SelectedItems.Contains(clicked))
+                lv.SelectedItem = clicked;
 
-            targets = FileListView.SelectedItems.OfType<FileSystemEntry>().ToList();
+            targets = lv.SelectedItems.OfType<FileSystemEntry>().ToList();
         }
         else
         {
@@ -253,8 +272,8 @@ public partial class FileSystemView : UserControl, IPageView
         var actions = ViewModel.BuildContextActions(targets);
         if (actions.Count == 0) return;
 
-        FileListView.ContextMenu = BuildContextMenu(actions);
-        FileListView.ContextMenu.IsOpen = true;
+        lv.ContextMenu = BuildContextMenu(actions);
+        lv.ContextMenu.IsOpen = true;
         e.Handled = true;
     }
 
@@ -267,6 +286,9 @@ public partial class FileSystemView : UserControl, IPageView
 
         if (element is not TreeViewItem { DataContext: FileSystemTreeNode node }) return;
         if (string.IsNullOrEmpty(node.FullPath)) return; // "This PC" virtual root
+
+        // Select the node under the cursor
+        (element as TreeViewItem)!.IsSelected = true;
 
         // Represent as a directory FileSystemEntry
         var entry = new FileSystemEntry

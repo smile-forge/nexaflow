@@ -465,6 +465,90 @@ public sealed class FileMapManager
         }
     }
 
+    // ── Default-action specificity ────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the highest-specificity match level for <paramref name="experienceId"/>
+    /// against <paramref name="file"/>:
+    /// 4 = Extension-specific, 3 = MagicNumber, 2 = PerceivedType, 1 = ContentType,
+    /// 0 = Universal (*.*), -1 = not matched.
+    /// An experience ID is considered matched at level N when it is equal to, or an
+    /// ancestor of, any ID directly indexed at that level for this file.
+    /// The "/" root ID is always Universal (0) — never elevated by more specific criteria.
+    /// </summary>
+    public int GetMatchSpecificity(FileInfo file, string experienceId)
+    {
+        if (string.IsNullOrEmpty(experienceId)) return -1;
+
+        // "/" is always Universal; don't let it inherit a higher specificity.
+        bool isRootId = experienceId == "/";
+
+        var idx = _index;
+        var ext = file.Extension.ToLowerInvariant();
+
+        if (!isRootId)
+        {
+            // Extension-specific (level 4)
+            if (idx.ByExtension.TryGetValue(ext, out var byExt) &&
+                IsAncestorOrSelf(byExt, experienceId)) return 4;
+
+            // MagicNumber (level 3)
+            if (idx.MagicExtensions.Contains(ext) && file.Exists && file.Length > 0)
+            {
+                try
+                {
+                    var typeName = DetectMagicType(file);
+                    if (typeName is not null &&
+                        idx.ByMagicNumber.TryGetValue(typeName, out var byMagic) &&
+                        IsAncestorOrSelf(byMagic, experienceId)) return 3;
+                }
+                catch { }
+            }
+
+            // PerceivedType (level 2)
+            if (!string.IsNullOrEmpty(ext))
+            {
+                var info = ShellTypeResolver.Resolve(ext);
+                if (info is not null)
+                {
+                    if (!string.IsNullOrEmpty(info.PerceivedType) &&
+                        idx.ByPerceivedType.TryGetValue(info.PerceivedType.ToLowerInvariant(), out var byPt) &&
+                        IsAncestorOrSelf(byPt, experienceId)) return 2;
+
+                    // ContentType (level 1)
+                    if (!string.IsNullOrEmpty(info.ContentType))
+                        foreach (var (pattern, id) in idx.ContentTypeRules)
+                            if (ContentTypeMatches(pattern, info.ContentType) &&
+                                IsAncestorOrSelf([id], experienceId)) return 1;
+                }
+            }
+        }
+
+        // Universal "*" (level 0)
+        if (idx.ByExtension.TryGetValue("*", out var universal) &&
+            IsAncestorOrSelf(universal, experienceId)) return 0;
+
+        // "/" is always in the expanded set for any matched file
+        if (isRootId) return 0;
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Returns true when <paramref name="targetId"/> is equal to or an ancestor of
+    /// any ID in <paramref name="directlyMatched"/> (i.e. targetId is a prefix of that ID).
+    /// </summary>
+    private static bool IsAncestorOrSelf(IEnumerable<string> directlyMatched, string targetId)
+    {
+        string prefix = targetId.TrimEnd('/') + "/";
+        foreach (var id in directlyMatched)
+        {
+            if (id.Equals(targetId, StringComparison.OrdinalIgnoreCase)) return true;
+            if (id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
+    }
+
     // ── Matching helpers ──────────────────────────────────────────────────────
 
     /// <summary>
