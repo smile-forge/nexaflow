@@ -6,6 +6,7 @@ using Nexaflow.Core.FileActions;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -181,7 +182,16 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
     {
         if (_isThisPcMode) return [];
 
-        var applicable = _actionRegistry.GetActionsFor(entries);
+        var canPerform = _actionRegistry.SnapshotCanPerform();
+
+        bool onlyFolders     = entries.Count > 0 && entries.All(e => e.IsDirectory);
+        bool anyDrives       = entries.Any(e => e.IsDrive);
+        bool useFolderActions = entries.Count == 0 || onlyFolders || anyDrives;
+
+        IReadOnlyList<IFileAction> applicable = useFolderActions
+            ? _actionRegistry.FilterFolderActions(entries, canPerform.Folder)
+            : _actionRegistry.FilterActions(entries, canPerform.File);
+
         var paths = entries.Count > 0
             ? entries.Select(e => e.FullPath).ToList()
             : (!string.IsNullOrEmpty(CurrentPath) ? [CurrentPath] : new List<string>());
@@ -488,23 +498,59 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
     {
         try
         {
-            var (isReady, label, hasChildren) = await Task.Run(() =>
+            var result = await Task.Run(() =>
             {
-                if (!drive.IsReady) return (false, drive.Name, false);
+                if (!drive.IsReady)
+                    return (IsReady: false, Label: drive.Name, HasChildren: false,
+                            UsedBytes: 0L, TotalBytes: 0L, FileSystem: string.Empty,
+                            KindLabel: string.Empty, Icon: "💽");
+
                 var lbl = string.IsNullOrWhiteSpace(drive.VolumeLabel)
                     ? drive.Name
                     : $"{drive.VolumeLabel} ({drive.Name.TrimEnd('\\')})";
+
                 var hasSub = FileSystemTreeNode.HasSubDirectoriesSafe(drive.RootDirectory.FullName);
-                return (true, lbl, hasSub);
+
+                long total  = drive.TotalSize;
+                long used   = total - drive.TotalFreeSpace;
+                string fs   = drive.DriveFormat;
+
+                string kind = drive.DriveType switch
+                {
+                    DriveType.CDRom    => "CD/DVD Drive",
+                    DriveType.Removable => "Removable Disk",
+                    DriveType.Network  => "Network Drive",
+                    DriveType.Ram      => "RAM Disk",
+                    _                  => "Local Disk"
+                };
+
+                string icon = drive.DriveType switch
+                {
+                    DriveType.CDRom    => "💿",
+                    DriveType.Removable => "🔌",
+                    DriveType.Network  => "🌐",
+                    DriveType.Fixed    => NativeMethods.IsNoSeekPenalty(drive.RootDirectory.FullName) ? "💾" : "💽",
+                    _                  => "💽"
+                };
+
+                return (IsReady: true, Label: lbl, HasChildren: hasSub,
+                        UsedBytes: used, TotalBytes: total, FileSystem: fs,
+                        KindLabel: kind, Icon: icon);
             });
 
             // Resume on the WPF dispatcher — safe to touch UI objects directly.
-            node.Name  = label;
-            entry.Name = label;
+            node.Name  = result.Label;
+            entry.Name = result.Label;
 
-            if (isReady)
+            if (result.IsReady)
             {
-                if (hasChildren) node.Children.Add(FileSystemTreeNode.Dummy);
+                entry.DriveUsedBytes  = result.UsedBytes;
+                entry.DriveTotalBytes = result.TotalBytes;
+                entry.FileSystem      = result.FileSystem;
+                entry.DriveKindLabel  = result.KindLabel;
+                entry.DriveIcon       = result.Icon;
+
+                if (result.HasChildren) node.Children.Add(FileSystemTreeNode.Dummy);
                 node.DriveStatus  = DriveStatus.Ready;
                 entry.DriveStatus = DriveStatus.Ready;
             }
@@ -682,9 +728,64 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
     }
 
     [RelayCommand]
-    private void OpenEntry(FileSystemEntry entry)
+    private async Task OpenEntry(FileSystemEntry entry)
     {
-        if (entry.IsDirectory) NavigateTo(entry.FullPath);
+        if (entry.IsDirectory) { NavigateTo(entry.FullPath); return; }
+        await OpenFileDefaultAsync(entry);
+    }
+
+    /// <summary>
+    /// Resolves and executes the default "open" action for a file, applying the rule:
+    /// FileExtension > MagicNumber > PerceivedType > ContentType, and at the same
+    /// specificity level an internal action beats a shell "open" verb.
+    /// </summary>
+    private async Task OpenFileDefaultAsync(FileSystemEntry entry)
+    {
+        var fileInfo = new FileInfo(entry.FullPath);
+        var ext      = Path.GetExtension(entry.Name);
+
+        var canPerform = _actionRegistry.SnapshotCanPerform();
+
+        var (internalActions, shellOpenVerb) = await Task.Run(() =>
+        {
+            var actions  = _actionRegistry.FilterActions([entry], canPerform.File);
+            var typeInfo = ShellTypeResolver.Resolve(ext);
+            var openVerb = typeInfo?.Verbs.FirstOrDefault(v =>
+                string.Equals(v.Verb, "open", StringComparison.OrdinalIgnoreCase));
+            return (actions, openVerb);
+        });
+
+        // Find highest-specificity internal action
+        IFileAction? bestInternal    = null;
+        int          bestInternalSpec = -1;
+        foreach (var action in internalActions)
+        {
+            int spec = FileMapManager.Instance.GetMatchSpecificity(fileInfo, action.ExperienceId);
+            if (spec > bestInternalSpec) { bestInternal = action; bestInternalSpec = spec; }
+        }
+
+        // Shell "open" verb is Extension-level (4); encode priority as spec*2 + (internal?1:0)
+        // so that internal wins over shell at the same specificity level.
+        int internalPriority = bestInternal  is not null ? bestInternalSpec * 2 + 1 : -1;
+        int shellPriority    = shellOpenVerb is not null ? 4 * 2 + 0               : -1;
+
+        if (internalPriority >= shellPriority && bestInternal is not null)
+        {
+            bestInternal.PerformAction(entry.FullPath);
+            if (bestInternal.RequiresRefresh) Refresh();
+        }
+        else if (shellOpenVerb is not null)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(entry.FullPath)
+                {
+                    Verb            = shellOpenVerb.Verb,
+                    UseShellExecute = true
+                });
+            }
+            catch { }
+        }
     }
 
     public void NavigateUp()

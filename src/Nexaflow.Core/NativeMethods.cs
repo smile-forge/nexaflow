@@ -1,4 +1,5 @@
-﻿using System.Collections.Specialized;
+﻿using Microsoft.Win32.SafeHandles;
+using System.Collections.Specialized;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -7,6 +8,70 @@ namespace Nexaflow.Core
 {
     public static class NativeMethods
     {
+        // ── SSD/HDD detection via IOCTL_STORAGE_QUERY_PROPERTY ───────────────
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern SafeFileHandle CreateFile(
+            string lpFileName, uint dwDesiredAccess, uint dwShareMode,
+            IntPtr lpSecurityAttributes, uint dwCreationDisposition,
+            uint dwFlagsAndAttributes, IntPtr hTemplateFile);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool DeviceIoControl(
+            SafeFileHandle hDevice, uint dwIoControlCode,
+            ref STORAGE_PROPERTY_QUERY lpInBuffer, uint nInBufferSize,
+            out DEVICE_SEEK_PENALTY_DESCRIPTOR lpOutBuffer, uint nOutBufferSize,
+            out uint lpBytesReturned, IntPtr lpOverlapped);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct STORAGE_PROPERTY_QUERY
+        {
+            public uint PropertyId;          // 7 = StorageDeviceSeekPenaltyProperty
+            public uint QueryType;           // 0 = PropertyStandardQuery
+            public byte AdditionalParameters;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DEVICE_SEEK_PENALTY_DESCRIPTOR
+        {
+            public uint Version;
+            public uint Size;
+            [MarshalAs(UnmanagedType.U1)]
+            public bool IncursSeekPenalty;
+        }
+
+        private const uint IOCTL_STORAGE_QUERY_PROPERTY = 0x002D1400;
+        private const uint FILE_SHARE_READ_WRITE = 0x00000001 | 0x00000002;
+        private const uint OPEN_EXISTING = 3;
+
+        /// <summary>
+        /// Returns true when the fixed drive at <paramref name="driveRoot"/> (e.g. "C:\")
+        /// does not incur a seek penalty — i.e. it is an SSD or NVMe device.
+        /// Returns false for HDDs or when detection fails.
+        /// </summary>
+        public static bool IsNoSeekPenalty(string driveRoot)
+        {
+            try
+            {
+                // "C:\" → @"\\.\C:"
+                string letter = driveRoot.TrimEnd('\\', '/');
+                if (letter.Length < 2 || letter[1] != ':') return false;
+
+                using var handle = CreateFile(@"\\.\" + letter, 0, FILE_SHARE_READ_WRITE,
+                    IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
+                if (handle.IsInvalid) return false;
+
+                var query = new STORAGE_PROPERTY_QUERY { PropertyId = 7, QueryType = 0 };
+                bool ok = DeviceIoControl(handle, IOCTL_STORAGE_QUERY_PROPERTY,
+                    ref query, (uint)Marshal.SizeOf(query),
+                    out var descriptor, (uint)Marshal.SizeOf<DEVICE_SEEK_PENALTY_DESCRIPTOR>(),
+                    out _, IntPtr.Zero);
+
+                return ok && !descriptor.IncursSeekPenalty;
+            }
+            catch { return false; }
+        }
+
         // ── Shell execute (properties dialog) ────────────────────────────────
 
         [DllImport("shell32.dll", CharSet = CharSet.Auto)]

@@ -9,6 +9,11 @@ namespace Nexaflow.Core.ViewModels;
 public class FileSystemEntry : INotifyPropertyChanged
 {
     private DriveStatus _driveStatus;
+    private string      _driveIcon       = "💽";
+    private long        _driveUsedBytes;
+    private long        _driveTotalBytes;
+    private string      _fileSystem      = string.Empty;
+    private string      _driveKindLabel  = string.Empty;
 
     public string   Name        { get; set; } = string.Empty;
     public string   FullPath    { get; init; } = string.Empty;
@@ -24,16 +29,74 @@ public class FileSystemEntry : INotifyPropertyChanged
         set { _driveStatus = value; OnPropertyChanged(); }
     }
 
-    public string TypeLabel => IsDirectory ? "Folder" : Path.GetExtension(Name).TrimStart('.').ToUpperInvariant();
-    public string SizeLabel => IsDirectory ? string.Empty : FormatSize(SizeBytes);
-    public string ModifiedLabel => Modified.ToString("yyyy-MM-dd HH:mm");
+    /// <summary>Emoji icon for this drive (💽 HDD, 💾 SSD, 🌐 network, 🔌 USB, 💿 CD).</summary>
+    public string DriveIcon
+    {
+        get => _driveIcon;
+        set { _driveIcon = value; OnPropertyChanged(); OnPropertyChanged(nameof(EntryIcon)); }
+    }
+
+    /// <summary>Bytes actually used on the drive (TotalSize − TotalFreeSpace).</summary>
+    public long DriveUsedBytes
+    {
+        get => _driveUsedBytes;
+        set { _driveUsedBytes = value; OnPropertyChanged(); OnPropertyChanged(nameof(SizeLabel)); }
+    }
+
+    /// <summary>Total capacity of the drive in bytes.</summary>
+    public long DriveTotalBytes
+    {
+        get => _driveTotalBytes;
+        set { _driveTotalBytes = value; OnPropertyChanged(); OnPropertyChanged(nameof(SizeLabel)); }
+    }
+
+    /// <summary>Filesystem format string, e.g. "NTFS", "FAT32", "exFAT".</summary>
+    public string FileSystem
+    {
+        get => _fileSystem;
+        set { _fileSystem = value; OnPropertyChanged(); }
+    }
+
+    /// <summary>Human-readable drive kind, e.g. "Local Disk", "Network Drive".</summary>
+    public string DriveKindLabel
+    {
+        get => _driveKindLabel;
+        set { _driveKindLabel = value; OnPropertyChanged(); OnPropertyChanged(nameof(TypeLabel)); }
+    }
+
+    // ── Computed display properties ────────────────────────────────────────────
+
+    /// <summary>Icon shown in the list-view Name cell.</summary>
+    public string EntryIcon => IsDrive ? _driveIcon : IsDirectory ? "📁" : "📄";
+
+    public string TypeLabel => IsDrive
+        ? _driveKindLabel
+        : IsDirectory ? "Folder" : Path.GetExtension(Name).TrimStart('.').ToUpperInvariant();
+
+    public string SizeLabel
+    {
+        get
+        {
+            if (IsDrive)
+            {
+                if (_driveTotalBytes <= 0) return string.Empty;
+                double pct = (double)_driveUsedBytes / _driveTotalBytes * 100.0;
+                return $"{FormatSize(_driveUsedBytes)} used ({pct:F0}%)";
+            }
+            return IsDirectory ? string.Empty : FormatSize(SizeBytes);
+        }
+    }
+
+    public string ModifiedLabel => IsDrive || Modified == DateTime.MinValue
+        ? string.Empty
+        : Modified.ToString("yyyy-MM-dd HH:mm");
 
     private static string FormatSize(long bytes) => bytes switch
     {
-        < 1024          => $"{bytes} B",
-        < 1024 * 1024   => $"{bytes / 1024.0:F1} KB",
+        < 1024                => $"{bytes} B",
+        < 1024 * 1024         => $"{bytes / 1024.0:F1} KB",
         < 1024L * 1024 * 1024 => $"{bytes / (1024.0 * 1024):F1} MB",
-        _               => $"{bytes / (1024.0 * 1024 * 1024):F2} GB"
+        _                     => $"{bytes / (1024.0 * 1024 * 1024):F2} GB"
     };
 
     public event PropertyChangedEventHandler? PropertyChanged;

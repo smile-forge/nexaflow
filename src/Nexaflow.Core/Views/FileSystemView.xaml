@@ -432,23 +432,10 @@
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <!-- File/folder/drive icon + drive status badge -->
+                                        <!-- Icon + drive status badge -->
                                         <Grid Margin="0,0,6,0" VerticalAlignment="Center">
-                                            <TextBlock FontSize="13" VerticalAlignment="Center">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Text" Value="📄"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsDirectory}" Value="True">
-                                                                <Setter Property="Text" Value="📁"/>
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding IsDrive}" Value="True">
-                                                                <Setter Property="Text" Value="💾"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
+                                            <TextBlock Text="{Binding EntryIcon}"
+                                                       FontSize="13" VerticalAlignment="Center"/>
                                             <!-- Loading / unavailable badge — only visible on drive entries -->
                                             <TextBlock FontSize="8" HorizontalAlignment="Right" VerticalAlignment="Top">
                                                 <TextBlock.Style>
@@ -516,6 +503,24 @@
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
                                     <TextBlock Text="{Binding SizeLabel}"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="12" VerticalAlignment="Center"/>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+
+                        <!-- Filesystem column (NTFS / FAT32 / exFAT — drives only) -->
+                        <GridViewColumn Width="70">
+                            <GridViewColumn.HeaderTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="Filesystem"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="11" FontWeight="SemiBold"/>
+                                </DataTemplate>
+                            </GridViewColumn.HeaderTemplate>
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                                    <TextBlock Text="{Binding FileSystem}"
                                                Foreground="{StaticResource TextMutedBrush}"
                                                FontSize="12" VerticalAlignment="Center"/>
                                 </DataTemplate>

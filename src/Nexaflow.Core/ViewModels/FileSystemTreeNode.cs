@@ -127,10 +127,11 @@ public class FileSystemTreeNode : INotifyPropertyChanged
                 DriveType.CDRom    => "💿",
                 DriveType.Removable => "🔌",
                 DriveType.Network  => "🌐",
-                _                  => "💾"
+                DriveType.Fixed    => NativeMethods.IsNoSeekPenalty(root) ? "💾" : "💽",
+                _                  => "💽"
             };
         }
-        catch { return "💾"; }
+        catch { return "💽"; }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
