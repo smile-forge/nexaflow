@@ -27,8 +27,9 @@ public partial class PropertyEditViewModel : ObservableObject
     private readonly object       _editingClone;
     private readonly Action       _onChanged;   // notifies ConfigEditViewModel to recheck validity
 
-    public string             Label      { get; }
-    public PropertyEditorKind EditorKind { get; }
+    public string             Label        { get; }
+    public string             PropertyName { get; }
+    public PropertyEditorKind EditorKind   { get; }
 
     /// <summary>Enum names for EnumComboBox editors.</summary>
     public IReadOnlyList<string>? EnumOptions { get; }
@@ -91,7 +92,8 @@ public partial class PropertyEditViewModel : ObservableObject
 
         var displayAttr = pi.GetCustomAttribute<Nexaflow.Features.Common.ConfigDisplayNameAttribute>()?.DisplayName
                        ?? pi.GetCustomAttribute<Nexaflow.Providers.Common.ConfigDisplayNameAttribute>()?.DisplayName;
-        Label = displayAttr ?? pi.Name;
+        Label        = displayAttr ?? pi.Name;
+        PropertyName = pi.Name;
 
         var folderAttr  = pi.GetCustomAttribute<FolderPathAttribute>();
         var listAttr    = pi.GetCustomAttribute<ListSourceAttribute>();

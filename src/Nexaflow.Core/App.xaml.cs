@@ -52,6 +52,7 @@ public partial class App : Application
         // Shell config
         var shellConfig = new ShellConfig();
         ConfigManager.Instance.Register(shellConfig, shellConfig.ConfigName);
+        ThemeManager.Apply(shellConfig.Theme);
 
         var fileMapConfig = new FileMapConfig();
         ConfigManager.Instance.Register(fileMapConfig, fileMapConfig.ConfigName);
