@@ -553,7 +553,7 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
                 entry.DriveIconType   = result.IconType;
                 node.DriveIconType    = result.IconType;
 
-                if (result.HasChildren) node.Children.Add(FileSystemTreeNode.Dummy);
+                if (result.HasChildren && node.Children.Count == 0) node.Children.Add(FileSystemTreeNode.Dummy);
                 node.DriveStatus  = DriveStatus.Ready;
                 entry.DriveStatus = DriveStatus.Ready;
             }
