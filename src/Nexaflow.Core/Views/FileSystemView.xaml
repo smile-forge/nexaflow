@@ -405,10 +405,8 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
-                <!-- Viewlet stack: non-full viewlets stacked here; 0 height when empty -->
+                <!-- Viewlet stack: non-full viewlets stacked here; height=Auto -->
                 <RowDefinition x:Name="ViewletStackRow" Height="Auto"/>
-                <!-- Splitter: visible only when viewlets are present -->
-                <RowDefinition Height="Auto"/>
                 <!-- File list: takes all remaining space -->
                 <RowDefinition Height="*"/>
                 <!-- Footer bar -->
@@ -420,26 +418,15 @@
                         Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
                         Orientation="Vertical"/>
 
-            <!-- ── Splitter between viewlets and file list ─────────────── -->
-            <GridSplitter x:Name="ViewletSplitter"
-                          Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
-                          Height="4"
-                          HorizontalAlignment="Stretch"
-                          VerticalAlignment="Center"
-                          Background="{StaticResource BorderBrush}"
-                          Visibility="Collapsed"
-                          ResizeDirection="Rows"
-                          ResizeBehavior="PreviousAndNext"/>
-
             <!-- ── Full-viewlet overlay (covers rows 0-3 and both columns) ── -->
             <ContentControl x:Name="FullViewletContent"
                             Grid.Row="0" Grid.Column="0"
-                            Grid.RowSpan="4" Grid.ColumnSpan="2"
+                            Grid.RowSpan="3" Grid.ColumnSpan="2"
                             Panel.ZIndex="5"
                             Visibility="Collapsed"/>
 
             <!-- ── Drive ListView (This PC mode) ───────────────────────── -->
-            <ListView Grid.Row="2" Grid.Column="0"
+            <ListView Grid.Row="1" Grid.Column="0"
                       x:Name="DriveListView"
                       Visibility="Collapsed"
                       ItemsSource="{Binding Entries}"
@@ -636,7 +623,7 @@
             </ListView>
 
             <!-- ── File ListView (folder navigation) ────────────────────── -->
-            <ListView Grid.Row="2" Grid.Column="0"
+            <ListView Grid.Row="1" Grid.Column="0"
                       x:Name="FileListView"
                       ItemsSource="{Binding Entries}"
                       ItemContainerStyle="{StaticResource FileRowStyle}"
@@ -778,7 +765,7 @@
             </ListView>
 
             <!-- ── Footer bar ────────────────────────────────────────── -->
-            <Border Grid.Row="3" Grid.Column="0"
+            <Border Grid.Row="2" Grid.Column="0"
                     Background="{StaticResource Surface2Brush}"
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="0,1,0,0"
@@ -791,7 +778,7 @@
 
             <!-- ── File Action Strip ─────────────────────────────────── -->
             <Border x:Name="ActionStrip"
-                    Grid.Row="0" Grid.Column="1" Grid.RowSpan="4"
+                    Grid.Row="0" Grid.Column="1" Grid.RowSpan="3"
                     Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1,0,0,0"
@@ -945,7 +932,7 @@
             </Border>
 
             <!-- ── Input Prompt Overlay (spans entire right pane) ───────────── -->
-            <Border Grid.Row="0" Grid.Column="0" Grid.RowSpan="4" Grid.ColumnSpan="2"
+            <Border Grid.Row="0" Grid.Column="0" Grid.RowSpan="3" Grid.ColumnSpan="2"
                     Visibility="{Binding InputPromptVisible,
                                  Converter={StaticResource BoolToVis}}"
                     Background="#CC000000"
@@ -1057,7 +1044,7 @@
             </Border>
 
             <!-- ── Confirmation Overlay (spans entire right pane) ───────────── -->
-            <Border Grid.Row="0" Grid.Column="0" Grid.RowSpan="4" Grid.ColumnSpan="2"
+            <Border Grid.Row="0" Grid.Column="0" Grid.RowSpan="3" Grid.ColumnSpan="2"
                     Visibility="{Binding ConfirmationVisible,
                                  Converter={StaticResource BoolToVis}}"
                     Background="#CC000000"

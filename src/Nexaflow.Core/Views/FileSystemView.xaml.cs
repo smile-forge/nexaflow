@@ -201,10 +201,6 @@ public partial class FileSystemView : UserControl, IPageView
             FullViewletContent.Content  = activeFullHost;
             FullViewletContent.Visibility = Visibility.Visible;
 
-            // Non-full viewlets are shown when the user switches to file view
-            // so just ensure the stack is empty while showing full viewlet
-            ViewletSplitter.Visibility = Visibility.Collapsed;
-
             // Hide file lists and action strip
             FileListView.Visibility  = Visibility.Collapsed;
             DriveListView.Visibility = Visibility.Collapsed;
@@ -230,8 +226,6 @@ public partial class FileSystemView : UserControl, IPageView
                     nonFullHosts[i].Margin = new Thickness(0);
                 ViewletStackPanel.Children.Add(nonFullHosts[i]);
             }
-
-            ViewletSplitter.Visibility = nonFullHosts.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
             // Restore file list and action strip
             ActionStrip.Visibility = Visibility.Visible;
