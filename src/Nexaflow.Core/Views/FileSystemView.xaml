@@ -405,116 +405,28 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
-                <!-- AI Summary panel: height driven by code-behind; 0 when hidden -->
-                <RowDefinition x:Name="AiSummaryRow" Height="0"/>
-                <!-- Splitter: only visible when summary is shown -->
-                <RowDefinition Height="Auto"/>
+                <!-- Viewlet stack: non-full viewlets stacked here; height=Auto -->
+                <RowDefinition x:Name="ViewletStackRow" Height="Auto"/>
                 <!-- File list: takes all remaining space -->
                 <RowDefinition Height="*"/>
                 <!-- Footer bar -->
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <!-- ── AI Summary panel ──────────────────────────────────── -->
-            <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
-                    x:Name="AiSummaryPanel"
-                    Background="{StaticResource SurfaceBrush}"
-                    BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="0,0,0,1"
-                    Visibility="{Binding AiSummaryVisible,
-                                 Converter={StaticResource BoolToVis}}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
+            <!-- ── Non-full viewlet stack ──────────────────────────────── -->
+            <StackPanel x:Name="ViewletStackPanel"
+                        Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
+                        Orientation="Vertical"/>
 
-                    <!-- Title bar -->
-                    <Border Grid.Row="0"
-                            Background="{StaticResource Surface2Brush}"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="0,0,0,1"
-                            Padding="10,5">
-                        <Grid>
-                            <TextBlock Text="AI Summary"
-                                       Foreground="{StaticResource TextBrush}"
-                                       FontSize="12" FontWeight="SemiBold"
-                                       VerticalAlignment="Center"/>
-                            <Button x:Name="SaveSummaryButton"
-                                    Content="Save"
-                                    HorizontalAlignment="Right"
-                                    VerticalAlignment="Center"
-                                    Padding="10,3"
-                                    FontSize="11"
-                                    Command="{Binding SaveAiSummaryCommand}">
-                                <Button.Style>
-                                    <Style TargetType="Button">
-                                        <Setter Property="Background"   Value="{StaticResource AccentBrush}"/>
-                                        <Setter Property="Foreground"   Value="{StaticResource TextBrush}"/>
-                                        <Setter Property="BorderThickness" Value="0"/>
-                                        <Setter Property="Cursor"       Value="Hand"/>
-                                        <Setter Property="Template">
-                                            <Setter.Value>
-                                                <ControlTemplate TargetType="Button">
-                                                    <Border x:Name="Bd"
-                                                            Background="{TemplateBinding Background}"
-                                                            CornerRadius="3"
-                                                            Padding="{TemplateBinding Padding}">
-                                                        <ContentPresenter HorizontalAlignment="Center"
-                                                                          VerticalAlignment="Center"/>
-                                                    </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <Trigger Property="IsEnabled" Value="False">
-                                                            <Setter TargetName="Bd" Property="Opacity" Value="0.35"/>
-                                                        </Trigger>
-                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
-                                                        </Trigger>
-                                                        <Trigger Property="IsPressed" Value="True">
-                                                            <Setter TargetName="Bd" Property="Opacity" Value="0.7"/>
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
-                                                </ControlTemplate>
-                                            </Setter.Value>
-                                        </Setter>
-                                    </Style>
-                                </Button.Style>
-                            </Button>
-                        </Grid>
-                    </Border>
-
-                    <!-- Editable text body -->
-                    <ScrollViewer Grid.Row="1"
-                                  VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Auto">
-                        <TextBox Text="{Binding AiSummaryText, UpdateSourceTrigger=PropertyChanged}"
-                                 AcceptsReturn="True"
-                                 AcceptsTab="True"
-                                 TextWrapping="Wrap"
-                                 Background="Transparent"
-                                 BorderThickness="0"
-                                 Foreground="{StaticResource TextBrush}"
-                                 FontSize="13"
-                                 Padding="10,8"
-                                 VerticalAlignment="Stretch"
-                                 CaretBrush="{StaticResource TextBrush}"/>
-                    </ScrollViewer>
-                </Grid>
-            </Border>
-
-            <!-- ── Splitter between summary and list ─────────────────── -->
-            <GridSplitter Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
-                          Height="4"
-                          HorizontalAlignment="Stretch"
-                          VerticalAlignment="Center"
-                          Background="{StaticResource BorderBrush}"
-                          Visibility="{Binding AiSummaryVisible,
-                                       Converter={StaticResource BoolToVis}}"
-                          ResizeDirection="Rows"
-                          ResizeBehavior="PreviousAndNext"/>
+            <!-- ── Full-viewlet overlay (covers rows 0-3 and both columns) ── -->
+            <ContentControl x:Name="FullViewletContent"
+                            Grid.Row="0" Grid.Column="0"
+                            Grid.RowSpan="3" Grid.ColumnSpan="2"
+                            Panel.ZIndex="5"
+                            Visibility="Collapsed"/>
 
             <!-- ── Drive ListView (This PC mode) ───────────────────────── -->
-            <ListView Grid.Row="2" Grid.Column="0"
+            <ListView Grid.Row="1" Grid.Column="0"
                       x:Name="DriveListView"
                       Visibility="Collapsed"
                       ItemsSource="{Binding Entries}"
@@ -711,7 +623,7 @@
             </ListView>
 
             <!-- ── File ListView (folder navigation) ────────────────────── -->
-            <ListView Grid.Row="2" Grid.Column="0"
+            <ListView Grid.Row="1" Grid.Column="0"
                       x:Name="FileListView"
                       ItemsSource="{Binding Entries}"
                       ItemContainerStyle="{StaticResource FileRowStyle}"
@@ -853,7 +765,7 @@
             </ListView>
 
             <!-- ── Footer bar ────────────────────────────────────────── -->
-            <Border Grid.Row="3" Grid.Column="0"
+            <Border Grid.Row="2" Grid.Column="0"
                     Background="{StaticResource Surface2Brush}"
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="0,1,0,0"
@@ -865,7 +777,8 @@
             </Border>
 
             <!-- ── File Action Strip ─────────────────────────────────── -->
-            <Border Grid.Row="0" Grid.Column="1" Grid.RowSpan="4"
+            <Border x:Name="ActionStrip"
+                    Grid.Row="1" Grid.Column="1" Grid.RowSpan="2"
                     Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1,0,0,0"
@@ -1019,7 +932,7 @@
             </Border>
 
             <!-- ── Input Prompt Overlay (spans entire right pane) ───────────── -->
-            <Border Grid.Row="0" Grid.Column="0" Grid.RowSpan="4" Grid.ColumnSpan="2"
+            <Border Grid.Row="0" Grid.Column="0" Grid.RowSpan="3" Grid.ColumnSpan="2"
                     Visibility="{Binding InputPromptVisible,
                                  Converter={StaticResource BoolToVis}}"
                     Background="#CC000000"
@@ -1131,7 +1044,7 @@
             </Border>
 
             <!-- ── Confirmation Overlay (spans entire right pane) ───────────── -->
-            <Border Grid.Row="0" Grid.Column="0" Grid.RowSpan="4" Grid.ColumnSpan="2"
+            <Border Grid.Row="0" Grid.Column="0" Grid.RowSpan="3" Grid.ColumnSpan="2"
                     Visibility="{Binding ConfirmationVisible,
                                  Converter={StaticResource BoolToVis}}"
                     Background="#CC000000"

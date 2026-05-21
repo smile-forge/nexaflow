@@ -527,5 +527,26 @@ namespace Nexaflow.Features.Projects.Model
             if (!File.Exists(summaryPath)) return;
             _txService.BackupAndDelete(transactionId, summaryPath);
         }
+
+        // ── Direct summary helpers (no transaction) ────────────────────────────
+
+        public string? ReadDirectorySummary(string directoryPath)
+        {
+            var path = Path.Combine(directoryPath, ".aisummary");
+            return File.Exists(path) ? File.ReadAllText(path) : null;
+        }
+
+        public void WriteDirectorySummary(string directoryPath, string text)
+        {
+            var path = Path.Combine(directoryPath, ".aisummary");
+            // File.WriteAllText opens with FileMode.Create, which on Windows throws
+            // UnauthorizedAccessException when the existing file is Hidden (CreateFile
+            // with CREATE_ALWAYS rejects a hidden target). Clear the attribute first.
+            if (File.Exists(path))
+                File.SetAttributes(path, FileAttributes.Normal);
+            File.WriteAllText(path, text);
+            try { File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.Hidden); }
+            catch (UnauthorizedAccessException) { /* best-effort; write already succeeded */ }
+        }
     }
 }
