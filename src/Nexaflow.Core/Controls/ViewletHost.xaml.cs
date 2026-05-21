@@ -77,19 +77,19 @@ public partial class ViewletHost : UserControl, IViewletController
         switch (_mode)
         {
             case ViewletDisplayMode.SingleBar:
-                Height                       = 80;
+                Height                       = 55;
                 BannerBorder.Visibility      = Visibility.Collapsed;
                 FullModeButtonsPanel.Visibility = Visibility.Collapsed;
                 break;
 
             case ViewletDisplayMode.DoubleBar:
-                Height                       = 160;
+                Height                       = 110;
                 BannerBorder.Visibility      = Visibility.Collapsed;
                 FullModeButtonsPanel.Visibility = Visibility.Collapsed;
                 break;
 
             case ViewletDisplayMode.Large:
-                Height                       = 320;
+                Height                       = 220;
                 BannerBorder.Visibility      = Visibility.Visible;
                 FullModeButtonsPanel.Visibility = Visibility.Collapsed;
                 break;

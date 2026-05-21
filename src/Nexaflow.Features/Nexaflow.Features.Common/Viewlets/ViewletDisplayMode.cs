@@ -2,8 +2,8 @@ namespace Nexaflow.Features.Common.Viewlets;
 
 public enum ViewletDisplayMode
 {
-    SingleBar,  // 80 px
-    DoubleBar,  // 160 px
-    Large,      // 320 px
+    SingleBar,  // 55 px
+    DoubleBar,  // 110 px
+    Large,      // 220 px
     Full        // remaining space
 }
