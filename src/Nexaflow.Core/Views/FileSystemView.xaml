@@ -415,7 +415,7 @@
 
             <!-- ── Non-full viewlet stack ──────────────────────────────── -->
             <StackPanel x:Name="ViewletStackPanel"
-                        Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
+                        Grid.Row="0" Grid.Column="0"
                         Orientation="Vertical"/>
 
             <!-- ── Full-viewlet overlay (covers rows 0-3 and both columns) ── -->
