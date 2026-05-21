@@ -64,7 +64,7 @@ public partial class App : Application
         var shellServices = new ShellServices();
         FeatureManager.Instance.SetShellServices(shellServices);
 
-        RegisterFeatures();
+        FeatureManager.Instance.RegisterFeatures();
 
         shellServices.CreateWindowFactory = tab =>
         {
@@ -111,21 +111,5 @@ public partial class App : Application
     {
         try { _ = await AppUpdater.DownloadAndInstallUpdateAsync(); }
         catch { }
-    }
-
-    private static void RegisterFeatures()
-    {
-        var fm = FeatureManager.Instance;
-        fm.Register(typeof(ConsoleTabRegistration));
-        fm.Register(typeof(ProjectsTabRegistration));
-        fm.Register(typeof(HtmlTabRegistration));
-        fm.Register(typeof(ImageTabRegistration));
-        fm.Register(typeof(MarkdownTabRegistration));
-        fm.Register(typeof(TextTabRegistration));
-        fm.Register(typeof(ScratchpadTabRegistration));
-        fm.Register(typeof(LogTabRegistration));
-        fm.Register(typeof(SearchTabRegistration));
-        fm.Register(typeof(AIChatTabRegistration));
-        fm.Register(typeof(JsonTabRegistration));
     }
 }

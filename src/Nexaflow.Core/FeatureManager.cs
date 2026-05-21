@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 
@@ -48,13 +49,39 @@ public sealed class FeatureManager
 
     // ── Registration ──────────────────────────────────────────────────────
 
-    public void Register(Type featureType)
+
+    public void RegisterFeatures()
     {
-        var asm = featureType.Assembly;
+        string exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
+        var featureDlls = Directory.GetFiles(exeDir, "Nexaflow.Features.*.dll");
+
+        foreach (var dll in featureDlls)
+        {
+            // Load the assembly if not already loaded
+            var asmName = AssemblyName.GetAssemblyName(dll);
+            if (!AppDomain.CurrentDomain.GetAssemblies().Any(a => a.GetName().Name == asmName.Name))
+            {
+                Assembly.LoadFrom(dll);
+            }
+        }
+
+        // Now scan all loaded assemblies for features
+        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            if (asm.GetName().Name!.StartsWith("Nexaflow.Features."))
+            {
+                Register(asm);
+            }
+        }
+    }
+
+    public void Register(Assembly asm)
+    {
+        var types = asm.GetTypes();
 
         // 1. Discover and instantiate all IFeatureConfig types
         var configInstances = new Dictionary<Type, IFeatureConfig>();
-        foreach (var t in asm.GetTypes()
+        foreach (var t in types
             .Where(t => !t.IsAbstract && !t.IsInterface
                         && typeof(IFeatureConfig).IsAssignableFrom(t)))
         {
@@ -64,7 +91,7 @@ public sealed class FeatureManager
         }
 
         // 2. Discover all ITabRegistration concrete types
-        var registrationTypes = asm.GetTypes()
+        var registrationTypes = types
             .Where(t => !t.IsAbstract && !t.IsInterface
                         && typeof(ITabRegistration).IsAssignableFrom(t))
             .ToList();
@@ -96,7 +123,7 @@ public sealed class FeatureManager
         }
 
         // 5. Collect action/handler types; instantiate IQueryHandler types globally
-        foreach (var t in asm.GetTypes().Where(t => !t.IsAbstract && !t.IsInterface))
+        foreach (var t in types.Where(t => !t.IsAbstract && !t.IsInterface))
         {
             if (typeof(IFileAction).IsAssignableFrom(t))        _fileActionTypes.Add(t);
             if (typeof(IFolderAction).IsAssignableFrom(t))      _folderActionTypes.Add(t);
