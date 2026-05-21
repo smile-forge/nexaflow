@@ -540,7 +540,8 @@ namespace Nexaflow.Features.Projects.Model
         {
             var path = Path.Combine(directoryPath, ".aisummary");
             File.WriteAllText(path, text);
-            File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.Hidden);
+            try { File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.Hidden); }
+            catch (UnauthorizedAccessException) { /* best-effort; write already succeeded */ }
         }
     }
 }

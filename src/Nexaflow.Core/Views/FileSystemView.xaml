@@ -415,7 +415,7 @@
 
             <!-- ── Non-full viewlet stack ──────────────────────────────── -->
             <StackPanel x:Name="ViewletStackPanel"
-                        Grid.Row="0" Grid.Column="0"
+                        Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
                         Orientation="Vertical"/>
 
             <!-- ── Full-viewlet overlay (covers rows 0-3 and both columns) ── -->
@@ -778,7 +778,7 @@
 
             <!-- ── File Action Strip ─────────────────────────────────── -->
             <Border x:Name="ActionStrip"
-                    Grid.Row="0" Grid.Column="1" Grid.RowSpan="3"
+                    Grid.Row="1" Grid.Column="1" Grid.RowSpan="2"
                     Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1,0,0,0"
