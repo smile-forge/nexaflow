@@ -344,14 +344,13 @@ App.OnStartup
   → new AIService() → FeatureManager.RegisterSingletonService(IAIService, ...)
   → new ShellServices() → FeatureManager.SetShellServices(shellServices)
   → RegisterFeatures()
-      → fm.Register(typeof(ConsoleTabRegistration))
-      → fm.Register(typeof(ProjectsTabRegistration))
-      → ... (one call per feature assembly)
-      Each Register():
+      → dynamic feature discovery
+      Each assembly Register():
         - discovers IFeatureConfig implementations → instantiates → ConfigManager.Register
         - discovers ITabRegistration implementations → resolves constructor deps → instantiates
         - collects IFileAction / IFolderAction / IFileCreateAction / IKeyboardHandler / IDropTarget types
         - discovers IQueryHandler implementations → instantiates resolvable ones globally
+	 - discovers IFolderViewlet implementations
   → new MainWindow(activityManager, aiService, shellServices)
       → new ShellViewModel()
           → LoadOrBuildRibbon() → RibbonLayoutService.Load() → ReattachTabFactory each item
@@ -446,6 +445,7 @@ Ordered by impact.
 **Impact:** Any change to AI routing, ribbon persistence, or tab management touches the same file.
 
 **Suggested split:**
+
 - `TabManager` — `OpenTab`, `ActivateTab`, `CloseTab`, `ReceiveTab`
 - `RibbonManager` — load/save/build/pin/reattach factories
 - `NotificationService` — `ShowError`, `AddNotification`, `ToggleNotifications`
