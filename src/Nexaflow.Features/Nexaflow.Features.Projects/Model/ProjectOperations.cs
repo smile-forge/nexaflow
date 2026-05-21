@@ -539,6 +539,12 @@ namespace Nexaflow.Features.Projects.Model
         public void WriteDirectorySummary(string directoryPath, string text)
         {
             var path = Path.Combine(directoryPath, ".aisummary");
+            if (File.Exists(path))
+            {
+                var attrs = File.GetAttributes(path);
+                if ((attrs & FileAttributes.ReadOnly) != 0)
+                    File.SetAttributes(path, attrs & ~FileAttributes.ReadOnly);
+            }
             File.WriteAllText(path, text);
             try { File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.Hidden); }
             catch (UnauthorizedAccessException) { /* best-effort; write already succeeded */ }
