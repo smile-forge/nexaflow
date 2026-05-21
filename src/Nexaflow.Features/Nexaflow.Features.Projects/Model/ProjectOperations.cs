@@ -539,12 +539,11 @@ namespace Nexaflow.Features.Projects.Model
         public void WriteDirectorySummary(string directoryPath, string text)
         {
             var path = Path.Combine(directoryPath, ".aisummary");
+            // File.WriteAllText opens with FileMode.Create, which on Windows throws
+            // UnauthorizedAccessException when the existing file is Hidden (CreateFile
+            // with CREATE_ALWAYS rejects a hidden target). Clear the attribute first.
             if (File.Exists(path))
-            {
-                var attrs = File.GetAttributes(path);
-                if ((attrs & FileAttributes.ReadOnly) != 0)
-                    File.SetAttributes(path, attrs & ~FileAttributes.ReadOnly);
-            }
+                File.SetAttributes(path, FileAttributes.Normal);
             File.WriteAllText(path, text);
             try { File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.Hidden); }
             catch (UnauthorizedAccessException) { /* best-effort; write already succeeded */ }
