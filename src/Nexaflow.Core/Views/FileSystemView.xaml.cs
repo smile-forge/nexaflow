@@ -220,10 +220,9 @@ public partial class FileSystemView : UserControl, IPageView
             // Populate the stack with non-full viewlets
             for (int i = 0; i < nonFullHosts.Count; i++)
             {
-                if (i > 0)
-                    nonFullHosts[i].Margin = new Thickness(0, 4, 0, 0);
-                else
-                    nonFullHosts[i].Margin = new Thickness(0);
+                nonFullHosts[i].Margin = i == 0
+                    ? new Thickness(2)
+                    : new Thickness(2, 6, 2, 2);
                 ViewletStackPanel.Children.Add(nonFullHosts[i]);
             }
 

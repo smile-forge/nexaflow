@@ -31,14 +31,13 @@
                     <Button x:Name="EditButton"
                             Content="Edit"
                             Padding="8,2"
-                            Margin="2"
                             FontSize="10"
                             Cursor="Hand"
                             Click="EditButton_Click">
                         <Button.Style>
                             <Style TargetType="Button">
-                                <Setter Property="Background"      Value="{DynamicResource Surface2Brush}"/>
-                                <Setter Property="Foreground"      Value="{DynamicResource TextMutedBrush}"/>
+                                <Setter Property="Background"      Value="Transparent"/>
+                                <Setter Property="Foreground"      Value="{DynamicResource TextBrush}"/>
                                 <Setter Property="BorderThickness" Value="0"/>
                                 <Setter Property="Template">
                                     <Setter.Value>
