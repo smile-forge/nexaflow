@@ -115,7 +115,7 @@
         <Grid Grid.Row="1" Background="{StaticResource SurfaceBrush}"
               x:Name="TopBar">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="220"/>
+                <ColumnDefinition Width="200"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="180"/>
             </Grid.ColumnDefinitions>
@@ -165,13 +165,13 @@
 
                     <!-- WorkContext accent: first 100 px of bevel in context colour -->
                     <Border VerticalAlignment="Top" HorizontalAlignment="Left"
-                            Width="100" Height="10"
+                            Width="240" Height="10"
                             Background="{Binding CurrentWorkContext.Color,
                                          Converter={StaticResource ColorStringToBrush}}"/>
 
                     <!-- WorkContext selector: 48 px wide rectangle + popup -->
                     <ctrl:WorkContextSelectorControl
-                            HorizontalAlignment="Left" Width="48"
+                            HorizontalAlignment="Left" Width="42"
                             CurrentWorkContext="{Binding CurrentWorkContext}"
                             WorkContexts="{Binding WorkContexts}"
                             SelectWorkContextCommand="{Binding SelectWorkContextCommand}"/>

@@ -182,16 +182,12 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     }
 
     // ── Work contexts ─────────────────────────────────────────────────────
-    [ObservableProperty] private WorkContext _currentWorkContext = WorkContextManager.Instance.Current;
+    [ObservableProperty] private WorkContext _currentWorkContext = null!;
 
     public ObservableCollection<WorkContext> WorkContexts => WorkContextManager.Instance.Contexts;
 
     [RelayCommand]
-    private void SelectWorkContext(WorkContext ctx)
-    {
-        WorkContextManager.Instance.Current = ctx;
-        CurrentWorkContext = WorkContextManager.Instance.Current;
-    }
+    private void SelectWorkContext(WorkContext ctx) => CurrentWorkContext = ctx;
 
     // ── Options overlay ───────────────────────────────────────────────────
     [ObservableProperty] private bool _optionsOpen;
@@ -202,18 +198,28 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     // ── Ribbon edit mode ─────────────────────────────────────────────────
     [ObservableProperty] private bool _ribbonEditOpen;
 
-    private readonly IAIService     _aiService;
     private readonly IShellServices _shellServices;
 
     public ShellViewModel(BackgroundActivityManager activityManager,
-                          IAIService aiService,
+                          WorkContext workContext,
                           IShellServices shellServices)
     {
         _activityManager = activityManager;
         _activityManager.IsActiveChanged += (_, active) =>
             Application.Current.Dispatcher.Invoke(() => AiIsBusy = active);
-        _aiService     = aiService;
+        _currentWorkContext = workContext;
         _shellServices = shellServices;
+
+        // When the Options panel rebuilds the context list, re-anchor to the same-named context
+        WorkContextManager.Instance.ContextsRefreshed += (_, _) =>
+        {
+            var refreshed = WorkContextManager.Instance.Contexts
+                .FirstOrDefault(c => c.Name == CurrentWorkContext?.Name)
+                ?? WorkContextManager.Instance.Contexts.FirstOrDefault();
+            if (refreshed is not null)
+                Application.Current.Dispatcher.Invoke(() => CurrentWorkContext = refreshed);
+        };
+
         LoadOrBuildRibbon();
         RibbonItems.CollectionChanged += (_, e) =>
         {
@@ -402,7 +408,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         {
             try
             {
-                selected = await _aiService.DisambiguateToolSelection(pageVm, text, candidates);
+                if (CurrentWorkContext.AiService is { } svc)
+                    selected = await svc.DisambiguateToolSelection(pageVm, text, candidates);
             }
             catch (Exception ex)
             {
@@ -431,10 +438,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         }
 
         // 4. No handler → contextual LLM call
-        AiResponse? response;
+        AiResponse? response = null;
         try
         {
-            response = await _aiService.ContextChat(pageVm, text);
+            if (CurrentWorkContext.AiService is { } svc)
+                response = await svc.ContextChat(pageVm, text);
         }
         catch (Exception ex)
         {

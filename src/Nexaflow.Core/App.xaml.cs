@@ -1,4 +1,3 @@
-using Nexaflow.Core.AI;
 using Nexaflow.Core.FileActions;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.AIChat;
@@ -39,45 +38,53 @@ public partial class App : Application
 
         var activityManager = new BackgroundActivityManager();
 
-        // Load AI config first so we know which provider assemblies are in use
-        var aiConfig = new AiConfig();
-        ConfigManager.Instance.Register(aiConfig, aiConfig.ConfigName);
-
-        // Load only the provider plugin assemblies referenced in the saved config
-        ProviderManager.Instance.Initialize(activityManager);
-        ProviderManager.Instance.LoadConfigured(aiConfig.Columns.Select(c => c.AssemblyFileName));
-
-        AIService.Instance.LoadAbilityConfig(aiConfig);
-
-        // Shell config
+        // ── 1. Shell config ──────────────────────────────────────────────────
         var shellConfig = new ShellConfig();
         ConfigManager.Instance.Register(shellConfig, shellConfig.ConfigName);
         ThemeManager.Apply(shellConfig.Theme);
 
-        // Work contexts
+        // ── 2. WorkContexts config — must come before providers so we know
+        //       which provider assemblies each context needs ──────────────────
         var wcConfig = new WorkContextsConfig();
         ConfigManager.Instance.Register(wcConfig, wcConfig.ConfigName);
+
+        // ── 3. Providers — union of all assembly file names across contexts ──
+        var allProviderFiles = wcConfig.Contexts
+            .SelectMany(c => c.AiConfig.Columns.Select(p => p.AssemblyFileName))
+            .Distinct();
+        ProviderManager.Instance.Initialize(activityManager);
+        ProviderManager.Instance.LoadConfigured(allProviderFiles);
+
+        // ── 4. WorkContextManager — creates per-context AIService instances
+        //       and registers all loaded providers into each ─────────────────
         WorkContextManager.Instance.Initialize(wcConfig);
 
+        // ── 5. File map ──────────────────────────────────────────────────────
         var fileMapConfig = new FileMapConfig();
         ConfigManager.Instance.Register(fileMapConfig, fileMapConfig.ConfigName);
         FileMapManager.Instance.Initialize(fileMapConfig.UseRegistryMapping);
 
-        FeatureManager.Instance.RegisterSingletonService(typeof(IAIService), AIService.Instance);
+        // ── 6. Feature system ────────────────────────────────────────────────
+        //    Register the first WorkContext's AIService as the singleton for
+        //    feature plugins (interim: features are not yet WorkContext-aware)
+        var defaultCtx = WorkContextManager.Instance.Contexts[0];
+        FeatureManager.Instance.RegisterSingletonService(typeof(IAIService), defaultCtx.AiService!);
 
-        // Create the application-level shell services before registering features
         var shellServices = new ShellServices();
         FeatureManager.Instance.SetShellServices(shellServices);
-
         FeatureManager.Instance.RegisterFeatures();
 
+        // ── 7. Torn-off window factory ───────────────────────────────────────
         shellServices.CreateWindowFactory = tab =>
         {
-            var win = new MainWindow(activityManager, AIService.Instance, shellServices, openDefaultTabs: false);
+            // Torn-off windows use the first available WorkContext for now
+            var ctx = WorkContextManager.Instance.Contexts[0];
+            var win = new MainWindow(activityManager, ctx, shellServices, openDefaultTabs: false);
             return (IWindowHost)win.ViewModel;
         };
 
-        var win = new MainWindow(activityManager, AIService.Instance, shellServices);
+        // ── 8. Main window ───────────────────────────────────────────────────
+        var win = new MainWindow(activityManager, defaultCtx, shellServices);
         win.Show();
 
         if (ConfigManager.Instance.IsFirstRun)

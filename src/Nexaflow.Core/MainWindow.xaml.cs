@@ -11,6 +11,7 @@ using Nexaflow.Core.ViewModels;
 using Nexaflow.Core.Views;
 using Nexaflow.Features.Common;
 using TaskStatus = Nexaflow.Core.Models.TaskStatus;
+using WorkContext = Nexaflow.Core.Models.WorkContext;
 
 namespace Nexaflow.Core;
 
@@ -21,13 +22,13 @@ public partial class MainWindow : Window
 
     public ShellViewModel ViewModel => _vm;
 
-    public MainWindow(BackgroundActivityManager activityManager, IAIService aiService,
+    public MainWindow(BackgroundActivityManager activityManager, WorkContext workContext,
                       ShellServices shellServices, bool openDefaultTabs = true)
     {
         InitializeComponent();
 
         _shellServices = shellServices;
-        _vm = new ShellViewModel(activityManager, aiService, shellServices)
+        _vm = new ShellViewModel(activityManager, workContext, shellServices)
         {
             Window = this
         };
@@ -101,7 +102,7 @@ public partial class MainWindow : Window
 
     private void ResetManageAiPanel()
     {
-        var manageAiVm = new ManageAiViewModel();
+        var manageAiVm = new ManageAiViewModel(_vm.CurrentWorkContext);
         manageAiVm.ApplyError += msg => _vm.ShowErrorToast(msg);
         ManageAiPanelControl.DataContext = manageAiVm;
     }

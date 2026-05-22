@@ -193,7 +193,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
     private async Task LoadModelsAsync(string providerName)
     {
-        if (!AIService.Instance.AllProviders.TryGetValue(providerName, out var provider))
+        if (!ProviderManager.Instance.LoadedProviders.TryGetValue(providerName, out var provider))
             return;
 
         IsLoadingModels = true;
@@ -220,7 +220,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
         var providerConfigs = ConfigManager.Instance.GetAll()
             .OfType<IProviderConfig>()
             .ToDictionary(c => c.FriendlyName);
-        foreach (var name in AIService.Instance.AllProviders.Keys)
+        foreach (var name in ProviderManager.Instance.LoadedProviders.Keys)
         {
             if (providerConfigs.TryGetValue(name, out var cfg)
                 && !ConfigEditViewModel.AreRequiredPropertiesSatisfied(cfg))
@@ -321,7 +321,8 @@ public partial class AiAbilityGridViewModel : ObservableObject
         foreach (var row in Rows)
             _config.Assignments[row.Ability.ToString()] = row.SelectedColumnId;
 
-        AIService.Instance.LoadAbilityConfig(_config);
+        // Note: the AIService reload is handled by ManageAiViewModel.Apply() after this control's
+        // ICustomConfigApply.Apply() has written back to the config object.
         RecheckChanges(); // resets HasChanges since _config now matches current state
     }
 }

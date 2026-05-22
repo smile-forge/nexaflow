@@ -9,10 +9,6 @@ namespace Nexaflow.Core.Services;
 
 public sealed class AIService : IAIService
 {
-    public static AIService Instance { get; } = new();
-
-    private AIService() { }
-
     // ── Provider registry ─────────────────────────────────────────────────
 
     private readonly Dictionary<string, ILlmProvider> _providers
@@ -20,7 +16,7 @@ public sealed class AIService : IAIService
 
     private AiConfig? _abilityConfig;
 
-    /// <summary>Registers a named provider. Called by ProviderManager during startup.</summary>
+    /// <summary>Registers a named provider. Called by WorkContextManager during startup.</summary>
     public void Register(string name, ILlmProvider provider)
     {
         ArgumentNullException.ThrowIfNull(provider);
@@ -30,7 +26,7 @@ public sealed class AIService : IAIService
     /// <summary>All registered providers, keyed by name.</summary>
     public IReadOnlyDictionary<string, ILlmProvider> AllProviders => _providers;
 
-    /// <summary>Loads the ability-to-provider mapping. Called once startup config is ready.</summary>
+    /// <summary>Loads the ability-to-provider mapping. Called once per context when providers are ready.</summary>
     public void LoadAbilityConfig(AiConfig config) => _abilityConfig = config;
 
     /// <summary>
@@ -56,9 +52,7 @@ public sealed class AIService : IAIService
 
     // ── Persistence ───────────────────────────────────────────────────────
 
-    private static readonly string BaseDir =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                     "Smile", "Nexaflow", "Conversations");
+    private readonly string _baseDir;
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
@@ -70,12 +64,20 @@ public sealed class AIService : IAIService
 
     public ConversationRecord? ActiveConversation { get; }
 
+    /// <param name="contextName">Used to namespace conversation storage per WorkContext.</param>
+    public AIService(string contextName = "default")
+    {
+        _baseDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "Smile", "Nexaflow", "Conversations", contextName);
+    }
+
     public async Task<IEnumerable<ConversationRecord>> LoadAllAsync()
     {
         var result = new List<ConversationRecord>();
-        if (!Directory.Exists(BaseDir)) return result;
+        if (!Directory.Exists(_baseDir)) return result;
 
-        foreach (var dir in Directory.EnumerateDirectories(BaseDir))
+        foreach (var dir in Directory.EnumerateDirectories(_baseDir))
         {
             var file = Path.Combine(dir, "conversation.json");
             if (!File.Exists(file)) continue;
@@ -97,7 +99,7 @@ public sealed class AIService : IAIService
     {
         try
         {
-            var dir  = Path.Combine(BaseDir, activeConversation.Id);
+            var dir  = Path.Combine(_baseDir, activeConversation.Id);
             Directory.CreateDirectory(dir);
             var file = Path.Combine(dir, "conversation.json");
             await using var fs = File.Open(file, FileMode.Create, FileAccess.Write, FileShare.None);

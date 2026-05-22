@@ -1,4 +1,3 @@
-using Nexaflow.Core.Services;
 using Nexaflow.Providers.Common;
 using System.IO;
 using System.Reflection;
@@ -9,14 +8,17 @@ namespace Nexaflow.Core;
 /// Loads LLM provider plugin assemblies at runtime.
 /// Provider assemblies are never referenced at compile time; they are discovered and
 /// loaded by file name so that new providers can be dropped alongside the executable.
+/// Loaded provider instances are collected in <see cref="LoadedProviders"/> and distributed
+/// to each WorkContext's AIService by <see cref="Services.WorkContextManager"/>.
 /// </summary>
 public sealed class ProviderManager
 {
     public static ProviderManager Instance { get; } = new();
 
     private IBackgroundActivityManager? _activityManager;
-    private readonly HashSet<string>            _loadedAssemblies  = [];
-    private readonly Dictionary<string, string> _providerAssemblyMap = []; // provider Name → DLL file name
+    private readonly HashSet<string>             _loadedAssemblies    = [];
+    private readonly Dictionary<string, string>  _providerAssemblyMap = [];
+    private readonly Dictionary<string, ILlmProvider> _loadedProviders = new(StringComparer.OrdinalIgnoreCase);
 
     private ProviderManager() { }
 
@@ -24,9 +26,12 @@ public sealed class ProviderManager
     public void Initialize(IBackgroundActivityManager activityManager)
         => _activityManager = activityManager;
 
+    /// <summary>All provider instances loaded so far, keyed by provider name.</summary>
+    public IReadOnlyDictionary<string, ILlmProvider> LoadedProviders => _loadedProviders;
+
     /// <summary>
     /// Loads only the assemblies listed in <paramref name="assemblyFileNames"/>.
-    /// Called at startup with the file names stored in the saved <see cref="AI.AiConfig"/>.
+    /// Called at startup with the union of assembly file names from all WorkContext AiConfigs.
     /// </summary>
     public void LoadConfigured(IEnumerable<string> assemblyFileNames)
     {
@@ -90,7 +95,7 @@ public sealed class ProviderManager
                         : (object?)configs.Values.FirstOrDefault(c => c.GetType() == p.ParameterType))
                 .ToArray();
             var provider = (ILlmProvider)ctor.Invoke(args);
-            AIService.Instance.Register(provider.Name, provider);
+            _loadedProviders[provider.Name] = provider;
             _providerAssemblyMap[provider.Name] = fileName;
         }
     }
