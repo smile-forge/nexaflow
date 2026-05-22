@@ -1,10 +1,11 @@
 using Nexaflow.Core.Controls;
-using Nexaflow.Features.Common;
+using Nexaflow.Providers.Common;
+using ProviderCustomControl = Nexaflow.Providers.Common.CustomControlAttribute;
 
 namespace Nexaflow.Core.AI;
 
-[CustomControl(typeof(AiAbilityGridControl))]
-public sealed class AiConfig : IFeatureConfig
+[ProviderCustomControl(typeof(AiAbilityGridControl))]
+public sealed class AiConfig : IProviderConfig
 {
     public string ConfigName   => "ai-abilities";
     public string FriendlyName => "AI";

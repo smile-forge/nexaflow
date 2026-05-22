@@ -4,6 +4,7 @@ using Nexaflow.Core.Controls;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using System.Collections.ObjectModel;
+using System.ComponentModel.DataAnnotations;
 using System.IO;
 using System.Reflection;
 
@@ -30,6 +31,7 @@ public partial class PropertyEditViewModel : ObservableObject
     public string             Label        { get; }
     public string             PropertyName { get; }
     public PropertyEditorKind EditorKind   { get; }
+    public bool               IsRequired   { get; }
 
     /// <summary>Enum names for EnumComboBox editors.</summary>
     public IReadOnlyList<string>? EnumOptions { get; }
@@ -40,7 +42,15 @@ public partial class PropertyEditViewModel : ObservableObject
     [ObservableProperty] private object? _value;
     [ObservableProperty] private string? _validationError;
 
-    public bool IsValid => ValidationError is null;
+    private object? _originalValue;
+
+    public bool IsValid    => ValidationError is null;
+    public bool HasChanged => !Equals(Value, _originalValue);
+
+    [RelayCommand]
+    private void ClearValue() => Value = string.Empty;
+
+    public void ResetOriginal() => _originalValue = Value;
 
     partial void OnValueChanged(object? value)
     {
@@ -94,6 +104,7 @@ public partial class PropertyEditViewModel : ObservableObject
                        ?? pi.GetCustomAttribute<Nexaflow.Providers.Common.ConfigDisplayNameAttribute>()?.DisplayName;
         Label        = displayAttr ?? pi.Name;
         PropertyName = pi.Name;
+        IsRequired   = pi.GetCustomAttribute<RequiredAttribute>() is not null;
 
         var folderAttr  = pi.GetCustomAttribute<FolderPathAttribute>();
         var listAttr    = pi.GetCustomAttribute<ListSourceAttribute>();
@@ -119,7 +130,8 @@ public partial class PropertyEditViewModel : ObservableObject
 
         // Snapshot current value; store enums as strings so ComboBox string-items can bind
         var raw = pi.GetValue(editingClone);
-        _value = pi.PropertyType.IsEnum && raw is not null ? raw.ToString() : raw;
+        _value         = pi.PropertyType.IsEnum && raw is not null ? raw.ToString() : raw;
+        _originalValue = _value;
         // Initial validation
         Validate(_value);
     }
@@ -136,7 +148,9 @@ public partial class ConfigEditViewModel : ObservableObject
 
     public ObservableCollection<PropertyEditViewModel> Properties { get; } = [];
 
-    [ObservableProperty] private bool _isValid = true;
+    [ObservableProperty] private bool _isValid             = true;
+    [ObservableProperty] private bool _hasChanges          = false;
+    [ObservableProperty] private bool _isRequiredSatisfied = true;
 
     /// <summary>
     /// When set, the Options panel renders this control instead of the property grid.
@@ -147,15 +161,46 @@ public partial class ConfigEditViewModel : ObservableObject
 
     private void RecheckValidity()
     {
-        IsValid = Properties.All(p => p.IsValid);
+        IsValid    = Properties.All(p => p.IsValid);
+        HasChanges = HasCustomControl
+            ? (CustomControlInstance is not Nexaflow.Features.Common.IConfigChangeTracker t || t.HasChanges)
+            : Properties.Any(p => p.HasChanged);
+
+        var required = Properties.Where(p => p.IsRequired).ToList();
+        IsRequiredSatisfied = required.Count == 0
+            || required.All(p =>  string.IsNullOrWhiteSpace(p.Value as string))   // all empty = valid (no-op)
+            || required.All(p => !string.IsNullOrWhiteSpace(p.Value as string));  // all filled = valid
+    }
+
+    /// <summary>
+    /// Returns true if <paramref name="config"/> has no [Required] properties or all such properties have non-empty values.
+    /// Used by the AI ability grid to filter the provider dropdown to configured providers only.
+    /// </summary>
+    public static bool AreRequiredPropertiesSatisfied(object config)
+    {
+        var required = config.GetType()
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(p => p.GetCustomAttribute<RequiredAttribute>() is not null)
+            .ToList();
+        return required.Count == 0
+            || required.All(p => !string.IsNullOrWhiteSpace(p.GetValue(config) as string));
+    }
+
+    public void ResetChanges()
+    {
+        foreach (var p in Properties)
+            p.ResetOriginal();
+        RecheckValidity();
     }
 
     public void ApplyToReal()
     {
         if (HasCustomControl)
         {
-            if (CustomControlInstance is ICustomConfigApply applyable)
+            if (CustomControlInstance is Nexaflow.Features.Common.ICustomConfigApply applyable)
                 applyable.Apply();
+            else if (CustomControlInstance is Nexaflow.Providers.Common.ICustomConfigApply applyable2)
+                applyable2.Apply();
             return;
         }
         foreach (var pi in EditingClone.GetType().GetProperties()
@@ -171,15 +216,19 @@ public partial class ConfigEditViewModel : ObservableObject
         EditingClone = ConfigManager.Clone(realConfig);
 
         // Check for a custom control at the class level before doing property reflection
-        var customAttr = realConfig.GetType().GetCustomAttribute<Nexaflow.Features.Common.CustomControlAttribute>();
-        if (customAttr is not null)
+        var customControlType = realConfig.GetType().GetCustomAttribute<Nexaflow.Features.Common.CustomControlAttribute>()?.ControlType
+                             ?? realConfig.GetType().GetCustomAttribute<Nexaflow.Providers.Common.CustomControlAttribute>()?.ControlType;
+        if (customControlType is not null)
         {
             try
             {
-                var ctrl = System.Activator.CreateInstance(customAttr.ControlType);
+                var ctrl = System.Activator.CreateInstance(customControlType);
                 if (ctrl is System.Windows.FrameworkElement fe)
                     fe.DataContext = realConfig;
                 CustomControlInstance = ctrl;
+
+                if (ctrl is Nexaflow.Features.Common.IConfigChangeTracker tracker)
+                    tracker.HasChangesChanged += (_, _) => RecheckValidity();
             }
             catch { /* fall back to property grid if control can't be instantiated */ }
 
@@ -216,14 +265,10 @@ public partial class OptionsViewModel : ObservableObject
 
     public OptionsViewModel()
     {
-        foreach (var config in ConfigManager.Instance.GetAll())
+        foreach (var config in ConfigManager.Instance.GetAll().OfType<IFeatureConfig>())
         {
-            string friendlyName = config is IFeatureConfig fc ? fc.FriendlyName
-                                : config is IProviderConfig pc ? pc.FriendlyName
-                                : config.GetType().Name;
-            string configName   = config is IFeatureConfig fc2 ? fc2.ConfigName
-                                : config is IProviderConfig pc2 ? pc2.ConfigName
-                                : config.GetType().Name.ToLowerInvariant();
+            string friendlyName = config.FriendlyName;
+            string configName   = config.ConfigName;
 
             var section = new ConfigEditViewModel(config, configName, friendlyName);
             section.PropertyChanged += (_, e) =>

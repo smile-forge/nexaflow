@@ -2,6 +2,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Services;
+using Nexaflow.Features.Common;
+using Nexaflow.Providers.Common;
 using System.Collections.ObjectModel;
 
 namespace Nexaflow.Core.ViewModels;
@@ -95,6 +97,8 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
     public bool HasModelSuggestions => SuggestedModels.Count > 0;
 
+    [ObservableProperty] private bool _hasChanges;
+
     // ── Commands ──────────────────────────────────────────────────────────
 
     public IRelayCommand OpenAddPanelCommand  { get; }
@@ -113,8 +117,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
         // Load any provider plugins not yet loaded at startup
         ProviderManager.Instance.DiscoverAll();
 
-        foreach (var name in AIService.Instance.AllProviders.Keys)
-            AvailableProviders.Add(name);
+        RebuildAvailableProviders();
 
         // Build column list: None first, then saved pairs
         Columns.Add(AiColumnViewModel.None);
@@ -141,10 +144,20 @@ public partial class AiAbilityGridViewModel : ObservableObject
             Rows.Add(row);
         }
 
+        // Wire change tracking after all rows are populated
+        Columns.CollectionChanged += (_, _) => RecheckChanges();
+        foreach (var row in Rows)
+            row.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(AiAbilityRowViewModel.SelectedColumnId))
+                    RecheckChanges();
+            };
+
         OpenAddPanelCommand = new RelayCommand(() =>
         {
-            ShowAddPanel     = true;
-            NewProviderName  = AvailableProviders.FirstOrDefault();
+            RebuildAvailableProviders();
+            ShowAddPanel    = true;
+            NewProviderName = null;
         });
 
         CancelAddCommand = new RelayCommand(() =>
@@ -199,6 +212,31 @@ public partial class AiAbilityGridViewModel : ObservableObject
         }
     }
 
+    // ── Provider list ─────────────────────────────────────────────────────
+
+    private void RebuildAvailableProviders()
+    {
+        AvailableProviders.Clear();
+        var providerConfigs = ConfigManager.Instance.GetAll()
+            .OfType<IProviderConfig>()
+            .ToDictionary(c => c.FriendlyName);
+        foreach (var name in AIService.Instance.AllProviders.Keys)
+        {
+            if (providerConfigs.TryGetValue(name, out var cfg)
+                && !ConfigEditViewModel.AreRequiredPropertiesSatisfied(cfg))
+                continue;
+            AvailableProviders.Add(name);
+        }
+    }
+
+    public void ResetAddPanel()
+    {
+        ShowAddPanel    = false;
+        NewModelName    = string.Empty;
+        NewProviderName = null;
+        SuggestedModels.Clear();
+    }
+
     // ── Add / remove columns ──────────────────────────────────────────────
 
     private void AddColumn()
@@ -236,6 +274,40 @@ public partial class AiAbilityGridViewModel : ObservableObject
         }
     }
 
+    // ── Change tracking ───────────────────────────────────────────────────
+
+    private void RecheckChanges()
+    {
+        // Compare current columns (excluding None) against saved config
+        var currentCols = Columns.Where(c => !c.IsNone).ToList();
+        if (currentCols.Count != _config.Columns.Count)
+        {
+            HasChanges = true;
+            return;
+        }
+        for (int i = 0; i < currentCols.Count; i++)
+        {
+            if (currentCols[i].Id != _config.Columns[i].Id)
+            {
+                HasChanges = true;
+                return;
+            }
+        }
+
+        // Compare current ability assignments against saved config
+        foreach (var row in Rows)
+        {
+            _config.Assignments.TryGetValue(row.Ability.ToString(), out var saved);
+            if ((saved ?? string.Empty) != row.SelectedColumnId)
+            {
+                HasChanges = true;
+                return;
+            }
+        }
+
+        HasChanges = false;
+    }
+
     // ── Apply (write back to config at Save time) ─────────────────────────
 
     public void Apply()
@@ -250,5 +322,6 @@ public partial class AiAbilityGridViewModel : ObservableObject
             _config.Assignments[row.Ability.ToString()] = row.SelectedColumnId;
 
         AIService.Instance.LoadAbilityConfig(_config);
+        RecheckChanges(); // resets HasChanges since _config now matches current state
     }
 }

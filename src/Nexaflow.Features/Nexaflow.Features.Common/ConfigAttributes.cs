@@ -53,3 +53,14 @@ public interface ICustomConfigApply
 {
     void Apply();
 }
+
+/// <summary>
+/// Optionally implemented by a custom config control to expose whether its
+/// current state differs from the last saved state.
+/// Controls that don't implement this are assumed to always have changes.
+/// </summary>
+public interface IConfigChangeTracker
+{
+    bool HasChanges { get; }
+    event EventHandler? HasChangesChanged;
+}
