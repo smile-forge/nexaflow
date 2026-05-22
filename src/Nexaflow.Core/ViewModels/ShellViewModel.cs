@@ -181,6 +181,18 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         }
     }
 
+    // ── Work contexts ─────────────────────────────────────────────────────
+    [ObservableProperty] private WorkContext _currentWorkContext = WorkContextManager.Instance.Current;
+
+    public ObservableCollection<WorkContext> WorkContexts => WorkContextManager.Instance.Contexts;
+
+    [RelayCommand]
+    private void SelectWorkContext(WorkContext ctx)
+    {
+        WorkContextManager.Instance.Current = ctx;
+        CurrentWorkContext = WorkContextManager.Instance.Current;
+    }
+
     // ── Options overlay ───────────────────────────────────────────────────
     [ObservableProperty] private bool _optionsOpen;
 

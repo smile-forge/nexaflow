@@ -27,6 +27,7 @@
         <cvn:AiStatusBrushConverter           x:Key="AiStatusBrush"/>
         <cvn:RibbonKindVisibilityConverter    x:Key="RibbonKindVis"/>
         <cv:StringToVisibilityConverter      x:Key="StringVis"/>
+        <cv:ColorStringToBrushConverter      x:Key="ColorStringToBrush"/>
 
         <!-- ── Window caption (min/max/close) buttons ── -->
         <Style x:Key="CaptionButton" TargetType="Button">
@@ -162,8 +163,22 @@
                     <Border VerticalAlignment="Top" Height="10"
                             Background="{StaticResource SurfaceBrush}"/>
 
+                    <!-- WorkContext accent: first 100 px of bevel in context colour -->
+                    <Border VerticalAlignment="Top" HorizontalAlignment="Left"
+                            Width="100" Height="10"
+                            Background="{Binding CurrentWorkContext.Color,
+                                         Converter={StaticResource ColorStringToBrush}}"/>
+
+                    <!-- WorkContext selector: 48 px wide rectangle + popup -->
+                    <ctrl:WorkContextSelectorControl
+                            HorizontalAlignment="Left" Width="48"
+                            CurrentWorkContext="{Binding CurrentWorkContext}"
+                            WorkContexts="{Binding WorkContexts}"
+                            SelectWorkContextCommand="{Binding SelectWorkContextCommand}"/>
+
+                    <!-- Ribbon shifted right to clear the selector -->
                     <ctrl:RibbonBar x:Name="RibbonBar"
-                                     Margin="0,10,0,0"
+                                     Margin="48,10,0,0"
                                      ItemsSource="{Binding RibbonItems}"
                                      RibbonActionCommand="{Binding RibbonActionCommand}"
                                      EditClickCommand="{Binding ToggleRibbonEditCommand}"

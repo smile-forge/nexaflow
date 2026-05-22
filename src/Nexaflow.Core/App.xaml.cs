@@ -54,6 +54,11 @@ public partial class App : Application
         ConfigManager.Instance.Register(shellConfig, shellConfig.ConfigName);
         ThemeManager.Apply(shellConfig.Theme);
 
+        // Work contexts
+        var wcConfig = new WorkContextsConfig();
+        ConfigManager.Instance.Register(wcConfig, wcConfig.ConfigName);
+        WorkContextManager.Instance.Initialize(wcConfig);
+
         var fileMapConfig = new FileMapConfig();
         ConfigManager.Instance.Register(fileMapConfig, fileMapConfig.ConfigName);
         FileMapManager.Instance.Initialize(fileMapConfig.UseRegistryMapping);

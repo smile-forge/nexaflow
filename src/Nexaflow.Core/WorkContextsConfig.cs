@@ -1,0 +1,15 @@
+using Nexaflow.Core.Controls;
+using Nexaflow.Core.Models;
+using Nexaflow.Features.Common;
+
+namespace Nexaflow.Core;
+
+[CustomControl(typeof(WorkContextsConfigControl))]
+public sealed class WorkContextsConfig : IFeatureConfig
+{
+    public string ConfigName   => "workcontexts";
+    public string FriendlyName => "Work Contexts";
+
+    public List<WorkContext> Contexts    { get; set; } = [new WorkContext()];
+    public string            CurrentName { get; set; } = "Default";
+}
