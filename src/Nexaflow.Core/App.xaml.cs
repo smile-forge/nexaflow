@@ -65,26 +65,25 @@ public partial class App : Application
         FileMapManager.Instance.Initialize(fileMapConfig.UseRegistryMapping);
 
         // ── 6. Feature system ────────────────────────────────────────────────
-        //    Register the first WorkContext's AIService as the singleton for
-        //    feature plugins (interim: features are not yet WorkContext-aware)
+        //    Register the first WorkContext's AIService + ShellServices as singletons
+        //    for feature plugins (interim: features are not yet WorkContext-aware)
         var defaultCtx = WorkContextManager.Instance.Contexts[0];
         FeatureManager.Instance.RegisterSingletonService(typeof(IAIService), defaultCtx.AiService!);
 
-        var shellServices = new ShellServices();
-        FeatureManager.Instance.SetShellServices(shellServices);
+        FeatureManager.Instance.SetShellServices(defaultCtx.ShellServices!);
         FeatureManager.Instance.RegisterFeatures();
 
         // ── 7. Torn-off window factory ───────────────────────────────────────
-        shellServices.CreateWindowFactory = tab =>
+        defaultCtx.ShellServices!.CreateWindowFactory = tab =>
         {
             // Torn-off windows use the first available WorkContext for now
             var ctx = WorkContextManager.Instance.Contexts[0];
-            var win = new MainWindow(activityManager, ctx, shellServices, openDefaultTabs: false);
+            var win = new MainWindow(activityManager, ctx, openDefaultTabs: false);
             return (IWindowHost)win.ViewModel;
         };
 
         // ── 8. Main window ───────────────────────────────────────────────────
-        var win = new MainWindow(activityManager, defaultCtx, shellServices);
+        var win = new MainWindow(activityManager, defaultCtx);
         win.Show();
 
         if (ConfigManager.Instance.IsFirstRun)

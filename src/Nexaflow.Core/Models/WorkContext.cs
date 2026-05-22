@@ -16,4 +16,8 @@ public class WorkContext
     /// <summary>Runtime-only AIService instance — not serialised.</summary>
     [JsonIgnore]
     public AIService? AiService { get; internal set; }
+
+    /// <summary>Runtime-only ShellServices instance — not serialised.</summary>
+    [JsonIgnore]
+    public ShellServices? ShellServices { get; internal set; }
 }

@@ -22,6 +22,7 @@ public sealed class WorkContextManager
     /// <summary>
     /// Rebuilds the Contexts collection from <paramref name="config"/>, creating a new
     /// <see cref="AIService"/> per context and registering all currently loaded providers.
+    /// Existing <see cref="ShellServices"/> instances are preserved (they hold live window/tab state).
     /// Must be called AFTER <see cref="ProviderManager"/> has loaded its assemblies.
     /// </summary>
     public void Initialize(WorkContextsConfig config)
@@ -32,7 +33,7 @@ public sealed class WorkContextManager
         var contexts = config.Contexts is { Count: > 0 } saved ? saved : [new WorkContext()];
         foreach (var ctx in contexts)
         {
-            BootstrapAiService(ctx);
+            BootstrapServices(ctx);
             Contexts.Add(ctx);
         }
 
@@ -40,13 +41,14 @@ public sealed class WorkContextManager
     }
 
     /// <summary>
-    /// Creates a new <see cref="WorkContext"/> with a fresh <see cref="AIService"/>,
-    /// registers all currently loaded providers, and adds it to <see cref="Contexts"/>.
+    /// Creates a new <see cref="WorkContext"/> with a fresh <see cref="AIService"/> and
+    /// <see cref="ShellServices"/>, registers all currently loaded providers, and adds it
+    /// to <see cref="Contexts"/>.
     /// </summary>
     public WorkContext Create(string name)
     {
         var ctx = new WorkContext { Name = name };
-        BootstrapAiService(ctx);
+        BootstrapServices(ctx);
         Contexts.Add(ctx);
         return ctx;
     }
@@ -74,8 +76,9 @@ public sealed class WorkContextManager
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private static void BootstrapAiService(WorkContext ctx)
+    private static void BootstrapServices(WorkContext ctx)
     {
+        // AIService — always recreate so provider registrations stay current
         var service = new AIService(ctx.Name);
 
         foreach (var (name, provider) in ProviderManager.Instance.LoadedProviders)
@@ -83,5 +86,8 @@ public sealed class WorkContextManager
 
         service.LoadAbilityConfig(ctx.AiConfig);
         ctx.AiService = service;
+
+        // ShellServices — preserve existing instance; it holds live window/tab state
+        ctx.ShellServices ??= new ShellServices();
     }
 }

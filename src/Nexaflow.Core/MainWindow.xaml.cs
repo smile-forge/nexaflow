@@ -23,12 +23,12 @@ public partial class MainWindow : Window
     public ShellViewModel ViewModel => _vm;
 
     public MainWindow(BackgroundActivityManager activityManager, WorkContext workContext,
-                      ShellServices shellServices, bool openDefaultTabs = true)
+                      bool openDefaultTabs = true)
     {
         InitializeComponent();
 
-        _shellServices = shellServices;
-        _vm = new ShellViewModel(activityManager, workContext, shellServices)
+        _shellServices = workContext.ShellServices!;
+        _vm = new ShellViewModel(activityManager, workContext, _shellServices)
         {
             Window = this
         };
@@ -39,10 +39,10 @@ public partial class MainWindow : Window
         if (openDefaultTabs)
         {
             // Register window before opening tabs so ShellServices can track them
-            shellServices.RegisterWindow(_vm);
-            shellServices.SetFocused(_vm);
+            _shellServices.RegisterWindow(_vm);
+            _shellServices.SetFocused(_vm);
 
-            shellServices.OpenTab("FileSystem", new() { ["mode"] = "thispc" });
+            _shellServices.OpenTab("FileSystem", new() { ["mode"] = "thispc" });
 
             _vm.AddBackgroundTask(new BackgroundTask
             {
@@ -53,7 +53,7 @@ public partial class MainWindow : Window
         else
         {
             // Tearoff path: register but don't open tabs (ShellServices adds the tab)
-            shellServices.RegisterWindow(_vm);
+            _shellServices.RegisterWindow(_vm);
         }
 
         FinishInit();
