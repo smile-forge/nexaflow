@@ -1,6 +1,9 @@
 <Project Sdk="WixToolset.Sdk/7.0.0">
   <PropertyGroup>
     <AcceptEula>wix7</AcceptEula>
+    <_CoreCsproj>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\src\Nexaflow.Core\Nexaflow.Core.csproj'))</_CoreCsproj>
+    <NexaflowVersion>$([System.Text.RegularExpressions.Regex]::Match($(_CoreCsproj), '&lt;Version&gt;([^&lt;]+)&lt;/Version&gt;').Groups[1].Value)</NexaflowVersion>
+    <DefineConstants>AppVersion=$(NexaflowVersion)</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
