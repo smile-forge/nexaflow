@@ -1,5 +1,6 @@
 using Nexaflow.Core.Models;
 using System.Collections.ObjectModel;
+using System.IO;
 
 namespace Nexaflow.Core.Services;
 
@@ -78,8 +79,10 @@ public sealed class WorkContextManager
 
     private static void BootstrapServices(WorkContext ctx)
     {
+        var contextDir = Path.Combine(ConfigManager.Instance.BaseDir, "Contexts", ctx.Name);
+
         // AIService — always recreate so provider registrations stay current
-        var service = new AIService(ctx.Name);
+        var service = new AIService(Path.Combine(contextDir, "Conversations"));
 
         foreach (var (name, provider) in ProviderManager.Instance.LoadedProviders)
             service.Register(name, provider);
@@ -89,5 +92,8 @@ public sealed class WorkContextManager
 
         // ShellServices — preserve existing instance; it holds live window/tab state
         ctx.ShellServices ??= new ShellServices();
+
+        // RibbonLayoutService — always recreate (path is deterministic from context name)
+        ctx.RibbonService = new RibbonLayoutService(contextDir);
     }
 }

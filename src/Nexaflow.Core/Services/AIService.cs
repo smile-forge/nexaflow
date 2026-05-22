@@ -64,12 +64,11 @@ public sealed class AIService : IAIService
 
     public ConversationRecord? ActiveConversation { get; }
 
-    /// <param name="contextName">Used to namespace conversation storage per WorkContext.</param>
-    public AIService(string contextName = "default")
+    /// <param name="conversationsDir">Full path to the directory where this context's conversations are stored.
+    /// Computed by <see cref="WorkContextManager"/> from <see cref="ConfigManager.BaseDir"/>.</param>
+    public AIService(string conversationsDir)
     {
-        _baseDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Smile", "Nexaflow", "Conversations", contextName);
+        _baseDir = conversationsDir;
     }
 
     public async Task<IEnumerable<ConversationRecord>> LoadAllAsync()

@@ -21,6 +21,9 @@ public partial class RibbonEditor : UserControl
     public static readonly DependencyProperty CloseCommandProperty =
         DependencyProperty.Register(nameof(CloseCommand), typeof(ICommand), typeof(RibbonEditor));
 
+    public static readonly DependencyProperty SaveCommandProperty =
+        DependencyProperty.Register(nameof(SaveCommand), typeof(ICommand), typeof(RibbonEditor));
+
     public static readonly DependencyProperty ShellViewModelProperty =
         DependencyProperty.Register(nameof(ShellViewModel), typeof(ShellViewModel), typeof(RibbonEditor));
 
@@ -33,6 +36,11 @@ public partial class RibbonEditor : UserControl
     {
         get => (ICommand?)GetValue(CloseCommandProperty);
         set => SetValue(CloseCommandProperty, value);
+    }
+    public ICommand? SaveCommand
+    {
+        get => (ICommand?)GetValue(SaveCommandProperty);
+        set => SetValue(SaveCommandProperty, value);
     }
     public ShellViewModel? ShellViewModel
     {
@@ -688,7 +696,7 @@ public partial class RibbonEditor : UserControl
         foreach (var d in _draft)
             ItemsSource.Add(d);
 
-        RibbonLayoutService.Save(ItemsSource);
+        SaveCommand?.Execute(null);
         CloseCommand?.Execute(null);
     }
 

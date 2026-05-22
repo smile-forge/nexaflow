@@ -20,4 +20,8 @@ public class WorkContext
     /// <summary>Runtime-only ShellServices instance — not serialised.</summary>
     [JsonIgnore]
     public ShellServices? ShellServices { get; internal set; }
+
+    /// <summary>Runtime-only RibbonLayoutService instance — not serialised.</summary>
+    [JsonIgnore]
+    public RibbonLayoutService? RibbonService { get; internal set; }
 }

@@ -6,9 +6,9 @@ using Nexaflow.Core.Models;
 
 namespace Nexaflow.Core.Services;
 
-/// <summary>
-/// Persists and restores the ribbon layout to/from
-/// %APPDATA%\Aria\Shell\ribbon.json.
+///<summary>
+/// Persists and restores the ribbon layout for a single WorkContext to/from
+/// <c>{contextDir}\ribbon.json</c>.
 ///
 /// This class is intentionally a pure data layer — it only handles
 /// serialisation of <see cref="RibbonItem"/> metadata (label, icon, kind,
@@ -16,11 +16,9 @@ namespace Nexaflow.Core.Services;
 /// re-attached by <c>ShellViewModel.ReattachTabFactory</c> after loading,
 /// which is the single place that knows how to construct each page type.
 /// </summary>
-public static class RibbonLayoutService
+public sealed class RibbonLayoutService
 {
-    private static readonly string _path = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "Smile", "Nexaflow", "ribbon.json");
+    private readonly string _path;
 
     private static readonly JsonSerializerOptions _opts = new()
     {
@@ -28,9 +26,14 @@ public static class RibbonLayoutService
         Converters    = { new JsonStringEnumConverter() }
     };
 
+    public RibbonLayoutService(string contextDir)
+    {
+        _path = Path.Combine(contextDir, "ribbon.json");
+    }
+
     // ── Public API ────────────────────────────────────────────────────────
 
-    public static void Save(IEnumerable<RibbonItem> items)
+    public void Save(IEnumerable<RibbonItem> items)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
         var dtos = items.Select(ToDto).ToList();
@@ -43,7 +46,7 @@ public static class RibbonLayoutService
     /// must invoke <c>ShellViewModel.ReattachTabFactory</c> before adding items
     /// to the ribbon.
     /// </summary>
-    public static List<RibbonItem>? Load()
+    public List<RibbonItem>? Load()
     {
         if (!File.Exists(_path)) return null;
         try

@@ -461,6 +461,7 @@
                 Panel.ZIndex="60"
                 ItemsSource="{Binding RibbonItems}"
                 CloseCommand="{Binding ToggleRibbonEditCommand}"
+                SaveCommand="{Binding SaveRibbonLayoutCommand}"
                 ShellViewModel="{Binding}"/>
 
         <!-- ═══════════════════════════════════════════════════════════

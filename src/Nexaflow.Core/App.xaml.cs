@@ -12,6 +12,7 @@ using Nexaflow.Features.Json;
 using Nexaflow.Features.Text;
 using Nexaflow.Features.Web;
 using Nexaflow.Features.WindowsSearch;
+using System.IO;
 using System.Windows;
 using Updatum;
 
@@ -37,6 +38,11 @@ public partial class App : Application
         base.OnStartup(e);
 
         var activityManager = new BackgroundActivityManager();
+
+        // ── 0. Base path — single source of truth for all app-data paths ─────
+        ConfigManager.Instance.Initialize(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "Smile", "nexaflow"));
 
         // ── 1. Shell config ──────────────────────────────────────────────────
         var shellConfig = new ShellConfig();

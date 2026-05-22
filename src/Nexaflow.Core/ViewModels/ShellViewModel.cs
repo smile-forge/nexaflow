@@ -187,7 +187,17 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     public ObservableCollection<WorkContext> WorkContexts => WorkContextManager.Instance.Contexts;
 
     [RelayCommand]
-    private void SelectWorkContext(WorkContext ctx) => CurrentWorkContext = ctx;
+    private void SelectWorkContext(WorkContext ctx)
+    {
+        if (ReferenceEquals(ctx, CurrentWorkContext)) return;
+
+        CurrentWorkContext.RibbonService?.Save(RibbonItems);
+        RibbonItems.Clear();
+
+        CurrentWorkContext = ctx;
+
+        LoadOrBuildRibbon();
+    }
 
     // ── Options overlay ───────────────────────────────────────────────────
     [ObservableProperty] private bool _optionsOpen;
@@ -546,11 +556,12 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     // ── Ribbon persistence ────────────────────────────────────────────────
 
-    public void SaveRibbonLayout() => RibbonLayoutService.Save(RibbonItems);
+    [RelayCommand]
+    public void SaveRibbonLayout() => CurrentWorkContext.RibbonService?.Save(RibbonItems);
 
     private void LoadOrBuildRibbon()
     {
-        var saved = RibbonLayoutService.Load();
+        var saved = CurrentWorkContext.RibbonService?.Load();
         if (saved is { Count: > 0 })
         {
             foreach (var item in saved)
