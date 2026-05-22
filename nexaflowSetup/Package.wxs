@@ -1,6 +1,7 @@
 ﻿<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Id="smileforge.nexaflowSetup" Name="nexaflowSetup" Manufacturer="Smile-forge" Version="0.4.0">
-    <MajorUpgrade DowngradeErrorMessage="!(loc.DowngradeError)" />
+  <Package Id="smileforge.nexaflowSetup" Name="nexaflowSetup" Manufacturer="Smile-forge"
+           Version="$(var.AppVersion)" UpgradeCode="{7C608FBB-CD12-4A72-99D4-019D1928106B}">
+    <MajorUpgrade Schedule="afterInstallInitialize" DowngradeErrorMessage="!(loc.DowngradeError)" />
 
     <Feature Id="Main">
       <ComponentGroupRef Id="AppComponents" />
