@@ -89,9 +89,27 @@ public partial class MainWindow : Window
         OptionsPanelControl.DataContext = optionsVm;
     }
 
+    private void WireManageAiPanel()
+    {
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ShellViewModel.ManageAiOpen) && _vm.ManageAiOpen)
+                ResetManageAiPanel();
+        };
+        ResetManageAiPanel();
+    }
+
+    private void ResetManageAiPanel()
+    {
+        var manageAiVm = new ManageAiViewModel();
+        manageAiVm.ApplyError += msg => _vm.ShowErrorToast(msg);
+        ManageAiPanelControl.DataContext = manageAiVm;
+    }
+
     private void FinishInit()
     {
         WireOptionsPanel();
+        WireManageAiPanel();
 
         Activated   += (_, _) => _shellServices.SetFocused(_vm);
         Deactivated += (_, _) => _shellServices.ClearFocused(_vm);
@@ -102,6 +120,7 @@ public partial class MainWindow : Window
             if (e.Key == Key.Escape)
             {
                 _vm.OptionsOpen       = false;
+                _vm.ManageAiOpen      = false;
                 _vm.NotificationsOpen = false;
                 _vm.RibbonEditOpen    = false;
             }

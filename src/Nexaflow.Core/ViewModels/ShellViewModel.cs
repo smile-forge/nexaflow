@@ -184,6 +184,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     // ── Options overlay ───────────────────────────────────────────────────
     [ObservableProperty] private bool _optionsOpen;
 
+    // ── Manage AI overlay ─────────────────────────────────────────────────
+    [ObservableProperty] private bool _manageAiOpen;
+
     // ── Ribbon edit mode ─────────────────────────────────────────────────
     [ObservableProperty] private bool _ribbonEditOpen;
 
@@ -271,6 +274,14 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     [RelayCommand]
     private void CloseOptions() => OptionsOpen = false;
+
+    // ── Manage AI ─────────────────────────────────────────────────────────
+
+    [RelayCommand]
+    private void ToggleManageAi() => ManageAiOpen = !ManageAiOpen;
+
+    [RelayCommand]
+    private void CloseManageAi() => ManageAiOpen = false;
 
     [RelayCommand]
     private void ClearErrorToast()
