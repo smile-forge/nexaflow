@@ -38,8 +38,10 @@
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Console\Nexaflow.Features.Console.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Git\Nexaflow.Features.Git.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Hex\Nexaflow.Features.Hex.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Json\Nexaflow.Features.Json.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Logs\Nexaflow.Features.Logs.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Tabular\Nexaflow.Features.Tabular.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.WindowsSearch\Nexaflow.Features.WindowsSearch.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Images\Nexaflow.Features.Images.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Markdown\Nexaflow.Features.Markdown.csproj" />
