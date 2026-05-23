@@ -19,39 +19,51 @@ The default Windows experience hasn't fundamentally changed in decades. Windows 
 ## Features
 
 ### Windows Filesystem
+
 Navigate your drive from a built-in file tree. Open any file as the right kind of tab — markdown files open in the editor, images in the viewer, directories in the explorer — without leaving the app.
 
 ### Terminal
+
 A full pseudo-terminal (PTY) tab with ANSI/VT support, command history, and interactive shell integration. Type `>` in the AI bar to send a command directly to the active console.
 
 ### Markdown Editor
+
 Write and preview Markdown with live rendering, including LaTeX formula support via WpfMath.
 
 ### Image Viewer
+
 Single and batch image viewing as a native tab.
 
 ### Text Editor
+
 Lightweight plain-text editor tab for quick edits without shelling out to Notepad.
 
 ### Log Viewer
+
 Tail and inspect log files with filtering, as a tab.
 
 ### Windows Search
+
 Full-text file search backed by the Windows Search index, with AI-powered query refinement.
 
 ### Scratchpad
+
 A virtual corkboard for temporary notes. Post-its auto-expire, can be pinned, and support multiple shapes and colours on an infinite canvas.
 
 ### Project Management
+
 Lightweight project tracking built for developers. Each project lives as a simple `.project` file. Backlog items have a 9-state workflow and the system generates `.aisummary` files to give the AI instant context on what you're working on.
 
 ### Integrated Context-Aware AI
+
 An AI input bar lives at the bottom of every window. Ask questions, get answers, issue commands — the AI knows which tab is active and what project you're in. Provider support includes a local Aria service, Ollama (local models), and Claude (Anthropic).
 
 ### Web Viewer
+
 An embedded Chromium tab (WebView2) for opening URLs and local HTML files without leaving the workspace.
 
 ### Customisable Ribbon
+
 Add, remove, and reorder toolbar buttons. The layout persists across sessions.
 
 ---
@@ -94,20 +106,17 @@ For a deep dive into the architecture and how to add new features see [docs/Arch
 
 | Location | Purpose |
 |---|---|
-| `%APPDATA%\Smile\Nexaflow\ribbon.json` | Persisted ribbon layout |
-| `%APPDATA%\Smile\Nexaflow\Conversations\` | Chat history |
-| Options panel (first run) | AI provider, projects root folder, theme |
+| `%APPDATA%\Smile\Nexaflow\` | Configuration, saved chats and other non-file content |
 
 ---
 
 ## Roadmap
 
-- [ ] **Additional AI providers** — OpenAI, Google Gemini, and local native (ONNX / DirectML) model support
-- [ ] **Additional viewers and editors** — CSV, JSON, syntax-highlighted code, binary/hex
+- [ ] **Additional AI providers** — Google Gemini, and local native (ONNX / DirectML) model support
+- [ ] **Additional viewers and editors** — CSV, syntax-highlighted code, binary/hex
 - [ ] **Improved input handling** — multi-modal input (image paste, file drop to AI bar), richer query routing, structured action confirmation
 - [ ] **Expanded AI capabilities** — agent-style multi-step task execution, per-project memory, inline AI suggestions inside editors
 - [ ] **Expanded search with RAG** — semantic search across local files and project content using a local embedding index, retrieval-augmented answers in the AI bar
-- [ ] **Windows Explorer context menu integration**
 - [ ] **Multi-monitor awareness and saved workspace layouts**
 
 ---
