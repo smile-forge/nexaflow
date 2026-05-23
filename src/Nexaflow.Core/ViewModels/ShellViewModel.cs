@@ -186,17 +186,42 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     public ObservableCollection<WorkContext> WorkContexts => WorkContextManager.Instance.Contexts;
 
+    // Guard flag: suppresses CollectionChanged side-effects while we are in the middle
+    // of tearing down one context's ribbon and loading the next one. Without this the
+    // Clear() triggers an async BeginInvoke(BuildDefaultRibbon) that fires on top of the
+    // newly-loaded items, doubling the ribbon every switch.
+    private bool _switchingContext;
+
     [RelayCommand]
     private void SelectWorkContext(WorkContext ctx)
     {
         if (ReferenceEquals(ctx, CurrentWorkContext)) return;
 
-        CurrentWorkContext.RibbonService?.Save(RibbonItems);
-        RibbonItems.Clear();
+        _switchingContext = true;
+        try
+        {
+            CurrentWorkContext.RibbonService?.Save(RibbonItems);
 
-        CurrentWorkContext = ctx;
+            // Unsubscribe from items being discarded so they can be GC'd
+            foreach (var item in RibbonItems)
+                item.PropertyChanged -= OnRibbonItemChanged;
 
-        LoadOrBuildRibbon();
+            RibbonItems.Clear();
+            CurrentWorkContext = ctx;
+            LoadOrBuildRibbon();
+
+            // Wire PropertyChanged for items that were just loaded
+            // (CollectionChanged was suppressed during the switch)
+            foreach (var item in RibbonItems)
+            {
+                item.PropertyChanged -= OnRibbonItemChanged;
+                item.PropertyChanged += OnRibbonItemChanged;
+            }
+        }
+        finally
+        {
+            _switchingContext = false;
+        }
     }
 
     // ── Options overlay ───────────────────────────────────────────────────
@@ -231,8 +256,25 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         };
 
         LoadOrBuildRibbon();
+        // Ensure PropertyChanged is wired for items loaded before the handler is registered
+        foreach (var item in RibbonItems)
+            item.PropertyChanged += OnRibbonItemChanged;
+
         RibbonItems.CollectionChanged += (_, e) =>
         {
+            if (_switchingContext) return;
+
+            // Keep PropertyChanged wired as items come and go (covers Done_Click in RibbonEditor)
+            if (e.OldItems is not null)
+                foreach (RibbonItem item in e.OldItems)
+                    item.PropertyChanged -= OnRibbonItemChanged;
+            if (e.NewItems is not null)
+                foreach (RibbonItem item in e.NewItems)
+                {
+                    item.PropertyChanged -= OnRibbonItemChanged; // guard against double-subscribe
+                    item.PropertyChanged += OnRibbonItemChanged;
+                }
+
             if (RibbonItems.Count == 0)
             {
                 if (!RibbonEditOpen)
@@ -529,32 +571,58 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     private void PinTabToRibbon(TabPinRequest request)
     {
         var (tab, insertIndex) = request;
-        if (tab.Page is not Views.FileSystemView fsPage) return;
 
-        var vm       = fsPage.ViewModel;
-        var path     = vm.CurrentPath;
-        var isThisPc = string.IsNullOrEmpty(path) || path == "This PC";
+        var label    = tab.Title;
+        var icon     = tab.Icon;
+        var pageKind = tab.PageKind;
+        var pageParams = tab.PageParams is not null
+            ? new Dictionary<string, string>(tab.PageParams)
+            : null;
 
-        var label = tab.Title;
-        var icon  = isThisPc ? "🖥" : "📁";
+        if (string.IsNullOrEmpty(pageKind)) return;
 
-        if (RibbonItems.Any(r => r.Label == label && r.Kind == RibbonItemKind.Button))
+        // For FileSystem tabs, root the tab to its current path so the button
+        // always opens the exact location the user is browsing.
+        if (tab.Page is Views.FileSystemView fsPage)
+        {
+            var vm       = fsPage.ViewModel;
+            var path     = vm.CurrentPath;
+            var isThisPc = string.IsNullOrEmpty(path) || path == "This PC";
+            icon = isThisPc ? "🖥" : "📁";
+            if (!isThisPc)
+            {
+                vm.ResetRootToCurrentPath();
+                pageParams = new() { ["mode"] = "path", ["path"] = path };
+            }
+            else
+            {
+                pageParams = new() { ["mode"] = "thispc" };
+            }
+        }
+
+        // Duplicate check: same PageKind + matching params already in the ribbon
+        if (RibbonItems.Any(r => r.Kind == RibbonItemKind.Button &&
+                                  r.PageKind == pageKind &&
+                                  RibbonParamsEqual(r.PageParams, pageParams)))
             return;
 
-        if (!isThisPc)
-            vm.ResetRootToCurrentPath();
+        AddRibbonItem(MakeButton(label, icon, pageKind, pageParams), insertIndex);
+    }
 
-        var item = MakeButton(
-            label, icon,
-            pageKind:   PageKinds.FileSystem,
-            pageParams: isThisPc
-                ? new() { ["mode"] = "thispc" }
-                : new() { ["mode"] = "path", ["path"] = path });
-
-        AddRibbonItem(item, insertIndex);
+    private static bool RibbonParamsEqual(
+        Dictionary<string, string>? a, Dictionary<string, string>? b)
+    {
+        if (ReferenceEquals(a, b)) return true;
+        if (a is null || b is null) return a is null && b is null;
+        if (a.Count != b.Count)    return false;
+        return a.All(kv => b.TryGetValue(kv.Key, out var v) && v == kv.Value);
     }
 
     // ── Ribbon persistence ────────────────────────────────────────────────
+
+    // Named handler so it can be removed (anonymous lambdas can't be unsubscribed).
+    private void OnRibbonItemChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
+        => SaveRibbonLayout();
 
     [RelayCommand]
     public void SaveRibbonLayout() => CurrentWorkContext.RibbonService?.Save(RibbonItems);
@@ -565,10 +633,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         if (saved is { Count: > 0 })
         {
             foreach (var item in saved)
-            {
-                item.PropertyChanged += (_, _) => SaveRibbonLayout();
-                RibbonItems.Add(item);
-            }
+                RibbonItems.Add(item);  // PropertyChanged wired by CollectionChanged (or caller)
         }
         else
         {
@@ -591,11 +656,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     private void AddRibbonItem(RibbonItem item, int insertAt = -1)
     {
-        item.PropertyChanged += (_, _) => SaveRibbonLayout();
         if (insertAt >= 0 && insertAt < RibbonItems.Count)
             RibbonItems.Insert(insertAt, item);
         else
             RibbonItems.Add(item);
+        // PropertyChanged wired by CollectionChanged handler
     }
 
     private void BuildDefaultRibbon()
