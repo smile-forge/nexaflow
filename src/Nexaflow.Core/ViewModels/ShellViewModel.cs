@@ -567,6 +567,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     // ── FileSystem tab pinning ────────────────────────────────────────────
 
+    /// <summary>
+    /// Set by MainWindow after the RibbonBar is available.
+    /// Invoked with the matching ribbon item when a duplicate drop is rejected so the
+    /// bar can provide visual feedback (flash animation).
+    /// </summary>
+    public Action<RibbonItem>? FlashRibbonItem { get; set; }
+
     [RelayCommand]
     private void PinTabToRibbon(TabPinRequest request)
     {
@@ -601,10 +608,14 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         }
 
         // Duplicate check: same PageKind + matching params already in the ribbon
-        if (RibbonItems.Any(r => r.Kind == RibbonItemKind.Button &&
-                                  r.PageKind == pageKind &&
-                                  RibbonParamsEqual(r.PageParams, pageParams)))
+        var duplicate = RibbonItems.FirstOrDefault(r => r.Kind == RibbonItemKind.Button &&
+                                                         r.PageKind == pageKind &&
+                                                         RibbonParamsEqual(r.PageParams, pageParams));
+        if (duplicate is not null)
+        {
+            FlashRibbonItem?.Invoke(duplicate);
             return;
+        }
 
         AddRibbonItem(MakeButton(label, icon, pageKind, pageParams), insertIndex);
     }

@@ -69,6 +69,8 @@ public partial class MainWindow : Window
 
         BreadcrumbBarControl.OpenTabRequested += (pageKind, pageParams) =>
             _shellServices.OpenTab(pageKind, pageParams, _vm.CurrentPage as IPageView);
+
+        _vm.FlashRibbonItem = item => RibbonBar.FlashItem(item);
     }
 
     private void WireOptionsPanel()

@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using Nexaflow.Core.Models;
 
@@ -432,5 +433,25 @@ public partial class RibbonBar : UserControl
 
     private void EditBtn_Click(object sender, RoutedEventArgs e)
         => EditClickCommand?.Execute(null);
+
+    /// <summary>
+    /// Briefly flashes the visual element representing <paramref name="item"/> to signal
+    /// that a duplicate drop was rejected.
+    /// </summary>
+    public void FlashItem(RibbonItem item)
+    {
+        foreach (var (child, items) in _childItems)
+        {
+            if (!items.Contains(item)) continue;
+
+            var anim = new DoubleAnimation(1.0, 0.15, TimeSpan.FromMilliseconds(120))
+            {
+                AutoReverse    = true,
+                RepeatBehavior = new RepeatBehavior(3)
+            };
+            child.BeginAnimation(UIElement.OpacityProperty, anim);
+            break;
+        }
+    }
 }
 

@@ -89,13 +89,17 @@ public partial class TabStrip : UserControl
 
     private void Tabs_CollectionChanged(object? s, NotifyCollectionChangedEventArgs e)
     {
-        // Observe IsActive changes on added items
-        if (e.NewItems is not null)
-            foreach (TabEntry t in e.NewItems)
-                t.PropertyChanged += Tab_PropertyChanged;
-        if (e.OldItems is not null)
-            foreach (TabEntry t in e.OldItems)
-                t.PropertyChanged -= Tab_PropertyChanged;
+        // Move repositions a tab without removing it — both NewItems and OldItems reference
+        // the same entry, so naively subscribing then unsubscribing would kill the handler.
+        if (e.Action != NotifyCollectionChangedAction.Move)
+        {
+            if (e.NewItems is not null)
+                foreach (TabEntry t in e.NewItems)
+                    t.PropertyChanged += Tab_PropertyChanged;
+            if (e.OldItems is not null)
+                foreach (TabEntry t in e.OldItems)
+                    t.PropertyChanged -= Tab_PropertyChanged;
+        }
 
         RebuildAndLayout();
     }
@@ -271,23 +275,31 @@ public partial class TabStrip : UserControl
             // keep opacity=1 while border is still hovered
         };
 
-        // Click to activate
-        border.MouseLeftButtonDown += (_, e) =>
-        {
-            if (e.Source == closeBtn) return;
-            ActivateTabCommand?.Execute(tab);
-        };
+        // Drag to ribbon — begin drag after a small movement while LMB is held.
+        // Activation happens on mouse-UP (not down) so the drag-arm closure is still
+        // alive when an inactive tab is clicked: if we activated on down, BringToFront
+        // → Tabs.Move → RebuildAndLayout would recreate all borders and the old closure's
+        // _dragArmed flag would be lost before MouseMove could ever fire.
+        Point _dragStart  = default;
+        bool  _dragArmed  = false;
+        bool  _isDragging = false;
 
-        // Drag to ribbon — begin drag after a small movement while LMB is held
-        Point _dragStart = default;
-        bool  _dragArmed = false;
         border.PreviewMouseLeftButtonDown += (_, e) =>
         {
             if (e.Source == closeBtn) return;
-            _dragStart = e.GetPosition(border);
-            _dragArmed = true;
+            _dragStart  = e.GetPosition(border);
+            _dragArmed  = true;
+            _isDragging = false;
         };
-        border.PreviewMouseLeftButtonUp += (_, _) => _dragArmed = false;
+
+        border.PreviewMouseLeftButtonUp += (_, _) =>
+        {
+            if (_dragArmed && !_isDragging)
+                ActivateTabCommand?.Execute(tab);
+            _dragArmed  = false;
+            _isDragging = false;
+        };
+
         border.MouseMove += (_, e) =>
         {
             if (!_dragArmed || e.LeftButton != MouseButtonState.Pressed) return;
@@ -295,10 +307,14 @@ public partial class TabStrip : UserControl
             var diff = pos - _dragStart;
             if (Math.Abs(diff.X) < SystemParameters.MinimumHorizontalDragDistance &&
                 Math.Abs(diff.Y) < SystemParameters.MinimumVerticalDragDistance) return;
-            _dragArmed = false;
+
+            _dragArmed  = false;
+            _isDragging = true;
 
             var data = new DataObject(typeof(TabEntry), tab);
             DragDrop.DoDragDrop(border, data, DragDropEffects.Move);
+
+            _isDragging = false;
 
             // After the drag completes, check if it was dropped on the desktop
             // (i.e. not over any registered window).
