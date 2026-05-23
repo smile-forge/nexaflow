@@ -8,11 +8,11 @@ public sealed class ScratchpadTabRegistration(ScratchpadConfig config, IShellSer
 {
     public string PageKind => "Scratchpad";
 
-    public TabEntry CreateTab(Dictionary<string, string>? pageParams = null) => new()
+    public Page CreateTab(Dictionary<string, string>? pageParams = null) => new()
     {
         Title       = "Scratchpad",
         Icon        = "📌",
-        Breadcrumbs = [new BreadcrumbSegment { Label = "Scratchpad" }],
-        PageFactory = () => new ScratchpadView(new ScratchpadViewModel(config, shellServices))
+        Breadcrumbs = {new BreadcrumbSegment { Label = "Scratchpad" }},
+        ContentFactory = () => new ScratchpadView(new ScratchpadViewModel(config, shellServices))
     };
 }

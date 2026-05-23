@@ -10,7 +10,7 @@ namespace Nexaflow.Core.Services;
 /// </summary>
 internal interface IWindowHost
 {
-    IReadOnlyList<TabEntry> Tabs { get; }
+    IReadOnlyList<Page> Tabs { get; }
 
     bool IsFocused { get; set; }
 
@@ -18,29 +18,26 @@ internal interface IWindowHost
     Window Window { get; }
 
     /// <summary>Prepends the tab and makes it active.</summary>
-    void AddTab(TabEntry tab);
+    void AddTab(Page tab);
 
     /// <summary>
     /// Removes the tab.  If it was active, activates the adjacent tab
     /// (or clears the page area if the window is now empty).
     /// </summary>
-    void RemoveTab(TabEntry tab);
+    void RemoveTab(Page tab);
 
     /// <summary>Moves the tab to position 0 in the strip without changing the active tab.</summary>
-    void BringToFront(TabEntry tab);
+    void BringToFront(Page tab);
 
     /// <summary>Deactivates all tabs, marks this one active, and loads its page content.</summary>
-    void SetActiveTab(TabEntry tab);
-
-    /// <summary>
-    /// Syncs the breadcrumb bar to <paramref name="tab"/>'s segments.
-    /// No-op when <paramref name="tab"/> is not the active tab of this window.
-    /// </summary>
-    void RefreshBreadcrumbs(TabEntry tab);
+    void SetActiveTab(Page tab);
 
     /// <summary>Shows a transient error toast in this window.</summary>
     void ShowError(string message);
 
     /// <summary>Adds a persistent notification in this window.</summary>
     void ShowNotification(string message);
+
+    /// <summary>Shows the window-level confirmation overlay (independent of any page).</summary>
+    void ShowConfirmation(string title, string prompt, System.Action onConfirm, System.Action? onCancel = null);
 }

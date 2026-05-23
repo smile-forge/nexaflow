@@ -29,7 +29,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel
     public ObservableCollection<SearchResultEntry> Results { get; } = [];
 
     /// <summary>Set by <see cref="SearchTabRegistration"/> so this VM can keep tab meta in sync.</summary>
-    public TabEntry? Tab { get; set; }
+    public Page? Tab { get; set; }
 
     private readonly IShellServices _shellServices;
     private string _baseQuery  = string.Empty;
@@ -87,12 +87,11 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel
             var r  = SearchRoot;
             var qs = q.Length > 12 ? q[..12] + "…" : q;
             var rl = string.IsNullOrEmpty(r) ? "Search" : Path.GetFileName(r.TrimEnd('\\', '/'));
-            _shellServices.UpdateTabMeta(
-                Tab,
-                title:      qs,
-                breadcrumbs: [new BreadcrumbSegment { Label = rl },
-                               new BreadcrumbSegment { Label = $"Query : {qs}" }],
-                pageParams:  new() { ["query"] = q, ["root"] = r });
+            Tab.Title = qs;
+            Tab.PageParams = new() { ["query"] = q, ["root"] = r };
+            Tab.Breadcrumbs.Clear();
+            Tab.Breadcrumbs.Add(new BreadcrumbSegment { Label = rl });
+            Tab.Breadcrumbs.Add(new BreadcrumbSegment { Label = $"Query : {qs}" });
         }
     }
 

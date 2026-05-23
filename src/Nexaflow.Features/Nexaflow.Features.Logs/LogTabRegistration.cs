@@ -9,17 +9,17 @@ public sealed class LogTabRegistration : ITabRegistration
 {
     public string PageKind => "Logs";
 
-    public TabEntry CreateTab(Dictionary<string, string>? pageParams = null)
+    public Page CreateTab(Dictionary<string, string>? pageParams = null)
     {
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
         var title = string.IsNullOrEmpty(path) ? "Log" : Path.GetFileName(path);
 
-        return new TabEntry
+        return new Page
         {
             Title       = title,
             Icon        = "📋",
-            Breadcrumbs = [new BreadcrumbSegment { Label = title }],
-            PageFactory = () => new LogView(new LogViewModel(path)),
+            Breadcrumbs = {new BreadcrumbSegment { Label = title }},
+            ContentFactory = () => new LogView(new LogViewModel(path)),
         };
     }
 }

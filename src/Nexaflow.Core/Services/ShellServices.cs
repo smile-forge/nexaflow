@@ -28,7 +28,7 @@ public sealed class ShellServices : IShellServices
     /// The factory should create the window, call <see cref="RegisterWindow"/>, and
     /// return the host.  Set by <see cref="App"/> after initial window creation.
     /// </summary>
-    internal Func<TabEntry, IWindowHost>? CreateWindowFactory { get; set; }
+    internal Func<IWindowHost>? CreateWindowFactory { get; set; }
 
     internal void RegisterWindow(IWindowHost host) => _windows.Add(host);
 
@@ -61,7 +61,7 @@ public sealed class ShellServices : IShellServices
 
     // ── Tab registry ──────────────────────────────────────────────────────
 
-    private readonly Dictionary<TabEntry, IWindowHost> _tabToWindow = [];
+    private readonly Dictionary<Page, IWindowHost> _tabToWindow = [];
 
     public IReadOnlyList<Window> OpenWindows => _windows.Select(w => w.Window).ToList();
 
@@ -81,7 +81,7 @@ public sealed class ShellServices : IShellServices
 
         if (caller is UserControl callerControl)
         {
-            var callerTab = _tabToWindow.Keys.FirstOrDefault(t => t.Page == callerControl);
+            var callerTab = _tabToWindow.Keys.FirstOrDefault(t => t.Content == callerControl);
             if (callerTab is not null)
                 _tabToWindow.TryGetValue(callerTab, out targetWindow);
         }
@@ -97,7 +97,7 @@ public sealed class ShellServices : IShellServices
             if (_tabToWindow.TryGetValue(existing, out var ownerWindow) && ownerWindow != targetWindow)
                 MoveTabCore(existing, ownerWindow, targetWindow);
 
-            (existing.Page as IPageView)?.Reinitialize(pageParams ?? []);
+            (existing.Content as IPageView)?.Reinitialize(pageParams ?? []);
 
             targetWindow.BringToFront(existing);
             targetWindow.SetActiveTab(existing);
@@ -112,7 +112,7 @@ public sealed class ShellServices : IShellServices
         targetWindow.AddTab(tab);
     }
 
-    public void CloseTab(TabEntry tab)
+    public void CloseTab(Page tab)
     {
         if (!_tabToWindow.TryGetValue(tab, out var host)) return;
         tab.RaiseClosed();
@@ -120,24 +120,7 @@ public sealed class ShellServices : IShellServices
         host.RemoveTab(tab);
     }
 
-    public void UpdateTabMeta(TabEntry tab, string? title = null,
-                              IReadOnlyList<BreadcrumbSegment>? breadcrumbs = null,
-                              Dictionary<string, string>? pageParams = null)
-    {
-        if (title is not null)
-            tab.Title = title;
-
-        if (breadcrumbs is not null)
-            tab.Breadcrumbs = breadcrumbs.ToList();
-
-        if (pageParams is not null)
-            tab.PageParams = pageParams;
-
-        if (_tabToWindow.TryGetValue(tab, out var host))
-            host.RefreshBreadcrumbs(tab);
-    }
-
-    public TabEntry? FindTab(string pageKind, Dictionary<string, string>? pageParams = null)
+    public Page? FindTab(string pageKind, Dictionary<string, string>? pageParams = null)
         => FindTabCore(pageKind, pageParams);
 
     public void ShowError(string message) =>
@@ -148,7 +131,7 @@ public sealed class ShellServices : IShellServices
 
     // ── Cross-window tab operations ───────────────────────────────────────
 
-    public void TearOffTab(TabEntry tab)
+    public void TearOffTab(Page tab)
     {
         if (!_tabToWindow.TryGetValue(tab, out var sourceHost)) return;
         _tabToWindow.Remove(tab);
@@ -159,7 +142,7 @@ public sealed class ShellServices : IShellServices
         var (dropX, dropY, _, _, work) = WindowManager.GetCursorInfo();
 
         // Factory creates a new empty window and registers it with ShellServices
-        var newHost = CreateWindowFactory(tab);
+        var newHost = CreateWindowFactory();
         _tabToWindow[tab] = newHost;
         newHost.AddTab(tab);
 
@@ -167,14 +150,27 @@ public sealed class ShellServices : IShellServices
         newHost.Window.Show();
     }
 
-    internal void MoveTab(TabEntry tab, IWindowHost targetHost)
+    /// <summary>
+    /// Spawns a fresh shell window and opens a single tab in it for the given page kind.
+    /// Used by the ribbon's "Open in new Window" context-menu action.
+    /// </summary>
+    public void OpenPageInNewWindow(string pageKind, Dictionary<string, string>? pageParams = null)
+    {
+        if (CreateWindowFactory is null) return;
+        var newHost = CreateWindowFactory();
+        newHost.Window.Show();
+        // SetFocused fires via Activated event before we hit OpenTab; the open lands in the new window.
+        OpenTab(pageKind, pageParams);
+    }
+
+    internal void MoveTab(Page tab, IWindowHost targetHost)
     {
         if (!_tabToWindow.TryGetValue(tab, out var sourceHost)) return;
         if (sourceHost == targetHost) { targetHost.SetActiveTab(tab); return; }
         MoveTabCore(tab, sourceHost, targetHost);
     }
 
-    private void MoveTabCore(TabEntry tab, IWindowHost source, IWindowHost target)
+    private void MoveTabCore(Page tab, IWindowHost source, IWindowHost target)
     {
         _tabToWindow[tab] = target;
         source.RemoveTab(tab);
@@ -183,7 +179,7 @@ public sealed class ShellServices : IShellServices
 
     // ── Tab creation ──────────────────────────────────────────────────────
 
-    private TabEntry? CreateTab(string pageKind, Dictionary<string, string>? pageParams)
+    private Page? CreateTab(string pageKind, Dictionary<string, string>? pageParams)
     {
         if (string.Equals(pageKind, PageKinds.FileSystem, StringComparison.OrdinalIgnoreCase))
             return CreateFileSystemTab(
@@ -195,40 +191,40 @@ public sealed class ShellServices : IShellServices
         return MakePlaceholderTab(pageKind, "📄");
     }
 
-    internal TabEntry CreateFileSystemTab(string label, string icon,
+    internal Page CreateFileSystemTab(string label, string icon,
                                            Dictionary<string, string>? p)
     {
         var mode = p?.GetValueOrDefault("mode") ?? "thispc";
 
         if (mode == "path" && p!.TryGetValue("path", out var path))
         {
-            var tab = new TabEntry
+            var tab = new Page
             {
                 Title      = label,
                 Icon       = icon,
                 PageKind   = PageKinds.FileSystem,
                 PageParams = p,
-                Breadcrumbs = [new BreadcrumbSegment { Label = label }]
+                Breadcrumbs = {new BreadcrumbSegment { Label = label }}
             };
-            tab.PageFactory = () => CreateFileSystemPage(new FileSystemViewModel(path), tab);
+            tab.ContentFactory = () => CreateFileSystemPage(new FileSystemViewModel(path), tab);
             return tab;
         }
         else
         {
-            var tab = new TabEntry
+            var tab = new Page
             {
                 Title      = "This PC",
                 Icon       = "🖥",
                 PageKind   = PageKinds.FileSystem,
                 PageParams = p ?? new() { ["mode"] = "thispc" },
-                Breadcrumbs = [new BreadcrumbSegment { Label = "This PC" }]
+                Breadcrumbs = {new BreadcrumbSegment { Label = "This PC" }}
             };
-            tab.PageFactory = () => CreateFileSystemPage(FileSystemViewModel.CreateThisPc(), tab);
+            tab.ContentFactory = () => CreateFileSystemPage(FileSystemViewModel.CreateThisPc(), tab);
             return tab;
         }
     }
 
-    private FileSystemView CreateFileSystemPage(FileSystemViewModel fsVm, TabEntry tab)
+    private FileSystemView CreateFileSystemPage(FileSystemViewModel fsVm, Page tab)
     {
         var keyHandler = new FileSystemKeyboardHandler(fsVm);
         var dropTarget = new FileSystemDropTarget(fsVm);
@@ -240,7 +236,7 @@ public sealed class ShellServices : IShellServices
     private bool _applyingBreadcrumbs;
 
     private void ApplyFileSystemBreadcrumbs(
-        TabEntry tab,
+        Page tab,
         FileSystemView page,
         IReadOnlyList<(string Label, string Path)> segments)
     {
@@ -271,7 +267,10 @@ public sealed class ShellServices : IShellServices
                 ? new Dictionary<string, string> { ["mode"] = "thispc" }
                 : new Dictionary<string, string> { ["mode"] = "path", ["path"] = currentPath };
 
-            UpdateTabMeta(tab, newTitle, crumbs, newParams);
+            tab.Title = newTitle;
+            tab.PageParams = newParams;
+            tab.Breadcrumbs.Clear();
+            foreach (var c in crumbs) tab.Breadcrumbs.Add(c);
         }
         finally
         {
@@ -279,18 +278,18 @@ public sealed class ShellServices : IShellServices
         }
     }
 
-    private static TabEntry MakePlaceholderTab(string title, string icon) => new()
+    private static Page MakePlaceholderTab(string title, string icon) => new()
     {
         Title       = title,
         Icon        = icon,
         PageKind    = title,
-        Breadcrumbs = [new BreadcrumbSegment { Label = title }],
-        PageFactory = () => new PlaceholderPage()
+        Breadcrumbs = {new BreadcrumbSegment { Label = title }},
+        ContentFactory = () => new PlaceholderPage()
     };
 
     // ── Matching helpers ──────────────────────────────────────────────────
 
-    private TabEntry? FindTabCore(string pageKind, Dictionary<string, string>? pageParams)
+    private Page? FindTabCore(string pageKind, Dictionary<string, string>? pageParams)
     {
         foreach (var tab in _tabToWindow.Keys)
         {
@@ -329,7 +328,9 @@ public sealed class ShellServices : IShellServices
                                    Action<string> onConfirm, Action onCancel) { }
 
     void IShellServices.ShowConfirmation(string title, string message,
-                                         Action onConfirm, Action onCancel) { }
+                                         Action onConfirm, Action onCancel)
+        => (_focused ?? _windows.FirstOrDefault())
+            ?.ShowConfirmation(title, message, onConfirm, onCancel);
 
     void IShellServices.RequestRefresh() { }
 

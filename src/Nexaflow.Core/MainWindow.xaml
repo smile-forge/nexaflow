@@ -154,36 +154,17 @@
                 </Grid>
             </Border>
 
-            <!-- ── Middle: ribbon (beveled) ── -->
+            <!-- ── Middle: self-contained ribbon component ── -->
             <Border Grid.Column="1" Background="{StaticResource Surface2Brush}"
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="0,1,0,0">
-                <Grid>
-                    <!-- Bevel overlay: top 10 px in surface colour -->
-                    <Border VerticalAlignment="Top" Height="10"
-                            Background="{StaticResource SurfaceBrush}"/>
-
-                    <!-- WorkContext accent: first 100 px of bevel in context colour -->
-                    <Border VerticalAlignment="Top" HorizontalAlignment="Left"
-                            Width="240" Height="10"
-                            Background="{Binding CurrentWorkContext.Color,
-                                         Converter={StaticResource ColorStringToBrush}}"/>
-
-                    <!-- WorkContext selector: 48 px wide rectangle + popup -->
-                    <ctrl:WorkContextSelectorControl
-                            HorizontalAlignment="Left" Width="42"
-                            CurrentWorkContext="{Binding CurrentWorkContext}"
-                            WorkContexts="{Binding WorkContexts}"
-                            SelectWorkContextCommand="{Binding SelectWorkContextCommand}"/>
-
-                    <!-- Ribbon shifted right to clear the selector -->
-                    <ctrl:RibbonBar x:Name="RibbonBar"
-                                     Margin="48,10,0,0"
-                                     ItemsSource="{Binding RibbonItems}"
-                                     RibbonActionCommand="{Binding RibbonActionCommand}"
-                                     EditClickCommand="{Binding ToggleRibbonEditCommand}"
-                                     PinTabToRibbonCommand="{Binding PinTabToRibbonCommand}"/>
-                </Grid>
+                <ctrl:RibbonControl x:Name="RibbonControl"
+                                    WorkContext="{Binding CurrentWorkContext}"
+                                    WorkContexts="{Binding WorkContexts}"
+                                    SelectWorkContextCommand="{Binding SelectWorkContextCommand}"
+                                    OpenPageCommand="{Binding OpenRibbonItemCommand}"
+                                    OpenPageInNewWindowCommand="{Binding OpenRibbonItemInNewWindowCommand}"
+                                    Shell="{Binding ShellServices}"/>
             </Border>
 
             <!-- ── Right: messages + options ── -->
@@ -233,47 +214,18 @@
 
         <!-- ═══════════════════════════════════════════════════════════
              ROW 2 — CONTENT AREA
-             Tab bar (breadcrumb left | tabs right) + page host
+             PaneView renders the tab strip + breadcrumb + active page.
+             The shell hands it the root Pane and the cross-pane commands.
              ═══════════════════════════════════════════════════════════ -->
-        <Grid Grid.Row="2">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="38"/>   <!-- tab bar -->
-                <RowDefinition Height="*"/>    <!-- page    -->
-            </Grid.RowDefinitions>
-
-            <!-- ── Tab bar ── -->
-            <Border Grid.Row="0"
-                    Background="{StaticResource SurfaceBrush}"
-                    BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="0,0,0,1">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="0.35*"/>
-                        <ColumnDefinition Width="0.65*"/>
-                    </Grid.ColumnDefinitions>
-
-                    <!-- Breadcrumb -->
-                    <ctrl:BreadcrumbBar x:Name="BreadcrumbBarControl"
-                                         Grid.Column="0"
-                                         Segments="{Binding Breadcrumbs}"
-                                         BorderBrush="{StaticResource BorderBrush}"
-                                         BorderThickness="0,0,1,0"/>
-
-                    <!-- Tab strip -->
-                    <ctrl:TabStrip Grid.Column="1"
-                                    x:Name="TabStripControl"
-                                    Tabs="{Binding Tabs}"
-                                    ActivateTabCommand="{Binding ActivateTabCommand}"
-                                    CloseTabCommand="{Binding CloseTabCommand}"
-                                    PinTabToRibbonCommand="{Binding PinTabToRibbonCommand}"/>
-                </Grid>
-            </Border>
-
-            <!-- ── Page host ── -->
-            <ContentPresenter Grid.Row="1"
-                              Content="{Binding CurrentPage}"
-                              x:Name="PageHost"/>
-        </Grid>
+        <ctrl:PaneView Grid.Row="2"
+                       x:Name="RootPaneView"
+                       Pane="{Binding RootPane}"
+                       ActivateTabCommand="{Binding ActivateTabCommand}"
+                       CloseTabCommand="{Binding CloseTabCommand}"
+                       PinTabToRibbonCommand="{Binding ViewModel.PinCommand, ElementName=RibbonControl}"
+                       TearOffTabCommand="{Binding TearOffTabCommand}"
+                       ReceiveTabCommand="{Binding ReceiveTabCommand}"
+                       OpenPageCommand="{Binding OpenPageCommand}"/>
 
         <!-- ═══════════════════════════════════════════════════════════
              ROW 3 — DRAG SPLITTER
@@ -427,6 +379,39 @@
         </Border>
 
         <!-- ═══════════════════════════════════════════════════════════
+             OVERLAY — SHELL CONFIRMATION DIALOG (window-level, not page-level)
+             Used by the ribbon's Delete and any other shell action that needs a yes/no.
+             ═══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="0" Grid.RowSpan="5"
+                Visibility="{Binding ConfirmationVisible, Converter={StaticResource BoolVis}}"
+                Background="#CC0F1117" Panel.ZIndex="150">
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Width="420" Style="{StaticResource PopupBorder}" Padding="20">
+                <StackPanel>
+                    <TextBlock Text="{Binding ConfirmationTitle}"
+                               FontSize="15" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextBrush}"
+                               Margin="0,0,0,10"/>
+                    <TextBlock Text="{Binding ConfirmationPrompt}"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               Margin="0,0,0,18"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Cancel"
+                                Command="{Binding CancelShellConfirmationCommand}"
+                                Padding="14,6" Margin="0,0,8,0"/>
+                        <Button Content="Confirm"
+                                Command="{Binding ConfirmShellConfirmationCommand}"
+                                Padding="14,6"
+                                Background="{StaticResource AccentBrush}"
+                                Foreground="White"
+                                FontWeight="SemiBold"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!-- ═══════════════════════════════════════════════════════════
              OVERLAY — OPTIONS PANEL
              ═══════════════════════════════════════════════════════════ -->
         <Border Grid.Row="0" Grid.RowSpan="5"
@@ -457,12 +442,11 @@
              ═══════════════════════════════════════════════════════════ -->
         <ctrl:RibbonEditor
                 Grid.Row="0" Grid.RowSpan="5"
-                Visibility="{Binding RibbonEditOpen, Converter={StaticResource BoolVis}}"
+                Visibility="{Binding ViewModel.IsEditOpen, ElementName=RibbonControl, Converter={StaticResource BoolVis}}"
                 Panel.ZIndex="60"
-                ItemsSource="{Binding RibbonItems}"
-                CloseCommand="{Binding ToggleRibbonEditCommand}"
-                SaveCommand="{Binding SaveRibbonLayoutCommand}"
-                ShellViewModel="{Binding}"/>
+                ItemsSource="{Binding ViewModel.Items, ElementName=RibbonControl}"
+                CloseCommand="{Binding ViewModel.ToggleEditCommand, ElementName=RibbonControl}"
+                SaveCommand="{Binding ViewModel.SaveCommand, ElementName=RibbonControl}"/>
 
         <!-- ═══════════════════════════════════════════════════════════
              OVERLAY — ERROR TOAST

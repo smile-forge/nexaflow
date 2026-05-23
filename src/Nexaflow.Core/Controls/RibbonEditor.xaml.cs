@@ -24,8 +24,7 @@ public partial class RibbonEditor : UserControl
     public static readonly DependencyProperty SaveCommandProperty =
         DependencyProperty.Register(nameof(SaveCommand), typeof(ICommand), typeof(RibbonEditor));
 
-    public static readonly DependencyProperty ShellViewModelProperty =
-        DependencyProperty.Register(nameof(ShellViewModel), typeof(ShellViewModel), typeof(RibbonEditor));
+    // (defaults source pulled straight from RibbonViewModel.BuildDefaultItems below)
 
     public ObservableCollection<RibbonItem>? ItemsSource
     {
@@ -42,12 +41,6 @@ public partial class RibbonEditor : UserControl
         get => (ICommand?)GetValue(SaveCommandProperty);
         set => SetValue(SaveCommandProperty, value);
     }
-    public ShellViewModel? ShellViewModel
-    {
-        get => (ShellViewModel?)GetValue(ShellViewModelProperty);
-        set => SetValue(ShellViewModelProperty, value);
-    }
-
     // ── Working draft ─────────────────────────────────────────────────────
     // Edits happen entirely on _draft; changes only go back to ItemsSource on Done.
     private List<RibbonItem> _draft = [];
@@ -676,11 +669,8 @@ public partial class RibbonEditor : UserControl
         _selected = null;
         _draft    = [];
 
-        if (ShellViewModel is not null)
-        {
-            foreach (var item in ShellViewModel.BuildDefaultItems())
-                _draft.Add(CloneItem(item));
-        }
+        foreach (var item in RibbonViewModel.BuildDefaultItems())
+            _draft.Add(CloneItem(item));
 
         RebuildCards();
         RefreshPropsPanel();

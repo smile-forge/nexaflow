@@ -1,0 +1,46 @@
+<UserControl x:Class="Nexaflow.Core.Controls.PaneView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctrl="clr-namespace:Nexaflow.Core.Controls"
+             mc:Ignorable="d"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             x:Name="PaneRoot">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="38"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Tab bar: breadcrumb left, tabs right -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="0.35*"/>
+                    <ColumnDefinition Width="0.65*"/>
+                </Grid.ColumnDefinitions>
+
+                <ctrl:BreadcrumbBar x:Name="BreadcrumbBarControl"
+                                    Grid.Column="0"
+                                    Segments="{Binding Pane.ActivePage.Breadcrumbs, ElementName=PaneRoot}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="0,0,1,0"/>
+
+                <ctrl:TabStrip x:Name="TabStripControl"
+                               Grid.Column="1"
+                               Tabs="{Binding Pane.Pages, ElementName=PaneRoot}"
+                               ActivateTabCommand="{Binding ActivateTabCommand, ElementName=PaneRoot}"
+                               CloseTabCommand="{Binding CloseTabCommand, ElementName=PaneRoot}"
+                               PinTabToRibbonCommand="{Binding PinTabToRibbonCommand, ElementName=PaneRoot}"
+                               TearOffTabCommand="{Binding TearOffTabCommand, ElementName=PaneRoot}"
+                               ReceiveTabCommand="{Binding ReceiveTabCommand, ElementName=PaneRoot}"/>
+            </Grid>
+        </Border>
+
+        <!-- Page content host -->
+        <ContentPresenter Grid.Row="1" x:Name="ContentHost"/>
+    </Grid>
+</UserControl>

@@ -80,9 +80,9 @@ public partial class App : Application
         FeatureManager.Instance.RegisterFeatures();
 
         // ── 7. Torn-off window factory ───────────────────────────────────────
-        defaultCtx.ShellServices!.CreateWindowFactory = tab =>
+        defaultCtx.ShellServices!.CreateWindowFactory = () =>
         {
-            // Torn-off windows use the first available WorkContext for now
+            // New shell windows (tearoff or "Open in new Window") use the first available WorkContext for now
             var ctx = WorkContextManager.Instance.Contexts[0];
             var win = new MainWindow(activityManager, ctx, openDefaultTabs: false);
             return (IWindowHost)win.ViewModel;

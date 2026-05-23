@@ -173,7 +173,7 @@ public sealed class FeatureManager
 
     public bool IsRegistered(string pageKind) => _registrations.ContainsKey(pageKind);
 
-    public TabEntry? CreateTab(string pageKind, Dictionary<string, string>? pageParams = null)
+    public Page? CreateTab(string pageKind, Dictionary<string, string>? pageParams = null)
     {
         if (!_registrations.TryGetValue(pageKind, out var reg)) return null;
         var tab = reg.CreateTab(pageParams);

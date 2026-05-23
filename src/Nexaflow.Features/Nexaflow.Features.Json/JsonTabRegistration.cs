@@ -14,17 +14,17 @@ public sealed class JsonTabRegistration : ITabRegistration
 
     public string PageKind => "Json";
 
-    public TabEntry CreateTab(Dictionary<string, string>? pageParams = null)
+    public Page CreateTab(Dictionary<string, string>? pageParams = null)
     {
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
         var title = string.IsNullOrEmpty(path) ? "JSON" : Path.GetFileName(path);
 
-        return new TabEntry
+        return new Page
         {
             Title       = title,
             Icon        = "{}",
-            Breadcrumbs = [new BreadcrumbSegment { Label = title }],
-            PageFactory = () =>
+            Breadcrumbs = {new BreadcrumbSegment { Label = title }},
+            ContentFactory = () =>
             {
                 var vm = new JsonViewModel(path, new JsonFileLoader(), new JsonPathEvaluator(), _shellServices);
                 return new JsonView(vm);

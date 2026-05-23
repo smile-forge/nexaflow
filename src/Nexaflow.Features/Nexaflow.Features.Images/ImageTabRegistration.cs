@@ -15,7 +15,7 @@ public sealed class ImageTabRegistration : ITabRegistration
 {
     public string PageKind => "Images";
 
-    public TabEntry CreateTab(Dictionary<string, string>? pageParams = null)
+    public Page CreateTab(Dictionary<string, string>? pageParams = null)
     {
         var paths = pageParams?.GetValueOrDefault("paths")?
             .Split('|', StringSplitOptions.RemoveEmptyEntries)
@@ -25,12 +25,12 @@ public sealed class ImageTabRegistration : ITabRegistration
             ? Path.GetFileName(paths[0])
             : $"Images ({paths.Count})";
 
-        return new TabEntry
+        return new Page
         {
             Title       = title,
             Icon        = "🖼",
-            Breadcrumbs = [new BreadcrumbSegment { Label = title }],
-            PageFactory = () => new ImageView(new ImageViewModel(paths))
+            Breadcrumbs = {new BreadcrumbSegment { Label = title }},
+            ContentFactory = () => new ImageView(new ImageViewModel(paths))
         };
     }
 }
