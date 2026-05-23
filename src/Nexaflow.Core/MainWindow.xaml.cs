@@ -11,6 +11,7 @@ using Nexaflow.Core.ViewModels;
 using Nexaflow.Core.Views;
 using Nexaflow.Features.Common;
 using TaskStatus = Nexaflow.Core.Models.TaskStatus;
+using WorkContext = Nexaflow.Core.Models.WorkContext;
 
 namespace Nexaflow.Core;
 
@@ -21,13 +22,13 @@ public partial class MainWindow : Window
 
     public ShellViewModel ViewModel => _vm;
 
-    public MainWindow(BackgroundActivityManager activityManager, IAIService aiService,
-                      ShellServices shellServices, bool openDefaultTabs = true)
+    public MainWindow(BackgroundActivityManager activityManager, WorkContext workContext,
+                      bool openDefaultTabs = true)
     {
         InitializeComponent();
 
-        _shellServices = shellServices;
-        _vm = new ShellViewModel(activityManager, aiService, shellServices)
+        _shellServices = workContext.ShellServices!;
+        _vm = new ShellViewModel(activityManager, workContext, _shellServices)
         {
             Window = this
         };
@@ -38,10 +39,10 @@ public partial class MainWindow : Window
         if (openDefaultTabs)
         {
             // Register window before opening tabs so ShellServices can track them
-            shellServices.RegisterWindow(_vm);
-            shellServices.SetFocused(_vm);
+            _shellServices.RegisterWindow(_vm);
+            _shellServices.SetFocused(_vm);
 
-            shellServices.OpenTab("FileSystem", new() { ["mode"] = "thispc" });
+            _shellServices.OpenTab("FileSystem", new() { ["mode"] = "thispc" });
 
             _vm.AddBackgroundTask(new BackgroundTask
             {
@@ -52,7 +53,7 @@ public partial class MainWindow : Window
         else
         {
             // Tearoff path: register but don't open tabs (ShellServices adds the tab)
-            shellServices.RegisterWindow(_vm);
+            _shellServices.RegisterWindow(_vm);
         }
 
         FinishInit();
@@ -68,6 +69,8 @@ public partial class MainWindow : Window
 
         BreadcrumbBarControl.OpenTabRequested += (pageKind, pageParams) =>
             _shellServices.OpenTab(pageKind, pageParams, _vm.CurrentPage as IPageView);
+
+        _vm.FlashRibbonItem = item => RibbonBar.FlashItem(item);
     }
 
     private void WireOptionsPanel()
@@ -101,7 +104,7 @@ public partial class MainWindow : Window
 
     private void ResetManageAiPanel()
     {
-        var manageAiVm = new ManageAiViewModel();
+        var manageAiVm = new ManageAiViewModel(_vm.CurrentWorkContext);
         manageAiVm.ApplyError += msg => _vm.ShowErrorToast(msg);
         ManageAiPanelControl.DataContext = manageAiVm;
     }

@@ -1,5 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Nexaflow.Core.Models;
+using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using System.Collections.ObjectModel;
@@ -14,16 +16,23 @@ public partial class ManageAiViewModel : ObservableObject
     [ObservableProperty] private ConfigEditViewModel? _selectedSection;
 
     private ConfigEditViewModel? _listeningSection;
+    private readonly WorkContext _workContext;
 
     public event Action<string>? ApplyError;
 
-    public ManageAiViewModel()
+    public ManageAiViewModel(WorkContext workContext)
     {
+        _workContext = workContext;
+
+        // First section: the WorkContext-specific AI ability grid
+        Sections.Add(new ConfigEditViewModel(
+            workContext.AiConfig,
+            workContext.AiConfig.ConfigName,
+            workContext.AiConfig.FriendlyName));
+
+        // Remaining sections: global provider configs (API keys etc — still in ConfigManager)
         foreach (var config in ConfigManager.Instance.GetAll().OfType<IProviderConfig>())
-        {
-            var section = new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName);
-            Sections.Add(section);
-        }
+            Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName));
 
         SelectedSection = Sections.FirstOrDefault();
     }
@@ -58,14 +67,34 @@ public partial class ManageAiViewModel : ObservableObject
         if (SelectedSection is null) return;
 
         SelectedSection.ApplyToReal();
-        try
+
+        if (ReferenceEquals(SelectedSection.RealConfig, _workContext.AiConfig))
         {
-            ConfigManager.Instance.Save(SelectedSection.RealConfig, SelectedSection.ConfigName);
-            SelectedSection.ResetChanges();
+            // WorkContext-specific AiConfig: hot-reload the AIService and persist
+            // via WorkContextsConfig (not as a standalone ConfigManager entry)
+            _workContext.AiService?.LoadAbilityConfig(_workContext.AiConfig);
+            try
+            {
+                WorkContextManager.Instance.SaveConfig();
+                SelectedSection.ResetChanges();
+            }
+            catch (Exception ex)
+            {
+                ApplyError?.Invoke($"Could not save AI settings: {ex.Message}");
+            }
         }
-        catch (Exception ex)
+        else
         {
-            ApplyError?.Invoke($"Could not save {SelectedSection.FriendlyName} settings: {ex.Message}");
+            // Global provider config — standard save
+            try
+            {
+                ConfigManager.Instance.Save(SelectedSection.RealConfig, SelectedSection.ConfigName);
+                SelectedSection.ResetChanges();
+            }
+            catch (Exception ex)
+            {
+                ApplyError?.Invoke($"Could not save {SelectedSection.FriendlyName} settings: {ex.Message}");
+            }
         }
     }
 }

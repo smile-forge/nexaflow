@@ -31,11 +31,25 @@ public sealed class ConfigManager
     /// </summary>
     public bool IsFirstRun { get; private set; } = true;
 
-    private static string GetConfigDir(string configName) => Path.Combine(
+    /// <summary>
+    /// Application base directory — all config subdirectories are created beneath this.
+    /// Defaults to <c>%AppData%\Smile\nexaflow</c>. Call <see cref="Initialize"/> from
+    /// App.xaml.cs before the first <see cref="Register"/> call to override.
+    /// </summary>
+    public string BaseDir { get; private set; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "Smile", "nexaflow", configName);
+        "Smile", "nexaflow");
 
-    private static string GetPath(string configName, Version version) =>
+    /// <summary>
+    /// Sets the application base directory. Must be called once before any
+    /// <see cref="Register"/> or <see cref="Save"/> calls so the path is defined
+    /// in a single place (App.xaml.cs).
+    /// </summary>
+    public void Initialize(string baseDir) => BaseDir = baseDir;
+
+    private string GetConfigDir(string configName) => Path.Combine(BaseDir, configName);
+
+    private string GetPath(string configName, Version version) =>
         Path.Combine(GetConfigDir(configName), $"config_{version}.json");
 
     /// <summary>
