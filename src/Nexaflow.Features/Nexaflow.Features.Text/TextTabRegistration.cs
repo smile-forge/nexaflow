@@ -5,11 +5,11 @@ using System.IO;
 
 namespace Nexaflow.Features.Text;
 
-public sealed class TextTabRegistration : ITabRegistration
+public sealed class TextTabRegistration : IPageRegistration
 {
     public string PageKind => "Text";
 
-    public Page CreateTab(Dictionary<string, string>? pageParams = null)
+    public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
         var title = string.IsNullOrEmpty(path) ? "Text" : Path.GetFileName(path);

@@ -11,11 +11,11 @@ namespace Nexaflow.Features.Images;
 /// Registers the image viewer page with <see cref="FeatureManager"/>.
 /// Accepts a "paths" page parameter containing pipe-separated image file paths.
 /// </summary>
-public sealed class ImageTabRegistration : ITabRegistration
+public sealed class ImageTabRegistration : IPageRegistration
 {
     public string PageKind => "Images";
 
-    public Page CreateTab(Dictionary<string, string>? pageParams = null)
+    public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {
         var paths = pageParams?.GetValueOrDefault("paths")?
             .Split('|', StringSplitOptions.RemoveEmptyEntries)

@@ -10,11 +10,11 @@ namespace Nexaflow.Features.Web;
 /// Registers the HTML viewer page with <see cref="FeatureManager"/>.
 /// Accepts a "path" page parameter containing the file path to display.
 /// </summary>
-public sealed class HtmlTabRegistration : ITabRegistration
+public sealed class HtmlTabRegistration : IPageRegistration
 {
     public string PageKind => "Html";
 
-    public Page CreateTab(Dictionary<string, string>? pageParams = null)
+    public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {
         var filePath = pageParams?.GetValueOrDefault("path") ?? "";
         var title    = Path.GetFileName(filePath);

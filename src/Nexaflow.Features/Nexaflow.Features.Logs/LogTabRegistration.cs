@@ -5,11 +5,11 @@ using System.IO;
 
 namespace Nexaflow.Features.Logs;
 
-public sealed class LogTabRegistration : ITabRegistration
+public sealed class LogTabRegistration : IPageRegistration
 {
     public string PageKind => "Logs";
 
-    public Page CreateTab(Dictionary<string, string>? pageParams = null)
+    public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
         var title = string.IsNullOrEmpty(path) ? "Log" : Path.GetFileName(path);

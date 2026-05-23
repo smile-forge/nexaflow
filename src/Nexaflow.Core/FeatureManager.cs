@@ -10,7 +10,7 @@ namespace Nexaflow.Core;
 /// <summary>
 /// Singleton registry of all feature tab factories.
 /// Call <see cref="Register(Type)"/> at startup with any type from the feature assembly;
-/// the manager scans that assembly for <see cref="ITabRegistration"/> and
+/// the manager scans that assembly for <see cref="IPageRegistration"/> and
 /// <see cref="IFeatureConfig"/> implementations, wires configs as constructor dependencies,
 /// and registers everything automatically.
 /// </summary>
@@ -18,7 +18,7 @@ public sealed class FeatureManager
 {
     public static FeatureManager Instance { get; } = new();
 
-    private readonly Dictionary<string, ITabRegistration> _registrations
+    private readonly Dictionary<string, IPageRegistration> _registrations
         = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly Dictionary<Type, IReadOnlyList<string>> _configToPageKinds = new();
@@ -93,7 +93,7 @@ public sealed class FeatureManager
         // 2. Discover all ITabRegistration concrete types
         var registrationTypes = types
             .Where(t => !t.IsAbstract && !t.IsInterface
-                        && typeof(ITabRegistration).IsAssignableFrom(t))
+                        && typeof(IPageRegistration).IsAssignableFrom(t))
             .ToList();
 
         // 3. Build config-type → page-kinds mapping (for tab refresh after Options save)
@@ -106,7 +106,7 @@ public sealed class FeatureManager
                 if (ctor.GetParameters().Any(p => p.ParameterType == configType))
                 {
                     var args   = ResolveArgs(ctor, configInstances);
-                    var tempReg = (ITabRegistration)ctor.Invoke(args);
+                    var tempReg = (IPageRegistration)ctor.Invoke(args);
                     pageKinds.Add(tempReg.PageKind);
                 }
             }
@@ -118,7 +118,7 @@ public sealed class FeatureManager
         {
             var ctor = BestConstructor(regType);
             var args = ResolveArgs(ctor, configInstances);
-            var reg  = (ITabRegistration)ctor.Invoke(args);
+            var reg  = (IPageRegistration)ctor.Invoke(args);
             _registrations[reg.PageKind] = reg;
         }
 
@@ -176,7 +176,7 @@ public sealed class FeatureManager
     public Page? CreateTab(string pageKind, Dictionary<string, string>? pageParams = null)
     {
         if (!_registrations.TryGetValue(pageKind, out var reg)) return null;
-        var tab = reg.CreateTab(pageParams);
+        var tab = reg.CreatePage(pageParams);
         if (tab is not null)
         {
             tab.PageKind   = pageKind;

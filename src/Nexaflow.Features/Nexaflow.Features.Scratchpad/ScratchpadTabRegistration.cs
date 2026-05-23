@@ -4,11 +4,11 @@ using Nexaflow.Features.Scratchpad.Views;
 
 namespace Nexaflow.Features.Scratchpad;
 
-public sealed class ScratchpadTabRegistration(ScratchpadConfig config, IShellServices shellServices) : ITabRegistration
+public sealed class ScratchpadTabRegistration(ScratchpadConfig config, IShellServices shellServices) : IPageRegistration
 {
     public string PageKind => "Scratchpad";
 
-    public Page CreateTab(Dictionary<string, string>? pageParams = null) => new()
+    public Page CreatePage(Dictionary<string, string>? pageParams = null) => new()
     {
         Title       = "Scratchpad",
         Icon        = "📌",

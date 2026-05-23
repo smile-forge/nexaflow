@@ -7,7 +7,7 @@ using System.Text;
 
 namespace Nexaflow.Features.AIChat
 {
-    public sealed class AIChatTabRegistration : ITabRegistration
+    public sealed class AIChatTabRegistration : IPageRegistration
     {
         public string PageKind => "AIChat";
 
@@ -18,7 +18,7 @@ namespace Nexaflow.Features.AIChat
             _aiService = aiService;
         }
 
-        public Page CreateTab(Dictionary<string, string>? pageParams = null)
+        public Page CreatePage(Dictionary<string, string>? pageParams = null)
         {
             var tab = new Page
             {

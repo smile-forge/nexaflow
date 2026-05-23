@@ -6,7 +6,7 @@ using System.IO;
 
 namespace Nexaflow.Features.Json;
 
-public sealed class JsonTabRegistration : ITabRegistration
+public sealed class JsonTabRegistration : IPageRegistration
 {
     private readonly IShellServices _shellServices;
 
@@ -14,7 +14,7 @@ public sealed class JsonTabRegistration : ITabRegistration
 
     public string PageKind => "Json";
 
-    public Page CreateTab(Dictionary<string, string>? pageParams = null)
+    public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
         var title = string.IsNullOrEmpty(path) ? "JSON" : Path.GetFileName(path);

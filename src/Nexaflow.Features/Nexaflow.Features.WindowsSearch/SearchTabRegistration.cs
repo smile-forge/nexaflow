@@ -5,11 +5,11 @@ using Nexaflow.Features.WindowsSearch.Views;
 
 namespace Nexaflow.Features.WindowsSearch;
 
-public sealed class SearchTabRegistration(IShellServices shellServices) : ITabRegistration
+public sealed class SearchTabRegistration(IShellServices shellServices) : IPageRegistration
 {
     public string PageKind => "Search";
 
-    public Page CreateTab(Dictionary<string, string>? pageParams = null)
+    public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {
         var query = pageParams?.GetValueOrDefault("query") ?? string.Empty;
         var root  = pageParams?.GetValueOrDefault("root")  ?? string.Empty;

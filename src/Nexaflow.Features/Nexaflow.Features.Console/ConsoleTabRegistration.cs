@@ -7,7 +7,7 @@ namespace Nexaflow.Features.Console;
 /// <summary>
 /// Registers the Console terminal page with the feature manager.
 /// </summary>
-public sealed class ConsoleTabRegistration : ITabRegistration
+public sealed class ConsoleTabRegistration : IPageRegistration
 {
     private readonly ConsoleConfig  _config;
     private readonly IShellServices _shellServices;
@@ -20,7 +20,7 @@ public sealed class ConsoleTabRegistration : ITabRegistration
 
     public string PageKind => "Console";
 
-    public Page CreateTab(Dictionary<string, string>? pageParams = null)
+    public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {
         var initialPath = pageParams?.GetValueOrDefault("path");
         var envName     = pageParams?.GetValueOrDefault("env");

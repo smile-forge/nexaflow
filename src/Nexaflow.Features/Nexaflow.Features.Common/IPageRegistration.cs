@@ -5,7 +5,7 @@ namespace Nexaflow.Features.Common;
 /// Instances are registered with <see cref="FeatureManager"/> at application startup so
 /// the shell never needs a direct reference to a feature's view or view-model types.
 /// </summary>
-public interface ITabRegistration
+public interface IPageRegistration
 {
     /// <summary>
     /// The stable string identifier for this page kind (e.g. <c>"Console"</c>).
@@ -15,5 +15,5 @@ public interface ITabRegistration
 
     /// <summary>Creates a ready-to-open <see cref="Page"/> for this page kind.</summary>
     /// <param name="pageParams">Optional parameters (e.g. <c>{"folder":"MyProject"}</c>).</param>
-    Page CreateTab(Dictionary<string, string>? pageParams = null);
+    Page CreatePage(Dictionary<string, string>? pageParams = null);
 }

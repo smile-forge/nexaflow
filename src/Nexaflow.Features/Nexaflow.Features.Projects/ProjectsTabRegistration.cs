@@ -9,7 +9,7 @@ namespace Nexaflow.Features.Projects;
 /// Registers the Projects list page with <see cref="FeatureManager"/>.
 /// FeatureManager injects the shared <see cref="ProjectsConfig"/> instance via the constructor.
 /// </summary>
-public sealed class ProjectsTabRegistration : ITabRegistration
+public sealed class ProjectsTabRegistration : IPageRegistration
 {
     private readonly ProjectsConfig  _config;
     private readonly IShellServices  _shellServices;
@@ -22,7 +22,7 @@ public sealed class ProjectsTabRegistration : ITabRegistration
 
     public string PageKind => "Projects";
 
-    public Page CreateTab(Dictionary<string, string>? pageParams = null)
+    public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {
         var ops = new ProjectOperations(_config);
         var vm  = new ProjectsViewModel(ops);
