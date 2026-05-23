@@ -42,8 +42,8 @@ public partial class ConsoleViewModel : ObservableObject, IDisposable, IPageView
     private readonly IShellServices? _shellServices;
     private ConsoleEnvironment?      _activeEnv;
 
-    /// <summary>Set by <see cref="ConsoleTabRegistration"/> inside PageFactory so UpdateTabMeta can be called.</summary>
-    public TabEntry? Tab { get; set; }
+    /// <summary>Set by <see cref="ConsoleTabRegistration"/> inside ContentFactory so the VM can update its page title/breadcrumbs.</summary>
+    public Page? Tab { get; set; }
 
     // First-prompt init state machine: 0 = waiting for first prompt,
     // 1 = cd sent, waiting for next prompt, 2 = normal operation.
@@ -368,18 +368,16 @@ public partial class ConsoleViewModel : ObservableObject, IDisposable, IPageView
         if (Tab is null || _shellServices is null) return;
 
         string? title = _activeEnv?.TabTitle;
-        IReadOnlyList<BreadcrumbSegment>? breadcrumbs = title is not null
-            ? [new BreadcrumbSegment { Label = title }]
-            : null;
 
-        var pageParams = string.IsNullOrEmpty(CurrentPath)
-            ? null
-            : new Dictionary<string, string> { ["path"] = CurrentPath };
+        if (title is not null)
+        {
+            Tab.Title = title;
+            Tab.Breadcrumbs.Clear();
+            Tab.Breadcrumbs.Add(new BreadcrumbSegment { Label = title });
+        }
 
-        _shellServices.UpdateTabMeta(Tab,
-            title:       title,
-            breadcrumbs: breadcrumbs,
-            pageParams:  pageParams);
+        if (!string.IsNullOrEmpty(CurrentPath))
+            Tab.PageParams = new Dictionary<string, string> { ["path"] = CurrentPath };
     }
 
     private static bool GlobMatchPath(string path, string pattern)

@@ -1,0 +1,42 @@
+<UserControl x:Class="Nexaflow.Core.Controls.RibbonControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctrl="clr-namespace:Nexaflow.Core.Controls"
+             xmlns:conv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             mc:Ignorable="d"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             x:Name="Root">
+    <UserControl.Resources>
+        <conv:ColorStringToBrushConverter x:Key="ColorStringToBrush"/>
+    </UserControl.Resources>
+
+    <Grid>
+        <!-- Bevel: top 10 px in surface colour -->
+        <Border VerticalAlignment="Top" Height="10"
+                Background="{DynamicResource SurfaceBrush}"/>
+
+        <!-- WorkContext accent: first 240 px of bevel in context colour -->
+        <Border VerticalAlignment="Top" HorizontalAlignment="Left"
+                Width="240" Height="10"
+                Background="{Binding WorkContext.Color, ElementName=Root,
+                             Converter={StaticResource ColorStringToBrush}}"/>
+
+        <!-- WorkContext selector: 48 px wide rectangle + popup -->
+        <ctrl:WorkContextSelectorControl
+                HorizontalAlignment="Left" Width="42"
+                CurrentWorkContext="{Binding WorkContext, ElementName=Root}"
+                WorkContexts="{Binding WorkContexts, ElementName=Root}"
+                SelectWorkContextCommand="{Binding SelectWorkContextCommand, ElementName=Root}"/>
+
+        <!-- Ribbon strip, shifted right to clear the selector -->
+        <ctrl:RibbonBar x:Name="RibbonBarControl"
+                        Margin="48,10,0,0"
+                        ItemsSource="{Binding ViewModel.Items, ElementName=Root}"
+                        RibbonActionCommand="{Binding InternalRibbonActionCommand, ElementName=Root}"
+                        EditClickCommand="{Binding ViewModel.ToggleEditCommand, ElementName=Root}"
+                        PinTabToRibbonCommand="{Binding ViewModel.PinCommand, ElementName=Root}"
+                        OpenInNewWindowCommand="{Binding InternalOpenInNewWindowCommand, ElementName=Root}"
+                        DeleteItemCommand="{Binding InternalDeleteCommand, ElementName=Root}"/>
+    </Grid>
+</UserControl>

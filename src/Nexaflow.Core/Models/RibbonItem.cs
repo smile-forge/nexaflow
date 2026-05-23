@@ -10,9 +10,9 @@ public enum RibbonItemKind { Button, HalfGroup, Separator }
 /// </summary>
 /// <param name="Tab">The tab being pinned.</param>
 /// <param name="InsertIndex">
-/// The desired insertion position in <c>RibbonItems</c>, or <c>-1</c> to append.
+/// The desired insertion position in the ribbon's items collection, or <c>-1</c> to append.
 /// </param>
-public record TabPinRequest(TabEntry Tab, int InsertIndex = -1);
+public record TabPinRequest(Page Tab, int InsertIndex = -1);
 
 /// <summary>
 /// Represents one item in the customisable ribbon.
@@ -37,13 +37,12 @@ public partial class RibbonItem : ObservableObject
     /// <summary>Command executed when the ribbon button is clicked.</summary>
     public ICommand? Command { get; set; }
 
-    /// <summary>Runtime-only tab factory, re-attached after deserialisation by <see cref="ShellViewModel"/>.</summary>
-    public Func<TabEntry>? TabFactory { get; set; }
+    /// <summary>Runtime-only tab factory, re-attached after deserialisation.</summary>
+    public Func<Page>? TabFactory { get; set; }
 
     /// <summary>
     /// Identifies the page type this button opens (see <see cref="PageKinds"/>).
-    /// Persisted to ribbon.json; used by <c>ShellViewModel.ReattachTabFactory</c>
-    /// to restore the correct runtime factory after a restart.
+    /// Persisted to ribbon.json; the runtime factory is restored on load via the page-kind lookup.
     /// </summary>
     public string? PageKind { get; set; }
 

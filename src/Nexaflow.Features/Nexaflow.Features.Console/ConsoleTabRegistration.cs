@@ -20,7 +20,7 @@ public sealed class ConsoleTabRegistration : ITabRegistration
 
     public string PageKind => "Console";
 
-    public TabEntry CreateTab(Dictionary<string, string>? pageParams = null)
+    public Page CreateTab(Dictionary<string, string>? pageParams = null)
     {
         var initialPath = pageParams?.GetValueOrDefault("path");
         var envName     = pageParams?.GetValueOrDefault("env");
@@ -32,16 +32,16 @@ public sealed class ConsoleTabRegistration : ITabRegistration
         var title = env?.TabTitle is { Length: > 0 } t ? t : "Console";
         var vm    = new ConsoleViewModel(_config, _shellServices, initialPath, env);
 
-        var tab = new TabEntry
+        var tab = new Page
         {
             Title       = title,
             Icon        = "⌨",
-            Breadcrumbs = [new BreadcrumbSegment { Label = title }]
+            Breadcrumbs = {new BreadcrumbSegment { Label = title }}
         };
 
-        tab.PageFactory = () =>
+        tab.ContentFactory = () =>
         {
-            vm.Tab = tab;          // wire for UpdateTabMeta; PageFactory is called lazily
+            vm.Tab = tab;          // wire so the VM can mutate its own page title/breadcrumbs
             return new ConsoleView(vm);
         };
 

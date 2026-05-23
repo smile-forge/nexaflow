@@ -1113,12 +1113,8 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
                             IPageView? caller = null)
             => Global.OpenTab(pageKind, pageParams, caller);
 
-        public void CloseTab(TabEntry tab)           => Global.CloseTab(tab);
-        public void UpdateTabMeta(TabEntry tab, string? title = null,
-                                  IReadOnlyList<BreadcrumbSegment>? breadcrumbs = null,
-                                  Dictionary<string, string>? pageParams = null)
-            => Global.UpdateTabMeta(tab, title, breadcrumbs, pageParams);
-        public TabEntry? FindTab(string pageKind, Dictionary<string, string>? pageParams = null)
+        public void CloseTab(Page tab)           => Global.CloseTab(tab);
+        public Page? FindTab(string pageKind, Dictionary<string, string>? pageParams = null)
             => Global.FindTab(pageKind, pageParams);
         public void ShowError(string message)        => Global.ShowError(message);
         public void ShowNotification(string message) => Global.ShowNotification(message);

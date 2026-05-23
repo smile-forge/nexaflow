@@ -34,8 +34,6 @@ public partial class MainWindow : Window
         };
         DataContext = _vm;
 
-        WireCommands();
-
         if (openDefaultTabs)
         {
             // Register window before opening tabs so ShellServices can track them
@@ -57,20 +55,6 @@ public partial class MainWindow : Window
         }
 
         FinishInit();
-    }
-
-    private void WireCommands()
-    {
-        TabStripControl.TearOffTabCommand = new RelayCommand<TabEntry>(
-            tab => _shellServices.TearOffTab(tab!));
-
-        TabStripControl.ReceiveTabCommand = new RelayCommand<TabEntry>(
-            tab => _shellServices.MoveTab(tab!, _vm));
-
-        BreadcrumbBarControl.OpenTabRequested += (pageKind, pageParams) =>
-            _shellServices.OpenTab(pageKind, pageParams, _vm.CurrentPage as IPageView);
-
-        _vm.FlashRibbonItem = item => RibbonBar.FlashItem(item);
     }
 
     private void WireOptionsPanel()
@@ -125,7 +109,9 @@ public partial class MainWindow : Window
                 _vm.OptionsOpen       = false;
                 _vm.ManageAiOpen      = false;
                 _vm.NotificationsOpen = false;
-                _vm.RibbonEditOpen    = false;
+                RibbonControl.ViewModel.IsEditOpen = false;
+                if (_vm.ConfirmationVisible)
+                    _vm.CancelShellConfirmationCommand.Execute(null);
             }
         };
 
@@ -238,11 +224,4 @@ public partial class MainWindow : Window
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
-
-    private sealed class RelayCommand<T>(Action<T?> execute) : ICommand
-    {
-        public bool CanExecute(object? p) => true;
-        public void Execute(object? p)    => execute(p is T t ? t : default);
-        public event EventHandler? CanExecuteChanged;
-    }
 }

@@ -34,6 +34,14 @@ public partial class RibbonBar : UserControl
         DependencyProperty.Register(nameof(PinTabToRibbonCommand),
             typeof(ICommand), typeof(RibbonBar));
 
+    public static readonly DependencyProperty OpenInNewWindowCommandProperty =
+        DependencyProperty.Register(nameof(OpenInNewWindowCommand),
+            typeof(ICommand), typeof(RibbonBar));
+
+    public static readonly DependencyProperty DeleteItemCommandProperty =
+        DependencyProperty.Register(nameof(DeleteItemCommand),
+            typeof(ICommand), typeof(RibbonBar));
+
     public ObservableCollection<RibbonItem>? ItemsSource
     {
         get => (ObservableCollection<RibbonItem>?)GetValue(ItemsSourceProperty);
@@ -53,6 +61,41 @@ public partial class RibbonBar : UserControl
     {
         get => (ICommand?)GetValue(PinTabToRibbonCommandProperty);
         set => SetValue(PinTabToRibbonCommandProperty, value);
+    }
+    public ICommand? OpenInNewWindowCommand
+    {
+        get => (ICommand?)GetValue(OpenInNewWindowCommandProperty);
+        set => SetValue(OpenInNewWindowCommandProperty, value);
+    }
+    public ICommand? DeleteItemCommand
+    {
+        get => (ICommand?)GetValue(DeleteItemCommandProperty);
+        set => SetValue(DeleteItemCommandProperty, value);
+    }
+
+    private ContextMenu BuildItemContextMenu(RibbonItem item)
+    {
+        var menu = new ContextMenu();
+
+        var openInNew = new MenuItem { Header = "Open in new Window" };
+        openInNew.Click += (_, _) =>
+        {
+            if (OpenInNewWindowCommand?.CanExecute(item) == true)
+                OpenInNewWindowCommand.Execute(item);
+        };
+        menu.Items.Add(openInNew);
+
+        menu.Items.Add(new Separator());
+
+        var delete = new MenuItem { Header = "Delete" };
+        delete.Click += (_, _) =>
+        {
+            if (DeleteItemCommand?.CanExecute(item) == true)
+                DeleteItemCommand.Execute(item);
+        };
+        menu.Items.Add(delete);
+
+        return menu;
     }
 
     // Maps each direct child of ItemsPanel to the source RibbonItem(s) it represents.
@@ -78,7 +121,7 @@ public partial class RibbonBar : UserControl
             e.Handled = true;
             return;
         }
-        e.Effects = e.Data.GetDataPresent(typeof(TabEntry))
+        e.Effects = e.Data.GetDataPresent(typeof(Page))
             ? DragDropEffects.Move
             : DragDropEffects.None;
         e.Handled = true;
@@ -86,7 +129,7 @@ public partial class RibbonBar : UserControl
 
     private void RibbonBar_Drop(object sender, DragEventArgs e)
     {
-        if (e.Data.GetData(typeof(TabEntry)) is not TabEntry tab) return;
+        if (e.Data.GetData(typeof(Page)) is not Page tab) return;
         int insertAt = ComputeInsertIndex(e.GetPosition(ItemsPanel));
         PinTabToRibbonCommand?.Execute(new TabPinRequest(tab, insertAt));
         e.Handled = true;
@@ -360,7 +403,8 @@ public partial class RibbonBar : UserControl
             Tag      = item,
             ToolTip  = item.Label,
             Margin   = new Thickness(2, 0, 2, 0),
-            MinWidth = 45
+            MinWidth = 45,
+            ContextMenu = BuildItemContextMenu(item)
         };
         btn.Click += FullBtn_Click;
         return btn;
@@ -395,7 +439,8 @@ public partial class RibbonBar : UserControl
             Padding           = new Thickness(10, 4, 10, 4),
             Margin            = topHalf ? new Thickness(0, 4, 0, 2) : new Thickness(0, 0, 0, 4),
             MinWidth          = 45,
-            VerticalAlignment = VerticalAlignment.Top
+            VerticalAlignment = VerticalAlignment.Top,
+            ContextMenu       = BuildItemContextMenu(item)
         };
         btn.Click += FullBtn_Click;
         return btn;

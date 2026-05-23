@@ -26,7 +26,7 @@ public partial class BreadcrumbBar : UserControl
     /// <summary>
     /// Raised when a breadcrumb segment requests opening a different tab.
     /// Arguments are the <see cref="PageKinds"/> constant and optional page parameters.
-    /// The shell resolves which tab factory to use; the breadcrumb control stays decoupled from TabEntry.
+    /// The shell resolves which tab factory to use; the breadcrumb control stays decoupled from Page.
     /// </summary>
     public event Action<string, Dictionary<string, string>?>? OpenTabRequested;
 

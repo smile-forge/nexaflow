@@ -19,23 +19,13 @@ public interface IShellServices
                  IPageView? caller = null);
 
     /// <summary>Closes and removes a tab from the global tab registry.</summary>
-    void CloseTab(TabEntry tab);
+    void CloseTab(Page tab);
 
     /// <summary>
-    /// Updates a tab's title, breadcrumbs, and/or current params. If the tab is currently
-    /// active in its host window the breadcrumb bar is refreshed immediately.
-    /// Pages call this to keep <see cref="TabEntry.PageParams"/> in sync with their actual
-    /// display state (e.g. after navigation or a refined search).
-    /// </summary>
-    void UpdateTabMeta(TabEntry tab, string? title = null,
-                       IReadOnlyList<BreadcrumbSegment>? breadcrumbs = null,
-                       Dictionary<string, string>? pageParams = null);
-
-    /// <summary>
-    /// Returns the first globally-open tab whose <see cref="TabEntry.PageKind"/>
+    /// Returns the first globally-open tab whose <see cref="Page.PageKind"/>
     /// matches and whose params are compatible (see param-matching rules), or null.
     /// </summary>
-    TabEntry? FindTab(string pageKind, Dictionary<string, string>? pageParams = null);
+    Page? FindTab(string pageKind, Dictionary<string, string>? pageParams = null);
 
     /// <summary>Shows a transient error toast in the focused window.</summary>
     void ShowError(string message);

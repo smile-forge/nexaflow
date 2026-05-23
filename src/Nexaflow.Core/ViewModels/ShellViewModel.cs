@@ -23,53 +23,16 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     }
     private bool _isFocused;
 
-    IReadOnlyList<TabEntry> IWindowHost.Tabs => Tabs;
+    IReadOnlyList<Page> IWindowHost.Tabs => RootPane.Pages;
 
-    void IWindowHost.AddTab(TabEntry tab)
+    void IWindowHost.AddTab(Page tab)        => RootPane.Add(tab);
+    void IWindowHost.RemoveTab(Page tab)     => RootPane.Remove(tab);
+    void IWindowHost.BringToFront(Page tab)  => RootPane.BringToFront(tab);
+    void IWindowHost.SetActiveTab(Page tab)
     {
-        foreach (var t in Tabs) t.IsActive = false;
-        tab.IsActive = true;
-        Tabs.Insert(0, tab);
-        ActiveTab   = tab;
-        CurrentPage = tab.GetOrCreatePage();
-        RefreshBreadcrumbs(tab);
+        RootPane.BringToFront(tab);
+        RootPane.ActivePage = tab;
     }
-
-    void IWindowHost.RemoveTab(TabEntry tab)
-    {
-        int idx = Tabs.IndexOf(tab);
-        if (idx < 0) return;
-        Tabs.Remove(tab);
-
-        if (tab.IsActive && Tabs.Count > 0)
-        {
-            int next = Math.Min(idx, Tabs.Count - 1);
-            ((IWindowHost)this).SetActiveTab(Tabs[next]);
-        }
-        else if (Tabs.Count == 0)
-        {
-            ActiveTab   = null;
-            CurrentPage = null;
-            Breadcrumbs.Clear();
-        }
-    }
-
-    void IWindowHost.BringToFront(TabEntry tab)
-    {
-        int idx = Tabs.IndexOf(tab);
-        if (idx > 0) Tabs.Move(idx, 0);
-    }
-
-    void IWindowHost.SetActiveTab(TabEntry tab)
-    {
-        foreach (var t in Tabs) t.IsActive = false;
-        tab.IsActive = true;
-        ActiveTab   = tab;
-        CurrentPage = tab.GetOrCreatePage();
-        RefreshBreadcrumbs(tab);
-    }
-
-    void IWindowHost.RefreshBreadcrumbs(TabEntry tab) => RefreshBreadcrumbs(tab);
 
     void IWindowHost.ShowError(string message) => ShowError("Error", message);
     void IWindowHost.ShowNotification(string message)
@@ -77,27 +40,61 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         Notifications.Insert(0, new NotificationItem { Title = "Info", Body = message });
         UnreadCount = Notifications.Count(n => !n.IsRead);
     }
+    void IWindowHost.ShowConfirmation(string title, string prompt, Action onConfirm, Action? onCancel)
+        => ShowConfirmation(title, prompt, onConfirm, onCancel);
 
-    private void RefreshBreadcrumbs(TabEntry tab)
+    // ── Pane (the strip of pages + active page) ───────────────────────────
+    // The shell hosts a single root pane today. In future this becomes a
+    // tree (SplitPaneNode = left + right Panes) — bind UI to RootPaneNode.
+
+    public Pane RootPane { get; } = new();
+    public IPaneNode RootPaneNode => RootPane;
+
+    // Legacy facades — kept so existing call sites and bindings keep working.
+    public ObservableCollection<Page> Tabs => RootPane.Pages;
+
+    public Page? ActiveTab
     {
-        if (tab != ActiveTab) return;
+        get => RootPane.ActivePage;
+        set => RootPane.ActivePage = value;
+    }
+
+    public UserControl? CurrentPage => RootPane.ActivePage?.GetOrCreateContent();
+
+    private void WireRootPane()
+    {
+        RootPane.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(Pane.ActivePage))
+            {
+                if (_activeBreadcrumbSource is not null)
+                    _activeBreadcrumbSource.CollectionChanged -= ActiveTabBreadcrumbsChanged;
+                _activeBreadcrumbSource = RootPane.ActivePage?.Breadcrumbs;
+                if (_activeBreadcrumbSource is not null)
+                    _activeBreadcrumbSource.CollectionChanged += ActiveTabBreadcrumbsChanged;
+
+                OnPropertyChanged(nameof(ActiveTab));
+                OnPropertyChanged(nameof(CurrentPage));
+                SyncBreadcrumbsFromActive();
+            }
+        };
+    }
+
+    private ObservableCollection<BreadcrumbSegment>? _activeBreadcrumbSource;
+
+    private void ActiveTabBreadcrumbsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        => SyncBreadcrumbsFromActive();
+
+    private void SyncBreadcrumbsFromActive()
+    {
         Breadcrumbs.Clear();
-        foreach (var seg in tab.Breadcrumbs)
+        if (RootPane.ActivePage is null) return;
+        foreach (var seg in RootPane.ActivePage.Breadcrumbs)
             Breadcrumbs.Add(seg);
     }
 
-    // ── Tab strip ──────────────────────────────────────────────────────────
-    public ObservableCollection<TabEntry> Tabs { get; } = [];
-
-    [ObservableProperty] private TabEntry? _activeTab;
-
-    [ObservableProperty] private UserControl? _currentPage;
-
     // ── Breadcrumbs ────────────────────────────────────────────────────────
     public ObservableCollection<BreadcrumbSegment> Breadcrumbs { get; } = [];
-
-    // ── Ribbon ────────────────────────────────────────────────────────────
-    public ObservableCollection<RibbonItem> RibbonItems { get; } = [];
 
     // ── Notifications ─────────────────────────────────────────────────────
     public ObservableCollection<NotificationItem> Notifications { get; } = [];
@@ -148,6 +145,45 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     public void ShowErrorToast(string message) => ShowError("Settings", message);
 
+    // ── Shell-level confirmation overlay ──────────────────────────────────
+    // A modal yes/no overlay that lives at the window level (not inside any page).
+    // Used by the ribbon's right-click Delete, and any other shell-side action that
+    // needs to ask the user.
+
+    [ObservableProperty] private bool   _confirmationVisible;
+    [ObservableProperty] private string _confirmationTitle  = string.Empty;
+    [ObservableProperty] private string _confirmationPrompt = string.Empty;
+
+    private Action? _confirmationOnConfirm;
+    private Action? _confirmationOnCancel;
+
+    public void ShowConfirmation(string title, string prompt, Action onConfirm, Action? onCancel = null)
+    {
+        ConfirmationTitle      = title;
+        ConfirmationPrompt     = prompt;
+        _confirmationOnConfirm = onConfirm;
+        _confirmationOnCancel  = onCancel;
+        ConfirmationVisible    = true;
+    }
+
+    [RelayCommand]
+    private void ConfirmShellConfirmation()
+    {
+        ConfirmationVisible = false;
+        var cb = _confirmationOnConfirm;
+        _confirmationOnConfirm = _confirmationOnCancel = null;
+        cb?.Invoke();
+    }
+
+    [RelayCommand]
+    private void CancelShellConfirmation()
+    {
+        ConfirmationVisible = false;
+        var cb = _confirmationOnCancel;
+        _confirmationOnConfirm = _confirmationOnCancel = null;
+        cb?.Invoke();
+    }
+
     public void ShowUpdateToast(string version, string? changelog)
     {
         _updateToastCts?.Cancel();
@@ -186,42 +222,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     public ObservableCollection<WorkContext> WorkContexts => WorkContextManager.Instance.Contexts;
 
-    // Guard flag: suppresses CollectionChanged side-effects while we are in the middle
-    // of tearing down one context's ribbon and loading the next one. Without this the
-    // Clear() triggers an async BeginInvoke(BuildDefaultRibbon) that fires on top of the
-    // newly-loaded items, doubling the ribbon every switch.
-    private bool _switchingContext;
-
     [RelayCommand]
     private void SelectWorkContext(WorkContext ctx)
     {
         if (ReferenceEquals(ctx, CurrentWorkContext)) return;
-
-        _switchingContext = true;
-        try
-        {
-            CurrentWorkContext.RibbonService?.Save(RibbonItems);
-
-            // Unsubscribe from items being discarded so they can be GC'd
-            foreach (var item in RibbonItems)
-                item.PropertyChanged -= OnRibbonItemChanged;
-
-            RibbonItems.Clear();
-            CurrentWorkContext = ctx;
-            LoadOrBuildRibbon();
-
-            // Wire PropertyChanged for items that were just loaded
-            // (CollectionChanged was suppressed during the switch)
-            foreach (var item in RibbonItems)
-            {
-                item.PropertyChanged -= OnRibbonItemChanged;
-                item.PropertyChanged += OnRibbonItemChanged;
-            }
-        }
-        finally
-        {
-            _switchingContext = false;
-        }
+        CurrentWorkContext = ctx;
+        // The RibbonControl observes CurrentWorkContext via its WorkContext DP
+        // and handles save/load of items per-context. The shell no longer touches the ribbon.
     }
 
     // ── Options overlay ───────────────────────────────────────────────────
@@ -230,20 +237,19 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     // ── Manage AI overlay ─────────────────────────────────────────────────
     [ObservableProperty] private bool _manageAiOpen;
 
-    // ── Ribbon edit mode ─────────────────────────────────────────────────
-    [ObservableProperty] private bool _ribbonEditOpen;
-
-    private readonly IShellServices _shellServices;
+    private readonly ShellServices _shellServices;
 
     public ShellViewModel(BackgroundActivityManager activityManager,
                           WorkContext workContext,
-                          IShellServices shellServices)
+                          ShellServices shellServices)
     {
         _activityManager = activityManager;
         _activityManager.IsActiveChanged += (_, active) =>
             Application.Current.Dispatcher.Invoke(() => AiIsBusy = active);
         _currentWorkContext = workContext;
         _shellServices = shellServices;
+
+        WireRootPane();
 
         // When the Options panel rebuilds the context list, re-anchor to the same-named context
         WorkContextManager.Instance.ContextsRefreshed += (_, _) =>
@@ -255,43 +261,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
                 Application.Current.Dispatcher.Invoke(() => CurrentWorkContext = refreshed);
         };
 
-        LoadOrBuildRibbon();
-        // Ensure PropertyChanged is wired for items loaded before the handler is registered
-        foreach (var item in RibbonItems)
-            item.PropertyChanged += OnRibbonItemChanged;
-
-        RibbonItems.CollectionChanged += (_, e) =>
-        {
-            if (_switchingContext) return;
-
-            // Keep PropertyChanged wired as items come and go (covers Done_Click in RibbonEditor)
-            if (e.OldItems is not null)
-                foreach (RibbonItem item in e.OldItems)
-                    item.PropertyChanged -= OnRibbonItemChanged;
-            if (e.NewItems is not null)
-                foreach (RibbonItem item in e.NewItems)
-                {
-                    item.PropertyChanged -= OnRibbonItemChanged; // guard against double-subscribe
-                    item.PropertyChanged += OnRibbonItemChanged;
-                }
-
-            if (RibbonItems.Count == 0)
-            {
-                if (!RibbonEditOpen)
-                    Application.Current.Dispatcher.BeginInvoke(() => BuildDefaultRibbon());
-            }
-            else
-            {
-                SaveRibbonLayout();
-            }
-        };
         SeedNotifications();
     }
 
     // ── Tab commands ──────────────────────────────────────────────────────
 
     [RelayCommand]
-    private void ActivateTab(TabEntry tab)
+    private void ActivateTab(Page tab)
     {
         if (tab.IsActive && tab == ActiveTab)
         {
@@ -305,12 +281,27 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     }
 
     [RelayCommand]
-    private void CloseTab(TabEntry tab) => _shellServices.CloseTab(tab);
-
-    // ── Ribbon ────────────────────────────────────────────────────────────
+    private void CloseTab(Page tab) => _shellServices.CloseTab(tab);
 
     [RelayCommand]
-    private void RibbonAction(RibbonItem item)
+    private void TearOffTab(Page tab) => _shellServices.TearOffTab(tab);
+
+    /// <summary>Cross-window drop target: receive a tab moved from another window.</summary>
+    [RelayCommand]
+    private void ReceiveTab(Page tab) => _shellServices.MoveTab(tab, this);
+
+    /// <summary>
+    /// Generic "open a page" entry point used by the breadcrumb bar's
+    /// follow-link buttons (and any other shell-level page opener).
+    /// </summary>
+    [RelayCommand]
+    private void OpenPage(OpenPageRequest req)
+        => _shellServices.OpenTab(req.PageKind, req.PageParams, CurrentPage as IPageView);
+
+    // ── Ribbon (shell-side: just "open a page from a ribbon item") ────────
+
+    [RelayCommand]
+    private void OpenRibbonItem(RibbonItem item)
     {
         if (item.PageKind is not null)
             _shellServices.OpenTab(item.PageKind, item.PageParams);
@@ -319,7 +310,14 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     }
 
     [RelayCommand]
-    private void ToggleRibbonEdit() => RibbonEditOpen = !RibbonEditOpen;
+    private void OpenRibbonItemInNewWindow(RibbonItem item)
+    {
+        if (item.PageKind is null) return;
+        _shellServices.OpenPageInNewWindow(item.PageKind, item.PageParams);
+    }
+
+    /// <summary>Exposed so the RibbonControl can route its Delete confirmation through the shell.</summary>
+    public IShellServices ShellServices => _shellServices;
 
     // ── Notifications ─────────────────────────────────────────────────────
 
@@ -564,143 +562,6 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     // ── Background tasks ──────────────────────────────────────────────────
 
     public void AddBackgroundTask(BackgroundTask task) => _activityManager.AddTask(task);
-
-    // ── FileSystem tab pinning ────────────────────────────────────────────
-
-    /// <summary>
-    /// Set by MainWindow after the RibbonBar is available.
-    /// Invoked with the matching ribbon item when a duplicate drop is rejected so the
-    /// bar can provide visual feedback (flash animation).
-    /// </summary>
-    public Action<RibbonItem>? FlashRibbonItem { get; set; }
-
-    [RelayCommand]
-    private void PinTabToRibbon(TabPinRequest request)
-    {
-        var (tab, insertIndex) = request;
-
-        var label    = tab.Title;
-        var icon     = tab.Icon;
-        var pageKind = tab.PageKind;
-        var pageParams = tab.PageParams is not null
-            ? new Dictionary<string, string>(tab.PageParams)
-            : null;
-
-        if (string.IsNullOrEmpty(pageKind)) return;
-
-        // For FileSystem tabs, root the tab to its current path so the button
-        // always opens the exact location the user is browsing.
-        if (tab.Page is Views.FileSystemView fsPage)
-        {
-            var vm       = fsPage.ViewModel;
-            var path     = vm.CurrentPath;
-            var isThisPc = string.IsNullOrEmpty(path) || path == "This PC";
-            icon = isThisPc ? "🖥" : "📁";
-            if (!isThisPc)
-            {
-                vm.ResetRootToCurrentPath();
-                pageParams = new() { ["mode"] = "path", ["path"] = path };
-            }
-            else
-            {
-                pageParams = new() { ["mode"] = "thispc" };
-            }
-        }
-
-        // Duplicate check: same PageKind + matching params already in the ribbon
-        var duplicate = RibbonItems.FirstOrDefault(r => r.Kind == RibbonItemKind.Button &&
-                                                         r.PageKind == pageKind &&
-                                                         RibbonParamsEqual(r.PageParams, pageParams));
-        if (duplicate is not null)
-        {
-            FlashRibbonItem?.Invoke(duplicate);
-            return;
-        }
-
-        AddRibbonItem(MakeButton(label, icon, pageKind, pageParams), insertIndex);
-    }
-
-    private static bool RibbonParamsEqual(
-        Dictionary<string, string>? a, Dictionary<string, string>? b)
-    {
-        if (ReferenceEquals(a, b)) return true;
-        if (a is null || b is null) return a is null && b is null;
-        if (a.Count != b.Count)    return false;
-        return a.All(kv => b.TryGetValue(kv.Key, out var v) && v == kv.Value);
-    }
-
-    // ── Ribbon persistence ────────────────────────────────────────────────
-
-    // Named handler so it can be removed (anonymous lambdas can't be unsubscribed).
-    private void OnRibbonItemChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
-        => SaveRibbonLayout();
-
-    [RelayCommand]
-    public void SaveRibbonLayout() => CurrentWorkContext.RibbonService?.Save(RibbonItems);
-
-    private void LoadOrBuildRibbon()
-    {
-        var saved = CurrentWorkContext.RibbonService?.Load();
-        if (saved is { Count: > 0 })
-        {
-            foreach (var item in saved)
-                RibbonItems.Add(item);  // PropertyChanged wired by CollectionChanged (or caller)
-        }
-        else
-        {
-            BuildDefaultRibbon();
-        }
-    }
-
-    private RibbonItem MakeButton(string label, string icon, string pageKind,
-                                   Dictionary<string, string>? pageParams = null)
-    {
-        return new RibbonItem
-        {
-            Kind       = RibbonItemKind.Button,
-            Label      = label,
-            Icon       = icon,
-            PageKind   = pageKind,
-            PageParams = pageParams
-        };
-    }
-
-    private void AddRibbonItem(RibbonItem item, int insertAt = -1)
-    {
-        if (insertAt >= 0 && insertAt < RibbonItems.Count)
-            RibbonItems.Insert(insertAt, item);
-        else
-            RibbonItems.Add(item);
-        // PropertyChanged wired by CollectionChanged handler
-    }
-
-    private void BuildDefaultRibbon()
-    {
-        foreach (var item in BuildDefaultItems())
-            AddRibbonItem(item);
-    }
-
-    public IList<RibbonItem> BuildDefaultItems()
-    {
-        return
-        [
-            MakeButton("Projects", "🗂", "Projects"),
-            new RibbonItem { Kind = RibbonItemKind.Separator },
-            MakeButton("This PC", "🖥", PageKinds.FileSystem, new() { ["mode"] = "thispc" }),
-            MakeButton("AI Chat", "💬", PageKinds.AiChat),
-            MakeButton("Console", "⌨", "Console"),
-            MakeButton("Scratchpad", "📌", "Scratchpad"),
-            new RibbonItem { Kind = RibbonItemKind.Separator },
-            MakeButton("Documents", "📄", PageKinds.FileSystem,
-                new() { ["mode"] = "path", ["path"] = KnownFolderService.DocumentsPath }),
-            MakeButton("Pictures", "🖼", PageKinds.FileSystem,
-                new() { ["mode"] = "path", ["path"] = KnownFolderService.PicturesPath }),
-            MakeButton("Videos", "🎬", PageKinds.FileSystem,
-                new() { ["mode"] = "path", ["path"] = KnownFolderService.VideosPath }),
-            MakeButton("Music", "🎵", PageKinds.FileSystem,
-                new() { ["mode"] = "path", ["path"] = KnownFolderService.MusicPath }),
-        ];
-    }
 
     private void SeedNotifications()
     {

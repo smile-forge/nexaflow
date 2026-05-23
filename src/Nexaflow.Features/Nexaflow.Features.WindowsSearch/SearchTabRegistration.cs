@@ -9,7 +9,7 @@ public sealed class SearchTabRegistration(IShellServices shellServices) : ITabRe
 {
     public string PageKind => "Search";
 
-    public TabEntry CreateTab(Dictionary<string, string>? pageParams = null)
+    public Page CreateTab(Dictionary<string, string>? pageParams = null)
     {
         var query = pageParams?.GetValueOrDefault("query") ?? string.Empty;
         var root  = pageParams?.GetValueOrDefault("root")  ?? string.Empty;
@@ -24,19 +24,19 @@ public sealed class SearchTabRegistration(IShellServices shellServices) : ITabRe
 
         var vm = new SearchViewModel(query, root, shellServices);
 
-        var tab = new TabEntry
+        var tab = new Page
         {
             Title      = tabTitle,
             Icon       = "🔍",
             PageParams = new() { ["query"] = query, ["root"] = root },
             Breadcrumbs =
-            [
+            {
                 new BreadcrumbSegment { Label = rootLabel },
                 new BreadcrumbSegment { Label = $"Query : {queryShort}" }
-            ]
+            }
         };
         vm.Tab = tab;
-        tab.PageFactory = () => new SearchView(vm);
+        tab.ContentFactory = () => new SearchView(vm);
         return tab;
     }
 }

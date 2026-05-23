@@ -22,27 +22,27 @@ public sealed class ProjectDetailTabRegistration : ITabRegistration
 
     public string PageKind => "ProjectDetail";
 
-    public TabEntry CreateTab(Dictionary<string, string>? pageParams = null)
+    public Page CreateTab(Dictionary<string, string>? pageParams = null)
     {
         var folderName = pageParams?.GetValueOrDefault("folder") ?? string.Empty;
         var ops = new ProjectOperations(_config);
         var vm  = new ProjectDetailViewModel(ops, folderName);
-        var tab = new TabEntry
+        var tab = new Page
         {
             Title = $"Project {folderName}",
             Icon  = "📋",
             Breadcrumbs =
-            [
+            {
                 new BreadcrumbSegment
                 {
                     Label          = "Projects",
                     TargetPageKind = "Projects"
                 },
                 new BreadcrumbSegment { Label = folderName }
-            ]
+            }
         };
 
-        tab.PageFactory = () =>
+        tab.ContentFactory = () =>
         {
             var page = new ProjectDetailView(vm);
             vm.OpenFilesRequested += path =>

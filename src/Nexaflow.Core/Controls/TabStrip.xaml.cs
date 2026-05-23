@@ -16,7 +16,7 @@ public partial class TabStrip : UserControl
 
     public static readonly DependencyProperty TabsProperty =
         DependencyProperty.Register(nameof(Tabs),
-            typeof(ObservableCollection<TabEntry>), typeof(TabStrip),
+            typeof(ObservableCollection<Page>), typeof(TabStrip),
             new PropertyMetadata(null, OnTabsChanged));
 
     public static readonly DependencyProperty ActivateTabCommandProperty =
@@ -28,17 +28,17 @@ public partial class TabStrip : UserControl
     public static readonly DependencyProperty PinTabToRibbonCommandProperty =
         DependencyProperty.Register(nameof(PinTabToRibbonCommand), typeof(ICommand), typeof(TabStrip));
 
-    /// <summary>Invoked with the TabEntry when a tab is torn off to the desktop.</summary>
+    /// <summary>Invoked with the Page when a tab is torn off to the desktop.</summary>
     public static readonly DependencyProperty TearOffTabCommandProperty =
         DependencyProperty.Register(nameof(TearOffTabCommand), typeof(ICommand), typeof(TabStrip));
 
-    /// <summary>Invoked with the TabEntry when a tab from another window is dropped here.</summary>
+    /// <summary>Invoked with the Page when a tab from another window is dropped here.</summary>
     public static readonly DependencyProperty ReceiveTabCommandProperty =
         DependencyProperty.Register(nameof(ReceiveTabCommand), typeof(ICommand), typeof(TabStrip));
 
-    public ObservableCollection<TabEntry>? Tabs
+    public ObservableCollection<Page>? Tabs
     {
-        get => (ObservableCollection<TabEntry>?)GetValue(TabsProperty);
+        get => (ObservableCollection<Page>?)GetValue(TabsProperty);
         set => SetValue(TabsProperty, value);
     }
     public ICommand? ActivateTabCommand
@@ -78,9 +78,9 @@ public partial class TabStrip : UserControl
     private static void OnTabsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         var ts = (TabStrip)d;
-        if (e.OldValue is ObservableCollection<TabEntry> old)
+        if (e.OldValue is ObservableCollection<Page> old)
             old.CollectionChanged -= ts.Tabs_CollectionChanged;
-        if (e.NewValue is ObservableCollection<TabEntry> @new)
+        if (e.NewValue is ObservableCollection<Page> @new)
         {
             @new.CollectionChanged += ts.Tabs_CollectionChanged;
             ts.RebuildAndLayout();
@@ -94,10 +94,10 @@ public partial class TabStrip : UserControl
         if (e.Action != NotifyCollectionChangedAction.Move)
         {
             if (e.NewItems is not null)
-                foreach (TabEntry t in e.NewItems)
+                foreach (Page t in e.NewItems)
                     t.PropertyChanged += Tab_PropertyChanged;
             if (e.OldItems is not null)
-                foreach (TabEntry t in e.OldItems)
+                foreach (Page t in e.OldItems)
                     t.PropertyChanged -= Tab_PropertyChanged;
         }
 
@@ -106,13 +106,13 @@ public partial class TabStrip : UserControl
 
     private void Tab_PropertyChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(TabEntry.IsActive))
+        if (e.PropertyName == nameof(Page.IsActive))
             Dispatcher.Invoke(RefreshActiveStates);
-        else if (e.PropertyName == nameof(TabEntry.Title) && s is TabEntry changed)
+        else if (e.PropertyName == nameof(Page.Title) && s is Page changed)
             Dispatcher.Invoke(() => RefreshTabLabel(changed));
     }
 
-    private void RefreshTabLabel(TabEntry tab)
+    private void RefreshTabLabel(Page tab)
     {
         foreach (UIElement child in VisiblePanel.Children)
         {
@@ -136,7 +136,7 @@ public partial class TabStrip : UserControl
     {
         for (int i = 0; i < VisiblePanel.Children.Count; i++)
         {
-            if (VisiblePanel.Children[i] is Border b && b.Tag is TabEntry t)
+            if (VisiblePanel.Children[i] is Border b && b.Tag is Page t)
                 ApplyActiveStyle(b, t.IsActive);
         }
     }
@@ -209,13 +209,13 @@ public partial class TabStrip : UserControl
             else
             {
                 child.Visibility = Visibility.Collapsed;
-                if (child is Border b && b.Tag is TabEntry tab)
+                if (child is Border b && b.Tag is Page tab)
                     OverflowList.Children.Add(BuildOverflowItem(tab));
             }
         }
     }
 
-    private Border BuildTabElement(TabEntry tab)
+    private Border BuildTabElement(Page tab)
     {
         // Inner content
         var icon = new TextBlock { Text = tab.Icon, FontSize = 13, Margin = new Thickness(0,0,6,0) };
@@ -311,7 +311,7 @@ public partial class TabStrip : UserControl
             _dragArmed  = false;
             _isDragging = true;
 
-            var data = new DataObject(typeof(TabEntry), tab);
+            var data = new DataObject(typeof(Page), tab);
             DragDrop.DoDragDrop(border, data, DragDropEffects.Move);
 
             _isDragging = false;
@@ -358,7 +358,7 @@ public partial class TabStrip : UserControl
         b.BorderBrush     = active ? (Brush)FindResource("AccentBrush") : Brushes.Transparent;
     }
 
-    private UIElement BuildOverflowItem(TabEntry tab)
+    private UIElement BuildOverflowItem(Page tab)
     {
         var sp = new StackPanel { Orientation = Orientation.Horizontal };
         sp.Children.Add(new TextBlock { Text = tab.Icon,  FontSize = 13, Margin = new Thickness(0,0,8,0) });
@@ -386,7 +386,7 @@ public partial class TabStrip : UserControl
 
     private void TabStrip_DragOver(object sender, DragEventArgs e)
     {
-        if (e.Data.GetDataPresent(typeof(TabEntry)))
+        if (e.Data.GetDataPresent(typeof(Page)))
             e.Effects = DragDropEffects.Move;
         else
             e.Effects = DragDropEffects.None;
@@ -395,8 +395,8 @@ public partial class TabStrip : UserControl
 
     private void TabStrip_Drop(object sender, DragEventArgs e)
     {
-        if (!e.Data.GetDataPresent(typeof(TabEntry))) return;
-        var tab = (TabEntry)e.Data.GetData(typeof(TabEntry));
+        if (!e.Data.GetDataPresent(typeof(Page))) return;
+        var tab = (Page)e.Data.GetData(typeof(Page));
 
         // If the tab already belongs to this strip, nothing to do
         if (Tabs?.Contains(tab) == true) return;

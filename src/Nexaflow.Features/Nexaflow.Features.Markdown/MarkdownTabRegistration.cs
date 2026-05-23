@@ -14,16 +14,16 @@ public sealed class MarkdownTabRegistration : ITabRegistration
 {
     public string PageKind => "Markdown";
 
-    public TabEntry CreateTab(Dictionary<string, string>? pageParams = null)
+    public Page CreateTab(Dictionary<string, string>? pageParams = null)
     {
         var filePath = pageParams?.GetValueOrDefault("path") ?? "";
         var title    = Path.GetFileName(filePath);
-        return new TabEntry
+        return new Page
         {
             Title       = title,
             Icon        = "📝",
-            Breadcrumbs = [new BreadcrumbSegment { Label = title }],
-            PageFactory = () => new MarkdownView(new MarkdownViewModel(filePath))
+            Breadcrumbs = {new BreadcrumbSegment { Label = title }},
+            ContentFactory = () => new MarkdownView(new MarkdownViewModel(filePath))
         };
     }
 }

@@ -14,16 +14,16 @@ public sealed class HtmlTabRegistration : ITabRegistration
 {
     public string PageKind => "Html";
 
-    public TabEntry CreateTab(Dictionary<string, string>? pageParams = null)
+    public Page CreateTab(Dictionary<string, string>? pageParams = null)
     {
         var filePath = pageParams?.GetValueOrDefault("path") ?? "";
         var title    = Path.GetFileName(filePath);
-        return new TabEntry
+        return new Page
         {
             Title       = title,
             Icon        = "🌐",
-            Breadcrumbs = [new BreadcrumbSegment { Label = title }],
-            PageFactory = () => new HtmlView(new HtmlViewModel(filePath))
+            Breadcrumbs = {new BreadcrumbSegment { Label = title }},
+            ContentFactory = () => new HtmlView(new HtmlViewModel(filePath))
         };
     }
 }

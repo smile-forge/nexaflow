@@ -13,7 +13,7 @@ public interface ITabRegistration
     /// </summary>
     string PageKind { get; }
 
-    /// <summary>Creates a ready-to-open <see cref="TabEntry"/> for this page kind.</summary>
+    /// <summary>Creates a ready-to-open <see cref="Page"/> for this page kind.</summary>
     /// <param name="pageParams">Optional parameters (e.g. <c>{"folder":"MyProject"}</c>).</param>
-    TabEntry CreateTab(Dictionary<string, string>? pageParams = null);
+    Page CreateTab(Dictionary<string, string>? pageParams = null);
 }
