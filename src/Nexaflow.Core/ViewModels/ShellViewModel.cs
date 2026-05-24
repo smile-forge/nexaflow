@@ -384,6 +384,29 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     private void OpenRibbonItemInNewWindow(RibbonItem item)
     {
         if (item.PageKind is null) return;
+
+        var handler = FeatureManager.Instance.GetRibbonPinHandler(item.PageKind);
+        if (handler is not null)
+        {
+            // Create the new window first so any OpenTab calls inside the handler land there.
+            var newHost = _shellServices.CreateAndShowNewWindow();
+            if (newHost is null) return;
+
+            var paths = (CurrentPage as ISelectionProvider)?.SelectedFilePaths
+                        ?? (IReadOnlyList<string>)[];
+            var ctx = new RibbonExecutionContext(
+                paths,
+                msg           => ShowError("Ribbon Action", msg),
+                (t, m, ok, c) => ShowConfirmation(t, m, ok, c),
+                ()            => Ribbon?.Items.Remove(item));
+            handler.Execute(item.PageParams, ctx);
+
+            // If the action didn't open a tab, the new window serves no purpose.
+            if (newHost.Tabs.Count == 0)
+                newHost.Window.Close();
+            return;
+        }
+
         _shellServices.OpenPageInNewWindow(item.PageKind, item.PageParams);
     }
 
