@@ -30,6 +30,12 @@ public sealed class ShellServices : IShellServices
     /// </summary>
     internal Func<IWindowHost>? CreateWindowFactory { get; set; }
 
+    /// <summary>
+    /// Called by MainWindow to connect file-action pin requests from FileSystemViewModels
+    /// to the active window's ribbon.  The callback receives (ContentKind, payload).
+    /// </summary>
+    internal Action<string, object>? PinToRibbonCallback { get; set; }
+
     internal void RegisterWindow(IWindowHost host) => _windows.Add(host);
 
     internal void UnregisterWindow(IWindowHost host)
@@ -230,6 +236,8 @@ public sealed class ShellServices : IShellServices
         var dropTarget = new FileSystemDropTarget(fsVm);
         var page = new FileSystemView(fsVm, keyHandler, dropTarget);
         page.NavigationChanged += segments => ApplyFileSystemBreadcrumbs(tab, page, segments);
+        if (PinToRibbonCallback is not null)
+            fsVm.PinToRibbonCallback = PinToRibbonCallback;
         return page;
     }
 
@@ -322,16 +330,20 @@ public sealed class ShellServices : IShellServices
         return true;
     }
 
-    // ── Per-view contextual stubs (no-op on the global singleton) ────────────
+    // ── Shell-level overlays (routed to the focused window) ──────────────────
 
     void IShellServices.ShowPrompt(string title, string label, string initialValue,
-                                   Action<string> onConfirm, Action onCancel) { }
+                                   Action<string> onConfirm, Action onCancel)
+        => (_focused ?? _windows.FirstOrDefault())
+            ?.ShowPrompt(title, label, initialValue, onConfirm, onCancel);
 
     void IShellServices.ShowConfirmation(string title, string message,
                                          Action onConfirm, Action onCancel)
         => (_focused ?? _windows.FirstOrDefault())
             ?.ShowConfirmation(title, message, onConfirm, onCancel);
 
+    // No host-level refresh — feature views drive their own refresh from
+    // file-system events; actions that mutate the file system rely on that.
     void IShellServices.RequestRefresh() { }
 
     // ── Window positioning (tearoff) ──────────────────────────────────────

@@ -1,142 +1,34 @@
 using Nexaflow.Core.FileActions;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 
 namespace Nexaflow.Core.Services;
 
 /// <summary>
-/// Discovers every <see cref="IFileAction"/> and <see cref="IFolderAction"/>
-/// implementation — both in the executing (Core) assembly and in any feature assembly
-/// registered with <see cref="FeatureManager"/> — and instantiates each one once
-/// (singletons) using basic constructor injection.
-/// File actions are matched against files via <see cref="FileMapManager"/>.
-/// Folder actions are matched structurally via glob and containment rules.
+/// Filtering / matching layer over the action instances owned by <see cref="FeatureManager"/>.
+/// Purely stateless — discovery and construction live in <see cref="FeatureManager"/>; this
+/// class only decides which actions apply to a given file/folder selection.
 /// </summary>
 public sealed class FileActionManager
 {
-    private readonly IReadOnlyList<IFileAction>       _all;
-    private readonly IReadOnlyList<IFolderAction>     _allFolderActions;
-    private readonly IReadOnlyList<IFileCreateAction> _allCreateActions;
-    private readonly FileMapManager                   _fileMapManager;
+    private static IReadOnlyList<IFileAction>   File   => FeatureManager.Instance.FileActions;
+    private static IReadOnlyList<IFolderAction> Folder => FeatureManager.Instance.FolderActions;
 
     /// <summary>All discovered create-file actions.</summary>
-    public IReadOnlyList<IFileCreateAction> CreateActions => _allCreateActions;
+    public IReadOnlyList<IFileCreateAction> CreateActions => FeatureManager.Instance.FileCreateActions;
 
     /// <summary>
     /// All experience IDs advertised by the registered file actions.
     /// Passed to <see cref="FileMapManager.RegisterKnownExperiences"/> after construction.
     /// </summary>
     public IReadOnlyList<string> AllExperiences
-        => _all.Select(a => a.ExperienceId)
+        => File.Select(a => a.ExperienceId)
                .Where(id => !string.IsNullOrEmpty(id))
                .Distinct()
                .ToList();
-
-    /// <param name="services">
-    /// Map of service type → singleton instance that can be injected into action
-    /// constructors. Should include <see cref="FileMapManager"/>.
-    /// </param>
-    public FileActionManager(IReadOnlyDictionary<Type, object>? services = null)
-    {
-        var svc = services ?? new Dictionary<Type, object>();
-        _fileMapManager   = svc.TryGetValue(typeof(FileMapManager), out var fm)
-            ? (FileMapManager)fm
-            : FileMapManager.Instance;
-        _all              = Discover(svc);
-        _allFolderActions = DiscoverFolderActions(svc);
-        _allCreateActions = DiscoverCreate(svc);
-    }
-
-    // ── Discovery ─────────────────────────────────────────────────────────────
-
-    private static IReadOnlyList<IFileAction> Discover(IReadOnlyDictionary<Type, object> services)
-    {
-        var result = new List<IFileAction>();
-        foreach (var type in Assembly.GetExecutingAssembly().GetTypes())
-            TryAddAction(type, services, result);
-        foreach (var type in FeatureManager.Instance.FileActionTypes)
-            TryAddAction(type, services, result);
-        return result;
-    }
-
-    private static void TryAddAction(Type type, IReadOnlyDictionary<Type, object> services, List<IFileAction> result)
-    {
-        if (type.IsAbstract || type.IsInterface) return;
-        if (!typeof(IFileAction).IsAssignableFrom(type)) return;
-        if (TryCreate(type, services) is IFileAction action)
-            result.Add(action);
-    }
-
-    private static IReadOnlyList<IFolderAction> DiscoverFolderActions(IReadOnlyDictionary<Type, object> services)
-    {
-        var result = new List<IFolderAction>();
-        foreach (var type in Assembly.GetExecutingAssembly().GetTypes())
-            TryAddFolderAction(type, services, result);
-        foreach (var type in FeatureManager.Instance.FolderActionTypes)
-            TryAddFolderAction(type, services, result);
-        return result;
-    }
-
-    private static void TryAddFolderAction(Type type, IReadOnlyDictionary<Type, object> services, List<IFolderAction> result)
-    {
-        if (type.IsAbstract || type.IsInterface) return;
-        if (!typeof(IFolderAction).IsAssignableFrom(type)) return;
-        // Dual-interface types (IFileAction + IFolderAction) are already in _all.
-        // We only add the IFolderAction interface here — the adapter is created at filter time.
-        if (TryCreate(type, services) is IFolderAction action)
-            result.Add(action);
-    }
-
-    private static IReadOnlyList<IFileCreateAction> DiscoverCreate(IReadOnlyDictionary<Type, object> services)
-    {
-        var result = new List<IFileCreateAction>();
-        foreach (var type in Assembly.GetExecutingAssembly().GetTypes())
-            TryAddCreateAction(type, services, result);
-        foreach (var type in FeatureManager.Instance.FileCreateActionTypes)
-            TryAddCreateAction(type, services, result);
-        return result;
-    }
-
-    private static void TryAddCreateAction(Type type, IReadOnlyDictionary<Type, object> services, List<IFileCreateAction> result)
-    {
-        if (type.IsAbstract || type.IsInterface) return;
-        if (!typeof(IFileCreateAction).IsAssignableFrom(type)) return;
-        if (TryCreate(type, services) is IFileCreateAction action)
-            result.Add(action);
-    }
-
-    /// <summary>
-    /// Attempts to instantiate <paramref name="type"/> by finding the constructor
-    /// whose parameters can all be satisfied from <paramref name="services"/>.
-    /// Constructors are tried longest-first so the richest available overload wins.
-    /// </summary>
-    private static object? TryCreate(Type type, IReadOnlyDictionary<Type, object> services)
-    {
-        foreach (var ctor in type.GetConstructors()
-                                  .OrderByDescending(c => c.GetParameters().Length))
-        {
-            var parms = ctor.GetParameters();
-            var args  = new object?[parms.Length];
-            bool ok   = true;
-
-            for (int i = 0; i < parms.Length; i++)
-            {
-                if (services.TryGetValue(parms[i].ParameterType, out var svc))
-                    args[i] = svc;
-                else if (parms[i].IsOptional)
-                    args[i] = Type.Missing;
-                else { ok = false; break; }
-            }
-
-            if (ok) return ctor.Invoke(args);
-        }
-        return null;
-    }
 
     // ── Filtering ─────────────────────────────────────────────────────────────
 
@@ -156,12 +48,12 @@ public sealed class FileActionManager
     /// </summary>
     public (bool[] File, bool[] Folder) SnapshotCanPerform()
     {
-        var file   = new bool[_all.Count];
-        var folder = new bool[_allFolderActions.Count];
-        for (int i = 0; i < _all.Count; i++)
-            file[i] = _all[i].CanPerformAction;
-        for (int i = 0; i < _allFolderActions.Count; i++)
-            folder[i] = _allFolderActions[i].CanPerformAction;
+        var file   = new bool[FileActionManager.File.Count];
+        var folder = new bool[FileActionManager.Folder.Count];
+        for (int i = 0; i < FileActionManager.File.Count; i++)
+            file[i] = FileActionManager.File[i].CanPerformAction;
+        for (int i = 0; i < FileActionManager.Folder.Count; i++)
+            folder[i] = FileActionManager.Folder[i].CanPerformAction;
         return (file, folder);
     }
 
@@ -179,11 +71,11 @@ public sealed class FileActionManager
         bool multipleFiles = selected.Count(e => !e.IsDirectory) > 1 || selected.Count > 1;
 
         var filtered = new List<IFileAction>();
-        for (int i = 0; i < _all.Count; i++)
+        for (int i = 0; i < File.Count; i++)
         {
             if (!canPerform[i]) continue;
-            if (FileMatches(_all[i], selected, anyDrives, multipleFiles))
-                filtered.Add(_all[i]);
+            if (FileMatches(File[i], selected, anyDrives, multipleFiles))
+                filtered.Add(File[i]);
         }
         return filtered;
     }
@@ -202,10 +94,10 @@ public sealed class FileActionManager
         bool multipleItems  = selected.Count > 1;
 
         var filtered = new List<IFileAction>();
-        for (int i = 0; i < _allFolderActions.Count; i++)
+        for (int i = 0; i < Folder.Count; i++)
         {
             if (!canPerform[i]) continue;
-            var action = _allFolderActions[i];
+            var action = Folder[i];
 
             if (emptySelection && !action.AppliesToRoot) continue;
             if (!emptySelection && anyDrives && !action.AppliesToDrives) continue;
@@ -235,7 +127,7 @@ public sealed class FileActionManager
         foreach (var entry in files)
         {
             var experiences = FileMapManager.Instance.GetExperiencesForFile(new FileInfo(entry.FullPath));
-            if (!experiences.Contains(action.ExperienceId, StringComparer.OrdinalIgnoreCase))
+            if (!experiences.Contains(action.ExperienceId, System.StringComparer.OrdinalIgnoreCase))
                 return false;
         }
         return true;
@@ -285,7 +177,7 @@ public sealed class FileActionManager
     {
         if (pattern is "*" or "*.*") return true;
         if (pattern.StartsWith("*."))
-            return name.EndsWith(pattern[1..], StringComparison.OrdinalIgnoreCase);
-        return string.Equals(name, pattern, StringComparison.OrdinalIgnoreCase);
+            return name.EndsWith(pattern[1..], System.StringComparison.OrdinalIgnoreCase);
+        return string.Equals(name, pattern, System.StringComparison.OrdinalIgnoreCase);
     }
 }

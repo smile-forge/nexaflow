@@ -33,24 +33,24 @@ public interface IShellServices
     /// <summary>Adds a persistent notification in the focused window.</summary>
     void ShowNotification(string message);
 
-    // ── Per-view contextual services ─────────────────────────────────────────
+    // ── Shell-level overlays (window-modal, routed to the focused window) ────
 
     /// <summary>
-    /// Shows a text-input overlay pre-filled with <paramref name="initialValue"/>.
-    /// No-op on the global singleton; meaningful only on the per-tab implementation.
+    /// Shows a window-level text-input overlay pre-filled with <paramref name="initialValue"/>.
+    /// The overlay belongs to the focused window's shell, not any particular tab.
     /// </summary>
     void ShowPrompt(string title, string label, string initialValue,
                     Action<string> onConfirm, Action onCancel);
 
     /// <summary>
-    /// Shows a yes/no confirmation overlay.
-    /// No-op on the global singleton; meaningful only on the per-tab implementation.
+    /// Shows a window-level yes/no confirmation overlay in the focused window.
     /// </summary>
     void ShowConfirmation(string title, string message, Action onConfirm, Action onCancel);
 
     /// <summary>
-    /// Requests a refresh of the file list and tree in the owning tab.
-    /// No-op on the global singleton; meaningful only on the per-tab implementation.
+    /// Requests a refresh of any view that cares (e.g. a file list).
+    /// No-op at the shell level — kept for callers whose work is now driven by
+    /// file-system watchers in the view layer.
     /// </summary>
     void RequestRefresh();
 }

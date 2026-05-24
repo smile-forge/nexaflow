@@ -1,4 +1,5 @@
 using Nexaflow.Core.FileActions;
+using Nexaflow.Core.RibbonHandlers;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.AIChat;
 using Nexaflow.Features.Common;
@@ -78,6 +79,7 @@ public partial class App : Application
 
         FeatureManager.Instance.SetShellServices(defaultCtx.ShellServices!);
         FeatureManager.Instance.RegisterFeatures();
+        FeatureManager.Instance.RegisterRibbonPinHandler(new FileActionRibbonPinHandler());
 
         // ── 7. Torn-off window factory ───────────────────────────────────────
         defaultCtx.ShellServices!.CreateWindowFactory = () =>

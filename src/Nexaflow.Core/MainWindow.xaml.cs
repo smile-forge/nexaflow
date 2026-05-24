@@ -10,6 +10,7 @@ using Nexaflow.Core.Services;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Core.Views;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common;
 using TaskStatus = Nexaflow.Core.Models.TaskStatus;
 using WorkContext = Nexaflow.Core.Models.WorkContext;
 
@@ -98,6 +99,21 @@ public partial class MainWindow : Window
         WireOptionsPanel();
         WireManageAiPanel();
 
+        _vm.Ribbon = RibbonControl.ViewModel;
+        _shellServices.PinToRibbonCallback = (kind, payload) =>
+            RibbonControl.ViewModel.PinFromHandlerCommand.Execute(
+                new RibbonPinRequest(kind, payload));
+
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ShellViewModel.PromptVisible) && _vm.PromptVisible)
+                Dispatcher.BeginInvoke(() =>
+                {
+                    PromptTextBox.Focus();
+                    PromptTextBox.SelectAll();
+                });
+        };
+
         Activated   += (_, _) => _shellServices.SetFocused(_vm);
         Deactivated += (_, _) => _shellServices.ClearFocused(_vm);
         Closing     += (_, _) => _shellServices.UnregisterWindow(_vm);
@@ -112,6 +128,8 @@ public partial class MainWindow : Window
                 RibbonControl.ViewModel.IsEditOpen = false;
                 if (_vm.ConfirmationVisible)
                     _vm.CancelShellConfirmationCommand.Execute(null);
+                if (_vm.PromptVisible)
+                    _vm.CancelShellPromptCommand.Execute(null);
             }
         };
 

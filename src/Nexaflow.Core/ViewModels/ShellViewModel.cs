@@ -43,6 +43,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     void IWindowHost.ShowConfirmation(string title, string prompt, Action onConfirm, Action? onCancel)
         => ShowConfirmation(title, prompt, onConfirm, onCancel);
 
+    void IWindowHost.ShowPrompt(string title, string label, string initialValue,
+                                Action<string> onConfirm, Action? onCancel)
+        => ShowPrompt(title, label, initialValue, onConfirm, onCancel);
+
     // ── Pane (the strip of pages + active page) ───────────────────────────
     // The shell hosts a single root pane today. In future this becomes a
     // tree (SplitPaneNode = left + right Panes) — bind UI to RootPaneNode.
@@ -184,6 +188,50 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         cb?.Invoke();
     }
 
+    // ── Shell-level input prompt overlay ──────────────────────────────────
+    // Window-level text-input prompt. Mirrors the confirmation overlay above
+    // and is the destination for IShellServices.ShowPrompt.
+
+    [ObservableProperty] private bool   _promptVisible;
+    [ObservableProperty] private string _promptTitle = string.Empty;
+    [ObservableProperty] private string _promptLabel = string.Empty;
+    [ObservableProperty] private string _promptValue = string.Empty;
+
+    private Action<string>? _promptOnConfirm;
+    private Action?         _promptOnCancel;
+
+    public void ShowPrompt(string title, string label, string initialValue,
+                           Action<string> onConfirm, Action? onCancel = null)
+    {
+        PromptTitle      = title;
+        PromptLabel      = label;
+        PromptValue      = initialValue;
+        _promptOnConfirm = onConfirm;
+        _promptOnCancel  = onCancel;
+        PromptVisible    = true;
+    }
+
+    [RelayCommand]
+    private void ConfirmShellPrompt()
+    {
+        PromptVisible = false;
+        var value = PromptValue;
+        var cb    = _promptOnConfirm;
+        _promptOnConfirm = null;
+        _promptOnCancel  = null;
+        cb?.Invoke(value);
+    }
+
+    [RelayCommand]
+    private void CancelShellPrompt()
+    {
+        PromptVisible = false;
+        var cb = _promptOnCancel;
+        _promptOnConfirm = null;
+        _promptOnCancel  = null;
+        cb?.Invoke();
+    }
+
     public void ShowUpdateToast(string version, string? changelog)
     {
         _updateToastCts?.Cancel();
@@ -238,6 +286,12 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     [ObservableProperty] private bool _manageAiOpen;
 
     private readonly ShellServices _shellServices;
+
+    /// <summary>
+    /// Set by MainWindow after the RibbonControl is initialised so the shell can
+    /// remove ribbon items from handler execution (e.g. "files no longer exist").
+    /// </summary>
+    public RibbonViewModel? Ribbon { get; set; }
 
     public ShellViewModel(BackgroundActivityManager activityManager,
                           WorkContext workContext,
@@ -304,9 +358,26 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     private void OpenRibbonItem(RibbonItem item)
     {
         if (item.PageKind is not null)
+        {
+            var handler = FeatureManager.Instance.GetRibbonPinHandler(item.PageKind);
+            if (handler is not null)
+            {
+                var paths = (CurrentPage as ISelectionProvider)?.SelectedFilePaths
+                            ?? (IReadOnlyList<string>)[];
+                var ctx = new RibbonExecutionContext(
+                    paths,
+                    msg           => ShowError("Ribbon Action", msg),
+                    (t, m, ok, c) => ShowConfirmation(t, m, ok, c),
+                    ()            => Ribbon?.Items.Remove(item));
+                handler.Execute(item.PageParams, ctx);
+                return;
+            }
             _shellServices.OpenTab(item.PageKind, item.PageParams);
+        }
         else
+        {
             item.Command?.Execute(null);
+        }
     }
 
     [RelayCommand]
@@ -562,6 +633,22 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     // ── Background tasks ──────────────────────────────────────────────────
 
     public void AddBackgroundTask(BackgroundTask task) => _activityManager.AddTask(task);
+
+    // ── IRibbonExecutionContext implementation ────────────────────────────
+
+    private sealed class RibbonExecutionContext(
+        IReadOnlyList<string>                               paths,
+        Action<string>                                      showError,
+        Action<string, string, Action, Action?>             showConfirmation,
+        Action                                              removeItem)
+        : IRibbonExecutionContext
+    {
+        public IReadOnlyList<string> SelectedFilePaths => paths;
+        public void ShowError(string message)                         => showError(message);
+        public void ShowConfirmation(string title, string message, Action onConfirm, Action? onCancel)
+            => showConfirmation(title, message, onConfirm, onCancel);
+        public void RemoveCurrentRibbonItem()                         => removeItem();
+    }
 
     private void SeedNotifications()
     {

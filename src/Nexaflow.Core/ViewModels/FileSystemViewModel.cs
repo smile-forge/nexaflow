@@ -1,5 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Nexaflow.Core.Models;
+using Nexaflow.Core.RibbonHandlers;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Core.FileActions;
@@ -27,6 +29,24 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
     // ── File action strip ─────────────────────────────────────────────────────
     private readonly FileActionManager _actionRegistry;
     public ObservableCollection<FileActionViewModel> FileActions { get; } = [];
+
+    // ── Ribbon pinning ────────────────────────────────────────────────────────
+    /// <summary>
+    /// Wired by ShellServices to route pin requests to the active window's ribbon.
+    /// Receives (ContentKind, payload).
+    /// </summary>
+    public Action<string, object>? PinToRibbonCallback { get; set; }
+
+    [RelayCommand(CanExecute = nameof(CanPinFileActionToRibbon))]
+    private void PinFileActionToRibbon(FileActionViewModel vm)
+    {
+        var paths   = CurrentSelection.Select(e => e.FullPath).ToList();
+        var payload = new FileActionPinPayload(vm.Action, paths);
+        PinToRibbonCallback?.Invoke(PageKinds.FileAction, payload);
+    }
+
+    private bool CanPinFileActionToRibbon(FileActionViewModel? vm)
+        => vm is not null && !vm.IsDestructive;
 
     // Debounce timer — action strip is only rebuilt after input has been idle
     // for a short interval, so rapid selection changes (including double-clicks)
@@ -510,11 +530,7 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
 
     private FileSystemViewModel()
     {
-        _actionRegistry = new FileActionManager(new Dictionary<Type, object>
-        {
-            [typeof(IShellServices)] = new LocalShellServices(this),
-            [typeof(FileMapManager)] = FileMapManager.Instance,
-        });
+        _actionRegistry = new FileActionManager();
         FileMapManager.Instance.RegisterKnownExperiences(_actionRegistry.AllExperiences);
     }
 
@@ -1085,39 +1101,6 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
             _sortAscending = true;
         }
         RefreshEntries();
-    }
-
-    // ── LocalShellServices ────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Per-tab <see cref="IShellServices"/> implementation injected into file actions.
-    /// Prompt and refresh methods are handled by this ViewModel; tab-management
-    /// calls are forwarded to the app-level singleton.
-    /// </summary>
-    private sealed class LocalShellServices(FileSystemViewModel vm) : IShellServices
-    {
-        private static IShellServices Global => FeatureManager.Instance.ShellServices!;
-
-        // ── Per-tab contextual methods ────────────────────────────────────────
-        public void ShowPrompt(string title, string label, string initialValue,
-                               Action<string> onConfirm, Action onCancel)
-            => vm.ShowInputPrompt(title, label, initialValue, onConfirm, onCancel);
-
-        public void ShowConfirmation(string title, string message, Action onConfirm, Action onCancel)
-            => vm.ShowConfirmation(message, onConfirm, onCancel);
-
-        public void RequestRefresh() => vm.Refresh();
-
-        // ── Global shell methods — forwarded ──────────────────────────────────
-        public void OpenTab(string pageKind, Dictionary<string, string>? pageParams = null,
-                            IPageView? caller = null)
-            => Global.OpenTab(pageKind, pageParams, caller);
-
-        public void CloseTab(Page tab)           => Global.CloseTab(tab);
-        public Page? FindTab(string pageKind, Dictionary<string, string>? pageParams = null)
-            => Global.FindTab(pageKind, pageParams);
-        public void ShowError(string message)        => Global.ShowError(message);
-        public void ShowNotification(string message) => Global.ShowNotification(message);
     }
 
 }

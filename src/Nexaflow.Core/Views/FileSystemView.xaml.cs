@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows;
@@ -6,6 +8,8 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Controls.Primitives;
 using Nexaflow.Core.Controls;
+using Nexaflow.Core.Models;
+using Nexaflow.Core.RibbonHandlers;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
@@ -14,12 +18,16 @@ using Nexaflow.Core.FileSystem;
 
 namespace Nexaflow.Core.Views;
 
-public partial class FileSystemView : UserControl, IPageView
+public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
 {
     public FileSystemViewModel ViewModel { get; }
 
     // ── IPageView ─────────────────────────────────────────────────────────────
     IPageViewModel? IPageView.ViewModel => ViewModel;
+
+    // ── ISelectionProvider ────────────────────────────────────────────────────
+    IReadOnlyList<string> ISelectionProvider.SelectedFilePaths
+        => ViewModel.CurrentSelection.Select(e => e.FullPath).ToList();
 
     private readonly IKeyboardHandler _keyboardHandler;
     private readonly IDropTarget      _dropTarget;
@@ -27,6 +35,11 @@ public partial class FileSystemView : UserControl, IPageView
     // Drag-from-list tracking
     private Point _listDragStartPoint;
     private bool  _listDragPending;
+
+    // Drag-from-ActionStrip tracking
+    private Point _actionDragStartPoint;
+    private bool  _actionDragPending;
+    private FileActionViewModel? _actionDragVm;
 
     // ── Viewlet state ─────────────────────────────────────────────────────────
     private readonly List<ViewletHost> _activeViewletHosts = [];
@@ -50,6 +63,7 @@ public partial class FileSystemView : UserControl, IPageView
         ViewModel.NavigationChanged += OnViewModelNavigationChanged;
         ViewModel.PropertyChanged   += OnViewModelPropertyChanged;
         WireDragDrop();
+        WireActionStripDrag();
         Loaded += (_, _) => UpdateListViewVisibility();
     }
 
@@ -63,6 +77,7 @@ public partial class FileSystemView : UserControl, IPageView
         ViewModel.NavigationChanged += OnViewModelNavigationChanged;
         ViewModel.PropertyChanged   += OnViewModelPropertyChanged;
         WireDragDrop();
+        WireActionStripDrag();
         Loaded += (_, _) => UpdateListViewVisibility();
     }
 
@@ -81,6 +96,53 @@ public partial class FileSystemView : UserControl, IPageView
 
         // Popup must be anchored to this UserControl so relative offsets work.
         Loaded += (_, _) => DropTooltipPopup.PlacementTarget = this;
+    }
+
+    private void WireActionStripDrag()
+    {
+        ActionStrip.PreviewMouseLeftButtonDown += ActionStrip_PreviewMouseLeftButtonDown;
+        ActionStrip.PreviewMouseMove           += ActionStrip_PreviewMouseMove;
+        ActionStrip.MouseLeftButtonUp          += ActionStrip_MouseLeftButtonUp;
+    }
+
+    private void ActionStrip_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _actionDragVm = FindActionViewModelAt(e.OriginalSource as DependencyObject);
+        if (_actionDragVm is null || _actionDragVm.IsDestructive) return;
+        _actionDragStartPoint = e.GetPosition(null);
+        _actionDragPending    = true;
+    }
+
+    private void ActionStrip_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_actionDragPending || e.LeftButton != MouseButtonState.Pressed || _actionDragVm is null) return;
+
+        var delta = e.GetPosition(null) - _actionDragStartPoint;
+        if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance)
+            return;
+
+        _actionDragPending = false;
+        var paths   = ViewModel.CurrentSelection.Select(entry => entry.FullPath).ToList();
+        var payload = new FileActionPinPayload(_actionDragVm.Action, paths);
+        var data    = new DataObject(PageKinds.FileAction, payload);
+        DragDrop.DoDragDrop(ActionStrip, data, DragDropEffects.Copy);
+    }
+
+    private void ActionStrip_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        _actionDragPending = false;
+        _actionDragVm      = null;
+    }
+
+    private static FileActionViewModel? FindActionViewModelAt(DependencyObject? source)
+    {
+        while (source is not null)
+        {
+            if (source is FrameworkElement { DataContext: FileActionViewModel vm }) return vm;
+            source = VisualTreeHelper.GetParent(source);
+        }
+        return null;
     }
 
     void IPageView.Reinitialize(Dictionary<string, string> pageParams)

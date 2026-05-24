@@ -8,6 +8,7 @@ using Nexaflow.Core.FileSystem;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Core.Views;
+using Nexaflow.Features.Common;
 
 namespace Nexaflow.Core.ViewModels;
 
@@ -212,6 +213,43 @@ public partial class RibbonViewModel : ObservableObject
         }
 
         AddItem(MakeButton(label, icon, pageKind, pageParams), insertIndex);
+    }
+
+    /// <summary>
+    /// Handle a handler-based pin: looks up the registered <see cref="IRibbonPinHandler"/>
+    /// for the request's <see cref="RibbonPinRequest.ContentKind"/>, builds the button,
+    /// deduplicates, and inserts.
+    /// </summary>
+    [RelayCommand]
+    public void PinFromHandler(RibbonPinRequest request)
+    {
+        var handler = FeatureManager.Instance.GetRibbonPinHandler(request.ContentKind);
+        if (handler is null) return;
+
+        var result = handler.Pin(request.Payload, request.InsertIndex);
+        if (result is null) return;
+
+        var pageParams = result.PageParams;
+
+        var duplicate = Items.FirstOrDefault(r =>
+            r.Kind == RibbonItemKind.Button &&
+            r.PageKind == request.ContentKind &&
+            ParamsEqual(r.PageParams, pageParams));
+        if (duplicate is not null)
+        {
+            FlashItem?.Invoke(duplicate);
+            return;
+        }
+
+        AddItem(new RibbonItem
+        {
+            Kind        = RibbonItemKind.Button,
+            Label       = result.Label,
+            Icon        = result.Icon,
+            AccentColor = result.AccentColor,
+            PageKind    = request.ContentKind,
+            PageParams  = pageParams
+        }, request.InsertIndex);
     }
 
     private static bool ParamsEqual(Dictionary<string, string>? a, Dictionary<string, string>? b)

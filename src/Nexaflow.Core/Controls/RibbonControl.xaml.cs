@@ -40,6 +40,9 @@ public partial class RibbonControl : UserControl
     public static readonly DependencyProperty ShellProperty =
         DependencyProperty.Register(nameof(Shell), typeof(IShellServices), typeof(RibbonControl));
 
+    public static readonly DependencyProperty PinFromHandlerCommandProperty =
+        DependencyProperty.Register(nameof(PinFromHandlerCommand), typeof(ICommand), typeof(RibbonControl));
+
     public WorkContext? WorkContext
     {
         get => (WorkContext?)GetValue(WorkContextProperty);
@@ -75,6 +78,12 @@ public partial class RibbonControl : UserControl
     {
         get => (IShellServices?)GetValue(ShellProperty);
         set => SetValue(ShellProperty, value);
+    }
+
+    public ICommand? PinFromHandlerCommand
+    {
+        get => (ICommand?)GetValue(PinFromHandlerCommandProperty);
+        set => SetValue(PinFromHandlerCommandProperty, value);
     }
 
     // ── Internal: button-click + context-menu commands ────────────────────

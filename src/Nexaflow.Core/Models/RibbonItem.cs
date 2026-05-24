@@ -8,11 +8,13 @@ public enum RibbonItemKind { Button, HalfGroup, Separator }
 /// <summary>
 /// Carries a tab drag-and-drop pin request, optionally with an insert index.
 /// </summary>
-/// <param name="Tab">The tab being pinned.</param>
-/// <param name="InsertIndex">
-/// The desired insertion position in the ribbon's items collection, or <c>-1</c> to append.
-/// </param>
 public record TabPinRequest(Page Tab, int InsertIndex = -1);
+
+/// <summary>
+/// Carries a handler-based pin request: a typed payload identified by ContentKind.
+/// Used for drag-drop of non-tab content (e.g. file actions) onto the ribbon.
+/// </summary>
+public record RibbonPinRequest(string ContentKind, object Payload, int InsertIndex = -1);
 
 /// <summary>
 /// Represents one item in the customisable ribbon.

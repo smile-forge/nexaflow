@@ -71,4 +71,26 @@ public sealed class ShellVerbAction : IFileAction
         foreach (var p in filePaths) ok |= PerformAction(p);
         return ok;
     }
+
+    // ── Ribbon pin rehydration ───────────────────────────────────────────────
+    // ShellVerbAction is constructed at runtime per registered shell verb, so
+    // it's not in FeatureManager's singleton set. To survive a ribbon pin we
+    // serialise the essential state here and provide a static factory to
+    // recreate the instance at click time. Icon/tooltip are not persisted —
+    // the rehydrated button works correctly, just without its custom icon.
+
+    public Dictionary<string, string>? GetReinitParams() => new()
+    {
+        ["verb"]         = _verb,
+        ["friendlyName"] = DisplayName,
+        ["command"]      = _command,
+        ["experienceId"] = _experienceId,
+    };
+
+    public static IFileAction Rehydrate(Dictionary<string, string> p) =>
+        new ShellVerbAction(
+            verb:         p.GetValueOrDefault("verb",         string.Empty),
+            friendlyName: p.GetValueOrDefault("friendlyName", string.Empty),
+            command:      p.GetValueOrDefault("command",      string.Empty),
+            experienceId: p.GetValueOrDefault("experienceId", string.Empty));
 }
