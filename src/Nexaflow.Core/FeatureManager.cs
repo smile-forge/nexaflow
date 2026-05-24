@@ -175,7 +175,10 @@ public sealed class FeatureManager
     /// <summary>
     /// Scans <paramref name="asm"/> for <see cref="IFileAction"/>, <see cref="IFolderAction"/>,
     /// and <see cref="IFileCreateAction"/> implementations, recording their types and
-    /// instantiating each one once via <see cref="ResolveArgs"/>.
+    /// instantiating each one once via <see cref="TryInstantiate"/>. Types whose ctor
+    /// args can't be resolved are silently skipped — that excludes wrappers like
+    /// <c>FolderActionAdapter</c> (needs an <c>IFolderAction</c>) and runtime types like
+    /// <c>ShellVerbAction</c> (needs strings), both of which are constructed elsewhere.
     /// </summary>
     private void DiscoverActions(Assembly asm, Dictionary<Type, IFeatureConfig> configs)
     {
@@ -186,32 +189,58 @@ public sealed class FeatureManager
             bool isCreate = typeof(IFileCreateAction).IsAssignableFrom(t);
             if (!isFile && !isFolder && !isCreate) continue;
 
-            if (isFile)   _fileActionTypes.Add(t);
-            if (isFolder) _folderActionTypes.Add(t);
-            if (isCreate) _fileCreateActionTypes.Add(t);
+            var instance = TryInstantiate(t, configs);
+            if (instance is null) continue;
 
-            object? instance;
-            try
-            {
-                var ctor = BestConstructor(t);
-                instance = ctor.Invoke(ResolveArgs(ctor, configs));
-            }
-            catch { continue; }
-
-            if (instance is IFileAction fa)        _fileActions.Add(fa);
-            if (instance is IFolderAction fla)     _folderActions.Add(fla);
-            if (instance is IFileCreateAction fca) _fileCreateActions.Add(fca);
+            if (isFile)   { _fileActionTypes.Add(t);       _fileActions.Add((IFileAction)instance); }
+            if (isFolder) { _folderActionTypes.Add(t);     _folderActions.Add((IFolderAction)instance); }
+            if (isCreate) { _fileCreateActionTypes.Add(t); _fileCreateActions.Add((IFileCreateAction)instance); }
         }
     }
 
     private void TryInstantiate<T>(Type t, Dictionary<Type, IFeatureConfig> configs, List<T> sink)
     {
-        try
+        if (TryInstantiate(t, configs) is T instance) sink.Add(instance);
+    }
+
+    /// <summary>
+    /// Tries each public constructor longest-first; uses the first whose parameters
+    /// can ALL be resolved from registered singleton services, configs, or
+    /// <see cref="ShellServices"/>. Returns null when no constructor is fully
+    /// satisfiable — matches the old FileActionManager.TryCreate semantics so
+    /// types whose deps aren't available are skipped rather than created in a
+    /// broken null state.
+    /// </summary>
+    private object? TryInstantiate(Type t, Dictionary<Type, IFeatureConfig> configs)
+    {
+        foreach (var ctor in t.GetConstructors().OrderByDescending(c => c.GetParameters().Length))
         {
-            var ctor = BestConstructor(t);
-            sink.Add((T)ctor.Invoke(ResolveArgs(ctor, configs)));
+            var args = TryResolveArgs(ctor, configs);
+            if (args is null) continue;
+            try { return ctor.Invoke(args); }
+            catch { /* ctor itself threw — try a shorter overload */ }
         }
-        catch { /* skip — requires unresolvable constructor args */ }
+        return null;
+    }
+
+    private object?[]? TryResolveArgs(ConstructorInfo ctor, Dictionary<Type, IFeatureConfig> configs)
+    {
+        var parms = ctor.GetParameters();
+        var args  = new object?[parms.Length];
+        for (int i = 0; i < parms.Length; i++)
+        {
+            var pt = parms[i].ParameterType;
+            if (typeof(IShellServices).IsAssignableFrom(pt))
+            {
+                if (ShellServices is null) return null;
+                args[i] = ShellServices;
+            }
+            else if (_singletonServices.TryGetValue(pt, out var svc)) args[i] = svc;
+            else if (configs.TryGetValue(pt, out var cfg))            args[i] = cfg;
+            else if (parms[i].IsOptional)                             args[i] = Type.Missing;
+            else                                                      return null;
+        }
+        return args;
     }
 
     private static ConstructorInfo BestConstructor(Type t)
