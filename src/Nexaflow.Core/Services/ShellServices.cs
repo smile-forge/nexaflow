@@ -162,11 +162,22 @@ public sealed class ShellServices : IShellServices
     /// </summary>
     public void OpenPageInNewWindow(string pageKind, Dictionary<string, string>? pageParams = null)
     {
-        if (CreateWindowFactory is null) return;
-        var newHost = CreateWindowFactory();
-        newHost.Window.Show();
+        var newHost = CreateAndShowNewWindow();
+        if (newHost is null) return;
         // SetFocused fires via Activated event before we hit OpenTab; the open lands in the new window.
         OpenTab(pageKind, pageParams);
+    }
+
+    /// <summary>
+    /// Creates and shows a new shell window, making it the focused window.
+    /// Returns null if no factory is registered.
+    /// </summary>
+    internal IWindowHost? CreateAndShowNewWindow()
+    {
+        if (CreateWindowFactory is null) return null;
+        var newHost = CreateWindowFactory();
+        newHost.Window.Show();
+        return newHost;
     }
 
     internal void MoveTab(Page tab, IWindowHost targetHost)
