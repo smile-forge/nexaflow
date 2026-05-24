@@ -10,4 +10,5 @@ public static class PageKinds
     public const string FileSystem  = "FileSystem";
     public const string AiChat      = "AiChat";
     public const string Placeholder = "Placeholder";
+    public const string FileAction  = "FileAction";
 }

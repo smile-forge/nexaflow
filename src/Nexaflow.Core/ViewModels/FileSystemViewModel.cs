@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Core.FileActions;
@@ -27,6 +28,20 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
     // ── File action strip ─────────────────────────────────────────────────────
     private readonly FileActionManager _actionRegistry;
     public ObservableCollection<FileActionViewModel> FileActions { get; } = [];
+
+    // ── Ribbon pinning ────────────────────────────────────────────────────────
+    /// <summary>
+    /// Wired by ShellServices to route pin requests to the active window's ribbon.
+    /// Receives (ContentKind, payload).
+    /// </summary>
+    public Action<string, object>? PinToRibbonCallback { get; set; }
+
+    [RelayCommand(CanExecute = nameof(CanPinFileActionToRibbon))]
+    private void PinFileActionToRibbon(FileActionViewModel vm)
+        => PinToRibbonCallback?.Invoke(PageKinds.FileAction, vm.Action);
+
+    private bool CanPinFileActionToRibbon(FileActionViewModel? vm)
+        => vm is not null && !vm.IsDestructive;
 
     // Debounce timer — action strip is only rebuilt after input has been idle
     // for a short interval, so rapid selection changes (including double-clicks)

@@ -36,6 +36,7 @@
                         RibbonActionCommand="{Binding InternalRibbonActionCommand, ElementName=Root}"
                         EditClickCommand="{Binding ViewModel.ToggleEditCommand, ElementName=Root}"
                         PinTabToRibbonCommand="{Binding ViewModel.PinCommand, ElementName=Root}"
+                        PinFromHandlerCommand="{Binding ViewModel.PinFromHandlerCommand, ElementName=Root}"
                         OpenInNewWindowCommand="{Binding InternalOpenInNewWindowCommand, ElementName=Root}"
                         DeleteItemCommand="{Binding InternalDeleteCommand, ElementName=Root}"/>
     </Grid>

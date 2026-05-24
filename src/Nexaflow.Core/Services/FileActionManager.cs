@@ -138,6 +138,12 @@ public sealed class FileActionManager
         return null;
     }
 
+    // ── Lookup ───────────────────────────────────────────────────────────────
+
+    /// <summary>Finds an action by its concrete type's full or short name.</summary>
+    public IFileAction? FindByTypeName(string name)
+        => _all.FirstOrDefault(a => a.GetType().FullName == name || a.GetType().Name == name);
+
     // ── Filtering ─────────────────────────────────────────────────────────────
 
     /// <summary>

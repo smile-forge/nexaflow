@@ -804,7 +804,17 @@
                                             ToolTip="{Binding ButtonTooltip}"
                                             Width="54" Height="58"
                                             Margin="1"
-                                            Cursor="Hand">
+                                            Cursor="Hand"
+                                            Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                        <Button.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Add to Ribbon"
+                                                          Command="{Binding PlacementTarget.Tag.PinFileActionToRibbonCommand,
+                                                                            RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          CommandParameter="{Binding PlacementTarget.DataContext,
+                                                                                     RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                            </ContextMenu>
+                                        </Button.ContextMenu>
                                         <Button.Style>
                                             <Style TargetType="Button">
                                                 <Setter Property="Background"      Value="{StaticResource SurfaceBrush}"/>

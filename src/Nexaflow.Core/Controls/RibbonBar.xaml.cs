@@ -8,6 +8,8 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using Nexaflow.Core.Models;
+using Nexaflow.Core.ViewModels;
+using Nexaflow.Features.Common;
 
 namespace Nexaflow.Core.Controls;
 
@@ -42,6 +44,10 @@ public partial class RibbonBar : UserControl
         DependencyProperty.Register(nameof(DeleteItemCommand),
             typeof(ICommand), typeof(RibbonBar));
 
+    public static readonly DependencyProperty PinFromHandlerCommandProperty =
+        DependencyProperty.Register(nameof(PinFromHandlerCommand),
+            typeof(ICommand), typeof(RibbonBar));
+
     public ObservableCollection<RibbonItem>? ItemsSource
     {
         get => (ObservableCollection<RibbonItem>?)GetValue(ItemsSourceProperty);
@@ -71,6 +77,11 @@ public partial class RibbonBar : UserControl
     {
         get => (ICommand?)GetValue(DeleteItemCommandProperty);
         set => SetValue(DeleteItemCommandProperty, value);
+    }
+    public ICommand? PinFromHandlerCommand
+    {
+        get => (ICommand?)GetValue(PinFromHandlerCommandProperty);
+        set => SetValue(PinFromHandlerCommandProperty, value);
     }
 
     private ContextMenu BuildItemContextMenu(RibbonItem item)
@@ -121,18 +132,48 @@ public partial class RibbonBar : UserControl
             e.Handled = true;
             return;
         }
-        e.Effects = e.Data.GetDataPresent(typeof(Page))
-            ? DragDropEffects.Move
-            : DragDropEffects.None;
+
+        if (e.Data.GetDataPresent(typeof(Page)))
+        {
+            e.Effects = DragDropEffects.Move;
+            e.Handled = true;
+            return;
+        }
+
+        foreach (var h in FeatureManager.Instance.RibbonPinHandlers)
+        {
+            if (e.Data.GetDataPresent(h.ContentKind))
+            {
+                e.Effects = DragDropEffects.Copy;
+                e.Handled = true;
+                return;
+            }
+        }
+
+        e.Effects = DragDropEffects.None;
         e.Handled = true;
     }
 
     private void RibbonBar_Drop(object sender, DragEventArgs e)
     {
-        if (e.Data.GetData(typeof(Page)) is not Page tab) return;
         int insertAt = ComputeInsertIndex(e.GetPosition(ItemsPanel));
-        PinTabToRibbonCommand?.Execute(new TabPinRequest(tab, insertAt));
-        e.Handled = true;
+
+        if (e.Data.GetData(typeof(Page)) is Page tab)
+        {
+            PinTabToRibbonCommand?.Execute(new TabPinRequest(tab, insertAt));
+            e.Handled = true;
+            return;
+        }
+
+        foreach (var h in FeatureManager.Instance.RibbonPinHandlers)
+        {
+            if (e.Data.GetData(h.ContentKind) is { } payload)
+            {
+                PinFromHandlerCommand?.Execute(new RibbonPinRequest(h.ContentKind, payload, insertAt));
+                e.Handled = true;
+                return;
+            }
+        }
     }
 
     private int ComputeInsertIndex(Point posInPanel)

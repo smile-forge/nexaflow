@@ -28,12 +28,22 @@ public sealed class FeatureManager
     private readonly List<Type> _fileCreateActionTypes = [];
     private readonly List<Type> _keyboardHandlerTypes  = [];
     private readonly List<Type> _dropTargetTypes       = [];
+    private readonly List<IRibbonPinHandler> _ribbonPinHandlers = [];
 
     public IReadOnlyList<Type> FileActionTypes       => _fileActionTypes;
     public IReadOnlyList<Type> FolderActionTypes     => _folderActionTypes;
     public IReadOnlyList<Type> FileCreateActionTypes => _fileCreateActionTypes;
     public IReadOnlyList<Type> KeyboardHandlerTypes  => _keyboardHandlerTypes;
     public IReadOnlyList<Type> DropTargetTypes       => _dropTargetTypes;
+
+    public IReadOnlyList<IRibbonPinHandler> RibbonPinHandlers => _ribbonPinHandlers.AsReadOnly();
+
+    public void RegisterRibbonPinHandler(IRibbonPinHandler handler)
+        => _ribbonPinHandlers.Add(handler);
+
+    public IRibbonPinHandler? GetRibbonPinHandler(string? contentKind)
+        => contentKind is null ? null
+           : _ribbonPinHandlers.FirstOrDefault(h => h.ContentKind == contentKind);
 
     // ── Shell services ────────────────────────────────────────────────────
 
@@ -147,6 +157,16 @@ public sealed class FeatureManager
                     var ctor = BestConstructor(t);
                     var args = ResolveArgs(ctor, configInstances);
                     _folderViewlets.Add((IFolderViewlet)ctor.Invoke(args));
+                }
+                catch { /* skip — requires unresolvable constructor args */ }
+            }
+            if (typeof(IRibbonPinHandler).IsAssignableFrom(t))
+            {
+                try
+                {
+                    var ctor = BestConstructor(t);
+                    var args = ResolveArgs(ctor, configInstances);
+                    _ribbonPinHandlers.Add((IRibbonPinHandler)ctor.Invoke(args));
                 }
                 catch { /* skip — requires unresolvable constructor args */ }
             }

@@ -30,6 +30,12 @@ public sealed class ShellServices : IShellServices
     /// </summary>
     internal Func<IWindowHost>? CreateWindowFactory { get; set; }
 
+    /// <summary>
+    /// Called by MainWindow to connect file-action pin requests from FileSystemViewModels
+    /// to the active window's ribbon.  The callback receives (ContentKind, payload).
+    /// </summary>
+    internal Action<string, object>? PinToRibbonCallback { get; set; }
+
     internal void RegisterWindow(IWindowHost host) => _windows.Add(host);
 
     internal void UnregisterWindow(IWindowHost host)
@@ -230,6 +236,8 @@ public sealed class ShellServices : IShellServices
         var dropTarget = new FileSystemDropTarget(fsVm);
         var page = new FileSystemView(fsVm, keyHandler, dropTarget);
         page.NavigationChanged += segments => ApplyFileSystemBreadcrumbs(tab, page, segments);
+        if (PinToRibbonCallback is not null)
+            fsVm.PinToRibbonCallback = PinToRibbonCallback;
         return page;
     }
 

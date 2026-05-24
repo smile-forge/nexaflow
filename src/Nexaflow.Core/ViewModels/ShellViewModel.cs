@@ -239,6 +239,12 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     private readonly ShellServices _shellServices;
 
+    /// <summary>
+    /// Set by MainWindow after the RibbonControl is initialised so the shell can
+    /// remove ribbon items from handler execution (e.g. "files no longer exist").
+    /// </summary>
+    public RibbonViewModel? Ribbon { get; set; }
+
     public ShellViewModel(BackgroundActivityManager activityManager,
                           WorkContext workContext,
                           ShellServices shellServices)
@@ -304,9 +310,26 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     private void OpenRibbonItem(RibbonItem item)
     {
         if (item.PageKind is not null)
+        {
+            var handler = FeatureManager.Instance.GetRibbonPinHandler(item.PageKind);
+            if (handler is not null)
+            {
+                var paths = (CurrentPage as ISelectionProvider)?.SelectedFilePaths
+                            ?? (IReadOnlyList<string>)[];
+                var ctx = new RibbonExecutionContext(
+                    paths,
+                    msg           => ShowError("Ribbon Action", msg),
+                    (t, m, ok, c) => ShowConfirmation(t, m, ok, c),
+                    ()            => Ribbon?.Items.Remove(item));
+                handler.Execute(item.PageParams, ctx);
+                return;
+            }
             _shellServices.OpenTab(item.PageKind, item.PageParams);
+        }
         else
+        {
             item.Command?.Execute(null);
+        }
     }
 
     [RelayCommand]
@@ -562,6 +585,22 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     // ── Background tasks ──────────────────────────────────────────────────
 
     public void AddBackgroundTask(BackgroundTask task) => _activityManager.AddTask(task);
+
+    // ── IRibbonExecutionContext implementation ────────────────────────────
+
+    private sealed class RibbonExecutionContext(
+        IReadOnlyList<string>                               paths,
+        Action<string>                                      showError,
+        Action<string, string, Action, Action?>             showConfirmation,
+        Action                                              removeItem)
+        : IRibbonExecutionContext
+    {
+        public IReadOnlyList<string> SelectedFilePaths => paths;
+        public void ShowError(string message)                         => showError(message);
+        public void ShowConfirmation(string title, string message, Action onConfirm, Action? onCancel)
+            => showConfirmation(title, message, onConfirm, onCancel);
+        public void RemoveCurrentRibbonItem()                         => removeItem();
+    }
 
     private void SeedNotifications()
     {
