@@ -40,4 +40,8 @@ internal interface IWindowHost
 
     /// <summary>Shows the window-level confirmation overlay (independent of any page).</summary>
     void ShowConfirmation(string title, string prompt, System.Action onConfirm, System.Action? onCancel = null);
+
+    /// <summary>Shows the window-level text-input prompt overlay (independent of any page).</summary>
+    void ShowPrompt(string title, string label, string initialValue,
+                    System.Action<string> onConfirm, System.Action? onCancel = null);
 }

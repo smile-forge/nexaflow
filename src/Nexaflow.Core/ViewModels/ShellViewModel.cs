@@ -43,6 +43,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     void IWindowHost.ShowConfirmation(string title, string prompt, Action onConfirm, Action? onCancel)
         => ShowConfirmation(title, prompt, onConfirm, onCancel);
 
+    void IWindowHost.ShowPrompt(string title, string label, string initialValue,
+                                Action<string> onConfirm, Action? onCancel)
+        => ShowPrompt(title, label, initialValue, onConfirm, onCancel);
+
     // ── Pane (the strip of pages + active page) ───────────────────────────
     // The shell hosts a single root pane today. In future this becomes a
     // tree (SplitPaneNode = left + right Panes) — bind UI to RootPaneNode.
@@ -181,6 +185,50 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         ConfirmationVisible = false;
         var cb = _confirmationOnCancel;
         _confirmationOnConfirm = _confirmationOnCancel = null;
+        cb?.Invoke();
+    }
+
+    // ── Shell-level input prompt overlay ──────────────────────────────────
+    // Window-level text-input prompt. Mirrors the confirmation overlay above
+    // and is the destination for IShellServices.ShowPrompt.
+
+    [ObservableProperty] private bool   _promptVisible;
+    [ObservableProperty] private string _promptTitle = string.Empty;
+    [ObservableProperty] private string _promptLabel = string.Empty;
+    [ObservableProperty] private string _promptValue = string.Empty;
+
+    private Action<string>? _promptOnConfirm;
+    private Action?         _promptOnCancel;
+
+    public void ShowPrompt(string title, string label, string initialValue,
+                           Action<string> onConfirm, Action? onCancel = null)
+    {
+        PromptTitle      = title;
+        PromptLabel      = label;
+        PromptValue      = initialValue;
+        _promptOnConfirm = onConfirm;
+        _promptOnCancel  = onCancel;
+        PromptVisible    = true;
+    }
+
+    [RelayCommand]
+    private void ConfirmShellPrompt()
+    {
+        PromptVisible = false;
+        var value = PromptValue;
+        var cb    = _promptOnConfirm;
+        _promptOnConfirm = null;
+        _promptOnCancel  = null;
+        cb?.Invoke(value);
+    }
+
+    [RelayCommand]
+    private void CancelShellPrompt()
+    {
+        PromptVisible = false;
+        var cb = _promptOnCancel;
+        _promptOnConfirm = null;
+        _promptOnCancel  = null;
         cb?.Invoke();
     }
 

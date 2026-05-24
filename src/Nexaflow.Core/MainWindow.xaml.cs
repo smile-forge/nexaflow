@@ -104,6 +104,16 @@ public partial class MainWindow : Window
             RibbonControl.ViewModel.PinFromHandlerCommand.Execute(
                 new RibbonPinRequest(kind, payload));
 
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ShellViewModel.PromptVisible) && _vm.PromptVisible)
+                Dispatcher.BeginInvoke(() =>
+                {
+                    PromptTextBox.Focus();
+                    PromptTextBox.SelectAll();
+                });
+        };
+
         Activated   += (_, _) => _shellServices.SetFocused(_vm);
         Deactivated += (_, _) => _shellServices.ClearFocused(_vm);
         Closing     += (_, _) => _shellServices.UnregisterWindow(_vm);
@@ -118,6 +128,8 @@ public partial class MainWindow : Window
                 RibbonControl.ViewModel.IsEditOpen = false;
                 if (_vm.ConfirmationVisible)
                     _vm.CancelShellConfirmationCommand.Execute(null);
+                if (_vm.PromptVisible)
+                    _vm.CancelShellPromptCommand.Execute(null);
             }
         };
 

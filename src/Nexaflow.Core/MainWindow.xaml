@@ -412,6 +412,53 @@
         </Border>
 
         <!-- ═══════════════════════════════════════════════════════════
+             OVERLAY — SHELL INPUT PROMPT (window-level)
+             Used by file actions like Rename and any other shell action
+             that needs a single text-input field.
+             ═══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="0" Grid.RowSpan="5"
+                Visibility="{Binding PromptVisible, Converter={StaticResource BoolVis}}"
+                Background="#CC0F1117" Panel.ZIndex="150">
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Width="420" Style="{StaticResource PopupBorder}" Padding="20">
+                <StackPanel>
+                    <TextBlock Text="{Binding PromptTitle}"
+                               FontSize="15" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextBrush}"
+                               Margin="0,0,0,10"/>
+                    <TextBlock Text="{Binding PromptLabel}"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               Margin="0,0,0,6"/>
+                    <TextBox x:Name="PromptTextBox"
+                             Text="{Binding PromptValue, UpdateSourceTrigger=PropertyChanged}"
+                             Padding="8,6" Margin="0,0,0,18"
+                             FontSize="13"
+                             Background="{StaticResource Surface2Brush}"
+                             Foreground="{StaticResource TextBrush}"
+                             BorderBrush="{StaticResource BorderBrush}"
+                             BorderThickness="1"
+                             AcceptsReturn="False">
+                        <TextBox.InputBindings>
+                            <KeyBinding Key="Enter"  Command="{Binding ConfirmShellPromptCommand}"/>
+                            <KeyBinding Key="Escape" Command="{Binding CancelShellPromptCommand}"/>
+                        </TextBox.InputBindings>
+                    </TextBox>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Cancel"
+                                Command="{Binding CancelShellPromptCommand}"
+                                Padding="14,6" Margin="0,0,8,0"/>
+                        <Button Content="OK"
+                                Command="{Binding ConfirmShellPromptCommand}"
+                                Padding="14,6"
+                                Background="{StaticResource AccentBrush}"
+                                Foreground="White"
+                                FontWeight="SemiBold"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!-- ═══════════════════════════════════════════════════════════
              OVERLAY — OPTIONS PANEL
              ═══════════════════════════════════════════════════════════ -->
         <Border Grid.Row="0" Grid.RowSpan="5"
