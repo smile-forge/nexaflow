@@ -3,6 +3,7 @@ using System.Collections.Specialized;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Interop;
 
 namespace Nexaflow.Core
 {
@@ -273,6 +274,20 @@ namespace Nexaflow.Core
                 File.Copy(file, Path.Combine(dest, Path.GetFileName(file)), overwrite: false);
             foreach (var dir in Directory.GetDirectories(source))
                 CopyDirectory(dir, Path.Combine(dest, Path.GetFileName(dir)));
+        }
+
+        // ── DWM (Desktop Window Manager) ─────────────────────────────────────
+
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+
+        private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+
+        public static void EnableDarkMode(Window window)
+        {
+            var hwnd = new WindowInteropHelper(window).Handle;
+            int dark = 1;
+            DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
         }
 
         // ── Recycle bin deletion via SHFileOperation ──────────────────────────
