@@ -15,6 +15,12 @@ public sealed class FileActionRibbonPinHandler : IRibbonPinHandler
 {
     public string ContentKind => PageKinds.FileAction;
 
+    // PageParam keys reserved by this handler. Reinit params from the action are
+    // stored flat under the "r." prefix to keep them distinct from these.
+    private const string KeyActionType = "actionType";
+    private const string KeyFiles      = "files";
+    private const string ReinitPrefix  = "r.";
+
     public RibbonPinResult? Pin(object payload, int insertIndex = -1)
     {
         if (payload is not FileActionPinPayload pinPayload) return null;
@@ -25,22 +31,34 @@ public sealed class FileActionRibbonPinHandler : IRibbonPinHandler
         var firstName = paths.Count > 0 ? Path.GetFileName(paths[0]) : null;
         var label     = firstName is { Length: > 0 } ? $"{action.DisplayName}: {firstName}" : action.DisplayName;
 
-        var pageParams = new Dictionary<string, string> { ["actionType"] = action.GetType().FullName! };
+        var pageParams = new Dictionary<string, string> { [KeyActionType] = action.GetType().FullName! };
         if (paths.Count > 0)
-            pageParams["files"] = string.Join("|", paths);
+            pageParams[KeyFiles] = string.Join("|", paths);
+
+        // Runtime-constructed actions (e.g. ShellVerbAction) need their state
+        // persisted so FeatureManager.FindFileAction can rehydrate them later.
+        var reinit = action.GetReinitParams();
+        if (reinit is not null)
+            foreach (var kv in reinit)
+                pageParams[ReinitPrefix + kv.Key] = kv.Value;
 
         return new RibbonPinResult { Label = label, Icon = action.Icon, PageParams = pageParams };
     }
 
     public void Execute(Dictionary<string, string>? pageParams, IRibbonExecutionContext context)
     {
-        if (pageParams?.TryGetValue("actionType", out var typeName) != true) return;
+        if (pageParams?.TryGetValue(KeyActionType, out var typeName) != true) return;
 
-        var action = FeatureManager.Instance.FindFileAction(typeName!);
+        Dictionary<string, string>? reinit = null;
+        foreach (var kv in pageParams)
+            if (kv.Key.StartsWith(ReinitPrefix))
+                (reinit ??= [])[kv.Key[ReinitPrefix.Length..]] = kv.Value;
+
+        var action = FeatureManager.Instance.FindFileAction(typeName!, reinit);
         if (action == null) return;
 
         List<string> paths;
-        if (pageParams.TryGetValue("files", out var filesStr) && !string.IsNullOrEmpty(filesStr))
+        if (pageParams.TryGetValue(KeyFiles, out var filesStr) && !string.IsNullOrEmpty(filesStr))
         {
             paths = [.. filesStr.Split('|').Where(p => !string.IsNullOrEmpty(p))];
         }

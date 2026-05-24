@@ -49,11 +49,38 @@ public sealed class FeatureManager
     public IReadOnlyList<IFileCreateAction> FileCreateActions => _fileCreateActions;
 
     /// <summary>
-    /// Finds a registered <see cref="IFileAction"/> instance by its concrete type's full or short name.
+    /// Finds an <see cref="IFileAction"/> by its concrete type's full or short name.
+    /// Looks first in the singleton set built during <see cref="RegisterFeatures"/>;
+    /// when that misses and <paramref name="reinitParams"/> is supplied, locates the
+    /// type in any loaded assembly and invokes its
+    /// <c>public static IFileAction Rehydrate(Dictionary&lt;string, string&gt;)</c>
+    /// factory — the pattern runtime-constructed types (e.g. <see cref="FileActions.ShellVerbAction"/>)
+    /// use to survive a ribbon pin.
     /// </summary>
-    public IFileAction? FindFileAction(string typeName)
-        => _fileActions.FirstOrDefault(a =>
-               a.GetType().FullName == typeName || a.GetType().Name == typeName);
+    public IFileAction? FindFileAction(string typeName, Dictionary<string, string>? reinitParams = null)
+    {
+        var singleton = _fileActions.FirstOrDefault(a =>
+            a.GetType().FullName == typeName || a.GetType().Name == typeName);
+        if (singleton is not null) return singleton;
+
+        if (reinitParams is null) return null;
+
+        var type = AppDomain.CurrentDomain.GetAssemblies()
+            .Select(a => a.GetType(typeName, throwOnError: false, ignoreCase: false))
+            .FirstOrDefault(t => t is not null);
+        if (type is null) return null;
+
+        var factory = type.GetMethod(
+            "Rehydrate",
+            BindingFlags.Public | BindingFlags.Static,
+            binder: null,
+            types: [typeof(Dictionary<string, string>)],
+            modifiers: null);
+        if (factory is null) return null;
+
+        try { return factory.Invoke(null, [reinitParams]) as IFileAction; }
+        catch { return null; }
+    }
 
     public IReadOnlyList<IRibbonPinHandler> RibbonPinHandlers => _ribbonPinHandlers.AsReadOnly();
 

@@ -53,5 +53,19 @@ namespace Nexaflow.Features.Common
         /// Defaults to calling the normal overload.
         /// </summary>
         bool PerformAction(IEnumerable<string> filePaths, bool force) => PerformAction(filePaths);
+
+        /// <summary>
+        /// Per-instance state that defines this action — for runtime-constructed types
+        /// (e.g. one shell-verb action per registered verb) whose identity depends on
+        /// constructor args. Returns null for singleton actions, where the type name
+        /// alone is enough to look the instance up via <c>FeatureManager.FindFileAction</c>.
+        ///
+        /// The ribbon pinning system persists these params alongside the type name so
+        /// the action can be rehydrated when its button is clicked. Action types that
+        /// override this MUST also expose a
+        /// <c>public static IFileAction Rehydrate(Dictionary&lt;string, string&gt; params)</c>
+        /// static factory; the rehydration path uses reflection to locate it.
+        /// </summary>
+        Dictionary<string, string>? GetReinitParams() => null;
     }
 }
