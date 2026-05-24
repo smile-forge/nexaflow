@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.Models;
+using Nexaflow.Core.RibbonHandlers;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Core.FileActions;
@@ -38,7 +39,11 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
 
     [RelayCommand(CanExecute = nameof(CanPinFileActionToRibbon))]
     private void PinFileActionToRibbon(FileActionViewModel vm)
-        => PinToRibbonCallback?.Invoke(PageKinds.FileAction, vm.Action);
+    {
+        var paths   = CurrentSelection.Select(e => e.FullPath).ToList();
+        var payload = new FileActionPinPayload(vm.Action, paths);
+        PinToRibbonCallback?.Invoke(PageKinds.FileAction, payload);
+    }
 
     private bool CanPinFileActionToRibbon(FileActionViewModel? vm)
         => vm is not null && !vm.IsDestructive;

@@ -9,6 +9,7 @@ using System.Windows.Media;
 using System.Windows.Controls.Primitives;
 using Nexaflow.Core.Controls;
 using Nexaflow.Core.Models;
+using Nexaflow.Core.RibbonHandlers;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
@@ -106,15 +107,15 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
 
     private void ActionStrip_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        _actionDragVm = FindActionViewModelAt(e.OriginalSource as DependencyObject);
+        if (_actionDragVm is null || _actionDragVm.IsDestructive) return;
         _actionDragStartPoint = e.GetPosition(null);
         _actionDragPending    = true;
-        _actionDragVm         = FindActionViewModelAt(e.OriginalSource as DependencyObject);
     }
 
     private void ActionStrip_PreviewMouseMove(object sender, MouseEventArgs e)
     {
-        if (!_actionDragPending || e.LeftButton != MouseButtonState.Pressed) return;
-        if (_actionDragVm is null || _actionDragVm.IsDestructive) { _actionDragPending = false; return; }
+        if (!_actionDragPending || e.LeftButton != MouseButtonState.Pressed || _actionDragVm is null) return;
 
         var delta = e.GetPosition(null) - _actionDragStartPoint;
         if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
@@ -122,7 +123,9 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
             return;
 
         _actionDragPending = false;
-        var data = new DataObject(PageKinds.FileAction, _actionDragVm.Action);
+        var paths   = ViewModel.CurrentSelection.Select(entry => entry.FullPath).ToList();
+        var payload = new FileActionPinPayload(_actionDragVm.Action, paths);
+        var data    = new DataObject(PageKinds.FileAction, payload);
         DragDrop.DoDragDrop(ActionStrip, data, DragDropEffects.Copy);
     }
 
