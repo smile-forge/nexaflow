@@ -79,8 +79,7 @@ public partial class App : Application
 
         FeatureManager.Instance.SetShellServices(defaultCtx.ShellServices!);
         FeatureManager.Instance.RegisterFeatures();
-        FeatureManager.Instance.RegisterRibbonPinHandler(
-            new FileActionRibbonPinHandler(new FileActionManager()));
+        FeatureManager.Instance.RegisterRibbonPinHandler(new FileActionRibbonPinHandler());
 
         // ── 7. Torn-off window factory ───────────────────────────────────────
         defaultCtx.ShellServices!.CreateWindowFactory = () =>

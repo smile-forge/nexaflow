@@ -30,11 +30,30 @@ public sealed class FeatureManager
     private readonly List<Type> _dropTargetTypes       = [];
     private readonly List<IRibbonPinHandler> _ribbonPinHandlers = [];
 
+    // Singleton instances of file/folder/create actions. Built during Register;
+    // these are the authoritative in-memory set used by both the FileSystemView
+    // and the ribbon FileAction handler. Constructor args are resolved through
+    // ResolveArgs (global IShellServices + registered singleton services).
+    private readonly List<IFileAction>       _fileActions       = [];
+    private readonly List<IFolderAction>     _folderActions     = [];
+    private readonly List<IFileCreateAction> _fileCreateActions = [];
+
     public IReadOnlyList<Type> FileActionTypes       => _fileActionTypes;
     public IReadOnlyList<Type> FolderActionTypes     => _folderActionTypes;
     public IReadOnlyList<Type> FileCreateActionTypes => _fileCreateActionTypes;
     public IReadOnlyList<Type> KeyboardHandlerTypes  => _keyboardHandlerTypes;
     public IReadOnlyList<Type> DropTargetTypes       => _dropTargetTypes;
+
+    public IReadOnlyList<IFileAction>       FileActions       => _fileActions;
+    public IReadOnlyList<IFolderAction>     FolderActions     => _folderActions;
+    public IReadOnlyList<IFileCreateAction> FileCreateActions => _fileCreateActions;
+
+    /// <summary>
+    /// Finds a registered <see cref="IFileAction"/> instance by its concrete type's full or short name.
+    /// </summary>
+    public IFileAction? FindFileAction(string typeName)
+        => _fileActions.FirstOrDefault(a =>
+               a.GetType().FullName == typeName || a.GetType().Name == typeName);
 
     public IReadOnlyList<IRibbonPinHandler> RibbonPinHandlers => _ribbonPinHandlers.AsReadOnly();
 
@@ -83,6 +102,11 @@ public sealed class FeatureManager
                 Register(asm);
             }
         }
+
+        // Core itself contains IFileAction / IFolderAction / IFileCreateAction
+        // implementations (Copy, Cut, Delete, Open, Rename, ...). Scan them so
+        // the in-memory action set is the union of Core + every feature.
+        DiscoverActions(typeof(FeatureManager).Assembly, new Dictionary<Type, IFeatureConfig>());
     }
 
     public void Register(Assembly asm)
@@ -132,45 +156,62 @@ public sealed class FeatureManager
             _registrations[reg.PageKind] = reg;
         }
 
-        // 5. Collect action/handler types; instantiate IQueryHandler types globally
+        // 5. Collect handler types + instantiate handlers and actions.
         foreach (var t in types.Where(t => !t.IsAbstract && !t.IsInterface))
         {
-            if (typeof(IFileAction).IsAssignableFrom(t))        _fileActionTypes.Add(t);
-            if (typeof(IFolderAction).IsAssignableFrom(t))      _folderActionTypes.Add(t);
-            if (typeof(IFileCreateAction).IsAssignableFrom(t))  _fileCreateActionTypes.Add(t);
-            if (typeof(IKeyboardHandler).IsAssignableFrom(t))   _keyboardHandlerTypes.Add(t);
-            if (typeof(IDropTarget).IsAssignableFrom(t))        _dropTargetTypes.Add(t);
+            if (typeof(IKeyboardHandler).IsAssignableFrom(t)) _keyboardHandlerTypes.Add(t);
+            if (typeof(IDropTarget).IsAssignableFrom(t))      _dropTargetTypes.Add(t);
             if (typeof(IQueryHandler).IsAssignableFrom(t))
-            {
-                try
-                {
-                    var ctor = BestConstructor(t);
-                    var args = ResolveArgs(ctor, configInstances);
-                    _queryHandlers.Add((IQueryHandler)ctor.Invoke(args));
-                }
-                catch { /* skip — requires unresolvable constructor args */ }
-            }
+                TryInstantiate(t, configInstances, _queryHandlers);
             if (typeof(IFolderViewlet).IsAssignableFrom(t))
-            {
-                try
-                {
-                    var ctor = BestConstructor(t);
-                    var args = ResolveArgs(ctor, configInstances);
-                    _folderViewlets.Add((IFolderViewlet)ctor.Invoke(args));
-                }
-                catch { /* skip — requires unresolvable constructor args */ }
-            }
+                TryInstantiate(t, configInstances, _folderViewlets);
             if (typeof(IRibbonPinHandler).IsAssignableFrom(t))
-            {
-                try
-                {
-                    var ctor = BestConstructor(t);
-                    var args = ResolveArgs(ctor, configInstances);
-                    _ribbonPinHandlers.Add((IRibbonPinHandler)ctor.Invoke(args));
-                }
-                catch { /* skip — requires unresolvable constructor args */ }
-            }
+                TryInstantiate(t, configInstances, _ribbonPinHandlers);
         }
+
+        DiscoverActions(asm, configInstances);
+    }
+
+    /// <summary>
+    /// Scans <paramref name="asm"/> for <see cref="IFileAction"/>, <see cref="IFolderAction"/>,
+    /// and <see cref="IFileCreateAction"/> implementations, recording their types and
+    /// instantiating each one once via <see cref="ResolveArgs"/>.
+    /// </summary>
+    private void DiscoverActions(Assembly asm, Dictionary<Type, IFeatureConfig> configs)
+    {
+        foreach (var t in asm.GetTypes().Where(t => !t.IsAbstract && !t.IsInterface))
+        {
+            bool isFile   = typeof(IFileAction).IsAssignableFrom(t);
+            bool isFolder = typeof(IFolderAction).IsAssignableFrom(t);
+            bool isCreate = typeof(IFileCreateAction).IsAssignableFrom(t);
+            if (!isFile && !isFolder && !isCreate) continue;
+
+            if (isFile)   _fileActionTypes.Add(t);
+            if (isFolder) _folderActionTypes.Add(t);
+            if (isCreate) _fileCreateActionTypes.Add(t);
+
+            object? instance;
+            try
+            {
+                var ctor = BestConstructor(t);
+                instance = ctor.Invoke(ResolveArgs(ctor, configs));
+            }
+            catch { continue; }
+
+            if (instance is IFileAction fa)        _fileActions.Add(fa);
+            if (instance is IFolderAction fla)     _folderActions.Add(fla);
+            if (instance is IFileCreateAction fca) _fileCreateActions.Add(fca);
+        }
+    }
+
+    private void TryInstantiate<T>(Type t, Dictionary<Type, IFeatureConfig> configs, List<T> sink)
+    {
+        try
+        {
+            var ctor = BestConstructor(t);
+            sink.Add((T)ctor.Invoke(ResolveArgs(ctor, configs)));
+        }
+        catch { /* skip — requires unresolvable constructor args */ }
     }
 
     private static ConstructorInfo BestConstructor(Type t)

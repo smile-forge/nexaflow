@@ -530,11 +530,7 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
 
     private FileSystemViewModel()
     {
-        _actionRegistry = new FileActionManager(new Dictionary<Type, object>
-        {
-            [typeof(IShellServices)] = new LocalShellServices(this),
-            [typeof(FileMapManager)] = FileMapManager.Instance,
-        });
+        _actionRegistry = new FileActionManager();
         FileMapManager.Instance.RegisterKnownExperiences(_actionRegistry.AllExperiences);
     }
 
@@ -1105,39 +1101,6 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
             _sortAscending = true;
         }
         RefreshEntries();
-    }
-
-    // ── LocalShellServices ────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Per-tab <see cref="IShellServices"/> implementation injected into file actions.
-    /// Prompt and refresh methods are handled by this ViewModel; tab-management
-    /// calls are forwarded to the app-level singleton.
-    /// </summary>
-    private sealed class LocalShellServices(FileSystemViewModel vm) : IShellServices
-    {
-        private static IShellServices Global => FeatureManager.Instance.ShellServices!;
-
-        // ── Per-tab contextual methods ────────────────────────────────────────
-        public void ShowPrompt(string title, string label, string initialValue,
-                               Action<string> onConfirm, Action onCancel)
-            => vm.ShowInputPrompt(title, label, initialValue, onConfirm, onCancel);
-
-        public void ShowConfirmation(string title, string message, Action onConfirm, Action onCancel)
-            => vm.ShowConfirmation(message, onConfirm, onCancel);
-
-        public void RequestRefresh() => vm.Refresh();
-
-        // ── Global shell methods — forwarded ──────────────────────────────────
-        public void OpenTab(string pageKind, Dictionary<string, string>? pageParams = null,
-                            IPageView? caller = null)
-            => Global.OpenTab(pageKind, pageParams, caller);
-
-        public void CloseTab(Page tab)           => Global.CloseTab(tab);
-        public Page? FindTab(string pageKind, Dictionary<string, string>? pageParams = null)
-            => Global.FindTab(pageKind, pageParams);
-        public void ShowError(string message)        => Global.ShowError(message);
-        public void ShowNotification(string message) => Global.ShowNotification(message);
     }
 
 }

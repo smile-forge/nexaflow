@@ -2,21 +2,17 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Nexaflow.Core.Models;
-using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 
 namespace Nexaflow.Core.RibbonHandlers;
 
 /// <summary>
 /// Allows non-destructive <see cref="IFileAction"/> instances to be pinned to the ribbon.
-/// When the ribbon button is clicked, the action runs against the current file selection.
+/// Looks up actions through <see cref="FeatureManager"/>, which owns the singleton
+/// instance set — there is no separate registry here.
 /// </summary>
 public sealed class FileActionRibbonPinHandler : IRibbonPinHandler
 {
-    private readonly FileActionManager _actions;
-
-    public FileActionRibbonPinHandler(FileActionManager actions) => _actions = actions;
-
     public string ContentKind => PageKinds.FileAction;
 
     public RibbonPinResult? Pin(object payload, int insertIndex = -1)
@@ -40,7 +36,7 @@ public sealed class FileActionRibbonPinHandler : IRibbonPinHandler
     {
         if (pageParams?.TryGetValue("actionType", out var typeName) != true) return;
 
-        var action = _actions.FindByTypeName(typeName!);
+        var action = FeatureManager.Instance.FindFileAction(typeName!);
         if (action == null) return;
 
         List<string> paths;
