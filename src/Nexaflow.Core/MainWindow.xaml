@@ -524,7 +524,7 @@
 
                 <!-- Message -->
                 <StackPanel Grid.Column="1">
-                    <TextBlock Text="AI provider error"
+                    <TextBlock Text="An Error Occurred"
                                FontSize="12" FontWeight="SemiBold"
                                Foreground="#FFCCAA"/>
                     <TextBlock Text="{Binding ErrorToast}"
