@@ -7,7 +7,8 @@ namespace Nexaflow.Features.Text;
 
 public sealed class TextTabRegistration : IPageRegistration
 {
-    public string PageKind => "Text";
+    public static string StaticPageKind => "Text";
+    public string PageKind => StaticPageKind;
 
     public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {

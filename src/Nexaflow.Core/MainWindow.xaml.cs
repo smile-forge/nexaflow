@@ -16,7 +16,7 @@ namespace Nexaflow.Core;
 public partial class MainWindow : Window
 {
     private readonly ShellViewModel _vm;
-    private readonly ShellServices  _shellServices;
+    private ShellServices _shellServices;
     private SnapLayoutHook _snapHook = null!;
 
     public ShellViewModel ViewModel => _vm;
@@ -101,6 +101,14 @@ public partial class MainWindow : Window
         _shellServices.PinToRibbonCallback = (kind, payload) =>
             RibbonControl.ViewModel.PinFromHandlerCommand.Execute(
                 new RibbonPinRequest(kind, payload));
+
+        // Keep _shellServices in sync when the user switches WorkContext so that
+        // Activated / Deactivated / Closing handlers always reference the live service.
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ShellViewModel.CurrentWorkContext))
+                _shellServices = (ShellServices)_vm.CurrentWorkContext.ShellServices!;
+        };
 
         _vm.PropertyChanged += (_, e) =>
         {

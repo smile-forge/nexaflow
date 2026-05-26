@@ -12,7 +12,8 @@ public sealed class JsonTabRegistration : IPageRegistration
 
     public JsonTabRegistration(IShellServices shellServices) => _shellServices = shellServices;
 
-    public string PageKind => "Json";
+    public static string StaticPageKind => "Json";
+    public string PageKind => StaticPageKind;
 
     public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {

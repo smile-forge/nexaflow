@@ -7,7 +7,8 @@ namespace Nexaflow.Features.WindowsSearch;
 
 public sealed class SearchTabRegistration(IShellServices shellServices) : IPageRegistration
 {
-    public string PageKind => "Search";
+    public static string StaticPageKind => "Search";
+    public string PageKind => StaticPageKind;
 
     public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {

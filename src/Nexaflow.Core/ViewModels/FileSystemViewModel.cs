@@ -40,7 +40,12 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
     [RelayCommand(CanExecute = nameof(CanPinFileActionToRibbon))]
     private void PinFileActionToRibbon(FileActionViewModel vm)
     {
-        var paths   = CurrentSelection.Select(e => e.FullPath).ToList();
+        // Folder actions (wrapped in FolderActionAdapter) operate on the current directory,
+        // not the selected files. Capture the folder path so the pinned button re-opens
+        // the action at the same location.
+        IReadOnlyList<string> paths = vm.Action is FileActions.FolderActionAdapter
+            ? (string.IsNullOrEmpty(CurrentPath) ? [] : [CurrentPath])
+            : CurrentSelection.Select(e => e.FullPath).ToList();
         var payload = new FileActionPinPayload(vm.Action, paths);
         PinToRibbonCallback?.Invoke(PageKinds.FileAction, payload);
     }
@@ -405,7 +410,7 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
     // ── Constructors ─────────────────────────────────────────────────────────
 
     /// <summary>Opens a specific directory as the starting point.</summary>
-    public FileSystemViewModel(string targetDirectory) : this()
+    public FileSystemViewModel(string targetDirectory, WorkContext workContext) : this(workContext)
     {
         InitDebounceTimer();
         _rootPath = targetDirectory;
@@ -414,9 +419,9 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
     }
 
     /// <summary>Opens "This PC" showing all connected drives.</summary>
-    public static FileSystemViewModel CreateThisPc()
+    public static FileSystemViewModel CreateThisPc(WorkContext workContext)
     {
-        var vm = new FileSystemViewModel();
+        var vm = new FileSystemViewModel(workContext);
         vm.InitDebounceTimer();
         vm._rootPath     = string.Empty;
         vm._isThisPcMode = true;
@@ -528,9 +533,12 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
         }
     }
 
-    private FileSystemViewModel()
+    internal WorkContext WorkContext { get; }
+
+    private FileSystemViewModel(WorkContext workContext)
     {
-        _actionRegistry = new FileActionManager();
+        WorkContext     = workContext;
+        _actionRegistry = new FileActionManager(workContext);
         FileMapManager.Instance.RegisterKnownExperiences(_actionRegistry.AllExperiences);
     }
 

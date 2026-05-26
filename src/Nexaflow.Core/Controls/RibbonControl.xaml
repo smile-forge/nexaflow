@@ -38,6 +38,7 @@
                         PinTabToRibbonCommand="{Binding ViewModel.PinCommand, ElementName=Root}"
                         PinFromHandlerCommand="{Binding ViewModel.PinFromHandlerCommand, ElementName=Root}"
                         OpenInNewWindowCommand="{Binding InternalOpenInNewWindowCommand, ElementName=Root}"
-                        DeleteItemCommand="{Binding InternalDeleteCommand, ElementName=Root}"/>
+                        DeleteItemCommand="{Binding InternalDeleteCommand, ElementName=Root}"
+                        WorkContext="{Binding WorkContext, ElementName=Root}"/>
     </Grid>
 </UserControl>

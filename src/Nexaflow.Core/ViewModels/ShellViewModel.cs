@@ -274,6 +274,18 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     private void SelectWorkContext(WorkContext ctx)
     {
         if (ReferenceEquals(ctx, CurrentWorkContext)) return;
+
+        // Transfer this window's registration (+ tracked tabs + factory/callbacks)
+        // from the old context's ShellServices to the new one so actions instantiated
+        // for the new context can still find a window to open tabs in.
+        var newSvc = (ShellServices)ctx.ShellServices!;
+        if (!ReferenceEquals(_shellServices, newSvc))
+        {
+            _shellServices.TransferWindowTo(this, newSvc);
+            _shellServices = newSvc;
+            OnPropertyChanged(nameof(ShellServices));
+        }
+
         CurrentWorkContext = ctx;
         // The RibbonControl observes CurrentWorkContext via its WorkContext DP
         // and handles save/load of items per-context. The shell no longer touches the ribbon.
@@ -285,7 +297,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     // ── Manage AI overlay ─────────────────────────────────────────────────
     [ObservableProperty] private bool _manageAiOpen;
 
-    private readonly ShellServices _shellServices;
+    private ShellServices _shellServices;
 
     /// <summary>
     /// Set by MainWindow after the RibbonControl is initialised so the shell can
@@ -359,7 +371,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     {
         if (item.PageKind is not null)
         {
-            var handler = FeatureManager.Instance.GetRibbonPinHandler(item.PageKind);
+            var handler = FeatureManager.Instance.GetRibbonPinHandler(item.PageKind, CurrentWorkContext);
             if (handler is not null)
             {
                 var paths = (CurrentPage as ISelectionProvider)?.SelectedFilePaths
@@ -385,7 +397,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     {
         if (item.PageKind is null) return;
 
-        var handler = FeatureManager.Instance.GetRibbonPinHandler(item.PageKind);
+        var handler = FeatureManager.Instance.GetRibbonPinHandler(item.PageKind, CurrentWorkContext);
         if (handler is not null)
         {
             // Create the new window first so any OpenTab calls inside the handler land there.
@@ -491,7 +503,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     private void EvaluateHandlers(string text)
     {
         var pageVm   = (CurrentPage as IPageView)?.ViewModel;
-        var handlers = FeatureManager.Instance.QueryHandlers;
+        var handlers = FeatureManager.Instance.GetQueryHandlers(CurrentWorkContext);
 
         var symbolMatch = handlers.FirstOrDefault(
             h => h.Symbol is { Length: 1 } s && text.StartsWith(s));
@@ -527,7 +539,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
         var page     = CurrentPage as IPageView;
         var pageVm   = page?.ViewModel;
-        var handlers = FeatureManager.Instance.QueryHandlers.ToList();
+        var handlers = FeatureManager.Instance.GetQueryHandlers(CurrentWorkContext).ToList();
 
         // 1. Symbol prefix → explicit handler selection; strip prefix from input
         IQueryHandler? selected = null;

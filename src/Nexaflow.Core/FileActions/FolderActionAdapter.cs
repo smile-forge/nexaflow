@@ -20,6 +20,7 @@ public sealed class FolderActionAdapter : IFileAction
     public bool         SupportsMultipleFiles => Inner.SupportsMultipleFiles;
     public string       Icon                  => Inner.Icon;
     public string       DisplayName           => Inner.DisplayName;
+    public static string? StaticExperienceId  => null;
     public string       ExperienceId          => string.Empty;
     public string       ExperienceDescription => string.Empty;
     public bool         RequiresRefresh       => Inner.RequiresRefresh;
@@ -38,4 +39,11 @@ public sealed class FolderActionAdapter : IFileAction
 
     public bool PerformAction(IEnumerable<string> filePaths, bool force)
         => Inner.PerformAction(filePaths, force);
+
+    /// <summary>
+    /// Persists the inner action's type name so <c>FeatureManager.FindFileAction</c>
+    /// can reconstruct this adapter on ribbon-button click.
+    /// </summary>
+    public Dictionary<string, string>? GetReinitParams() =>
+        new() { ["innerType"] = Inner.GetType().FullName! };
 }

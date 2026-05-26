@@ -6,7 +6,7 @@ namespace Nexaflow.Features.Logs.FileActions;
 /// <summary>
 /// File-tree context action that opens a log file in a new Logs tab.
 /// </summary>
-public sealed class ShowLogAction : IFileAction
+public sealed class ShowLogAction : IFileAction, ICacheable
 {
     private readonly IShellServices _shellServices;
 
@@ -14,6 +14,7 @@ public sealed class ShowLogAction : IFileAction
 
     public string DisplayName           => "Open Log";
     public string Icon                  => "📋";
+    public static string? StaticExperienceId => "/text/log";
     public string ExperienceId          => "/text/log";
     public string ExperienceDescription => "Tail based Log Viewer";
     public bool   IsDestructive         => false;

@@ -13,6 +13,10 @@ namespace Nexaflow.Core.RibbonHandlers;
 /// </summary>
 public sealed class FileActionRibbonPinHandler : IRibbonPinHandler
 {
+    private readonly WorkContext _workContext;
+
+    public FileActionRibbonPinHandler(WorkContext workContext) => _workContext = workContext;
+
     public string ContentKind => PageKinds.FileAction;
 
     // PageParam keys reserved by this handler. Reinit params from the action are
@@ -54,7 +58,7 @@ public sealed class FileActionRibbonPinHandler : IRibbonPinHandler
             if (kv.Key.StartsWith(ReinitPrefix))
                 (reinit ??= [])[kv.Key[ReinitPrefix.Length..]] = kv.Value;
 
-        var action = FeatureManager.Instance.FindFileAction(typeName!, reinit);
+        var action = FeatureManager.Instance.FindFileAction(typeName!, _workContext, reinit);
         if (action == null) return;
 
         List<string> paths;

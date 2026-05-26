@@ -7,12 +7,13 @@ namespace Nexaflow.Features.Hex.FileActions;
 /// Experience "/binary" matches all file types mapped to the binary experience
 /// (e.g. executables, firmware, unknown extensions).
 /// </summary>
-public sealed class ShowBinaryAction : IFileAction
+public sealed class ShowBinaryAction : IFileAction, ICacheable
 {
     private readonly IShellServices _shell;
 
     public ShowBinaryAction(IShellServices shell) => _shell = shell;
 
+    public static string? StaticExperienceId => "/binary";
     public string ExperienceId          => "/binary";
     public string ExperienceDescription => "Open in hex editor";
     public string DisplayName           => "Open in Hex Editor";

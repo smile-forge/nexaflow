@@ -1,8 +1,6 @@
 using Nexaflow.Core.FileActions;
-using Nexaflow.Core.RibbonHandlers;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.AIChat;
-using Nexaflow.Features.Common;
 using Nexaflow.Features.Console;
 using Nexaflow.Features.Images;
 using Nexaflow.Features.Logs;
@@ -72,14 +70,8 @@ public partial class App : Application
         FileMapManager.Instance.Initialize(fileMapConfig.UseRegistryMapping);
 
         // ── 6. Feature system ────────────────────────────────────────────────
-        //    Register the first WorkContext's AIService + ShellServices as singletons
-        //    for feature plugins (interim: features are not yet WorkContext-aware)
         var defaultCtx = WorkContextManager.Instance.Contexts[0];
-        FeatureManager.Instance.RegisterSingletonService(typeof(IAIService), defaultCtx.AiService!);
-
-        FeatureManager.Instance.SetShellServices(defaultCtx.ShellServices!);
         FeatureManager.Instance.RegisterFeatures();
-        FeatureManager.Instance.RegisterRibbonPinHandler(new FileActionRibbonPinHandler());
 
         // ── 7. Torn-off window factory ───────────────────────────────────────
         defaultCtx.ShellServices!.CreateWindowFactory = () =>

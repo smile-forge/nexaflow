@@ -7,7 +7,7 @@ namespace Nexaflow.Features.Console.FileActions;
 /// <summary>
 /// Opens a Console tab rooted at the selected or current folder.
 /// </summary>
-public sealed class CmdHereAction : IFolderAction
+public sealed class CmdHereAction : IFolderAction, ICacheable
 {
     private readonly IShellServices _shellServices;
 

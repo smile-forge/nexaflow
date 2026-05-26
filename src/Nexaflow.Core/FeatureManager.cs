@@ -1,3 +1,5 @@
+using Nexaflow.Core.FileActions;
+using Nexaflow.Core.Models;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
 using System.Collections.Generic;
@@ -9,34 +11,35 @@ namespace Nexaflow.Core;
 
 /// <summary>
 /// Singleton registry of all feature tab factories.
-/// Call <see cref="Register(Type)"/> at startup with any type from the feature assembly;
-/// the manager scans that assembly for <see cref="IPageRegistration"/> and
-/// <see cref="IFeatureConfig"/> implementations, wires configs as constructor dependencies,
-/// and registers everything automatically.
+/// Call <see cref="RegisterFeatures"/> at startup; the manager scans all
+/// Nexaflow.Features.*.dll assemblies for <see cref="IPageRegistration"/>,
+/// <see cref="IFileAction"/>, and related types, recording them without
+/// instantiation. Call <see cref="Instantiate"/> or the typed Get* helpers
+/// at runtime, passing the active <see cref="WorkContext"/> so each instance
+/// receives the correct scoped <see cref="IShellServices"/> and
+/// <see cref="IAIService"/>.
 /// </summary>
 public sealed class FeatureManager
 {
     public static FeatureManager Instance { get; } = new();
 
-    private readonly Dictionary<string, IPageRegistration> _registrations
-        = new(StringComparer.OrdinalIgnoreCase);
+    // ── Type registries ───────────────────────────────────────────────────
 
-    private readonly Dictionary<Type, IReadOnlyList<string>> _configToPageKinds = new();
+    private readonly Dictionary<string, Type> _registrationTypes        = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<Type, List<Type>> _configToRegTypes     = new();
+    // Per-assembly config instances — populated during RegisterFeatures, never changed after.
+    private readonly Dictionary<Type, IFeatureConfig> _configs          = new();
 
     private readonly List<Type> _fileActionTypes       = [];
     private readonly List<Type> _folderActionTypes     = [];
     private readonly List<Type> _fileCreateActionTypes = [];
     private readonly List<Type> _keyboardHandlerTypes  = [];
     private readonly List<Type> _dropTargetTypes       = [];
-    private readonly List<IRibbonPinHandler> _ribbonPinHandlers = [];
+    private readonly List<Type> _queryHandlerTypes     = [];
+    private readonly List<Type> _folderViewletTypes    = [];
+    private readonly List<Type> _ribbonPinHandlerTypes = [];
 
-    // Singleton instances of file/folder/create actions. Built during Register;
-    // these are the authoritative in-memory set used by both the FileSystemView
-    // and the ribbon FileAction handler. Constructor args are resolved through
-    // ResolveArgs (global IShellServices + registered singleton services).
-    private readonly List<IFileAction>       _fileActions       = [];
-    private readonly List<IFolderAction>     _folderActions     = [];
-    private readonly List<IFileCreateAction> _fileCreateActions = [];
+    // ── Read-only type lists (for callers that need the raw types) ────────
 
     public IReadOnlyList<Type> FileActionTypes       => _fileActionTypes;
     public IReadOnlyList<Type> FolderActionTypes     => _folderActionTypes;
@@ -44,24 +47,298 @@ public sealed class FeatureManager
     public IReadOnlyList<Type> KeyboardHandlerTypes  => _keyboardHandlerTypes;
     public IReadOnlyList<Type> DropTargetTypes       => _dropTargetTypes;
 
-    public IReadOnlyList<IFileAction>       FileActions       => _fileActions;
-    public IReadOnlyList<IFolderAction>     FolderActions     => _folderActions;
-    public IReadOnlyList<IFileCreateAction> FileCreateActions => _fileCreateActions;
+    // ── Experiences (type-level, built from static StaticExperienceId) ────
+
+    private List<string> _allExperiences = [];
+    public IReadOnlyList<string> AllExperiences => _allExperiences;
+
+    // ── Per-(Type, WorkContext) instance cache ────────────────────────────
+
+    private readonly Dictionary<WorkContext, Dictionary<Type, object>> _cache = new();
+    private readonly object _cacheLock = new();
+
+    // ── Registration ──────────────────────────────────────────────────────
+
+    public void RegisterFeatures()
+    {
+        string exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
+        var featureDlls = Directory.GetFiles(exeDir, "Nexaflow.Features.*.dll");
+
+        foreach (var dll in featureDlls)
+        {
+            var asmName = AssemblyName.GetAssemblyName(dll);
+            if (!AppDomain.CurrentDomain.GetAssemblies().Any(a => a.GetName().Name == asmName.Name))
+                Assembly.LoadFrom(dll);
+        }
+
+        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            if (asm.GetName().Name!.StartsWith("Nexaflow.Features."))
+                Register(asm);
+        }
+
+        // Core itself contains action / handler / viewlet implementations.
+        RegisterTypes(typeof(FeatureManager).Assembly, new Dictionary<Type, IFeatureConfig>());
+
+        // Build the experience list from static metadata on file action types.
+        _allExperiences = _fileActionTypes
+            .Select(t => t.GetProperty("StaticExperienceId",
+                BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
+                ?.GetValue(null) as string)
+            .Where(id => !string.IsNullOrEmpty(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList()!;
+    }
+
+    public void Register(Assembly asm)
+    {
+        var types = asm.GetTypes();
+
+        // 1. Discover and register IFeatureConfig types.
+        var localConfigs = new Dictionary<Type, IFeatureConfig>();
+        foreach (var t in types.Where(t => !t.IsAbstract && !t.IsInterface
+                                           && typeof(IFeatureConfig).IsAssignableFrom(t)))
+        {
+            var cfg = (IFeatureConfig)Activator.CreateInstance(t)!;
+            ConfigManager.Instance.Register(cfg, cfg.ConfigName);
+            localConfigs[t]  = cfg;
+            _configs[t]      = cfg;
+        }
+
+        // 2. Discover IPageRegistration types and build config → reg-type mapping.
+        var registrationTypes = types
+            .Where(t => !t.IsAbstract && !t.IsInterface
+                        && typeof(IPageRegistration).IsAssignableFrom(t))
+            .ToList();
+
+        foreach (var regType in registrationTypes)
+        {
+            // Read the static PageKind via reflection — no instantiation needed.
+            var pageKind = regType
+                .GetProperty("StaticPageKind",
+                    BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
+                ?.GetValue(null) as string;
+            if (pageKind is null) continue;
+
+            _registrationTypes[pageKind] = regType;
+
+            // Build config → registration-type mapping by inspecting ctor parameters.
+            var ctor = BestConstructor(regType);
+            foreach (var p in ctor.GetParameters())
+            {
+                if (typeof(IFeatureConfig).IsAssignableFrom(p.ParameterType))
+                {
+                    if (!_configToRegTypes.TryGetValue(p.ParameterType, out var list))
+                    {
+                        list = [];
+                        _configToRegTypes[p.ParameterType] = list;
+                    }
+                    list.Add(regType);
+                }
+            }
+        }
+
+        RegisterTypes(asm, localConfigs);
+    }
+
+    /// <summary>
+    /// Scans <paramref name="asm"/> for all discoverable non-registration types and
+    /// appends them to the appropriate type lists. No instantiation occurs here.
+    /// </summary>
+    private void RegisterTypes(Assembly asm, Dictionary<Type, IFeatureConfig> localConfigs)
+    {
+        foreach (var t in asm.GetTypes().Where(t => !t.IsAbstract && !t.IsInterface))
+        {
+            if (typeof(IKeyboardHandler).IsAssignableFrom(t)) _keyboardHandlerTypes.Add(t);
+            if (typeof(IDropTarget).IsAssignableFrom(t))      _dropTargetTypes.Add(t);
+            if (typeof(IQueryHandler).IsAssignableFrom(t))    _queryHandlerTypes.Add(t);
+            if (typeof(IFolderViewlet).IsAssignableFrom(t))   _folderViewletTypes.Add(t);
+            if (typeof(IRibbonPinHandler).IsAssignableFrom(t)) _ribbonPinHandlerTypes.Add(t);
+
+            bool isFile   = typeof(IFileAction).IsAssignableFrom(t);
+            bool isFolder = typeof(IFolderAction).IsAssignableFrom(t);
+            bool isCreate = typeof(IFileCreateAction).IsAssignableFrom(t);
+
+            // Only cache types whose instances are equivalent per WorkContext.
+            // Dynamic types (ShellVerbAction, FolderActionAdapter) are excluded here;
+            // they are reached via GetReinitParams/Rehydrate or FindFileAction fallbacks.
+            bool isCacheable = typeof(ICacheable).IsAssignableFrom(t);
+
+            if (isFile   && isCacheable && !_fileActionTypes.Contains(t))       _fileActionTypes.Add(t);
+            if (isFolder && isCacheable && !_folderActionTypes.Contains(t))     _folderActionTypes.Add(t);
+            if (isCreate && isCacheable && !_fileCreateActionTypes.Contains(t)) _fileCreateActionTypes.Add(t);
+        }
+    }
+
+    // ── Instantiation ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Creates (or returns a cached) instance of <paramref name="targetType"/>
+    /// with constructor args resolved from <paramref name="workContext"/> and
+    /// the per-assembly config instances discovered during <see cref="RegisterFeatures"/>.
+    /// Returns null when no satisfiable constructor is found.
+    /// </summary>
+    public object? Instantiate(Type targetType, WorkContext workContext)
+    {
+        lock (_cacheLock)
+        {
+            if (!_cache.TryGetValue(workContext, out var ctxCache))
+            {
+                ctxCache = new Dictionary<Type, object>();
+                _cache[workContext] = ctxCache;
+            }
+
+            if (ctxCache.TryGetValue(targetType, out var cached))
+                return cached;
+
+            var instance = TryInstantiateInternal(targetType, workContext);
+            if (instance is not null)
+                ctxCache[targetType] = instance;
+            return instance;
+        }
+    }
+
+    private object? TryInstantiateInternal(Type t, WorkContext workContext)
+    {
+        foreach (var ctor in t.GetConstructors().OrderByDescending(c => c.GetParameters().Length))
+        {
+            var args = TryResolveArgs(ctor, workContext);
+            if (args is null) continue;
+            try { return ctor.Invoke(args); }
+            catch { }
+        }
+        return null;
+    }
+
+    private object?[]? TryResolveArgs(ConstructorInfo ctor, WorkContext? workContext)
+    {
+        var parms = ctor.GetParameters();
+        var args  = new object?[parms.Length];
+        for (int i = 0; i < parms.Length; i++)
+        {
+            var pt = parms[i].ParameterType;
+            if (pt == typeof(WorkContext))
+            {
+                if (workContext is null) return null;
+                args[i] = workContext;
+            }
+            else if (typeof(IShellServices).IsAssignableFrom(pt))
+            {
+                if (workContext?.ShellServices is null) return null;
+                args[i] = workContext.ShellServices;
+            }
+            else if (typeof(IAIService).IsAssignableFrom(pt))
+            {
+                if (workContext?.AiService is null) return null;
+                args[i] = workContext.AiService;
+            }
+            else if (_configs.TryGetValue(pt, out var cfg))
+            {
+                args[i] = cfg;
+            }
+            else if (parms[i].IsOptional)
+            {
+                args[i] = Type.Missing;
+            }
+            else
+            {
+                return null;
+            }
+        }
+        return args;
+    }
+
+    // ── Typed Get* helpers ────────────────────────────────────────────────
+
+    public IReadOnlyList<IFileAction> GetFileActions(WorkContext ctx)
+        => Instantiate<IFileAction>(_fileActionTypes, ctx);
+
+    public IReadOnlyList<IFolderAction> GetFolderActions(WorkContext ctx)
+        => Instantiate<IFolderAction>(_folderActionTypes, ctx);
+
+    public IReadOnlyList<IFileCreateAction> GetFileCreateActions(WorkContext ctx)
+        => Instantiate<IFileCreateAction>(_fileCreateActionTypes, ctx);
+
+    public IReadOnlyList<IQueryHandler> GetQueryHandlers(WorkContext ctx)
+        => Instantiate<IQueryHandler>(_queryHandlerTypes, ctx);
+
+    public IReadOnlyList<IFolderViewlet> GetFolderViewlets(WorkContext ctx)
+        => Instantiate<IFolderViewlet>(_folderViewletTypes, ctx);
+
+    public IReadOnlyList<IRibbonPinHandler> GetRibbonPinHandlers(WorkContext ctx)
+        => Instantiate<IRibbonPinHandler>(_ribbonPinHandlerTypes, ctx);
+
+    public IRibbonPinHandler? GetRibbonPinHandler(string contentKind, WorkContext ctx)
+        => GetRibbonPinHandlers(ctx).FirstOrDefault(h => h.ContentKind == contentKind);
+
+    private IReadOnlyList<T> Instantiate<T>(List<Type> types, WorkContext ctx)
+    {
+        var result = new List<T>(types.Count);
+        foreach (var t in types)
+        {
+            if (Instantiate(t, ctx) is T instance)
+                result.Add(instance);
+        }
+        return result;
+    }
+
+    // ── Tab creation ──────────────────────────────────────────────────────
+
+    public bool IsRegistered(string pageKind) => _registrationTypes.ContainsKey(pageKind);
+
+    public Page? CreateTab(string pageKind, WorkContext workContext,
+                           Dictionary<string, string>? pageParams = null)
+    {
+        if (!_registrationTypes.TryGetValue(pageKind, out var regType)) return null;
+        var reg = Instantiate(regType, workContext) as IPageRegistration;
+        if (reg is null) return null;
+        var tab = reg.CreatePage(pageParams);
+        if (tab is not null)
+        {
+            tab.PageKind   = pageKind;
+            tab.PageParams = pageParams;
+        }
+        return tab;
+    }
+
+    public IReadOnlyList<string> GetPageKindsForConfig(Type configType, WorkContext ctx)
+    {
+        if (!_configToRegTypes.TryGetValue(configType, out var regTypes)) return [];
+        var pageKinds = new List<string>(regTypes.Count);
+        foreach (var regType in regTypes)
+        {
+            if (Instantiate(regType, ctx) is IPageRegistration reg)
+                pageKinds.Add(reg.PageKind);
+        }
+        return pageKinds;
+    }
+
+    // ── FindFileAction ────────────────────────────────────────────────────
 
     /// <summary>
     /// Finds an <see cref="IFileAction"/> by its concrete type's full or short name.
-    /// Looks first in the singleton set built during <see cref="RegisterFeatures"/>;
-    /// when that misses and <paramref name="reinitParams"/> is supplied, locates the
-    /// type in any loaded assembly and invokes its
-    /// <c>public static IFileAction Rehydrate(Dictionary&lt;string, string&gt;)</c>
-    /// factory — the pattern runtime-constructed types (e.g. <see cref="FileActions.ShellVerbAction"/>)
-    /// use to survive a ribbon pin.
+    /// Looks first in the cached set for <paramref name="workContext"/>; when that
+    /// misses and <paramref name="reinitParams"/> is supplied, locates the type and
+    /// invokes its <c>public static IFileAction Rehydrate(Dictionary&lt;string,string&gt;)</c>
+    /// factory — the pattern runtime-constructed types (e.g. ShellVerbAction) use.
     /// </summary>
-    public IFileAction? FindFileAction(string typeName, Dictionary<string, string>? reinitParams = null)
+    public IFileAction? FindFileAction(string typeName, WorkContext workContext,
+                                       Dictionary<string, string>? reinitParams = null)
     {
-        var singleton = _fileActions.FirstOrDefault(a =>
+        var singleton = GetFileActions(workContext).FirstOrDefault(a =>
             a.GetType().FullName == typeName || a.GetType().Name == typeName);
         if (singleton is not null) return singleton;
+
+        // FolderActionAdapter: non-cacheable wrapper whose inner type is stored in reinit params.
+        // Reconstruct by finding the inner IFolderAction in the cached set and re-wrapping it.
+        if ((typeName == typeof(FolderActionAdapter).FullName || typeName == nameof(FolderActionAdapter)) &&
+            reinitParams?.TryGetValue("innerType", out var innerTypeName) == true &&
+            innerTypeName is not null)
+        {
+            var inner = GetFolderActions(workContext).FirstOrDefault(a =>
+                a.GetType().FullName == innerTypeName || a.GetType().Name == innerTypeName);
+            return inner is not null ? new FolderActionAdapter(inner) : null;
+        }
 
         if (reinitParams is null) return null;
 
@@ -82,243 +359,8 @@ public sealed class FeatureManager
         catch { return null; }
     }
 
-    public IReadOnlyList<IRibbonPinHandler> RibbonPinHandlers => _ribbonPinHandlers.AsReadOnly();
-
-    public void RegisterRibbonPinHandler(IRibbonPinHandler handler)
-        => _ribbonPinHandlers.Add(handler);
-
-    public IRibbonPinHandler? GetRibbonPinHandler(string? contentKind)
-        => contentKind is null ? null
-           : _ribbonPinHandlers.FirstOrDefault(h => h.ContentKind == contentKind);
-
-    // ── Shell services ────────────────────────────────────────────────────
-
-    /// <summary>
-    /// The application-level shell services singleton.
-    /// Set by <see cref="App"/> before feature registration so that injected
-    /// <see cref="IShellServices"/> constructor parameters are resolved.
-    /// </summary>
-    public IShellServices? ShellServices { get; private set; }
-
-    public void SetShellServices(IShellServices shellServices)
-        => ShellServices = shellServices;
-
-    // ── Registration ──────────────────────────────────────────────────────
-
-
-    public void RegisterFeatures()
-    {
-        string exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
-        var featureDlls = Directory.GetFiles(exeDir, "Nexaflow.Features.*.dll");
-
-        foreach (var dll in featureDlls)
-        {
-            // Load the assembly if not already loaded
-            var asmName = AssemblyName.GetAssemblyName(dll);
-            if (!AppDomain.CurrentDomain.GetAssemblies().Any(a => a.GetName().Name == asmName.Name))
-            {
-                Assembly.LoadFrom(dll);
-            }
-        }
-
-        // Now scan all loaded assemblies for features
-        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            if (asm.GetName().Name!.StartsWith("Nexaflow.Features."))
-            {
-                Register(asm);
-            }
-        }
-
-        // Core itself contains IFileAction / IFolderAction / IFileCreateAction
-        // implementations (Copy, Cut, Delete, Open, Rename, ...). Scan them so
-        // the in-memory action set is the union of Core + every feature.
-        DiscoverActions(typeof(FeatureManager).Assembly, new Dictionary<Type, IFeatureConfig>());
-    }
-
-    public void Register(Assembly asm)
-    {
-        var types = asm.GetTypes();
-
-        // 1. Discover and instantiate all IFeatureConfig types
-        var configInstances = new Dictionary<Type, IFeatureConfig>();
-        foreach (var t in types
-            .Where(t => !t.IsAbstract && !t.IsInterface
-                        && typeof(IFeatureConfig).IsAssignableFrom(t)))
-        {
-            var cfg = (IFeatureConfig)Activator.CreateInstance(t)!;
-            ConfigManager.Instance.Register(cfg, cfg.ConfigName);
-            configInstances[t] = cfg;
-        }
-
-        // 2. Discover all ITabRegistration concrete types
-        var registrationTypes = types
-            .Where(t => !t.IsAbstract && !t.IsInterface
-                        && typeof(IPageRegistration).IsAssignableFrom(t))
-            .ToList();
-
-        // 3. Build config-type → page-kinds mapping (for tab refresh after Options save)
-        foreach (var configType in configInstances.Keys)
-        {
-            var pageKinds = new List<string>();
-            foreach (var regType in registrationTypes)
-            {
-                var ctor = BestConstructor(regType);
-                if (ctor.GetParameters().Any(p => p.ParameterType == configType))
-                {
-                    var args   = ResolveArgs(ctor, configInstances);
-                    var tempReg = (IPageRegistration)ctor.Invoke(args);
-                    pageKinds.Add(tempReg.PageKind);
-                }
-            }
-            _configToPageKinds[configType] = pageKinds;
-        }
-
-        // 4. Instantiate all ITabRegistration types with injected configs and IShellServices
-        foreach (var regType in registrationTypes)
-        {
-            var ctor = BestConstructor(regType);
-            var args = ResolveArgs(ctor, configInstances);
-            var reg  = (IPageRegistration)ctor.Invoke(args);
-            _registrations[reg.PageKind] = reg;
-        }
-
-        // 5. Collect handler types + instantiate handlers and actions.
-        foreach (var t in types.Where(t => !t.IsAbstract && !t.IsInterface))
-        {
-            if (typeof(IKeyboardHandler).IsAssignableFrom(t)) _keyboardHandlerTypes.Add(t);
-            if (typeof(IDropTarget).IsAssignableFrom(t))      _dropTargetTypes.Add(t);
-            if (typeof(IQueryHandler).IsAssignableFrom(t))
-                TryInstantiate(t, configInstances, _queryHandlers);
-            if (typeof(IFolderViewlet).IsAssignableFrom(t))
-                TryInstantiate(t, configInstances, _folderViewlets);
-            if (typeof(IRibbonPinHandler).IsAssignableFrom(t))
-                TryInstantiate(t, configInstances, _ribbonPinHandlers);
-        }
-
-        DiscoverActions(asm, configInstances);
-    }
-
-    /// <summary>
-    /// Scans <paramref name="asm"/> for <see cref="IFileAction"/>, <see cref="IFolderAction"/>,
-    /// and <see cref="IFileCreateAction"/> implementations, recording their types and
-    /// instantiating each one once via <see cref="TryInstantiate"/>. Types whose ctor
-    /// args can't be resolved are silently skipped — that excludes wrappers like
-    /// <c>FolderActionAdapter</c> (needs an <c>IFolderAction</c>) and runtime types like
-    /// <c>ShellVerbAction</c> (needs strings), both of which are constructed elsewhere.
-    /// </summary>
-    private void DiscoverActions(Assembly asm, Dictionary<Type, IFeatureConfig> configs)
-    {
-        foreach (var t in asm.GetTypes().Where(t => !t.IsAbstract && !t.IsInterface))
-        {
-            bool isFile   = typeof(IFileAction).IsAssignableFrom(t);
-            bool isFolder = typeof(IFolderAction).IsAssignableFrom(t);
-            bool isCreate = typeof(IFileCreateAction).IsAssignableFrom(t);
-            if (!isFile && !isFolder && !isCreate) continue;
-
-            var instance = TryInstantiate(t, configs);
-            if (instance is null) continue;
-
-            if (isFile)   { _fileActionTypes.Add(t);       _fileActions.Add((IFileAction)instance); }
-            if (isFolder) { _folderActionTypes.Add(t);     _folderActions.Add((IFolderAction)instance); }
-            if (isCreate) { _fileCreateActionTypes.Add(t); _fileCreateActions.Add((IFileCreateAction)instance); }
-        }
-    }
-
-    private void TryInstantiate<T>(Type t, Dictionary<Type, IFeatureConfig> configs, List<T> sink)
-    {
-        if (TryInstantiate(t, configs) is T instance) sink.Add(instance);
-    }
-
-    /// <summary>
-    /// Tries each public constructor longest-first; uses the first whose parameters
-    /// can ALL be resolved from registered singleton services, configs, or
-    /// <see cref="ShellServices"/>. Returns null when no constructor is fully
-    /// satisfiable — matches the old FileActionManager.TryCreate semantics so
-    /// types whose deps aren't available are skipped rather than created in a
-    /// broken null state.
-    /// </summary>
-    private object? TryInstantiate(Type t, Dictionary<Type, IFeatureConfig> configs)
-    {
-        foreach (var ctor in t.GetConstructors().OrderByDescending(c => c.GetParameters().Length))
-        {
-            var args = TryResolveArgs(ctor, configs);
-            if (args is null) continue;
-            try { return ctor.Invoke(args); }
-            catch { /* ctor itself threw — try a shorter overload */ }
-        }
-        return null;
-    }
-
-    private object?[]? TryResolveArgs(ConstructorInfo ctor, Dictionary<Type, IFeatureConfig> configs)
-    {
-        var parms = ctor.GetParameters();
-        var args  = new object?[parms.Length];
-        for (int i = 0; i < parms.Length; i++)
-        {
-            var pt = parms[i].ParameterType;
-            if (typeof(IShellServices).IsAssignableFrom(pt))
-            {
-                if (ShellServices is null) return null;
-                args[i] = ShellServices;
-            }
-            else if (_singletonServices.TryGetValue(pt, out var svc)) args[i] = svc;
-            else if (configs.TryGetValue(pt, out var cfg))            args[i] = cfg;
-            else if (parms[i].IsOptional)                             args[i] = Type.Missing;
-            else                                                      return null;
-        }
-        return args;
-    }
+    // ── Helpers ───────────────────────────────────────────────────────────
 
     private static ConstructorInfo BestConstructor(Type t)
         => t.GetConstructors().OrderByDescending(c => c.GetParameters().Length).First();
-
-    private object?[] ResolveArgs(ConstructorInfo ctor, Dictionary<Type, IFeatureConfig> configs)
-        => ctor.GetParameters()
-               .Select(p =>
-                   typeof(IShellServices).IsAssignableFrom(p.ParameterType)
-                       ? (object?)ShellServices
-                       : _singletonServices.TryGetValue(p.ParameterType, out var svc)
-                           ? svc
-                           : (object?)configs.GetValueOrDefault(p.ParameterType))
-               .ToArray();
-
-    public IReadOnlyList<string> GetPageKindsForConfig(Type configType)
-        => _configToPageKinds.GetValueOrDefault(configType, []);
-
-    // ── Tab creation ──────────────────────────────────────────────────────
-
-    public bool IsRegistered(string pageKind) => _registrations.ContainsKey(pageKind);
-
-    public Page? CreateTab(string pageKind, Dictionary<string, string>? pageParams = null)
-    {
-        if (!_registrations.TryGetValue(pageKind, out var reg)) return null;
-        var tab = reg.CreatePage(pageParams);
-        if (tab is not null)
-        {
-            tab.PageKind   = pageKind;
-            tab.PageParams = pageParams;
-        }
-        return tab;
-    }
-
-    // ── Folder viewlets ───────────────────────────────────────────────────
-
-    private readonly List<IFolderViewlet> _folderViewlets = [];
-    public IReadOnlyList<IFolderViewlet> FolderViewlets => _folderViewlets.AsReadOnly();
-
-    // ── Query handlers ────────────────────────────────────────────────────
-
-    private readonly List<IQueryHandler> _queryHandlers = [];
-
-    public void RegisterQueryHandler(IQueryHandler handler) => _queryHandlers.Add(handler);
-
-    public IReadOnlyList<IQueryHandler> QueryHandlers => _queryHandlers.AsReadOnly();
-
-    // ── Singleton services ────────────────────────────────────────────────
-
-    private readonly Dictionary<Type, object> _singletonServices = new();
-
-    public void RegisterSingletonService(Type interfaceType, object instance)
-        => _singletonServices[interfaceType] = instance;
 }

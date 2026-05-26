@@ -13,7 +13,8 @@ namespace Nexaflow.Features.Images;
 /// </summary>
 public sealed class ImageTabRegistration : IPageRegistration
 {
-    public string PageKind => "Images";
+    public static string StaticPageKind => "Images";
+    public string PageKind => StaticPageKind;
 
     public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {

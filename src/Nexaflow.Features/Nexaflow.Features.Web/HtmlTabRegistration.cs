@@ -12,7 +12,8 @@ namespace Nexaflow.Features.Web;
 /// </summary>
 public sealed class HtmlTabRegistration : IPageRegistration
 {
-    public string PageKind => "Html";
+    public static string StaticPageKind => "Html";
+    public string PageKind => StaticPageKind;
 
     public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {
