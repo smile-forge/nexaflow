@@ -1,3 +1,4 @@
+using Nexaflow.Core.Models;
 using Nexaflow.Features.Common;
 using System.Collections.Generic;
 using System.Windows;
@@ -44,4 +45,7 @@ internal interface IWindowHost
     /// <summary>Shows the window-level text-input prompt overlay (independent of any page).</summary>
     void ShowPrompt(string title, string label, string initialValue,
                     System.Action<string> onConfirm, System.Action? onCancel = null);
+
+    /// <summary>Pins an item to the ribbon via the handler registered for the request's content kind.</summary>
+    void AddRibbonPin(RibbonPinRequest request);
 }

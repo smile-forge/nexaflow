@@ -27,7 +27,7 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         _shellServices = workContext.ShellServices!;
-        _vm = new ShellViewModel(activityManager, workContext, _shellServices)
+        _vm = new ShellViewModel(activityManager, workContext)
         {
             Window = this
         };
@@ -98,9 +98,6 @@ public partial class MainWindow : Window
         WireManageAiPanel();
 
         _vm.Ribbon = RibbonControl.ViewModel;
-        _shellServices.PinToRibbonCallback = (kind, payload) =>
-            RibbonControl.ViewModel.PinFromHandlerCommand.Execute(
-                new RibbonPinRequest(kind, payload));
 
         // Keep _shellServices in sync when the user switches WorkContext so that
         // Activated / Deactivated / Closing handlers always reference the live service.

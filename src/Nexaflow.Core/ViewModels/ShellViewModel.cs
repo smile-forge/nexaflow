@@ -47,6 +47,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
                                 Action<string> onConfirm, Action? onCancel)
         => ShowPrompt(title, label, initialValue, onConfirm, onCancel);
 
+    void IWindowHost.AddRibbonPin(RibbonPinRequest request)
+        => Ribbon?.PinFromHandlerCommand.Execute(request);
+
     // ── Pane (the strip of pages + active page) ───────────────────────────
     // The shell hosts a single root pane today. In future this becomes a
     // tree (SplitPaneNode = left + right Panes) — bind UI to RootPaneNode.
@@ -306,14 +309,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     public RibbonViewModel? Ribbon { get; set; }
 
     public ShellViewModel(BackgroundActivityManager activityManager,
-                          WorkContext workContext,
-                          ShellServices shellServices)
+                          WorkContext workContext)
     {
         _activityManager = activityManager;
         _activityManager.IsActiveChanged += (_, active) =>
             Application.Current.Dispatcher.Invoke(() => AiIsBusy = active);
         _currentWorkContext = workContext;
-        _shellServices = shellServices;
+        _shellServices = workContext.ShellServices!;
 
         WireRootPane();
 

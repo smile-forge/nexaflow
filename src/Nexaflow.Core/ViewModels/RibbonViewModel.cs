@@ -4,10 +4,8 @@ using System.ComponentModel;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Nexaflow.Core.FileSystem;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
-using Nexaflow.Core.Views;
 using Nexaflow.Features.Common;
 
 namespace Nexaflow.Core.ViewModels;
@@ -166,53 +164,36 @@ public partial class RibbonViewModel : ObservableObject
     private void ToggleEdit() => IsEditOpen = !IsEditOpen;
 
     /// <summary>
-    /// Handle a tab drag-drop pin onto the ribbon: build a button from the tab's
-    /// metadata, dedupe against existing buttons (flash on collision), and insert
-    /// at the requested index. FileSystem tabs get their current path baked in.
+    /// Handle a tab drag-drop pin. Delegates to the registered <see cref="IRibbonPinHandler"/>
+    /// for the tab's page kind when one exists; otherwise snapshots the tab's current metadata.
     /// </summary>
     [RelayCommand]
     public void Pin(TabPinRequest request)
     {
         var (tab, insertIndex) = request;
+        if (string.IsNullOrEmpty(tab.PageKind)) return;
 
-        var label    = tab.Title;
-        var icon     = tab.Icon;
-        var pageKind = tab.PageKind;
-        var pageParams = tab.PageParams is not null
-            ? new Dictionary<string, string>(tab.PageParams)
-            : null;
-
-        if (string.IsNullOrEmpty(pageKind)) return;
-
-        // For FileSystem tabs, root the button to its current path so it always
-        // opens the exact location the user is browsing.
-        if (tab.Content is FileSystemView fsPage)
+        RibbonPinResult result;
+        if (_workContext is not null)
         {
-            var vm       = fsPage.ViewModel;
-            var path     = vm.CurrentPath;
-            var isThisPc = string.IsNullOrEmpty(path) || path == "This PC";
-            icon = isThisPc ? "🖥" : "📁";
-            if (!isThisPc)
+            var handler = FeatureManager.Instance.GetRibbonPinHandler(tab.PageKind, _workContext);
+            if (handler is not null)
             {
-                vm.ResetRootToCurrentPath();
-                pageParams = new() { ["mode"] = "path", ["path"] = path };
+                var handlerResult = handler.Pin(tab, insertIndex);
+                if (handlerResult is null) return;
+                result = handlerResult;
             }
             else
             {
-                pageParams = new() { ["mode"] = "thispc" };
+                result = TabMetadataResult(tab);
             }
         }
-
-        var duplicate = Items.FirstOrDefault(r => r.Kind == RibbonItemKind.Button &&
-                                                  r.PageKind == pageKind &&
-                                                  ParamsEqual(r.PageParams, pageParams));
-        if (duplicate is not null)
+        else
         {
-            FlashItem?.Invoke(duplicate);
-            return;
+            result = TabMetadataResult(tab);
         }
 
-        AddItem(MakeButton(label, icon, pageKind, pageParams), insertIndex);
+        InsertPin(tab.PageKind, result, insertIndex);
     }
 
     /// <summary>
@@ -230,12 +211,22 @@ public partial class RibbonViewModel : ObservableObject
         var result = handler.Pin(request.Payload, request.InsertIndex);
         if (result is null) return;
 
-        var pageParams = result.PageParams;
+        InsertPin(request.ContentKind, result, request.InsertIndex);
+    }
 
+    private static RibbonPinResult TabMetadataResult(Page tab) => new()
+    {
+        Label      = tab.Title,
+        Icon       = tab.Icon,
+        PageParams = tab.PageParams is not null ? new(tab.PageParams) : null
+    };
+
+    private void InsertPin(string pageKind, RibbonPinResult result, int insertIndex)
+    {
         var duplicate = Items.FirstOrDefault(r =>
             r.Kind == RibbonItemKind.Button &&
-            r.PageKind == request.ContentKind &&
-            ParamsEqual(r.PageParams, pageParams));
+            r.PageKind == pageKind &&
+            ParamsEqual(r.PageParams, result.PageParams));
         if (duplicate is not null)
         {
             FlashItem?.Invoke(duplicate);
@@ -248,9 +239,9 @@ public partial class RibbonViewModel : ObservableObject
             Label       = result.Label,
             Icon        = result.Icon,
             AccentColor = result.AccentColor,
-            PageKind    = request.ContentKind,
-            PageParams  = pageParams
-        }, request.InsertIndex);
+            PageKind    = pageKind,
+            PageParams  = result.PageParams
+        }, insertIndex);
     }
 
     private static bool ParamsEqual(Dictionary<string, string>? a, Dictionary<string, string>? b)

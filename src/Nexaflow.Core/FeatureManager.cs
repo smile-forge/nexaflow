@@ -77,8 +77,8 @@ public sealed class FeatureManager
                 Register(asm);
         }
 
-        // Core itself contains action / handler / viewlet implementations.
-        RegisterTypes(typeof(FeatureManager).Assembly, new Dictionary<Type, IFeatureConfig>());
+        // Core itself contains action / handler / viewlet / page-registration implementations.
+        Register(typeof(FeatureManager).Assembly);
 
         // Build the experience list from static metadata on file action types.
         _allExperiences = _fileActionTypes

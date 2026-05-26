@@ -32,11 +32,6 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
     public ObservableCollection<FileActionViewModel> FileActions { get; } = [];
 
     // ── Ribbon pinning ────────────────────────────────────────────────────────
-    /// <summary>
-    /// Wired by ShellServices to route pin requests to the active window's ribbon.
-    /// Receives (ContentKind, payload).
-    /// </summary>
-    public Action<string, object>? PinToRibbonCallback { get; set; }
 
     [RelayCommand(CanExecute = nameof(CanPinFileActionToRibbon))]
     private void PinFileActionToRibbon(FileActionViewModel vm)
@@ -48,7 +43,7 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
             ? (string.IsNullOrEmpty(CurrentPath) ? [] : [CurrentPath])
             : CurrentSelection.Select(e => e.FullPath).ToList();
         var payload = new FileActionPinPayload(vm.Action, paths);
-        PinToRibbonCallback?.Invoke(PageKinds.FileAction, payload);
+        ((IShellServices?)WorkContext.ShellServices)?.PinToRibbon(PageKinds.FileAction, payload);
     }
 
     private bool CanPinFileActionToRibbon(FileActionViewModel? vm)

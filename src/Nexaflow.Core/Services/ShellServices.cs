@@ -1,6 +1,4 @@
-using Nexaflow.Core.FileSystem;
 using Nexaflow.Core.Models;
-using Nexaflow.Core.ViewModels;
 using Nexaflow.Core.Views;
 using Nexaflow.Features.Common;
 using System;
@@ -34,12 +32,6 @@ public sealed class ShellServices : IShellServices
     /// </summary>
     internal Func<IWindowHost>? CreateWindowFactory { get; set; }
 
-    /// <summary>
-    /// Called by MainWindow to connect file-action pin requests from FileSystemViewModels
-    /// to the active window's ribbon.  The callback receives (ContentKind, payload).
-    /// </summary>
-    internal Action<string, object>? PinToRibbonCallback { get; set; }
-
     internal void RegisterWindow(IWindowHost host) => _windows.Add(host);
 
     /// <summary>
@@ -59,7 +51,6 @@ public sealed class ShellServices : IShellServices
         target._windows.Add(host);
         target._focused ??= host;
         target.CreateWindowFactory ??= CreateWindowFactory;
-        target.PinToRibbonCallback ??= PinToRibbonCallback;
     }
 
     internal void UnregisterWindow(IWindowHost host)
@@ -222,103 +213,10 @@ public sealed class ShellServices : IShellServices
 
     private Page? CreateTab(string pageKind, Dictionary<string, string>? pageParams)
     {
-        if (string.Equals(pageKind, PageKinds.FileSystem, StringComparison.OrdinalIgnoreCase))
-            return CreateFileSystemTab(
-                pageParams?.GetValueOrDefault("label") ?? "Files", "📁", pageParams);
-
         if (FeatureManager.Instance.IsRegistered(pageKind))
             return FeatureManager.Instance.CreateTab(pageKind, _workContext, pageParams);
 
         return MakePlaceholderTab(pageKind, "📄");
-    }
-
-    internal Page CreateFileSystemTab(string label, string icon,
-                                           Dictionary<string, string>? p)
-    {
-        var mode = p?.GetValueOrDefault("mode") ?? "thispc";
-
-        if (mode == "path" && p!.TryGetValue("path", out var path))
-        {
-            var tab = new Page
-            {
-                Title      = label,
-                Icon       = icon,
-                PageKind   = PageKinds.FileSystem,
-                PageParams = p,
-                Breadcrumbs = {new BreadcrumbSegment { Label = label }}
-            };
-            tab.ContentFactory = () => CreateFileSystemPage(new FileSystemViewModel(path, _workContext), tab);
-            return tab;
-        }
-        else
-        {
-            var tab = new Page
-            {
-                Title      = "This PC",
-                Icon       = "🖥",
-                PageKind   = PageKinds.FileSystem,
-                PageParams = p ?? new() { ["mode"] = "thispc" },
-                Breadcrumbs = {new BreadcrumbSegment { Label = "This PC" }}
-            };
-            tab.ContentFactory = () => CreateFileSystemPage(FileSystemViewModel.CreateThisPc(_workContext), tab);
-            return tab;
-        }
-    }
-
-    private FileSystemView CreateFileSystemPage(FileSystemViewModel fsVm, Page tab)
-    {
-        var keyHandler = new FileSystemKeyboardHandler(fsVm);
-        var dropTarget = new FileSystemDropTarget(fsVm);
-        var page = new FileSystemView(fsVm, keyHandler, dropTarget);
-        page.NavigationChanged += segments => ApplyFileSystemBreadcrumbs(tab, page, segments);
-        if (PinToRibbonCallback is not null)
-            fsVm.PinToRibbonCallback = PinToRibbonCallback;
-        return page;
-    }
-
-    private bool _applyingBreadcrumbs;
-
-    private void ApplyFileSystemBreadcrumbs(
-        Page tab,
-        FileSystemView page,
-        IReadOnlyList<(string Label, string Path)> segments)
-    {
-        if (_applyingBreadcrumbs) return;
-        _applyingBreadcrumbs = true;
-        try
-        {
-            var crumbs = segments.Select((seg, i) =>
-            {
-                var capturedPath = seg.Path;
-                var isLast = i == segments.Count - 1;
-                return new BreadcrumbSegment
-                {
-                    Label    = seg.Label,
-                    Navigate = isLast ? null : (string.IsNullOrEmpty(capturedPath)
-                        ? () => page.ViewModel.GoToThisPc(rebuildTree: true)
-                        : () => page.ViewModel.NavigateTo(capturedPath))
-                };
-            }).ToList();
-
-            var currentLabel = segments[^1].Label;
-            var newTitle = currentLabel.Length > 15
-                ? currentLabel[..10] + "…"
-                : currentLabel;
-
-            var currentPath = segments[^1].Path;
-            var newParams = string.IsNullOrEmpty(currentPath)
-                ? new Dictionary<string, string> { ["mode"] = "thispc" }
-                : new Dictionary<string, string> { ["mode"] = "path", ["path"] = currentPath };
-
-            tab.Title = newTitle;
-            tab.PageParams = newParams;
-            tab.Breadcrumbs.Clear();
-            foreach (var c in crumbs) tab.Breadcrumbs.Add(c);
-        }
-        finally
-        {
-            _applyingBreadcrumbs = false;
-        }
     }
 
     private static Page MakePlaceholderTab(string title, string icon) => new()
@@ -380,6 +278,10 @@ public sealed class ShellServices : IShellServices
     // No host-level refresh — feature views drive their own refresh from
     // file-system events; actions that mutate the file system rely on that.
     void IShellServices.RequestRefresh() { }
+
+    void IShellServices.PinToRibbon(string contentKind, object payload)
+        => (_focused ?? _windows.FirstOrDefault())
+            ?.AddRibbonPin(new RibbonPinRequest(contentKind, payload));
 
     // ── Window positioning (tearoff) ──────────────────────────────────────
 
