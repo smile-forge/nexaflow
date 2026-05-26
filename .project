@@ -1,0 +1,109 @@
+{
+  "Name": "nexaflow",
+  "Description": "Nexaflow provides a coherent AI integrated workspace that replaces the miriad of simple tools for common tasks.",
+  "Scope": "Features should not become a full application, should not require more than a basic toolbar or require complex configuration",
+  "Objectives": [
+    "Simple activities should be doable from the interface without requiring another application",
+    "Minimise context switching for all simple activities"
+  ],
+  "SolutionFile": null,
+  "LastUpdate": "2026-05-26T20:08:08.013629Z",
+  "Backlog": [
+    {
+      "Id": "49ca9f9c-663a-474d-a282-daa6d7adda82",
+      "Title": "csv/table viewer/editor",
+      "Notes": null,
+      "Status": "NotStarted",
+      "ImpPlan": null,
+      "TestPlan": null
+    },
+    {
+      "Id": "6379211b-d909-4147-a50d-0db91a00fea6",
+      "Title": "Add the ability to add new files to a directory",
+      "Notes": null,
+      "Status": "NotStarted",
+      "ImpPlan": null,
+      "TestPlan": null
+    },
+    {
+      "Id": "298a512a-6811-44c1-a90b-002708a273c4",
+      "Title": "Whole pc search",
+      "Notes": null,
+      "Status": "NotStarted",
+      "ImpPlan": null,
+      "TestPlan": null
+    },
+    {
+      "Id": "8f0f82b2-28ef-4b40-8c86-5597be77831e",
+      "Title": "Wizard for setup at start",
+      "Notes": null,
+      "Status": "NotStarted",
+      "ImpPlan": null,
+      "TestPlan": null
+    },
+    {
+      "Id": "c67f3d61-f0c8-493e-affb-aab0584756f3",
+      "Title": "Add gemini as provider",
+      "Notes": null,
+      "Status": "NotStarted",
+      "ImpPlan": null,
+      "TestPlan": null
+    },
+    {
+      "Id": "4c97f510-c0ca-4020-8fc0-6fdb4d3827a9",
+      "Title": "add local onnx as provider",
+      "Notes": null,
+      "Status": "NotStarted",
+      "ImpPlan": null,
+      "TestPlan": null
+    },
+    {
+      "Id": "1f7055e7-be4e-47f6-9879-9276eff701d8",
+      "Title": "new ai context view model",
+      "Notes": null,
+      "Status": "NotStarted",
+      "ImpPlan": null,
+      "TestPlan": null
+    },
+    {
+      "Id": "fd611b18-fb04-42b6-818a-acde1e9a33e9",
+      "Title": "ai response popup",
+      "Notes": null,
+      "Status": "NotStarted",
+      "ImpPlan": null,
+      "TestPlan": null
+    },
+    {
+      "Id": "19bda786-4404-4f34-88b3-e1cb0faaf601",
+      "Title": "fix overlays to be generic rather than page specific",
+      "Notes": null,
+      "Status": "NotStarted",
+      "ImpPlan": null,
+      "TestPlan": null
+    },
+    {
+      "Id": "e0483e39-739f-4d4e-8e0b-f53fee3aeff0",
+      "Title": "fix ribbon right click",
+      "Notes": null,
+      "Status": "AwaitingFinalisation",
+      "ImpPlan": null,
+      "TestPlan": null
+    },
+    {
+      "Id": "d56b84d3-9f54-4347-8f5d-4d20ce1dbdc0",
+      "Title": "Error handling for search with direct scan fallback",
+      "Notes": null,
+      "Status": "NotStarted",
+      "ImpPlan": null,
+      "TestPlan": null
+    },
+    {
+      "Id": "0c02a933-f50e-42e3-ab3d-22b8ea5bb83a",
+      "Title": "add environment variable expansion to filesystemview",
+      "Notes": null,
+      "Status": "AwaitingFinalisation",
+      "ImpPlan": null,
+      "TestPlan": null
+    }
+  ]
+}
