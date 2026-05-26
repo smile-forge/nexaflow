@@ -1,7 +1,5 @@
-using Nexaflow.Core.FileActions;
 using Nexaflow.Core.Models;
 using Nexaflow.Features.Common;
-using Nexaflow.Features.Common.Viewlets;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -10,14 +8,19 @@ using System.Reflection;
 namespace Nexaflow.Core;
 
 /// <summary>
-/// Singleton registry of all feature tab factories.
-/// Call <see cref="RegisterFeatures"/> at startup; the manager scans all
-/// Nexaflow.Features.*.dll assemblies for <see cref="IPageRegistration"/>,
-/// <see cref="IFileAction"/>, and related types, recording them without
-/// instantiation. Call <see cref="Instantiate"/> or the typed Get* helpers
-/// at runtime, passing the active <see cref="WorkContext"/> so each instance
+/// Singleton registry of feature-level tab factories, configs, query handlers,
+/// keyboard handlers, drop targets and ribbon-pin handlers. Call
+/// <see cref="RegisterFeatures"/> at startup to load every
+/// <c>Nexaflow.Features.*.dll</c> and record the relevant types without
+/// instantiation. Call <see cref="Instantiate"/> or the typed <c>Get*</c>
+/// helpers at runtime with a <see cref="WorkContext"/> so each instance
 /// receives the correct scoped <see cref="IShellServices"/> and
 /// <see cref="IAIService"/>.
+///
+/// File-system contracts (<c>IFileAction</c>, <c>IFolderAction</c>,
+/// <c>IFileCreateAction</c>, <c>IFolderViewlet</c>) are intentionally NOT
+/// managed here — they live in
+/// <see cref="Services.FileSystemFeatureRegistry"/>.
 /// </summary>
 public sealed class FeatureManager
 {
@@ -30,27 +33,23 @@ public sealed class FeatureManager
     // Per-assembly config instances — populated during RegisterFeatures, never changed after.
     private readonly Dictionary<Type, IFeatureConfig> _configs          = new();
 
-    private readonly List<Type> _fileActionTypes       = [];
-    private readonly List<Type> _folderActionTypes     = [];
-    private readonly List<Type> _fileCreateActionTypes = [];
+    /// <summary>
+    /// Read-only view of the per-assembly <see cref="IFeatureConfig"/> instances
+    /// discovered during <see cref="RegisterFeatures"/>. Exposed for feature-scoped
+    /// registries (e.g. <see cref="Services.FileSystemFeatureRegistry"/>) that need
+    /// to resolve config types as constructor args without going through the shell.
+    /// </summary>
+    public IReadOnlyDictionary<Type, IFeatureConfig> Configs => _configs;
+
     private readonly List<Type> _keyboardHandlerTypes  = [];
     private readonly List<Type> _dropTargetTypes       = [];
     private readonly List<Type> _queryHandlerTypes     = [];
-    private readonly List<Type> _folderViewletTypes    = [];
     private readonly List<Type> _ribbonPinHandlerTypes = [];
 
     // ── Read-only type lists (for callers that need the raw types) ────────
 
-    public IReadOnlyList<Type> FileActionTypes       => _fileActionTypes;
-    public IReadOnlyList<Type> FolderActionTypes     => _folderActionTypes;
-    public IReadOnlyList<Type> FileCreateActionTypes => _fileCreateActionTypes;
     public IReadOnlyList<Type> KeyboardHandlerTypes  => _keyboardHandlerTypes;
     public IReadOnlyList<Type> DropTargetTypes       => _dropTargetTypes;
-
-    // ── Experiences (type-level, built from static StaticExperienceId) ────
-
-    private List<string> _allExperiences = [];
-    public IReadOnlyList<string> AllExperiences => _allExperiences;
 
     // ── Per-(Type, WorkContext) instance cache ────────────────────────────
 
@@ -79,15 +78,6 @@ public sealed class FeatureManager
 
         // Core itself contains action / handler / viewlet / page-registration implementations.
         Register(typeof(FeatureManager).Assembly);
-
-        // Build the experience list from static metadata on file action types.
-        _allExperiences = _fileActionTypes
-            .Select(t => t.GetProperty("StaticExperienceId",
-                BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
-                ?.GetValue(null) as string)
-            .Where(id => !string.IsNullOrEmpty(id))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList()!;
     }
 
     public void Register(Assembly asm)
@@ -152,21 +142,7 @@ public sealed class FeatureManager
             if (typeof(IKeyboardHandler).IsAssignableFrom(t)) _keyboardHandlerTypes.Add(t);
             if (typeof(IDropTarget).IsAssignableFrom(t))      _dropTargetTypes.Add(t);
             if (typeof(IQueryHandler).IsAssignableFrom(t))    _queryHandlerTypes.Add(t);
-            if (typeof(IFolderViewlet).IsAssignableFrom(t))   _folderViewletTypes.Add(t);
             if (typeof(IRibbonPinHandler).IsAssignableFrom(t)) _ribbonPinHandlerTypes.Add(t);
-
-            bool isFile   = typeof(IFileAction).IsAssignableFrom(t);
-            bool isFolder = typeof(IFolderAction).IsAssignableFrom(t);
-            bool isCreate = typeof(IFileCreateAction).IsAssignableFrom(t);
-
-            // Only cache types whose instances are equivalent per WorkContext.
-            // Dynamic types (ShellVerbAction, FolderActionAdapter) are excluded here;
-            // they are reached via GetReinitParams/Rehydrate or FindFileAction fallbacks.
-            bool isCacheable = typeof(ICacheable).IsAssignableFrom(t);
-
-            if (isFile   && isCacheable && !_fileActionTypes.Contains(t))       _fileActionTypes.Add(t);
-            if (isFolder && isCacheable && !_folderActionTypes.Contains(t))     _folderActionTypes.Add(t);
-            if (isCreate && isCacheable && !_fileCreateActionTypes.Contains(t)) _fileCreateActionTypes.Add(t);
         }
     }
 
@@ -250,20 +226,8 @@ public sealed class FeatureManager
 
     // ── Typed Get* helpers ────────────────────────────────────────────────
 
-    public IReadOnlyList<IFileAction> GetFileActions(WorkContext ctx)
-        => Instantiate<IFileAction>(_fileActionTypes, ctx);
-
-    public IReadOnlyList<IFolderAction> GetFolderActions(WorkContext ctx)
-        => Instantiate<IFolderAction>(_folderActionTypes, ctx);
-
-    public IReadOnlyList<IFileCreateAction> GetFileCreateActions(WorkContext ctx)
-        => Instantiate<IFileCreateAction>(_fileCreateActionTypes, ctx);
-
     public IReadOnlyList<IQueryHandler> GetQueryHandlers(WorkContext ctx)
         => Instantiate<IQueryHandler>(_queryHandlerTypes, ctx);
-
-    public IReadOnlyList<IFolderViewlet> GetFolderViewlets(WorkContext ctx)
-        => Instantiate<IFolderViewlet>(_folderViewletTypes, ctx);
 
     public IReadOnlyList<IRibbonPinHandler> GetRibbonPinHandlers(WorkContext ctx)
         => Instantiate<IRibbonPinHandler>(_ribbonPinHandlerTypes, ctx);
@@ -311,52 +275,6 @@ public sealed class FeatureManager
                 pageKinds.Add(reg.PageKind);
         }
         return pageKinds;
-    }
-
-    // ── FindFileAction ────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Finds an <see cref="IFileAction"/> by its concrete type's full or short name.
-    /// Looks first in the cached set for <paramref name="workContext"/>; when that
-    /// misses and <paramref name="reinitParams"/> is supplied, locates the type and
-    /// invokes its <c>public static IFileAction Rehydrate(Dictionary&lt;string,string&gt;)</c>
-    /// factory — the pattern runtime-constructed types (e.g. ShellVerbAction) use.
-    /// </summary>
-    public IFileAction? FindFileAction(string typeName, WorkContext workContext,
-                                       Dictionary<string, string>? reinitParams = null)
-    {
-        var singleton = GetFileActions(workContext).FirstOrDefault(a =>
-            a.GetType().FullName == typeName || a.GetType().Name == typeName);
-        if (singleton is not null) return singleton;
-
-        // FolderActionAdapter: non-cacheable wrapper whose inner type is stored in reinit params.
-        // Reconstruct by finding the inner IFolderAction in the cached set and re-wrapping it.
-        if ((typeName == typeof(FolderActionAdapter).FullName || typeName == nameof(FolderActionAdapter)) &&
-            reinitParams?.TryGetValue("innerType", out var innerTypeName) == true &&
-            innerTypeName is not null)
-        {
-            var inner = GetFolderActions(workContext).FirstOrDefault(a =>
-                a.GetType().FullName == innerTypeName || a.GetType().Name == innerTypeName);
-            return inner is not null ? new FolderActionAdapter(inner) : null;
-        }
-
-        if (reinitParams is null) return null;
-
-        var type = AppDomain.CurrentDomain.GetAssemblies()
-            .Select(a => a.GetType(typeName, throwOnError: false, ignoreCase: false))
-            .FirstOrDefault(t => t is not null);
-        if (type is null) return null;
-
-        var factory = type.GetMethod(
-            "Rehydrate",
-            BindingFlags.Public | BindingFlags.Static,
-            binder: null,
-            types: [typeof(Dictionary<string, string>)],
-            modifiers: null);
-        if (factory is null) return null;
-
-        try { return factory.Invoke(null, [reinitParams]) as IFileAction; }
-        catch { return null; }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────

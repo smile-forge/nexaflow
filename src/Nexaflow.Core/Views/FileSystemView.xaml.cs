@@ -54,20 +54,6 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     /// </summary>
     public event Action<IReadOnlyList<(string Label, string Path)>>? NavigationChanged;
 
-    public FileSystemView(string targetDirectory, IKeyboardHandler keyboardHandler, IDropTarget dropTarget)
-    {
-        InitializeComponent();
-        ViewModel        = new FileSystemViewModel(targetDirectory, Services.WorkContextManager.Instance.Contexts[0]);
-        _keyboardHandler = keyboardHandler;
-        _dropTarget      = dropTarget;
-        DataContext = ViewModel;
-        ViewModel.NavigationChanged += OnViewModelNavigationChanged;
-        ViewModel.PropertyChanged   += OnViewModelPropertyChanged;
-        WireDragDrop();
-        WireActionStripDrag();
-        Loaded += (_, _) => UpdateListViewVisibility();
-    }
-
     public FileSystemView(FileSystemViewModel viewModel, IKeyboardHandler keyboardHandler, IDropTarget dropTarget)
     {
         InitializeComponent();
@@ -220,7 +206,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
 
         if (isThisPcMode || string.IsNullOrEmpty(folderPath)) return;
 
-        var matched = FolderViewletRegistry.GetMatchingViewlets(folderPath, ViewModel.WorkContext);
+        var matched = FolderViewletRegistry.GetMatchingViewlets(folderPath, ViewModel.Registry);
         foreach (var viewlet in matched)
         {
             var host = new ViewletHost(viewlet, folderPath);

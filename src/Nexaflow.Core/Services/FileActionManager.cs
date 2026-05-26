@@ -1,5 +1,4 @@
 using Nexaflow.Core.FileActions;
-using Nexaflow.Core.Models;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
 using System.Collections.Generic;
@@ -9,29 +8,28 @@ using System.Linq;
 namespace Nexaflow.Core.Services;
 
 /// <summary>
-/// Filtering / matching layer over the action instances owned by <see cref="FeatureManager"/>.
-/// Purely stateless — discovery and construction live in <see cref="FeatureManager"/>; this
-/// class only decides which actions apply to a given file/folder selection.
+/// Filtering / matching layer over the action instances owned by
+/// <see cref="FileSystemFeatureRegistry"/>. Purely stateless — discovery and
+/// construction live in the registry; this class only decides which actions
+/// apply to a given file/folder selection.
 /// </summary>
 public sealed class FileActionManager
 {
-    private readonly WorkContext _workContext;
+    private readonly FileSystemFeatureRegistry _registry;
 
-    public FileActionManager(WorkContext workContext) => _workContext = workContext;
+    public FileActionManager(FileSystemFeatureRegistry registry) => _registry = registry;
 
-    private IReadOnlyList<IFileAction>   File   => FeatureManager.Instance.GetFileActions(_workContext);
-    private IReadOnlyList<IFolderAction> Folder => FeatureManager.Instance.GetFolderActions(_workContext);
+    private IReadOnlyList<IFileAction>   File   => _registry.FileActions;
+    private IReadOnlyList<IFolderAction> Folder => _registry.FolderActions;
 
     /// <summary>All discovered create-file actions.</summary>
-    public IReadOnlyList<IFileCreateAction> CreateActions
-        => FeatureManager.Instance.GetFileCreateActions(_workContext);
+    public IReadOnlyList<IFileCreateAction> CreateActions => _registry.FileCreateActions;
 
     /// <summary>
     /// All experience IDs advertised by the registered file actions.
     /// Passed to <see cref="FileMapManager.RegisterKnownExperiences"/> after construction.
-    /// Comes from static metadata — no WorkContext needed.
     /// </summary>
-    public IReadOnlyList<string> AllExperiences => FeatureManager.Instance.AllExperiences;
+    public IReadOnlyList<string> AllExperiences => _registry.AllExperiences;
 
     // ── Filtering ─────────────────────────────────────────────────────────────
 

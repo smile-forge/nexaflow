@@ -44,7 +44,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, IAc
             ? (string.IsNullOrEmpty(CurrentPath) ? [] : [CurrentPath])
             : CurrentSelection.Select(e => e.FullPath).ToList();
         var payload = new FileActionPinPayload(vm.Action, paths);
-        ((IShellServices?)WorkContext.ShellServices)?.PinToRibbon(FileSystemPageRegistration.FileActionKind, payload);
+        _shell.PinToRibbon(FileSystemPageRegistration.FileActionKind, payload);
     }
 
     private bool CanPinFileActionToRibbon(FileActionViewModel? vm)
@@ -407,7 +407,8 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, IAc
     // ── Constructors ─────────────────────────────────────────────────────────
 
     /// <summary>Opens a specific directory as the starting point.</summary>
-    public FileSystemViewModel(string targetDirectory, WorkContext workContext) : this(workContext)
+    public FileSystemViewModel(string targetDirectory, IShellServices shell, IAIService ai)
+        : this(shell, ai)
     {
         InitDebounceTimer();
         _rootPath = targetDirectory;
@@ -416,9 +417,9 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, IAc
     }
 
     /// <summary>Opens "This PC" showing all connected drives.</summary>
-    public static FileSystemViewModel CreateThisPc(WorkContext workContext)
+    public static FileSystemViewModel CreateThisPc(IShellServices shell, IAIService ai)
     {
-        var vm = new FileSystemViewModel(workContext);
+        var vm = new FileSystemViewModel(shell, ai);
         vm.InitDebounceTimer();
         vm._rootPath     = string.Empty;
         vm._isThisPcMode = true;
@@ -530,12 +531,17 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, IAc
         }
     }
 
-    internal WorkContext WorkContext { get; }
+    private readonly IShellServices _shell;
+    private readonly IAIService _ai;
 
-    private FileSystemViewModel(WorkContext workContext)
+    internal FileSystemFeatureRegistry Registry { get; }
+
+    private FileSystemViewModel(IShellServices shell, IAIService ai)
     {
-        WorkContext     = workContext;
-        _actionRegistry = new FileActionManager(workContext);
+        _shell          = shell;
+        _ai             = ai;
+        Registry        = FileSystemFeatureRegistry.For(shell, ai, FeatureManager.Instance.Configs);
+        _actionRegistry = new FileActionManager(Registry);
         FileMapManager.Instance.RegisterKnownExperiences(_actionRegistry.AllExperiences);
     }
 

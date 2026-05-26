@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Nexaflow.Features.Common;
@@ -60,4 +61,17 @@ public interface IShellServices
     /// <paramref name="contentKind"/>.
     /// </summary>
     void PinToRibbon(string contentKind, object payload);
+
+    /// <summary>
+    /// Enumerates every concrete, non-abstract type across the loaded
+    /// <c>Nexaflow.*</c> assemblies (Core + each <c>Nexaflow.Features.*</c>)
+    /// that is assignable to <typeparamref name="TInterface"/>.
+    /// </summary>
+    /// <remarks>
+    /// Central point for cross-assembly type discovery so feature services
+    /// (e.g. file-system action / viewlet registries) don't each duplicate
+    /// the reflection walk. Assumes <c>FeatureManager.RegisterFeatures</c>
+    /// has already loaded every feature DLL into the AppDomain.
+    /// </remarks>
+    IEnumerable<Type> DiscoverImplementations<TInterface>();
 }
