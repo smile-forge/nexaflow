@@ -427,5 +427,6 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+nexaflowSetup/*.exe
 
 /.claude/*

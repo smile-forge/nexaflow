@@ -27,16 +27,19 @@
 
     <Chain>
       <ExePackage Id="NetDesktopRuntime10"
-                  SourceFile="..\nexaflowSetup\windowsdesktop-runtime-10.0.8-win-x64.exe"
                   DisplayName=".NET 10 Desktop Runtime (x64)"
-                  DownloadUrl="https://dotnetcli.azureedge.net/dotnet/WindowsDesktop/10.0.8/windowsdesktop-runtime-10.0.8-win-x64.exe"
-                  Compressed="no"
                   DetectCondition="NetDesktop10Installed"
                   InstallArguments="/install /quiet /norestart"
                   RepairArguments="/repair /quiet /norestart"
                   UninstallArguments="/uninstall /quiet /norestart"
                   Permanent="yes"
-                  Vital="yes" />
+                  Vital="yes">
+        <ExePackagePayload Name="windowsdesktop-runtime-10.0.8-win-x64.exe"
+                           DownloadUrl="https://dotnetcli.azureedge.net/dotnet/WindowsDesktop/10.0.8/windowsdesktop-runtime-10.0.8-win-x64.exe"
+                           Hash="8DDE7D1FE5D1934D386C01AC208E1A9DEBC1AFA2448C5404E969C3BDEE36B2DBAA9CFF999452BD26181659F27F3EEFFE200AC223C26A2196DC563BEF0536CA1E"
+                           Size="59968752"
+                           Version="10.0.8.0" />
+      </ExePackage>
 
       <MsiPackage Id="NexaflowApp"
                   SourceFile="$(var.nexaflowSetup.TargetPath)"
