@@ -24,7 +24,6 @@ public partial class RibbonEditor : UserControl
     public static readonly DependencyProperty SaveCommandProperty =
         DependencyProperty.Register(nameof(SaveCommand), typeof(ICommand), typeof(RibbonEditor));
 
-    // (defaults source pulled straight from RibbonViewModel.BuildDefaultItems below)
 
     public ObservableCollection<RibbonItem>? ItemsSource
     {
@@ -669,7 +668,7 @@ public partial class RibbonEditor : UserControl
         _selected = null;
         _draft    = [];
 
-        foreach (var item in RibbonViewModel.BuildDefaultItems())
+        foreach (var item in RibbonLayoutService.LoadDefaults())
             _draft.Add(CloneItem(item));
 
         RebuildCards();

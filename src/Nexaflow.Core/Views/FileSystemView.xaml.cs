@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Controls.Primitives;
+using Nexaflow.Core;
 using Nexaflow.Core.Controls;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.RibbonHandlers;
@@ -128,7 +129,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
             ? (string.IsNullOrEmpty(ViewModel.CurrentPath) ? [] : [ViewModel.CurrentPath])
             : ViewModel.CurrentSelection.Select(entry => entry.FullPath).ToList();
         var payload = new FileActionPinPayload(_actionDragVm.Action, paths);
-        var data    = new DataObject(PageKinds.FileAction, payload);
+        var data    = new DataObject(FileSystemPageRegistration.FileActionKind, payload);
         DragDrop.DoDragDrop(ActionStrip, data, DragDropEffects.Copy);
     }
 

@@ -6,7 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
-using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.Ribbon;
 
 namespace Nexaflow.Core.ViewModels;
 
@@ -115,42 +115,9 @@ public partial class RibbonViewModel : ObservableObject
 
     public void BuildDefaults()
     {
-        foreach (var item in BuildDefaultItems())
+        foreach (var item in RibbonLayoutService.LoadDefaults())
             Items.Add(item);
     }
-
-    public static IList<RibbonItem> BuildDefaultItems()
-    {
-        return
-        [
-            MakeButton("Projects", "🗂", "Projects"),
-            new RibbonItem { Kind = RibbonItemKind.Separator },
-            MakeButton("This PC", "🖥", PageKinds.FileSystem, new() { ["mode"] = "thispc" }),
-            MakeButton("AI Chat", "💬", PageKinds.AiChat),
-            MakeButton("Console", "⌨", "Console"),
-            MakeButton("Scratchpad", "📌", "Scratchpad"),
-            new RibbonItem { Kind = RibbonItemKind.Separator },
-            MakeButton("Documents", "📄", PageKinds.FileSystem,
-                new() { ["mode"] = "path", ["path"] = KnownFolderService.DocumentsPath }),
-            MakeButton("Pictures", "🖼", PageKinds.FileSystem,
-                new() { ["mode"] = "path", ["path"] = KnownFolderService.PicturesPath }),
-            MakeButton("Videos", "🎬", PageKinds.FileSystem,
-                new() { ["mode"] = "path", ["path"] = KnownFolderService.VideosPath }),
-            MakeButton("Music", "🎵", PageKinds.FileSystem,
-                new() { ["mode"] = "path", ["path"] = KnownFolderService.MusicPath }),
-        ];
-    }
-
-    public static RibbonItem MakeButton(string label, string icon, string pageKind,
-                                        Dictionary<string, string>? pageParams = null)
-        => new()
-        {
-            Kind       = RibbonItemKind.Button,
-            Label      = label,
-            Icon       = icon,
-            PageKind   = pageKind,
-            PageParams = pageParams
-        };
 
     public void AddItem(RibbonItem item, int insertAt = -1)
     {

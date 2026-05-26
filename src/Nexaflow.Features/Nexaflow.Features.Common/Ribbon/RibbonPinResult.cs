@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Nexaflow.Features.Common;
+namespace Nexaflow.Features.Common.Ribbon;
 
 /// <summary>
 /// Data returned by <see cref="IRibbonPinHandler.Pin"/> describing how to render

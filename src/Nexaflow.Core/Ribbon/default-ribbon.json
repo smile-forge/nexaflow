@@ -1,0 +1,13 @@
+[
+  { "Kind": "Button",    "Label": "Projects",  "Icon": "🗂",  "PageKind": "Projects"    },
+  { "Kind": "Separator"                                                                   },
+  { "Kind": "Button",    "Label": "This PC",   "Icon": "🖥",  "PageKind": "FileSystem",  "PageParams": { "mode": "thispc" }                           },
+  { "Kind": "Button",    "Label": "AI Chat",   "Icon": "💬",  "PageKind": "Ai Chat"     },
+  { "Kind": "Button",    "Label": "Console",   "Icon": "⌨",  "PageKind": "Console"     },
+  { "Kind": "Button",    "Label": "Scratchpad","Icon": "📌",  "PageKind": "Scratchpad"  },
+  { "Kind": "Separator"                                                                   },
+  { "Kind": "Button",    "Label": "Documents", "Icon": "📄",  "PageKind": "FileSystem",  "PageParams": { "mode": "path", "path": "{Documents}" }      },
+  { "Kind": "Button",    "Label": "Pictures",  "Icon": "🖼",  "PageKind": "FileSystem",  "PageParams": { "mode": "path", "path": "{Pictures}"  }      },
+  { "Kind": "Button",    "Label": "Videos",    "Icon": "🎬",  "PageKind": "FileSystem",  "PageParams": { "mode": "path", "path": "{Videos}"    }      },
+  { "Kind": "Button",    "Label": "Music",     "Icon": "🎵",  "PageKind": "FileSystem",  "PageParams": { "mode": "path", "path": "{Music}"     }      }
+]

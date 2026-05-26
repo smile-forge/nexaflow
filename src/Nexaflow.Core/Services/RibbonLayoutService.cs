@@ -58,6 +58,41 @@ public sealed class RibbonLayoutService
         catch { return null; }
     }
 
+    /// <summary>
+    /// Loads the shipped <c>Ribbon/default-ribbon.json</c> and expands known-folder
+    /// tokens (<c>{Documents}</c>, <c>{Pictures}</c>, <c>{Videos}</c>, <c>{Music}</c>)
+    /// in PageParams values.  Returns an empty list if the file is missing or corrupt.
+    /// </summary>
+    public static List<RibbonItem> LoadDefaults()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "Ribbon", "default-ribbon.json");
+        if (!File.Exists(path)) return [];
+        try
+        {
+            var dtos = JsonSerializer.Deserialize<List<RibbonItemDto>>(File.ReadAllText(path), _opts);
+            return dtos?.Select(dto => FromDto(ExpandTokens(dto))).ToList() ?? [];
+        }
+        catch { return []; }
+    }
+
+    private static RibbonItemDto ExpandTokens(RibbonItemDto dto)
+    {
+        if (dto.PageParams is null) return dto;
+        dto.PageParams = dto.PageParams.ToDictionary(
+            kv => kv.Key,
+            kv => kv.Value switch
+            {
+                "{Documents}" => KnownFolderService.DocumentsPath,
+                "{Pictures}"  => KnownFolderService.PicturesPath,
+                "{Videos}"    => KnownFolderService.VideosPath,
+                "{Music}"     => KnownFolderService.MusicPath,
+                "{Desktop}"   => KnownFolderService.DesktopPath,
+                "{Downloads}" => KnownFolderService.DownloadsPath,
+                var v         => v
+            });
+        return dto;
+    }
+
     // ── DTO mapping ───────────────────────────────────────────────────────
 
     private static RibbonItemDto ToDto(RibbonItem item) => new()

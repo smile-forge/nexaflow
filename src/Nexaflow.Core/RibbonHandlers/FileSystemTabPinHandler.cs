@@ -1,6 +1,7 @@
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Views;
-using Nexaflow.Features.Common;
+using Nexaflow.Core;
+using Nexaflow.Features.Common.Ribbon;
 using System.Collections.Generic;
 
 namespace Nexaflow.Core.RibbonHandlers;
@@ -12,7 +13,7 @@ namespace Nexaflow.Core.RibbonHandlers;
 /// </summary>
 public sealed class FileSystemTabPinHandler(WorkContext workContext) : IRibbonPinHandler
 {
-    public string ContentKind => PageKinds.FileSystem;
+    public string ContentKind => FileSystemPageRegistration.PageKind;
 
     public RibbonPinResult? Pin(object payload, int insertIndex = -1)
     {
@@ -46,5 +47,5 @@ public sealed class FileSystemTabPinHandler(WorkContext workContext) : IRibbonPi
     }
 
     public void Execute(Dictionary<string, string>? pageParams, IRibbonExecutionContext context)
-        => ((IShellServices?)workContext.ShellServices)?.OpenTab(PageKinds.FileSystem, pageParams);
+        => ((IShellServices?)workContext.ShellServices)?.OpenTab(FileSystemPageRegistration.PageKind, pageParams);
 }

@@ -10,8 +10,11 @@ namespace Nexaflow.Core;
 
 public sealed class FileSystemPageRegistration(WorkContext workContext) : IPageRegistration
 {
-    public static string StaticPageKind => PageKinds.FileSystem;
-    public string PageKind => StaticPageKind;
+    public const string PageKind       = "FileSystem";
+    public const string FileActionKind = "FileAction";
+
+    public static string StaticPageKind => PageKind;
+    string IPageRegistration.PageKind => PageKind;
 
     public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {
@@ -24,7 +27,7 @@ public sealed class FileSystemPageRegistration(WorkContext workContext) : IPageR
             {
                 Title       = label,
                 Icon        = "📁",
-                PageKind    = StaticPageKind,
+                PageKind    = PageKind,
                 PageParams  = pageParams,
                 Breadcrumbs = { new BreadcrumbSegment { Label = label } }
             };
@@ -37,7 +40,7 @@ public sealed class FileSystemPageRegistration(WorkContext workContext) : IPageR
             {
                 Title       = "This PC",
                 Icon        = "🖥",
-                PageKind    = StaticPageKind,
+                PageKind    = PageKind,
                 PageParams  = pageParams ?? new() { ["mode"] = "thispc" },
                 Breadcrumbs = { new BreadcrumbSegment { Label = "This PC" } }
             };

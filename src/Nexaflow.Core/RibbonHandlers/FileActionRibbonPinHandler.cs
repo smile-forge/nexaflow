@@ -1,8 +1,9 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Nexaflow.Core;
 using Nexaflow.Core.Models;
-using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.Ribbon;
 
 namespace Nexaflow.Core.RibbonHandlers;
 
@@ -17,7 +18,7 @@ public sealed class FileActionRibbonPinHandler : IRibbonPinHandler
 
     public FileActionRibbonPinHandler(WorkContext workContext) => _workContext = workContext;
 
-    public string ContentKind => PageKinds.FileAction;
+    public string ContentKind => FileSystemPageRegistration.FileActionKind;
 
     // PageParam keys reserved by this handler. Reinit params from the action are
     // stored flat under the "r." prefix to keep them distinct from these.
