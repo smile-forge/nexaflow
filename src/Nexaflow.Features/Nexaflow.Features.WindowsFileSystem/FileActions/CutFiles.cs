@@ -1,52 +1,45 @@
 using Nexaflow.Features.Common;
-using System;
 using System.Collections.Generic;
 
-namespace Nexaflow.Core.FileActions
+namespace Nexaflow.Features.WindowsFileSystem.FileActions
 {
-    internal class FileProperties : IFileAction, IFolderAction, ICacheable
+    public class CutFiles : IFileAction, IFolderAction, ICacheable
     {
         // ── IFileAction ───────────────────────────────────────────────────────
 
         public bool   IsDestructive          => false;
-        public bool   SupportsMultipleFiles  => false;
-        public string Icon                   => "☶";
-        public string DisplayName            => "Properties";
+        public bool   SupportsMultipleFiles  => true;
+        public string Icon                   => "✂️";
+        public string DisplayName            => "Cut";
         public static string? StaticExperienceId => "/";
         public string ExperienceId           => "/";
         public string ExperienceDescription  => "All files";
-        public bool   RequiresRefresh        => false;
+        public bool   RequiresRefresh        => true;
         public bool   CanPerformAction       => true;
 
         // ── IFolderAction ─────────────────────────────────────────────────────
 
-        bool   IFolderAction.IsDestructive       => false;
-        bool   IFolderAction.SupportsMultipleFiles => false;
-        string IFolderAction.Icon                => "☶";
-        string IFolderAction.DisplayName         => "Properties";
-        bool   IFolderAction.RequiresRefresh      => false;
-        bool   IFolderAction.CanPerformAction     => true;
-        public bool   AppliesToRoot              => false;
-        public bool   AppliesToDrives            => true;
+        bool   IFolderAction.IsDestructive        => false;
+        bool   IFolderAction.SupportsMultipleFiles => true;
+        string IFolderAction.Icon                 => "✂️";
+        string IFolderAction.DisplayName          => "Cut";
+        bool   IFolderAction.RequiresRefresh       => true;
+        bool   IFolderAction.CanPerformAction      => true;
+        public bool   AppliesToRoot               => false;
+        public bool   AppliesToDrives             => false;
 
         // ── Actions ───────────────────────────────────────────────────────────
 
         public bool PerformAction(string filePath)
         {
-            try
-            {
-                NativeMethods.ShowFileProperties(filePath);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
+            NativeMethods.ClipboardCutFiles([filePath]);
+            return true;
         }
 
         public bool PerformAction(IEnumerable<string> filePaths)
         {
-            throw new NotImplementedException();
+            NativeMethods.ClipboardCutFiles([.. filePaths]);
+            return true;
         }
     }
 }

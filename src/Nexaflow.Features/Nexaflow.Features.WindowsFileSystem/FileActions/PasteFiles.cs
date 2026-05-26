@@ -1,7 +1,7 @@
 using Nexaflow.Features.Common;
 using System.Collections.Generic;
 
-namespace Nexaflow.Core.FileActions
+namespace Nexaflow.Features.WindowsFileSystem.FileActions
 {
     /// <summary>
     /// Pastes files from the clipboard into the current folder.

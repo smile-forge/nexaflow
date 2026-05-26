@@ -20,6 +20,7 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Tabular/Nexaflow.Features.Tabular.csproj" Id="cf60da94-6e1c-43b8-a3f2-0e0eca0bd206" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Text/Nexaflow.Features.Text.csproj" Id="77cbeb58-09f2-493e-8b0f-127bed679b92" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Web/Nexaflow.Features.Web.csproj" Id="1d58f28c-ea2b-4bd7-9424-fd71d07ecb6c" />
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Nexaflow.Features.WindowsFileSystem.csproj" Id="6bff1ec5-6477-4a2f-a5c5-cdb9c665c331" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.WindowsSearch/Nexaflow.Features.WindowsSearch.csproj" />
   </Folder>
   <Folder Name="/Nexaflow.Providers/">

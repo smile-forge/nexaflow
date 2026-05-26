@@ -1,7 +1,7 @@
 using Nexaflow.Features.Common;
 using System.Collections.Generic;
 
-namespace Nexaflow.Core.FileActions
+namespace Nexaflow.Features.WindowsFileSystem.FileActions
 {
     public class CopyFiles : IFileAction, IFolderAction, ICacheable
     {

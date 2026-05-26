@@ -2,21 +2,22 @@ using Nexaflow.Features.Common;
 using System.Collections.Generic;
 using System.Diagnostics;
 
-namespace Nexaflow.Core.FileActions
+namespace Nexaflow.Features.WindowsFileSystem.FileActions
 {
     /// <summary>
-    /// Launches an executable (.exe) using the shell, exactly as if the user
-    /// double-clicked it in Explorer (verbs, UAC prompts, etc. all apply).
+    /// Installs a Windows Installer package (.msi) or an MSIX / MSIXBUNDLE
+    /// by handing the file off to the shell, which launches the appropriate
+    /// installer UI (msiexec for .msi, AppInstaller for .msix/.msixbundle).
     /// </summary>
-    public class ExecuteFile : IFileAction, ICacheable
+    public class InstallPackage : IFileAction, ICacheable
     {
         public bool   IsDestructive          => false;
         public bool   SupportsMultipleFiles  => false;
-        public string Icon                   => "▶";
-        public string DisplayName            => "Run";
-        public static string? StaticExperienceId => "/binary/executable";
-        public string ExperienceId           => "/binary/executable";
-        public string ExperienceDescription  => "Executable files (.exe)";
+        public string Icon                   => "📦";
+        public string DisplayName            => "Install";
+        public static string? StaticExperienceId => "/binary/installer";
+        public string ExperienceId           => "/binary/installer";
+        public string ExperienceDescription  => "Windows installer packages (.msi, .msix, .msixbundle)";
         public bool   RequiresRefresh        => false;
         public bool   CanPerformAction       => true;
 

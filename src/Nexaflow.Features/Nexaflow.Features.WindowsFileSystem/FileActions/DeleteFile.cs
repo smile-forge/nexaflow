@@ -2,7 +2,7 @@ using Nexaflow.Features.Common;
 using System.Collections.Generic;
 using System.IO;
 
-namespace Nexaflow.Core.FileActions;
+namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 
 /// <summary>
 /// Deletes selected files/folders.

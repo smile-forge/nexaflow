@@ -14,6 +14,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Threading;
+using Nexaflow.Features.WindowsFileSystem.FileActions;
 
 namespace Nexaflow.Core.ViewModels;
 

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Windows.Media;
 
-namespace Nexaflow.Core.FileActions;
+namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 
 /// <summary>
 /// A dynamic <see cref="IFileAction"/> that executes a Windows shell verb

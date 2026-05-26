@@ -1,7 +1,8 @@
 using Nexaflow.Features.Common;
-using Nexaflow.Core.FileActions;
+using Nexaflow.Features.WindowsFileSystem;
 using Nexaflow.Core.ViewModels;
 using System.Windows.Input;
+using Nexaflow.Features.WindowsFileSystem.FileActions;
 
 namespace Nexaflow.Core.FileSystem;
 
