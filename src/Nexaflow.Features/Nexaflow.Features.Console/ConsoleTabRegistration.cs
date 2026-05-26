@@ -18,7 +18,8 @@ public sealed class ConsoleTabRegistration : IPageRegistration
         _shellServices = shellServices;
     }
 
-    public string PageKind => "Console";
+    public static string StaticPageKind => "Console";
+    public string PageKind => StaticPageKind;
 
     public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {

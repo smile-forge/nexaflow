@@ -18,6 +18,10 @@ namespace Nexaflow.Core.Services;
 /// </summary>
 public sealed class ShellServices : IShellServices
 {
+    private readonly WorkContext _workContext;
+
+    public ShellServices(WorkContext workContext) => _workContext = workContext;
+
     // ── Window registry ───────────────────────────────────────────────────
 
     private readonly List<IWindowHost> _windows = [];
@@ -37,6 +41,26 @@ public sealed class ShellServices : IShellServices
     internal Action<string, object>? PinToRibbonCallback { get; set; }
 
     internal void RegisterWindow(IWindowHost host) => _windows.Add(host);
+
+    /// <summary>
+    /// Moves <paramref name="host"/> and all its tracked tabs from this service to
+    /// <paramref name="target"/>. Used when the user switches WorkContext in a window.
+    /// Does NOT trigger application shutdown even if this service becomes empty.
+    /// </summary>
+    internal void TransferWindowTo(IWindowHost host, ShellServices target)
+    {
+        foreach (var tab in host.Tabs.ToList())
+        {
+            if (_tabToWindow.Remove(tab))
+                target._tabToWindow[tab] = host;
+        }
+        _windows.Remove(host);
+        if (_focused == host) _focused = _windows.FirstOrDefault();
+        target._windows.Add(host);
+        target._focused ??= host;
+        target.CreateWindowFactory ??= CreateWindowFactory;
+        target.PinToRibbonCallback ??= PinToRibbonCallback;
+    }
 
     internal void UnregisterWindow(IWindowHost host)
     {
@@ -203,7 +227,7 @@ public sealed class ShellServices : IShellServices
                 pageParams?.GetValueOrDefault("label") ?? "Files", "📁", pageParams);
 
         if (FeatureManager.Instance.IsRegistered(pageKind))
-            return FeatureManager.Instance.CreateTab(pageKind, pageParams);
+            return FeatureManager.Instance.CreateTab(pageKind, _workContext, pageParams);
 
         return MakePlaceholderTab(pageKind, "📄");
     }
@@ -223,7 +247,7 @@ public sealed class ShellServices : IShellServices
                 PageParams = p,
                 Breadcrumbs = {new BreadcrumbSegment { Label = label }}
             };
-            tab.ContentFactory = () => CreateFileSystemPage(new FileSystemViewModel(path), tab);
+            tab.ContentFactory = () => CreateFileSystemPage(new FileSystemViewModel(path, _workContext), tab);
             return tab;
         }
         else
@@ -236,7 +260,7 @@ public sealed class ShellServices : IShellServices
                 PageParams = p ?? new() { ["mode"] = "thispc" },
                 Breadcrumbs = {new BreadcrumbSegment { Label = "This PC" }}
             };
-            tab.ContentFactory = () => CreateFileSystemPage(FileSystemViewModel.CreateThisPc(), tab);
+            tab.ContentFactory = () => CreateFileSystemPage(FileSystemViewModel.CreateThisPc(_workContext), tab);
             return tab;
         }
     }

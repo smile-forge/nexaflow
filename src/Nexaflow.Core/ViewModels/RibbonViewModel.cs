@@ -223,7 +223,8 @@ public partial class RibbonViewModel : ObservableObject
     [RelayCommand]
     public void PinFromHandler(RibbonPinRequest request)
     {
-        var handler = FeatureManager.Instance.GetRibbonPinHandler(request.ContentKind);
+        if (_workContext is null) return;
+        var handler = FeatureManager.Instance.GetRibbonPinHandler(request.ContentKind, _workContext);
         if (handler is null) return;
 
         var result = handler.Pin(request.Payload, request.InsertIndex);

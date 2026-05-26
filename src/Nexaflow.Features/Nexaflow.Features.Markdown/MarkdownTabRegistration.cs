@@ -12,7 +12,8 @@ namespace Nexaflow.Features.Markdown;
 /// </summary>
 public sealed class MarkdownTabRegistration : IPageRegistration
 {
-    public string PageKind => "Markdown";
+    public static string StaticPageKind => "Markdown";
+    public string PageKind => StaticPageKind;
 
     public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {

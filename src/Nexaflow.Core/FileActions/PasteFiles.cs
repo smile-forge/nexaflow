@@ -9,7 +9,7 @@ namespace Nexaflow.Core.FileActions
     /// <see cref="CanPerformAction"/> gates visibility: the action is excluded
     /// from the strip entirely when the clipboard holds no pasteable files.
     /// </summary>
-    public class PasteFiles : IFolderAction
+    public class PasteFiles : IFolderAction, ICacheable
     {
         public bool   IsDestructive         => false;
         public bool   SupportsMultipleFiles => true;

@@ -48,6 +48,10 @@ public partial class RibbonBar : UserControl
         DependencyProperty.Register(nameof(PinFromHandlerCommand),
             typeof(ICommand), typeof(RibbonBar));
 
+    public static readonly DependencyProperty WorkContextProperty =
+        DependencyProperty.Register(nameof(WorkContext),
+            typeof(WorkContext), typeof(RibbonBar));
+
     public ObservableCollection<RibbonItem>? ItemsSource
     {
         get => (ObservableCollection<RibbonItem>?)GetValue(ItemsSourceProperty);
@@ -77,6 +81,11 @@ public partial class RibbonBar : UserControl
     {
         get => (ICommand?)GetValue(DeleteItemCommandProperty);
         set => SetValue(DeleteItemCommandProperty, value);
+    }
+    public WorkContext? WorkContext
+    {
+        get => (WorkContext?)GetValue(WorkContextProperty);
+        set => SetValue(WorkContextProperty, value);
     }
     public ICommand? PinFromHandlerCommand
     {
@@ -140,13 +149,16 @@ public partial class RibbonBar : UserControl
             return;
         }
 
-        foreach (var h in FeatureManager.Instance.RibbonPinHandlers)
+        if (WorkContext is { } ctx)
         {
-            if (e.Data.GetDataPresent(h.ContentKind))
+            foreach (var h in FeatureManager.Instance.GetRibbonPinHandlers(ctx))
             {
-                e.Effects = DragDropEffects.Copy;
-                e.Handled = true;
-                return;
+                if (e.Data.GetDataPresent(h.ContentKind))
+                {
+                    e.Effects = DragDropEffects.Copy;
+                    e.Handled = true;
+                    return;
+                }
             }
         }
 
@@ -165,13 +177,16 @@ public partial class RibbonBar : UserControl
             return;
         }
 
-        foreach (var h in FeatureManager.Instance.RibbonPinHandlers)
+        if (WorkContext is { } dropCtx)
         {
-            if (e.Data.GetData(h.ContentKind) is { } payload)
+            foreach (var h in FeatureManager.Instance.GetRibbonPinHandlers(dropCtx))
             {
-                PinFromHandlerCommand?.Execute(new RibbonPinRequest(h.ContentKind, payload, insertAt));
-                e.Handled = true;
-                return;
+                if (e.Data.GetData(h.ContentKind) is { } payload)
+                {
+                    PinFromHandlerCommand?.Execute(new RibbonPinRequest(h.ContentKind, payload, insertAt));
+                    e.Handled = true;
+                    return;
+                }
             }
         }
     }

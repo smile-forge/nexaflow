@@ -9,7 +9,8 @@ namespace Nexaflow.Features.AIChat
 {
     public sealed class AIChatTabRegistration : IPageRegistration
     {
-        public string PageKind => "AIChat";
+        public static string StaticPageKind => "AIChat";
+        public string PageKind => StaticPageKind;
 
         private readonly IAIService _aiService;
 

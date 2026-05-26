@@ -6,7 +6,8 @@ namespace Nexaflow.Features.Scratchpad;
 
 public sealed class ScratchpadTabRegistration(ScratchpadConfig config, IShellServices shellServices) : IPageRegistration
 {
-    public string PageKind => "Scratchpad";
+    public static string StaticPageKind => "Scratchpad";
+    public string PageKind => StaticPageKind;
 
     public Page CreatePage(Dictionary<string, string>? pageParams = null) => new()
     {

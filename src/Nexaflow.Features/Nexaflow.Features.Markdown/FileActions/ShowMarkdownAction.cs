@@ -6,7 +6,7 @@ namespace Nexaflow.Features.Markdown.FileActions;
 /// <summary>
 /// Opens a Markdown (.md / .markdown) file in a new live-edit MarkdownView tab.
 /// </summary>
-public class ShowMarkdownAction : IFileAction
+public class ShowMarkdownAction : IFileAction, ICacheable
 {
     private readonly IShellServices _shellServices;
 
@@ -16,6 +16,7 @@ public class ShowMarkdownAction : IFileAction
     public bool   SupportsMultipleFiles  => false;
     public string Icon                   => "📝";
     public string DisplayName            => "Show";
+    public static string? StaticExperienceId => "/text/markdown";
     public string ExperienceId           => "/text/markdown";
     public string ExperienceDescription  => "Markdown editor";
     public bool   RequiresRefresh        => false;

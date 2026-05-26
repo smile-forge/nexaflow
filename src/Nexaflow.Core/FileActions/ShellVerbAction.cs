@@ -43,6 +43,7 @@ public sealed class ShellVerbAction : IFileAction
     public bool   SupportsMultipleFiles => false;
     public string Icon                  => "🔗";
     public string DisplayName           { get; }
+    public static string? StaticExperienceId => null;
     public string ExperienceId          => _experienceId;
     public string ExperienceDescription => $"Shell verb: {_verb}";
     public bool   RequiresRefresh       => false;

@@ -10,6 +10,10 @@ public interface IPageRegistration
     /// <summary>
     /// The stable string identifier for this page kind (e.g. <c>"Console"</c>).
     /// Used as the key in <see cref="FeatureManager"/> and persisted in ribbon.json.
+    /// Each implementation must also expose a
+    /// <c>public static string StaticPageKind { get; }</c> so that
+    /// <see cref="FeatureManager"/> can discover the page kind via reflection
+    /// without instantiation.
     /// </summary>
     string PageKind { get; }
 

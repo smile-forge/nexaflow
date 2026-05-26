@@ -1,3 +1,4 @@
+using Nexaflow.Core.Models;
 using Nexaflow.Features.Common.Viewlets;
 using System.IO;
 
@@ -9,10 +10,11 @@ namespace Nexaflow.Core.Services;
 /// </summary>
 public static class FolderViewletRegistry
 {
-    public static IReadOnlyList<IFolderViewlet> GetMatchingViewlets(string folderPath, bool isDrive = false)
+    public static IReadOnlyList<IFolderViewlet> GetMatchingViewlets(
+        string folderPath, WorkContext workContext, bool isDrive = false)
     {
         var result = new List<IFolderViewlet>();
-        foreach (var viewlet in FeatureManager.Instance.FolderViewlets)
+        foreach (var viewlet in FeatureManager.Instance.GetFolderViewlets(workContext))
         {
             if (isDrive && !viewlet.AppliesToDrives) continue;
             if (!FolderNameMatches(viewlet, folderPath)) continue;

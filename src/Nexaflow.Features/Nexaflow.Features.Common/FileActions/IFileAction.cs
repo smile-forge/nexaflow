@@ -14,6 +14,10 @@ namespace Nexaflow.Features.Common
         /// Hierarchical experience identifier, e.g. "/binary/installer" or "/image".
         /// FileMapManager uses this to match the action against file selection criteria.
         /// Child IDs automatically satisfy parent experiences (hierarchy propagates upward).
+        /// Each implementation must also expose a
+        /// <c>public static string? StaticExperienceId { get; }</c> so that
+        /// <see cref="FeatureManager"/> can build the experience list via reflection
+        /// without instantiation.
         /// </summary>
         string ExperienceId { get; }
 

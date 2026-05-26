@@ -9,7 +9,7 @@ namespace Nexaflow.Features.Images.FileActions
     /// Displays one or more image files in a new ImageViewer tab.
     /// Supports png, jpg/jpeg, gif, bmp, ico, tiff, webp.
     /// </summary>
-    public class ShowImageAction : IFileAction
+    public class ShowImageAction : IFileAction, ICacheable
     {
         private static readonly HashSet<string> _exts = new(System.StringComparer.OrdinalIgnoreCase)
         {
@@ -24,6 +24,7 @@ namespace Nexaflow.Features.Images.FileActions
         public bool   SupportsMultipleFiles  => true;
         public string Icon                   => "🖼";
         public string DisplayName            => "Show";
+        public static string? StaticExperienceId => "/image";
         public string ExperienceId           => "/image";
         public string ExperienceDescription  => "Image Viewer";
         public bool   RequiresRefresh        => false;

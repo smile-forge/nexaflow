@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Nexaflow.Core.FileActions
 {
-    public class CutFiles : IFileAction, IFolderAction
+    public class CutFiles : IFileAction, IFolderAction, ICacheable
     {
         // ── IFileAction ───────────────────────────────────────────────────────
 
@@ -11,6 +11,7 @@ namespace Nexaflow.Core.FileActions
         public bool   SupportsMultipleFiles  => true;
         public string Icon                   => "✂️";
         public string DisplayName            => "Cut";
+        public static string? StaticExperienceId => "/";
         public string ExperienceId           => "/";
         public string ExperienceDescription  => "All files";
         public bool   RequiresRefresh        => true;

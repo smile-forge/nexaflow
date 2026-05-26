@@ -6,7 +6,7 @@ namespace Nexaflow.Features.Text.FileActions;
 /// <summary>
 /// Opens a text (.txt) file in a new TextView tab.
 /// </summary>
-public sealed class ShowTextAction : IFileAction
+public sealed class ShowTextAction : IFileAction, ICacheable
 {
     private readonly IShellServices _shellServices;
 
@@ -16,6 +16,7 @@ public sealed class ShowTextAction : IFileAction
     public bool   SupportsMultipleFiles  => false;
     public string Icon                   => "📄";
     public string DisplayName            => "Show";
+    public static string? StaticExperienceId => "/text";
     public string ExperienceId           => "/text";
     public string ExperienceDescription  => "Lightweight Text editor";
     public bool   RequiresRefresh        => false;

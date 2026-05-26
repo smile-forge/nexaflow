@@ -7,7 +7,8 @@ namespace Nexaflow.Features.Logs;
 
 public sealed class LogTabRegistration : IPageRegistration
 {
-    public string PageKind => "Logs";
+    public static string StaticPageKind => "Logs";
+    public string PageKind => StaticPageKind;
 
     public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {

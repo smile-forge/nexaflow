@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.Controls;
+using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using System.Collections.ObjectModel;
@@ -307,7 +308,9 @@ public partial class OptionsViewModel : ObservableObject
         // Request tab refresh for feature configs
         var pageKindsToRefresh = Sections
             .Where(s => s.RealConfig is IFeatureConfig)
-            .SelectMany(s => FeatureManager.Instance.GetPageKindsForConfig(s.RealConfig.GetType()))
+            .SelectMany(s => FeatureManager.Instance.GetPageKindsForConfig(
+                s.RealConfig.GetType(),
+                WorkContextManager.Instance.Contexts[0]))
             .Distinct()
             .ToList();
 

@@ -4,7 +4,7 @@ using System.IO;
 
 namespace Nexaflow.Core.FileActions
 {
-    public class RenameFile : IFileAction, IFolderAction
+    public class RenameFile : IFileAction, IFolderAction, ICacheable
     {
         private readonly IShellServices _shell;
 
@@ -16,6 +16,7 @@ namespace Nexaflow.Core.FileActions
         public bool   SupportsMultipleFiles  => false;   // rename only makes sense for one item
         public string Icon                   => "✏";
         public string DisplayName            => "Rename";
+        public static string? StaticExperienceId => "/";
         public string ExperienceId           => "/";
         public string ExperienceDescription  => "All files";
         public bool   RequiresRefresh        => false;   // refresh is triggered by the confirm callback

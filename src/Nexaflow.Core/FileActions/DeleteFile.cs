@@ -11,7 +11,7 @@ namespace Nexaflow.Core.FileActions;
 ///   <item>Force delete (Shift held) — skips confirmation and permanently deletes immediately.</item>
 /// </list>
 /// </summary>
-public class DeleteFile : IFileAction, IFolderAction
+public class DeleteFile : IFileAction, IFolderAction, ICacheable
 {
     private readonly IShellServices _shell;
 
@@ -23,6 +23,7 @@ public class DeleteFile : IFileAction, IFolderAction
     public bool   SupportsMultipleFiles  => true;
     public string Icon                   => "🗑";
     public string DisplayName            => "Delete";
+    public static string? StaticExperienceId => "/";
     public string ExperienceId           => "/";
     public string ExperienceDescription  => "All files";
     public bool   RequiresRefresh        => false;  // refresh triggered inside callbacks

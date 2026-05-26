@@ -1,4 +1,5 @@
 using Nexaflow.Core.FileActions;
+using Nexaflow.Core.Models;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
 using System.Collections.Generic;
@@ -14,21 +15,23 @@ namespace Nexaflow.Core.Services;
 /// </summary>
 public sealed class FileActionManager
 {
-    private static IReadOnlyList<IFileAction>   File   => FeatureManager.Instance.FileActions;
-    private static IReadOnlyList<IFolderAction> Folder => FeatureManager.Instance.FolderActions;
+    private readonly WorkContext _workContext;
+
+    public FileActionManager(WorkContext workContext) => _workContext = workContext;
+
+    private IReadOnlyList<IFileAction>   File   => FeatureManager.Instance.GetFileActions(_workContext);
+    private IReadOnlyList<IFolderAction> Folder => FeatureManager.Instance.GetFolderActions(_workContext);
 
     /// <summary>All discovered create-file actions.</summary>
-    public IReadOnlyList<IFileCreateAction> CreateActions => FeatureManager.Instance.FileCreateActions;
+    public IReadOnlyList<IFileCreateAction> CreateActions
+        => FeatureManager.Instance.GetFileCreateActions(_workContext);
 
     /// <summary>
     /// All experience IDs advertised by the registered file actions.
     /// Passed to <see cref="FileMapManager.RegisterKnownExperiences"/> after construction.
+    /// Comes from static metadata — no WorkContext needed.
     /// </summary>
-    public IReadOnlyList<string> AllExperiences
-        => File.Select(a => a.ExperienceId)
-               .Where(id => !string.IsNullOrEmpty(id))
-               .Distinct()
-               .ToList();
+    public IReadOnlyList<string> AllExperiences => FeatureManager.Instance.AllExperiences;
 
     // ── Filtering ─────────────────────────────────────────────────────────────
 
@@ -48,13 +51,13 @@ public sealed class FileActionManager
     /// </summary>
     public (bool[] File, bool[] Folder) SnapshotCanPerform()
     {
-        var file   = new bool[FileActionManager.File.Count];
-        var folder = new bool[FileActionManager.Folder.Count];
-        for (int i = 0; i < FileActionManager.File.Count; i++)
-            file[i] = FileActionManager.File[i].CanPerformAction;
-        for (int i = 0; i < FileActionManager.Folder.Count; i++)
-            folder[i] = FileActionManager.Folder[i].CanPerformAction;
-        return (file, folder);
+        var file   = File;
+        var folder = Folder;
+        var fileArr   = new bool[file.Count];
+        var folderArr = new bool[folder.Count];
+        for (int i = 0; i < file.Count;   i++) fileArr[i]   = file[i].CanPerformAction;
+        for (int i = 0; i < folder.Count; i++) folderArr[i] = folder[i].CanPerformAction;
+        return (fileArr, folderArr);
     }
 
     /// <summary>
@@ -67,15 +70,16 @@ public sealed class FileActionManager
     {
         if (selected.Count == 0) return [];
 
+        var file = File;
         bool anyDrives     = selected.Any(e => e.IsDrive);
         bool multipleFiles = selected.Count(e => !e.IsDirectory) > 1 || selected.Count > 1;
 
         var filtered = new List<IFileAction>();
-        for (int i = 0; i < File.Count; i++)
+        for (int i = 0; i < file.Count; i++)
         {
             if (!canPerform[i]) continue;
-            if (FileMatches(File[i], selected, anyDrives, multipleFiles))
-                filtered.Add(File[i]);
+            if (FileMatches(file[i], selected, anyDrives, multipleFiles))
+                filtered.Add(file[i]);
         }
         return filtered;
     }
@@ -89,15 +93,16 @@ public sealed class FileActionManager
         IReadOnlyList<FileSystemEntry> selected,
         bool[]                         canPerform)
     {
+        var folder = Folder;
         bool emptySelection = selected.Count == 0;
         bool anyDrives      = selected.Any(e => e.IsDrive);
         bool multipleItems  = selected.Count > 1;
 
         var filtered = new List<IFileAction>();
-        for (int i = 0; i < Folder.Count; i++)
+        for (int i = 0; i < folder.Count; i++)
         {
             if (!canPerform[i]) continue;
-            var action = Folder[i];
+            var action = folder[i];
 
             if (emptySelection && !action.AppliesToRoot) continue;
             if (!emptySelection && anyDrives && !action.AppliesToDrives) continue;

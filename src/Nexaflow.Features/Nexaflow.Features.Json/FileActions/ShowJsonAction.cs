@@ -2,7 +2,7 @@ using Nexaflow.Features.Common;
 
 namespace Nexaflow.Features.Json.FileActions;
 
-public sealed class ShowJsonAction : IFileAction
+public sealed class ShowJsonAction : IFileAction, ICacheable
 {
     private readonly IShellServices _shellServices;
 
@@ -12,6 +12,7 @@ public sealed class ShowJsonAction : IFileAction
     public bool   SupportsMultipleFiles => false;
     public string Icon                  => "{}";
     public string DisplayName           => "Open in JSON Viewer";
+    public static string? StaticExperienceId => "/json";
     public string ExperienceId          => "/json";
     public string ExperienceDescription => "JSON file viewer and editor";
     public bool   RequiresRefresh       => false;

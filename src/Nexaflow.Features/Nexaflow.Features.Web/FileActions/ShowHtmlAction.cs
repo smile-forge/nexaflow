@@ -8,7 +8,7 @@ namespace Nexaflow.Features.Web.FileActions
     /// Opens an HTML or Internet Shortcut (.url) file in a new HTMLView tab
     /// rendered by WebView2.
     /// </summary>
-    public class ShowHtmlAction : IFileAction
+    public class ShowHtmlAction : IFileAction, ICacheable
     {
         private static readonly HashSet<string> _exts = new(System.StringComparer.OrdinalIgnoreCase)
         {
@@ -23,6 +23,7 @@ namespace Nexaflow.Features.Web.FileActions
         public bool   SupportsMultipleFiles  => false;
         public string Icon                   => "🌐";
         public string DisplayName            => "Show";
+        public static string? StaticExperienceId => "/text/html";
         public string ExperienceId           => "/text/html";
         public string ExperienceDescription  => "Open A browser tab to display HTML content";
         public bool   RequiresRefresh        => false;

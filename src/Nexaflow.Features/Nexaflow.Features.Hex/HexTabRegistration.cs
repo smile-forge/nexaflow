@@ -7,7 +7,8 @@ namespace Nexaflow.Features.Hex;
 
 public sealed class HexTabRegistration : IPageRegistration
 {
-    public string PageKind => "Hex";
+    public static string StaticPageKind => "Hex";
+    public string PageKind => StaticPageKind;
 
     public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {

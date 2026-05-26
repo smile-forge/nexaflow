@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 namespace Nexaflow.Core.FileActions
 {
-    internal class FileProperties : IFileAction, IFolderAction
+    internal class FileProperties : IFileAction, IFolderAction, ICacheable
     {
         // ── IFileAction ───────────────────────────────────────────────────────
 
@@ -12,6 +12,7 @@ namespace Nexaflow.Core.FileActions
         public bool   SupportsMultipleFiles  => false;
         public string Icon                   => "☶";
         public string DisplayName            => "Properties";
+        public static string? StaticExperienceId => "/";
         public string ExperienceId           => "/";
         public string ExperienceDescription  => "All files";
         public bool   RequiresRefresh        => false;

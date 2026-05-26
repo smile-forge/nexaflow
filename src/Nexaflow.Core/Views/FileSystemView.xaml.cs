@@ -56,7 +56,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     public FileSystemView(string targetDirectory, IKeyboardHandler keyboardHandler, IDropTarget dropTarget)
     {
         InitializeComponent();
-        ViewModel        = new FileSystemViewModel(targetDirectory);
+        ViewModel        = new FileSystemViewModel(targetDirectory, Services.WorkContextManager.Instance.Contexts[0]);
         _keyboardHandler = keyboardHandler;
         _dropTarget      = dropTarget;
         DataContext = ViewModel;
@@ -123,7 +123,10 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
             return;
 
         _actionDragPending = false;
-        var paths   = ViewModel.CurrentSelection.Select(entry => entry.FullPath).ToList();
+        // Folder actions need the current directory, not the selected file paths.
+        IReadOnlyList<string> paths = _actionDragVm.Action is FileActions.FolderActionAdapter
+            ? (string.IsNullOrEmpty(ViewModel.CurrentPath) ? [] : [ViewModel.CurrentPath])
+            : ViewModel.CurrentSelection.Select(entry => entry.FullPath).ToList();
         var payload = new FileActionPinPayload(_actionDragVm.Action, paths);
         var data    = new DataObject(PageKinds.FileAction, payload);
         DragDrop.DoDragDrop(ActionStrip, data, DragDropEffects.Copy);
@@ -216,7 +219,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
 
         if (isThisPcMode || string.IsNullOrEmpty(folderPath)) return;
 
-        var matched = FolderViewletRegistry.GetMatchingViewlets(folderPath);
+        var matched = FolderViewletRegistry.GetMatchingViewlets(folderPath, ViewModel.WorkContext);
         foreach (var viewlet in matched)
         {
             var host = new ViewletHost(viewlet, folderPath);

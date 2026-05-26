@@ -20,7 +20,8 @@ public sealed class ProjectDetailTabRegistration : IPageRegistration
         _shellServices = shellServices;
     }
 
-    public string PageKind => "ProjectDetail";
+    public static string StaticPageKind => "ProjectDetail";
+    public string PageKind => StaticPageKind;
 
     public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {
