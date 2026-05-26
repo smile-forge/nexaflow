@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Anthropic" Version="12.21.0" />
+    <PackageReference Include="Anthropic" Version="12.23.0" />
   </ItemGroup>
 
   <ItemGroup>
