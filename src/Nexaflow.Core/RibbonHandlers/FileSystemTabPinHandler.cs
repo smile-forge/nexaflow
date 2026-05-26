@@ -11,7 +11,7 @@ namespace Nexaflow.Core.RibbonHandlers;
 /// Pin receives a <see cref="Page"/> and bakes the current navigation path into
 /// the ribbon button so it always re-opens the exact location the user was viewing.
 /// </summary>
-public sealed class FileSystemTabPinHandler(WorkContext workContext) : IRibbonPinHandler
+public sealed class FileSystemTabPinHandler(IShellServices _shell) : IRibbonPinHandler
 {
     public string ContentKind => FileSystemPageRegistration.PageKind;
 
@@ -47,5 +47,5 @@ public sealed class FileSystemTabPinHandler(WorkContext workContext) : IRibbonPi
     }
 
     public void Execute(Dictionary<string, string>? pageParams, IRibbonExecutionContext context)
-        => ((IShellServices?)workContext.ShellServices)?.OpenTab(FileSystemPageRegistration.PageKind, pageParams);
+        => _shell.OpenTab(FileSystemPageRegistration.PageKind, pageParams);
 }
