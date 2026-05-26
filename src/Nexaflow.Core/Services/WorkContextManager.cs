@@ -82,7 +82,7 @@ public sealed class WorkContextManager
         var contextDir = Path.Combine(ConfigManager.Instance.BaseDir, "Contexts", ctx.Name);
 
         // AIService — always recreate so provider registrations stay current
-        var service = new AIService(Path.Combine(contextDir, "Conversations"));
+        var service = new AIService(ctx, Path.Combine(contextDir, "Conversations"));
 
         foreach (var (name, provider) in ProviderManager.Instance.LoadedProviders)
             service.Register(name, provider);

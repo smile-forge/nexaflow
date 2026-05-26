@@ -329,7 +329,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
                 Application.Current.Dispatcher.Invoke(() => CurrentWorkContext = refreshed);
         };
 
-        SeedNotifications();
+        
     }
 
     // ── Tab commands ──────────────────────────────────────────────────────
@@ -504,22 +504,12 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     private void EvaluateHandlers(string text)
     {
-        var pageVm   = (CurrentPage as IPageView)?.ViewModel;
-        var handlers = FeatureManager.Instance.GetQueryHandlers(CurrentWorkContext);
+        var pageVm               = (CurrentPage as IPageView)?.ViewModel;
+        var (_, clearWinner, _)  = CurrentWorkContext.AiService.ScoreHandlers(text, pageVm);
 
-        var symbolMatch = handlers.FirstOrDefault(
-            h => h.Symbol is { Length: 1 } s && text.StartsWith(s));
-        if (symbolMatch?.Symbol is not null)
+        if (clearWinner?.Symbol is not null)
         {
-            AiHandlerSymbol = symbolMatch.Symbol;
-            AiIsListening   = false;
-            return;
-        }
-
-        var matches = handlers.Where(h => h.CanProcess(text, pageVm) > 0).ToList();
-        if (matches.Count == 1 && matches[0].Symbol is not null)
-        {
-            AiHandlerSymbol = matches[0].Symbol;
+            AiHandlerSymbol = clearWinner.Symbol;
             AiIsListening   = false;
         }
         else
@@ -539,41 +529,16 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         AiHandlerSymbol = null;
         AiIsListening   = false;
 
-        var page     = CurrentPage as IPageView;
-        var pageVm   = page?.ViewModel;
-        var handlers = FeatureManager.Instance.GetQueryHandlers(CurrentWorkContext).ToList();
+        var pageVm                                   = (CurrentPage as IPageView)?.ViewModel;
+        var svc                                      = CurrentWorkContext.AiService;
+        var (scored, clearWinner, effectiveText)     = svc.ScoreHandlers(text, pageVm);
+        var selected                                 = clearWinner;
+        text                                         = effectiveText;
 
-        // 1. Symbol prefix → explicit handler selection; strip prefix from input
-        IQueryHandler? selected = null;
-        // 1. Symbol prefix → filter handlers by symbol; strip prefix from input
-        var symbolHandlers = handlers
-            .Where(h => h.Symbol is { Length: 1 } s && text.StartsWith(s))
-            .ToList();
-        if (symbolHandlers.Count > 0)
+        if (selected is null && scored.Count > 0)
         {
-            text = text[1..].TrimStart();
-            handlers = symbolHandlers;
-        }
-
-        // 2. Score candidates in the (possibly reduced) handler list
-        var candidates = handlers.Where(h => h.CanProcess(text, pageVm) > 0).ToList();
-
-        if (candidates.Count == 1)
-        {
-            selected = candidates[0];
-        }
-        else if (candidates.Count > 1)
-        {
-            try
-            {
-                if (CurrentWorkContext.AiService is { } svc)
-                    selected = await svc.DisambiguateToolSelection(pageVm, text, candidates);
-            }
-            catch (Exception ex)
-            {
-                ShowError("AI error", ex.Message);
-                return;
-            }
+            try   { selected = await svc.DisambiguateToolSelection(pageVm, text, scored); }
+            catch (Exception ex) { ShowError("AI error", ex.Message); return; }
         }
 
         // 3. A handler was identified — run it
@@ -599,8 +564,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         AiResponse? response = null;
         try
         {
-            if (CurrentWorkContext.AiService is { } svc)
-                response = await svc.ContextChat(pageVm, text);
+            response = await svc.ContextChat(pageVm, text);
         }
         catch (Exception ex)
         {
@@ -685,13 +649,5 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         public void ShowConfirmation(string title, string message, Action onConfirm, Action? onCancel)
             => showConfirmation(title, message, onConfirm, onCancel);
         public void RemoveCurrentRibbonItem()                         => removeItem();
-    }
-
-    private void SeedNotifications()
-    {
-        Notifications.Add(new NotificationItem { Title = "Report ready",   Body = "Monthly revenue report has been generated." });
-        Notifications.Add(new NotificationItem { Title = "New assignment", Body = "Case #4821 assigned to you." });
-        Notifications.Add(new NotificationItem { Title = "SLA warning",   Body = "Case #4799 approaching SLA deadline." });
-        UnreadCount = Notifications.Count;
     }
 }

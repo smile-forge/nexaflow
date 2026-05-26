@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsSearch.Services;
+using System.IO;
 
 namespace Nexaflow.Features.WindowsSearch;
 
@@ -22,7 +23,23 @@ public sealed class WindowsSearchQueryHandler(IShellServices shellServices) : IQ
     {
         if (pageVm?.GetContextObject() is not FileSystemContext fs
             || string.IsNullOrEmpty(fs.RootPath)) return 0f;
-        return SearchQueryScorer.Score(input);
+
+        var score = SearchQueryScorer.Score(input);
+
+        // A bare absolute path (not quoted) should route to the navigation handler, not search.
+        var trimmed = input.Trim();
+        if (score > 0 && IsUnquotedAbsolutePath(trimmed))
+            score *= 0.25f;
+
+        return score;
+    }
+
+    private static bool IsUnquotedAbsolutePath(string input)
+    {
+        if (input.Length < 2) return false;
+        if (input[0] == '"' || input[0] == '\'') return false;
+        if (input.Contains('*') || input.Contains('?')) return false; // globs stay as search
+        return Path.IsPathRooted(input);
     }
 
     public Task<string?> ProcessAsync(string input, IPageViewModel? pageVm = null)
