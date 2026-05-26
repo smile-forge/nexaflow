@@ -53,4 +53,11 @@ public interface IShellServices
     /// file-system watchers in the view layer.
     /// </summary>
     void RequestRefresh();
+
+    /// <summary>
+    /// Pins <paramref name="payload"/> to the focused window's ribbon using the
+    /// <see cref="Nexaflow.Features.Common.Ribbon.IRibbonPinHandler"/> registered for
+    /// <paramref name="contentKind"/>.
+    /// </summary>
+    void PinToRibbon(string contentKind, object payload);
 }
