@@ -24,6 +24,7 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.WindowsSearch/Nexaflow.Features.WindowsSearch.csproj" />
   </Folder>
   <Folder Name="/Nexaflow.Providers/">
+    <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.Gemini/Nexaflow.Providers.Gemini.csproj" Id="f8d63e1c-cefa-48e3-87a8-f7bc570cf4f2" />
     <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.Aria/Nexaflow.Providers.Aria.csproj" />
     <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.Claude/Nexaflow.Providers.Claude.csproj" />
     <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.Common/Nexaflow.Providers.Common.csproj" />
