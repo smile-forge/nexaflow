@@ -1,5 +1,4 @@
 using Nexaflow.Core.FileSystem;
-using Nexaflow.Core.Models;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Core.Views;
 using Nexaflow.Features.Common;
@@ -8,7 +7,7 @@ using System.Linq;
 
 namespace Nexaflow.Core;
 
-public sealed class FileSystemPageRegistration(WorkContext workContext) : IPageRegistration
+public sealed class FileSystemPageRegistration(IShellServices shell, IAIService ai) : IPageRegistration
 {
     public const string PageKind       = "FileSystem";
     public const string FileActionKind = "FileAction";
@@ -31,7 +30,7 @@ public sealed class FileSystemPageRegistration(WorkContext workContext) : IPageR
                 PageParams  = pageParams,
                 Breadcrumbs = { new BreadcrumbSegment { Label = label } }
             };
-            tab.ContentFactory = () => CreateView(new FileSystemViewModel(path, workContext), tab);
+            tab.ContentFactory = () => CreateView(new FileSystemViewModel(path, shell, ai), tab);
             return tab;
         }
         else
@@ -44,7 +43,7 @@ public sealed class FileSystemPageRegistration(WorkContext workContext) : IPageR
                 PageParams  = pageParams ?? new() { ["mode"] = "thispc" },
                 Breadcrumbs = { new BreadcrumbSegment { Label = "This PC" } }
             };
-            tab.ContentFactory = () => CreateView(FileSystemViewModel.CreateThisPc(workContext), tab);
+            tab.ContentFactory = () => CreateView(FileSystemViewModel.CreateThisPc(shell, ai), tab);
             return tab;
         }
     }

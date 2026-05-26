@@ -283,6 +283,28 @@ public sealed class ShellServices : IShellServices
         => (_focused ?? _windows.FirstOrDefault())
             ?.AddRibbonPin(new RibbonPinRequest(contentKind, payload));
 
+    public IEnumerable<Type> DiscoverImplementations<TInterface>()
+    {
+        var target = typeof(TInterface);
+        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            var name = asm.GetName().Name;
+            if (name is null) continue;
+            if (!name.StartsWith("Nexaflow.", StringComparison.Ordinal)) continue;
+
+            Type[] types;
+            try { types = asm.GetTypes(); }
+            catch (System.Reflection.ReflectionTypeLoadException ex) { types = ex.Types.Where(t => t is not null).ToArray()!; }
+
+            foreach (var t in types)
+            {
+                if (t is null) continue;
+                if (t.IsAbstract || t.IsInterface) continue;
+                if (target.IsAssignableFrom(t)) yield return t;
+            }
+        }
+    }
+
     // ── Window positioning (tearoff) ──────────────────────────────────────
 
     private static void PositionWindow(Window win, double dropX, double dropY, Rect work)

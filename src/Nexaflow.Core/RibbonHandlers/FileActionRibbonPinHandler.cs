@@ -2,21 +2,23 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Nexaflow.Core;
-using Nexaflow.Core.Models;
+using Nexaflow.Core.Services;
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Ribbon;
 
 namespace Nexaflow.Core.RibbonHandlers;
 
 /// <summary>
 /// Allows non-destructive <see cref="IFileAction"/> instances to be pinned to the ribbon.
-/// Looks up actions through <see cref="FeatureManager"/>, which owns the singleton
-/// instance set — there is no separate registry here.
+/// Looks up actions through <see cref="FileSystemFeatureRegistry"/>, which owns the
+/// singleton instance set.
 /// </summary>
 public sealed class FileActionRibbonPinHandler : IRibbonPinHandler
 {
-    private readonly WorkContext _workContext;
+    private readonly FileSystemFeatureRegistry _registry;
 
-    public FileActionRibbonPinHandler(WorkContext workContext) => _workContext = workContext;
+    public FileActionRibbonPinHandler(IShellServices shell, IAIService ai)
+        => _registry = FileSystemFeatureRegistry.For(shell, ai, FeatureManager.Instance.Configs);
 
     public string ContentKind => FileSystemPageRegistration.FileActionKind;
 
@@ -59,7 +61,7 @@ public sealed class FileActionRibbonPinHandler : IRibbonPinHandler
             if (kv.Key.StartsWith(ReinitPrefix))
                 (reinit ??= [])[kv.Key[ReinitPrefix.Length..]] = kv.Value;
 
-        var action = FeatureManager.Instance.FindFileAction(typeName!, _workContext, reinit);
+        var action = _registry.FindFileAction(typeName!, reinit);
         if (action == null) return;
 
         List<string> paths;

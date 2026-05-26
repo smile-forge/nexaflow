@@ -1,20 +1,19 @@
-using Nexaflow.Core.Models;
 using Nexaflow.Features.Common.Viewlets;
 using System.IO;
 
 namespace Nexaflow.Core.Services;
 
 /// <summary>
-/// Filters the <see cref="IFolderViewlet"/> instances registered via
-/// <see cref="FeatureManager"/> against the current folder path.
+/// Filters the <see cref="IFolderViewlet"/> instances owned by
+/// <see cref="FileSystemFeatureRegistry"/> against the current folder path.
 /// </summary>
 public static class FolderViewletRegistry
 {
     public static IReadOnlyList<IFolderViewlet> GetMatchingViewlets(
-        string folderPath, WorkContext workContext, bool isDrive = false)
+        string folderPath, FileSystemFeatureRegistry registry, bool isDrive = false)
     {
         var result = new List<IFolderViewlet>();
-        foreach (var viewlet in FeatureManager.Instance.GetFolderViewlets(workContext))
+        foreach (var viewlet in registry.FolderViewlets)
         {
             if (isDrive && !viewlet.AppliesToDrives) continue;
             if (!FolderNameMatches(viewlet, folderPath)) continue;
