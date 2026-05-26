@@ -22,7 +22,7 @@ namespace Nexaflow.Core.ViewModels;
 
 // ── Main ViewModel ────────────────────────────────────────────────────────────
 
-public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPageViewModel, IActionExecutor
+public partial class FileSystemViewModel : ObservableObject, IPageViewModel, IActionExecutor
 {
     [ObservableProperty] private string _currentPath = string.Empty;
     [ObservableProperty] private FileSystemEntry? _selectedEntry;
@@ -757,59 +757,6 @@ public partial class FileSystemViewModel : ObservableObject, IQueryHandler, IPag
             NavigateTo(parent.FullName);
         else
             GoToThisPc(rebuildTree: true); // at drive root, folder tree has no ThisPc node
-    }
-
-    // ── IQueryHandler ─────────────────────────────────────────────────────────
-
-    public string Description =>
-        "Navigates the file browser to a directory. Use when the user types a folder path.";
-
-    public float CanProcess(string input, IPageViewModel? pageVm = null)
-    {
-        var trimmed = input.Trim();
-        if (Path.IsPathRooted(trimmed))
-            return (_isThisPcMode || IsRootedOnDriveOrThisPc()) ? 0.9f : 0f;
-
-        // Relative path only meaningful when in folder mode
-        if (!_isThisPcMode && !string.IsNullOrEmpty(_rootPath) && trimmed.Length > 0
-            && !trimmed.Contains(' '))
-            return 0.6f;
-
-        return 0f;
-    }
-
-    public Task<string?> ProcessAsync(string input, IPageViewModel? pageVm = null)
-    {
-        var trimmed = input.Trim();
-
-        if (Path.IsPathRooted(trimmed))
-        {
-            if (Directory.Exists(trimmed))
-            {
-                NavigateTo(trimmed);
-                return Task.FromResult<string?>(null);
-            }
-            return Task.FromResult<string?>($"Path not found: {trimmed}");
-        }
-
-        if (!_isThisPcMode && !string.IsNullOrEmpty(_rootPath))
-        {
-            var candidates = new[]
-            {
-                string.IsNullOrEmpty(CurrentPath) ? null : Path.GetFullPath(Path.Combine(CurrentPath, trimmed)),
-                Path.GetFullPath(Path.Combine(_rootPath, trimmed))
-            };
-            foreach (var candidate in candidates)
-            {
-                if (candidate is not null && Directory.Exists(candidate))
-                {
-                    NavigateTo(candidate);
-                    return Task.FromResult<string?>(null);
-                }
-            }
-        }
-
-        return Task.FromResult<string?>($"Path not found: {trimmed}");
     }
 
     // ── IPageViewModel ────────────────────────────────────────────────────────

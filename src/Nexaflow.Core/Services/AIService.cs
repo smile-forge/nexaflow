@@ -1,4 +1,5 @@
 using Nexaflow.Core.AI;
+using Nexaflow.Core.Models;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using System.IO;
@@ -52,6 +53,7 @@ public sealed class AIService : IAIService
 
     // ── Persistence ───────────────────────────────────────────────────────
 
+    private readonly WorkContext _workContext;
     private readonly string _baseDir;
 
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -64,11 +66,12 @@ public sealed class AIService : IAIService
 
     public ConversationRecord? ActiveConversation { get; }
 
-    /// <param name="conversationsDir">Full path to the directory where this context's conversations are stored.
-    /// Computed by <see cref="WorkContextManager"/> from <see cref="ConfigManager.BaseDir"/>.</param>
-    public AIService(string conversationsDir)
+    /// <param name="workContext">The owning WorkContext — used to resolve query handlers via FeatureManager.</param>
+    /// <param name="conversationsDir">Full path to the directory where this context's conversations are stored.</param>
+    public AIService(WorkContext workContext, string conversationsDir)
     {
-        _baseDir = conversationsDir;
+        _workContext = workContext;
+        _baseDir     = conversationsDir;
     }
 
     public async Task<IEnumerable<ConversationRecord>> LoadAllAsync()
@@ -109,15 +112,53 @@ public sealed class AIService : IAIService
 
     // ── AI routing ────────────────────────────────────────────────────────
 
+    public (IReadOnlyList<(IQueryHandler Handler, float Score)> Scored,
+            IQueryHandler? ClearWinner,
+            string EffectiveText)
+        ScoreHandlers(string text, IPageViewModel? pageVm)
+    {
+        var allHandlers   = FeatureManager.Instance.GetQueryHandlers(_workContext).ToList();
+        var effectiveText = text;
+
+        // Symbol prefix → narrow to matching handlers and strip the prefix character
+        var symbolMatches = allHandlers
+            .Where(h => h.Symbol is { Length: 1 } s && text.StartsWith(s))
+            .ToList();
+        if (symbolMatches.Count > 0)
+        {
+            allHandlers   = symbolMatches;
+            effectiveText = text[1..].TrimStart();
+        }
+
+        var scored = allHandlers
+            .Select(h => (Handler: h, Score: h.CanProcess(effectiveText, pageVm)))
+            .Where(x => x.Score > 0f)
+            .OrderByDescending(x => x.Score)
+            .ToList();
+
+        IQueryHandler? clearWinner = null;
+        if (scored.Count > 0)
+        {
+            var top    = scored[0].Score;
+            var second = scored.Count > 1 ? scored[1].Score : 0f;
+            if (top >= 0.8f && (scored.Count == 1 || top - second > 0.2f))
+                clearWinner = scored[0].Handler;
+        }
+
+        return (scored, clearWinner, effectiveText);
+    }
+
     public async Task<IQueryHandler?> DisambiguateToolSelection(
-        IPageViewModel? page, string input, IReadOnlyList<IQueryHandler> candidates)
+        IPageViewModel? page, string input,
+        IReadOnlyList<(IQueryHandler Handler, float Score)> candidates)
     {
         var resolved = GetProvider(AiAbility.Disambiguation);
         if (resolved is null) return null;
         var (provider, model) = resolved.Value;
 
         var context  = page?.GetContext() ?? "No specific context.";
-        var toolList = string.Join("\n", candidates.Select((h, i) => $"{i + 1}. {h.Description}"));
+        var toolList = string.Join("\n", candidates.Select((c, i) =>
+            $"{i + 1}. [confidence {c.Score:P0}] {c.Handler.Description}"));
 
         var systemPrompt = "You are a routing assistant. Reply with only a single digit — the number of the best tool, or 0 if none apply.";
         var userPrompt   =
@@ -135,7 +176,7 @@ public sealed class AIService : IAIService
         if (digit == default) return null;
 
         var idx = digit - '0';
-        return (idx >= 1 && idx <= candidates.Count) ? candidates[idx - 1] : null;
+        return (idx >= 1 && idx <= candidates.Count) ? candidates[idx - 1].Handler : null;
     }
 
     public async Task<AiResponse?> ContextChat(IPageViewModel? page, string input)
