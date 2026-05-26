@@ -32,9 +32,19 @@ public partial class App : Application
         InstallUpdateCodesignMacOSApp = true,
     };
 
+    private static readonly SingleInstanceService _singleInstance = new();
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // ── Single-instance guard ────────────────────────────────────────────
+        if (!_singleInstance.TryAcquire())
+        {
+            SingleInstanceService.SignalNewWindow();
+            Shutdown();
+            return;
+        }
 
         var activityManager = new BackgroundActivityManager();
 
@@ -86,6 +96,9 @@ public partial class App : Application
         var win = new MainWindow(activityManager, defaultCtx);
         win.Show();
 
+        // ── 9. Single-instance IPC listener ─────────────────────────────────
+        _singleInstance.StartListening(() => OpenNewWindow(activityManager));
+
         if (ConfigManager.Instance.IsFirstRun)
             win.ViewModel.OptionsOpen = true;
         else
@@ -96,6 +109,28 @@ public partial class App : Application
                 await CheckForUpdates(win);
             });
         }
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        _singleInstance.Dispose();
+        base.OnExit(e);
+    }
+
+    private static void OpenNewWindow(BackgroundActivityManager activityManager)
+    {
+        var name = $"Window {WorkContextManager.Instance.Contexts.Count + 1}";
+        var ctx  = WorkContextManager.Instance.Create(name);
+
+        ctx.ShellServices!.CreateWindowFactory = () =>
+        {
+            var c = WorkContextManager.Instance.Contexts[0];
+            var w = new MainWindow(activityManager, c, openDefaultTabs: false);
+            return (IWindowHost)w.ViewModel;
+        };
+
+        var win = new MainWindow(activityManager, ctx);
+        win.Show();
     }
 
     private async Task CheckForUpdates(MainWindow win)
