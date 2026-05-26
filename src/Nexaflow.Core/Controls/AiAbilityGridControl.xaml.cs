@@ -13,8 +13,8 @@ public partial class AiAbilityGridControl : UserControl, ICustomConfigApply, ICo
     public AiAbilityGridControl()
     {
         InitializeComponent();
-        DataContextChanged += OnDataContextChanged;
-        IsVisibleChanged   += OnVisibleChanged;
+        Loaded           += OnLoaded;
+        IsVisibleChanged += OnVisibleChanged;
     }
 
     private void OnVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -23,9 +23,9 @@ public partial class AiAbilityGridControl : UserControl, ICustomConfigApply, ICo
             _viewModel?.ResetAddPanel();
     }
 
-    private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+    private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        if (e.NewValue is not AiConfig config) return;
+        if (DataContext is not AiConfig config) return;
         _viewModel = new AiAbilityGridViewModel(config);
         _viewModel.PropertyChanged += (_, args) =>
         {
