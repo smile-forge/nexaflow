@@ -44,7 +44,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     public MarkdownViewModel(string filePath)
     {
         FilePath = filePath;
-        _rawText = File.Exists(filePath) ? File.ReadAllText(filePath) : string.Empty;
+        _rawText = File.Exists(filePath) ? File.ReadAllText(filePath).ReplaceLineEndings("\n") : string.Empty;
         Reparse();
     }
 
@@ -66,7 +66,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     /// </summary>
     public void OnBlockTextEdited(MarkdownBlockModel block, string newText)
     {
-        block.RawMarkdown = newText;
+        block.RawMarkdown = newText.ReplaceLineEndings("\n");
         _rawText          = ReconstructRawText();
         IsDirty           = true;
     }
