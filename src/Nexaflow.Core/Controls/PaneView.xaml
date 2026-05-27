@@ -31,6 +31,7 @@
 
                 <ctrl:TabStrip x:Name="TabStripControl"
                                Grid.Column="1"
+                               AutomationProperties.AutomationId="TabStrip"
                                Tabs="{Binding Pane.Pages, ElementName=PaneRoot}"
                                ActivateTabCommand="{Binding ActivateTabCommand, ElementName=PaneRoot}"
                                CloseTabCommand="{Binding CloseTabCommand, ElementName=PaneRoot}"

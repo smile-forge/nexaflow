@@ -7,6 +7,7 @@
         xmlns:cvn="clr-namespace:Nexaflow.Core.Converters"
         xmlns:ctrl="clr-namespace:Nexaflow.Core.Controls"
         Title="NexaFlow" Height="880" Width="1280"
+        AutomationProperties.AutomationId="MainWindow"
         MinHeight="600" MinWidth="900"
         Background="{StaticResource BgBrush}"
         WindowStyle="SingleBorderWindow"
@@ -159,6 +160,7 @@
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="0,1,0,0">
                 <ctrl:RibbonControl x:Name="RibbonControl"
+                                    AutomationProperties.AutomationId="RibbonControl"
                                     WorkContext="{Binding CurrentWorkContext}"
                                     WorkContexts="{Binding WorkContexts}"
                                     SelectWorkContextCommand="{Binding SelectWorkContextCommand}"
@@ -194,6 +196,7 @@
                     <!-- Messages + badge -->
                     <Button Style="{StaticResource TopBarAction}"
                             Command="{Binding ToggleNotificationsCommand}"
+                            AutomationProperties.AutomationId="NotificationsButton"
                             HorizontalAlignment="Right">
                         <StackPanel Orientation="Horizontal">
                             <Path Data="M2 2h12v9H9l-3 3V11H2z"
@@ -282,6 +285,7 @@
                         BorderThickness="1" CornerRadius="10">
                     <ctrl:PlaceholderTextBox
                         x:Name="AiInput"
+                        AutomationProperties.AutomationId="AiInputBox"
                         MinHeight="62"
                         Placeholder="Ask anything… summarise this view, find trends, generate a report…"
                         Text="{Binding AiInputText, UpdateSourceTrigger=PropertyChanged}"

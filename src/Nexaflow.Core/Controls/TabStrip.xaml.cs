@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Automation.Peers;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -235,7 +237,7 @@ public partial class TabStrip : UserControl
         row.Children.Add(label);
         row.Children.Add(closeBtn);
 
-        var border = new Border
+        var border = new TabBorder
         {
             Child   = row,
             Padding = new Thickness(12, 0, 12, 0),
@@ -243,6 +245,8 @@ public partial class TabStrip : UserControl
             Cursor  = Cursors.Hand,
             CornerRadius = new CornerRadius(6, 6, 0, 0)
         };
+        AutomationProperties.SetAutomationId(border, $"TabItem_{tab.PageKind}");
+        AutomationProperties.SetAutomationId(closeBtn, $"CloseTab_{tab.PageKind}");
 
         ApplyActiveStyle(border, tab.IsActive);
 
@@ -381,6 +385,15 @@ public partial class TabStrip : UserControl
 
     private void OverflowBtn_Click(object sender, RoutedEventArgs e)
         => OverflowPopup.IsOpen = !OverflowPopup.IsOpen;
+
+    // ── Accessibility ─────────────────────────────────────────────────────
+
+    /// Border with an automation peer so tab items appear in the UIA control view.
+    private sealed class TabBorder : Border
+    {
+        protected override AutomationPeer OnCreateAutomationPeer()
+            => new FrameworkElementAutomationPeer(this);
+    }
 
     // ── Cross-window drop target ──────────────────────────────────────────
 
