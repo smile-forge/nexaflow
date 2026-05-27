@@ -1,4 +1,4 @@
-namespace Nexaflow.Features.Markdown.Graphs.Charts;
+namespace Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 
 /// <summary>One segment in a pie chart.</summary>
 public sealed class PieSlice

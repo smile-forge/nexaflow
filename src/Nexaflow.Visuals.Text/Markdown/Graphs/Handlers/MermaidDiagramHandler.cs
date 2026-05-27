@@ -1,11 +1,11 @@
-using Nexaflow.Features.Markdown.Graphs.Layout;
-using Nexaflow.Features.Markdown.Graphs.Parsers;
-using Nexaflow.Features.Markdown.Graphs.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Graphs.Layout;
+using Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
+using Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
-namespace Nexaflow.Features.Markdown.Graphs.Handlers;
+namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 
 /// <summary>
 /// Handles all <c>mermaid</c> fenced code blocks.

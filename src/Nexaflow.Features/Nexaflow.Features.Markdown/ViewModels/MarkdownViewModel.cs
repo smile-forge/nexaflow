@@ -1,11 +1,10 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Markdig;
 using Markdig.Syntax;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Text.Markdown;
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Windows.Threading;
 
 namespace Nexaflow.Features.Markdown.ViewModels;
 
@@ -18,21 +17,6 @@ namespace Nexaflow.Features.Markdown.ViewModels;
 /// </summary>
 public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
 {
-    private static readonly MarkdownPipeline Pipeline =
-        new MarkdownPipelineBuilder()
-            .UsePipeTables()
-            .UseGridTables()
-            .UseTaskLists()
-            .UseAutoLinks()
-            .UseDefinitionLists()
-            .UseListExtras()
-            .UseFigures()
-            .UseFooters()
-            .UseCitations()
-            .UseMathematics()
-            .UseDiagrams()
-            .Build();
-
     // ── File state ────────────────────────────────────────────────────────
 
     public string FilePath { get; }
@@ -60,7 +44,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     public MarkdownViewModel(string filePath)
     {
         FilePath = filePath;
-        _rawText = File.Exists(filePath) ? File.ReadAllText(filePath) : string.Empty;
+        _rawText = File.Exists(filePath) ? File.ReadAllText(filePath).ReplaceLineEndings("\n") : string.Empty;
         Reparse();
     }
 
@@ -82,7 +66,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     /// </summary>
     public void OnBlockTextEdited(MarkdownBlockModel block, string newText)
     {
-        block.RawMarkdown = newText;
+        block.RawMarkdown = newText.ReplaceLineEndings("\n");
         _rawText          = ReconstructRawText();
         IsDirty           = true;
     }
@@ -129,7 +113,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
 
     private void Reparse()
     {
-        var doc      = Markdig.Markdown.Parse(_rawText, Pipeline);
+        var doc      = Markdig.Markdown.Parse(_rawText, MarkdownPipelineFactory.Default);
         var rawLines = _rawText.Length > 0 ? _rawText.Split('\n') : [];
 
         // Index existing blocks so we can preserve editing state

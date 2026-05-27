@@ -10,7 +10,6 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 using WpfMath.Controls;
-using Nexaflow.Features.Markdown.Markdown;
 using MdBlock        = Markdig.Syntax.Block;
 using MdFigure       = Markdig.Extensions.Figures.Figure;
 using MdFigureCaption= Markdig.Extensions.Figures.FigureCaption;
@@ -21,11 +20,11 @@ using MdTableRow     = Markdig.Extensions.Tables.TableRow;
 using TableColumnAlign = Markdig.Extensions.Tables.TableColumnAlign;
 using WpfInline      = System.Windows.Documents.Inline;
 
-namespace Nexaflow.Features.Markdown.Markdown;
+namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
 /// Converts a single Markdig <see cref="MdBlock"/> into a WPF
-/// <see cref="FrameworkElement"/> for use in the unified block-based markdown editor.
+/// <see cref="FrameworkElement"/>.  Pure rendering — no editor coupling.
 /// </summary>
 public static class BlockRenderer
 {

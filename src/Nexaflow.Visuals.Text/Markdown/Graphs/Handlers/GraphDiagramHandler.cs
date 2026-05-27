@@ -1,8 +1,8 @@
-using Nexaflow.Features.Markdown.Graphs.Layout;
-using Nexaflow.Features.Markdown.Graphs.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Graphs.Layout;
+using Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 using System.Windows;
 
-namespace Nexaflow.Features.Markdown.Graphs.Handlers;
+namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 
 /// <summary>
 /// Generic handler for any language whose parser implements <see cref="IGraphParser"/>

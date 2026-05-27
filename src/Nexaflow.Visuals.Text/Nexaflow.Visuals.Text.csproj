@@ -7,4 +7,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Markdig" Version="1.2.0" />
+    <PackageReference Include="WpfMath" Version="2.1.0" />
+  </ItemGroup>
+
 </Project>

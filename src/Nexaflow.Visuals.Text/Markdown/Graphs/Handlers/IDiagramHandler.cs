@@ -1,13 +1,13 @@
 using System.Windows;
 
-namespace Nexaflow.Features.Markdown.Graphs.Handlers;
+namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 
 /// <summary>
 /// Encapsulates a complete diagram pipeline (parse → layout → render) for one
 /// or more related diagram languages.
 ///
 /// Implement this interface to add a new diagram type; register the instance in
-/// <see cref="Nexaflow.Features.Markdown.Markdown.DiagramRenderer"/>.  The renderer
+/// <see cref="Nexaflow.Visuals.Text.Markdown.DiagramRenderer"/>.  The renderer
 /// knows nothing about diagram internals — all content decisions live here.
 /// </summary>
 public interface IDiagramHandler

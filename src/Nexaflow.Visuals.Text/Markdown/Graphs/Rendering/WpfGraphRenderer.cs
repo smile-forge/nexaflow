@@ -1,10 +1,10 @@
-using Nexaflow.Features.Markdown.Graphs.Layout;
+using Nexaflow.Visuals.Text.Markdown.Graphs.Layout;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
 
-namespace Nexaflow.Features.Markdown.Graphs.Rendering;
+namespace Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 
 /// <summary>
 /// Converts a <see cref="LayoutedGraph"/> to a WPF <see cref="Canvas"/>.
