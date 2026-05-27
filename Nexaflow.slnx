@@ -33,6 +33,8 @@
   </Folder>
   <Folder Name="/Nexaflow.Tests/">
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Core/Nexaflow.Tests.Core.csproj" Id="ccb84772-1b15-4e2b-b98a-1e9b524e7238" />
+    <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Features/Nexaflow.Tests.Features.csproj" Id="79cfb0c8-0b1c-4342-ab15-9565928e6344" />
+    <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Providers/Nexaflow.Tests.Providers.csproj" Id="326ee97c-f425-4981-a59a-76072e0ed179" />
   </Folder>
   <Project Path="nexaflowBundle/nexaflowBundle.wixproj" Type="b7dd6f7e-def8-4e67-b5b7-07ef123db6f0" Id="4e1c900e-18d5-462c-8c16-ac2cb1a79c4c">
     <Platform Solution="*|Any CPU" Project="x64" />

@@ -1,0 +1,39 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-Windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableMSTestRunner>true</EnableMSTestRunner>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MSTest" Version="4.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.AIChat\Nexaflow.Features.AIChat.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Console\Nexaflow.Features.Console.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Git\Nexaflow.Features.Git.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Hex\Nexaflow.Features.Hex.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Images\Nexaflow.Features.Images.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Json\Nexaflow.Features.Json.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Logs\Nexaflow.Features.Logs.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Markdown\Nexaflow.Features.Markdown.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Projects\Nexaflow.Features.Projects.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Scratchpad\Nexaflow.Features.Scratchpad.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Tabular\Nexaflow.Features.Tabular.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Text\Nexaflow.Features.Text.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Web\Nexaflow.Features.Web.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.WindowsFileSystem\Nexaflow.Features.WindowsFileSystem.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.WindowsSearch\Nexaflow.Features.WindowsSearch.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+
+</Project>
