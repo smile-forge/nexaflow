@@ -57,6 +57,7 @@
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.OpenAI\Nexaflow.Providers.OpenAI.csproj" />
 	<ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Gemini\Nexaflow.Providers.Gemini.csproj" />
     <ProjectReference Include="..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
+    <ProjectReference Include="..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
   </ItemGroup>
   
 </Project>
