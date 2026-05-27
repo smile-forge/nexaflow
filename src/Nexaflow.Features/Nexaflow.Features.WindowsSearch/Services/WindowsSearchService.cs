@@ -34,6 +34,21 @@ public static class WindowsSearchService
         int maxResults = 500)
         => Task.Run(() => Search(parsed, rootPath, maxResults, ct), ct);
 
+    public static async Task<IReadOnlyList<SearchResultEntry>> SearchAcrossAsync(
+        ParsedQuery parsed,
+        IEnumerable<string> roots,
+        CancellationToken ct,
+        int maxResults = 500)
+    {
+        var tasks   = roots.Select(r => SearchAsync(parsed, r, ct, maxResults));
+        var results = await Task.WhenAll(tasks);
+        return results
+            .SelectMany(r => r)
+            .OrderByDescending(e => e.Modified)
+            .Take(maxResults)
+            .ToList();
+    }
+
     private static IReadOnlyList<SearchResultEntry> Search(
         ParsedQuery parsed, string rootPath, int maxResults, CancellationToken ct)
     {

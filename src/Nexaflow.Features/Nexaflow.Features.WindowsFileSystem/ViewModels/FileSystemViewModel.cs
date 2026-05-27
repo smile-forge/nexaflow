@@ -799,7 +799,15 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, IAc
 
     public IContext? GetContextObject()
     {
-        if (IsThisPcMode) return null;
+        if (IsThisPcMode)
+            return new FileSystemContext
+            {
+                RootPath        = string.Empty,
+                CurrentPath     = string.Empty,
+                AvailableDrives = DriveInfo.GetDrives()
+                                           .Select(d => d.RootDirectory.FullName)
+                                           .ToList()
+            };
         if (string.IsNullOrEmpty(RootPath))
         {
             return new FileSystemContext

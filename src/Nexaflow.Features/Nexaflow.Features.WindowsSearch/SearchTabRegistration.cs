@@ -12,24 +12,29 @@ public sealed class SearchTabRegistration(IShellServices shellServices) : IPageR
 
     public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {
-        var query = pageParams?.GetValueOrDefault("query") ?? string.Empty;
-        var root  = pageParams?.GetValueOrDefault("root")  ?? string.Empty;
+        var query  = pageParams?.GetValueOrDefault("query")  ?? string.Empty;
+        var root   = pageParams?.GetValueOrDefault("root")   ?? string.Empty;
+        var drives = pageParams?.GetValueOrDefault("drives") ?? string.Empty;
+
+        var driveList = string.IsNullOrEmpty(drives)
+            ? (IReadOnlyList<string>)[]
+            : drives.Split(';', StringSplitOptions.RemoveEmptyEntries);
 
         var rootLabel  = string.IsNullOrEmpty(root)
-            ? "Search"
+            ? (driveList.Count > 0 ? "This PC" : "Search")
             : Path.GetFileName(root.TrimEnd('\\', '/'));
 
         var queryShort = query.Length > 12 ? query[..12] + "…" : query;
 
         var tabTitle = string.IsNullOrWhiteSpace(query) ? "Search" : queryShort;
 
-        var vm = new SearchViewModel(query, root, shellServices);
+        var vm = new SearchViewModel(query, root, driveList, shellServices);
 
         var tab = new Page
         {
             Title      = tabTitle,
             Icon       = "🔍",
-            PageParams = new() { ["query"] = query, ["root"] = root },
+            PageParams = new() { ["query"] = query, ["root"] = root, ["drives"] = drives },
             Breadcrumbs =
             {
                 new BreadcrumbSegment { Label = rootLabel },

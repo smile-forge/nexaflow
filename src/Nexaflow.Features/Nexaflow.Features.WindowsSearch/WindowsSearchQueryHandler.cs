@@ -21,8 +21,8 @@ public sealed class WindowsSearchQueryHandler(IShellServices shellServices) : IQ
 
     public float CanProcess(string input, IPageViewModel? pageVm = null)
     {
-        if (pageVm?.GetContextObject() is not FileSystemContext fs
-            || string.IsNullOrEmpty(fs.RootPath)) return 0f;
+        if (pageVm?.GetContextObject() is not FileSystemContext fs) return 0f;
+        if (string.IsNullOrEmpty(fs.RootPath) && fs.AvailableDrives.Count == 0) return 0f;
 
         var score = SearchQueryScorer.Score(input);
 
@@ -49,8 +49,9 @@ public sealed class WindowsSearchQueryHandler(IShellServices shellServices) : IQ
 
         shellServices.OpenTab("Search", new Dictionary<string, string>
         {
-            ["query"] = input,
-            ["root"]  = fs.RootPath
+            ["query"]  = input,
+            ["root"]   = fs.RootPath,
+            ["drives"] = string.Join(";", fs.AvailableDrives)
         });
         return Task.FromResult<string?>(null);
     }
