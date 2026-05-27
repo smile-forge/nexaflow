@@ -60,6 +60,17 @@ src/
 %APPDATA%\Smile\Nexaflow\{ConfigName}\        per-feature config (IFeatureConfig.ConfigName)
 ```
 
+## Tests
+
+After any change touching `Nexaflow.Core`, run the unit tests before committing:
+
+```powershell
+dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Core/Nexaflow.Tests.Core.csproj
+src/Nexaflow.Tests/Nexaflow.Tests.Core/bin/Debug/net10.0-windows/Nexaflow.Tests.Core.exe --filter "FullyQualifiedName~Unit"
+```
+
+UI tests (`--filter "TestCategory=UI"`) require an interactive desktop session — skip in headless/CI. Run them manually when changes touch shell chrome, tab strip, ribbon, or the AI bar.
+
 ## Style Notes
 
 - Terse commits. Say why it changed, not what.

@@ -7,10 +7,14 @@
     <Nullable>enable</Nullable>
     <EnableMSTestRunner>true</EnableMSTestRunner>
     <OutputType>Exe</OutputType>
+    <UseWPF>true</UseWPF>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="MSTest" Version="4.2.3" />
+    <PackageReference Include="NSubstitute" Version="5.*" />
+    <PackageReference Include="FlaUI.Core" Version="4.*" />
+    <PackageReference Include="FlaUI.UIA3" Version="4.*" />
   </ItemGroup>
 
   <ItemGroup>
