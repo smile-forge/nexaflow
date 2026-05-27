@@ -14,16 +14,6 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply
 {
     // ── Dependency properties ────────────────────────────────────────────────
 
-    public static readonly DependencyProperty UseRegistryMappingProperty =
-        DependencyProperty.Register(nameof(UseRegistryMapping), typeof(bool),
-            typeof(FileMapEditorControl), new PropertyMetadata(true, OnUseRegistryMappingChanged));
-
-    public bool UseRegistryMapping
-    {
-        get => (bool)GetValue(UseRegistryMappingProperty);
-        set => SetValue(UseRegistryMappingProperty, value);
-    }
-
     public static readonly DependencyProperty SelectedMappingProperty =
         DependencyProperty.Register(nameof(SelectedMapping), typeof(ExperienceMapping),
             typeof(FileMapEditorControl), new PropertyMetadata(null, OnSelectedMappingChanged));
@@ -100,18 +90,7 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply
         Loaded += OnLoaded;
     }
 
-    private void OnLoaded(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is FileMapConfig cfg)
-        {
-            UseRegistryMapping = cfg.UseRegistryMapping;
-            DataContextChanged += (_, _) =>
-            {
-                if (DataContext is FileMapConfig c) UseRegistryMapping = c.UseRegistryMapping;
-            };
-        }
-        PopulateTree();
-    }
+    private void OnLoaded(object sender, RoutedEventArgs e) => PopulateTree();
 
     private void PopulateTree()
     {
@@ -211,35 +190,5 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply
     {
         if (sender is Button btn && btn.Tag is CriterionRow row)
             CriteriaList.Items.Remove(row);
-    }
-
-    // ── Registry toggle ──────────────────────────────────────────────────────
-
-    private void RegistryToggle_Unchecked(object sender, RoutedEventArgs e)
-    {
-        var result = MessageBox.Show(
-            "This will convert all registry-derived mappings to user-managed mappings. " +
-            "They will no longer be updated automatically.\n\nProceed?",
-            "Disable Registry Mapping",
-            MessageBoxButton.YesNo, MessageBoxImage.Warning);
-
-        if (result == MessageBoxResult.Yes)
-        {
-            FileMapManager.Instance.ConvertRegistryMappingsToUser();
-            if (DataContext is FileMapConfig cfg)
-                cfg.UseRegistryMapping = false;
-        }
-        else
-        {
-            UseRegistryMapping = true;
-            if (DataContext is FileMapConfig cfg)
-                cfg.UseRegistryMapping = true;
-        }
-    }
-
-    private static void OnUseRegistryMappingChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-    {
-        if (d is FileMapEditorControl ctrl && ctrl.DataContext is FileMapConfig cfg)
-            cfg.UseRegistryMapping = (bool)e.NewValue;
     }
 }

@@ -1,0 +1,205 @@
+<UserControl x:Class="Nexaflow.Features.WindowsFileSystem.Controls.ExternalAppsEditorControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:local="clr-namespace:Nexaflow.Features.WindowsFileSystem.Controls">
+
+    <UserControl.Resources>
+        <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
+        <cv:InverseBoolToVisibilityConverter x:Key="InverseBoolVis"/>
+    </UserControl.Resources>
+
+    <DockPanel Margin="12">
+
+        <!-- Top: registry toggle + help icon -->
+        <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <CheckBox Grid.Column="0"
+                      Foreground="{StaticResource TextBrush}"
+                      FontSize="12"
+                      VerticalAlignment="Center"
+                      Content="Use registry-based file type mapping"
+                      IsChecked="{Binding UseRegistryMapping, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                      Unchecked="RegistryToggle_Unchecked"/>
+
+            <Border Grid.Column="1"
+                    Width="20" Height="20" CornerRadius="10"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                    Background="Transparent"
+                    VerticalAlignment="Center"
+                    Cursor="Help">
+                <Border.ToolTip>
+                    <ToolTip>
+                        <StackPanel MaxWidth="360">
+                            <TextBlock FontWeight="SemiBold" Text="Template tokens"/>
+                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap">
+                                <Run Text="#file"/> · filename with extension
+                                <LineBreak/>
+                                <Run Text="#file[N]"/> · Nth selected file (0-based)
+                                <LineBreak/>
+                                <Run Text="#filenoext"/> · filename without extension
+                                <LineBreak/>
+                                <Run Text="#filepath"/> · full path
+                                <LineBreak/>
+                                <Run Text="#pathonly"/> · containing directory
+                                <LineBreak/>
+                                <Run Text="%ENVVAR%"/> · environment variable
+                            </TextBlock>
+                            <TextBlock Margin="0,8,0,0" TextWrapping="Wrap"
+                                       Text="Tip: typing # or % opens an inline picker; Tab or Enter inserts the highlighted option."/>
+                        </StackPanel>
+                    </ToolTip>
+                </Border.ToolTip>
+                <TextBlock Text="?" FontWeight="SemiBold" FontSize="12"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+        </Grid>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="150" MinWidth="120"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: app list + add/remove -->
+            <DockPanel Grid.Column="0">
+                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
+                    <Button Content="+ Add"
+                            MinWidth="56" Margin="0,0,4,0"
+                            Style="{StaticResource IconButton}"
+                            Click="AddApp_Click"/>
+                    <Button Content="✕ Remove"
+                            MinWidth="72"
+                            Style="{StaticResource IconButton}"
+                            Click="RemoveApp_Click"/>
+                </StackPanel>
+
+                <Border BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1" CornerRadius="4">
+                    <ListBox x:Name="AppsList"
+                             Background="Transparent" BorderThickness="0"
+                             SelectionChanged="AppsList_SelectionChanged">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding DisplayName}"
+                                               Foreground="{StaticResource TextBrush}"
+                                               FontSize="12"/>
+                                    <TextBlock Text="{Binding Extension}"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="10"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </DockPanel>
+
+            <GridSplitter Grid.Column="1" Width="4"
+                          HorizontalAlignment="Stretch"
+                          Background="{StaticResource BorderBrush}"/>
+
+            <!-- Right: detail form -->
+            <Grid Grid.Column="2" Margin="10,0,0,0">
+
+                <TextBlock Text="Add or select an external app on the left."
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="12" TextWrapping="Wrap"
+                           VerticalAlignment="Center" HorizontalAlignment="Center"
+                           Visibility="{Binding HasSelectedApp, RelativeSource={RelativeSource AncestorType=UserControl},
+                                                Converter={StaticResource InverseBoolVis}}"/>
+
+                <Grid Visibility="{Binding HasSelectedApp, RelativeSource={RelativeSource AncestorType=UserControl},
+                                          Converter={StaticResource BoolVis}}"
+                      DataContext="{Binding SelectedApp, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="100"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Extension"
+                               Foreground="{StaticResource TextBrush}" FontSize="12"
+                               VerticalAlignment="Center" Margin="0,3,4,3"/>
+                    <TextBox  Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
+                              Text="{Binding Extension, UpdateSourceTrigger=PropertyChanged}"
+                              Style="{StaticResource DarkTextBox}" FontSize="11" Margin="0,3"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Display name"
+                               Foreground="{StaticResource TextBrush}" FontSize="12"
+                               VerticalAlignment="Center" Margin="0,3,4,3"/>
+                    <TextBox  Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
+                              Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}"
+                              Style="{StaticResource DarkTextBox}" FontSize="11" Margin="0,3"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="App path"
+                               Foreground="{StaticResource TextBrush}" FontSize="12"
+                               VerticalAlignment="Center" Margin="0,3,4,3"/>
+                    <TextBox  Grid.Row="2" Grid.Column="1"
+                              Text="{Binding ApplicationPath, UpdateSourceTrigger=PropertyChanged}"
+                              Style="{StaticResource DarkTextBox}" FontSize="11" Margin="0,3"
+                              local:TokenAutocomplete.IsEnabled="True"/>
+                    <Button   Grid.Row="2" Grid.Column="2" Content="…"
+                              MinWidth="28" Margin="4,3,0,3"
+                              Style="{StaticResource IconButton}"
+                              Click="BrowseAppPath_Click"/>
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Arguments"
+                               Foreground="{StaticResource TextBrush}" FontSize="12"
+                               VerticalAlignment="Top" Margin="0,6,4,3"/>
+                    <TextBox  Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2"
+                              Text="{Binding Arguments, UpdateSourceTrigger=PropertyChanged}"
+                              Style="{StaticResource DarkTextBox}" FontSize="11" Margin="0,3"
+                              AcceptsReturn="True" TextWrapping="Wrap" MinHeight="46"
+                              local:TokenAutocomplete.IsEnabled="True"/>
+
+                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Working dir"
+                               Foreground="{StaticResource TextBrush}" FontSize="12"
+                               VerticalAlignment="Center" Margin="0,3,4,3"/>
+                    <TextBox  Grid.Row="4" Grid.Column="1"
+                              Text="{Binding WorkingDirectory, UpdateSourceTrigger=PropertyChanged}"
+                              Style="{StaticResource DarkTextBox}" FontSize="11" Margin="0,3"
+                              local:TokenAutocomplete.IsEnabled="True"/>
+                    <Button   Grid.Row="4" Grid.Column="2" Content="…"
+                              MinWidth="28" Margin="4,3,0,3"
+                              Style="{StaticResource IconButton}"
+                              Click="BrowseWorkingDir_Click"/>
+
+                    <TextBlock Grid.Row="5" Grid.Column="0" Text="Icon path"
+                               Foreground="{StaticResource TextBrush}" FontSize="12"
+                               VerticalAlignment="Center" Margin="0,3,4,3"/>
+                    <TextBox  Grid.Row="5" Grid.Column="1"
+                              Text="{Binding IconPath, UpdateSourceTrigger=PropertyChanged}"
+                              Style="{StaticResource DarkTextBox}" FontSize="11" Margin="0,3"/>
+                    <Button   Grid.Row="5" Grid.Column="2" Content="…"
+                              MinWidth="28" Margin="4,3,0,3"
+                              Style="{StaticResource IconButton}"
+                              Click="BrowseIconPath_Click"/>
+
+                    <TextBlock Grid.Row="6" Grid.Column="0" Text="Multi-file"
+                               Foreground="{StaticResource TextBrush}" FontSize="12"
+                               VerticalAlignment="Center" Margin="0,3,4,3"/>
+                    <ComboBox Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2"
+                              ItemsSource="{Binding MultiFileOptions}"
+                              SelectedItem="{Binding MultiFileName, UpdateSourceTrigger=PropertyChanged}"
+                              Style="{StaticResource DarkComboBox}" FontSize="11" Margin="0,3"/>
+                </Grid>
+            </Grid>
+        </Grid>
+    </DockPanel>
+</UserControl>

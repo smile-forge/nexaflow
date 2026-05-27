@@ -10,15 +10,6 @@
 
     <DockPanel Margin="12">
 
-        <!-- Top: registry toggle -->
-        <CheckBox DockPanel.Dock="Top"
-                  Margin="0,0,0,12"
-                  Foreground="{StaticResource TextBrush}"
-                  FontSize="12"
-                  Content="Use registry-based file type mapping"
-                  IsChecked="{Binding UseRegistryMapping, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                  Unchecked="RegistryToggle_Unchecked"/>
-
         <!-- Body: left tree + right criteria editor -->
         <Grid>
             <Grid.ColumnDefinitions>

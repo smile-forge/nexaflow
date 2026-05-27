@@ -75,10 +75,15 @@ public partial class App : Application
         //       and registers all loaded providers into each ─────────────────
         WorkContextManager.Instance.Initialize(wcConfig);
 
-        // ── 5. File map ──────────────────────────────────────────────────────
+        // ── 5. File map + external apps ──────────────────────────────────────
         var fileMapConfig = new FileMapConfig();
         ConfigManager.Instance.Register(fileMapConfig, fileMapConfig.ConfigName);
-        FileMapManager.Instance.Initialize(fileMapConfig.UseRegistryMapping);
+
+        var externalAppsConfig = new ExternalAppsConfig();
+        ConfigManager.Instance.Register(externalAppsConfig, externalAppsConfig.ConfigName);
+        ExternalAppRegistry.Instance.Initialize(externalAppsConfig);
+
+        FileMapManager.Instance.Initialize(externalAppsConfig.UseRegistryMapping);
 
         // ── 6. Feature system ────────────────────────────────────────────────
         var defaultCtx = WorkContextManager.Instance.Contexts[0];
