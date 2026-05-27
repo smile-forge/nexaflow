@@ -7,7 +7,7 @@
     "Minimise context switching for all simple activities"
   ],
   "SolutionFile": null,
-  "LastUpdate": "2026-05-26T20:08:08.013629Z",
+  "LastUpdate": "2026-05-27T15:13:28.8640214Z",
   "Backlog": [
     {
       "Id": "49ca9f9c-663a-474d-a282-daa6d7adda82",
@@ -45,7 +45,7 @@
       "Id": "c67f3d61-f0c8-493e-affb-aab0584756f3",
       "Title": "Add gemini as provider",
       "Notes": null,
-      "Status": "NotStarted",
+      "Status": "AwaitingFinalisation",
       "ImpPlan": null,
       "TestPlan": null
     },

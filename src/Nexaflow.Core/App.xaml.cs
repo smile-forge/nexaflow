@@ -39,6 +39,7 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+#if !DEBUG
         // ── Single-instance guard ────────────────────────────────────────────
         if (!_singleInstance.TryAcquire())
         {
@@ -46,6 +47,7 @@ public partial class App : Application
             Shutdown();
             return;
         }
+#endif
 
         var activityManager = new BackgroundActivityManager();
 
