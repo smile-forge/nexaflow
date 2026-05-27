@@ -1,11 +1,11 @@
-using Nexaflow.Features.Markdown.Graphs.Charts;
+using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
 
-namespace Nexaflow.Features.Markdown.Graphs.Rendering;
+namespace Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 
 /// <summary>
 /// Renders a <see cref="PieChart"/> as a WPF <see cref="FrameworkElement"/>.

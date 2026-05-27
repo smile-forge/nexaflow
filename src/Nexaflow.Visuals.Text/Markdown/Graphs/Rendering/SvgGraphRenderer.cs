@@ -1,8 +1,8 @@
-using Nexaflow.Features.Markdown.Graphs.Layout;
+using Nexaflow.Visuals.Text.Markdown.Graphs.Layout;
 using System.Globalization;
 using System.Text;
 
-namespace Nexaflow.Features.Markdown.Graphs.Rendering;
+namespace Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 
 /// <summary>
 /// Converts a <see cref="LayoutedGraph"/> to an SVG string.

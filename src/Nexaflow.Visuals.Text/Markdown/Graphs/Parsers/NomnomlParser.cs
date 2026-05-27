@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace Nexaflow.Features.Markdown.Graphs.Parsers;
+namespace Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
 
 /// <summary>
 /// Parses <see href="https://nomnoml.com/">nomnoml</see> diagrams.

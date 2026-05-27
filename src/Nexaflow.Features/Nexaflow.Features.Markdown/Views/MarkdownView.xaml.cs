@@ -1,6 +1,6 @@
 using Nexaflow.Features.Common;
-using Nexaflow.Features.Markdown.Markdown;
 using Nexaflow.Features.Markdown.ViewModels;
+using Nexaflow.Visuals.Text.Markdown;
 using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;

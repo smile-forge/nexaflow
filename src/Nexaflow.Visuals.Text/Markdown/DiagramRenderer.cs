@@ -1,17 +1,16 @@
-using Nexaflow.Features.Markdown.Graphs.Handlers;
-using Nexaflow.Features.Markdown.Graphs.Parsers;
+using Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
+using Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
-namespace Nexaflow.Features.Markdown.Markdown;
+namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
 /// Dispatches diagram fenced code blocks to the appropriate
-/// <see cref="IDiagramHandler"/>.  This class knows only:
-///   1. Which languages are diagram languages (via <see cref="IsDiagramLanguage"/>).
-///   2. How to display errors.
-/// All content parsing and rendering decisions live inside the handlers.
+/// <see cref="IDiagramHandler"/>.  Knows only which languages are diagram
+/// languages and how to display errors.  All content parsing and rendering
+/// decisions live inside the handlers.
 ///
 /// To add a new diagram language:
 ///   • For graph-based languages: <c>new GraphDiagramHandler(new MyParser())</c>

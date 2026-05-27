@@ -1,7 +1,7 @@
-using Nexaflow.Features.Markdown.Graphs.Charts;
+using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 using System.Text.RegularExpressions;
 
-namespace Nexaflow.Features.Markdown.Graphs.Parsers;
+namespace Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
 
 /// <summary>
 /// Parses Mermaid <c>pie</c> charts.

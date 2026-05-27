@@ -1,6 +1,6 @@
 using System.Windows;
 
-namespace Nexaflow.Features.Markdown.Graphs.Layout;
+namespace Nexaflow.Visuals.Text.Markdown.Graphs.Layout;
 
 // ── Result types ──────────────────────────────────────────────────────────────
 

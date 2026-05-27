@@ -1,4 +1,4 @@
-namespace Nexaflow.Features.Markdown.Graphs;
+namespace Nexaflow.Visuals.Text.Markdown.Graphs;
 
 // ── Enumerations ──────────────────────────────────────────────────────────────
 

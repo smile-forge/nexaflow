@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace Nexaflow.Features.Markdown.Graphs.Parsers;
+namespace Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
 
 /// <summary>
 /// Parses Mermaid <c>graph</c> / <c>flowchart</c> diagrams into a <see cref="Graph"/>.
