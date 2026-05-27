@@ -271,8 +271,9 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, IAc
         bool anyDrives   = selected.Any(e => e.IsDrive);
         bool useFolderActions = selected.Count == 0 || onlyFolders || anyDrives;
 
-        // Filter built-in actions + resolve shell verbs — both are pure background work.
-        var (applicable, shellVerbs) = await Task.Run(() =>
+        // Filter built-in actions + resolve shell verbs + custom external apps —
+        // all pure background work.
+        var (applicable, shellVerbs, customActions) = await Task.Run(() =>
         {
             IReadOnlyList<IFileAction> builtIn;
             if (useFolderActions)
@@ -284,9 +285,11 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, IAc
                 builtIn = _actionRegistry.FilterActions(selected, canPerform.File);
             }
 
-            // Only look up shell verbs for a single-file selection
+            // Only look up shell verbs for a single-file selection, and only when the
+            // user has enabled registry-based file type mapping.
             List<ShellVerbAction> verbs = [];
-            if (!useFolderActions && selected.Count == 1 && !selected[0].IsDirectory)
+            if (ExternalAppRegistry.Instance.UseRegistryMapping &&
+                !useFolderActions && selected.Count == 1 && !selected[0].IsDirectory)
             {
                 var entry      = selected[0];
                 var ext        = Path.GetExtension(entry.Name);
@@ -319,7 +322,14 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, IAc
                     }
                 }
             }
-            return (builtIn, verbs);
+
+            // User-defined external apps — apply to file selections regardless of count
+            // (the registry filters out single-file-only definitions on multi-select).
+            IReadOnlyList<CustomAction> customs = !useFolderActions
+                ? ExternalAppRegistry.Instance.Resolve(selected)
+                : Array.Empty<CustomAction>();
+
+            return (builtIn, verbs, customs);
         });
 
         // Check the selection hasn't changed while we were on the background thread.
@@ -355,6 +365,9 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, IAc
 
         foreach (var verb in shellVerbs)
             AddAction(verb);
+
+        foreach (var custom in customActions)
+            AddAction(custom);
     }
 
     private bool   _isThisPcMode;

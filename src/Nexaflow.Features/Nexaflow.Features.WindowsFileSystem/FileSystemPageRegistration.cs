@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Features.WindowsFileSystem.Views;
 using System.Collections.Generic;
@@ -6,10 +7,16 @@ using System.Linq;
 
 namespace Nexaflow.Features.WindowsFileSystem;
 
+// The FileMapConfig / ExternalAppsConfig parameters are declared so FeatureManager
+// builds a config→registration mapping for them; that lets OptionsViewModel fire
+// TabRefreshRequested("FileSystem") when either config is saved, which rebuilds
+// open file-system tabs so the new action set / verb gating takes effect immediately.
 public sealed class FileSystemPageRegistration(
     IShellServices shell,
     IAIService ai,
-    IReadOnlyDictionary<Type, IFeatureConfig> configs) : IPageRegistration
+    IReadOnlyDictionary<Type, IFeatureConfig> configs,
+    FileMapConfig _fileMapConfig,
+    ExternalAppsConfig _externalAppsConfig) : IPageRegistration
 {
     public const string PageKind       = "FileSystem";
     public const string FileActionKind = "FileAction";
