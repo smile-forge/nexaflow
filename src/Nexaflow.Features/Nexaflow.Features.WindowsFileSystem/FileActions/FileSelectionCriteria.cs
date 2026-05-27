@@ -1,4 +1,4 @@
-namespace Nexaflow.Core.FileActions;
+namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 
 public enum CriteriaType
 {

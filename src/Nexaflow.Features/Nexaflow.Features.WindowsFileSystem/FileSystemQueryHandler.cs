@@ -1,17 +1,17 @@
-using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using System;
 using System.IO;
 using System.Threading.Tasks;
 
-namespace Nexaflow.Core;
+namespace Nexaflow.Features.WindowsFileSystem;
 
 /// <summary>
 /// Handles path-navigation queries in a FileSystem tab.
 /// Accepts: absolute paths (when root is This PC or same drive), paths relative to the
 /// current root, and environment-variable paths (%AppData%, etc.).
 /// Rejects anything containing wildcards — those belong to the search handlers.
-/// Auto-discovered by FeatureManager because Core is scanned at startup.
+/// Auto-discovered by FeatureManager because it lives in a Nexaflow.Features.* assembly.
 /// </summary>
 public sealed class FileSystemQueryHandler : IQueryHandler
 {

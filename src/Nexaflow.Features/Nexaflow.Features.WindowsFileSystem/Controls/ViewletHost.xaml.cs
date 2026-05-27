@@ -2,7 +2,7 @@ using Nexaflow.Features.Common.Viewlets;
 using System.Windows;
 using System.Windows.Controls;
 
-namespace Nexaflow.Core.Controls;
+namespace Nexaflow.Features.WindowsFileSystem.Controls;
 
 public partial class ViewletHost : UserControl, IViewletController
 {

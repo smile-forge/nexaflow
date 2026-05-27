@@ -1,7 +1,7 @@
 using Nexaflow.Features.Common.Viewlets;
 using System.IO;
 
-namespace Nexaflow.Core.Services;
+namespace Nexaflow.Features.WindowsFileSystem.Services;
 
 /// <summary>
 /// Filters the <see cref="IFolderViewlet"/> instances owned by

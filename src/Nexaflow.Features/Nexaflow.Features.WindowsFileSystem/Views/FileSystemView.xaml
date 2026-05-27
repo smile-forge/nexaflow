@@ -1,8 +1,8 @@
-<UserControl x:Class="Nexaflow.Core.Views.FileSystemView"
+<UserControl x:Class="Nexaflow.Features.WindowsFileSystem.Views.FileSystemView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="clr-namespace:Nexaflow.Core.ViewModels"
-             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common" 
+             xmlns:vm="clr-namespace:Nexaflow.Features.WindowsFileSystem.ViewModels"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
@@ -80,23 +80,23 @@
                                 Columns="{Binding View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"
                                 Content="{TemplateBinding Content}"/>
                         </Border>
-												<ControlTemplate.Triggers>
-														<DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource Self}}" Value="True">
-																<Setter TargetName="RowBg" Property="Background"
-																				Value="{StaticResource Surface2Brush}"/>
-																<Setter TargetName="RowBg" Property="BorderBrush"
-																				Value="{StaticResource AccentBrush}"/>
-																<Setter TargetName="RowBg" Property="BorderThickness" Value="1"/>
-														</DataTrigger>
-														<MultiTrigger>
-																<MultiTrigger.Conditions>
-																		<Condition Property="IsSelected" Value="False"/>
-																		<Condition Property="IsMouseOver" Value="True"/>
-																</MultiTrigger.Conditions>
-																<Setter TargetName="RowBg" Property="Background"
-																				Value="{StaticResource SurfaceBrush}"/>
-														</MultiTrigger>
-												</ControlTemplate.Triggers>
+											<ControlTemplate.Triggers>
+													<DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource Self}}" Value="True">
+															<Setter TargetName="RowBg" Property="Background"
+																			Value="{StaticResource Surface2Brush}"/>
+															<Setter TargetName="RowBg" Property="BorderBrush"
+																			Value="{StaticResource AccentBrush}"/>
+															<Setter TargetName="RowBg" Property="BorderThickness" Value="1"/>
+													</DataTrigger>
+													<MultiTrigger>
+															<MultiTrigger.Conditions>
+																	<Condition Property="IsSelected" Value="False"/>
+																	<Condition Property="IsMouseOver" Value="True"/>
+															</MultiTrigger.Conditions>
+															<Setter TargetName="RowBg" Property="Background"
+																			Value="{StaticResource SurfaceBrush}"/>
+													</MultiTrigger>
+											</ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>

@@ -1,10 +1,9 @@
-using Nexaflow.Core.Models;
-using Nexaflow.Core.Views;
-using Nexaflow.Core;
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Ribbon;
+using Nexaflow.Features.WindowsFileSystem.Views;
 using System.Collections.Generic;
 
-namespace Nexaflow.Core.RibbonHandlers;
+namespace Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
 
 /// <summary>
 /// Handles drag-pin and execution of FileSystem tabs on the ribbon.

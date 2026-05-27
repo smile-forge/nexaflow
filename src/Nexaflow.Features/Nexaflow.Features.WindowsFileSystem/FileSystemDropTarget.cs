@@ -1,10 +1,10 @@
 using Nexaflow.Features.Common;
-using Nexaflow.Core.ViewModels;
+using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using System;
 using System.IO;
 using System.Windows;
 
-namespace Nexaflow.Core.FileSystem;
+namespace Nexaflow.Features.WindowsFileSystem;
 
 /// <summary>
 /// Accepts file drag-drop onto <see cref="FileSystemView"/>, copying dropped

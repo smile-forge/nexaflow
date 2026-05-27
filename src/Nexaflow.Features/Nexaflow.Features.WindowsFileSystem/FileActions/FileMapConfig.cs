@@ -1,7 +1,7 @@
-using Nexaflow.Core.Controls;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.WindowsFileSystem.Controls;
 
-namespace Nexaflow.Core.FileActions;
+namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 
 [CustomControl(typeof(FileMapEditorControl))]
 public sealed class FileMapConfig : IFeatureConfig

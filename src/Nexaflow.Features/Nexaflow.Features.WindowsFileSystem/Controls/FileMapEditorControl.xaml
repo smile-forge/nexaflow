@@ -1,12 +1,11 @@
-<UserControl x:Class="Nexaflow.Core.Controls.FileMapEditorControl"
+<UserControl x:Class="Nexaflow.Features.WindowsFileSystem.Controls.FileMapEditorControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
-             xmlns:cvn="clr-namespace:Nexaflow.Core.Converters">
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common">
 
     <UserControl.Resources>
         <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
-        <cvn:InverseBoolToVisibilityConverter x:Key="InverseBoolVis"/>
+        <cv:InverseBoolToVisibilityConverter x:Key="InverseBoolVis"/>
     </UserControl.Resources>
 
     <DockPanel Margin="12">

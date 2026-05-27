@@ -1,10 +1,9 @@
 using Nexaflow.Features.Common;
-using Nexaflow.Features.WindowsFileSystem;
-using Nexaflow.Core.ViewModels;
-using System.Windows.Input;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
+using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using System.Windows.Input;
 
-namespace Nexaflow.Core.FileSystem;
+namespace Nexaflow.Features.WindowsFileSystem;
 
 /// <summary>
 /// Handles keyboard shortcuts for <see cref="FileSystemView"/>.

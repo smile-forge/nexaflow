@@ -1,6 +1,6 @@
 using Nexaflow.Features.Common;
 
-namespace Nexaflow.Core.RibbonHandlers;
+namespace Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
 
 /// <summary>
 /// Carries an <see cref="IFileAction"/> and the files selected at pin time.

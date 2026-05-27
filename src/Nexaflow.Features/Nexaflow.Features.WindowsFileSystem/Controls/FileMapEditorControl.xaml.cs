@@ -1,6 +1,6 @@
-using Nexaflow.Core.FileActions;
-using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.WindowsFileSystem.FileActions;
+using Nexaflow.Features.WindowsFileSystem.Services;
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -8,7 +8,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 
-namespace Nexaflow.Core.Controls;
+namespace Nexaflow.Features.WindowsFileSystem.Controls;
 
 public partial class FileMapEditorControl : UserControl, ICustomConfigApply
 {

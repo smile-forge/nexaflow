@@ -208,6 +208,10 @@ public sealed class FeatureManager
                 if (workContext?.AiService is null) return null;
                 args[i] = workContext.AiService;
             }
+            else if (pt == typeof(IReadOnlyDictionary<Type, IFeatureConfig>))
+            {
+                args[i] = (IReadOnlyDictionary<Type, IFeatureConfig>)_configs;
+            }
             else if (_configs.TryGetValue(pt, out var cfg))
             {
                 args[i] = cfg;
