@@ -1,11 +1,9 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Nexaflow.Core;
-using Nexaflow.Core.Models;
-using Nexaflow.Core.RibbonHandlers;
-using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
-using Nexaflow.Core.FileActions;
+using Nexaflow.Features.WindowsFileSystem.FileActions;
+using Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
+using Nexaflow.Features.WindowsFileSystem.Services;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -15,9 +13,8 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Threading;
-using Nexaflow.Features.WindowsFileSystem.FileActions;
 
-namespace Nexaflow.Core.ViewModels;
+namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 
 
 // ── Main ViewModel ────────────────────────────────────────────────────────────
@@ -40,7 +37,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, IAc
         // Folder actions (wrapped in FolderActionAdapter) operate on the current directory,
         // not the selected files. Capture the folder path so the pinned button re-opens
         // the action at the same location.
-        IReadOnlyList<string> paths = vm.Action is FileActions.FolderActionAdapter
+        IReadOnlyList<string> paths = vm.Action is FolderActionAdapter
             ? (string.IsNullOrEmpty(CurrentPath) ? [] : [CurrentPath])
             : CurrentSelection.Select(e => e.FullPath).ToList();
         var payload = new FileActionPinPayload(vm.Action, paths);
@@ -254,7 +251,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, IAc
         }
 
         _actionDebounceTimer.Start();
-        
+
     }
 
     /// <summary>
@@ -407,8 +404,9 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, IAc
     // ── Constructors ─────────────────────────────────────────────────────────
 
     /// <summary>Opens a specific directory as the starting point.</summary>
-    public FileSystemViewModel(string targetDirectory, IShellServices shell, IAIService ai)
-        : this(shell, ai)
+    public FileSystemViewModel(string targetDirectory, IShellServices shell, IAIService ai,
+                               IReadOnlyDictionary<Type, IFeatureConfig> configs)
+        : this(shell, ai, configs)
     {
         InitDebounceTimer();
         _rootPath = targetDirectory;
@@ -417,9 +415,10 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, IAc
     }
 
     /// <summary>Opens "This PC" showing all connected drives.</summary>
-    public static FileSystemViewModel CreateThisPc(IShellServices shell, IAIService ai)
+    public static FileSystemViewModel CreateThisPc(IShellServices shell, IAIService ai,
+                                                   IReadOnlyDictionary<Type, IFeatureConfig> configs)
     {
-        var vm = new FileSystemViewModel(shell, ai);
+        var vm = new FileSystemViewModel(shell, ai, configs);
         vm.InitDebounceTimer();
         vm._rootPath     = string.Empty;
         vm._isThisPcMode = true;
@@ -536,11 +535,12 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, IAc
 
     internal FileSystemFeatureRegistry Registry { get; }
 
-    private FileSystemViewModel(IShellServices shell, IAIService ai)
+    private FileSystemViewModel(IShellServices shell, IAIService ai,
+                                IReadOnlyDictionary<Type, IFeatureConfig> configs)
     {
         _shell          = shell;
         _ai             = ai;
-        Registry        = FileSystemFeatureRegistry.For(shell, ai, FeatureManager.Instance.Configs);
+        Registry        = FileSystemFeatureRegistry.For(shell, ai, configs);
         _actionRegistry = new FileActionManager(Registry);
         FileMapManager.Instance.RegisterKnownExperiences(_actionRegistry.AllExperiences);
     }

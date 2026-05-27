@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 
-namespace Nexaflow.Core.ViewModels;
+namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 
 // ── File / folder entry shown in the right panel ──────────────────────────────
 

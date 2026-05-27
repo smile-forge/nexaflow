@@ -1,22 +1,17 @@
-using Nexaflow.Core.FileActions;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
+using Nexaflow.Features.WindowsFileSystem.FileActions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 
-namespace Nexaflow.Core.Services;
+namespace Nexaflow.Features.WindowsFileSystem.Services;
 
 /// <summary>
 /// Owns discovery, construction and caching of the file-system feature
 /// contracts: <see cref="IFileAction"/>, <see cref="IFolderAction"/>,
 /// <see cref="IFileCreateAction"/> and <see cref="IFolderViewlet"/>.
-///
-/// Deliberately decoupled from <c>WorkContext</c> and <c>FeatureManager</c> so
-/// the file can move into <c>Nexaflow.Features.WindowsFileSystem</c> later
-/// without dragging Core types along. All cross-assembly reflection is
-/// delegated to <see cref="IShellServices.DiscoverImplementations{T}"/>.
 /// </summary>
 public sealed class FileSystemFeatureRegistry
 {

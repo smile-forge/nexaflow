@@ -7,7 +7,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
-namespace Nexaflow.Core.FileActions;
+namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 
 /// <summary>
 /// Loads a 32×32 icon from a path string of the form used by DefaultIcon registry values

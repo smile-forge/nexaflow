@@ -1,5 +1,5 @@
 using Microsoft.Win32;
-using Nexaflow.Core.FileActions;
+using Nexaflow.Features.WindowsFileSystem.FileActions;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -9,7 +9,7 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Nexaflow.Core.Services;
+namespace Nexaflow.Features.WindowsFileSystem.Services;
 
 /// <summary>
 /// Owns the experience→criteria mappings, the HKCR background scan, and the fast

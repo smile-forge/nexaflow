@@ -1,13 +1,15 @@
-using Nexaflow.Core.FileSystem;
-using Nexaflow.Core.ViewModels;
-using Nexaflow.Core.Views;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.Features.WindowsFileSystem.Views;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Nexaflow.Core;
+namespace Nexaflow.Features.WindowsFileSystem;
 
-public sealed class FileSystemPageRegistration(IShellServices shell, IAIService ai) : IPageRegistration
+public sealed class FileSystemPageRegistration(
+    IShellServices shell,
+    IAIService ai,
+    IReadOnlyDictionary<Type, IFeatureConfig> configs) : IPageRegistration
 {
     public const string PageKind       = "FileSystem";
     public const string FileActionKind = "FileAction";
@@ -30,7 +32,7 @@ public sealed class FileSystemPageRegistration(IShellServices shell, IAIService 
                 PageParams  = pageParams,
                 Breadcrumbs = { new BreadcrumbSegment { Label = label } }
             };
-            tab.ContentFactory = () => CreateView(new FileSystemViewModel(path, shell, ai), tab);
+            tab.ContentFactory = () => CreateView(new FileSystemViewModel(path, shell, ai, configs), tab);
             return tab;
         }
         else
@@ -43,7 +45,7 @@ public sealed class FileSystemPageRegistration(IShellServices shell, IAIService 
                 PageParams  = pageParams ?? new() { ["mode"] = "thispc" },
                 Breadcrumbs = { new BreadcrumbSegment { Label = "This PC" } }
             };
-            tab.ContentFactory = () => CreateView(FileSystemViewModel.CreateThisPc(shell, ai), tab);
+            tab.ContentFactory = () => CreateView(FileSystemViewModel.CreateThisPc(shell, ai, configs), tab);
             return tab;
         }
     }

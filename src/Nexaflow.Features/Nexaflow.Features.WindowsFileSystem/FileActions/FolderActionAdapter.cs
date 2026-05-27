@@ -2,7 +2,7 @@ using Nexaflow.Features.Common;
 using System.Collections.Generic;
 using System.Windows.Media;
 
-namespace Nexaflow.Core.FileActions;
+namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 
 /// <summary>
 /// Wraps an <see cref="IFolderAction"/> as an <see cref="IFileAction"/> so that

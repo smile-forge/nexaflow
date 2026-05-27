@@ -1,12 +1,11 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Nexaflow.Core;
-using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Ribbon;
+using Nexaflow.Features.WindowsFileSystem.Services;
 
-namespace Nexaflow.Core.RibbonHandlers;
+namespace Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
 
 /// <summary>
 /// Allows non-destructive <see cref="IFileAction"/> instances to be pinned to the ribbon.
@@ -17,8 +16,8 @@ public sealed class FileActionRibbonPinHandler : IRibbonPinHandler
 {
     private readonly FileSystemFeatureRegistry _registry;
 
-    public FileActionRibbonPinHandler(IShellServices shell, IAIService ai)
-        => _registry = FileSystemFeatureRegistry.For(shell, ai, FeatureManager.Instance.Configs);
+    public FileActionRibbonPinHandler(IShellServices shell, IAIService ai, IReadOnlyDictionary<Type, IFeatureConfig> configs)
+        => _registry = FileSystemFeatureRegistry.For(shell, ai, configs);
 
     public string ContentKind => FileSystemPageRegistration.FileActionKind;
 

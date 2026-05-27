@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Win32;
 
-namespace Nexaflow.Core.FileActions;
+namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 
 /// <summary>
 /// Resolves shell verb handlers and metadata for a given file extension by

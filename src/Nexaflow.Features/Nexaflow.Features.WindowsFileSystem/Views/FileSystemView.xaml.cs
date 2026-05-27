@@ -7,17 +7,15 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Controls.Primitives;
-using Nexaflow.Core;
-using Nexaflow.Core.Controls;
-using Nexaflow.Core.Models;
-using Nexaflow.Core.RibbonHandlers;
-using Nexaflow.Core.Services;
+using Nexaflow.Features.WindowsFileSystem.Controls;
+using Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
+using Nexaflow.Features.WindowsFileSystem.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
-using Nexaflow.Core.ViewModels;
-using Nexaflow.Core.FileSystem;
+using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.Features.WindowsFileSystem;
 
-namespace Nexaflow.Core.Views;
+namespace Nexaflow.Features.WindowsFileSystem.Views;
 
 public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
 {

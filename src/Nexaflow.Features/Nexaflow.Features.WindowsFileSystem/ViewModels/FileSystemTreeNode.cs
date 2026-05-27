@@ -3,7 +3,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 
-namespace Nexaflow.Core.ViewModels;
+namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 
 public enum DriveStatus   { Ready, Loading, Unavailable }
 public enum DriveIconType { HDD, SSD, Network, Removable, CDDVD }

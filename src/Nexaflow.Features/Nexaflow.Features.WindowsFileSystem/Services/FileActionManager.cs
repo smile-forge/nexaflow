@@ -1,11 +1,11 @@
-using Nexaflow.Core.FileActions;
-using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.WindowsFileSystem.FileActions;
+using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace Nexaflow.Core.Services;
+namespace Nexaflow.Features.WindowsFileSystem.Services;
 
 /// <summary>
 /// Filtering / matching layer over the action instances owned by

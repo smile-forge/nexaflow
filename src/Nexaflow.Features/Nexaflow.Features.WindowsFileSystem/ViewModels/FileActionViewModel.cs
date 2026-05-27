@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Media;
 
-namespace Nexaflow.Core.ViewModels;
+namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 /// <summary>
 /// Wraps an <see cref="IFileAction"/> for presentation in the action strip.
 /// Shift-held state is forwarded to <see cref="IFileAction.PerformAction(string, bool)"/>

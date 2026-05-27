@@ -1,5 +1,6 @@
-using Nexaflow.Core.FileActions;
 using Nexaflow.Core.Services;
+using Nexaflow.Features.WindowsFileSystem.FileActions;
+using Nexaflow.Features.WindowsFileSystem.Services;
 using Nexaflow.Features.AIChat;
 using Nexaflow.Features.Console;
 using Nexaflow.Features.Images;
