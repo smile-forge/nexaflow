@@ -231,6 +231,15 @@
                        OpenPageCommand="{Binding OpenPageCommand}"/>
 
         <!-- ═══════════════════════════════════════════════════════════
+             OVERLAY — AI RESPONSE (slides up from the input bar)
+             Anchored inside the content area (row 2) so the tab strip
+             remains visible above it.
+             ═══════════════════════════════════════════════════════════ -->
+        <ctrl:AiResponseOverlay Grid.Row="2"
+                                Panel.ZIndex="90"
+                                DataContext="{Binding}"/>
+
+        <!-- ═══════════════════════════════════════════════════════════
              ROW 3 — DRAG SPLITTER
              ═══════════════════════════════════════════════════════════ -->
         <GridSplitter Grid.Row="3"

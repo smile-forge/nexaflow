@@ -38,5 +38,11 @@ namespace Nexaflow.Features.Common
         /// suggesting a prefill for the user to confirm, or replying conversationally.
         /// </summary>
         Task<AiResponse?> ContextChat(IPageViewModel? pageVm, string input);
+
+        /// <summary>
+        /// Context window (in tokens) for the model assigned to the Conversation ability,
+        /// or null if the provider doesn't know or no provider is configured.
+        /// </summary>
+        Task<int?> GetConversationContextWindowAsync(CancellationToken ct = default);
     }
 }

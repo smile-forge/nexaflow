@@ -1,0 +1,110 @@
+<UserControl x:Class="Nexaflow.Core.Controls.AiResponseOverlay"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             IsHitTestVisible="True">
+
+    <UserControl.Resources>
+        <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
+    </UserControl.Resources>
+
+    <Grid x:Name="LayoutRoot"
+          Visibility="{Binding AiResponseOverlayOpen, Converter={StaticResource BoolVis}}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>     <!-- ~10% gap at top -->
+            <RowDefinition Height="9*"/>    <!-- ~90% overlay -->
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>   <!-- ~10% gap -->
+            <ColumnDefinition Width="8*"/>  <!-- ~80% overlay -->
+            <ColumnDefinition Width="*"/>   <!-- ~10% gap -->
+        </Grid.ColumnDefinitions>
+
+        <Border x:Name="Panel"
+                Grid.Row="1" Grid.Column="1"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="10,10,4,4">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="24" ShadowDepth="0" Opacity="0.55" Color="Black"/>
+            </Border.Effect>
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="SlideXform" Y="0"/>
+            </Border.RenderTransform>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>  <!-- header -->
+                    <RowDefinition Height="*"/>     <!-- body -->
+                    <RowDefinition Height="Auto"/>  <!-- footer -->
+                </Grid.RowDefinitions>
+
+                <!-- Header -->
+                <Border Grid.Row="0"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="0,0,0,1"
+                        Padding="16,10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Text="{Binding AiResponseAiName}"
+                                   FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextBrush}"
+                                   VerticalAlignment="Center"/>
+                        <Button Grid.Column="1"
+                                Style="{StaticResource TopBarAction}"
+                                Command="{Binding CloseAiResponseOverlayCommand}"
+                                ToolTip="Close">
+                            <TextBlock Text="✕" FontSize="13"
+                                       Foreground="{StaticResource TextMutedBrush}"/>
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <!-- Body: markdown -->
+                <ScrollViewer Grid.Row="1"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Padding="20,12">
+                    <StackPanel x:Name="MarkdownBody"/>
+                </ScrollViewer>
+
+                <!-- Footer -->
+                <Border Grid.Row="2"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="0,1,0,0"
+                        Padding="16,10">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Continue as Conversation"
+                                Command="{Binding ContinueAsConversationCommand}"
+                                Padding="14,7"
+                                FontSize="12"
+                                Background="{StaticResource AccentBrush}"
+                                Foreground="White"
+                                BorderThickness="0">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="root"
+                                            Background="{TemplateBinding Background}"
+                                            CornerRadius="7" Padding="10,6">
+                                        <ContentPresenter HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="root" Property="Opacity" Value="0.85"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>
