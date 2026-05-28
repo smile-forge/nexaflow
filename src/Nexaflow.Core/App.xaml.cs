@@ -1,3 +1,4 @@
+using Nexaflow.Core.AI;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
@@ -60,6 +61,10 @@ public partial class App : Application
         var shellConfig = new ShellConfig();
         ConfigManager.Instance.Register(shellConfig, shellConfig.ConfigName);
         ThemeManager.Apply(shellConfig.Theme);
+
+        // ── 1a. AI persona (global): name + system prompt for the assistant ──
+        var personaConfig = new AiPersonaConfig();
+        ConfigManager.Instance.Register(personaConfig, personaConfig.ConfigName);
 
         // ── 2. WorkContexts config — must come before providers so we know
         //       which provider assemblies each context needs ──────────────────

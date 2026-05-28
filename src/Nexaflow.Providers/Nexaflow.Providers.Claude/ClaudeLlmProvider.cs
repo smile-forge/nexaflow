@@ -116,6 +116,16 @@ public sealed class ClaudeLlmProvider : ILlmProvider
         return Task.FromResult(models);
     }
 
+    public Task<ModelInfo?> GetModelInfoAsync(string model, CancellationToken ct = default)
+    {
+        // All currently-shipping Claude models in our model list use a 200k context window.
+        // Future models with larger windows can override here.
+        ModelInfo? info = string.IsNullOrWhiteSpace(model)
+            ? null
+            : new ModelInfo(ContextWindowTokens: 200_000, DisplayName: model);
+        return Task.FromResult(info);
+    }
+
     private static string BuildUserContent(string prompt, IReadOnlyList<LlmAttachment>? attachments)
     {
         if (attachments is null || attachments.Count == 0)

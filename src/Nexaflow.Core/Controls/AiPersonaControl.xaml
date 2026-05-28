@@ -1,0 +1,41 @@
+<UserControl x:Class="Nexaflow.Core.Controls.AiPersonaControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="20,16,20,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>  <!-- Name label -->
+            <RowDefinition Height="Auto"/>  <!-- Name input -->
+            <RowDefinition Height="12"/>
+            <RowDefinition Height="Auto"/>  <!-- Prompt label -->
+            <RowDefinition Height="*"/>     <!-- Prompt input -->
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Text="Name"
+                   Foreground="{StaticResource TextMutedBrush}"
+                   FontSize="12"
+                   Margin="0,0,0,4"/>
+        <TextBox Grid.Row="1"
+                 x:Name="NameBox"
+                 Style="{StaticResource DarkTextBox}"
+                 FontSize="13"
+                 Padding="8,6"
+                 TextChanged="OnTextChanged"/>
+
+        <TextBlock Grid.Row="3"
+                   Text="System Prompt"
+                   Foreground="{StaticResource TextMutedBrush}"
+                   FontSize="12"
+                   Margin="0,0,0,4"/>
+        <TextBox Grid.Row="4"
+                 x:Name="PromptBox"
+                 Style="{StaticResource DarkTextBox}"
+                 FontSize="13"
+                 Padding="8,6"
+                 AcceptsReturn="True"
+                 TextWrapping="Wrap"
+                 VerticalScrollBarVisibility="Auto"
+                 VerticalContentAlignment="Top"
+                 TextChanged="OnTextChanged"/>
+    </Grid>
+</UserControl>

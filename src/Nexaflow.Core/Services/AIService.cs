@@ -51,6 +51,22 @@ public sealed class AIService : IAIService
             : null;
     }
 
+    /// <summary>
+    /// Context window (in tokens) for the model assigned to the Conversation ability,
+    /// or null if no provider is configured or the provider doesn't expose model info.
+    /// </summary>
+    public async Task<int?> GetConversationContextWindowAsync(CancellationToken ct = default)
+    {
+        var resolved = GetProvider(AiAbility.Conversation);
+        if (resolved is null) return null;
+        try
+        {
+            var info = await resolved.Value.Provider.GetModelInfoAsync(resolved.Value.Model, ct);
+            return info?.ContextWindowTokens;
+        }
+        catch { return null; }
+    }
+
     // ── Persistence ───────────────────────────────────────────────────────
 
     private readonly WorkContext _workContext;
@@ -196,7 +212,12 @@ public sealed class AIService : IAIService
                     : string.Empty)))
             : "No specific actions available.";
 
+        var personaPrompt = ConfigManager.Instance.GetAll()
+            .OfType<AiPersonaConfig>()
+            .FirstOrDefault()?.SystemPrompt;
+
         var systemPrompt =
+            (string.IsNullOrWhiteSpace(personaPrompt) ? string.Empty : personaPrompt.Trim() + "\n\n") +
             $"You are an assistant embedded in a desktop application. " +
             $"The user is currently looking at: {context}.\n\n" +
             $"Available actions this page can perform:\n{actionsText}\n\n" +

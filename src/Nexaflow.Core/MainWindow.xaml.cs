@@ -125,9 +125,10 @@ public partial class MainWindow : Window
         {
             if (e.Key == Key.Escape)
             {
-                _vm.OptionsOpen       = false;
-                _vm.ManageAiOpen      = false;
-                _vm.NotificationsOpen = false;
+                _vm.OptionsOpen            = false;
+                _vm.ManageAiOpen           = false;
+                _vm.NotificationsOpen      = false;
+                _vm.AiResponseOverlayOpen  = false;
                 RibbonControl.ViewModel.IsEditOpen = false;
                 if (_vm.ConfirmationVisible)
                     _vm.CancelShellConfirmationCommand.Execute(null);

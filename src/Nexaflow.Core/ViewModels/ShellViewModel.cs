@@ -1,7 +1,10 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
+using Nexaflow.Features.AIChat;
+using Nexaflow.Features.AIChat.ViewModels;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using System.Collections.ObjectModel;
@@ -300,6 +303,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     // ── Manage AI overlay ─────────────────────────────────────────────────
     [ObservableProperty] private bool _manageAiOpen;
 
+    // ── AI response overlay ───────────────────────────────────────────────
+    // Shown in-shell when the conversational AI returns a plain message.
+    [ObservableProperty] private bool   _aiResponseOverlayOpen;
+    [ObservableProperty] private string _aiResponseAiName  = "Aria";
+    [ObservableProperty] private string _aiResponseText    = string.Empty;
+    [ObservableProperty] private string _aiResponsePrompt  = string.Empty;
+
     private ShellServices _shellServices;
 
     /// <summary>
@@ -525,9 +535,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         var text = AiInputText.Trim();
         if (string.IsNullOrEmpty(text)) return;
 
-        AiInputText     = string.Empty;
-        AiHandlerSymbol = null;
-        AiIsListening   = false;
+        AiInputText            = string.Empty;
+        AiHandlerSymbol        = null;
+        AiIsListening          = false;
+        // A new prompt always replaces the previous overlay response.
+        AiResponseOverlayOpen  = false;
 
         var pageVm                                   = (CurrentPage as IPageView)?.ViewModel;
         var svc                                      = CurrentWorkContext.AiService;
@@ -588,16 +600,68 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
                 break;
 
             case AiResponseKind.Message:
-                OpenAiChatTab(text, response.Text!);
+                // If the active page is a Conversation, append this exchange to it
+                // instead of opening the overlay (the spec's "typing into the AI
+                // input area adds your message to the conversation" behaviour).
+                if (pageVm is ConversationViewModel convVm)
+                    await convVm.AppendExchangeAsync(text, response.Text!);
+                else
+                    ShowAiResponseOverlay(text, response.Text!);
                 break;
         }
     }
 
+    /// <summary>
+    /// Query-handler results route through the AIChat tab (legacy behaviour).
+    /// Conversational AI replies use <see cref="ShowAiResponseOverlay"/>.
+    /// </summary>
     private void OpenAiChatTab(string input, string response)
     {
         var params_ = new Dictionary<string, string>
             { ["input"] = input, ["output"] = response };
         _shellServices.OpenTab("AIChat", params_);
+    }
+
+    private void ShowAiResponseOverlay(string input, string response)
+    {
+        var persona = ConfigManager.Instance.GetAll().OfType<AiPersonaConfig>().FirstOrDefault();
+        AiResponseAiName      = string.IsNullOrWhiteSpace(persona?.Name) ? "Aria" : persona!.Name;
+        AiResponsePrompt      = input;
+        AiResponseText        = response;
+        AiResponseOverlayOpen = true;
+    }
+
+    [RelayCommand]
+    private void CloseAiResponseOverlay() => AiResponseOverlayOpen = false;
+
+    [RelayCommand]
+    private async Task ContinueAsConversation()
+    {
+        var prompt   = AiResponsePrompt;
+        var response = AiResponseText;
+        AiResponseOverlayOpen = false;
+
+        if (string.IsNullOrEmpty(prompt)) return;
+
+        var record = new ConversationRecord
+        {
+            Id        = Guid.NewGuid().ToString(),
+            StartedAt = DateTime.Now,
+            Title     = ConversationTitleGenerator.Generate(prompt),
+            Messages  =
+            [
+                new ConversationMessage { Text = prompt,   IsUser = true,  Timestamp = DateTime.Now },
+                new ConversationMessage { Text = response, IsUser = false, Timestamp = DateTime.Now },
+            ]
+        };
+
+        try { await CurrentWorkContext.AiService.SaveAsync(record); }
+        catch { /* persistence failures shouldn't block opening the tab */ }
+
+        _shellServices.OpenTab("Conversation", new Dictionary<string, string>
+        {
+            ["conversationId"] = record.Id
+        });
     }
 
     private async Task AnimatePrefillAsync(string prefill)

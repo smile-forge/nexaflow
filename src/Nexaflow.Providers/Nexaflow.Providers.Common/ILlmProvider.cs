@@ -31,4 +31,16 @@ public interface ILlmProvider
     /// Returns an empty list on failure; never throws.
     /// </summary>
     Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns metadata about <paramref name="model"/> (context window etc.), or null
+    /// if the provider doesn't know. Default implementation returns null.
+    /// </summary>
+    Task<ModelInfo?> GetModelInfoAsync(string model, CancellationToken ct = default)
+        => Task.FromResult<ModelInfo?>(null);
 }
+
+/// <summary>Metadata about a specific LLM model.</summary>
+/// <param name="ContextWindowTokens">Maximum prompt + completion tokens the model accepts.</param>
+/// <param name="DisplayName">Optional human-readable name.</param>
+public sealed record ModelInfo(int ContextWindowTokens, string? DisplayName = null);
