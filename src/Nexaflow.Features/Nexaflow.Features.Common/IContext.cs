@@ -11,5 +11,6 @@ public sealed class FileSystemContext : IContext
 {
     public required string RootPath    { get; init; }
     public required string CurrentPath { get; init; }
-    public IReadOnlyList<string> SelectedItems { get; init; } = [];
+    public IReadOnlyList<string> SelectedItems   { get; init; } = [];
+    public IReadOnlyList<string> AvailableDrives { get; init; } = [];
 }

@@ -31,15 +31,17 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel
     /// <summary>Set by <see cref="SearchTabRegistration"/> so this VM can keep tab meta in sync.</summary>
     public Page? Tab { get; set; }
 
-    private readonly IShellServices _shellServices;
+    private readonly IShellServices      _shellServices;
+    private readonly IReadOnlyList<string> _drives;
     private string _baseQuery  = string.Empty;
     private ParsedQuery? _lastParsed;
     private CancellationTokenSource? _cts;
 
-    public SearchViewModel(string query, string root, IShellServices shellServices)
+    public SearchViewModel(string query, string root, IReadOnlyList<string> drives, IShellServices shellServices)
     {
         _searchQuery   = query;
         _searchRoot    = root;
+        _drives        = drives;
         _shellServices = shellServices;
     }
 
@@ -48,7 +50,8 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel
 
     public async Task RunSearchAsync(CancellationToken externalCt)
     {
-        if (string.IsNullOrWhiteSpace(SearchQuery) || string.IsNullOrEmpty(SearchRoot))
+        if (string.IsNullOrWhiteSpace(SearchQuery) ||
+            (string.IsNullOrEmpty(SearchRoot) && _drives.Count == 0))
         {
             StatusText = "Enter a search term.";
             return;
@@ -86,9 +89,11 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel
             var q  = SearchQuery;
             var r  = SearchRoot;
             var qs = q.Length > 12 ? q[..12] + "…" : q;
-            var rl = string.IsNullOrEmpty(r) ? "Search" : Path.GetFileName(r.TrimEnd('\\', '/'));
+            var rl = string.IsNullOrEmpty(r)
+                ? (_drives.Count > 0 ? "This PC" : "Search")
+                : Path.GetFileName(r.TrimEnd('\\', '/'));
             Tab.Title = qs;
-            Tab.PageParams = new() { ["query"] = q, ["root"] = r };
+            Tab.PageParams = new() { ["query"] = q, ["root"] = r, ["drives"] = string.Join(";", _drives) };
             Tab.Breadcrumbs.Clear();
             Tab.Breadcrumbs.Add(new BreadcrumbSegment { Label = rl });
             Tab.Breadcrumbs.Add(new BreadcrumbSegment { Label = $"Query : {qs}" });
@@ -108,7 +113,9 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel
 
         try
         {
-            var entries = await WindowsSearchService.SearchAsync(parsed, SearchRoot, ct);
+            var entries = _drives.Count > 0 && string.IsNullOrEmpty(SearchRoot)
+                ? await WindowsSearchService.SearchAcrossAsync(parsed, _drives, ct)
+                : await WindowsSearchService.SearchAsync(parsed, SearchRoot, ct);
             ct.ThrowIfCancellationRequested();
 
             foreach (var e in entries) Results.Add(e);
