@@ -7,13 +7,13 @@
     "Minimise context switching for all simple activities"
   ],
   "SolutionFile": null,
-  "LastUpdate": "2026-05-27T15:13:28.8640214Z",
+  "LastUpdate": "2026-05-29T22:59:36.2995668Z",
   "Backlog": [
     {
       "Id": "49ca9f9c-663a-474d-a282-daa6d7adda82",
       "Title": "csv/table viewer/editor",
       "Notes": null,
-      "Status": "NotStarted",
+      "Status": "AwaitingFinalisation",
       "ImpPlan": null,
       "TestPlan": null
     },
@@ -29,7 +29,7 @@
       "Id": "298a512a-6811-44c1-a90b-002708a273c4",
       "Title": "Whole pc search",
       "Notes": null,
-      "Status": "NotStarted",
+      "Status": "AwaitingFinalisation",
       "ImpPlan": null,
       "TestPlan": null
     },
@@ -61,7 +61,7 @@
       "Id": "1f7055e7-be4e-47f6-9879-9276eff701d8",
       "Title": "new ai context view model",
       "Notes": null,
-      "Status": "NotStarted",
+      "Status": "AwaitingFinalisation",
       "ImpPlan": null,
       "TestPlan": null
     },
@@ -69,7 +69,7 @@
       "Id": "fd611b18-fb04-42b6-818a-acde1e9a33e9",
       "Title": "ai response popup",
       "Notes": null,
-      "Status": "NotStarted",
+      "Status": "AwaitingFinalisation",
       "ImpPlan": null,
       "TestPlan": null
     },
