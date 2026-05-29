@@ -31,10 +31,15 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
     public Func<string, string, bool>? ConfirmAction { get; set; }
 
     public ScratchpadViewModel(ScratchpadConfig config, IShellServices? shellServices = null)
+        : this(config, new PostItStore(), shellServices)
+    {
+    }
+
+    public ScratchpadViewModel(ScratchpadConfig config, PostItStore store, IShellServices? shellServices = null)
     {
         _config        = config;
         _shellServices = shellServices;
-        _store     = new PostItStore();
+        _store         = store;
 
         LoadNotes();
         PurgeRecycleBinOnStartup();
