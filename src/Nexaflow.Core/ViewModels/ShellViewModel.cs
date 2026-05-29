@@ -119,13 +119,34 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     // ── AI interaction ────────────────────────────────────────────────────
     [ObservableProperty] private string  _aiInputText      = string.Empty;
-    [ObservableProperty] private bool    _aiIsBusy;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ToggleVoiceCommand))]
+    private bool _aiIsBusy;
     [ObservableProperty] private bool    _voiceActive;
     [ObservableProperty] private string? _aiHandlerSymbol;
     [ObservableProperty] private bool    _aiIsListening;
     [ObservableProperty] private bool    _aiInputIsAiTyping;
 
+    /// <summary>True while the mic is actively capturing — disables the input box.</summary>
+    [ObservableProperty] private bool    _isRecording;
+
+    /// <summary>Mic button enabled only when host capabilities pass and the model is downloaded.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ToggleVoiceCommand))]
+    private bool _voiceAvailable;
+
+    /// <summary>When on, the active page's context is attached to conversational AI calls.</summary>
+    [ObservableProperty] private bool    _includeContext = true;
+
+    /// <summary>Inline completion proposed by the clear-winner query handler; null = none.</summary>
+    [ObservableProperty] private string? _aiCompletionSuggestion;
+
     private CancellationTokenSource? _handlerEvalCts;
+
+    // Created when a send begins; CancelAi cancels it. Token plumbing into the
+    // providers is deferred — this only backs the Submit↔Cancel UI for now.
+    private CancellationTokenSource? _aiSendCts;
 
     // ── Error toast ───────────────────────────────────────────────────────
     [ObservableProperty] private string? _errorToast;
@@ -339,7 +360,28 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
                 Application.Current.Dispatcher.Invoke(() => CurrentWorkContext = refreshed);
         };
 
-        
+        // ── Voice input availability + transcription wiring ──────────────────
+        HostCapabilityService.Instance.CapabilitiesReady += (_, _) => RecomputeVoiceAvailable();
+        WhisperModelManager.Instance.ModelReadyChanged   += (_, _) => RecomputeVoiceAvailable();
+
+        VoiceManager.Instance.RecordingChanged += (_, rec) =>
+            Application.Current.Dispatcher.Invoke(() => { IsRecording = rec; VoiceActive = rec; });
+        // Voice owns the input display while listening — set, don't append; it
+        // self-corrects each pass and a final pass lands when listening stops.
+        VoiceManager.Instance.TranscriptionUpdated += (_, text) =>
+            Application.Current.Dispatcher.Invoke(() => AiInputText = text);
+        VoiceManager.Instance.Error += (_, msg) =>
+            Application.Current.Dispatcher.Invoke(() => ShowError("Voice", msg));
+
+        RecomputeVoiceAvailable();
+    }
+
+    private void RecomputeVoiceAvailable()
+    {
+        var cfg = ConfigManager.Instance.GetAll().OfType<VoiceConfig>().FirstOrDefault();
+        VoiceAvailable = cfg is not null
+            && HostCapabilityService.Instance.Report?.CanRunWhisper == true
+            && WhisperModelManager.Instance.IsModelReady(cfg);
     }
 
     // ── Tab commands ──────────────────────────────────────────────────────
@@ -496,23 +538,38 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     partial void OnAiInputTextChanged(string value)
     {
         _handlerEvalCts?.Cancel();
-        if (string.IsNullOrWhiteSpace(value))
+
+        // While listening, voice owns the display — don't score handlers or
+        // propose completions against the live transcription.
+        if (IsRecording)
         {
-            AiHandlerSymbol = null;
-            AiIsListening   = false;
+            AiHandlerSymbol        = null;
+            AiCompletionSuggestion = null;
             return;
         }
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            AiHandlerSymbol        = null;
+            AiIsListening          = false;
+            AiCompletionSuggestion = null;
+            return;
+        }
+
+        // A stale suggestion no longer matches the edited text — drop it until
+        // the clear-winner handler proposes a fresh one.
+        AiCompletionSuggestion = null;
 
         _handlerEvalCts = new CancellationTokenSource();
         var cts = _handlerEvalCts;
         _ = Task.Delay(150, cts.Token).ContinueWith(t =>
         {
             if (t.IsCanceled) return;
-            Application.Current.Dispatcher.Invoke(() => EvaluateHandlers(value));
+            Application.Current.Dispatcher.Invoke(() => EvaluateHandlers(value, cts.Token));
         }, TaskScheduler.Default);
     }
 
-    private void EvaluateHandlers(string text)
+    private void EvaluateHandlers(string text, CancellationToken token)
     {
         var pageVm               = (CurrentPage as IPageView)?.ViewModel;
         var (_, clearWinner, _)  = CurrentWorkContext.AiService.ScoreHandlers(text, pageVm);
@@ -527,6 +584,26 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
             AiHandlerSymbol = null;
             AiIsListening   = true;
         }
+
+        // Inline completion is only offered by the clear-winner handler.
+        if (clearWinner is not null)
+            _ = UpdateCompletionAsync(clearWinner, text, pageVm, token);
+        else
+            AiCompletionSuggestion = null;
+    }
+
+    private async Task UpdateCompletionAsync(IQueryHandler handler, string text,
+                                             IPageViewModel? pageVm, CancellationToken token)
+    {
+        string? suggestion;
+        try { suggestion = await handler.CompleteAsync(text, pageVm); }
+        catch { return; }
+
+        // Discard if cancelled or the input moved on while we were computing.
+        if (token.IsCancellationRequested) return;
+        if (!string.Equals(AiInputText, text, StringComparison.Ordinal)) return;
+
+        AiCompletionSuggestion = string.IsNullOrEmpty(suggestion) ? null : suggestion;
     }
 
     [RelayCommand]
@@ -538,8 +615,14 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         AiInputText            = string.Empty;
         AiHandlerSymbol        = null;
         AiIsListening          = false;
+        AiCompletionSuggestion = null;
         // A new prompt always replaces the previous overlay response.
         AiResponseOverlayOpen  = false;
+
+        // Back the Submit↔Cancel UI. Token is not yet threaded into AIService /
+        // providers (that plumbing is a follow-up); CancelAi() just cancels this.
+        _aiSendCts?.Cancel();
+        _aiSendCts = new CancellationTokenSource();
 
         var pageVm                                   = (CurrentPage as IPageView)?.ViewModel;
         var svc                                      = CurrentWorkContext.AiService;
@@ -576,7 +659,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         AiResponse? response = null;
         try
         {
-            response = await svc.ContextChat(pageVm, text);
+            response = await svc.ContextChat(pageVm, text, IncludeContext);
         }
         catch (Exception ex)
         {
@@ -682,18 +765,27 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     [RelayCommand]
     private void ClearAiInput() => AiInputText = string.Empty;
 
-    [RelayCommand]
-    private void ToggleVoice() => VoiceActive = !VoiceActive;
+    // Mic is usable when the host can run Whisper and no AI request is processing.
+    // While recording, AiIsBusy stays false so this remains true (to allow stop).
+    private bool CanToggleVoice => VoiceAvailable && !AiIsBusy;
 
-    [RelayCommand]
-    private void AttachFile()
+    [RelayCommand(CanExecute = nameof(CanToggleVoice))]
+    private async Task ToggleVoice()
     {
-        var dlg = new Microsoft.Win32.OpenFileDialog { Multiselect = true };
-        if (dlg.ShowDialog() == true)
-        {
-            // TODO: surface attached files into the active chat
-        }
+        if (!IsRecording)
+            VoiceManager.Instance.StartListening();
+        else
+            await VoiceManager.Instance.StopListeningAsync();   // manual early stop; also auto-stops
     }
+
+    /// <summary>
+    /// Cancels the in-flight AI request. Today this only trips the local
+    /// <see cref="_aiSendCts"/>; the token is not yet observed by AIService or
+    /// the providers, so the request may still complete. UI scaffolding for a
+    /// later cancellation-plumbing pass.
+    /// </summary>
+    [RelayCommand]
+    private void CancelAi() => _aiSendCts?.Cancel();
 
     // ── Background tasks ──────────────────────────────────────────────────
 

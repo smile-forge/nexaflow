@@ -36,8 +36,10 @@ namespace Nexaflow.Features.Common
         /// <summary>
         /// One-shot contextual call that lets the LLM choose between executing an action,
         /// suggesting a prefill for the user to confirm, or replying conversationally.
+        /// When <paramref name="includeContext"/> is false the active page's context and
+        /// actions are omitted from the prompt.
         /// </summary>
-        Task<AiResponse?> ContextChat(IPageViewModel? pageVm, string input);
+        Task<AiResponse?> ContextChat(IPageViewModel? pageVm, string input, bool includeContext = true);
 
         /// <summary>
         /// Context window (in tokens) for the model assigned to the Conversation ability,

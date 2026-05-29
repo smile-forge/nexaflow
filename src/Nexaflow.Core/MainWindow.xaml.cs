@@ -137,6 +137,20 @@ public partial class MainWindow : Window
             }
         };
 
+        // Ctrl+Tab anywhere in the app focuses the AI input. Plain Tab is left
+        // alone so it keeps normal focus navigation, and so the focused input's
+        // PlaceholderTextBox can use Tab to accept its inline completion.
+        PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Tab
+                && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control
+                && !AiInput.IsKeyboardFocusWithin)
+            {
+                AiInput.Focus();
+                e.Handled = true;
+            }
+        };
+
         SizeChanged    += (_, _) => CapAiRowHeight();
         RootGrid.LayoutUpdated += (_, _) => CapAiRowHeight();
     }

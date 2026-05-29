@@ -276,6 +276,73 @@ namespace Nexaflow.Core
                 CopyDirectory(dir, Path.Combine(dest, Path.GetFileName(dir)));
         }
 
+        // ── CPUID (x64) for instruction bits not exposed by System.Runtime.Intrinsics ──
+        // .NET surfaces AVX/AVX2/FMA via System.Runtime.Intrinsics.X86 but has no F16C
+        // class, so we execute a tiny CPUID stub from executable memory. Best-effort:
+        // any failure (alloc denied by DEP/AV, non-x64, …) returns false.
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void CpuIdDelegate(IntPtr regs, uint leaf);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr VirtualAlloc(IntPtr addr, UIntPtr size, uint allocType, uint protect);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool VirtualFree(IntPtr addr, UIntPtr size, uint freeType);
+
+        private const uint MEM_COMMIT = 0x1000, MEM_RESERVE = 0x2000, MEM_RELEASE = 0x8000;
+        private const uint PAGE_EXECUTE_READWRITE = 0x40;
+
+        // x64 stub: void cpuid(int* regs /*rcx*/, uint leaf /*edx*/)
+        //   push rbx; mov r8,rcx; mov eax,edx; xor ecx,ecx; cpuid;
+        //   store eax/ebx/ecx/edx → regs[0..3]; pop rbx; ret
+        private static readonly byte[] CpuIdStubX64 =
+        [
+            0x53,                   // push rbx
+            0x49, 0x89, 0xC8,       // mov  r8, rcx
+            0x89, 0xD0,             // mov  eax, edx
+            0x31, 0xC9,             // xor  ecx, ecx
+            0x0F, 0xA2,             // cpuid
+            0x41, 0x89, 0x00,       // mov  [r8],    eax
+            0x41, 0x89, 0x58, 0x04, // mov  [r8+4],  ebx
+            0x41, 0x89, 0x48, 0x08, // mov  [r8+8],  ecx
+            0x41, 0x89, 0x50, 0x0C, // mov  [r8+12], edx
+            0x5B,                   // pop  rbx
+            0xC3,                   // ret
+        ];
+
+        /// <summary>
+        /// True when the CPU reports F16C support (CPUID leaf 1, ECX bit 29).
+        /// Returns false on any failure or when not running as an x64 process.
+        /// </summary>
+        public static bool HasF16C()
+        {
+            if (!Environment.Is64BitProcess) return false;
+
+            IntPtr mem = IntPtr.Zero;
+            try
+            {
+                mem = VirtualAlloc(IntPtr.Zero, (UIntPtr)CpuIdStubX64.Length,
+                                   MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+                if (mem == IntPtr.Zero) return false;
+
+                Marshal.Copy(CpuIdStubX64, 0, mem, CpuIdStubX64.Length);
+                var cpuid = Marshal.GetDelegateForFunctionPointer<CpuIdDelegate>(mem);
+
+                var regs   = new int[4];   // eax, ebx, ecx, edx
+                var handle = GCHandle.Alloc(regs, GCHandleType.Pinned);
+                try { cpuid(handle.AddrOfPinnedObject(), 1u); }
+                finally { handle.Free(); }
+
+                return (regs[2] & (1 << 29)) != 0;   // ECX bit 29 = F16C
+            }
+            catch { return false; }
+            finally
+            {
+                if (mem != IntPtr.Zero) VirtualFree(mem, UIntPtr.Zero, MEM_RELEASE);
+            }
+        }
+
         // ── DWM (Desktop Window Manager) ─────────────────────────────────────
 
         [DllImport("dwmapi.dll")]
