@@ -11,7 +11,7 @@ A feature is a class library (`Nexaflow.Features.MyFeature`) that references onl
 | Create project | yes | Class library, reference `Features.Common` |
 | `ITabRegistration` | yes | Factory that produces a `TabEntry` |
 | `IPageView` on your `UserControl` | recommended | Shell lifecycle handle: `ViewModel` property + `Reinitialize` |
-| `IPageViewModel` on your ViewModel | recommended | AI pipeline contract: `GetContext`, `GetAvailableActions`, `Execute` |
+| `IPageViewModel` on your ViewModel | recommended | AI pipeline contract: `GetContext`, `GetClientTools`, `GetContextObject` |
 | Register in `App.xaml.cs` | yes | `fm.Register(typeof(MyTabRegistration))` |
 | Add project reference in `Nexaflow.Core.csproj` | yes | So `App.xaml.cs` can see your type |
 | Add ribbon entry in `ShellViewModel.BuildDefaultItems()` | optional | Puts a button on the default toolbar |
@@ -96,9 +96,8 @@ public sealed class MyTabRegistration(MyConfig config, IShellServices shellServi
 
 `IPageViewModel` is the AI pipeline contract. Implement it on your ViewModel with:
 - `GetContext()` — short description sent as system context to the LLM
-- `GetAvailableActions()` — `ActionDescriptor` list the AI can select when no handler matched
-- `Execute(action)` — runs the AI-selected action
-- `GetContextObject()` — optional strongly-typed `IContext` for query handlers to consume
+- `GetClientTools()` — optional list of `IClientTool` the AI agent may invoke (read-only tools auto-run; mutating tools need approval). Defaults to none.
+- `GetContextObject()` — optional strongly-typed `IContext` for query handlers to consume. Defaults to null.
 
 ```csharp
 // The View — thin shell-lifecycle wrapper only
@@ -128,17 +127,26 @@ public partial class MyViewModel : ObservableObject, IPageViewModel
 {
     public string GetContext() => $"User is viewing My Feature. Current item: {SelectedItem?.Name ?? "none"}";
 
-    public IReadOnlyList<ActionDescriptor> GetAvailableActions() =>
+    public IReadOnlyList<IClientTool> GetClientTools() =>
     [
-        new ActionDescriptor("Refresh", "Reload the current view"),
-        new ActionDescriptor("Open",    "Open the selected item", new Dictionary<string, string> { ["item"] = SelectedItem?.Id ?? "" })
-    ];
+        // read-only: auto-runs
+        new DelegateClientTool(
+            "refresh", "Reload the current view.", [], ToolSafety.ReadOnly,
+            (args, ct) => { RefreshCommand.Execute(null); return Task.FromResult(ToolResult.Ok("reloaded")); }),
 
-    public void Execute(ActionDescriptor action)
-    {
-        if (action.Name == "Refresh") RefreshCommand.Execute(null);
-        if (action.Name == "Open"   ) OpenCommand.Execute(action.Parameters?["item"]);
-    }
+        // mutating: approved before it runs
+        new DelegateClientTool(
+            "open_item", "Open an item by id.",
+            [new ClientToolParameter("item", "Id of the item to open.")],
+            ToolSafety.RequiresApproval,
+            (args, ct) =>
+            {
+                var id = args["item"]?.GetValue<string>();
+                if (string.IsNullOrEmpty(id)) return Task.FromResult(ToolResult.Error("No item id."));
+                OpenCommand.Execute(id);
+                return Task.FromResult(ToolResult.Ok($"opened {id}"));
+            })
+    ];
 }
 ```
 
@@ -326,17 +334,27 @@ public bool ProcessKey(Key key, ModifierKeys modifiers)
 
 ---
 
-## 10. `IActionExecutor` — AI JSON Action Payloads
+## 10. `IClientTool` — AI Client Tools
 
-Implement on your ViewModel when the `ActionDescriptor` list isn't expressive enough and you want the AI to drive more complex operations. Called by the shell after `IAIService.ContextChat` returns a JSON action and no `IQueryHandler` claimed the input.
+For richer behaviour than a `DelegateClientTool` lambda, implement `IClientTool` directly and return it from `GetClientTools()`. The agent harness invokes it during `IAIService.RunAgentAsync`: read-only tools auto-run, mutating tools (`ToolSafety.RequiresApproval`) are approved first via `IToolApprovalCoordinator`, and each `ToolResult` is fed back to the model.
 
 ```csharp
-public async Task<bool> TryExecuteActionAsync(string actionJson)
+public sealed class OpenItemTool(MyViewModel vm) : IClientTool
 {
-    var action = JsonSerializer.Deserialize<MyAction>(actionJson);
-    if (action is null) return false;
-    await ExecuteAsync(action);
-    return true;
+    public string Name => "open_item";
+    public string Description => "Open an item by id.";
+    public IReadOnlyList<ClientToolParameter> Parameters =>
+        [new ClientToolParameter("item", "Id of the item to open.")];
+    public ToolSafety Safety => ToolSafety.RequiresApproval;
+    public bool Parallelizable => false;
+
+    public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
+    {
+        var id = arguments["item"]?.GetValue<string>();
+        if (string.IsNullOrEmpty(id)) return ToolResult.Error("No item id.");
+        await vm.OpenAsync(id, ct);
+        return ToolResult.Ok($"opened {id}");
+    }
 }
 ```
 
@@ -360,14 +378,13 @@ Parameters are `Dictionary<string, string>`. Keys are lowercase, values are stri
 
 ## `IAIService` — AI Capabilities
 
-Injected via `FeatureManager.Instance.RegisterSingletonService`. Use it in ViewModels that implement `IQueryHandler` or `IActionExecutor`.
+Injected via `FeatureManager.Instance.RegisterSingletonService`. Use it in ViewModels that implement `IQueryHandler` or expose client tools.
 
 ```csharp
 // Let the LLM pick the best handler from a candidate list
 IQueryHandler? chosen = await aiService.DisambiguateToolSelection(pageVm, input, candidates);
 
-// One-shot contextual call: LLM returns Action, Prefill, or Message
-AiResponse? response = await aiService.ContextChat(pageVm, input);
-if (response?.Kind == AiResponseKind.Action)
-    pageVm?.Execute(response.Action!);
+// Run the agent loop: the LLM may invoke the page's client tools, see results,
+// and continue, until it returns a final Message or a Prefill.
+AiResponse? response = await aiService.RunAgentAsync(pageVm, input, includeContext: true, approval);
 ```

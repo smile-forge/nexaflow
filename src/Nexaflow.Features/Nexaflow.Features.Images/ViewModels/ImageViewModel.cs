@@ -131,6 +131,4 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel
             ? $"Image viewer: '{CurrentFileName}'."
             : $"Image viewer: '{CurrentFileName}' ({CurrentIndex + 1} of {TotalImages}).";
     }
-
-    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
 }

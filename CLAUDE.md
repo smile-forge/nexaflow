@@ -71,6 +71,20 @@ src/Nexaflow.Tests/Nexaflow.Tests.Core/bin/Debug/net10.0-windows/Nexaflow.Tests.
 
 UI tests (`--filter "TestCategory=UI"`) require an interactive desktop session — skip in headless/CI. Run them manually when changes touch shell chrome, tab strip, ribbon, or the AI bar.
 
+## Potential WPF Gotchas
+
+The global MenuItem style in src/Nexaflow.Core/Themes/Styles.xaml overrides the default WPF template. If you need submenus, header arrows, or Role-dependent behavior, extend that template — adding child MenuItems in code isn't enough.
+
+ItemsControl.ItemsSource binding + Items.Add is illegal — pick one
+
+ObservableCollection.Clear() + N × Add() fires N+1 CollectionChanged events — the intermediate state of "empty" can render as a blank frame if anything in the view rebuilds on each event. Batch updates via Dispatcher.BeginInvoke
+
+A bare string assigned to ToolTip inherits the parent's TextAlignment when WPF wraps it in the default popup TextBlock. Assign an explicit TextBlock if you care about alignment
+
+## Other design considerations
+
+For features that need to stream large files: the existing precedents are Logs (tail-first + background head-load) and Tabular (full-scan from start; no byte anchors, because StreamReader buffers ahead and makes BaseStream.Position unreliable for cross-call seeks). Look at those before inventing a third.
+
 ## Style Notes
 
 - Terse commits. Say why it changed, not what.

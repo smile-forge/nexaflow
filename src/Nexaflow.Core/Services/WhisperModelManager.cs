@@ -26,6 +26,15 @@ public sealed class WhisperModelManager
     /// <summary>Raised on the UI thread when a model becomes (un)available.</summary>
     public event EventHandler? ModelReadyChanged;
 
+    /// <summary>Raised on the UI thread when a download starts, advances, or finishes.</summary>
+    public event EventHandler? DownloadProgressChanged;
+
+    /// <summary>True while a model download is in progress.</summary>
+    public bool IsDownloading => Volatile.Read(ref _downloading) == 1;
+
+    /// <summary>Download progress (0–100) of the in-flight download; 0 when none is active.</summary>
+    public int DownloadPercent { get; private set; }
+
     public void Initialize(IBackgroundActivityManager activity) => _activity = activity;
 
     public string GetModelPath(VoiceConfig cfg) =>
@@ -51,6 +60,9 @@ public sealed class WhisperModelManager
         var tmp    = dest + ".tmp";
         var handle = _activity?.StartActivity($"Downloading voice model {file}…");
 
+        DownloadPercent = 0;
+        RaiseProgressChanged();   // flip the UI to a "downloading" state
+
         try
         {
             Directory.CreateDirectory(ModelsDir);
@@ -59,12 +71,24 @@ public sealed class WhisperModelManager
                        HttpCompletionOption.ResponseHeadersRead, ct))
             {
                 resp.EnsureSuccessStatusCode();
+                var total = resp.Content.Headers.ContentLength ?? 0;
+
                 await using var src = await resp.Content.ReadAsStreamAsync(ct);
                 await using var dst = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None);
-                await src.CopyToAsync(dst, ct);
+
+                var buffer = new byte[81920];
+                long copied = 0;
+                int read;
+                while ((read = await src.ReadAsync(buffer, ct)) > 0)
+                {
+                    await dst.WriteAsync(buffer.AsMemory(0, read), ct);
+                    copied += read;
+                    if (total > 0) SetDownloadPercent((int)(copied * 100 / total));
+                }
             }
 
             File.Move(tmp, dest, overwrite: true);
+            SetDownloadPercent(100);
             handle?.Complete();
             RaiseReadyChanged();
         }
@@ -76,13 +100,26 @@ public sealed class WhisperModelManager
         finally
         {
             Interlocked.Exchange(ref _downloading, 0);
+            RaiseProgressChanged();   // download finished (ready or failed) — refresh status
         }
     }
 
-    private void RaiseReadyChanged()
+    private void SetDownloadPercent(int percent)
     {
+        percent = Math.Clamp(percent, 0, 100);
+        if (percent == DownloadPercent) return;
+        DownloadPercent = percent;
+        RaiseProgressChanged();
+    }
+
+    private void RaiseReadyChanged()     => RaiseOnUi(ModelReadyChanged);
+    private void RaiseProgressChanged()  => RaiseOnUi(DownloadProgressChanged);
+
+    private void RaiseOnUi(EventHandler? handler)
+    {
+        if (handler is null) return;
         var dispatcher = Application.Current?.Dispatcher;
-        Action raise = () => ModelReadyChanged?.Invoke(this, EventArgs.Empty);
+        Action raise = () => handler.Invoke(this, EventArgs.Empty);
         if (dispatcher is null || dispatcher.CheckAccess()) raise();
         else dispatcher.Invoke(raise);
     }

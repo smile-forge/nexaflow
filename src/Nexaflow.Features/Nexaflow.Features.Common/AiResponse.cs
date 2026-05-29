@@ -1,23 +1,22 @@
 namespace Nexaflow.Features.Common;
 
-public enum AiResponseKind { Action, Prefill, Message }
+public enum AiResponseKind { Prefill, Message }
 
 /// <summary>
-/// Discriminated union returned by <see cref="IAIService.ContextChat"/>.
-/// Callers switch on <see cref="Kind"/> to dispatch the result correctly.
+/// Terminal outcome of an agent run: either text to prefill into the input box, or a final
+/// message to show the user. Tool calls are handled inside the harness loop, not surfaced here.
 /// </summary>
 public sealed class AiResponse
 {
-    public AiResponseKind    Kind   { get; init; }
-    public ActionDescriptor? Action { get; init; }
-    public string?           Text   { get; init; }
+    public AiResponseKind Kind { get; init; }
+    public string?        Text { get; init; }
 
-    public static AiResponse AsAction(ActionDescriptor action) =>
-        new() { Kind = AiResponseKind.Action, Action = action };
+    /// <summary>Files surfaced by the agent run's tools (read/created/affected), for conversation context.</summary>
+    public IReadOnlyList<string> Attachments { get; init; } = [];
 
     public static AiResponse AsPrefill(string text) =>
         new() { Kind = AiResponseKind.Prefill, Text = text };
 
-    public static AiResponse AsMessage(string text) =>
-        new() { Kind = AiResponseKind.Message, Text = text };
+    public static AiResponse AsMessage(string text, IReadOnlyList<string>? attachments = null) =>
+        new() { Kind = AiResponseKind.Message, Text = text, Attachments = attachments ?? [] };
 }

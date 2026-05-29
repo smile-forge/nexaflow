@@ -119,6 +119,50 @@ public class ShapeDetectorTests
         Assert.IsTrue(top.HasHeader, "Header labels over Integer columns should flag HasHeader.");
     }
 
+    // ── Confidence: simple files must NOT need a model disambiguation call ────
+
+    [TestMethod]
+    public void TryPickConfident_StandardCsv_IsConfidentNoModelNeeded()
+    {
+        var sample = MakeSample(
+            head: new[] { "name,age,score", "alice,30,9.5", "bob,42,7.0", "carol,25,8.1" },
+            tail: new[] { "dan,33,6.2", "eve,28,9.9", "frank,40,5.5", "gina,29,8.8" });
+
+        Assert.IsTrue(ShapeDetector.TryPickConfident(ShapeDetector.DetectAll(sample), out var pick));
+        Assert.AreEqual(',', pick.Separator);
+    }
+
+    [TestMethod]
+    public void TryPickConfident_TabAndSemicolon_AreConfident()
+    {
+        var tab = MakeSample(
+            head: new[] { "alpha\t1\t2.5", "beta\t2\t3.6", "gamma\t3\t4.7", "delta\t4\t5.8" },
+            tail: new[] { "epsilon\t5\t6.9", "zeta\t6\t7.0", "eta\t7\t8.1", "theta\t8\t9.2" });
+        Assert.IsTrue(ShapeDetector.TryPickConfident(ShapeDetector.DetectAll(tab), out var t));
+        Assert.AreEqual('\t', t.Separator);
+
+        // Semicolon file with European decimal commas — comma is a viable but worse split.
+        // The more-consistent semicolon parse must win without consulting the model.
+        var semi = MakeSample(
+            head: new[] { "id;state;amount", "1;active;2,60", "2;active;3,40", "3;inactive;1,20" },
+            tail: new[] { "4;active;5,00", "5;active;7,10", "6;active;8,80", "7;inactive;9,90" });
+        Assert.IsTrue(ShapeDetector.TryPickConfident(ShapeDetector.DetectAll(semi), out var s));
+        Assert.AreEqual(';', s.Separator);
+    }
+
+    [TestMethod]
+    public void DetectAll_NoQuotesPresent_DoesNotEmitRedundantQuotedCandidates()
+    {
+        var sample = MakeSample(
+            head: new[] { "a,b,c", "1,2,3", "4,5,6", "7,8,9" },
+            tail: new[] { "10,11,12", "13,14,15", "16,17,18", "19,20,21" });
+
+        var shapes = ShapeDetector.DetectAll(sample);
+        // No quote character occurs anywhere, so no quoted shape should be emitted.
+        Assert.IsFalse(shapes.Any(s => s.Quote is not null),
+            "Quoted candidates must be suppressed when the quote char is absent from the sample.");
+    }
+
     [TestMethod]
     public void DetectAll_ColumnTypes_InferredFromBody()
     {

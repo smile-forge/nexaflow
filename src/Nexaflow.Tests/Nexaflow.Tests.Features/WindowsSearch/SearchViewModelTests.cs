@@ -1,5 +1,7 @@
+using System.Text.Json.Nodes;
 using NSubstitute;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.WindowsSearch;
 using Nexaflow.Features.WindowsSearch.ViewModels;
 
@@ -94,34 +96,36 @@ public class SearchViewModelTests
     }
 
     [TestMethod]
-    public void GetAvailableActions_ContainsSearchAction()
+    public void GetClientTools_ContainsSearchTool()
     {
         var vm = new SearchViewModel("", "", [], Shell());
 
-        var actions = vm.GetAvailableActions();
+        var tools = vm.GetClientTools();
 
-        Assert.IsTrue(actions.Any(a => a.Name == "Search"),
-            "Expected a 'Search' ActionDescriptor");
+        Assert.IsTrue(tools.Any(t => t.Name == "search"),
+            "Expected a 'search' client tool");
     }
 
     [TestMethod]
-    public void Execute_SearchAction_SetsSearchQuery()
+    public async Task SearchTool_SetsSearchQuery()
     {
-        var vm = new SearchViewModel("", @"C:\", [], Shell());
+        var vm   = new SearchViewModel("", @"C:\", [], Shell());
+        var tool = vm.GetClientTools().Single(t => t.Name == "search");
 
-        vm.Execute(new ActionDescriptor("Search", "desc",
-            new Dictionary<string, string> { ["Query"] = "invoice" }));
+        await tool.InvokeAsync(new JsonObject { ["query"] = "invoice" }, CancellationToken.None);
 
         Assert.AreEqual("invoice", vm.SearchQuery);
     }
 
     [TestMethod]
-    public void Execute_UnknownAction_DoesNothing()
+    public async Task SearchTool_EmptyQuery_ReturnsErrorAndLeavesQuery()
     {
-        var vm = new SearchViewModel("original", @"C:\", [], Shell());
+        var vm   = new SearchViewModel("original", @"C:\", [], Shell());
+        var tool = vm.GetClientTools().Single(t => t.Name == "search");
 
-        vm.Execute(new ActionDescriptor("Navigate", "desc", null));
+        var result = await tool.InvokeAsync(new JsonObject(), CancellationToken.None);
 
+        Assert.IsTrue(result.IsError);
         Assert.AreEqual("original", vm.SearchQuery);
     }
 
