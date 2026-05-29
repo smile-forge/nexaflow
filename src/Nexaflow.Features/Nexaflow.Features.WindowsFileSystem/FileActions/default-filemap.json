@@ -55,6 +55,14 @@
     ]
   },
   {
+    "ExperienceId": "/tabular",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.csv" },
+      { "Type": "Extension", "Value": "*.tsv" }
+    ]
+  },
+  {
     "ExperienceId": "/image",
     "Source": "User",
     "Criteria": [

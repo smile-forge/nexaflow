@@ -44,5 +44,17 @@ namespace Nexaflow.Features.Common
         /// or null if the provider doesn't know or no provider is configured.
         /// </summary>
         Task<int?> GetConversationContextWindowAsync(CancellationToken ct = default);
+
+        /// <summary>
+        /// One-shot generic disambiguation: asks the Disambiguation-ability model to pick
+        /// one of <paramref name="options"/> given <paramref name="contextDescription"/>
+        /// and <paramref name="question"/>. Returns the chosen 0-based index, or null if
+        /// the model picks "none of these" or no provider is configured.
+        /// </summary>
+        Task<int?> DisambiguateOptionAsync(
+            string contextDescription,
+            string question,
+            IReadOnlyList<(string Label, string Detail)> options,
+            CancellationToken ct = default);
     }
 }

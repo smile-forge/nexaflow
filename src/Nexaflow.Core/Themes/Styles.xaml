@@ -432,7 +432,11 @@
         </Setter>
     </Style>
 
-    <!-- ══ MenuItem ══ -->
+    <!-- ══ MenuItem ══
+         Single template that handles both leaf items (HasItems=False) and parent items
+         with submenus (HasItems=True). The submenu arrow + Popup are always present in
+         the visual tree, with the arrow collapsed and the Popup closed for leaves, so
+         existing simple context menus get the same visual as before. -->
     <Style TargetType="MenuItem">
         <Setter Property="Foreground"       Value="{StaticResource TextBrush}"/>
         <Setter Property="Background"       Value="Transparent"/>
@@ -445,11 +449,59 @@
                             Background="{TemplateBinding Background}"
                             CornerRadius="3"
                             Margin="3,1">
-                        <ContentPresenter ContentSource="Header"
-                                          Margin="{TemplateBinding Padding}"
-                                          RecognizesAccessKey="True"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <ContentPresenter Grid.Column="0"
+                                              ContentSource="Header"
+                                              Margin="{TemplateBinding Padding}"
+                                              RecognizesAccessKey="True"
+                                              VerticalAlignment="Center"/>
+
+                            <!-- Submenu arrow — only visible when this item has children -->
+                            <Path x:Name="SubArrow"
+                                  Grid.Column="1"
+                                  Width="6" Height="9"
+                                  Margin="6,0,10,0"
+                                  VerticalAlignment="Center"
+                                  Data="M 0,0 L 5,4.5 L 0,9 Z"
+                                  Fill="{TemplateBinding Foreground}"
+                                  Visibility="Collapsed"/>
+
+                            <!-- Submenu popup. Placement=Right for context-menu submenus;
+                                 the Role trigger flips it to Bottom for top-level Menu headers. -->
+                            <Popup x:Name="PART_Popup"
+                                   Placement="Right"
+                                   HorizontalOffset="-4"
+                                   VerticalOffset="-3"
+                                   IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   PopupAnimation="Fade">
+                                <Border Background="{StaticResource DeepBgBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="0,3">
+                                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                                </Border>
+                            </Popup>
+                        </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="HasItems" Value="True">
+                            <Setter TargetName="SubArrow" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <!-- Top-level Menu headers open downward, not sideways. -->
+                        <Trigger Property="Role" Value="TopLevelHeader">
+                            <Setter TargetName="PART_Popup" Property="Placement"       Value="Bottom"/>
+                            <Setter TargetName="PART_Popup" Property="HorizontalOffset" Value="0"/>
+                            <Setter TargetName="PART_Popup" Property="VerticalOffset"   Value="0"/>
+                            <Setter TargetName="SubArrow"   Property="Visibility"       Value="Collapsed"/>
+                        </Trigger>
                         <Trigger Property="IsHighlighted" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{StaticResource Surface2Brush}"/>
                         </Trigger>
@@ -457,6 +509,20 @@
                             <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ══ Separator (inside a Menu/ContextMenu) ══ -->
+    <Style x:Key="{x:Static MenuItem.SeparatorStyleKey}" TargetType="Separator">
+        <Setter Property="Height"     Value="1"/>
+        <Setter Property="Margin"     Value="6,4"/>
+        <Setter Property="Background" Value="{StaticResource BorderBrush}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Separator">
+                    <Border Background="{TemplateBinding Background}"/>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

@@ -195,6 +195,46 @@ public sealed class AIService : IAIService
         return (idx >= 1 && idx <= candidates.Count) ? candidates[idx - 1].Handler : null;
     }
 
+    public async Task<int?> DisambiguateOptionAsync(
+        string contextDescription,
+        string question,
+        IReadOnlyList<(string Label, string Detail)> options,
+        CancellationToken ct = default)
+    {
+        if (options is null || options.Count == 0) return null;
+
+        var resolved = GetProvider(AiAbility.Disambiguation);
+        if (resolved is null) return null;
+        var (provider, model) = resolved.Value;
+
+        var optionList = string.Join("\n", options.Select((o, i) =>
+            $"{i + 1}. {o.Label} — {o.Detail}"));
+
+        var systemPrompt =
+            "You are a disambiguation assistant. Reply with only a single number — the index of the best option, or 0 if none apply.";
+        var userPrompt =
+            $"Context:\n{contextDescription}\n\n" +
+            $"Question: {question}\n\n" +
+            $"Options:\n0. None of these apply\n{optionList}\n\n" +
+            "Reply with only the number of your chosen option.";
+
+        var response = await provider.CompleteAsync(
+            [new(LlmRole.System, systemPrompt), new(LlmRole.User, userPrompt)],
+            model);
+        var raw = response?.RawText?.Trim() ?? string.Empty;
+
+        // Allow multi-digit answers (e.g. "12") so we don't cap at 9 options.
+        int i = 0;
+        while (i < raw.Length && !char.IsDigit(raw[i])) i++;
+        int start = i;
+        while (i < raw.Length && char.IsDigit(raw[i])) i++;
+        if (start == i) return null;
+        if (!int.TryParse(raw.AsSpan(start, i - start), out var picked)) return null;
+
+        if (picked <= 0 || picked > options.Count) return null;
+        return picked - 1;
+    }
+
     public async Task<AiResponse?> ContextChat(IPageViewModel? page, string input)
     {
         var resolved = GetProvider(AiAbility.Conversation);
