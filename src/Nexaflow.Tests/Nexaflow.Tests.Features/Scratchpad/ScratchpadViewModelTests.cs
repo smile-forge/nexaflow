@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Scratchpad;
 using Nexaflow.Features.Scratchpad.Models;
 using Nexaflow.Features.Scratchpad.Services;
@@ -271,10 +272,10 @@ public class ScratchpadViewModelTests
     }
 
     [TestMethod]
-    public void GetAvailableActions_ReturnsEmpty()
+    public void GetClientTools_ReturnsEmpty()
     {
         using var vm = NewVm();
-        Assert.AreEqual(0, vm.GetAvailableActions().Count);
+        Assert.AreEqual(0, ((IPageViewModel)vm).GetClientTools().Count);
     }
 
     [TestMethod]

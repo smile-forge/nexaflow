@@ -62,6 +62,4 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel
         var loading = IsLoading ? " (loading)" : string.Empty;
         return $"Web view: '{CurrentUrl}'{loading}.";
     }
-
-    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
 }

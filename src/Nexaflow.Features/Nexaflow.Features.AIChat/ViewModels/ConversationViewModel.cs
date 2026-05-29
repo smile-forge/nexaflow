@@ -50,6 +50,10 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel
         foreach (var m in rec.Messages.OrderBy(m => m.Timestamp))
             Messages.Add(m);
 
+        Attachments.Clear();
+        foreach (var a in rec.Attachments)
+            Attachments.Add(a);
+
         UpdateBreadcrumb();
 
         try { ContextWindow = await _aiService.GetConversationContextWindowAsync(); }
@@ -74,6 +78,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel
         Conversation.Messages.Add(a);
         Messages.Add(u);
         Messages.Add(a);
+        Conversation.Attachments = [.. Attachments];
 
         try { await _aiService.SaveAsync(Conversation); }
         catch { /* persistence failures shouldn't kill the UI */ }
@@ -219,7 +224,15 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel
             sb.AppendLine("---");
             sb.AppendLine("[Attachments]");
             foreach (var a in Attachments)
-                sb.Append("  ").AppendLine(a);
+            {
+                sb.AppendLine($"File: {a}");
+                var content = TryReadText(a);
+                if (content is not null)
+                {
+                    sb.AppendLine(content);
+                    sb.AppendLine();
+                }
+            }
         }
 
         sb.AppendLine("---");
@@ -233,5 +246,25 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel
         return sb.ToString();
     }
 
-    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
+    /// <summary>
+    /// Reads an attached file's text (capped, binary-guarded) for inclusion in context, so the AI
+    /// can actually see the file's content. Returns null when missing, binary, too unwieldy, or unreadable.
+    /// </summary>
+    private static string? TryReadText(string path, int capBytes = 32 * 1024)
+    {
+        try
+        {
+            if (!File.Exists(path)) return null;
+            var take  = (int)Math.Min(new FileInfo(path).Length, capBytes);
+            var bytes = new byte[take];
+            using (var fs = File.OpenRead(path))
+                fs.ReadExactly(bytes, 0, take);
+            if (Array.IndexOf(bytes, (byte)0) >= 0) return null;   // looks binary
+            var text = Encoding.UTF8.GetString(bytes);
+            return new FileInfo(path).Length > capBytes
+                ? text + $"\n…(truncated — first {capBytes / 1024} KB)"
+                : text;
+        }
+        catch { return null; }
+    }
 }

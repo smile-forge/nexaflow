@@ -615,8 +615,6 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
         return $"Log file: '{FileName}' at '{FilePath}'. {LineCount} line(s).";
     }
 
-    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
-
     public IContext? GetContextObject()
     {
         if (string.IsNullOrEmpty(FilePath)) return null;

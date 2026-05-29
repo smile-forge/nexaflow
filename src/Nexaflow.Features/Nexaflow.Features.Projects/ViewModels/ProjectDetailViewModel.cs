@@ -247,6 +247,4 @@ public partial class ProjectDetailViewModel : ObservableObject, IPageViewModel
             ? $"Project: '{ProjectName}'. No backlog items."
             : $"Project: '{ProjectName}'. {count} backlog item(s).";
     }
-
-    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
 }

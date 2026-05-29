@@ -72,10 +72,17 @@ public partial class App : Application
         ConfigManager.Instance.Register(wcConfig, wcConfig.ConfigName);
 
         // ── 3. Providers — union of all assembly file names across contexts ──
+        ProviderManager.Instance.Initialize(activityManager);
+
+        // Each context's AI config lives in its own folder; load it so we know which provider
+        // assemblies the contexts need before we load them.
+        foreach (var ctx in wcConfig.Contexts)
+            ConfigManager.Instance.LoadFrom(
+                WorkContextManager.ContextDir(ctx.Name), ctx.AiConfig, ctx.AiConfig.ConfigName);
+
         var allProviderFiles = wcConfig.Contexts
             .SelectMany(c => c.AiConfig.Columns.Select(p => p.AssemblyFileName))
             .Distinct();
-        ProviderManager.Instance.Initialize(activityManager);
         ProviderManager.Instance.LoadConfigured(allProviderFiles);
 
         // ── 4. WorkContextManager — creates per-context AIService instances

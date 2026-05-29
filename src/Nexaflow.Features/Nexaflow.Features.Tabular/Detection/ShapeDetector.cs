@@ -35,6 +35,12 @@ public static class ShapeDetector
         foreach (var sep in SeparatorCandidates)
         foreach (var quote in QuoteCandidates)
         {
+            // A quoted interpretation tokenizes identically to the no-quote one unless the quote
+            // char actually appears in the sample — so emitting it just creates a redundant
+            // near-tie candidate that forces a needless disambiguation. Skip absent quotes.
+            if (quote is char qc && !allLines.Any(l => l.IndexOf(qc) >= 0))
+                continue;
+
             var shape = Score(allLines, sample.HeadLines.Count, sep, quote);
             if (shape is not null) results.Add(shape);
         }
@@ -129,9 +135,34 @@ public static class ShapeDetector
             ColumnTypes = colTypes,
             FieldCount  = mode,
             Score       = score,
+            Consistency = consistency,
             Label       = label,
             Description = desc,
         };
+    }
+
+    /// <summary>
+    /// Decides whether the ranked <paramref name="shapes"/> have a confident winner that does NOT
+    /// need a model disambiguation call. Confident when: a clear score lead, a strictly more
+    /// internally consistent top parse, the runner-up is the same structural parse, or we're only
+    /// in low-confidence fallback territory. Only genuinely close, structurally-different
+    /// multi-column candidates return false (→ ask the model).
+    /// </summary>
+    public static bool TryPickConfident(IReadOnlyList<CsvShape> shapes, out CsvShape pick)
+    {
+        pick = shapes[0];
+        if (shapes.Count == 1) return true;
+
+        var top    = shapes[0];
+        var second = shapes[1];
+
+        if (top.Score - second.Score > 0.2f)                       return true;  // clear score lead
+        if (top.Consistency - second.Consistency > 0.05f)          return true;  // more consistent parse
+        if (top.Separator == second.Separator
+            && top.FieldCount == second.FieldCount)                return true;  // same structure
+        if (top.Score < 0.5f)                                      return true;  // fallback territory
+
+        return false;   // genuinely ambiguous — different structures with comparable scores
     }
 
     /// <summary>True iff <paramref name="actual"/> is a valid concrete fit for the column type

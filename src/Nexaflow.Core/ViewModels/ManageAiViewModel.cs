@@ -70,11 +70,12 @@ public partial class ManageAiViewModel : ObservableObject
 
         if (ReferenceEquals(SelectedSection.RealConfig, _workContext.AiConfig))
         {
-            // WorkContext-specific AiConfig: hot-reload the AIService and persist
-            // via WorkContextsConfig (not as a standalone ConfigManager entry)
+            // WorkContext-specific AiConfig: hot-reload the AIService and persist to the context's
+            // own folder; also persist the context list metadata so the context is known.
             _workContext.AiService?.LoadAbilityConfig(_workContext.AiConfig);
             try
             {
+                WorkContextManager.Instance.SaveContextAiConfig(_workContext);
                 WorkContextManager.Instance.SaveConfig();
                 SelectedSection.ResetChanges();
             }

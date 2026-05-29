@@ -190,8 +190,6 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         return $"Markdown file: '{FileName}' at '{FilePath}'{dirty}.";
     }
 
-    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
-
     public IContext? GetContextObject()
     {
         if (string.IsNullOrEmpty(FilePath)) return null;
