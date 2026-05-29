@@ -16,12 +16,14 @@ public sealed class PostItStore
     private readonly string _postitsPath;
     private readonly string _recyclePath;
 
-    public PostItStore()
+    public PostItStore() : this(Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "Smile", "Nexaflow", "Scratchpad"))
     {
-        var root = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Smile", "Nexaflow", "Scratchpad");
+    }
 
+    public PostItStore(string root)
+    {
         _postitsPath = Path.Combine(root, "postits");
         _recyclePath = Path.Combine(root, "recyclebin");
 
@@ -37,8 +39,10 @@ public sealed class PostItStore
 
     public void Delete(PostItNote note)
     {
-        var path = PostitPath(note.Id);
-        if (File.Exists(path)) File.Delete(path);
+        var live = PostitPath(note.Id);
+        if (File.Exists(live)) File.Delete(live);
+        var bin = RecyclePath(note.Id);
+        if (File.Exists(bin)) File.Delete(bin);
     }
 
     public void MoveToRecycleBin(PostItNote note)
