@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
              IsHitTestVisible="True">
 
     <UserControl.Resources>
@@ -81,14 +82,13 @@
                     </Grid>
                 </Border>
 
-                <!-- Body: markdown, or a centred status line while the agent works -->
+                <!-- Body: selectable markdown, or a centred status line while the agent works -->
                 <Grid Grid.Row="1">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled"
-                                  Padding="20,14"
-                                  Visibility="{Binding AiOverlayShowsMarkdown, Converter={StaticResource BoolVis}}">
-                        <StackPanel x:Name="MarkdownBody"/>
-                    </ScrollViewer>
+                    <md:SelectableMarkdownView x:Name="MarkdownBody"
+                                               Markdown="{Binding AiResponseText}"
+                                               VerticalScrollBarVisibility="Auto"
+                                               Margin="20,14"
+                                               Visibility="{Binding AiOverlayShowsMarkdown, Converter={StaticResource BoolVis}}"/>
 
                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                                 Visibility="{Binding AiOverlayIsRunning, Converter={StaticResource BoolVis}}">
