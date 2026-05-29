@@ -1,10 +1,11 @@
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Providers.Common;
 using System.IO;
+using System.Text;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 
 namespace Nexaflow.Core.Services;
 
@@ -235,68 +236,318 @@ public sealed class AIService : IAIService
         return picked - 1;
     }
 
-    public async Task<AiResponse?> ContextChat(IPageViewModel? page, string input, bool includeContext = true)
+    // ── Client-side agent loop ───────────────────────────────────────────────
+
+    /// <summary>Hard ceiling on automated tool turns, to bound a runaway loop.</summary>
+    private const int MaxAgentSteps = 8;
+
+    /// <summary>Above this many page tools, filter to the most relevant + get_client_commands.</summary>
+    private const int MaxUnfilteredTools = 4;
+
+    public async Task<AiResponse?> RunAgentAsync(
+        IPageViewModel? page, string input, bool includeContext,
+        IToolApprovalCoordinator approval, CancellationToken ct = default)
     {
         var resolved = GetProvider(AiAbility.Conversation);
         if (resolved is null) return null;
         var (provider, model) = resolved.Value;
 
-        var context = includeContext ? page?.GetContext() ?? "No specific context." : "No specific context.";
-        var actions = includeContext ? page?.GetAvailableActions() ?? [] : [];
+        var context   = includeContext ? page?.GetContext() ?? "No specific context." : "No specific context.";
+        var pageTools = includeContext ? page?.GetClientTools() ?? [] : [];
 
-        var actionsText = actions.Count > 0
-            ? string.Join("\n", actions.Select(a =>
-                $"- {a.Name}: {a.Description}" +
-                (a.Parameters is { Count: > 0 }
-                    ? " (params: " + string.Join(", ", a.Parameters.Select(p => $"{p.Key}: {p.Value}")) + ")"
-                    : string.Empty)))
-            : "No specific actions available.";
+        // Built-in discovery tool, plus the resolvable catalogue (page tools + the built-in).
+        var getCommands = BuildGetClientCommandsTool(pageTools);
+        var fullCatalog = new List<IClientTool>(pageTools) { getCommands };
 
-        var personaPrompt = ConfigManager.Instance.GetAll()
-            .OfType<AiPersonaConfig>()
-            .FirstOrDefault()?.SystemPrompt;
-
-        var systemPrompt =
-            (string.IsNullOrWhiteSpace(personaPrompt) ? string.Empty : personaPrompt.Trim() + "\n\n") +
-            $"You are an assistant embedded in a desktop application. " +
-            $"The user is currently looking at: {context}.\n\n" +
-            $"Available actions this page can perform:\n{actionsText}\n\n" +
-            "When you respond, use exactly one of these formats:\n" +
-            "1. To execute an action, reply ONLY with JSON: {\"action\":\"ActionName\",\"param\":\"value\",...}\n" +
-            "2. To suggest text the user should confirm, start with: PREFILL: <suggested text>\n" +
-            "3. For a conversational reply, respond normally.\n" +
-            "Choose the format that best serves the user's intent.";
-
-        var response = await provider.CompleteAsync(
-            [new(LlmRole.System, systemPrompt), new(LlmRole.User, input)],
-            model);
-        var raw      = response?.RawText?.Trim() ?? string.Empty;
-        if (string.IsNullOrEmpty(raw)) return null;
-
-        if (raw.StartsWith('{'))
+        // Expose at most MaxUnfilteredTools page tools (most relevant first) + get_client_commands.
+        IReadOnlyList<IClientTool> exposed;
+        try
         {
-            try
+            if (pageTools.Count > MaxUnfilteredTools)
             {
-                var node = JsonNode.Parse(raw);
-                var name = node?["action"]?.GetValue<string>();
-                if (name is not null)
-                {
-                    var parameters = node!.AsObject()
-                        .Where(kv => !string.Equals(kv.Key, "action", StringComparison.OrdinalIgnoreCase))
-                        .ToDictionary(
-                            kv => kv.Key,
-                            kv => kv.Value?.GetValue<string>() ?? string.Empty,
-                            StringComparer.OrdinalIgnoreCase);
-                    return AiResponse.AsAction(new ActionDescriptor(name, string.Empty, parameters));
-                }
+                var ranked = await RankToolsAsync(input, pageTools, context, ct);
+                exposed = [.. ranked, getCommands];
             }
-            catch { /* fall through to message */ }
+            else
+            {
+                exposed = fullCatalog;
+            }
+        }
+        catch (OperationCanceledException) { return null; }
+
+        var messages = new List<LlmMessage>
+        {
+            new(LlmRole.System, BuildSystemPrompt(context, exposed)),
+            new(LlmRole.User,   input)
+        };
+
+        var artifacts = new List<string>();   // files the tools read/created, for conversation context
+
+        try
+        {
+            var planMode = false;
+            for (var step = 0; step < MaxAgentSteps; step++)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var resp = await provider.CompleteAsync(messages, model, null, ct);
+                var raw  = resp?.RawText?.Trim() ?? string.Empty;
+                var turn = ClientBlockParser.Parse(raw);
+
+                // 1. A plan was proposed and not yet approved — approve once, then run unattended.
+                if (turn.Plan is not null && !planMode)
+                {
+                    messages.Add(new(LlmRole.Assistant, raw));
+                    if (!await approval.RequestPlanApprovalAsync(turn.Plan, ct))
+                    {
+                        messages.Add(new(LlmRole.User,
+                            "TOOL RESULTS\nThe user declined the plan. Stop, or suggest a different approach."));
+                        continue;
+                    }
+                    planMode = true;
+                    messages.Add(new(LlmRole.User,
+                        "TOOL RESULTS\nThe user approved the plan. Begin executing the steps by emitting client_tool blocks."));
+                    continue;
+                }
+
+                // 2. Pure prefill.
+                if (turn.Prefill is not null && turn.ToolCalls.Count == 0)
+                    return AiResponse.AsPrefill(turn.Prefill);
+
+                // 3. No tool calls.
+                if (turn.ToolCalls.Count == 0)
+                {
+                    if (turn.ParseErrors.Count > 0)
+                    {
+                        // The model tried to act but emitted something malformed — let it self-correct.
+                        messages.Add(new(LlmRole.Assistant, raw));
+                        messages.Add(new(LlmRole.User,
+                            "TOOL RESULTS\n" + string.Join('\n', turn.ParseErrors) +
+                            "\nFix the block and try again, or just answer."));
+                        continue;
+                    }
+                    var final = turn.ExplanationMarkdown.Length > 0 ? turn.ExplanationMarkdown : raw;
+                    approval.ShowFinal(final);
+                    return AiResponse.AsMessage(final, artifacts);
+                }
+
+                // 4. A batch of tool calls.
+                messages.Add(new(LlmRole.Assistant, raw));
+
+                var calls = turn.ToolCalls
+                    .Select(c => (Call: c, Tool: FindTool(fullCatalog, c.Tool)))
+                    .ToList();
+
+                var needApproval = !planMode &&
+                    calls.Any(rc => rc.Tool is { Safety: ToolSafety.RequiresApproval });
+
+                if (needApproval &&
+                    !await approval.RequestToolBatchApprovalAsync(turn.ExplanationMarkdown, turn.ToolCalls, ct))
+                {
+                    var denied = string.Join(", ", turn.ToolCalls.Select(c => c.Tool));
+                    messages.Add(new(LlmRole.User,
+                        $"TOOL RESULTS\nThe user denied: {denied}. Do not retry — ask what they would prefer, or finish."));
+                    continue;
+                }
+
+                var results = await ExecuteBatchAsync(calls, approval, ct);
+                foreach (var (_, r) in results)
+                    if (r.Attachments is { } att)
+                        foreach (var p in att)
+                            if (!artifacts.Contains(p)) artifacts.Add(p);
+
+                messages.Add(new(LlmRole.User, FormatToolResults(results)));
+            }
+        }
+        catch (OperationCanceledException) { return null; }
+
+        const string capped = "I've reached the maximum number of automated steps, so I've stopped here. " +
+                              "_(stopped: max steps reached)_";
+        approval.ShowFinal(capped);
+        return AiResponse.AsMessage(capped, artifacts);
+    }
+
+    private static IClientTool? FindTool(IReadOnlyList<IClientTool> catalog, string name)
+        => catalog.FirstOrDefault(t => string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
+
+    private static async Task<IReadOnlyList<(string Tool, ToolResult Result)>> ExecuteBatchAsync(
+        IReadOnlyList<(ToolCall Call, IClientTool? Tool)> calls,
+        IToolApprovalCoordinator approval, CancellationToken ct)
+    {
+        var results     = new (string Tool, ToolResult Result)[calls.Count];
+        var parallelIdx = new List<int>();
+
+        for (var i = 0; i < calls.Count; i++)
+        {
+            var (call, tool) = calls[i];
+            if (tool is null)
+            {
+                results[i] = (call.Tool, ToolResult.Error(
+                    $"Unknown tool '{call.Tool}'",
+                    $"There is no client tool named '{call.Tool}'. Call get_client_commands to see what's available."));
+                continue;
+            }
+            if (tool.Parallelizable) { parallelIdx.Add(i); continue; }
+
+            approval.ReportProgress($"Running {tool.Name}…");
+            results[i] = (call.Tool, await InvokeSafelyAsync(tool, call, ct));
         }
 
-        const string prefillPrefix = "PREFILL:";
-        if (raw.StartsWith(prefillPrefix, StringComparison.OrdinalIgnoreCase))
-            return AiResponse.AsPrefill(raw[prefillPrefix.Length..].TrimStart());
+        if (parallelIdx.Count > 0)
+        {
+            approval.ReportProgress(parallelIdx.Count == 1
+                ? $"Running {calls[parallelIdx[0]].Tool!.Name}…"
+                : $"Running {parallelIdx.Count} tools…");
 
-        return AiResponse.AsMessage(raw);
+            var tasks = parallelIdx.Select(i => InvokeSafelyAsync(calls[i].Tool!, calls[i].Call, ct)).ToArray();
+            var done  = await Task.WhenAll(tasks);
+            for (var p = 0; p < parallelIdx.Count; p++)
+                results[parallelIdx[p]] = (calls[parallelIdx[p]].Call.Tool, done[p]);
+        }
+
+        return results;
+    }
+
+    private static async Task<ToolResult> InvokeSafelyAsync(IClientTool tool, ToolCall call, CancellationToken ct)
+    {
+        try { return await tool.InvokeAsync(call.Arguments, ct); }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex) { return ToolResult.Error($"{tool.Name} failed: {ex.Message}"); }
+    }
+
+    private static string FormatToolResults(IReadOnlyList<(string Tool, ToolResult Result)> results)
+    {
+        var sb = new StringBuilder("TOOL RESULTS\n");
+        foreach (var (tool, r) in results)
+        {
+            sb.Append("## ").Append(tool);
+            if (r.IsError) sb.Append(" (error)");
+            sb.Append('\n').Append(r.ModelText).Append("\n\n");
+        }
+        return sb.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    /// Asks the Disambiguation-ability model to pick the most relevant page tools for the request.
+    /// Falls back to the first <see cref="MaxUnfilteredTools"/> when no ranker is configured.
+    /// </summary>
+    private async Task<IReadOnlyList<IClientTool>> RankToolsAsync(
+        string input, IReadOnlyList<IClientTool> tools, string context, CancellationToken ct)
+    {
+        var resolved = GetProvider(AiAbility.Disambiguation);
+        if (resolved is null) return [.. tools.Take(MaxUnfilteredTools)];
+        var (provider, model) = resolved.Value;
+
+        var list   = string.Join('\n', tools.Select((t, i) => $"{i + 1}. {t.Name} — {t.Description}"));
+        var system = "You select the tools most relevant to a user request. Reply with the numbers of up to " +
+                     $"{MaxUnfilteredTools} relevant tools, comma-separated, most relevant first. Reply 0 if none seem relevant.";
+        var user   = $"Context: {context}\nUser request: \"{input}\"\n\nTools:\n{list}\n\nMost relevant tool numbers:";
+
+        string raw;
+        try
+        {
+            var resp = await provider.CompleteAsync(
+                [new(LlmRole.System, system), new(LlmRole.User, user)], model, null, ct);
+            raw = resp?.RawText ?? string.Empty;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch { return [.. tools.Take(MaxUnfilteredTools)]; }
+
+        var picked = new List<IClientTool>();
+        foreach (var n in ExtractNumbers(raw))
+        {
+            if (n < 1 || n > tools.Count) continue;
+            var tool = tools[n - 1];
+            if (!picked.Contains(tool)) picked.Add(tool);
+            if (picked.Count >= MaxUnfilteredTools) break;
+        }
+        return picked.Count > 0 ? picked : [.. tools.Take(MaxUnfilteredTools)];
+    }
+
+    private static IEnumerable<int> ExtractNumbers(string s)
+    {
+        var i = 0;
+        while (i < s.Length)
+        {
+            if (!char.IsDigit(s[i])) { i++; continue; }
+            var start = i;
+            while (i < s.Length && char.IsDigit(s[i])) i++;
+            if (int.TryParse(s.AsSpan(start, i - start), out var n)) yield return n;
+        }
+    }
+
+    private static IClientTool BuildGetClientCommandsTool(IReadOnlyList<IClientTool> pageTools)
+        => new DelegateClientTool(
+            "get_client_commands",
+            "List every client tool available here, with descriptions and parameters.",
+            [],
+            ToolSafety.ReadOnly,
+            (_, _) => Task.FromResult(ToolResult.Ok(
+                $"{pageTools.Count} tool(s) available", DescribeCatalog(pageTools))),
+            parallelizable: true);
+
+    private static string BuildSystemPrompt(string context, IReadOnlyList<IClientTool> tools)
+    {
+        var persona = ConfigManager.Instance.GetAll().OfType<AiPersonaConfig>().FirstOrDefault();
+        var aiName  = string.IsNullOrWhiteSpace(persona?.Name) ? "Aria" : persona!.Name!.Trim();
+
+        var sb = new StringBuilder();
+        if (!string.IsNullOrWhiteSpace(persona?.SystemPrompt))
+            sb.Append(persona!.SystemPrompt!.Trim()).Append("\n\n");
+
+        sb.Append($"You are {aiName}, an AI assistant embedded in Nexaflow, a desktop application. ")
+          .Append("You are talking to the user through an advanced client that natively renders Markdown — ")
+          .Append("including GitHub-flavored tables, LaTeX math (inline $…$ and block $$…$$), and Mermaid and ")
+          .Append("Nomnoml diagrams in fenced code blocks. Use them freely to make answers clear.\n\n")
+          .Append($"The user is currently looking at: {context}.\n\n");
+
+        sb.Append("# Client-side tools\n")
+          .Append("You can act inside the application by calling CLIENT-SIDE tools. These run locally in the app ")
+          .Append("on the user's machine — they are NOT server-side or MCP tools. Invoke one by emitting a fenced ")
+          .Append("code block tagged `client_tool` whose body is a single JSON object:\n\n")
+          .Append("```client_tool\n{\"tool\": \"tool_name\", \"arguments\": {\"key\": \"value\"}}\n```\n\n")
+          .Append("How the loop works:\n")
+          .Append("- Briefly explain what you're about to do (one or two sentences), then emit the block(s), then STOP. Write nothing after the block.\n")
+          .Append("- The harness runs the tools and replies with a message beginning \"TOOL RESULTS\" containing each tool's output. Continue from there.\n")
+          .Append("- Text you write OUTSIDE fenced blocks is shown to the user as your message.\n")
+          .Append("- To run several INDEPENDENT tools at once, emit multiple `client_tool` blocks in the same reply — the harness runs them together as one batch without asking you in between. Only batch tools that don't depend on each other.\n")
+          .Append("- When you have everything you need, reply normally with no tool block — that is your final answer.\n")
+          .Append("- Read-only tools run immediately; tools that change the machine ask the user to approve first.\n")
+          .Append("- If you're unsure what you can do here, call `get_client_commands` for the full list.\n\n")
+          .Append("To pre-fill the user's input box instead of acting (e.g. to suggest a command for them to run), emit:\n\n")
+          .Append("```client_prefill\n{\"text\": \"suggested input\"}\n```\n\n");
+
+        sb.Append("# Plans (optional)\n")
+          .Append("For multi-step work you MAY first propose a plan the user approves once, instead of asking per step. Emit one:\n\n")
+          .Append("```client_plan\n{\"title\": \"…\", \"mermaid\": \"flowchart TD; A[…]-->B[…]\", ")
+          .Append("\"steps\": [{\"title\":\"…\",\"tool\":\"tool_name\"},{\"title\":\"Decide …\",\"decision\":true}]}\n```\n\n")
+          .Append("After approval, run the plan's tool steps without asking again until a step marked \"decision\": true (reassess there) or the work is done.\n\n");
+
+        sb.Append("# Available tools\n").Append(DescribeCatalog(tools));
+        return sb.ToString();
+    }
+
+    private static string DescribeCatalog(IEnumerable<IClientTool> tools)
+    {
+        var sb = new StringBuilder();
+        foreach (var t in tools)
+            sb.Append(DescribeTool(t)).Append('\n');
+        var s = sb.ToString().TrimEnd();
+        return s.Length == 0 ? "(no tools available here)" : s;
+    }
+
+    private static string DescribeTool(IClientTool t)
+    {
+        var sb = new StringBuilder();
+        sb.Append("- ").Append(t.Name);
+        if (t.Safety == ToolSafety.RequiresApproval) sb.Append("  [needs approval]");
+        sb.Append(": ").Append(t.Description);
+        foreach (var p in t.Parameters)
+        {
+            sb.Append("\n    • ").Append(p.Name).Append(" (").Append(p.Type);
+            if (!p.Required) sb.Append(", optional");
+            sb.Append("): ").Append(p.Description);
+        }
+        return sb.ToString();
     }
 }

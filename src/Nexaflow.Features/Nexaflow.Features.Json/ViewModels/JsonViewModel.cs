@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Json.Models;
 using Nexaflow.Features.Json.Services;
 using System.Collections.ObjectModel;
@@ -1337,8 +1338,19 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
         return $"JSON file: '{FileName}' ({FileSizeText}), {NodeCount} nodes. Selected: {sel}";
     }
 
-    public IReadOnlyList<ActionDescriptor> GetAvailableActions()
-        => [new ActionDescriptor("Format JSON", "Re-indent the JSON document.")];
+    public IReadOnlyList<IClientTool> GetClientTools() =>
+    [
+        new DelegateClientTool(
+            "format_json",
+            "Re-indent the JSON document.",
+            [],
+            ToolSafety.ReadOnly,
+            (arguments, ct) =>
+            {
+                FormatJsonCommand.Execute(null);
+                return Task.FromResult(ToolResult.Ok("formatted", "Re-indented the JSON document."));
+            })
+    ];
 
     public IContext? GetContextObject()
     {
@@ -1346,11 +1358,6 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
         var dir = Path.GetDirectoryName(FilePath);
         if (string.IsNullOrEmpty(dir)) return null;
         return new FileSystemContext { RootPath = dir, CurrentPath = dir, SelectedItems = [FilePath] };
-    }
-
-    public void Execute(ActionDescriptor action)
-    {
-        if (action.Name == "Format JSON") FormatJsonCommand.Execute(null);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

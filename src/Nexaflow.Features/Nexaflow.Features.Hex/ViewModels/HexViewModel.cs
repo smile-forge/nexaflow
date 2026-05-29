@@ -343,8 +343,6 @@ public sealed partial class HexViewModel : ObservableObject, IPageViewModel, IDi
     public string GetContext()
         => $"Hex editor — file: {FilePath}, size: {FileSizeText}, mode: {EditMode}";
 
-    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
-
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static string FormatSize(long bytes)

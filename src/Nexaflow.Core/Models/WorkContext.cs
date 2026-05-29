@@ -10,7 +10,12 @@ public class WorkContext
     public string    Color    { get; set; } = "#5B8CFF";
     public string    Icon     { get; set; } = "⬡";
 
-    /// <summary>Per-context AI ability configuration (serialised inside WorkContextsConfig).</summary>
+    /// <summary>
+    /// Per-context AI ability configuration. Persisted in the context's own folder
+    /// (<c>Contexts/&lt;name&gt;/ai-abilities/</c>), NOT inside the global WorkContexts file —
+    /// so it is excluded from that file's serialisation.
+    /// </summary>
+    [JsonIgnore]
     public AiConfig  AiConfig { get; set; } = new();
 
     /// <summary>Runtime-only AIService instance — not serialised.</summary>

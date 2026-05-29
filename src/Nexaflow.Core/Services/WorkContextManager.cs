@@ -64,9 +64,13 @@ public sealed class WorkContextManager
         return Contexts.Remove(ctx);
     }
 
+    /// <summary>Per-work-context data folder: <c>%AppData%\…\Contexts\&lt;name&gt;</c>.</summary>
+    public static string ContextDir(string name)
+        => Path.Combine(ConfigManager.Instance.BaseDir, "Contexts", name);
+
     /// <summary>
-    /// Persists the current WorkContextsConfig (including each context's AiConfig) to disk.
-    /// Called by <see cref="ViewModels.ManageAiViewModel"/> after an AI config change.
+    /// Persists the WorkContexts list (metadata only — names/colours/icons). Each context's AI
+    /// config lives in its own folder and is saved by <see cref="SaveContextAiConfig"/>.
     /// </summary>
     public void SaveConfig()
     {
@@ -75,11 +79,21 @@ public sealed class WorkContextManager
         ConfigManager.Instance.Save(_config, _config.ConfigName);
     }
 
+    /// <summary>
+    /// Persists one context's AI ability config to its own folder
+    /// (<c>Contexts/&lt;name&gt;/ai-abilities/</c>). Called by <see cref="ViewModels.ManageAiViewModel"/>.
+    /// </summary>
+    public void SaveContextAiConfig(WorkContext ctx)
+        => ConfigManager.Instance.SaveTo(ContextDir(ctx.Name), ctx.AiConfig, ctx.AiConfig.ConfigName);
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private static void BootstrapServices(WorkContext ctx)
     {
-        var contextDir = Path.Combine(ConfigManager.Instance.BaseDir, "Contexts", ctx.Name);
+        var contextDir = ContextDir(ctx.Name);
+
+        // Load this context's AI ability config from its own folder (default if absent).
+        ConfigManager.Instance.LoadFrom(contextDir, ctx.AiConfig, ctx.AiConfig.ConfigName);
 
         // AIService — always recreate so provider registrations stay current
         var service = new AIService(ctx, Path.Combine(contextDir, "Conversations"));

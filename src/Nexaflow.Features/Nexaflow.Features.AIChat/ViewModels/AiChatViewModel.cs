@@ -115,6 +115,4 @@ public partial class AiChatViewModel : ObservableObject, IPageViewModel
         return string.Join("\n", conv.Messages.TakeLast(6)
             .Select(m => (m.IsUser ? "User" : "Aria") + ": " + m.Text));
     }
-
-    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
 }

@@ -1,7 +1,10 @@
 using System.IO;
+using System.Text.Json.Nodes;
 using NSubstitute;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Common.Viewlets;
+using Nexaflow.Features.WindowsFileSystem.ClientTools;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
@@ -112,22 +115,22 @@ public class FileSystemViewModelTests
         StringAssert.Contains(vm.GetContext(), vm.CurrentPath);
     }
 
-    // ── IPageViewModel – GetAvailableActions ──────────────────────────────────
+    // ── IPageViewModel – GetClientTools ───────────────────────────────────────
 
     [TestMethod]
-    public void GetAvailableActions_ContainsNavigate()
+    public void GetClientTools_ContainsCreateTextFile()
     {
         var vm = ThisPc();
 
-        Assert.IsTrue(vm.GetAvailableActions().Any(a => a.Name == "navigate"));
+        Assert.IsTrue(vm.GetClientTools().Any(t => t.Name == "create_text_file"));
     }
 
     [TestMethod]
-    public void GetAvailableActions_ContainsGotoRoot()
+    public void GetClientTools_ContainsGetFileList()
     {
         var vm = ThisPc();
 
-        Assert.IsTrue(vm.GetAvailableActions().Any(a => a.Name == "gotoRoot"));
+        Assert.IsTrue(vm.GetClientTools().Any(t => t.Name == "get_file_list"));
     }
 
     // ── NavigateTo ────────────────────────────────────────────────────────────
@@ -332,5 +335,104 @@ public class FileSystemViewModelTests
 
         Assert.AreEqual(path, vm.RootPath,
             StringComparer.OrdinalIgnoreCase);
+    }
+
+    // ── Client tools (invocation) ──────────────────────────────────────────────
+
+    private static string TempDir()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "nexafs_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        return dir;
+    }
+
+    [TestMethod]
+    public async Task CreateTextFileTool_WritesFileWithContent()
+    {
+        var dir = TempDir();
+        try
+        {
+            var vm     = AtPath(dir);
+            var result = await new CreateTextFileTool(vm).InvokeAsync(
+                new JsonObject { ["name"] = "note.txt", ["content"] = "hello world" }, default);
+
+            Assert.IsTrue(result.Success);
+            var path = Path.Combine(dir, "note.txt");
+            Assert.IsTrue(File.Exists(path));
+            Assert.AreEqual("hello world", File.ReadAllText(path));
+            Assert.IsNotNull(result.Attachments);
+            Assert.IsTrue(result.Attachments!.Any(p => p.EndsWith("note.txt")), "created file should be reported as an attachment");
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [TestMethod]
+    public async Task CreateTextFileTool_RefusesOverwriteWithoutFlag()
+    {
+        var dir = TempDir();
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "exists.txt"), "old");
+            var vm     = AtPath(dir);
+            var result = await new CreateTextFileTool(vm).InvokeAsync(
+                new JsonObject { ["name"] = "exists.txt", ["content"] = "new" }, default);
+
+            Assert.IsTrue(result.IsError);
+            Assert.AreEqual("old", File.ReadAllText(Path.Combine(dir, "exists.txt")));
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [TestMethod]
+    public async Task FindFilesByNameTool_MatchesPattern()
+    {
+        var dir = TempDir();
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "george-list.txt"), "x");
+            File.WriteAllText(Path.Combine(dir, "other.txt"), "x");
+            var vm     = AtPath(dir);
+            var result = await new FindFilesByNameTool(vm).InvokeAsync(
+                new JsonObject { ["pattern"] = "george*" }, default);
+
+            Assert.IsTrue(result.Success);
+            StringAssert.Contains(result.ModelText, "george-list.txt");
+            Assert.IsFalse(result.ModelText.Contains("other.txt"));
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [TestMethod]
+    public async Task GetFileContentsTool_ReadsText()
+    {
+        var dir = TempDir();
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "data.txt"), "file body here");
+            var vm     = AtPath(dir);
+            var result = await new GetFileContentsTool(vm).InvokeAsync(
+                new JsonObject { ["name"] = "data.txt" }, default);
+
+            Assert.IsTrue(result.Success);
+            StringAssert.Contains(result.ModelText, "file body here");
+            Assert.IsNotNull(result.Attachments);
+            Assert.IsTrue(result.Attachments!.Any(p => p.EndsWith("data.txt")), "read file should be reported as an attachment");
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [TestMethod]
+    public async Task GetFileContentsTool_RejectsTraversal()
+    {
+        var dir = TempDir();
+        try
+        {
+            var vm     = AtPath(dir);
+            var result = await new GetFileContentsTool(vm).InvokeAsync(
+                new JsonObject { ["name"] = @"..\secret.txt" }, default);
+
+            Assert.IsTrue(result.IsError);
+        }
+        finally { Directory.Delete(dir, recursive: true); }
     }
 }

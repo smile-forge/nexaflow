@@ -6,6 +6,19 @@
 
     <UserControl.Resources>
         <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
+        <ControlTemplate x:Key="PillButton" TargetType="Button">
+            <Border x:Name="root"
+                    Background="{TemplateBinding Background}"
+                    CornerRadius="7" Padding="10,6">
+                <ContentPresenter HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="root" Property="Opacity" Value="0.85"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
     </UserControl.Resources>
 
     <Grid x:Name="LayoutRoot"
@@ -22,12 +35,12 @@
 
         <Border x:Name="Panel"
                 Grid.Row="1" Grid.Column="1"
-                Background="{StaticResource SurfaceBrush}"
-                BorderBrush="{StaticResource BorderBrush}"
+                Background="{StaticResource Surface2Brush}"
+                BorderBrush="{StaticResource AccentBrush}"
                 BorderThickness="1"
-                CornerRadius="10,10,4,4">
+                CornerRadius="12">
             <Border.Effect>
-                <DropShadowEffect BlurRadius="24" ShadowDepth="0" Opacity="0.55" Color="Black"/>
+                <DropShadowEffect BlurRadius="34" ShadowDepth="0" Opacity="0.7" Color="Black"/>
             </Border.Effect>
             <Border.RenderTransform>
                 <TranslateTransform x:Name="SlideXform" Y="0"/>
@@ -40,69 +53,101 @@
                     <RowDefinition Height="Auto"/>  <!-- footer -->
                 </Grid.RowDefinitions>
 
-                <!-- Header -->
+                <!-- Header: solid accent bar so the AI surface is unmistakable -->
                 <Border Grid.Row="0"
-                        BorderBrush="{StaticResource BorderBrush}"
-                        BorderThickness="0,0,0,1"
-                        Padding="16,10">
+                        Background="{StaticResource AccentBrush}"
+                        CornerRadius="11,11,0,0"
+                        Padding="16,9">
                     <Grid>
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0"
+                        <TextBlock Grid.Column="0" Text="✦"
+                                   FontSize="15" Margin="0,0,8,0"
+                                   Foreground="White" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="1"
                                    Text="{Binding AiResponseAiName}"
                                    FontSize="14" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextBrush}"
+                                   Foreground="White"
                                    VerticalAlignment="Center"/>
-                        <Button Grid.Column="1"
+                        <Button Grid.Column="2"
                                 Style="{StaticResource TopBarAction}"
                                 Command="{Binding CloseAiResponseOverlayCommand}"
                                 ToolTip="Close">
-                            <TextBlock Text="✕" FontSize="13"
-                                       Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock Text="✕" FontSize="13" Foreground="White"/>
                         </Button>
                     </Grid>
                 </Border>
 
-                <!-- Body: markdown -->
-                <ScrollViewer Grid.Row="1"
-                              VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled"
-                              Padding="20,12">
-                    <StackPanel x:Name="MarkdownBody"/>
-                </ScrollViewer>
+                <!-- Body: markdown, or a centred status line while the agent works -->
+                <Grid Grid.Row="1">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Padding="20,14"
+                                  Visibility="{Binding AiOverlayShowsMarkdown, Converter={StaticResource BoolVis}}">
+                        <StackPanel x:Name="MarkdownBody"/>
+                    </ScrollViewer>
 
-                <!-- Footer -->
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                Visibility="{Binding AiOverlayIsRunning, Converter={StaticResource BoolVis}}">
+                        <TextBlock Text="{Binding AiProgressText}"
+                                   FontSize="16" FontStyle="Italic"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource TextMutedBrush}"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Footer: hidden while running -->
                 <Border Grid.Row="2"
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="0,1,0,0"
-                        Padding="16,10">
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="Continue as Conversation"
-                                Command="{Binding ContinueAsConversationCommand}"
-                                Padding="14,7"
-                                FontSize="12"
-                                Background="{StaticResource AccentBrush}"
-                                Foreground="White"
-                                BorderThickness="0">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="root"
-                                            Background="{TemplateBinding Background}"
-                                            CornerRadius="7" Padding="10,6">
-                                        <ContentPresenter HorizontalAlignment="Center"
-                                                          VerticalAlignment="Center"/>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="root" Property="Opacity" Value="0.85"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
-                    </StackPanel>
+                        Padding="16,10"
+                        Visibility="{Binding AiOverlayShowsMarkdown, Converter={StaticResource BoolVis}}">
+                    <Grid>
+                        <!-- Message / final state -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                                    Visibility="{Binding AiOverlayIsMessage, Converter={StaticResource BoolVis}}">
+                            <Button Content="Continue as Conversation"
+                                    Command="{Binding ContinueAsConversationCommand}"
+                                    FontSize="12"
+                                    Background="{StaticResource AccentBrush}"
+                                    Foreground="White"
+                                    BorderThickness="0"
+                                    Template="{StaticResource PillButton}"/>
+                        </StackPanel>
+
+                        <!-- Approval state -->
+                        <Grid Visibility="{Binding AiOverlayIsApproval, Converter={StaticResource BoolVis}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding AiToolApprovalSummary}"
+                                       FontSize="13" FontWeight="SemiBold"
+                                       TextWrapping="Wrap"
+                                       VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextBrush}"/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <Button Content="Deny"
+                                        Command="{Binding DenyToolBatchCommand}"
+                                        FontSize="12" Margin="0,0,8,0"
+                                        Background="{StaticResource BorderBrush}"
+                                        Foreground="{StaticResource TextBrush}"
+                                        BorderThickness="0"
+                                        Template="{StaticResource PillButton}"/>
+                                <Button Content="Accept"
+                                        Command="{Binding AcceptToolBatchCommand}"
+                                        FontSize="12"
+                                        Background="{StaticResource AccentBrush}"
+                                        Foreground="White"
+                                        BorderThickness="0"
+                                        Template="{StaticResource PillButton}"/>
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
                 </Border>
             </Grid>
         </Border>

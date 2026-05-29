@@ -149,6 +149,4 @@ public partial class ProjectsViewModel : ObservableObject, IPageViewModel
         var selected = SelectedProject is { } p ? $" Selected: '{p.DisplayName}'." : string.Empty;
         return $"Projects list: {ProjectCount} project(s).{selected}";
     }
-
-    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
 }
