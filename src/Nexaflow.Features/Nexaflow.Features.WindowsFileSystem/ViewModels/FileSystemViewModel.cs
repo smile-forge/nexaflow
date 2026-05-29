@@ -1,6 +1,8 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.WindowsFileSystem.ClientTools;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
 using Nexaflow.Features.WindowsFileSystem.Services;
@@ -10,7 +12,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text.Json;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Threading;
 
@@ -19,7 +21,7 @@ namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 
 // ── Main ViewModel ────────────────────────────────────────────────────────────
 
-public partial class FileSystemViewModel : ObservableObject, IPageViewModel, IActionExecutor
+public partial class FileSystemViewModel : ObservableObject, IPageViewModel
 {
     [ObservableProperty] private string _currentPath = string.Empty;
     [ObservableProperty] private FileSystemEntry? _selectedEntry;
@@ -783,18 +785,40 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, IAc
     public string GetContext()
     {
         if (_isThisPcMode)
-            return "File browser - This PC view (showing available drives)";
+        {
+            var drives = Entries.Count;
+            return $"File browser — This PC ({drives} drive{(drives == 1 ? "" : "s")}).";
+        }
         if (string.IsNullOrEmpty(CurrentPath))
-            return "File browser - no location selected";
-        var selected = SelectedEntry is not null ? $" — selected: '{SelectedEntry.Name}'" : string.Empty;
-        return $"File browser at '{CurrentPath}'{selected}";
+            return "File browser — no location selected.";
+
+        var folders = Entries.Count(e => e.IsDirectory);
+        var files   = Entries.Count - folders;
+        var sb = new StringBuilder(
+            $"File browser at '{CurrentPath}' — {folders} folder{(folders == 1 ? "" : "s")}, " +
+            $"{files} file{(files == 1 ? "" : "s")}");
+
+        var selection = CurrentSelection;
+        if (selection.Count > 0)
+        {
+            const int cap = 5;
+            sb.Append(". Selected: ").Append(string.Join(", ", selection.Take(cap).Select(e => e.Name)));
+            if (selection.Count > cap) sb.Append($" (+{selection.Count - cap} more)");
+        }
+        sb.Append('.');
+        return sb.ToString();
     }
 
-    public IReadOnlyList<ActionDescriptor> GetAvailableActions() =>
+    public IReadOnlyList<IClientTool> GetClientTools() =>
     [
-        new("navigate", "Navigate the file browser to a directory",
-            new Dictionary<string, string> { ["path"] = "absolute folder path" }),
-        new("gotoRoot", "Go back to the This PC drive list"),
+        new GetFileListTool(this),
+        new FindFilesByNameTool(this),
+        new GetFileContentsTool(this),
+        new CreateTextFileTool(this),
+        new CopyTool(this),
+        new MoveTool(this),
+        new RenameTool(this),
+        new DeleteTool(this),
     ];
 
     public IContext? GetContextObject()
@@ -823,34 +847,6 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, IAc
             CurrentPath   = CurrentPath,
             SelectedItems = CurrentSelection.Select(e => e.FullPath).ToList()
         };
-    }
-
-    // ── IActionExecutor ───────────────────────────────────────────────────────
-
-    public Task<bool> TryExecuteActionAsync(string actionJson)
-    {
-        try
-        {
-            var doc  = JsonDocument.Parse(actionJson);
-            var root = doc.RootElement;
-            if (!root.TryGetProperty("action", out var actionEl)) return Task.FromResult(false);
-
-            switch (actionEl.GetString()?.ToLowerInvariant())
-            {
-                case "navigate" when root.TryGetProperty("path", out var pathEl):
-                {
-                    var path = pathEl.GetString() ?? string.Empty;
-                    if (!Directory.Exists(path)) return Task.FromResult(false);
-                    NavigateTo(path);
-                    return Task.FromResult(true);
-                }
-                case "gotoroot":
-                    GoToThisPc(rebuildTree: true);
-                    return Task.FromResult(true);
-            }
-        }
-        catch { /* malformed JSON — return false below */ }
-        return Task.FromResult(false);
     }
 
     private bool IsRootedOnDriveOrThisPc()

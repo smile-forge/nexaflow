@@ -4,12 +4,14 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Tabular.Detection;
 using Nexaflow.Features.Tabular.Streaming;
 
@@ -130,23 +132,41 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
         return sb.ToString();
     }
 
-    public IReadOnlyList<ActionDescriptor> GetAvailableActions() =>
-        new[]
-        {
-            new ActionDescriptor("OpenFilter",    "Open the filter side panel"),
-            new ActionDescriptor("ScrollToTop",   "Scroll to the first row"),
-            new ActionDescriptor("ScrollToEnd",   "Scroll to the last row"),
-        };
-
-    public void Execute(ActionDescriptor action)
-    {
-        switch (action.Name)
-        {
-            case "OpenFilter":  if (Columns.Count > 0) Columns[0].IsSelected = true; break;
-            case "ScrollToTop": FocalRow = 0;             _ = RefreshWindowAsync(); break;
-            case "ScrollToEnd": FocalRow = (KnownRowCount ?? 0) - 1; _ = RefreshWindowAsync(); break;
-        }
-    }
+    public IReadOnlyList<IClientTool> GetClientTools() =>
+    [
+        new DelegateClientTool(
+            "open_filter",
+            "Open the filter side panel",
+            [],
+            ToolSafety.ReadOnly,
+            (arguments, ct) =>
+            {
+                if (Columns.Count > 0) Columns[0].IsSelected = true;
+                return Task.FromResult(ToolResult.Ok("opened filter", "Opened the filter side panel."));
+            }),
+        new DelegateClientTool(
+            "scroll_to_top",
+            "Scroll to the first row",
+            [],
+            ToolSafety.ReadOnly,
+            (arguments, ct) =>
+            {
+                FocalRow = 0;
+                _ = RefreshWindowAsync();
+                return Task.FromResult(ToolResult.Ok("scrolled to top", "Scrolled to the first row."));
+            }),
+        new DelegateClientTool(
+            "scroll_to_end",
+            "Scroll to the last row",
+            [],
+            ToolSafety.ReadOnly,
+            (arguments, ct) =>
+            {
+                FocalRow = (KnownRowCount ?? 0) - 1;
+                _ = RefreshWindowAsync();
+                return Task.FromResult(ToolResult.Ok("scrolled to end", "Scrolled to the last row."));
+            }),
+    ];
 
     // ── Loading + shape detection ─────────────────────────────────────────
 
@@ -264,10 +284,9 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
 
     private async Task<CsvShape> PickShapeAsync(IReadOnlyList<CsvShape> shapes)
     {
-        if (shapes.Count == 1) return shapes[0];
-        var top    = shapes[0];
-        var second = shapes[1];
-        if (top.Score - second.Score > 0.2f) return top;
+        // The detector resolves the vast majority of files on its own; only a genuinely close,
+        // structurally-different pair of candidates needs the model's judgement.
+        if (ShapeDetector.TryPickConfident(shapes, out var confident)) return confident;
 
         // Ambiguous — ask the Disambiguation model.
         var sampleText = string.Join("\n", (_sample!.HeadLines).Take(4).Concat(_sample.TailLines.Take(4)));
@@ -282,8 +301,8 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
             var idx = await _ai.DisambiguateOptionAsync(ctx, question, options);
             if (idx is int i && i >= 0 && i < shapes.Count) return shapes[i];
         }
-        catch { /* fall through to top */ }
-        return top;
+        catch { /* fall through to the top-ranked shape */ }
+        return shapes[0];
     }
 
     /// <summary>

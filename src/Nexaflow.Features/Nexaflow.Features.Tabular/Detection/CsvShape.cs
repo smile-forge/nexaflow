@@ -20,6 +20,10 @@ public sealed record CsvShape
     public required string          Label           { get; init; }
     public required string          Description     { get; init; }
 
+    /// <summary>Fraction of sampled rows whose field count matched this shape's column count
+    /// (1.0 = every row split identically). The strongest "right separator" signal.</summary>
+    public float Consistency { get; init; } = 1f;
+
     /// <summary>When non-null, this shape is fixed-width and the values are the start byte column of each field.</summary>
     public IReadOnlyList<int>? FixedWidthBoundaries { get; init; }
 }

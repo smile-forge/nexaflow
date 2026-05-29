@@ -110,6 +110,30 @@ public sealed class ConfigManager
         _defaultedConfigs.Remove(configName);
     }
 
+    /// <summary>
+    /// Persists <paramref name="config"/> under an arbitrary <paramref name="directory"/> (e.g. a
+    /// per-work-context folder) using the same versioned-file layout as <see cref="Save"/>. Used
+    /// for per-context configs that are not part of the global registry.
+    /// </summary>
+    public void SaveTo(string directory, object config, string configName)
+    {
+        var version = config.GetType().Assembly.GetName().Version ?? new Version(0, 0, 0, 0);
+        var path    = Path.Combine(directory, configName, $"config_{version}.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, JsonSerializer.Serialize(config, config.GetType(), _opts));
+    }
+
+    /// <summary>
+    /// Populates <paramref name="config"/> from its versioned file under <paramref name="directory"/>,
+    /// if present. No-op when the file doesn't exist (config keeps its current/default values).
+    /// </summary>
+    public void LoadFrom(string directory, object config, string configName)
+    {
+        var version = config.GetType().Assembly.GetName().Version ?? new Version(0, 0, 0, 0);
+        var path    = Path.Combine(directory, configName, $"config_{version}.json");
+        if (File.Exists(path)) Load(config, path);
+    }
+
     /// <summary>Creates a deep clone of a config POCO via JSON round-trip.</summary>
     public static object Clone(object config)
     {

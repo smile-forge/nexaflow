@@ -280,5 +280,4 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
         return count == 0 ? "Scratchpad: empty." : $"Scratchpad: {count} note(s).";
     }
 
-    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
 }

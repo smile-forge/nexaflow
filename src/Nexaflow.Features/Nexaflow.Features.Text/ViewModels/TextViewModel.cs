@@ -2,8 +2,10 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ICSharpCode.AvalonEdit.Document;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
 using System.IO;
 using System.Text;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Windows;
 
@@ -674,15 +676,33 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         return $"Text file: '{fileName}' at '{path}'\nVisible text:\n{visible}";
     }
 
-    public IReadOnlyList<ActionDescriptor> GetAvailableActions()
-    {
-        IReadOnlyDictionary<string, string> findParams = new Dictionary<string, string> { { "SearchTerm", string.Empty } };
-        return
-        [
-            new ActionDescriptor("Copy Visible Text", "Copy the text currently visible in the editor to the clipboard."),
-            new ActionDescriptor("Find", "Find text within the editor.", findParams)
-        ];
-    }
+    public IReadOnlyList<IClientTool> GetClientTools() =>
+    [
+        new DelegateClientTool(
+            "copy_visible_text",
+            "Copy the text currently visible in the editor to the clipboard.",
+            [],
+            ToolSafety.ReadOnly,
+            (arguments, ct) =>
+            {
+                Clipboard.SetText(GetVisibleText());
+                return Task.FromResult(ToolResult.Ok("copied", "Copied the visible text to the clipboard."));
+            }),
+        new DelegateClientTool(
+            "find",
+            "Find text within the editor.",
+            [new ClientToolParameter("search_term", "The text to search for.")],
+            ToolSafety.ReadOnly,
+            (arguments, ct) =>
+            {
+                var term = arguments["search_term"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(term))
+                    return Task.FromResult(ToolResult.Error("No search term provided."));
+
+                _ = SearchConventionalAsync(term);
+                return Task.FromResult(ToolResult.Ok($"finding {term}", $"Searching for '{term}'."));
+            })
+    ];
 
     public IContext? GetContextObject()
     {
@@ -695,22 +715,6 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
             CurrentPath   = dir,
             SelectedItems = [FilePath]
         };
-    }
-
-    public void Execute(ActionDescriptor action)
-    {
-        switch (action.Name)
-        {
-            case "Copy Visible Text":
-                Clipboard.SetText(GetVisibleText());
-                break;
-
-            case "Find":
-                if (action.Parameters?.TryGetValue("SearchTerm", out var term) == true
-                    && !string.IsNullOrWhiteSpace(term))
-                    _ = SearchConventionalAsync(term);
-                break;
-        }
     }
 
     // ── Dispose ───────────────────────────────────────────────────────────────

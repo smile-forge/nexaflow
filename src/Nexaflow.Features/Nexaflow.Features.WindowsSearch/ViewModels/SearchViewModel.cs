@@ -2,10 +2,12 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using System.IO;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.WindowsSearch.Services;
 using System.Collections.ObjectModel;
 using System.Data.OleDb;
 using System.Diagnostics;
+using System.Text.Json.Nodes;
 
 namespace Nexaflow.Features.WindowsSearch.ViewModels;
 
@@ -176,34 +178,28 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel
         return $"Search tab: '{SearchQuery}' in '{SearchRoot}'. {ResultCount} result(s).";
     }
 
-    public IReadOnlyList<ActionDescriptor> GetAvailableActions()
-    {
-        IReadOnlyDictionary<string, string> searchParams =
-            new Dictionary<string, string> { { "Query", string.Empty } };
+    public IReadOnlyList<IClientTool> GetClientTools() =>
+    [
+        new DelegateClientTool(
+            "search",
+            "Search files using Windows Search. Supports plain terms (budget report), " +
+            "quoted phrases (\"annual report\"), file globs (*.xml, *.doc*, name.*), " +
+            "property filters (kind:document, size:>1mb, author:john, date:>2024-01, " +
+            "modified:2023, before:2024, after:2023-06), and boolean prefix syntax " +
+            "(+required -excluded).",
+            [new ClientToolParameter("query", "The search query to run.")],
+            ToolSafety.ReadOnly,
+            (arguments, ct) =>
+            {
+                var query = arguments["query"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(query))
+                    return Task.FromResult(ToolResult.Error("No query provided."));
 
-        return
-        [
-            new ActionDescriptor(
-                "Search",
-                "Search files using Windows Search. Supports plain terms (budget report), " +
-                "quoted phrases (\"annual report\"), file globs (*.xml, *.doc*, name.*), " +
-                "property filters (kind:document, size:>1mb, author:john, date:>2024-01, " +
-                "modified:2023, before:2024, after:2023-06), and boolean prefix syntax " +
-                "(+required -excluded).",
-                searchParams)
-        ];
-    }
-
-    public void Execute(ActionDescriptor action)
-    {
-        if (action.Name == "Search"
-            && action.Parameters?.TryGetValue("Query", out var query) == true
-            && !string.IsNullOrWhiteSpace(query))
-        {
-            SearchQuery = query;
-            _ = RunSearchAsync(CancellationToken.None);
-        }
-    }
+                SearchQuery = query;
+                _ = RunSearchAsync(CancellationToken.None);
+                return Task.FromResult(ToolResult.Ok($"searching for {query}", $"Started search for '{query}'."));
+            })
+    ];
 
     public IContext? GetContextObject()
     {

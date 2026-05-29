@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using Nexaflow.Features.Common.ClientTools;
 
 namespace Nexaflow.Features.Common
 {
@@ -34,12 +35,18 @@ namespace Nexaflow.Features.Common
             IReadOnlyList<(IQueryHandler Handler, float Score)> candidates);
 
         /// <summary>
-        /// One-shot contextual call that lets the LLM choose between executing an action,
-        /// suggesting a prefill for the user to confirm, or replying conversationally.
-        /// When <paramref name="includeContext"/> is false the active page's context and
-        /// actions are omitted from the prompt.
+        /// Runs the client-side agent loop: the LLM may call the active page's client tools (and
+        /// built-in tools), see their results, and continue, until it produces a final message or
+        /// a prefill. Tool batches and plans are approved through <paramref name="approval"/>.
+        /// When <paramref name="includeContext"/> is false the active page's context and tools are
+        /// omitted. Returns null when no Conversation provider is configured or on cancellation.
         /// </summary>
-        Task<AiResponse?> ContextChat(IPageViewModel? pageVm, string input, bool includeContext = true);
+        Task<AiResponse?> RunAgentAsync(
+            IPageViewModel? pageVm,
+            string input,
+            bool includeContext,
+            IToolApprovalCoordinator approval,
+            CancellationToken ct = default);
 
         /// <summary>
         /// Context window (in tokens) for the model assigned to the Conversation ability,

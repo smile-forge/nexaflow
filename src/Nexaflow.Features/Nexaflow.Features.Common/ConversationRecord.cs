@@ -22,6 +22,9 @@ public class ConversationRecord
     public string                      Title     { get; set; } = "New conversation";
     public List<ConversationMessage>   Messages  { get; set; } = [];
 
+    /// <summary>File paths carried as conversation context (e.g. files a prior agent run read/created).</summary>
+    public List<string>                Attachments { get; set; } = [];
+
     [JsonIgnore]
     public string DateDisplay => StartedAt.ToString("MMM d, HH:mm");
 

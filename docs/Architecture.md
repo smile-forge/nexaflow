@@ -73,14 +73,14 @@ The contract layer. Every feature depends on this; nothing else does.
 | `BreadcrumbSegment` (same file) | One crumb: label, drop-down children, same-tab `Navigate` action, or cross-tab `TargetPageKind` |
 | `ITabRegistration.cs` | Interface features implement to register a page kind with the shell |
 | `IPageView.cs` | Thin shell-lifecycle contract implemented by tab `UserControl`s: exposes `IPageViewModel? ViewModel` and `Reinitialize` |
-| `IPageViewModel.cs` | AI pipeline contract implemented by ViewModels: `GetContext`, `GetAvailableActions`, `GetContextObject`, `Execute` |
+| `IPageViewModel.cs` | AI pipeline contract implemented by ViewModels: `GetContext`, `GetClientTools`, `GetContextObject` |
 | `IShellServices.cs` | Application-level singleton injected into feature code for tab management |
 | `IAIService.cs` | AI disambiguation and contextual chat, injected as a singleton service |
 | `IFeatureConfig.cs` | Marks a POCO as a config section; discovered and instantiated by `FeatureManager` |
 | `IContext.cs` / `FileSystemContext.cs` | Typed context objects offered by ViewModels via `IPageViewModel.GetContextObject()` |
-| `IActionExecutor.cs` | Implemented by ViewModels to receive and execute AI-generated JSON action payloads |
+| `ClientTools/*.cs` | `IClientTool` / `DelegateClientTool`, `ClientToolParameter`, `ToolSafety`, `ToolResult`, the `ClientBlockParser`, and `IToolApprovalCoordinator` for the agent loop |
 | `ConfigAttributes.cs` | `[ConfigDisplayName]`, `[FolderPath]`, `[ListSource]`, `[CustomControl]` / `ICustomConfigApply` |
-| `AiResponse.cs` | `AiResponse` record and `AiResponseKind` enum returned by `IAIService.ContextChat` |
+| `AiResponse.cs` | `AiResponse` record and `AiResponseKind` enum returned by `IAIService.RunAgentAsync` |
 | `ConversationRecord.cs` | Chat conversation + message list |
 | `Services/IQueryHandler.cs` | Intercepts the AI input bar; registered globally or inferred from the active page's ViewModel |
 | `Services/IInputPromptService.cs` | Lets file actions show modal overlays without referencing Core |
@@ -189,7 +189,7 @@ The page kind string is then available in the ribbon editor automatically.
 
 `IPageView` is the shell's typed handle to a tab `UserControl` — implement it on your `UserControl`. It exposes the ViewModel and handles shell lifecycle. `Reinitialize` is called on first load and whenever the shell activates the tab with a new param set (including re-clicking the active tab).
 
-`IPageViewModel` is the AI pipeline contract — implement it on your ViewModel so the shell can query context, enumerate available actions, and execute AI-selected actions.
+`IPageViewModel` is the AI pipeline contract — implement it on your ViewModel so the shell can query context and expose **client tools** the AI agent may invoke. A client tool is a self-contained `IClientTool` (use `DelegateClientTool` for one-liners) carrying its own metadata and execution. Read-only tools (`ToolSafety.ReadOnly`) auto-run; mutating tools (`ToolSafety.RequiresApproval`) are approved first. `GetClientTools()` and `GetContextObject()` have defaults, so a page that only supplies context overrides nothing else.
 
 ```csharp
 // The View — thin shell-lifecycle wrapper
@@ -206,7 +206,13 @@ public partial class MyView : UserControl, IPageView
 public partial class MyViewModel : ObservableObject, IPageViewModel
 {
     public string GetContext() => "User is viewing My Feature";
-    public IReadOnlyList<ActionDescriptor> GetAvailableActions() => [];
+
+    public IReadOnlyList<IClientTool> GetClientTools() =>
+    [
+        new DelegateClientTool(
+            "refresh", "Reload the current view.", [], ToolSafety.ReadOnly,
+            (args, ct) => { Reload(); return Task.FromResult(ToolResult.Ok("reloaded")); })
+    ];
 }
 ```
 
@@ -325,9 +331,9 @@ Implement on your `UserControl`. The file browser resolves this from the active 
 
 ---
 
-### `IActionExecutor` — AI-generated action payloads
+### `IClientTool` — AI-invokable client tools
 
-Implement on your ViewModel when you want the AI to drive actions beyond the `ActionDescriptor` system. Called by `IAIService.ContextChat` when the LLM returns a JSON action payload and no `IQueryHandler` claimed the input.
+Expose tools from a page by overriding `IPageViewModel.GetClientTools()`. Each tool is an `IClientTool` (or a `DelegateClientTool` for trivial cases) carrying its own name, parameters, `ToolSafety`, and `InvokeAsync`. During `IAIService.RunAgentAsync` the LLM emits `client_tool` blocks; the harness runs read-only tools immediately and routes mutating ones through `IToolApprovalCoordinator` before invoking them, feeding each `ToolResult` back to the model.
 
 ---
 
@@ -386,8 +392,12 @@ User submits text in AI input bar
   → If Symbol match: route directly to that handler
   → If multiple candidates score > 0: IAIService.DisambiguateToolSelection() picks one
   → If single candidate: ProcessAsync(input, currentPageVm)
-  → If no handler: IAIService.ContextChat(currentPageVm, input)
-      → LLM decides: execute ActionDescriptor, prefill input, or reply conversationally
+  → If no handler: IAIService.RunAgentAsync(currentPageVm, input, includeContext, approval)
+      → client-side agent loop: the LLM emits fenced ```client_tool / ```client_plan /
+        ```client_prefill blocks (JSON bodies); the harness executes the page's IClientTool
+        objects and feeds results back, looping until a final message or a prefill
+      → read-only tools auto-run; mutating batches and plans need per-batch/plan approval
+        via IToolApprovalCoordinator (the AiResponseOverlay)
   → Response text (if any) added to AI Chat conversation
 ```
 

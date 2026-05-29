@@ -1,9 +1,11 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Console;
 using Nexaflow.Features.Console.Models;
 using System.Collections.ObjectModel;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Input;
@@ -465,11 +467,12 @@ public partial class ConsoleViewModel : ObservableObject, IDisposable, IPageView
 
     public string GetContext() => $"Terminal: '{CurrentPath}'.";
 
-    public IReadOnlyList<ActionDescriptor> GetAvailableActions()
+    public IReadOnlyList<IClientTool> GetClientTools()
     {
-        if (_config is null || _config.Environments.Count == 0) return [];
+        var cfg = _config;
+        if (cfg is null || cfg.Environments.Count == 0) return [];
 
-        var envs = _config.Environments
+        var envs = cfg.Environments
             .Where(e => GlobMatchPath(CurrentPath, e.LocationFilter))
             .ToList();
         if (envs.Count == 0) return [];
@@ -477,32 +480,35 @@ public partial class ConsoleViewModel : ObservableObject, IDisposable, IPageView
         var envList = string.Join("; ", envs.Select(e =>
             $"'{e.Name}'" + (string.IsNullOrEmpty(e.InitialCommand) ? "" : $" (runs: {e.InitialCommand})")));
 
-        return [new ActionDescriptor(
-            "SetEnv",
-            $"Switches the terminal to a configured environment. Provide 'Name' matching one of: {envList}. " +
+        return [new DelegateClientTool(
+            "set_environment",
+            $"Switches the terminal to a configured environment. Provide 'name' matching one of: {envList}. " +
             "The environment's initial command is sent and the tab title updates.",
-            new Dictionary<string, string> { ["Name"] = "" })];
-    }
+            [new ClientToolParameter("name", "Name of the environment to switch to.")],
+            ToolSafety.RequiresApproval,
+            (arguments, ct) =>
+            {
+                var name = arguments["name"]?.GetValue<string>();
+                if (string.IsNullOrEmpty(name))
+                    return Task.FromResult(ToolResult.Error("No environment name provided."));
 
-    public void Execute(ActionDescriptor action)
-    {
-        if (action.Name != "SetEnv" || _config is null) return;
-        var name = action.Parameters?.GetValueOrDefault("Name");
-        if (string.IsNullOrEmpty(name)) return;
+                var env = cfg.FindEnvByName(name);
+                if (env is null)
+                    return Task.FromResult(ToolResult.Error($"Unknown environment '{name}'."));
 
-        var env = _config.FindEnvByName(name);
-        if (env is null) return;
+                _activeEnv = env;
+                SyncTabMeta();
 
-        _activeEnv = env;
-        SyncTabMeta();
+                if (!string.IsNullOrEmpty(env.InitialCommand))
+                {
+                    if (!IsBusy)
+                        SendCommand(env.InitialCommand);
+                    else
+                        _pendingInitCmd = env.InitialCommand;
+                }
 
-        if (!string.IsNullOrEmpty(env.InitialCommand))
-        {
-            if (!IsBusy)
-                SendCommand(env.InitialCommand);
-            else
-                _pendingInitCmd = env.InitialCommand;
-        }
+                return Task.FromResult(ToolResult.Ok($"switched to {env.Name}", $"Switched the terminal to '{env.Name}'."));
+            })];
     }
 
     public IContext? GetContextObject()
