@@ -235,14 +235,14 @@ public sealed class AIService : IAIService
         return picked - 1;
     }
 
-    public async Task<AiResponse?> ContextChat(IPageViewModel? page, string input)
+    public async Task<AiResponse?> ContextChat(IPageViewModel? page, string input, bool includeContext = true)
     {
         var resolved = GetProvider(AiAbility.Conversation);
         if (resolved is null) return null;
         var (provider, model) = resolved.Value;
 
-        var context = page?.GetContext() ?? "No specific context.";
-        var actions = page?.GetAvailableActions() ?? [];
+        var context = includeContext ? page?.GetContext() ?? "No specific context." : "No specific context.";
+        var actions = includeContext ? page?.GetAvailableActions() ?? [] : [];
 
         var actionsText = actions.Count > 0
             ? string.Join("\n", actions.Select(a =>

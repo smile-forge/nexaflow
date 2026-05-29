@@ -27,6 +27,7 @@
         <cv:ZeroCountToVisibilityConverter   x:Key="ZeroCountVis"/>
         <cvn:AiStatusBrushConverter           x:Key="AiStatusBrush"/>
         <cvn:RibbonKindVisibilityConverter    x:Key="RibbonKindVis"/>
+        <cvn:InverseBooleanConverter          x:Key="InvBool"/>
         <cv:StringToVisibilityConverter      x:Key="StringVis"/>
         <cv:ColorStringToBrushConverter      x:Key="ColorStringToBrush"/>
 
@@ -261,12 +262,13 @@
                 BorderThickness="0,1,0,0">
             <Grid Margin="16,0">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>   <!-- status + mic -->
-                    <ColumnDefinition Width="*"/>      <!-- text input   -->
-                    <ColumnDefinition Width="Auto"/>   <!-- attach/clear -->
+                    <ColumnDefinition Width="Auto"/>   <!-- status + mic   -->
+                    <ColumnDefinition Width="*"/>      <!-- text input     -->
+                    <ColumnDefinition Width="Auto"/>   <!-- submit / cancel -->
+                    <ColumnDefinition Width="Auto"/>   <!-- context + clear -->
                 </Grid.ColumnDefinitions>
 
-                <!-- Left: AI indicator + mic — top-aligned -->
+                <!-- Left: AI indicator + clear — top-aligned -->
                 <StackPanel Grid.Column="0" VerticalAlignment="Top"
                             Margin="0,4,12,0">
 
@@ -276,12 +278,13 @@
                                       IsListening="{Binding AiIsListening}"
                                       Width="28" Height="28"/>
 
-                    <!-- Mic button -->
+                    <!-- Clear input -->
                     <Button Style="{StaticResource IconButton}"
-                            ToolTip="Voice input (toggle)"
-                            Command="{Binding ToggleVoiceCommand}"
+                            ToolTip="Clear input"
+                            Command="{Binding ClearAiInputCommand}"
+                            IsEnabled="{Binding AiIsBusy, Converter={StaticResource InvBool}}"
                             Margin="0,6,0,0">
-                        <TextBlock Text="🎙" FontSize="14"/>
+                        <TextBlock Text="⊗" FontSize="13"/>
                     </Button>
                 </StackPanel>
 
@@ -306,6 +309,7 @@
                         TextWrapping="Wrap"
                         AcceptsReturn="False"
                         SendCommand="{Binding SendAiMessageCommand}"
+                        CompletionText="{Binding AiCompletionSuggestion}"
                         CaretBrush="#FFD8D8D8">
                         <ctrl:PlaceholderTextBox.Style>
                             <Style TargetType="ctrl:PlaceholderTextBox">
@@ -314,27 +318,93 @@
                                     <DataTrigger Binding="{Binding AiInputIsAiTyping}" Value="True">
                                         <Setter Property="Foreground" Value="#06b6d4"/>
                                     </DataTrigger>
+                                    <!-- Disabled while the AI is processing or the mic is listening -->
+                                    <DataTrigger Binding="{Binding AiIsBusy}" Value="True">
+                                        <Setter Property="IsEnabled" Value="False"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsRecording}" Value="True">
+                                        <Setter Property="IsEnabled" Value="False"/>
+                                    </DataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </ctrl:PlaceholderTextBox.Style>
                     </ctrl:PlaceholderTextBox>
                 </Border>
 
-                <!-- Right: attach + clear — top-aligned -->
-                <StackPanel Grid.Column="2" VerticalAlignment="Top"
+                <!-- Submit / Cancel — full height, swaps mode on AiIsBusy -->
+                <Button Grid.Column="2"
+                        VerticalAlignment="Stretch"
+                        Margin="12,6,0,6" MinWidth="56"
+                        Cursor="Hand" FontSize="16"
+                        Foreground="White">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                            <Setter Property="Content" Value="➤"/>
+                            <Setter Property="ToolTip" Value="Send (Enter)"/>
+                            <Setter Property="Command" Value="{Binding SendAiMessageCommand}"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="root"
+                                                Background="{TemplateBinding Background}"
+                                                CornerRadius="10">
+                                            <ContentPresenter HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="root" Property="Opacity" Value="0.85"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <!-- Busy: become a Cancel button (stays enabled while AI processes) -->
+                                <DataTrigger Binding="{Binding AiIsBusy}" Value="True">
+                                    <Setter Property="Content" Value="■"/>
+                                    <Setter Property="ToolTip" Value="Cancel"/>
+                                    <Setter Property="Command" Value="{Binding CancelAiCommand}"/>
+                                    <Setter Property="Background" Value="#E11D48"/>
+                                </DataTrigger>
+                                <!-- Listening: show a listening icon; click to stop early -->
+                                <DataTrigger Binding="{Binding IsRecording}" Value="True">
+                                    <Setter Property="Content" Value="👂"/>
+                                    <Setter Property="ToolTip" Value="Listening… (click to stop)"/>
+                                    <Setter Property="Command" Value="{Binding ToggleVoiceCommand}"/>
+                                    <Setter Property="Background" Value="#06b6d4"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+
+                <!-- Right: context toggle + mic — top-aligned -->
+                <StackPanel Grid.Column="3" VerticalAlignment="Top"
                             Margin="12,4,0,0">
 
-                    <Button Style="{StaticResource IconButton}"
-                            ToolTip="Attach file"
-                            Command="{Binding AttachFileCommand}">
-                        <TextBlock Text="📎" FontSize="14"/>
-                    </Button>
+                    <ToggleButton ToolTip="Include page context"
+                                  IsChecked="{Binding IncludeContext}"
+                                  IsEnabled="{Binding AiIsBusy, Converter={StaticResource InvBool}}"
+                                  Style="{StaticResource ContextToggleButton}">
+                        <TextBlock Text="🔗" FontSize="14"/>
+                    </ToggleButton>
 
-                    <Button Style="{StaticResource IconButton}"
-                            ToolTip="Clear input"
-                            Command="{Binding ClearAiInputCommand}"
+                    <!-- Mic button — enabled only when voice is available; red while listening -->
+                    <Button ToolTip="Voice input (toggle)"
+                            Command="{Binding ToggleVoiceCommand}"
                             Margin="0,6,0,0">
-                        <TextBlock Text="⊗" FontSize="13"/>
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsRecording}" Value="True">
+                                        <Setter Property="Foreground" Value="#E11D48"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                        <TextBlock Text="🎙" FontSize="14"/>
                     </Button>
                 </StackPanel>
             </Grid>

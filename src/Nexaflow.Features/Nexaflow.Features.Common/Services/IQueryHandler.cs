@@ -26,4 +26,12 @@ public interface IQueryHandler
     /// <paramref name="pageVm"/> carries the same context as passed to <see cref="CanProcess"/>.
     /// </summary>
     Task<string?> ProcessAsync(string input, IPageViewModel? pageVm = null);
+
+    /// <summary>
+    /// Optional background "code completion" for in-progress input. Returns the text
+    /// to append after <paramref name="input"/> (the ghost-text remainder), or null
+    /// for no suggestion. Only consulted for the clear-winner handler; must be fast
+    /// and side-effect free. Default: no completion.
+    /// </summary>
+    Task<string?> CompleteAsync(string input, IPageViewModel? pageVm = null) => Task.FromResult<string?>(null);
 }

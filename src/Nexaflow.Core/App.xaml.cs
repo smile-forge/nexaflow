@@ -96,6 +96,13 @@ public partial class App : Application
         var defaultCtx = WorkContextManager.Instance.Contexts[0];
         FeatureManager.Instance.RegisterFeatures();
 
+        // ── 6a. Voice input — capability probe + model download (background) ──
+        var voiceConfig = new VoiceConfig();
+        ConfigManager.Instance.Register(voiceConfig, voiceConfig.ConfigName);
+        WhisperModelManager.Instance.Initialize(activityManager);
+        HostCapabilityService.Instance.StartProbe();
+        Task.Run(() => WhisperModelManager.Instance.EnsureModelDownloaded(voiceConfig));
+
         // ── 7. Torn-off window factory ───────────────────────────────────────
         defaultCtx.ShellServices!.CreateWindowFactory = () =>
         {
@@ -126,6 +133,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        VoiceManager.Instance.Dispose();
         _singleInstance.Dispose();
         base.OnExit(e);
     }
