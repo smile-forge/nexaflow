@@ -2,9 +2,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Documents;
 using System.Windows.Media;
-using Markdig;
 using Nexaflow.Features.AIChat.ViewModels;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Text.Markdown;
@@ -68,10 +66,9 @@ public partial class ConversationView : UserControl, IPageView
 
     private static FrameworkElement BuildMessageElement(ConversationMessage msg)
     {
-        var body = new StackPanel();
-        var doc  = Markdig.Markdown.Parse(msg.Text ?? string.Empty, MarkdownPipelineFactory.Default);
-        foreach (var block in doc)
-            body.Children.Add(BlockRenderer.Render(block, msg.Text ?? string.Empty));
+        // Selectable markdown — drag-select all or part and copy (Ctrl+C / right-click)
+        // in plain text + HTML + markdown formats.
+        var body = new SelectableMarkdownView { Markdown = msg.Text ?? string.Empty };
 
         var bubble = new Border
         {

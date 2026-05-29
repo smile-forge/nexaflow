@@ -30,26 +30,26 @@ public static class BlockRenderer
 {
     // ── Dark-theme palette ────────────────────────────────────────────────
 
-    private static readonly Brush TextBrush        = Frozen(Color.FromRgb(0xE8, 0xEA, 0xF2));
-    private static readonly Brush TextMutedBrush   = Frozen(Color.FromRgb(0x78, 0x80, 0xA0));
-    private static readonly Brush AccentBrush      = Frozen(Color.FromRgb(0x4F, 0x8E, 0xF7));
-    private static readonly Brush CodeBgBrush      = Frozen(Color.FromRgb(0x08, 0x0C, 0x16));
-    private static readonly Brush QuoteBgBrush     = Frozen(Color.FromRgb(0x2A, 0x30, 0x47));
-    private static readonly Brush HeadingBrush     = Frozen(Color.FromRgb(0xA8, 0xD4, 0xFF));
-    private static readonly Brush HrBrush          = Frozen(Color.FromRgb(0x2A, 0x30, 0x47));
-    private static readonly Brush CodeBorderBrush  = Frozen(Color.FromRgb(0x2A, 0x30, 0x47));
-    private static readonly Brush TableBorderBrush = Frozen(Color.FromRgb(0x3A, 0x42, 0x5C));
-    private static readonly Brush TableHeaderBg    = Frozen(Color.FromRgb(0x1E, 0x24, 0x38));
-    private static readonly Brush TableAltRowBg    = Frozen(Color.FromRgb(0x11, 0x15, 0x22));
-    private static readonly Brush DefTermBrush     = Frozen(Color.FromRgb(0xD0, 0xE8, 0xFF));
-    private static readonly Brush FigureBorderBrush= Frozen(Color.FromRgb(0x3A, 0x42, 0x5C));
-    private static readonly Brush FigureBgBrush    = Frozen(Color.FromRgb(0x11, 0x15, 0x22));
-    private static readonly Brush FooterBgBrush    = Frozen(Color.FromRgb(0x11, 0x15, 0x22));
-    private static readonly Brush CitationBrush    = Frozen(Color.FromRgb(0xC8, 0xA8, 0xFF));
+    internal static readonly Brush TextBrush        = Frozen(Color.FromRgb(0xE8, 0xEA, 0xF2));
+    internal static readonly Brush TextMutedBrush   = Frozen(Color.FromRgb(0x78, 0x80, 0xA0));
+    internal static readonly Brush AccentBrush      = Frozen(Color.FromRgb(0x4F, 0x8E, 0xF7));
+    internal static readonly Brush CodeBgBrush      = Frozen(Color.FromRgb(0x08, 0x0C, 0x16));
+    internal static readonly Brush QuoteBgBrush     = Frozen(Color.FromRgb(0x2A, 0x30, 0x47));
+    internal static readonly Brush HeadingBrush     = Frozen(Color.FromRgb(0xA8, 0xD4, 0xFF));
+    internal static readonly Brush HrBrush          = Frozen(Color.FromRgb(0x2A, 0x30, 0x47));
+    internal static readonly Brush CodeBorderBrush  = Frozen(Color.FromRgb(0x2A, 0x30, 0x47));
+    internal static readonly Brush TableBorderBrush = Frozen(Color.FromRgb(0x3A, 0x42, 0x5C));
+    internal static readonly Brush TableHeaderBg    = Frozen(Color.FromRgb(0x1E, 0x24, 0x38));
+    internal static readonly Brush TableAltRowBg    = Frozen(Color.FromRgb(0x11, 0x15, 0x22));
+    internal static readonly Brush DefTermBrush     = Frozen(Color.FromRgb(0xD0, 0xE8, 0xFF));
+    private  static readonly Brush FigureBorderBrush= Frozen(Color.FromRgb(0x3A, 0x42, 0x5C));
+    private  static readonly Brush FigureBgBrush    = Frozen(Color.FromRgb(0x11, 0x15, 0x22));
+    private  static readonly Brush FooterBgBrush    = Frozen(Color.FromRgb(0x11, 0x15, 0x22));
+    private  static readonly Brush CitationBrush    = Frozen(Color.FromRgb(0xC8, 0xA8, 0xFF));
 
-    private static readonly FontFamily BodyFont = new("Segoe UI");
-    private static readonly FontFamily MonoFont = new("Consolas, Courier New");
-    private const double BaseFontSize = 13.5;
+    internal static readonly FontFamily BodyFont = new("Segoe UI");
+    internal static readonly FontFamily MonoFont = new("Consolas, Courier New");
+    internal const double BaseFontSize = 13.5;
 
     private static Brush Frozen(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
 
@@ -530,7 +530,7 @@ public static class BlockRenderer
                 break;
 
             case LiteralInline li:
-                target.Add(new Run(li.Content.ToString()));
+                target.Add(new Run(li.Content.ToString()) { Tag = li.Span });
                 break;
 
             case EmphasisInline ei when ei.DelimiterChar == '^':
@@ -562,7 +562,8 @@ public static class BlockRenderer
                     FontFamily = MonoFont,
                     FontSize   = 12,
                     Background = CodeBgBrush,
-                    Foreground = AccentBrush
+                    Foreground = AccentBrush,
+                    Tag        = ci.Span
                 });
                 break;
 

@@ -1,0 +1,122 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+
+namespace Nexaflow.Visuals.Text.Markdown;
+
+/// <summary>
+/// Read-only, drag-selectable markdown display. Renders <see cref="Markdown"/>
+/// into a transparent read-only <see cref="RichTextBox"/> via
+/// <see cref="MarkdownFlowDocument"/> so the user can select all or part of the
+/// text. Copy (Ctrl+C or the right-click menu) routes through
+/// <see cref="MarkdownClipboard"/>, putting plain text + rendered HTML + markdown
+/// source on the clipboard at once.
+/// </summary>
+public class SelectableMarkdownView : UserControl
+{
+    private readonly RichTextBox _rtb;
+
+    public SelectableMarkdownView()
+    {
+        _rtb = new RichTextBox
+        {
+            IsReadOnly                    = true,
+            IsDocumentEnabled             = true,
+            BorderThickness               = new Thickness(0),
+            Background                    = Brushes.Transparent,
+            Padding                       = new Thickness(0),
+            VerticalScrollBarVisibility   = ScrollBarVisibility.Disabled,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Document                      = new FlowDocument(),
+        };
+
+        // Intercept Copy from both Ctrl+C and the default context menu.
+        CommandManager.AddPreviewExecutedHandler(_rtb, OnPreviewExecuted);
+        _rtb.ContextMenu = BuildContextMenu();
+
+        // When the editor isn't scrolling its own content (auto-size mode), let
+        // the wheel bubble to the host scroller instead of being swallowed.
+        _rtb.PreviewMouseWheel += OnPreviewMouseWheel;
+
+        Background = Brushes.Transparent;
+        Content    = _rtb;
+    }
+
+    // ── Markdown ────────────────────────────────────────────────────────────
+
+    public static readonly DependencyProperty MarkdownProperty =
+        DependencyProperty.Register(nameof(Markdown), typeof(string), typeof(SelectableMarkdownView),
+            new PropertyMetadata(string.Empty, OnMarkdownChanged));
+
+    public string Markdown
+    {
+        get => (string)GetValue(MarkdownProperty);
+        set => SetValue(MarkdownProperty, value);
+    }
+
+    private static void OnMarkdownChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        => ((SelectableMarkdownView)d)._rtb.Document = MarkdownFlowDocument.Build(e.NewValue as string);
+
+    /// <summary>
+    /// Inner editor's vertical scrollbar. Default <see cref="ScrollBarVisibility.Disabled"/>
+    /// so the control auto-sizes to content (e.g. chat bubbles inside an outer
+    /// scroller). Set to <see cref="ScrollBarVisibility.Auto"/> when the control
+    /// fills a fixed region and should scroll itself (e.g. the response overlay).
+    /// </summary>
+    public ScrollBarVisibility VerticalScrollBarVisibility
+    {
+        get => _rtb.VerticalScrollBarVisibility;
+        set => _rtb.VerticalScrollBarVisibility = value;
+    }
+
+    // ── Copy ──────────────────────────────────────────────────────────────
+
+    private ContextMenu BuildContextMenu()
+    {
+        var menu = new ContextMenu();
+
+        var copy = new MenuItem { Header = "Copy" };
+        copy.Click += (_, _) => DoCopy();
+
+        var selectAll = new MenuItem { Header = "Select All" };
+        selectAll.Click += (_, _) => _rtb.SelectAll();
+
+        menu.Items.Add(copy);
+        menu.Items.Add(selectAll);
+        return menu;
+    }
+
+    private void OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (e.Handled || _rtb.VerticalScrollBarVisibility != ScrollBarVisibility.Disabled) return;
+
+        e.Handled = true;
+        if (Parent is UIElement host)
+            host.RaiseEvent(new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+            {
+                RoutedEvent = MouseWheelEvent,
+                Source      = this,
+            });
+    }
+
+    private void OnPreviewExecuted(object sender, ExecutedRoutedEventArgs e)
+    {
+        if (e.Command != ApplicationCommands.Copy) return;
+        if (DoCopy()) e.Handled = true;
+    }
+
+    private bool DoCopy()
+    {
+        try
+        {
+            MarkdownClipboard.CopySelection(_rtb.Selection, _rtb.Document, Markdown ?? string.Empty);
+            return true;
+        }
+        catch
+        {
+            return false;   // fall back to the editor's default copy
+        }
+    }
+}

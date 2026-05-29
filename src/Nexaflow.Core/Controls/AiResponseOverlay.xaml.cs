@@ -2,9 +2,7 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Animation;
-using Markdig;
 using Nexaflow.Core.ViewModels;
-using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Core.Controls;
 
@@ -16,7 +14,6 @@ public partial class AiResponseOverlay : UserControl
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
-        IsVisibleChanged   += (_, _) => RebuildBody();
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -32,27 +29,9 @@ public partial class AiResponseOverlay : UserControl
 
     private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        switch (e.PropertyName)
-        {
-            case nameof(ShellViewModel.AiResponseText):
-                Dispatcher.Invoke(RebuildBody);
-                break;
-            case nameof(ShellViewModel.AiResponseOverlayOpen):
-                if (_vm?.AiResponseOverlayOpen == true)
-                    Dispatcher.Invoke(PlaySlideUp);
-                break;
-        }
-    }
-
-    private void RebuildBody()
-    {
-        MarkdownBody.Children.Clear();
-        var text = _vm?.AiResponseText;
-        if (string.IsNullOrWhiteSpace(text)) return;
-
-        var doc = Markdig.Markdown.Parse(text, MarkdownPipelineFactory.Default);
-        foreach (var block in doc)
-            MarkdownBody.Children.Add(BlockRenderer.Render(block, text));
+        if (e.PropertyName == nameof(ShellViewModel.AiResponseOverlayOpen)
+            && _vm?.AiResponseOverlayOpen == true)
+            Dispatcher.Invoke(PlaySlideUp);
     }
 
     private void PlaySlideUp()
