@@ -15,6 +15,14 @@ public sealed class ConfigDisplayNameAttribute(string displayName) : Attribute
 public sealed class FolderPathAttribute : Attribute { }
 
 /// <summary>
+/// Marks a string property as a filesystem file path.
+/// The Options panel renders a TextBox with a "…" browse button (a styled file picker)
+/// and validates that a non-empty path points at an existing file.
+/// </summary>
+[AttributeUsage(AttributeTargets.Property)]
+public sealed class FilePathAttribute : Attribute { }
+
+/// <summary>
 /// Marks a string property as list-sourced.
 /// The Options panel invokes <see cref="SourceType"/>.<see cref="MethodName"/>() —
 /// a public static parameterless method — and uses the returned <see cref="IEnumerable{T}"/>

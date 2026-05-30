@@ -9,17 +9,19 @@
 
     <StackPanel Margin="4">
 
-        <TextBlock Text="Model Size" Margin="0,0,0,4"
+        <TextBlock Text="Model" Margin="0,0,0,4"
                    Foreground="{StaticResource TextMutedBrush}"/>
-        <ComboBox ItemsSource="{Binding ModelSizes}"
-                  SelectedItem="{Binding SelectedSize}"
-                  Width="240" HorizontalAlignment="Left" Margin="0,0,0,14"/>
+        <ComboBox ItemsSource="{Binding Models}"
+                  SelectedItem="{Binding SelectedModel}"
+                  DisplayMemberPath="DisplayName"
+                  Style="{StaticResource DarkComboBox}"
+                  Width="280" HorizontalAlignment="Left" Margin="0,0,0,8"/>
 
-        <TextBlock Text="Language" Margin="0,0,0,4"
-                   Foreground="{StaticResource TextMutedBrush}"/>
-        <ComboBox ItemsSource="{Binding Languages}"
-                  SelectedItem="{Binding SelectedLanguage}"
-                  Width="240" HorizontalAlignment="Left" Margin="0,0,0,18"/>
+        <!-- What the selected size is suited for -->
+        <TextBlock Text="{Binding SelectedDescription}"
+                   TextWrapping="Wrap" MaxWidth="380" HorizontalAlignment="Left"
+                   Foreground="{StaticResource TextDimBrush}"
+                   FontSize="11" Margin="0,0,0,18"/>
 
         <!-- Download status -->
         <Border Background="{StaticResource SurfaceBrush}"

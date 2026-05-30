@@ -24,13 +24,40 @@ public partial class ConsoleEnvironmentsEditorControl : UserControl, ICustomConf
         _config = DataContext as ConsoleConfig;
         if (_config is null) return;
         _rows = new ObservableCollection<EnvRow>(_config.Environments.Select(env => new EnvRow(env)));
+
+        // Invariant: always at least one environment, and exactly one flagged default.
+        if (_rows.Count == 0)
+            _rows.Add(new EnvRow(new ConsoleEnvironment
+            {
+                Name = "Default", TabTitle = "Console", IsDefault = true
+            }));
+        EnsureSingleDefault();
+
         EnvGrid.ItemsSource = _rows;
     }
 
     public void Apply()
     {
         if (_config is null) return;
+        EnsureSingleDefault();
         _config.Environments = _rows.Select(r => r.ToModel()).ToList();
+    }
+
+    /// <summary>Guarantees exactly one row is the default: keeps the first flagged one,
+    /// or promotes the first row when none is flagged.</summary>
+    private void EnsureSingleDefault()
+    {
+        if (_rows.Count == 0) return;
+        var defaults = _rows.Where(r => r.IsDefault).ToList();
+        if (defaults.Count == 0)
+        {
+            _rows[0].IsDefault = true;
+        }
+        else if (defaults.Count > 1)
+        {
+            foreach (var extra in defaults.Skip(1))
+                extra.IsDefault = false;
+        }
     }
 
     private void AddEnv_Click(object sender, RoutedEventArgs e)
@@ -50,18 +77,19 @@ public partial class ConsoleEnvironmentsEditorControl : UserControl, ICustomConf
     {
         if (EnvGrid.SelectedItem is not EnvRow row) return;
 
-        if (row.IsDefault && _rows.Count > 1)
+        if (_rows.Count <= 1)
         {
             MessageBox.Show(
-                "Assign another environment as the default before removing this one.",
-                "Cannot Remove Default",
+                "At least one environment is required.",
+                "Cannot Remove",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
         _rows.Remove(row);
 
-        if (row.IsDefault && _rows.Count > 0)
+        // Removing the default promotes the new first row so one default always remains.
+        if (row.IsDefault)
             _rows[0].IsDefault = true;
     }
 
@@ -70,6 +98,15 @@ public partial class ConsoleEnvironmentsEditorControl : UserControl, ICustomConf
         if (sender is CheckBox cb && cb.DataContext is EnvRow checkedRow)
             foreach (var r in _rows.Where(r => r != checkedRow))
                 r.IsDefault = false;
+    }
+
+    private void IsDefault_Unchecked(object sender, RoutedEventArgs e)
+    {
+        // A default can't be cleared directly — there must always be one. Re-check it
+        // unless another row already took over as default.
+        if (sender is CheckBox { DataContext: EnvRow row }
+            && !_rows.Any(r => r.IsDefault))
+            row.IsDefault = true;
     }
 
     // ── EnvRow — observable wrapper for in-editor editing ─────────────────

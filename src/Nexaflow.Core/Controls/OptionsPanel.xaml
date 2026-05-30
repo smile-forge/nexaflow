@@ -165,11 +165,58 @@
             </Grid>
         </DataTemplate>
 
+        <!-- ── FilePath template ── -->
+        <DataTemplate x:Key="FilePathTemplate"
+                      DataType="{x:Type vm:PropertyEditViewModel}">
+            <Grid Style="{StaticResource RowGrid}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding Label}"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="12" VerticalAlignment="Center"/>
+                <TextBox Grid.Column="1"
+                         Style="{StaticResource DarkTextBox}"
+                         Text="{Binding Value, UpdateSourceTrigger=LostFocus}"
+                         FontSize="12"
+                         BorderBrush="{Binding ValidationError, Converter={StaticResource ValidationBorderBrush}}"
+                         ToolTip="{Binding ValidationError}"/>
+                <Button Grid.Column="2"
+                        Margin="6,0,0,0"
+                        Style="{StaticResource IconButton}"
+                        ToolTip="Browse for file…"
+                        Command="{Binding BrowseFileCommand}">
+                    <TextBlock Text="…" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
+                </Button>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ── Toggle (bool) template ── -->
+        <DataTemplate x:Key="ToggleTemplate"
+                      DataType="{x:Type vm:PropertyEditViewModel}">
+            <Grid Style="{StaticResource RowGrid}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding Label}"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="12" VerticalAlignment="Center"/>
+                <ToggleButton Grid.Column="1"
+                              Style="{StaticResource ToggleSwitch}"
+                              IsChecked="{Binding Value}"/>
+            </Grid>
+        </DataTemplate>
+
         <local:PropertyEditorSelector x:Key="EditorSelector"
                                       TextBoxTemplate="{StaticResource TextBoxTemplate}"
                                       FolderPathTemplate="{StaticResource FolderPathTemplate}"
+                                      FilePathTemplate="{StaticResource FilePathTemplate}"
                                       EnumComboBoxTemplate="{StaticResource EnumComboBoxTemplate}"
-                                      ListComboBoxTemplate="{StaticResource ListComboBoxTemplate}"/>
+                                      ListComboBoxTemplate="{StaticResource ListComboBoxTemplate}"
+                                      ToggleTemplate="{StaticResource ToggleTemplate}"/>
     </UserControl.Resources>
 
     <Grid>
