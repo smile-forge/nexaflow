@@ -43,7 +43,7 @@ public sealed class WorkContextManager
 
     /// <summary>
     /// Creates a new <see cref="WorkContext"/> with a fresh <see cref="AIService"/> and
-    /// <see cref="ShellServices"/>, registers all currently loaded providers, and adds it
+    /// <see cref="ShellServices"/>, builds its per-context provider set, and adds it
     /// to <see cref="Contexts"/>.
     /// </summary>
     public WorkContext Create(string name)
@@ -52,6 +52,44 @@ public sealed class WorkContextManager
         BootstrapServices(ctx);
         Contexts.Add(ctx);
         return ctx;
+    }
+
+    /// <summary>
+    /// Creates a new context whose AI ability config and provider configs (API keys etc.) are
+    /// copied from <paramref name="source"/>, with a randomised icon/colour so it is visually
+    /// distinct. The copied configs are written to the new context's own folder, then read back
+    /// when its services are bootstrapped.
+    /// </summary>
+    public WorkContext Clone(WorkContext source, string name)
+    {
+        var (icon, color) = WorkContextStyle.Random();
+        var ctx = new WorkContext { Name = name, Icon = icon, Color = color };
+        var dir = ContextDir(name);
+
+        // Persist the source's current configs into the clone's folder so BootstrapServices reads them.
+        ConfigManager.Instance.SaveTo(dir, source.AiConfig, source.AiConfig.ConfigName);
+        foreach (var cfg in source.Providers?.Configs ?? [])
+            ConfigManager.Instance.SaveTo(dir, cfg, cfg.ConfigName);
+
+        BootstrapServices(ctx);
+        Contexts.Add(ctx);
+        return ctx;
+    }
+
+    /// <summary>
+    /// Rebuilds <paramref name="ctx"/>'s provider set from the currently-loaded provider assemblies
+    /// (reloading each provider config from the context's folder) and re-registers the providers
+    /// into its live <see cref="AIService"/>. Called when the AI options panel opens so newly
+    /// discovered providers and on-disk config changes take effect.
+    /// </summary>
+    public void RefreshProviders(WorkContext ctx)
+    {
+        ctx.Providers          = ProviderManager.Instance.CreateProviderSet(ContextDir(ctx.Name));
+        ctx.AiConfig.Providers = ctx.Providers;
+
+        if (ctx.AiService is { } svc)
+            foreach (var (name, provider) in ctx.Providers.Providers)
+                svc.Register(name, provider);
     }
 
     /// <summary>
@@ -95,10 +133,14 @@ public sealed class WorkContextManager
         // Load this context's AI ability config from its own folder (default if absent).
         ConfigManager.Instance.LoadFrom(contextDir, ctx.AiConfig, ctx.AiConfig.ConfigName);
 
+        // Per-context provider instances, each with this context's own config (API keys etc.).
+        ctx.Providers          = ProviderManager.Instance.CreateProviderSet(contextDir);
+        ctx.AiConfig.Providers = ctx.Providers;
+
         // AIService — always recreate so provider registrations stay current
         var service = new AIService(ctx, Path.Combine(contextDir, "Conversations"));
 
-        foreach (var (name, provider) in ProviderManager.Instance.LoadedProviders)
+        foreach (var (name, provider) in ctx.Providers.Providers)
             service.Register(name, provider);
 
         service.LoadAbilityConfig(ctx.AiConfig);

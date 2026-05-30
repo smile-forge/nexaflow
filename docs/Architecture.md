@@ -103,7 +103,7 @@ Each feature assembly follows the same internal structure:
 
 ### Nexaflow.Providers.*
 
-All providers implement `ILlmProvider` (and optionally `IAsyncDisposable`) from `Providers.Common`. Core registers them with `ProviderManager` at startup; the shell never references provider types directly — it goes through `LlmProviderRegistry` to resolve the configured basic/conversation provider.
+All providers implement `ILlmProvider` (and optionally `IAsyncDisposable`) from `Providers.Common`. `ProviderManager` loads the plugin assemblies at startup and records the provider/config **types** they expose — it does not create instances. Providers are **per-WorkContext**: each context builds its own `ProviderSet` via `ProviderManager.CreateProviderSet(contextDir)`, instantiating a fresh `IProviderConfig` per type loaded from that context's own folder (`Contexts/<name>/<configName>/`) and constructing the providers with it. So two contexts can hold different subscriptions for the same provider. The set lives on `WorkContext.Providers` and is registered into that context's `AIService`; the AI ability grid and provider-config editors operate on it through `WorkContext.AiConfig.Providers`.
 
 | Assembly | Backing service |
 |----------|----------------|

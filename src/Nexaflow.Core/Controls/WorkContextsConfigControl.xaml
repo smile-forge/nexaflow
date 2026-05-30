@@ -75,14 +75,24 @@
                                     </Grid>
                                 </StackPanel>
 
-                                <!-- Remove button -->
-                                <Button Grid.Column="2" Content="✕"
-                                        Margin="8,0,0,0"
-                                        Style="{StaticResource TopBarAction}"
-                                        FontSize="12"
-                                        Tag="{Binding}"
-                                        Click="OnRemoveClick"
-                                        VerticalAlignment="Center"/>
+                                <!-- Clone + Remove buttons -->
+                                <StackPanel Grid.Column="2" Orientation="Horizontal"
+                                            VerticalAlignment="Center">
+                                    <Button Content="⧉"
+                                            Margin="8,0,0,0"
+                                            Style="{StaticResource TopBarAction}"
+                                            FontSize="12"
+                                            ToolTip="Clone this context (new symbol &amp; colour, all other settings copied)"
+                                            Tag="{Binding}"
+                                            Click="OnCloneClick"/>
+                                    <Button Content="✕"
+                                            Margin="4,0,0,0"
+                                            Style="{StaticResource TopBarAction}"
+                                            FontSize="12"
+                                            ToolTip="Remove this context"
+                                            Tag="{Binding}"
+                                            Click="OnRemoveClick"/>
+                                </StackPanel>
                             </Grid>
                         </Border>
                     </DataTemplate>

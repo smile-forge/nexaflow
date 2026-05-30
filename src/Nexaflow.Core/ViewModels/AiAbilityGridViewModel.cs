@@ -3,7 +3,6 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
-using Nexaflow.Providers.Common;
 using System.Collections.ObjectModel;
 
 namespace Nexaflow.Core.ViewModels;
@@ -114,9 +113,8 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
         SuggestedModels.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasModelSuggestions));
 
-        // Load any provider plugins not yet loaded at startup
-        ProviderManager.Instance.DiscoverAll();
-
+        // Provider plugins are loaded and this context's provider set is (re)built by
+        // ManageAiViewModel before the grid is shown; we read it via _config.Providers.
         RebuildAvailableProviders();
 
         // Build column list: None first, then saved pairs
@@ -193,7 +191,8 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
     private async Task LoadModelsAsync(string providerName)
     {
-        if (!ProviderManager.Instance.LoadedProviders.TryGetValue(providerName, out var provider))
+        if (_config.Providers is not { } set
+            || !set.Providers.TryGetValue(providerName, out var provider))
             return;
 
         IsLoadingModels = true;
@@ -217,10 +216,10 @@ public partial class AiAbilityGridViewModel : ObservableObject
     private void RebuildAvailableProviders()
     {
         AvailableProviders.Clear();
-        var providerConfigs = ConfigManager.Instance.GetAll()
-            .OfType<IProviderConfig>()
-            .ToDictionary(c => c.FriendlyName);
-        foreach (var name in ProviderManager.Instance.LoadedProviders.Keys)
+        if (_config.Providers is not { } set) return;
+
+        var providerConfigs = set.Configs.ToDictionary(c => c.FriendlyName);
+        foreach (var name in set.Providers.Keys)
         {
             if (providerConfigs.TryGetValue(name, out var cfg)
                 && !ConfigEditViewModel.AreRequiredPropertiesSatisfied(cfg))
@@ -246,7 +245,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
         var colVm = new AiColumnViewModel(
             Guid.NewGuid().ToString("N"), NewProviderName, NewModelName,
-            ProviderManager.Instance.GetAssemblyFileName(NewProviderName));
+            _config.Providers?.GetAssemblyFileName(NewProviderName) ?? string.Empty);
 
         Columns.Add(colVm);
 
