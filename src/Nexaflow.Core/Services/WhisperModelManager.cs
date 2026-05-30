@@ -29,6 +29,12 @@ public sealed class WhisperModelManager
     /// <summary>Raised on the UI thread when a download starts, advances, or finishes.</summary>
     public event EventHandler? DownloadProgressChanged;
 
+    /// <summary>Raised on the UI thread only after a fresh download succeeds (not when already present).</summary>
+    public event EventHandler? ModelDownloadCompleted;
+
+    /// <summary>Raised on the UI thread when a download fails, carrying the error message.</summary>
+    public event EventHandler<string>? ModelDownloadFailed;
+
     /// <summary>True while a model download is in progress.</summary>
     public bool IsDownloading => Volatile.Read(ref _downloading) == 1;
 
@@ -91,11 +97,13 @@ public sealed class WhisperModelManager
             SetDownloadPercent(100);
             handle?.Complete();
             RaiseReadyChanged();
+            RaiseOnUi(ModelDownloadCompleted);
         }
         catch (Exception ex)
         {
             handle?.Fail(ex.Message);
             try { if (File.Exists(tmp)) File.Delete(tmp); } catch { /* best effort */ }
+            DispatchToUi(() => ModelDownloadFailed?.Invoke(this, ex.Message));
         }
         finally
         {
@@ -118,8 +126,12 @@ public sealed class WhisperModelManager
     private void RaiseOnUi(EventHandler? handler)
     {
         if (handler is null) return;
+        DispatchToUi(() => handler.Invoke(this, EventArgs.Empty));
+    }
+
+    private static void DispatchToUi(Action raise)
+    {
         var dispatcher = Application.Current?.Dispatcher;
-        Action raise = () => handler.Invoke(this, EventArgs.Empty);
         if (dispatcher is null || dispatcher.CheckAccess()) raise();
         else dispatcher.Invoke(raise);
     }

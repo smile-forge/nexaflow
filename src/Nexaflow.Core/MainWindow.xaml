@@ -439,6 +439,25 @@
                                         <TextBlock Text="{Binding Body}"
                                                    Foreground="{StaticResource TextMutedBrush}"
                                                    FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                        <!-- Message actions — same actions as the toast, triggerable from the inbox -->
+                                        <ItemsControl ItemsSource="{Binding Actions}"
+                                                      Visibility="{Binding HasActions, Converter={StaticResource BoolVis}}"
+                                                      Margin="0,6,0,0">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type m:MessageAction}">
+                                                    <Button Content="{Binding Label}"
+                                                            Style="{StaticResource TopBarAction}"
+                                                            Padding="10,4" Margin="0,0,6,0"
+                                                            Foreground="{StaticResource TextBrush}"
+                                                            Command="{Binding Command}"/>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
                                     </StackPanel>
                                     <Button Grid.Column="1" VerticalAlignment="Top"
                                             Style="{StaticResource TopBarAction}"
@@ -579,71 +598,42 @@
                 SaveCommand="{Binding ViewModel.SaveCommand, ElementName=RibbonControl}"/>
 
         <!-- ═══════════════════════════════════════════════════════════
-             OVERLAY — ERROR TOAST
-             Appears at the bottom-right when ErrorToast is non-null.
+             OVERLAY — TOAST  (transient presentation of the active message)
+             Bound to ActiveToast; severity drives the colour/icon. Renders the
+             message's actions as buttons. Auto-dismisses (duration by severity).
              ═══════════════════════════════════════════════════════════ -->
         <Border Grid.Row="0" Grid.RowSpan="5"
-                Visibility="{Binding ErrorToast, Converter={StaticResource StringVis}}"
-                HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                Margin="0,0,24,110"
-                MaxWidth="420"
-                Panel.ZIndex="200"
-                Background="#CC2a0a0a"
-                BorderBrush="#FF6B3333"
-                BorderThickness="1"
-                CornerRadius="8"
-                Padding="16,12">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-
-                <!-- Warning icon -->
-                <TextBlock Grid.Column="0" Text="⚠" FontSize="16"
-                           Foreground="#FFDD6B"
-                           VerticalAlignment="Top" Margin="0,1,10,0"/>
-
-                <!-- Message -->
-                <StackPanel Grid.Column="1">
-                    <TextBlock Text="An Error Occurred"
-                               FontSize="12" FontWeight="SemiBold"
-                               Foreground="#FFCCAA"/>
-                    <TextBlock Text="{Binding ErrorToast}"
-                               FontSize="11"
-                               Foreground="#FFAA88"
-                               TextWrapping="Wrap"
-                               Margin="0,3,0,0"/>
-                </StackPanel>
-
-                <!-- Dismiss button -->
-                <Button Grid.Column="2" VerticalAlignment="Top"
-                        Style="{StaticResource TopBarAction}"
-                        Margin="10,0,0,0"
-                        Command="{Binding ClearErrorToastCommand}">
-                    <TextBlock Text="✕" FontSize="11"
-                               Foreground="#FF9977"/>
-                </Button>
-            </Grid>
-        </Border>
-
-        <!-- ═══════════════════════════════════════════════════════════
-             OVERLAY — UPDATE TOAST
-             Appears at the bottom-right when UpdateToastVersion is non-null.
-             Auto-dismisses after 5 minutes.
-             ═══════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="0" Grid.RowSpan="5"
-                Visibility="{Binding UpdateToastVersion, Converter={StaticResource StringVis}}"
+                Visibility="{Binding DataContext.ToastVisible, RelativeSource={RelativeSource AncestorType=Window},
+                                     Converter={StaticResource BoolVis}}"
+                DataContext="{Binding ActiveToast}"
                 HorizontalAlignment="Right" VerticalAlignment="Bottom"
                 Margin="0,0,24,110"
                 MaxWidth="460"
                 Panel.ZIndex="210"
-                Background="#CC0a1828"
-                BorderBrush="#FF336688"
                 BorderThickness="1"
                 CornerRadius="8"
                 Padding="16,14">
+            <Border.Style>
+                <!-- Default = Info palette; DataTriggers override per severity. -->
+                <Style TargetType="Border">
+                    <Setter Property="Background" Value="#CC0a2818"/>
+                    <Setter Property="BorderBrush" Value="#FF336655"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Severity}" Value="Warning">
+                            <Setter Property="Background" Value="#CC2a0a0a"/>
+                            <Setter Property="BorderBrush" Value="#FF6B3333"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Severity}" Value="Error">
+                            <Setter Property="Background" Value="#CC2a0a0a"/>
+                            <Setter Property="BorderBrush" Value="#FF6B3333"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Severity}" Value="Update">
+                            <Setter Property="Background" Value="#CC0a1828"/>
+                            <Setter Property="BorderBrush" Value="#FF336688"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -651,71 +641,98 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <!-- Header: icon + title + version chip + close -->
+                <!-- Header: severity icon + title + close -->
                 <Grid Grid.Row="0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Grid.Column="0" Text="⬆" FontSize="16"
-                               Foreground="#66AAFF"
-                               VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <TextBlock Grid.Column="1" Text="Update Available"
+                    <TextBlock Grid.Column="0" FontSize="16"
+                               VerticalAlignment="Center" Margin="0,0,10,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="ℹ"/>
+                                <Setter Property="Foreground" Value="#66FFAA"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Severity}" Value="Warning">
+                                        <Setter Property="Text" Value="⚠"/>
+                                        <Setter Property="Foreground" Value="#FFDD6B"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Severity}" Value="Error">
+                                        <Setter Property="Text" Value="⚠"/>
+                                        <Setter Property="Foreground" Value="#FFDD6B"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Severity}" Value="Update">
+                                        <Setter Property="Text" Value="⬆"/>
+                                        <Setter Property="Foreground" Value="#66AAFF"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <TextBlock Grid.Column="1" Text="{Binding Title}"
                                FontSize="13" FontWeight="SemiBold"
-                               Foreground="#AACCFF"
+                               Foreground="{StaticResource TextBrush}"
+                               TextWrapping="Wrap"
                                VerticalAlignment="Center"/>
-                    <Border Grid.Column="2"
-                            Background="#1A336688" BorderBrush="#FF336688"
-                            BorderThickness="1" CornerRadius="4"
-                            Padding="6,2" Margin="8,0,0,0"
-                            VerticalAlignment="Center">
-                        <TextBlock Text="{Binding UpdateToastVersion}"
-                                   FontSize="11" FontWeight="SemiBold"
-                                   Foreground="#88BBFF"/>
-                    </Border>
-                    <Button Grid.Column="3" VerticalAlignment="Top"
+
+                    <Button Grid.Column="2" VerticalAlignment="Top"
                             Style="{StaticResource TopBarAction}"
                             Margin="10,0,0,0"
-                            Command="{Binding DismissUpdateToastCommand}">
-                        <TextBlock Text="✕" FontSize="11"
-                                   Foreground="#6688AA"/>
+                            Command="{Binding DataContext.DismissActiveToastCommand,
+                                              RelativeSource={RelativeSource AncestorType=Window}}">
+                        <TextBlock Text="✕" FontSize="11" Foreground="{StaticResource TextDimBrush}"/>
                     </Button>
                 </Grid>
 
-                <!-- Changelog scroll area -->
+                <!-- Body (scrollable — long changelogs) -->
                 <ScrollViewer Grid.Row="1"
                               MaxHeight="120"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled"
                               Margin="0,10,0,0">
-                    <TextBlock Text="{Binding UpdateToastChangelog}"
+                    <TextBlock Text="{Binding Body}"
                                FontSize="11"
-                               Foreground="#7799BB"
+                               Foreground="{StaticResource TextMutedBrush}"
                                TextWrapping="Wrap"/>
                 </ScrollViewer>
 
-                <!-- Action buttons -->
-                <StackPanel Grid.Row="2" Orientation="Horizontal"
-                            HorizontalAlignment="Right"
-                            Margin="0,12,0,0">
-                    <Button Content="Not Now"
-                            Style="{StaticResource TopBarAction}"
-                            Padding="12,5"
-                            Foreground="#6688AA"
-                            Margin="0,0,8,0"
-                            Command="{Binding DismissUpdateToastCommand}"/>
-                    <Button Content="Update"
-                            Style="{StaticResource TopBarAction}"
-                            Padding="12,5"
-                            Foreground="#AACCFF"
-                            Background="#1A336688"
-                            BorderBrush="#FF336688"
-                            BorderThickness="1"
-                            Command="{Binding AcceptUpdateCommand}"/>
-                </StackPanel>
+                <!-- Action buttons (from the message's Actions) -->
+                <ItemsControl Grid.Row="2"
+                              Visibility="{Binding HasActions, Converter={StaticResource BoolVis}}"
+                              ItemsSource="{Binding Actions}"
+                              Margin="0,12,0,0" HorizontalAlignment="Right">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type m:MessageAction}">
+                            <Button Content="{Binding Label}"
+                                    Padding="12,5" Margin="8,0,0,0"
+                                    Foreground="{StaticResource TextBrush}"
+                                    Command="{Binding DataContext.RunToastActionCommand,
+                                                      RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CommandParameter="{Binding}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource TopBarAction}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsPrimary}" Value="True">
+                                                <Setter Property="Background" Value="#1A4488CC"/>
+                                                <Setter Property="BorderBrush" Value="#FF4488CC"/>
+                                                <Setter Property="BorderThickness" Value="1"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
             </Grid>
         </Border>
 

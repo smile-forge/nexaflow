@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using System.Windows;
 using System.Windows.Controls;
@@ -27,8 +28,12 @@ public partial class ShellConfigControl : UserControl, ICustomConfigApply
     {
         if (DataContext is ShellConfig cfg && _vm is not null)
         {
-            cfg.Theme    = _vm.Theme;
-            cfg.Language = _vm.Language;
+            cfg.Theme           = _vm.Theme;
+            cfg.Language        = _vm.Language;
+            cfg.PrestartAtLogin = _vm.PrestartAtLogin;
+
+            // Sync the HKCU Run entry to the toggle (takes effect next login).
+            LoginAutoStartService.Set(_vm.PrestartAtLogin);
         }
     }
 }
@@ -45,6 +50,7 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
 
     [ObservableProperty] private string _selectedTheme;
     [ObservableProperty] private string _selectedLanguage;
+    [ObservableProperty] private bool _prestartAtLogin;
     [ObservableProperty] private IReadOnlyList<Color> _swatches = [];
 
     public ThemeOption    Theme    => Enum.Parse<ThemeOption>(_selectedTheme);
@@ -54,6 +60,7 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
     {
         _selectedTheme    = cfg.Theme.ToString();
         _selectedLanguage = cfg.Language.ToString();
+        _prestartAtLogin  = cfg.PrestartAtLogin;
         LoadSwatches(cfg.Theme);
     }
 
