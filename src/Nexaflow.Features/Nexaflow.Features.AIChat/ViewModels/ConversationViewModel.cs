@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -15,8 +16,20 @@ namespace Nexaflow.Features.AIChat.ViewModels;
 /// </summary>
 public partial class ConversationViewModel : ObservableObject, IPageViewModel
 {
-    private readonly IAIService _aiService;
-    private readonly Page       _ownerPage;
+    private readonly IAIService    _aiService;
+    private readonly IShellServices _shell;
+    private readonly AiChatConfig  _config;
+    private readonly Page          _ownerPage;
+
+    /// <summary>True once an exchange has been appended in this open session — gates analysis on close.</summary>
+    private bool _contentAddedThisSession;
+
+    /// <summary>Prior analysis loaded on resume; when set, history before <see cref="_analyzedMessageCount"/> is summarized rather than replayed.</summary>
+    private ConversationAnalysis? _resumeAnalysis;
+    private int _analyzedMessageCount;
+
+    /// <summary>Message-count cap used as history fallback when the model's context window is unknown.</summary>
+    private const int FallbackHistoryMessages = 12;
 
     [ObservableProperty] private ConversationRecord? _conversation;
     [ObservableProperty] private string _title = "Conversation";
@@ -27,14 +40,33 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel
     public ObservableCollection<Page>                ContextItems { get; } = [];
     public ObservableCollection<string>              Attachments  { get; } = [];
 
-    public ConversationViewModel(IAIService aiService, Page ownerPage)
+    public ConversationViewModel(IAIService aiService, IShellServices shell, AiChatConfig config, Page ownerPage)
     {
         _aiService = aiService;
+        _shell     = shell;
+        _config    = config;
         _ownerPage = ownerPage;
 
         Messages.CollectionChanged    += (_, _) => RecomputeTokens();
         ContextItems.CollectionChanged += (_, _) => RecomputeTokens();
         Attachments.CollectionChanged  += (_, _) => RecomputeTokens();
+
+        _ownerPage.Closed += OnOwnerClosed;
+    }
+
+    /// <summary>
+    /// On tab close, queue a background analysis of the conversation when analysis is enabled and
+    /// content was added this session. Replaces any prior analysis (covers the full current transcript).
+    /// </summary>
+    private void OnOwnerClosed(object? sender, EventArgs e)
+    {
+        _ownerPage.Closed -= OnOwnerClosed;
+
+        if (!_config.IsAnalysisEnabled) return;
+        if (!_contentAddedThisSession)  return;
+        if (Conversation is not { Messages.Count: > 0 }) return;
+
+        _shell.QueueBackgroundTask(new ConversationAnalysisTask(_aiService, Conversation));
     }
 
     /// <summary>Loads a persisted conversation by id and pulls the model context window.</summary>
@@ -56,11 +88,28 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel
 
         UpdateBreadcrumb();
 
+        // Resume context: prefer a prior analysis (only replay messages it doesn't already cover).
+        try
+        {
+            var json = await _aiService.LoadConversationArtifactAsync(rec.Id, ConversationAnalysisTask.ArtifactName);
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                _resumeAnalysis = JsonSerializer.Deserialize<ConversationAnalysis>(json, AnalysisJsonOpts);
+                _analyzedMessageCount = _resumeAnalysis?.AnalyzedMessageCount ?? 0;
+            }
+        }
+        catch { _resumeAnalysis = null; }
+
         try { ContextWindow = await _aiService.GetConversationContextWindowAsync(); }
         catch { ContextWindow = null; }
 
         RecomputeTokens();
     }
+
+    private static readonly JsonSerializerOptions AnalysisJsonOpts = new()
+    {
+        PropertyNameCaseInsensitive = true,
+    };
 
     /// <summary>
     /// Appends a user prompt + AI response to this conversation (and to disk).
@@ -79,6 +128,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel
         Messages.Add(u);
         Messages.Add(a);
         Conversation.Attachments = [.. Attachments];
+        _contentAddedThisSession = true;
 
         try { await _aiService.SaveAsync(Conversation); }
         catch { /* persistence failures shouldn't kill the UI */ }
@@ -201,10 +251,12 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel
     // ── IPageViewModel ────────────────────────────────────────────────────
 
     /// <summary>
-    /// Combined context handed to the AI on every call: each pinned context item
-    /// (folder listings for FileSystem tabs, plain GetContext text for others)
-    /// followed by the last six messages of this conversation. Attachments are
-    /// listed by path.
+    /// Combined context handed to the AI on every call: pinned context items, attachments, then
+    /// conversation history. History is budgeted to 75% of the model's context window (older
+    /// messages dropped once that's exceeded). When the conversation was resumed with a prior
+    /// analysis, that analysis is included in place of the messages it already covers, and only
+    /// later messages are replayed. With an unknown context window, the last
+    /// <see cref="FallbackHistoryMessages"/> messages are used.
     /// </summary>
     public string GetContext()
     {
@@ -235,14 +287,76 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel
             }
         }
 
+        var hasWindow  = ContextWindow is int w && w > 0;
+        long budget    = hasWindow ? (long)(ContextWindow!.Value * 0.75) : long.MaxValue;
+        long remaining = budget - EstTokens(sb.ToString());
+
+        var messages   = Conversation?.Messages ?? [];
+        var startIndex = 0;
+
+        if (_resumeAnalysis is not null)
+        {
+            var block = BuildAnalysisBlock(_resumeAnalysis);
+            sb.AppendLine("---");
+            sb.AppendLine("[Prior conversation analysis]");
+            sb.AppendLine(block);
+            remaining -= EstTokens(block);
+            startIndex = Math.Min(_analyzedMessageCount, messages.Count);
+        }
+
         sb.AppendLine("---");
         sb.AppendLine("[Conversation]");
-        if (Conversation is null || Conversation.Messages.Count == 0)
-            sb.AppendLine("(empty)");
-        else
-            foreach (var m in Conversation.Messages.TakeLast(6))
-                sb.AppendLine((m.IsUser ? "User: " : "Assistant: ") + m.Text);
 
+        var pool = messages.Skip(startIndex).ToList();
+        if (pool.Count == 0)
+        {
+            sb.AppendLine(_resumeAnalysis is not null ? "(no messages since analysis)" : "(empty)");
+            return sb.ToString();
+        }
+
+        // Pick the most recent messages that fit the budget (always keep at least the latest).
+        List<ConversationMessage> selected;
+        if (hasWindow)
+        {
+            selected = [];
+            long acc = 0;
+            for (int i = pool.Count - 1; i >= 0; i--)
+            {
+                var t = EstTokens((pool[i].IsUser ? "User: " : "Assistant: ") + pool[i].Text);
+                if (acc + t > remaining && selected.Count > 0) break;
+                acc += t;
+                selected.Insert(0, pool[i]);
+            }
+        }
+        else
+        {
+            selected = [.. pool.TakeLast(FallbackHistoryMessages)];
+        }
+
+        if (selected.Count < pool.Count)
+            sb.AppendLine("(earlier messages omitted — context budget)");
+        foreach (var m in selected)
+            sb.AppendLine((m.IsUser ? "User: " : "Assistant: ") + m.Text);
+
+        return sb.ToString();
+    }
+
+    /// <summary>Estimated tokens for a string, using the same 1.1-tokens-per-word heuristic as the footer.</summary>
+    private static long EstTokens(string? text) => CountWords(text) * 11L / 10L;
+
+    /// <summary>Renders a prior analysis as a compact context block.</summary>
+    private static string BuildAnalysisBlock(ConversationAnalysis a)
+    {
+        var sb = new StringBuilder();
+        if (!string.IsNullOrWhiteSpace(a.Summary))              sb.Append("Summary: ").AppendLine(a.Summary);
+        if (!string.IsNullOrWhiteSpace(a.Topic))               sb.Append("Topic: ").AppendLine(a.Topic);
+        if (!string.IsNullOrWhiteSpace(a.Tone))                sb.Append("Tone: ").AppendLine(a.Tone);
+        if (!string.IsNullOrWhiteSpace(a.ToneEvolution))       sb.Append("Tone evolution: ").AppendLine(a.ToneEvolution);
+        if (!string.IsNullOrWhiteSpace(a.UnderstandingOfUser)) sb.Append("Understanding of user: ").AppendLine(a.UnderstandingOfUser);
+        if (!string.IsNullOrWhiteSpace(a.UnderstandingOfAgent))sb.Append("Understanding of agent: ").AppendLine(a.UnderstandingOfAgent);
+        if (a.KeyDecisionPoints.Count > 0)   sb.Append("Key decisions: ").AppendLine(string.Join("; ", a.KeyDecisionPoints));
+        if (a.ImportantFacts.Count > 0)      sb.Append("Important facts: ").AppendLine(string.Join("; ", a.ImportantFacts));
+        if (a.ValuableAttachments.Count > 0) sb.Append("Valuable attachments: ").AppendLine(string.Join("; ", a.ValuableAttachments));
         return sb.ToString();
     }
 

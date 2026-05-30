@@ -105,7 +105,7 @@ public sealed class WorkContextManager
         ctx.AiService = service;
 
         // ShellServices — preserve existing instance; it holds live window/tab state
-        ctx.ShellServices ??= new ShellServices(ctx);
+        ctx.ShellServices ??= new ShellServices(ctx, ProviderManager.Instance.ActivityManager);
 
         // RibbonLayoutService — always recreate (path is deterministic from context name)
         ctx.RibbonService = new RibbonLayoutService(contextDir);

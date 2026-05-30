@@ -703,7 +703,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
             }
 
             if (result is not null)
-                OpenAiChatTab(text, result);
+                ShowAiResponseOverlay(text, result);
             return;
         }
 
@@ -743,17 +743,6 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
                     ShowAiResponseOverlay(text, response.Text!);
                 break;
         }
-    }
-
-    /// <summary>
-    /// Query-handler results route through the AIChat tab (legacy behaviour).
-    /// Conversational AI replies use <see cref="ShowAiResponseOverlay"/>.
-    /// </summary>
-    private void OpenAiChatTab(string input, string response)
-    {
-        var params_ = new Dictionary<string, string>
-            { ["input"] = input, ["output"] = response };
-        _shellServices.OpenTab("AIChat", params_);
     }
 
     private void ShowAiResponseOverlay(string input, string response)

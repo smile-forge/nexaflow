@@ -12,11 +12,15 @@ namespace Nexaflow.Features.AIChat
         public static string StaticPageKind => "AIChat";
         public string PageKind => StaticPageKind;
 
-        private readonly IAIService _aiService;
+        private readonly IAIService     _aiService;
+        private readonly IShellServices _shell;
+        private readonly AiChatConfig   _config;
 
-        public AIChatTabRegistration(IAIService aiService)
+        public AIChatTabRegistration(IAIService aiService, IShellServices shell, AiChatConfig config)
         {
             _aiService = aiService;
+            _shell     = shell;
+            _config    = config;
         }
 
         public Page CreatePage(Dictionary<string, string>? pageParams = null)
@@ -29,13 +33,7 @@ namespace Nexaflow.Features.AIChat
             };
             tab.ContentFactory = () =>
             {
-                var page = new AiChatPage(_aiService);
-                page.TitleChanged += title =>
-                {
-                    tab.Title = title;
-                    tab.Breadcrumbs.Clear();
-                    tab.Breadcrumbs.Add(new BreadcrumbSegment { Label = title });
-                };
+                var page = new AiChatPage(_aiService, _shell, _config);
                 if (pageParams is not null)
                     page.Reinitialize(pageParams);
                 return page;

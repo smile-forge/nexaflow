@@ -8,6 +8,7 @@ public enum AiAbility
     ImageRecognition,
     ImageGeneration,
     AudioRecognition,
+    Analysis,
 }
 
 internal static class AiAbilityNames
@@ -20,6 +21,7 @@ internal static class AiAbilityNames
         AiAbility.ImageRecognition => "Image Recognition",
         AiAbility.ImageGeneration  => "Image Generation",
         AiAbility.AudioRecognition => "Audio Recognition",
+        AiAbility.Analysis         => "Analysis",
         _                          => a.ToString()
     };
 }

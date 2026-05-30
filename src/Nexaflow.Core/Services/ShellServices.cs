@@ -1,9 +1,12 @@
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Views;
 using Nexaflow.Features.Common;
+using Nexaflow.Providers.Common;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -17,8 +20,39 @@ namespace Nexaflow.Core.Services;
 public sealed class ShellServices : IShellServices
 {
     private readonly WorkContext _workContext;
+    private readonly IBackgroundActivityManager? _activity;
 
-    public ShellServices(WorkContext workContext) => _workContext = workContext;
+    public ShellServices(WorkContext workContext, IBackgroundActivityManager? activity = null)
+    {
+        _workContext = workContext;
+        _activity    = activity;
+    }
+
+    public void QueueBackgroundTask(IBackgroundTask task, Action<bool>? onComplete = null)
+    {
+        ArgumentNullException.ThrowIfNull(task);
+
+        var handle = _activity?.StartActivity(task.Description);
+        _ = Task.Run(async () =>
+        {
+            var ok = false;
+            try
+            {
+                await task.RunAsync(CancellationToken.None);
+                handle?.Complete();
+                ok = true;
+            }
+            catch (Exception ex)
+            {
+                handle?.Fail(ex.Message);
+            }
+            finally
+            {
+                if (onComplete is not null)
+                    Application.Current?.Dispatcher.Invoke(() => onComplete(ok));
+            }
+        });
+    }
 
     // ── Window registry ───────────────────────────────────────────────────
 

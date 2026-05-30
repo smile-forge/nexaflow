@@ -14,11 +14,15 @@ public sealed class ConversationTabRegistration : IPageRegistration
     public static string StaticPageKind => "Conversation";
     public string PageKind => StaticPageKind;
 
-    private readonly IAIService _aiService;
+    private readonly IAIService     _aiService;
+    private readonly IShellServices _shell;
+    private readonly AiChatConfig   _config;
 
-    public ConversationTabRegistration(IAIService aiService)
+    public ConversationTabRegistration(IAIService aiService, IShellServices shell, AiChatConfig config)
     {
         _aiService = aiService;
+        _shell     = shell;
+        _config    = config;
     }
 
     public Page CreatePage(Dictionary<string, string>? pageParams = null)
@@ -33,7 +37,7 @@ public sealed class ConversationTabRegistration : IPageRegistration
 
         tab.ContentFactory = () =>
         {
-            var vm = new ConversationViewModel(_aiService, tab);
+            var vm = new ConversationViewModel(_aiService, _shell, _config, tab);
             var view = new ConversationView(vm);
             if (pageParams is not null &&
                 pageParams.TryGetValue("conversationId", out var convId))

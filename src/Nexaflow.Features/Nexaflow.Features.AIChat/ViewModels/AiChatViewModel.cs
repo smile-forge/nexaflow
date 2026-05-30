@@ -5,114 +5,71 @@ using Nexaflow.Features.Common;
 
 namespace Nexaflow.Features.AIChat.ViewModels;
 
+/// <summary>
+/// Conversation browser: a single list of conversations (title, start/end, message count, summary)
+/// with per-row Open and Analysis actions. Analysis detail is shown in a modal overlay that must be
+/// dismissed before interacting with another row. Actual chatting happens in ConversationView.
+/// </summary>
 public partial class AiChatViewModel : ObservableObject, IPageViewModel
 {
-    // Conversation history (left sidebar)
-    public ObservableCollection<ConversationRecord> Conversations { get; } = [];
+    private readonly IAIService     _aiService;
+    private readonly IShellServices _shell;
+    private readonly AiChatConfig   _config;
 
-    // Active conversation
-    [ObservableProperty] private ConversationRecord? _activeConversation;
-    [ObservableProperty] private bool _isStreaming;
+    /// <summary>Conversation rows, newest first.</summary>
+    public ObservableCollection<ConversationRowViewModel> Items { get; } = [];
 
-    /// Messages of the active conversation, ordered by timestamp.
-    public ObservableCollection<ConversationMessage> Messages { get; } = [];
+    /// <summary>The row whose analysis overlay is open, or null when the overlay is closed.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsAnalysisOverlayOpen))]
+    private ConversationRowViewModel? _analysisOverlayItem;
 
-    // Events
-    public event EventHandler? ScrollRequested;
+    public bool IsAnalysisOverlayOpen => AnalysisOverlayItem is not null;
 
-    private readonly IAIService _aiService;
-
-    public AiChatViewModel(IAIService aiService)
+    public AiChatViewModel(IAIService aiService, IShellServices shell, AiChatConfig config)
     {
         _aiService = aiService;
-        _ = LoadConversationsAsync();
+        _shell     = shell;
+        _config    = config;
+        _ = RefreshAsync();
     }
 
-    // Public API used by ShellViewModel
-
-    /// Adds a user message and an Aria reply to the active (or new) conversation,
-    /// persists to disk, then fires ScrollRequested.
-    public async Task AddExchangeAsync(string userText, string ariaText)
-    {
-        EnsureActiveConversation();
-
-        AppendMessage(userText, isUser: true);
-        AppendMessage(ariaText, isUser: false);
-
-        ActiveConversation!.DeriveTitle();
-        await _aiService.SaveAsync(ActiveConversation);
-
-        OnScrollRequested();
-    }
-
-    /// Switches the displayed conversation to the given record.
+    /// <summary>Opens the conversation in a ConversationView tab.</summary>
     [RelayCommand]
-    public void SelectConversation(ConversationRecord record)
+    public void OpenConversation(ConversationRowViewModel? row)
     {
-        ActiveConversation = record;
-        Messages.Clear();
-        foreach (var m in record.Messages.OrderBy(m => m.Timestamp))
-            Messages.Add(m);
-        OnScrollRequested();
+        if (row is null) return;
+        _shell.OpenTab("Conversation", new Dictionary<string, string> { ["conversationId"] = row.Record.Id });
     }
 
-    /// Starts a brand new conversation (clears display).
+    /// <summary>Opens the analysis detail overlay for a row.</summary>
     [RelayCommand]
-    public void NewConversation()
+    public void ShowAnalysis(ConversationRowViewModel? row)
     {
-        ActiveConversation = null;
-        Messages.Clear();
+        if (row is null) return;
+        AnalysisOverlayItem = row;
     }
 
-    // Helpers
+    /// <summary>Dismisses the analysis overlay.</summary>
+    [RelayCommand]
+    public void CloseAnalysis() => AnalysisOverlayItem = null;
 
-    public void EnsureActiveConversation()
+    /// <summary>Reloads the conversation list (and each row's analysis). Called on (re)activation.</summary>
+    public async Task RefreshAsync()
     {
-        if (ActiveConversation is not null) return;
+        AnalysisOverlayItem = null;
 
-        var record = new ConversationRecord();
-        ActiveConversation = record;
-        Conversations.Insert(0, record);
-        Messages.Clear();
-    }
-
-    private ConversationMessage AppendMessage(string text, bool isUser)
-    {
-        var msg = new ConversationMessage
-        {
-            Text      = text,
-            IsUser    = isUser,
-            Timestamp = DateTime.Now
-        };
-        ActiveConversation!.Messages.Add(msg);
-        Messages.Add(msg);
-        return msg;
-    }
-
-    private async Task LoadConversationsAsync()
-    {
-        var records = await _aiService.LoadAllAsync();
+        var records = (await _aiService.LoadAllAsync()).ToList();
+        Items.Clear();
         foreach (var r in records)
-            Conversations.Add(r);
-
-        if (Conversations.Count > 0)
-            SelectConversation(Conversations[0]);
+        {
+            var row = new ConversationRowViewModel(r, _aiService, _config.IsAnalysisEnabled);
+            Items.Add(row);
+            _ = row.LoadAsync();
+        }
     }
-
-    private void OnScrollRequested() => ScrollRequested?.Invoke(this, EventArgs.Empty);
 
     // ── IPageViewModel ────────────────────────────────────────────────────
 
-    public string GetContext()
-    {
-        if (ActiveConversation is not { Messages.Count: > 0 } conv)
-        {
-            var count = Conversations.Count;
-            return count == 0
-                ? "AI Chat tab: no conversations yet."
-                : $"AI Chat tab: {count} conversation(s), none currently active.";
-        }
-        return string.Join("\n", conv.Messages.TakeLast(6)
-            .Select(m => (m.IsUser ? "User" : "Aria") + ": " + m.Text));
-    }
+    public string GetContext() => $"AI Chat browser: {Items.Count} conversation(s).";
 }
