@@ -71,12 +71,14 @@
                 <TextBlock Grid.Column="0" Text="Start with Windows"
                            Foreground="{StaticResource TextMutedBrush}"
                            FontSize="12" VerticalAlignment="Center"/>
-                <CheckBox Grid.Column="1"
-                          Foreground="{StaticResource TextBrush}"
-                          FontSize="12"
-                          VerticalAlignment="Center"
-                          Content="Preload at login for instant startup"
-                          IsChecked="{Binding PrestartAtLogin}"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ToggleButton Style="{StaticResource ToggleSwitch}"
+                                  IsChecked="{Binding PrestartAtLogin}"/>
+                    <TextBlock Text="Preload at login for instant startup"
+                               Foreground="{StaticResource TextBrush}"
+                               FontSize="12" VerticalAlignment="Center"
+                               Margin="10,0,0,0"/>
+                </StackPanel>
             </Grid>
             <TextBlock Margin="180,2,0,12"
                        Text="Runs Nexaflow in the background when you sign in so windows open instantly. Takes effect at next login."

@@ -102,6 +102,67 @@ public class PlaceholderTextBox : TextBox
         }
     }
 
+    // ── Spell-check context menu ──────────────────────────────────────────
+    // WPF's built-in editing context menu ignores our themed ContextMenu/MenuItem
+    // styles (it uses internal EditorContextMenu/EditorMenuItem types), so it renders
+    // with default light chrome. We build our own menu from regular ContextMenu/MenuItem
+    // instances, which DO pick up the global styles, and populate spelling suggestions
+    // via the SpellingError API.
+
+    protected override void OnContextMenuOpening(ContextMenuEventArgs e)
+    {
+        ContextMenu = BuildSpellContextMenu();
+        base.OnContextMenuOpening(e);
+    }
+
+    private ContextMenu BuildSpellContextMenu()
+    {
+        var menu = new ContextMenu();
+
+        var index = ResolveSpellIndex();
+        var error = index >= 0 ? GetSpellingError(index) : null;
+
+        if (error is not null)
+        {
+            var hasSuggestion = false;
+            foreach (var suggestion in error.Suggestions)
+            {
+                hasSuggestion = true;
+                var pick = suggestion;
+                var item = new MenuItem { Header = pick, FontWeight = FontWeights.SemiBold };
+                item.Click += (_, _) => error.Correct(pick);
+                menu.Items.Add(item);
+            }
+
+            if (!hasSuggestion)
+                menu.Items.Add(new MenuItem { Header = "No suggestions", IsEnabled = false });
+
+            menu.Items.Add(new Separator());
+            var ignore = new MenuItem { Header = "Ignore All" };
+            ignore.Click += (_, _) => error.IgnoreAll();
+            menu.Items.Add(ignore);
+            menu.Items.Add(new Separator());
+        }
+
+        menu.Items.Add(CommandItem("Cut",        ApplicationCommands.Cut));
+        menu.Items.Add(CommandItem("Copy",       ApplicationCommands.Copy));
+        menu.Items.Add(CommandItem("Paste",      ApplicationCommands.Paste));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(CommandItem("Select All", ApplicationCommands.SelectAll));
+
+        return menu;
+    }
+
+    private MenuItem CommandItem(string header, RoutedUICommand command)
+        => new() { Header = header, Command = command, CommandTarget = this };
+
+    /// <summary>Character index under the mouse (for right-click), falling back to the caret.</summary>
+    private int ResolveSpellIndex()
+    {
+        var idx = GetCharacterIndexFromPoint(Mouse.GetPosition(this), snapToText: true);
+        return idx >= 0 ? idx : CaretIndex;
+    }
+
     // ── Key handling: Tab accepts completion, Enter sends ─────────────────
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)

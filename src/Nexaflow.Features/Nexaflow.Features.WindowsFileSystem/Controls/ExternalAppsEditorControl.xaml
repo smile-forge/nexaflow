@@ -18,13 +18,15 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <CheckBox Grid.Column="0"
-                      Foreground="{StaticResource TextBrush}"
-                      FontSize="12"
-                      VerticalAlignment="Center"
-                      Content="Use registry-based file type mapping"
-                      IsChecked="{Binding UseRegistryMapping, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                      Unchecked="RegistryToggle_Unchecked"/>
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <ToggleButton Style="{StaticResource ToggleSwitch}"
+                              IsChecked="{Binding UseRegistryMapping, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                              Unchecked="RegistryToggle_Unchecked"/>
+                <TextBlock Text="Use registry-based file type mapping"
+                           Foreground="{StaticResource TextBrush}"
+                           FontSize="12" VerticalAlignment="Center"
+                           Margin="10,0,0,0"/>
+            </StackPanel>
 
             <Border Grid.Column="1"
                     Width="20" Height="20" CornerRadius="10"

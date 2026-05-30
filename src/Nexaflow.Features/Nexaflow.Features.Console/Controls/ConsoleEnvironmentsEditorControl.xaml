@@ -2,66 +2,107 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
+    <UserControl.Resources>
+        <!-- Display text in a cell -->
+        <Style x:Key="CellText" TargetType="TextBlock">
+            <Setter Property="Foreground"          Value="{StaticResource TextBrush}"/>
+            <Setter Property="VerticalAlignment"   Value="Center"/>
+            <Setter Property="TextTrimming"        Value="CharacterEllipsis"/>
+            <Setter Property="Margin"              Value="8,0"/>
+        </Style>
+
+        <!-- In-place editor: a dark textbox so editing matches the theme -->
+        <Style x:Key="CellEditor" TargetType="TextBox">
+            <Setter Property="Background"          Value="{StaticResource DeepBgBrush}"/>
+            <Setter Property="Foreground"          Value="{StaticResource TextBrush}"/>
+            <Setter Property="CaretBrush"          Value="{StaticResource TextBrush}"/>
+            <Setter Property="BorderBrush"         Value="{StaticResource AccentBrush}"/>
+            <Setter Property="BorderThickness"     Value="1"/>
+            <Setter Property="Padding"             Value="6,0"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="GridButton" TargetType="Button">
+            <Setter Property="Padding"         Value="12,4"/>
+            <Setter Property="Margin"          Value="0,0,6,0"/>
+            <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
+            <Setter Property="Background"      Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface2Brush}"/>
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
     <DockPanel Margin="12">
 
         <!-- Toolbar: Add / Remove buttons -->
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-            <Button Content="Add"
-                    Click="AddEnv_Click"
-                    Padding="12,4"
-                    Margin="0,0,6,0"
-                    Foreground="{StaticResource TextBrush}"
-                    Background="{StaticResource SurfaceBrush}"
-                    BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1"/>
-            <Button Content="Remove"
-                    Click="RemoveEnv_Click"
-                    Padding="12,4"
-                    Foreground="{StaticResource TextBrush}"
-                    Background="{StaticResource SurfaceBrush}"
-                    BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1"/>
+            <Button Content="Add"    Click="AddEnv_Click"    Style="{StaticResource GridButton}"/>
+            <Button Content="Remove" Click="RemoveEnv_Click" Style="{StaticResource GridButton}"/>
         </StackPanel>
 
         <!-- Environments grid -->
-        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                Background="{StaticResource SurfaceBrush}" ClipToBounds="True">
             <DataGrid x:Name="EnvGrid"
                       AutoGenerateColumns="False"
                       CanUserAddRows="False"
                       CanUserDeleteRows="False"
                       CanUserReorderColumns="False"
+                      CanUserResizeRows="False"
                       HeadersVisibility="Column"
                       GridLinesVisibility="Horizontal"
                       Background="Transparent"
                       BorderThickness="0"
                       RowBackground="Transparent"
+                      SelectionUnit="FullRow"
                       FontSize="12"
                       Foreground="{StaticResource TextBrush}"
                       HorizontalGridLinesBrush="{StaticResource BorderBrush}"
-                      ColumnHeaderHeight="28"
-                      RowHeight="28">
+                      ColumnHeaderHeight="30"
+                      RowHeight="30">
 
                 <DataGrid.ColumnHeaderStyle>
                     <Style TargetType="DataGridColumnHeader">
-                        <Setter Property="Background"      Value="{StaticResource DeepBgBrush}"/>
-                        <Setter Property="Foreground"      Value="{StaticResource TextMutedBrush}"/>
-                        <Setter Property="FontSize"        Value="11"/>
-                        <Setter Property="Padding"         Value="8,0"/>
-                        <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
-                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                        <Setter Property="Background"          Value="{StaticResource DeepBgBrush}"/>
+                        <Setter Property="Foreground"          Value="{StaticResource TextMutedBrush}"/>
+                        <Setter Property="FontSize"            Value="11"/>
+                        <Setter Property="FontWeight"          Value="SemiBold"/>
+                        <Setter Property="Padding"             Value="8,0"/>
+                        <Setter Property="VerticalContentAlignment" Value="Center"/>
+                        <Setter Property="BorderBrush"         Value="{StaticResource BorderBrush}"/>
+                        <Setter Property="BorderThickness"     Value="0,0,0,1"/>
                     </Style>
                 </DataGrid.ColumnHeaderStyle>
 
                 <DataGrid.CellStyle>
                     <Style TargetType="DataGridCell">
-                        <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
-                        <Setter Property="Background"      Value="Transparent"/>
-                        <Setter Property="BorderThickness" Value="0"/>
-                        <Setter Property="Padding"         Value="8,0"/>
+                        <Setter Property="Foreground"          Value="{StaticResource TextBrush}"/>
+                        <Setter Property="Background"          Value="Transparent"/>
+                        <Setter Property="BorderThickness"     Value="0"/>
                         <Style.Triggers>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
-                                <Setter Property="Foreground" Value="{StaticResource BgBrush}"/>
+                            <!-- Focused-cell ring while editing, but no jarring fill -->
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter Property="Background" Value="{StaticResource DeepBgBrush}"/>
                             </Trigger>
                         </Style.Triggers>
                     </Style>
@@ -71,8 +112,11 @@
                     <Style TargetType="DataGridRow">
                         <Setter Property="Background" Value="Transparent"/>
                         <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                            </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Background" Value="{StaticResource Surface2Brush}"/>
                             </Trigger>
                         </Style.Triggers>
                     </Style>
@@ -81,23 +125,32 @@
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Name"
                                         Binding="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
-                                        Width="140"/>
+                                        Width="140"
+                                        ElementStyle="{StaticResource CellText}"
+                                        EditingElementStyle="{StaticResource CellEditor}"/>
                     <DataGridTextColumn Header="Tab Title"
                                         Binding="{Binding TabTitle, UpdateSourceTrigger=PropertyChanged}"
-                                        Width="120"/>
+                                        Width="120"
+                                        ElementStyle="{StaticResource CellText}"
+                                        EditingElementStyle="{StaticResource CellEditor}"/>
                     <DataGridTextColumn Header="Location Filter"
                                         Binding="{Binding LocationFilter, UpdateSourceTrigger=PropertyChanged}"
-                                        Width="150"/>
+                                        Width="150"
+                                        ElementStyle="{StaticResource CellText}"
+                                        EditingElementStyle="{StaticResource CellEditor}"/>
                     <DataGridTextColumn Header="Initial Command"
                                         Binding="{Binding InitialCommand, UpdateSourceTrigger=PropertyChanged}"
-                                        Width="*"/>
+                                        Width="*"
+                                        ElementStyle="{StaticResource CellText}"
+                                        EditingElementStyle="{StaticResource CellEditor}"/>
                     <DataGridTemplateColumn Header="Default" Width="64" CanUserSort="False">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <CheckBox IsChecked="{Binding IsDefault, UpdateSourceTrigger=PropertyChanged}"
                                           HorizontalAlignment="Center"
                                           VerticalAlignment="Center"
-                                          Checked="IsDefault_Checked"/>
+                                          Checked="IsDefault_Checked"
+                                          Unchecked="IsDefault_Unchecked"/>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>

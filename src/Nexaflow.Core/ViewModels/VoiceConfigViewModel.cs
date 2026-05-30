@@ -5,45 +5,57 @@ using Nexaflow.Core.Services;
 namespace Nexaflow.Core.ViewModels;
 
 /// <summary>
-/// Backs <see cref="Controls.VoiceConfigControl"/>: edits the two Voice enums and shows whether the
-/// selected Whisper model is present locally, downloading (with %), or not yet downloaded.
+/// A single selectable Whisper model: a (size, language) pair with a friendly label and a
+/// one-line note on what the size is suited for. Combines the former Size/Language selectors
+/// into one list so an impossible combo (large-v3 has no English-only build) can't be chosen.
+/// </summary>
+public sealed record VoiceModelOption(
+    WhisperModelSize Size,
+    WhisperLanguage  Language,
+    string           DisplayName,
+    string           Description);
+
+/// <summary>
+/// Backs <see cref="Controls.VoiceConfigControl"/>: picks a single Whisper model from a combined
+/// list and shows whether it is present locally, downloading (with %), or not yet downloaded.
 /// </summary>
 public partial class VoiceConfigViewModel : ObservableObject
 {
-    private readonly VoiceConfig      _config;
-    private readonly WhisperModelSize _origSize;
-    private readonly WhisperLanguage  _origLang;
+    private readonly VoiceConfig _config;
+    private readonly VoiceModelOption _original;
 
-    public Array ModelSizes { get; } = Enum.GetValues<WhisperModelSize>();
-    public Array Languages  { get; } = Enum.GetValues<WhisperLanguage>();
+    public IReadOnlyList<VoiceModelOption> Models { get; } = BuildModels();
 
-    [ObservableProperty] private WhisperModelSize _selectedSize;
-    [ObservableProperty] private WhisperLanguage  _selectedLanguage;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SelectedDescription))]
+    private VoiceModelOption _selectedModel;
+
     [ObservableProperty] private string _statusText      = string.Empty;
     [ObservableProperty] private bool   _isDownloading;
     [ObservableProperty] private int    _downloadPercent;
     [ObservableProperty] private bool   _canDownload;
 
-    public bool HasChanges => SelectedSize != _origSize || SelectedLanguage != _origLang;
+    public string SelectedDescription => SelectedModel.Description;
+
+    public bool HasChanges =>
+        SelectedModel.Size != _original.Size || SelectedModel.Language != _original.Language;
+
     public event EventHandler? HasChangesChanged;
 
     public VoiceConfigViewModel(VoiceConfig config)
     {
-        _config       = config;
-        _origSize     = config.ModelSize;
-        _origLang     = config.Language;
-        _selectedSize = config.ModelSize;
-        _selectedLanguage = config.Language;
+        _config   = config;
+        _original = Match(config.ModelSize, config.Language);
+        _selectedModel = _original;
         RefreshStatus();
     }
 
-    partial void OnSelectedSizeChanged(WhisperModelSize value)
-    {
-        HasChangesChanged?.Invoke(this, EventArgs.Empty);
-        RefreshStatus();
-    }
+    private VoiceModelOption Match(WhisperModelSize size, WhisperLanguage language) =>
+        Models.FirstOrDefault(m => m.Size == size && m.Language == language)
+        ?? Models.First(m => m.Size == size)   // language unavailable for this size → first variant
+        ?? Models[0];
 
-    partial void OnSelectedLanguageChanged(WhisperLanguage value)
+    partial void OnSelectedModelChanged(VoiceModelOption value)
     {
         HasChangesChanged?.Invoke(this, EventArgs.Empty);
         RefreshStatus();
@@ -52,7 +64,7 @@ public partial class VoiceConfigViewModel : ObservableObject
     /// <summary>Recomputes the status line for the currently selected model.</summary>
     public void RefreshStatus()
     {
-        var probe = new VoiceConfig { ModelSize = SelectedSize, Language = SelectedLanguage };
+        var probe = new VoiceConfig { ModelSize = SelectedModel.Size, Language = SelectedModel.Language };
         var mgr   = WhisperModelManager.Instance;
 
         if (mgr.IsModelReady(probe))
@@ -83,14 +95,36 @@ public partial class VoiceConfigViewModel : ObservableObject
     {
         // Download the selected model without mutating the saved config (Apply does that on Save).
         WhisperModelManager.Instance.EnsureModelDownloaded(
-            new VoiceConfig { ModelSize = SelectedSize, Language = SelectedLanguage });
+            new VoiceConfig { ModelSize = SelectedModel.Size, Language = SelectedModel.Language });
         RefreshStatus();
     }
 
     /// <summary>Writes the selection back to the real config (called by the Options Save flow).</summary>
     public void Apply()
     {
-        _config.ModelSize = SelectedSize;
-        _config.Language  = SelectedLanguage;
+        _config.ModelSize = SelectedModel.Size;
+        _config.Language  = SelectedModel.Language;
+    }
+
+    // ── Catalogue of selectable models ────────────────────────────────────────
+
+    private static List<VoiceModelOption> BuildModels()
+    {
+        const string baseDesc   = "Fastest and smallest (~150 MB). Good for quick notes and clear speech; lowest accuracy.";
+        const string smallDesc  = "Balanced speed and accuracy (~500 MB). A solid default for everyday dictation.";
+        const string mediumDesc = "High accuracy, slower (~1.5 GB). Handles technical terms, names and accents well.";
+        const string largeDesc  = "Best accuracy, slowest (~3 GB). Multilingual only — use when accuracy matters most.";
+
+        return
+        [
+            new(WhisperModelSize.Base,    WhisperLanguage.EnglishOnly,  "Base · English-only",    baseDesc),
+            new(WhisperModelSize.Base,    WhisperLanguage.Multilingual, "Base · Multilingual",    baseDesc),
+            new(WhisperModelSize.Small,   WhisperLanguage.EnglishOnly,  "Small · English-only",   smallDesc),
+            new(WhisperModelSize.Small,   WhisperLanguage.Multilingual, "Small · Multilingual",   smallDesc),
+            new(WhisperModelSize.Medium,  WhisperLanguage.EnglishOnly,  "Medium · English-only",  mediumDesc),
+            new(WhisperModelSize.Medium,  WhisperLanguage.Multilingual, "Medium · Multilingual",  mediumDesc),
+            // No large-v3.en build exists — multilingual only.
+            new(WhisperModelSize.LargeV3, WhisperLanguage.Multilingual, "Large v3 · Multilingual", largeDesc),
+        ];
     }
 }

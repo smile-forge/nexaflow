@@ -17,8 +17,10 @@ public enum PropertyEditorKind
 {
     TextBox,
     FolderPath,
+    FilePath,
     EnumComboBox,
     ListComboBox,
+    Toggle,
 }
 
 // ── Per-property view model ───────────────────────────────────────────────────
@@ -67,17 +69,16 @@ public partial class PropertyEditViewModel : ObservableObject
 
     private void Validate(object? value)
     {
-        if (EditorKind == PropertyEditorKind.FolderPath)
+        var path = value as string;
+        ValidationError = EditorKind switch
         {
-            var path = value as string;
-            ValidationError = string.IsNullOrWhiteSpace(path) || !Directory.Exists(path)
-                ? "Directory does not exist"
-                : null;
-        }
-        else
-        {
-            ValidationError = null;
-        }
+            // Empty is allowed (no-op); a non-empty path must exist.
+            PropertyEditorKind.FolderPath when string.IsNullOrWhiteSpace(path) || !Directory.Exists(path)
+                => "Directory does not exist",
+            PropertyEditorKind.FilePath when !string.IsNullOrWhiteSpace(path) && !File.Exists(path)
+                => "File does not exist",
+            _ => null,
+        };
     }
 
     private static object? ConvertToTargetType(object? value, Type targetType)
@@ -95,6 +96,13 @@ public partial class PropertyEditViewModel : ObservableObject
         if (selected is not null) Value = selected;
     }
 
+    [RelayCommand]
+    private void BrowseFile()
+    {
+        var selected = FileBrowserWindow.Show(Value as string);
+        if (selected is not null) Value = selected;
+    }
+
     public PropertyEditViewModel(PropertyInfo pi, object editingClone, Action onChanged)
     {
         _pi          = pi;
@@ -108,9 +116,14 @@ public partial class PropertyEditViewModel : ObservableObject
         IsRequired   = pi.GetCustomAttribute<RequiredAttribute>() is not null;
 
         var folderAttr  = pi.GetCustomAttribute<FolderPathAttribute>();
+        var fileAttr    = pi.GetCustomAttribute<FilePathAttribute>();
         var listAttr    = pi.GetCustomAttribute<ListSourceAttribute>();
 
-        if (pi.PropertyType.IsEnum)
+        if (pi.PropertyType == typeof(bool))
+        {
+            EditorKind = PropertyEditorKind.Toggle;
+        }
+        else if (pi.PropertyType.IsEnum)
         {
             EditorKind  = PropertyEditorKind.EnumComboBox;
             EnumOptions = Enum.GetNames(pi.PropertyType);
@@ -123,6 +136,10 @@ public partial class PropertyEditViewModel : ObservableObject
         else if (folderAttr is not null)
         {
             EditorKind = PropertyEditorKind.FolderPath;
+        }
+        else if (fileAttr is not null)
+        {
+            EditorKind = PropertyEditorKind.FilePath;
         }
         else
         {
@@ -237,11 +254,13 @@ public partial class ConfigEditViewModel : ObservableObject
             return;  // skip property reflection
         }
 
-        // Reflect over the concrete type; skip interface-declared identity members
+        // Reflect over the concrete type; skip interface-declared identity members and
+        // read-only/computed properties (they can't be edited and only ApplyToReal-writable
+        // properties round-trip on Save).
         var skip = new HashSet<string> { "ConfigName", "FriendlyName" };
         foreach (var pi in EditingClone.GetType()
                      .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                     .Where(p => p.CanRead && !skip.Contains(p.Name)))
+                     .Where(p => p.CanRead && p.CanWrite && !skip.Contains(p.Name)))
         {
             Properties.Add(new PropertyEditViewModel(pi, EditingClone, RecheckValidity));
         }
