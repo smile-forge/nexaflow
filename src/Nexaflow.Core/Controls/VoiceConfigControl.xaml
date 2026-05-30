@@ -13,9 +13,14 @@
                    Foreground="{StaticResource TextMutedBrush}"/>
         <ComboBox ItemsSource="{Binding Models}"
                   SelectedItem="{Binding SelectedModel}"
-                  DisplayMemberPath="DisplayName"
                   Style="{StaticResource DarkComboBox}"
-                  Width="280" HorizontalAlignment="Left" Margin="0,0,0,8"/>
+                  Width="280" HorizontalAlignment="Left" Margin="0,0,0,8">
+            <ComboBox.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding DisplayName}"/>
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
 
         <!-- What the selected size is suited for -->
         <TextBlock Text="{Binding SelectedDescription}"

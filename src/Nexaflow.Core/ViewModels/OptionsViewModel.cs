@@ -30,6 +30,7 @@ public partial class PropertyEditViewModel : ObservableObject
     private readonly PropertyInfo _pi;
     private readonly object       _editingClone;
     private readonly Action       _onChanged;   // notifies ConfigEditViewModel to recheck validity
+    private readonly string[]     _fileExtensions = [];   // allowed extensions for FilePath editors
 
     public string             Label        { get; }
     public string             PropertyName { get; }
@@ -99,7 +100,7 @@ public partial class PropertyEditViewModel : ObservableObject
     [RelayCommand]
     private void BrowseFile()
     {
-        var selected = FileBrowserWindow.Show(Value as string);
+        var selected = FileBrowserWindow.Show(Value as string, _fileExtensions);
         if (selected is not null) Value = selected;
     }
 
@@ -139,7 +140,8 @@ public partial class PropertyEditViewModel : ObservableObject
         }
         else if (fileAttr is not null)
         {
-            EditorKind = PropertyEditorKind.FilePath;
+            EditorKind      = PropertyEditorKind.FilePath;
+            _fileExtensions = fileAttr.Extensions.ToArray();
         }
         else
         {

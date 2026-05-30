@@ -19,8 +19,15 @@ public sealed class FolderPathAttribute : Attribute { }
 /// The Options panel renders a TextBox with a "…" browse button (a styled file picker)
 /// and validates that a non-empty path points at an existing file.
 /// </summary>
+/// <param name="extensions">
+/// Allowed file extensions, e.g. ".exe". When given, the picker only offers matching files.
+/// Empty means any file.
+/// </param>
 [AttributeUsage(AttributeTargets.Property)]
-public sealed class FilePathAttribute : Attribute { }
+public sealed class FilePathAttribute(params string[] extensions) : Attribute
+{
+    public IReadOnlyList<string> Extensions { get; } = extensions;
+}
 
 /// <summary>
 /// Marks a string property as list-sourced.
