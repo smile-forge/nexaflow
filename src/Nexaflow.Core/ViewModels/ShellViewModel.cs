@@ -27,7 +27,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
     bool IWindowHost.IsFocused
     {
         get => _isFocused;
-        set => _isFocused = value;
+        set
+        {
+            _isFocused = value;
+            // When this window gains focus, surface any messages no window has toasted yet —
+            // covers the daemon's first window opening after a windowless post (update/voice).
+            if (value) DrainPendingToasts();
+        }
     }
     private bool _isFocused;
 
@@ -44,10 +50,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
 
     void IWindowHost.ShowError(string message) => ShowError("Error", message);
     void IWindowHost.ShowNotification(string message)
-    {
-        Notifications.Insert(0, new NotificationItem { Title = "Info", Body = message });
-        UnreadCount = Notifications.Count(n => !n.IsRead);
-    }
+        => MessageCenter.Instance.Post(new NotificationItem { Title = "Info", Body = message });
     void IWindowHost.ShowConfirmation(string title, string prompt, Action onConfirm, Action? onCancel)
         => ShowConfirmation(title, prompt, onConfirm, onCancel);
 
@@ -112,7 +115,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
     public ObservableCollection<BreadcrumbSegment> Breadcrumbs { get; } = [];
 
     // ── Notifications ─────────────────────────────────────────────────────
-    public ObservableCollection<NotificationItem> Notifications { get; } = [];
+    // The inbox is a single app-wide store shared by every window (see MessageCenter).
+    public ObservableCollection<NotificationItem> Notifications => MessageCenter.Instance.Messages;
 
     [ObservableProperty] private int  _unreadCount;
     [ObservableProperty] private bool _notificationsOpen;
@@ -153,31 +157,58 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
     // providers is deferred — this only backs the Submit↔Cancel UI for now.
     private CancellationTokenSource? _aiSendCts;
 
-    // ── Error toast ───────────────────────────────────────────────────────
-    [ObservableProperty] private string? _errorToast;
-    private CancellationTokenSource? _errorToastCts;
+    // ── Toast (transient presentation of a message) ────────────────────────
+    // One toast shows at a time; further posts queue. ActiveToast is the message currently displayed.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ToastVisible))]
+    private NotificationItem? _activeToast;
 
-    // ── Update toast ──────────────────────────────────────────────────────
-    [ObservableProperty] private string? _updateToastVersion;
-    [ObservableProperty] private string? _updateToastChangelog;
-    private CancellationTokenSource? _updateToastCts;
+    public bool ToastVisible => ActiveToast is not null;
 
-    private void ShowError(string title, string message)
+    private readonly Queue<NotificationItem> _toastQueue = new();
+    private CancellationTokenSource? _toastDismissCts;
+
+    /// <summary>Default time a toast stays up, by severity (overridden by NotificationItem.ToastDuration).</summary>
+    private static TimeSpan DefaultToastDuration(NotificationItem m) => m.Severity switch
     {
-        Notifications.Insert(0, new NotificationItem { Title = title, Body = message });
-        UnreadCount = Notifications.Count(n => !n.IsRead);
+        // Messages with actions (Update, Retry) stay up long enough to act on.
+        _ when m.HasActions          => TimeSpan.FromMinutes(5),
+        MessageSeverity.Update       => TimeSpan.FromMinutes(5),
+        MessageSeverity.Error        => TimeSpan.FromSeconds(8),
+        MessageSeverity.Warning      => TimeSpan.FromSeconds(8),
+        _                            => TimeSpan.FromSeconds(6),
+    };
 
-        _errorToastCts?.Cancel();
-        _errorToastCts = new CancellationTokenSource();
-        ErrorToast = message;
+    /// <summary>Queues a message as a toast; shows it immediately if nothing is currently displayed.</summary>
+    private void ShowToast(NotificationItem message)
+    {
+        _toastQueue.Enqueue(message);
+        if (ActiveToast is null) DisplayNextToast();
+    }
 
-        var token = _errorToastCts.Token;
-        _ = Task.Delay(TimeSpan.FromSeconds(8), token).ContinueWith(t =>
+    private void DisplayNextToast()
+    {
+        _toastDismissCts?.Cancel();
+        if (_toastQueue.Count == 0) { ActiveToast = null; return; }
+
+        var message = _toastQueue.Dequeue();
+        ActiveToast = message;
+
+        _toastDismissCts = new CancellationTokenSource();
+        var token = _toastDismissCts.Token;
+        var duration = message.ToastDuration ?? DefaultToastDuration(message);
+        _ = Task.Delay(duration, token).ContinueWith(t =>
         {
             if (!t.IsCanceled)
-                Application.Current.Dispatcher.Invoke(() => ErrorToast = null);
+                Application.Current.Dispatcher.Invoke(() => { if (ActiveToast == message) DisplayNextToast(); });
         }, TaskScheduler.Default);
     }
+
+    private void ShowError(string title, string message)
+        => MessageCenter.Instance.Post(new NotificationItem
+        {
+            Title = title, Body = message, Severity = MessageSeverity.Error, ShowToast = true,
+        });
 
     public void ShowErrorToast(string message) => ShowError("Settings", message);
 
@@ -262,21 +293,6 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
         _promptOnConfirm = null;
         _promptOnCancel  = null;
         cb?.Invoke();
-    }
-
-    public void ShowUpdateToast(string version, string? changelog)
-    {
-        _updateToastCts?.Cancel();
-        _updateToastCts = new CancellationTokenSource();
-        UpdateToastVersion   = version;
-        UpdateToastChangelog = changelog ?? string.Empty;
-
-        var token = _updateToastCts.Token;
-        _ = Task.Delay(TimeSpan.FromMinutes(5), token).ContinueWith(t =>
-        {
-            if (!t.IsCanceled)
-                Application.Current.Dispatcher.Invoke(() => UpdateToastVersion = null);
-        }, TaskScheduler.Default);
     }
 
     /// <summary>
@@ -408,7 +424,60 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
             Application.Current.Dispatcher.Invoke(() => ShowError("Voice", msg));
 
         RecomputeVoiceAvailable();
+
+        // ── Shared inbox: keep this window's unread badge + toasts in sync ──
+        // The store is shared across windows, but UnreadCount is derived, so recompute on both
+        // collection changes AND per-item IsRead changes (marking read in one window is a property
+        // mutation that ObservableCollection doesn't surface) — otherwise other windows' badges go stale.
+        Notifications.CollectionChanged += OnInboxChanged;
+        foreach (var m in Notifications) m.PropertyChanged += OnMessageItemChanged;
+        MessageCenter.Instance.MessagePosted += OnMessagePosted;
+        RecomputeUnread();
     }
+
+    /// <summary>Detaches shared-store handlers so a closed window's view-model can be collected.</summary>
+    public void Detach()
+    {
+        MessageCenter.Instance.MessagePosted -= OnMessagePosted;
+        Notifications.CollectionChanged -= OnInboxChanged;
+        foreach (var m in Notifications) m.PropertyChanged -= OnMessageItemChanged;
+    }
+
+    private void OnInboxChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems is not null)
+            foreach (NotificationItem m in e.OldItems) m.PropertyChanged -= OnMessageItemChanged;
+        if (e.NewItems is not null)
+            foreach (NotificationItem m in e.NewItems) m.PropertyChanged += OnMessageItemChanged;
+        RecomputeUnread();
+    }
+
+    private void OnMessageItemChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(NotificationItem.IsRead)) RecomputeUnread();
+    }
+
+    private void OnMessagePosted(object? sender, NotificationItem message)
+    {
+        // Only the focused window pops the toast; unfocused windows leave it pending until they
+        // gain focus (DrainPendingToasts). The shared ShownAsToast flag prevents double-toasting.
+        if (_isFocused && message.ShowToast && !message.ShownAsToast)
+        {
+            message.ShownAsToast = true;
+            ShowToast(message);
+        }
+    }
+
+    private void DrainPendingToasts()
+    {
+        foreach (var m in MessageCenter.Instance.PendingToasts.ToList())
+        {
+            m.ShownAsToast = true;
+            ShowToast(m);
+        }
+    }
+
+    private void RecomputeUnread() => UnreadCount = Notifications.Count(n => !n.IsRead);
 
     private void RecomputeVoiceAvailable()
     {
@@ -527,7 +596,20 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
     }
 
     [RelayCommand]
-    private void DismissNotification(NotificationItem item) => Notifications.Remove(item);
+    private void DismissNotification(NotificationItem item) => MessageCenter.Instance.Remove(item);
+
+    // ── Toast ──────────────────────────────────────────────────────────────
+
+    [RelayCommand]
+    private void DismissActiveToast() => DisplayNextToast();
+
+    /// <summary>Runs a message action from the toast, then dismisses the toast.</summary>
+    [RelayCommand]
+    private void RunToastAction(MessageAction action)
+    {
+        if (action.Command.CanExecute(null)) action.Command.Execute(null);
+        DisplayNextToast();
+    }
 
     // ── Options ───────────────────────────────────────────────────────────
 
@@ -544,28 +626,6 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
 
     [RelayCommand]
     private void CloseManageAi() => ManageAiOpen = false;
-
-    [RelayCommand]
-    private void ClearErrorToast()
-    {
-        _errorToastCts?.Cancel();
-        ErrorToast = null;
-    }
-
-    [RelayCommand]
-    private void DismissUpdateToast()
-    {
-        _updateToastCts?.Cancel();
-        UpdateToastVersion = null;
-    }
-
-    [RelayCommand]
-    private async Task AcceptUpdate()
-    {
-        _updateToastCts?.Cancel();
-        UpdateToastVersion = null;
-        await ((App)Application.Current).DownloadAndInstallUpdate();
-    }
 
     // ── AI ────────────────────────────────────────────────────────────────
 

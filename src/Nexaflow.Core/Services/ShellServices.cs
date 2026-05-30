@@ -97,7 +97,14 @@ public sealed class ShellServices : IShellServices
         if (_focused == host)
             _focused = _windows.FirstOrDefault();
 
-        if (_windows.Count == 0)
+        // Shut down only when the last window across ALL contexts closes — a per-context check would
+        // kill the whole app when one context's only window closes while others are still open.
+        // When running as a resident login daemon (--prestart), stay alive windowless so the next
+        // click can show a window instantly; see App.IsResident.
+        bool anyWindowsOpen = WorkContextManager.Instance.Contexts
+            .Any(ctx => ctx.ShellServices?._windows.Count > 0);
+
+        if (!anyWindowsOpen && !App.IsResident)
             Application.Current.Shutdown();
     }
 
@@ -178,11 +185,19 @@ public sealed class ShellServices : IShellServices
     public Page? FindTab(string pageKind, Dictionary<string, string>? pageParams = null)
         => FindTabCore(pageKind, pageParams);
 
+    // Post to the global MessageCenter — the focused window toasts it (errors) or it lands in the
+    // shared inbox (notifications). See MessageCenter / ShellViewModel.
     public void ShowError(string message) =>
-        (_focused ?? _windows.FirstOrDefault())?.ShowError(message);
+        MessageCenter.Instance.Post(new NotificationItem
+        {
+            Title = "Error", Body = message, Severity = MessageSeverity.Error, ShowToast = true,
+        });
 
     public void ShowNotification(string message) =>
-        (_focused ?? _windows.FirstOrDefault())?.ShowNotification(message);
+        MessageCenter.Instance.Post(new NotificationItem
+        {
+            Title = "Info", Body = message, Severity = MessageSeverity.Info, ShowToast = false,
+        });
 
     // ── Cross-window tab operations ───────────────────────────────────────
 

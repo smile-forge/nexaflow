@@ -119,7 +119,7 @@ public partial class MainWindow : Window
 
         Activated   += (_, _) => _shellServices.SetFocused(_vm);
         Deactivated += (_, _) => _shellServices.ClearFocused(_vm);
-        Closing     += (_, _) => _shellServices.UnregisterWindow(_vm);
+        Closing     += (_, _) => { _shellServices.UnregisterWindow(_vm); _vm.Detach(); };
 
         KeyDown += (_, e) =>
         {

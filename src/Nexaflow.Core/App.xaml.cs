@@ -1,4 +1,6 @@
+using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.AI;
+using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
@@ -37,23 +39,75 @@ public partial class App : Application
 
     private static readonly SingleInstanceService _singleInstance = new();
 
+    /// <summary>
+    /// True when this process was launched with <c>--prestart</c> as a windowless login daemon.
+    /// The app then stays alive after its last window closes instead of shutting down, so the next
+    /// click can show a window instantly. See <see cref="ShellServices.UnregisterWindow"/>.
+    /// </summary>
+    public static bool IsResident { get; private set; }
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        bool prestart = e.Args.Any(a => string.Equals(a, "--prestart", StringComparison.OrdinalIgnoreCase));
 
 #if !DEBUG
         // ── Single-instance guard ────────────────────────────────────────────
         if (!_singleInstance.TryAcquire())
         {
-            // Forward any --context "Name" (e.g. from a taskbar JumpList) to the running instance.
-            SingleInstanceService.SignalNewWindow(ParseContextArg(e.Args));
+            // A daemon (or an existing window) already owns the instance. A normal launch forwards a
+            // new-window request (honouring --context "Name" from a taskbar JumpList); a --prestart
+            // launch must never spawn a window, so it just exits.
+            if (!prestart)
+                SingleInstanceService.SignalNewWindow(ParseContextArg(e.Args));
             Shutdown();
             return;
         }
 #endif
 
-        var activityManager = new BackgroundActivityManager();
+        IsResident = prestart;
 
+        var activityManager = new BackgroundActivityManager();
+        var voiceConfig = InitializeApp(activityManager);
+
+        // ── Main window — skipped in --prestart mode (windowless login daemon) ──
+        if (!prestart)
+        {
+            var defaultCtx = WorkContextManager.Instance.Contexts[0];
+
+            // Honour --context "Name" from a taskbar JumpList.
+            var startupCtx = ResolveContext(ParseContextArg(e.Args)) ?? defaultCtx;
+            startupCtx.ShellServices!.CreateWindowFactory ??= defaultCtx.ShellServices!.CreateWindowFactory;
+            var win = new MainWindow(activityManager, startupCtx);
+            win.Show();
+
+            if (ConfigManager.Instance.IsFirstRun)
+                win.ViewModel.OptionsOpen = true;
+        }
+
+        // Voice model download — background, kicked off only after the window is up (or after init in
+        // prestart mode) so it never competes with window construction / first render.
+        Task.Run(() => WhisperModelManager.Instance.EnsureModelDownloaded(voiceConfig));
+
+        // Update check — runs in both paths (the daemon finds updates windowless and posts a message;
+        // the first window replays it as a toast). Skipped on first run.
+        if (!ConfigManager.Instance.IsFirstRun)
+            Task.Run(async () =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10));
+                await CheckForUpdates();
+            });
+    }
+
+    /// <summary>
+    /// Runs all app-level initialisation shared by both the normal and <c>--prestart</c> launch paths:
+    /// config registration, providers, work contexts, file map, features, the voice capability probe,
+    /// the torn-off window factory, the taskbar JumpList and the single-instance IPC listener.
+    /// Returns the <see cref="VoiceConfig"/> so the caller can start the model download afterwards.
+    /// </summary>
+    private VoiceConfig InitializeApp(BackgroundActivityManager activityManager)
+    {
         // ── 0. Base path — single source of truth for all app-data paths ─────
         ConfigManager.Instance.Initialize(Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -105,12 +159,32 @@ public partial class App : Application
         var defaultCtx = WorkContextManager.Instance.Contexts[0];
         FeatureManager.Instance.RegisterFeatures();
 
-        // ── 6a. Voice input — capability probe + model download (background) ──
+        // ── 6a. Voice input — capability probe (model download starts later, off the show path) ──
         var voiceConfig = new VoiceConfig();
         ConfigManager.Instance.Register(voiceConfig, voiceConfig.ConfigName);
         WhisperModelManager.Instance.Initialize(activityManager);
+
+        // Surface download outcomes as messages (global, so they survive the windowless daemon).
+        WhisperModelManager.Instance.ModelDownloadCompleted += (_, _) =>
+            MessageCenter.Instance.Post(new NotificationItem
+            {
+                Title     = "Voice ready",
+                Body      = "Voice model downloaded — voice input is ready.",
+                Severity  = MessageSeverity.Info,
+                ShowToast = true,
+            });
+        WhisperModelManager.Instance.ModelDownloadFailed += (_, msg) =>
+            MessageCenter.Instance.Post(new NotificationItem
+            {
+                Title     = "Voice model download failed",
+                Body      = msg,
+                Severity  = MessageSeverity.Error,
+                ShowToast = true,
+                Actions   = [new MessageAction("Retry",
+                    new RelayCommand(() => WhisperModelManager.Instance.EnsureModelDownloaded(voiceConfig)), IsPrimary: true)],
+            });
+
         HostCapabilityService.Instance.StartProbe();
-        Task.Run(() => WhisperModelManager.Instance.EnsureModelDownloaded(voiceConfig));
 
         // ── 7. Torn-off window factory ───────────────────────────────────────
         defaultCtx.ShellServices!.CreateWindowFactory = () =>
@@ -121,28 +195,13 @@ public partial class App : Application
             return (IWindowHost)win.ViewModel;
         };
 
-        // ── 8. Main window — honour --context "Name" from a taskbar JumpList ──
-        var startupCtx = ResolveContext(ParseContextArg(e.Args)) ?? defaultCtx;
-        startupCtx.ShellServices!.CreateWindowFactory ??= defaultCtx.ShellServices!.CreateWindowFactory;
-        var win = new MainWindow(activityManager, startupCtx);
-        win.Show();
-
-        // ── 8a. Taskbar JumpList — one entry per WorkContext ─────────────────
+        // ── 8. Taskbar JumpList — one entry per WorkContext ─────────────────
         JumpListService.Initialize();
 
-        // ── 9. Single-instance IPC listener ─────────────────────────────────
+        // ── 9. Single-instance IPC listener — a later click signals us to open a window ──
         _singleInstance.StartListening(name => OpenNewWindow(activityManager, name));
 
-        if (ConfigManager.Instance.IsFirstRun)
-            win.ViewModel.OptionsOpen = true;
-        else
-        {
-            Task.Run(async () =>
-            {
-                await Task.Delay(TimeSpan.FromSeconds(10));
-                await CheckForUpdates(win);
-            });
-        }
+        return voiceConfig;
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -190,7 +249,7 @@ public partial class App : Application
             : WorkContextManager.Instance.Contexts.FirstOrDefault(
                 c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase));
 
-    private async Task CheckForUpdates(MainWindow win)
+    private async Task CheckForUpdates()
     {
         try
         {
@@ -202,10 +261,18 @@ public partial class App : Application
             var asset = AppUpdater.GetCompatibleReleaseAsset(release);
             if (asset is null) return;
             string? changeLog = AppUpdater.GetChangelog(true);
-
             var version = release.TagName ?? release.Name ?? "unknown";
-            await win.Dispatcher.InvokeAsync(() =>
-                win.ViewModel.ShowUpdateToast(version, changeLog));
+
+            // Post a persistent update message with an Update action. Whichever window is focused toasts
+            // it; if none is open yet (daemon) it waits in the inbox and toasts when a window opens.
+            MessageCenter.Instance.Post(new NotificationItem
+            {
+                Title     = $"Update available — {version}",
+                Body      = changeLog ?? string.Empty,
+                Severity  = MessageSeverity.Update,
+                ShowToast = true,
+                Actions   = [new MessageAction("Update", new AsyncRelayCommand(DownloadAndInstallUpdate), IsPrimary: true)],
+            });
         }
         catch { }
     }
