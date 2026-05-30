@@ -26,6 +26,9 @@ public sealed class ProviderManager
     public void Initialize(IBackgroundActivityManager activityManager)
         => _activityManager = activityManager;
 
+    /// <summary>The shared background-activity manager set by <see cref="Initialize"/>, or null before startup.</summary>
+    public IBackgroundActivityManager? ActivityManager => _activityManager;
+
     /// <summary>All provider instances loaded so far, keyed by provider name.</summary>
     public IReadOnlyDictionary<string, ILlmProvider> LoadedProviders => _loadedProviders;
 

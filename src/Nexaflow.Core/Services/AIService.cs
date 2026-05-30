@@ -127,6 +127,36 @@ public sealed class AIService : IAIService
         catch { /* never crash on persistence failures */ }
     }
 
+    public async Task SaveConversationArtifactAsync(string conversationId, string name, string json)
+    {
+        try
+        {
+            var dir = Path.Combine(_baseDir, conversationId);
+            Directory.CreateDirectory(dir);
+            var file = Path.Combine(dir, ArtifactFileName(name));
+            await File.WriteAllTextAsync(file, json);
+        }
+        catch { /* never crash on persistence failures */ }
+    }
+
+    public async Task<string?> LoadConversationArtifactAsync(string conversationId, string name)
+    {
+        try
+        {
+            var file = Path.Combine(_baseDir, conversationId, ArtifactFileName(name));
+            return File.Exists(file) ? await File.ReadAllTextAsync(file) : null;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>Maps an artifact name to a safe <c>{name}.json</c> file name.</summary>
+    private static string ArtifactFileName(string name)
+    {
+        var safe = string.Concat(name.Where(c => char.IsLetterOrDigit(c) || c is '-' or '_'));
+        if (safe.Length == 0) safe = "artifact";
+        return safe + ".json";
+    }
+
     // ── AI routing ────────────────────────────────────────────────────────
 
     public (IReadOnlyList<(IQueryHandler Handler, float Score)> Scored,
@@ -234,6 +264,18 @@ public sealed class AIService : IAIService
 
         if (picked <= 0 || picked > options.Count) return null;
         return picked - 1;
+    }
+
+    public async Task<string?> RunAnalysisAsync(string systemPrompt, string userPrompt, CancellationToken ct = default)
+    {
+        var resolved = GetProvider(AiAbility.Analysis);
+        if (resolved is null) return null;
+        var (provider, model) = resolved.Value;
+
+        var response = await provider.CompleteAsync(
+            [new(LlmRole.System, systemPrompt), new(LlmRole.User, userPrompt)],
+            model, null, ct);
+        return response?.RawText;
     }
 
     // ── Client-side agent loop ───────────────────────────────────────────────

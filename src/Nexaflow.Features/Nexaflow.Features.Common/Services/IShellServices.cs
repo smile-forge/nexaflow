@@ -23,6 +23,14 @@ public interface IShellServices
     void CloseTab(Page tab);
 
     /// <summary>
+    /// Hands <paramref name="task"/> to the shell's background-activity manager: it is reported in
+    /// the activity area and its <see cref="IBackgroundTask.RunAsync"/> runs off the UI thread.
+    /// <paramref name="onComplete"/>, if supplied, is invoked on the UI thread when the task ends
+    /// (true on success, false if it threw).
+    /// </summary>
+    void QueueBackgroundTask(IBackgroundTask task, Action<bool>? onComplete = null);
+
+    /// <summary>
     /// Returns the first globally-open tab whose <see cref="Page.PageKind"/>
     /// matches and whose params are compatible (see param-matching rules), or null.
     /// </summary>

@@ -65,5 +65,23 @@ namespace Nexaflow.Features.Common
             string question,
             IReadOnlyList<(string Label, string Detail)> options,
             CancellationToken ct = default);
+
+        /// <summary>
+        /// Runs a one-shot completion on the model assigned to the Analysis ability and returns its
+        /// raw text. Returns null when no Analysis provider is configured. Used by background
+        /// conversation analysis.
+        /// </summary>
+        Task<string?> RunAnalysisAsync(string systemPrompt, string userPrompt, CancellationToken ct = default);
+
+        /// <summary>
+        /// Persists an arbitrary JSON artifact (e.g. a conversation analysis) beside the
+        /// conversation's transcript as <c>{name}.json</c>. Never throws on IO failure.
+        /// </summary>
+        Task SaveConversationArtifactAsync(string conversationId, string name, string json);
+
+        /// <summary>
+        /// Loads a previously-saved conversation artifact's JSON, or null if absent/unreadable.
+        /// </summary>
+        Task<string?> LoadConversationArtifactAsync(string conversationId, string name);
     }
 }
