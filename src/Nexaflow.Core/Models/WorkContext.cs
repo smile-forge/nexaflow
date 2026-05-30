@@ -18,6 +18,14 @@ public class WorkContext
     [JsonIgnore]
     public AiConfig  AiConfig { get; set; } = new();
 
+    /// <summary>
+    /// Per-context LLM provider instances and their configs. Runtime-only; rebuilt from the
+    /// context's own folder by <see cref="WorkContextManager"/>. Each context holds its own set,
+    /// so two contexts can use different subscriptions for the same provider.
+    /// </summary>
+    [JsonIgnore]
+    public ProviderSet? Providers { get; internal set; }
+
     /// <summary>Runtime-only AIService instance — not serialised.</summary>
     [JsonIgnore]
     public AIService? AiService { get; internal set; }

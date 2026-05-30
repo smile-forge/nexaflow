@@ -2,8 +2,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
-using Nexaflow.Features.Common;
-using Nexaflow.Providers.Common;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 
@@ -24,14 +22,19 @@ public partial class ManageAiViewModel : ObservableObject
     {
         _workContext = workContext;
 
+        // Ensure every provider plugin is loaded, then (re)build this context's provider set so
+        // newly discovered providers and on-disk config changes are reflected in the editor.
+        ProviderManager.Instance.DiscoverAll();
+        WorkContextManager.Instance.RefreshProviders(workContext);
+
         // First section: the WorkContext-specific AI ability grid
         Sections.Add(new ConfigEditViewModel(
             workContext.AiConfig,
             workContext.AiConfig.ConfigName,
             workContext.AiConfig.FriendlyName));
 
-        // Remaining sections: global provider configs (API keys etc — still in ConfigManager)
-        foreach (var config in ConfigManager.Instance.GetAll().OfType<IProviderConfig>())
+        // Remaining sections: this context's own provider configs (API keys etc.)
+        foreach (var config in workContext.Providers!.Configs)
             Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName));
 
         SelectedSection = Sections.FirstOrDefault();
@@ -86,10 +89,12 @@ public partial class ManageAiViewModel : ObservableObject
         }
         else
         {
-            // Global provider config — standard save
+            // Per-context provider config — save to this context's own folder.
             try
             {
-                ConfigManager.Instance.Save(SelectedSection.RealConfig, SelectedSection.ConfigName);
+                ConfigManager.Instance.SaveTo(
+                    WorkContextManager.ContextDir(_workContext.Name),
+                    SelectedSection.RealConfig, SelectedSection.ConfigName);
                 SelectedSection.ResetChanges();
             }
             catch (Exception ex)

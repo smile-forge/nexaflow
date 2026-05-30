@@ -17,6 +17,10 @@ public partial class WorkContextsConfigControl : UserControl, ICustomConfigApply
     // instead of replacing it with a stripped copy.
     private readonly Dictionary<WorkContext, WorkContext> _editToOriginal = [];
 
+    // Maps an editable copy that represents an unsaved CLONE to the source context it should be
+    // cloned from at Apply time (copying its AiConfig + provider configs).
+    private readonly Dictionary<WorkContext, WorkContext> _editCloneSource = [];
+
     public WorkContextsConfigControl()
     {
         InitializeComponent();
@@ -26,6 +30,7 @@ public partial class WorkContextsConfigControl : UserControl, ICustomConfigApply
             {
                 _config = cfg;
                 _editToOriginal.Clear();
+                _editCloneSource.Clear();
                 _editContexts = [];
                 foreach (var c in cfg.Contexts)
                 {
@@ -60,6 +65,16 @@ public partial class WorkContextsConfigControl : UserControl, ICustomConfigApply
                 survivors.Add(original);
                 ordered.Add(original);
             }
+            else if (_editCloneSource.TryGetValue(edit, out var source))
+            {
+                // Cloned in the editor — copy the source's AiConfig + provider configs, then apply
+                // the edited name and the randomised colour/icon assigned at clone time.
+                var created = mgr.Clone(source, edit.Name);
+                created.Color = edit.Color;
+                created.Icon  = edit.Icon;
+                survivors.Add(created);
+                ordered.Add(created);
+            }
             else
             {
                 // Newly added in the editor — create a fully-initialised context (does not activate it).
@@ -83,6 +98,24 @@ public partial class WorkContextsConfigControl : UserControl, ICustomConfigApply
     private void OnAddClick(object sender, RoutedEventArgs e)
     {
         _editContexts?.Add(new WorkContext { Name = "New Context" });
+    }
+
+    private void OnCloneClick(object sender, RoutedEventArgs e)
+    {
+        if (_editContexts is null) return;
+        if (sender is not Button { Tag: WorkContext edit }) return;
+
+        // Resolve the real source: an existing context, or the source of an unsaved clone.
+        var source = _editToOriginal.TryGetValue(edit, out var original) ? original
+                   : _editCloneSource.TryGetValue(edit, out var src)     ? src
+                   : null;
+        if (source is null) return;   // a brand-new unsaved context has no persisted settings to copy
+
+        var (icon, color) = WorkContextStyle.Random();
+        var clone = new WorkContext { Name = edit.Name + " copy", Color = color, Icon = icon };
+        _editCloneSource[clone] = source;
+
+        _editContexts.Insert(_editContexts.IndexOf(edit) + 1, clone);
     }
 
     private void OnRemoveClick(object sender, RoutedEventArgs e)
