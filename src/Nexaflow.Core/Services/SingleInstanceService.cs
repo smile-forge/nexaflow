@@ -31,7 +31,7 @@ public sealed class SingleInstanceService : IDisposable
     /// Sends a "new-window" command to the running first instance.
     /// Called from the second-instance process before it exits.
     /// </summary>
-    public static void SignalNewWindow()
+    public static void SignalNewWindow(string? contextName = null)
     {
         try
         {
@@ -39,16 +39,18 @@ public sealed class SingleInstanceService : IDisposable
             pipe.Connect(timeout: 2_000);
             using var w = new StreamWriter(pipe) { AutoFlush = true };
             w.WriteLine("new-window");
+            w.WriteLine(contextName ?? "");   // optional WorkContext name to open into
         }
         catch { /* first instance may not be listening yet — swallow */ }
     }
 
     /// <summary>
     /// Starts a background pipe server. Each connection that sends "new-window"
-    /// invokes <paramref name="onNewWindow"/> on the UI dispatcher.
+    /// invokes <paramref name="onNewWindow"/> on the UI dispatcher, passing the
+    /// optional WorkContext name the second instance requested (null if none).
     /// Must be called after the Application is running.
     /// </summary>
-    public void StartListening(Action onNewWindow)
+    public void StartListening(Action<string?> onNewWindow)
     {
         Task.Run(ListenLoop);
 
@@ -70,7 +72,11 @@ public sealed class SingleInstanceService : IDisposable
                     using var reader = new StreamReader(server);
                     var cmd = await reader.ReadLineAsync();
                     if (cmd == "new-window")
-                        Application.Current.Dispatcher.Invoke(onNewWindow);
+                    {
+                        var ctxName = await reader.ReadLineAsync();
+                        Application.Current.Dispatcher.Invoke(
+                            () => onNewWindow(string.IsNullOrEmpty(ctxName) ? null : ctxName));
+                    }
                 }
                 catch { /* swallow pipe errors, keep listening */ }
             }

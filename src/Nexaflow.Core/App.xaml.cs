@@ -16,6 +16,7 @@ using Nexaflow.Features.WindowsSearch;
 using System.IO;
 using System.Windows;
 using Updatum;
+using WorkContext = Nexaflow.Core.Models.WorkContext;
 
 namespace Nexaflow.Core;
 
@@ -44,7 +45,8 @@ public partial class App : Application
         // ── Single-instance guard ────────────────────────────────────────────
         if (!_singleInstance.TryAcquire())
         {
-            SingleInstanceService.SignalNewWindow();
+            // Forward any --context "Name" (e.g. from a taskbar JumpList) to the running instance.
+            SingleInstanceService.SignalNewWindow(ParseContextArg(e.Args));
             Shutdown();
             return;
         }
@@ -119,12 +121,17 @@ public partial class App : Application
             return (IWindowHost)win.ViewModel;
         };
 
-        // ── 8. Main window ───────────────────────────────────────────────────
-        var win = new MainWindow(activityManager, defaultCtx);
+        // ── 8. Main window — honour --context "Name" from a taskbar JumpList ──
+        var startupCtx = ResolveContext(ParseContextArg(e.Args)) ?? defaultCtx;
+        startupCtx.ShellServices!.CreateWindowFactory ??= defaultCtx.ShellServices!.CreateWindowFactory;
+        var win = new MainWindow(activityManager, startupCtx);
         win.Show();
 
+        // ── 8a. Taskbar JumpList — one entry per WorkContext ─────────────────
+        JumpListService.Initialize();
+
         // ── 9. Single-instance IPC listener ─────────────────────────────────
-        _singleInstance.StartListening(() => OpenNewWindow(activityManager));
+        _singleInstance.StartListening(name => OpenNewWindow(activityManager, name));
 
         if (ConfigManager.Instance.IsFirstRun)
             win.ViewModel.OptionsOpen = true;
@@ -145,12 +152,17 @@ public partial class App : Application
         base.OnExit(e);
     }
 
-    private static void OpenNewWindow(BackgroundActivityManager activityManager)
+    /// <summary>
+    /// Opens a new shell window. When <paramref name="contextName"/> names an existing
+    /// WorkContext (e.g. forwarded from a taskbar JumpList launch) the window opens in
+    /// that context; otherwise a fresh context is created, preserving prior behaviour.
+    /// </summary>
+    private static void OpenNewWindow(BackgroundActivityManager activityManager, string? contextName = null)
     {
-        var name = $"Window {WorkContextManager.Instance.Contexts.Count + 1}";
-        var ctx  = WorkContextManager.Instance.Create(name);
+        var ctx = ResolveContext(contextName)
+                  ?? WorkContextManager.Instance.Create($"Window {WorkContextManager.Instance.Contexts.Count + 1}");
 
-        ctx.ShellServices!.CreateWindowFactory = () =>
+        ctx.ShellServices!.CreateWindowFactory ??= () =>
         {
             var c = WorkContextManager.Instance.Contexts[0];
             var w = new MainWindow(activityManager, c, openDefaultTabs: false);
@@ -159,7 +171,24 @@ public partial class App : Application
 
         var win = new MainWindow(activityManager, ctx);
         win.Show();
+        win.Activate();
     }
+
+    /// <summary>Reads a <c>--context "Name"</c> argument, or null if absent.</summary>
+    private static string? ParseContextArg(string[] args)
+    {
+        for (int i = 0; i < args.Length - 1; i++)
+            if (string.Equals(args[i], JumpListService.ContextSwitch, StringComparison.OrdinalIgnoreCase))
+                return args[i + 1];
+        return null;
+    }
+
+    /// <summary>Resolves a context name to a live WorkContext, or null if unknown / empty.</summary>
+    private static WorkContext? ResolveContext(string? name)
+        => string.IsNullOrEmpty(name)
+            ? null
+            : WorkContextManager.Instance.Contexts.FirstOrDefault(
+                c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase));
 
     private async Task CheckForUpdates(MainWindow win)
     {
