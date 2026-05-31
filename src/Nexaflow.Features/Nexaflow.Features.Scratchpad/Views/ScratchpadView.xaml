@@ -73,6 +73,46 @@
             </Setter>
         </Style>
 
+        <!-- Recycle-bin item action button (Restore / Delete) -->
+        <Style x:Key="BinActionBtn" TargetType="Button">
+            <Setter Property="Background"        Value="Transparent"/>
+            <Setter Property="Foreground"        Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="BorderThickness"   Value="1"/>
+            <Setter Property="Padding"           Value="8,3"/>
+            <Setter Property="FontSize"          Value="11"/>
+            <Setter Property="Cursor"            Value="Hand"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin"            Value="6,0,0,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource Surface2Brush}"/>
+                                <Setter Property="Foreground"                  Value="{StaticResource TextBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource BorderBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Restore is the primary action — accent-coloured -->
+        <Style x:Key="BinRestoreBtn" TargetType="Button" BasedOn="{StaticResource BinActionBtn}">
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+        </Style>
+
         <!-- ── Note mini-ribbon styles (popup lives at this level to avoid note rotation) ── -->
 
         <Style x:Key="RibbonBtn" TargetType="Button">
@@ -317,7 +357,14 @@
                     MouseMove="CanvasHost_MouseMove"
                     MouseUp="CanvasHost_MouseUp"
                     DragOver="CanvasHost_DragOver"
-                    Drop="CanvasHost_Drop">
+                    Drop="CanvasHost_Drop"
+                    ContextMenuOpening="CanvasHost_ContextMenuOpening">
+
+                <Border.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="New post-it here" Click="NewNoteHere_Click"/>
+                    </ContextMenu>
+                </Border.ContextMenu>
 
                 <Border.Background>
                     <DrawingBrush TileMode="Tile" Viewport="0,0,40,40" ViewportUnits="Absolute">
@@ -428,23 +475,20 @@
                                             </Grid.RowDefinitions>
 
                                             <TextBlock Grid.Row="0"
-                                                       Text="{Binding Content}"
+                                                       Text="{Binding RecycleBinLabel}"
                                                        Foreground="{StaticResource TextBrush}"
                                                        FontSize="12"
-                                                       MaxHeight="60"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       TextWrapping="Wrap"/>
+                                                       TextTrimming="CharacterEllipsis"/>
 
                                             <StackPanel Grid.Row="1" Orientation="Horizontal"
                                                         HorizontalAlignment="Right" Margin="0,6,0,0">
                                                 <Button Content="↩ Restore"
-                                                        Style="{StaticResource TbBtn}"
+                                                        Style="{StaticResource BinRestoreBtn}"
                                                         Command="{Binding DataContext.RestoreNoteCommand,
                                                             RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                        CommandParameter="{Binding}"
-                                                        Margin="0,0,4,0"/>
+                                                        CommandParameter="{Binding}"/>
                                                 <Button Content="✕ Delete"
-                                                        Style="{StaticResource TbBtn}"
+                                                        Style="{StaticResource BinActionBtn}"
                                                         Command="{Binding DataContext.DeleteFromBinCommand,
                                                             RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                         CommandParameter="{Binding}"/>

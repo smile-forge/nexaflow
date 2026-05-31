@@ -57,7 +57,26 @@ public class SelectableMarkdownView : UserControl
     }
 
     private static void OnMarkdownChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        => ((SelectableMarkdownView)d)._rtb.Document = MarkdownFlowDocument.Build(e.NewValue as string);
+        => ((SelectableMarkdownView)d).Rebuild();
+
+    /// <summary>Colour scheme for rendering. Defaults to <see cref="MarkdownPalette.Dark"/>;
+    /// set <see cref="MarkdownPalette.Light"/> for light surfaces (e.g. scratchpad post-its).</summary>
+    public static readonly DependencyProperty PaletteProperty =
+        DependencyProperty.Register(nameof(Palette), typeof(MarkdownPalette), typeof(SelectableMarkdownView),
+            new PropertyMetadata(MarkdownPalette.Dark, (d, _) => ((SelectableMarkdownView)d).Rebuild()));
+
+    public MarkdownPalette Palette
+    {
+        get => (MarkdownPalette)GetValue(PaletteProperty);
+        set => SetValue(PaletteProperty, value);
+    }
+
+    /// <summary>In-app link handler. Return true to mark the link handled (the
+    /// renderer then skips opening the OS browser). When null, links open externally.</summary>
+    public Func<string, bool>? LinkNavigate { get; set; }
+
+    private void Rebuild() => _rtb.Document = MarkdownFlowDocument.Build(
+        Markdown, new MarkdownRenderContext { Palette = Palette, OnNavigate = LinkNavigate });
 
     /// <summary>
     /// Inner editor's vertical scrollbar. Default <see cref="ScrollBarVisibility.Disabled"/>

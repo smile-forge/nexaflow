@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Scratchpad.ViewModels;
+using Nexaflow.Visuals.Text.Markdown;
 using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
@@ -37,12 +38,6 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
     {
         InitializeComponent();
         DataContext = vm;
-
-        vm.ConfirmAction = (title, msg) =>
-        {
-            var result = MessageBox.Show(msg, title, MessageBoxButton.YesNo, MessageBoxImage.Question);
-            return result == MessageBoxResult.Yes;
-        };
 
         Loaded   += (_, _) => { Focus(); ApplyTransform(); };
         Unloaded += (_, _) => vm.Dispose();
@@ -103,16 +98,25 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
 
     public new void Drop(IDataObject data, string destinationPath, bool move)
     {
-        string? content = null;
-        if (data.GetDataPresent(DataFormats.UnicodeText))
-            content = data.GetData(DataFormats.UnicodeText) as string;
-        else if (data.GetDataPresent(DataFormats.Text))
-            content = data.GetData(DataFormats.Text) as string;
-        else if (data.GetDataPresent(DataFormats.FileDrop) && data.GetData(DataFormats.FileDrop) is string[] files)
-            content = string.Join("\n", files);
-
+        var content = BestDropContent(data);
         if (!string.IsNullOrEmpty(content))
             Vm.AddNoteWithContent(content, ViewportCenter());
+    }
+
+    /// <summary>
+    /// Markdown (custom format) wins; HTML is converted to markdown; otherwise plain
+    /// text; finally a file-drop list. See <see cref="MarkdownClipboard.ReadBestMarkdown"/>.
+    /// </summary>
+    private static string? BestDropContent(IDataObject data)
+    {
+        var markdown = MarkdownClipboard.ReadBestMarkdown(data);
+        if (!string.IsNullOrEmpty(markdown)) return markdown;
+
+        if (data.GetDataPresent(DataFormats.FileDrop) &&
+            data.GetData(DataFormats.FileDrop) is string[] files)
+            return string.Join("\n", files);
+
+        return null;
     }
 
     // ── Note mini-ribbon (rendered at ScratchpadView level, never rotated) ─
@@ -241,16 +245,7 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
 
     private void CanvasHost_Drop(object sender, DragEventArgs e)
     {
-        string? content = null;
-
-        if (e.Data.GetDataPresent(DataFormats.UnicodeText))
-            content = e.Data.GetData(DataFormats.UnicodeText) as string;
-        else if (e.Data.GetDataPresent(DataFormats.Text))
-            content = e.Data.GetData(DataFormats.Text) as string;
-        else if (e.Data.GetDataPresent(DataFormats.FileDrop) &&
-                 e.Data.GetData(DataFormats.FileDrop) is string[] files)
-            content = string.Join("\n", files);
-
+        var content = BestDropContent(e.Data);
         if (string.IsNullOrEmpty(content)) return;
 
         // Use actual drop position for placement — unavailable via IDropTarget.Drop
@@ -258,6 +253,16 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
         Vm.AddNoteWithContent(content, canvasPt);
         e.Handled = true;
     }
+
+    // ── Canvas right-click → new post-it ──────────────────────────────────
+
+    private Point _newNoteCanvasPt;
+
+    private void CanvasHost_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+        => _newNoteCanvasPt = ScreenToCanvas(Mouse.GetPosition(CanvasHost));
+
+    private void NewNoteHere_Click(object sender, RoutedEventArgs e)
+        => Vm.AddNote(_newNoteCanvasPt);
 
     // ── Toolbar button handlers ───────────────────────────────────────────
 
@@ -276,14 +281,24 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
 
     private void BinDrop_Click(object sender, RoutedEventArgs e)
     {
-        // Open the attached ContextMenu directly below the button
-        var btn = (Button)sender;
-        if (btn.ContextMenu != null)
+        // Open the attached ContextMenu below the button, right-aligned to the
+        // button's right edge so it never spills past the window edge.
+        var btn  = (Button)sender;
+        var menu = btn.ContextMenu;
+        if (menu == null) return;
+
+        menu.PlacementTarget  = btn;
+        menu.Placement        = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        menu.HorizontalOffset = 0;
+
+        void OnOpened(object? s, RoutedEventArgs _)
         {
-            btn.ContextMenu.PlacementTarget = btn;
-            btn.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
-            btn.ContextMenu.IsOpen = true;
+            menu.Opened -= OnOpened;
+            // Shift left by (menu width − button width) to right-align the edges.
+            menu.HorizontalOffset = btn.ActualWidth - menu.ActualWidth;
         }
+        menu.Opened += OnOpened;
+        menu.IsOpen  = true;
     }
 
     private void EmptyBin_Click(object sender, RoutedEventArgs e)

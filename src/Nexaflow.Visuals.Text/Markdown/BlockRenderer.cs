@@ -25,33 +25,19 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// <summary>
 /// Converts a single Markdig <see cref="MdBlock"/> into a WPF
 /// <see cref="FrameworkElement"/>.  Pure rendering — no editor coupling.
+///
+/// Colours and the link-navigation hook come from a
+/// <see cref="MarkdownRenderContext"/> (a <see cref="MarkdownPalette"/> converts
+/// implicitly; defaults to <see cref="MarkdownPalette.Dark"/>). Fonts and sizes
+/// are theme-independent.
 /// </summary>
 public static class BlockRenderer
 {
-    // ── Dark-theme palette ────────────────────────────────────────────────
-
-    internal static readonly Brush TextBrush        = Frozen(Color.FromRgb(0xE8, 0xEA, 0xF2));
-    internal static readonly Brush TextMutedBrush   = Frozen(Color.FromRgb(0x78, 0x80, 0xA0));
-    internal static readonly Brush AccentBrush      = Frozen(Color.FromRgb(0x4F, 0x8E, 0xF7));
-    internal static readonly Brush CodeBgBrush      = Frozen(Color.FromRgb(0x08, 0x0C, 0x16));
-    internal static readonly Brush QuoteBgBrush     = Frozen(Color.FromRgb(0x2A, 0x30, 0x47));
-    internal static readonly Brush HeadingBrush     = Frozen(Color.FromRgb(0xA8, 0xD4, 0xFF));
-    internal static readonly Brush HrBrush          = Frozen(Color.FromRgb(0x2A, 0x30, 0x47));
-    internal static readonly Brush CodeBorderBrush  = Frozen(Color.FromRgb(0x2A, 0x30, 0x47));
-    internal static readonly Brush TableBorderBrush = Frozen(Color.FromRgb(0x3A, 0x42, 0x5C));
-    internal static readonly Brush TableHeaderBg    = Frozen(Color.FromRgb(0x1E, 0x24, 0x38));
-    internal static readonly Brush TableAltRowBg    = Frozen(Color.FromRgb(0x11, 0x15, 0x22));
-    internal static readonly Brush DefTermBrush     = Frozen(Color.FromRgb(0xD0, 0xE8, 0xFF));
-    private  static readonly Brush FigureBorderBrush= Frozen(Color.FromRgb(0x3A, 0x42, 0x5C));
-    private  static readonly Brush FigureBgBrush    = Frozen(Color.FromRgb(0x11, 0x15, 0x22));
-    private  static readonly Brush FooterBgBrush    = Frozen(Color.FromRgb(0x11, 0x15, 0x22));
-    private  static readonly Brush CitationBrush    = Frozen(Color.FromRgb(0xC8, 0xA8, 0xFF));
+    // ── Theme-independent typography ──────────────────────────────────────
 
     internal static readonly FontFamily BodyFont = new("Segoe UI");
     internal static readonly FontFamily MonoFont = new("Consolas, Courier New");
     internal const double BaseFontSize = 13.5;
-
-    private static Brush Frozen(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
 
     // ── Public entry point ────────────────────────────────────────────────
 
@@ -59,32 +45,35 @@ public static class BlockRenderer
     /// The raw markdown source for this block.  Required for accurate math
     /// formula extraction; ignored by all other block types.
     /// </param>
-    public static FrameworkElement Render(MdBlock block, string rawMarkdown = "")
+    /// <param name="context">Colours + link hook; defaults to <see cref="MarkdownPalette.Dark"/>.</param>
+    public static FrameworkElement Render(MdBlock block, string rawMarkdown = "", MarkdownRenderContext? context = null)
     {
+        var ctx = context ?? MarkdownRenderContext.Dark;
+        var p   = ctx.Palette;
         try
         {
             return block switch
             {
-                HeadingBlock       hb  => RenderHeading(hb),
-                ParagraphBlock     pb  => RenderParagraph(pb),
-                ThematicBreakBlock     => RenderHr(),
-                QuoteBlock         qb  => RenderBlockQuote(qb),
-                ListBlock          lb  => RenderList(lb),
+                HeadingBlock       hb  => RenderHeading(hb, ctx),
+                ParagraphBlock     pb  => RenderParagraph(pb, ctx),
+                ThematicBreakBlock     => RenderHr(ctx),
+                QuoteBlock         qb  => RenderBlockQuote(qb, ctx),
+                ListBlock          lb  => RenderList(lb, ctx),
                 // MathBlock extends FencedCodeBlock — must match first
-                MathBlock          mb  => RenderMathBlock(mb, rawMarkdown),
+                MathBlock          mb  => RenderMathBlock(mb, rawMarkdown, ctx),
                 // Diagram blocks: check Info before falling through to generic code
                 FencedCodeBlock    fc when DiagramRenderer.IsDiagramLanguage(fc.Info)
                                        => DiagramRenderer.Render(fc.Info!, ExtractFencedContent(fc, rawMarkdown)),
-                FencedCodeBlock    fc  => RenderCode(fc.Lines.ToString()),
-                CodeBlock          cb  => RenderCode(cb.Lines.ToString()),
-                MdTable            t   => RenderTable(t),
-                DefinitionList     dl  => RenderDefinitionList(dl),
-                DefinitionTerm     dt  => RenderDefinitionTerm(dt),
-                DefinitionItem     di  => RenderDefinitionItem(di),
-                MdFigure           fig => RenderFigure(fig),
-                MdFigureCaption    fc2 => RenderFigureCaption(fc2),
-                FooterBlock        fb  => RenderFooter(fb),
-                _                      => RenderFallback(block)
+                FencedCodeBlock    fc  => RenderCode(fc.Lines.ToString(), ctx),
+                CodeBlock          cb  => RenderCode(cb.Lines.ToString(), ctx),
+                MdTable            t   => RenderTable(t, ctx),
+                DefinitionList     dl  => RenderDefinitionList(dl, ctx),
+                DefinitionTerm     dt  => RenderDefinitionTerm(dt, ctx),
+                DefinitionItem     di  => RenderDefinitionItem(di, ctx),
+                MdFigure           fig => RenderFigure(fig, ctx),
+                MdFigureCaption    fc2 => RenderFigureCaption(fc2, ctx),
+                FooterBlock        fb  => RenderFooter(fb, ctx),
+                _                      => RenderFallback(block, ctx)
             };
         }
         catch
@@ -92,7 +81,7 @@ public static class BlockRenderer
             return new TextBlock
             {
                 Text         = block.ToString() ?? string.Empty,
-                Foreground   = TextMutedBrush,
+                Foreground   = p.TextMuted,
                 FontSize     = BaseFontSize,
                 TextWrapping = TextWrapping.Wrap
             };
@@ -101,18 +90,19 @@ public static class BlockRenderer
 
     // ── Headings ──────────────────────────────────────────────────────────
 
-    private static FrameworkElement RenderHeading(HeadingBlock hb)
+    private static FrameworkElement RenderHeading(HeadingBlock hb, MarkdownRenderContext ctx)
     {
+        var p = ctx.Palette;
         double[] sizes = [28, 22, 18, 16, 14.5, BaseFontSize];
-        var tb = MakeTextBlock();
+        var tb = MakeTextBlock(p);
         tb.FontSize   = sizes[Math.Clamp(hb.Level - 1, 0, 5)];
         tb.FontWeight = FontWeights.Bold;
-        tb.Foreground = HeadingBrush;
+        tb.Foreground = p.Heading;
         tb.Margin     = new Thickness(0, hb.Level == 1 ? 14 : 10, 0, 4);
 
         if (hb.Inline is not null)
             foreach (var inline in hb.Inline)
-                AddInlines(tb.Inlines, inline);
+                AddInlines(tb.Inlines, inline, ctx);
 
         if (hb.Level > 2) return tb;
 
@@ -121,7 +111,7 @@ public static class BlockRenderer
         stack.Children.Add(new Border
         {
             Height     = 1,
-            Background = HrBrush,
+            Background = p.Hr,
             Margin     = new Thickness(0, 3, 0, 8)
         });
         return stack;
@@ -129,35 +119,36 @@ public static class BlockRenderer
 
     // ── Paragraph ─────────────────────────────────────────────────────────
 
-    private static FrameworkElement RenderParagraph(ParagraphBlock pb)
+    private static FrameworkElement RenderParagraph(ParagraphBlock pb, MarkdownRenderContext ctx)
     {
-        var tb = MakeTextBlock();
+        var tb = MakeTextBlock(ctx.Palette);
         tb.Margin = new Thickness(0, 4, 0, 8);
 
         if (pb.Inline is not null)
             foreach (var inline in pb.Inline)
-                AddInlines(tb.Inlines, inline);
+                AddInlines(tb.Inlines, inline, ctx);
 
         return tb;
     }
 
     // ── Thematic break ────────────────────────────────────────────────────
 
-    private static FrameworkElement RenderHr() =>
-        new Border { Height = 1, Background = HrBrush, Margin = new Thickness(0, 10, 0, 10) };
+    private static FrameworkElement RenderHr(MarkdownRenderContext ctx) =>
+        new Border { Height = 1, Background = ctx.Palette.Hr, Margin = new Thickness(0, 10, 0, 10) };
 
     // ── Block-quote ───────────────────────────────────────────────────────
 
-    private static FrameworkElement RenderBlockQuote(QuoteBlock qb)
+    private static FrameworkElement RenderBlockQuote(QuoteBlock qb, MarkdownRenderContext ctx)
     {
+        var p = ctx.Palette;
         var inner = new StackPanel { Margin = new Thickness(12, 6, 12, 6) };
         foreach (var child in qb)
-            inner.Children.Add(Render(child));
+            inner.Children.Add(Render(child, "", ctx));
 
         return new Border
         {
-            Background      = QuoteBgBrush,
-            BorderBrush     = AccentBrush,
+            Background      = p.QuoteBg,
+            BorderBrush     = p.Accent,
             BorderThickness = new Thickness(4, 0, 0, 0),
             Margin          = new Thickness(0, 4, 0, 8),
             Child           = inner
@@ -166,8 +157,9 @@ public static class BlockRenderer
 
     // ── Lists (including list-extras: alpha, roman) ───────────────────────
 
-    private static FrameworkElement RenderList(ListBlock lb)
+    private static FrameworkElement RenderList(ListBlock lb, MarkdownRenderContext ctx)
     {
+        var p = ctx.Palette;
         var stack = new StackPanel { Margin = new Thickness(0, 4, 0, 8) };
 
         int ordinal = 1;
@@ -183,7 +175,7 @@ public static class BlockRenderer
             var marker = new TextBlock
             {
                 Text              = MakeListMarker(lb, ordinal),
-                Foreground        = TextMutedBrush,
+                Foreground        = p.TextMuted,
                 FontSize          = BaseFontSize,
                 FontFamily        = BodyFont,
                 VerticalAlignment = VerticalAlignment.Top,
@@ -195,7 +187,7 @@ public static class BlockRenderer
             var content = new StackPanel();
             Grid.SetColumn(content, 1);
             foreach (var child in li)
-                content.Children.Add(Render(child));
+                content.Children.Add(Render(child, "", ctx));
 
             row.Children.Add(marker);
             row.Children.Add(content);
@@ -238,11 +230,13 @@ public static class BlockRenderer
 
     // ── Code blocks ───────────────────────────────────────────────────────
 
-    private static FrameworkElement RenderCode(string text) =>
-        new Border
+    private static FrameworkElement RenderCode(string text, MarkdownRenderContext ctx)
+    {
+        var p = ctx.Palette;
+        return new Border
         {
-            Background      = CodeBgBrush,
-            BorderBrush     = CodeBorderBrush,
+            Background      = p.CodeBg,
+            BorderBrush     = p.CodeBorder,
             BorderThickness = new Thickness(1),
             Padding         = new Thickness(12, 8, 12, 8),
             Margin          = new Thickness(0, 4, 0, 10),
@@ -251,15 +245,17 @@ public static class BlockRenderer
                 Text         = text.TrimEnd('\n'),
                 FontFamily   = MonoFont,
                 FontSize     = 12,
-                Foreground   = TextBrush,
+                Foreground   = p.Text,
                 TextWrapping = TextWrapping.NoWrap
             }
         };
+    }
 
     // ── Table (pipe tables + grid tables) ────────────────────────────────
 
-    private static FrameworkElement RenderTable(MdTable table)
+    private static FrameworkElement RenderTable(MdTable table, MarkdownRenderContext ctx)
     {
+        var p = ctx.Palette;
         var grid = new Grid
         {
             Margin            = new Thickness(0, 8, 0, 12),
@@ -287,9 +283,9 @@ public static class BlockRenderer
                     ? table.ColumnDefinitions[colIdx].Alignment ?? TableColumnAlign.Left
                     : TableColumnAlign.Left;
 
-                var tb = MakeTextBlock();
+                var tb = MakeTextBlock(p);
                 tb.FontWeight     = row.IsHeader ? FontWeights.SemiBold : FontWeights.Normal;
-                tb.Foreground     = row.IsHeader ? HeadingBrush : TextBrush;
+                tb.Foreground     = row.IsHeader ? p.Heading : p.Text;
                 tb.FontSize       = row.IsHeader ? 13 : BaseFontSize;
                 tb.Padding        = new Thickness(8, 5, 8, 5);
                 tb.TextAlignment  = align switch
@@ -302,16 +298,16 @@ public static class BlockRenderer
                 // Cells contain ParagraphBlock children; extract inlines from the first
                 if (cell.Count > 0 && cell[0] is ParagraphBlock pb && pb.Inline is not null)
                     foreach (var inl in pb.Inline)
-                        AddInlines(tb.Inlines, inl);
+                        AddInlines(tb.Inlines, inl, ctx);
 
                 var bg = row.IsHeader
-                    ? TableHeaderBg
-                    : (rowIdx % 2 == 1 ? TableAltRowBg : Brushes.Transparent);
+                    ? p.TableHeaderBg
+                    : (rowIdx % 2 == 1 ? p.TableAltRowBg : Brushes.Transparent);
 
                 var cellBorder = new Border
                 {
                     Background      = bg,
-                    BorderBrush     = TableBorderBrush,
+                    BorderBrush     = p.TableBorder,
                     BorderThickness = new Thickness(1),
                     Child           = tb
                 };
@@ -336,40 +332,42 @@ public static class BlockRenderer
 
     // ── Definition list ───────────────────────────────────────────────────
 
-    private static FrameworkElement RenderDefinitionList(DefinitionList dl)
+    private static FrameworkElement RenderDefinitionList(DefinitionList dl, MarkdownRenderContext ctx)
     {
         var stack = new StackPanel { Margin = new Thickness(0, 4, 0, 10) };
         foreach (var child in dl)
-            stack.Children.Add(Render(child));
+            stack.Children.Add(Render(child, "", ctx));
         return stack;
     }
 
-    private static FrameworkElement RenderDefinitionTerm(DefinitionTerm dt)
+    private static FrameworkElement RenderDefinitionTerm(DefinitionTerm dt, MarkdownRenderContext ctx)
     {
-        var tb = MakeTextBlock();
+        var p = ctx.Palette;
+        var tb = MakeTextBlock(p);
         tb.FontWeight = FontWeights.SemiBold;
-        tb.Foreground = DefTermBrush;
+        tb.Foreground = p.DefTerm;
         tb.Margin     = new Thickness(0, 6, 0, 2);
 
         if (dt.Inline is not null)
             foreach (var inl in dt.Inline)
-                AddInlines(tb.Inlines, inl);
+                AddInlines(tb.Inlines, inl, ctx);
 
         return tb;
     }
 
     // ── Figure ────────────────────────────────────────────────────────────
 
-    private static FrameworkElement RenderFigure(MdFigure fig)
+    private static FrameworkElement RenderFigure(MdFigure fig, MarkdownRenderContext ctx)
     {
+        var p = ctx.Palette;
         var inner = new StackPanel { Margin = new Thickness(12, 8, 12, 8) };
         foreach (var child in fig)
-            inner.Children.Add(Render(child));
+            inner.Children.Add(Render(child, "", ctx));
 
         return new Border
         {
-            Background      = FigureBgBrush,
-            BorderBrush     = FigureBorderBrush,
+            Background      = p.FigureBg,
+            BorderBrush     = p.FigureBorder,
             BorderThickness = new Thickness(1),
             CornerRadius    = new CornerRadius(4),
             Margin          = new Thickness(0, 8, 0, 8),
@@ -377,43 +375,45 @@ public static class BlockRenderer
         };
     }
 
-    private static FrameworkElement RenderFigureCaption(MdFigureCaption fc)
+    private static FrameworkElement RenderFigureCaption(MdFigureCaption fc, MarkdownRenderContext ctx)
     {
-        var tb = MakeTextBlock();
+        var p = ctx.Palette;
+        var tb = MakeTextBlock(p);
         tb.FontStyle  = FontStyles.Italic;
         tb.FontSize   = 12;
-        tb.Foreground = TextMutedBrush;
+        tb.Foreground = p.TextMuted;
         tb.TextAlignment = TextAlignment.Center;
         tb.Margin     = new Thickness(0, 2, 0, 6);
 
         if (fc.Inline is not null)
             foreach (var inl in fc.Inline)
-                AddInlines(tb.Inlines, inl);
+                AddInlines(tb.Inlines, inl, ctx);
 
         return tb;
     }
 
     // ── Footer ────────────────────────────────────────────────────────────
 
-    private static FrameworkElement RenderFooter(FooterBlock fb)
+    private static FrameworkElement RenderFooter(FooterBlock fb, MarkdownRenderContext ctx)
     {
+        var p = ctx.Palette;
         var inner = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
         foreach (var child in fb)
         {
-            var rendered = Render(child);
+            var rendered = Render(child, "", ctx);
             if (rendered is TextBlock ftb)
             {
                 ftb.FontSize  = 12;
-                ftb.Foreground = TextMutedBrush;
+                ftb.Foreground = p.TextMuted;
             }
             inner.Children.Add(rendered);
         }
 
         var stack = new StackPanel { Margin = new Thickness(0, 12, 0, 4) };
-        stack.Children.Add(new Border { Height = 1, Background = HrBrush });
+        stack.Children.Add(new Border { Height = 1, Background = p.Hr });
         stack.Children.Add(new Border
         {
-            Background = FooterBgBrush,
+            Background = p.FooterBg,
             Padding    = new Thickness(0, 4, 0, 4),
             Child      = inner
         });
@@ -422,8 +422,9 @@ public static class BlockRenderer
 
     // ── Math block ($$ ... $$) ────────────────────────────────────────────
 
-    private static FrameworkElement RenderMathBlock(MathBlock mb, string rawMarkdown)
+    private static FrameworkElement RenderMathBlock(MathBlock mb, string rawMarkdown, MarkdownRenderContext ctx)
     {
+        var p = ctx.Palette;
         // Prefer raw-text extraction (strip the $$ fence lines) so that we are
         // not affected by any Markdig version quirks in StringLineGroup.ToString().
         string latex;
@@ -451,7 +452,7 @@ public static class BlockRenderer
                 {
                     Formula             = latex,
                     Scale               = BaseFontSize * 1.5,
-                    Foreground          = TextBrush,
+                    Foreground          = p.Text,
                     HorizontalAlignment = HorizontalAlignment.Center,
                     Margin              = new Thickness(0, 8, 0, 8)
                 };
@@ -465,8 +466,8 @@ public static class BlockRenderer
         // can see what formula was written even when WpfMath cannot render it.
         return new Border
         {
-            Background          = CodeBgBrush,
-            BorderBrush         = AccentBrush,
+            Background          = p.CodeBg,
+            BorderBrush         = p.Accent,
             BorderThickness     = new Thickness(2),
             Padding             = new Thickness(12, 8, 12, 8),
             Margin              = new Thickness(0, 8, 0, 8),
@@ -476,7 +477,7 @@ public static class BlockRenderer
                 Text         = string.IsNullOrWhiteSpace(latex) ? "(empty math block)" : $"$$\n{latex}\n$$",
                 FontFamily   = MonoFont,
                 FontSize     = 12,
-                Foreground   = AccentBrush,
+                Foreground   = p.Accent,
                 TextWrapping = TextWrapping.Wrap
             }
         };
@@ -484,31 +485,31 @@ public static class BlockRenderer
 
     // ── Definition item (<dd>) ────────────────────────────────────────────
 
-    private static FrameworkElement RenderDefinitionItem(DefinitionItem di)
+    private static FrameworkElement RenderDefinitionItem(DefinitionItem di, MarkdownRenderContext ctx)
     {
         var stack = new StackPanel { Margin = new Thickness(24, 0, 0, 4) };
         foreach (var child in di)
-            stack.Children.Add(Render(child));
+            stack.Children.Add(Render(child, "", ctx));
         return stack;
     }
 
     // ── Fallback ──────────────────────────────────────────────────────────
 
-    private static FrameworkElement RenderFallback(MdBlock block) =>
+    private static FrameworkElement RenderFallback(MdBlock block, MarkdownRenderContext ctx) =>
         new TextBlock
         {
             Text         = block.ToString() ?? string.Empty,
-            Foreground   = TextMutedBrush,
+            Foreground   = ctx.Palette.TextMuted,
             FontSize     = BaseFontSize,
             TextWrapping = TextWrapping.Wrap
         };
 
     // ── TextBlock factory ─────────────────────────────────────────────────
 
-    private static TextBlock MakeTextBlock() =>
+    private static TextBlock MakeTextBlock(MarkdownPalette p) =>
         new()
         {
-            Foreground   = TextBrush,
+            Foreground   = p.Text,
             FontSize     = BaseFontSize,
             FontFamily   = BodyFont,
             TextWrapping = TextWrapping.Wrap,
@@ -517,15 +518,17 @@ public static class BlockRenderer
 
     // ── Inline rendering ──────────────────────────────────────────────────
 
-    internal static void AddInlines(InlineCollection target, MdInline inline)
+    internal static void AddInlines(InlineCollection target, MdInline inline, MarkdownRenderContext? context = null)
     {
+        var ctx = context ?? MarkdownRenderContext.Dark;
+        var p   = ctx.Palette;
         switch (inline)
         {
             case TaskList tl:
                 // Render task list checkbox
                 target.Add(new Run(tl.Checked ? "☑ " : "☐ ")
                 {
-                    Foreground = tl.Checked ? AccentBrush : TextMutedBrush
+                    Foreground = tl.Checked ? p.Accent : p.TextMuted
                 });
                 break;
 
@@ -537,11 +540,11 @@ public static class BlockRenderer
                 // Citation (^^text^^) — rendered as smaller raised text in a distinct colour
                 var citeSpan = new Span
                 {
-                    Foreground = CitationBrush,
+                    Foreground = p.Citation,
                     FontSize   = BaseFontSize * 0.85,
                     BaselineAlignment = BaselineAlignment.Superscript
                 };
-                foreach (var child in ei) AddInlines(citeSpan.Inlines, child);
+                foreach (var child in ei) AddInlines(citeSpan.Inlines, child, ctx);
                 target.Add(citeSpan);
                 break;
 
@@ -552,7 +555,7 @@ public static class BlockRenderer
                     emphSpan = new Span { FontWeight = FontWeights.Bold };
                 else
                     emphSpan = new Span { FontStyle = FontStyles.Italic };
-                foreach (var child in ei) AddInlines(emphSpan.Inlines, child);
+                foreach (var child in ei) AddInlines(emphSpan.Inlines, child, ctx);
                 target.Add(emphSpan);
                 break;
 
@@ -561,8 +564,8 @@ public static class BlockRenderer
                 {
                     FontFamily = MonoFont,
                     FontSize   = 12,
-                    Background = CodeBgBrush,
-                    Foreground = AccentBrush,
+                    Background = p.CodeBg,
+                    Foreground = p.Accent,
                     Tag        = ci.Span
                 });
                 break;
@@ -570,17 +573,21 @@ public static class BlockRenderer
             case LinkInline link when !link.IsImage:
                 var hyper = new Hyperlink
                 {
-                    Foreground      = AccentBrush,
+                    Foreground      = p.Accent,
                     TextDecorations = TextDecorations.Underline,
                     NavigateUri     = Uri.TryCreate(link.Url, UriKind.Absolute, out var uri) ? uri : null
                 };
+                var onNavigate = ctx.OnNavigate;
                 hyper.RequestNavigate += (_, e) =>
                 {
-                    try { Process.Start(new ProcessStartInfo(e.Uri.ToString()) { UseShellExecute = true }); }
-                    catch { }
+                    var url = e.Uri.ToString();
                     e.Handled = true;
+                    // In-app handler wins; otherwise fall back to the OS browser.
+                    if (onNavigate is not null && onNavigate(url)) return;
+                    try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
+                    catch { }
                 };
-                foreach (var child in link) AddInlines(hyper.Inlines, child);
+                foreach (var child in link) AddInlines(hyper.Inlines, child, ctx);
                 target.Add(hyper);
                 break;
 
@@ -596,7 +603,7 @@ public static class BlockRenderer
                     {
                         Formula    = miLatex,
                         Scale      = BaseFontSize,
-                        Foreground = TextBrush
+                        Foreground = p.Text
                     };
                     if (!ctrl.HasError)
                     {
@@ -606,14 +613,14 @@ public static class BlockRenderer
                     }
                 }
                 catch { }
-                target.Add(new Run($"${miLatex}$") { FontFamily = MonoFont, FontSize = 12, Foreground = AccentBrush });
+                target.Add(new Run($"${miLatex}$") { FontFamily = MonoFont, FontSize = 12, Foreground = p.Accent });
                 break;
 
             case HtmlInline:
                 break; // drop raw HTML
 
             case ContainerInline ci2:
-                foreach (var child in ci2) AddInlines(target, child);
+                foreach (var child in ci2) AddInlines(target, child, ctx);
                 break;
 
             default:

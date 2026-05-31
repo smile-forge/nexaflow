@@ -231,4 +231,45 @@ public class PostItViewModelTests
         CollectionAssert.Contains(changed, nameof(PostItViewModel.IsPinned));
         CollectionAssert.Contains(changed, nameof(PostItViewModel.TimeRemainingText));
     }
+
+    // ── Recycle-bin label (first 15 chars of the first non-empty line) ────
+
+    private static PostItViewModel WithContent(string content)
+        => new(new PostItNote { Content = content });
+
+    [TestMethod]
+    public void RecycleBinLabel_Empty_IsEmpty()
+        => Assert.AreEqual(string.Empty, WithContent("").RecycleBinLabel);
+
+    [TestMethod]
+    public void RecycleBinLabel_ShortContent_ReturnedWhole()
+        => Assert.AreEqual("hi there", WithContent("hi there").RecycleBinLabel);
+
+    [TestMethod]
+    public void RecycleBinLabel_LongContent_TruncatedTo15()
+        => Assert.AreEqual("abcdefghijklmno", WithContent("abcdefghijklmnopqrstuvwxyz").RecycleBinLabel);
+
+    [TestMethod]
+    public void RecycleBinLabel_UsesFirstNonEmptyLine()
+        => Assert.AreEqual("first line", WithContent("\n\n   \nfirst line\nsecond line").RecycleBinLabel);
+
+    [TestMethod]
+    public void RecycleBinLabel_FirstNonEmptyLineTrimmedThenTruncated()
+        => Assert.AreEqual("the quick brown", WithContent("   the quick brown fox").RecycleBinLabel);
+
+    [TestMethod]
+    public void RecycleBinLabel_WhitespaceOnly_IsEmpty()
+        => Assert.AreEqual(string.Empty, WithContent("   \n\t\n  ").RecycleBinLabel);
+
+    [TestMethod]
+    public void RecycleBinLabel_TracksContentChanges()
+    {
+        var vm = WithContent("old");
+        vm.Content = "brand new content here";
+        Assert.AreEqual("brand new conte", vm.RecycleBinLabel);
+    }
+
+    [TestMethod]
+    public void StartInEdit_DefaultsFalse()
+        => Assert.IsFalse(WithContent("x").StartInEdit);
 }

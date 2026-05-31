@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Scratchpad.Models;
 using Nexaflow.Features.Scratchpad.Services;
+using Nexaflow.Visuals.Text.Markdown;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Threading;
@@ -27,8 +28,6 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
     [ObservableProperty] private double _offsetX  = 0;
     [ObservableProperty] private double _offsetY  = 0;
     [ObservableProperty] private string _statusText = string.Empty;
-
-    public Func<string, string, bool>? ConfirmAction { get; set; }
 
     public ScratchpadViewModel(ScratchpadConfig config, IShellServices? shellServices = null)
         : this(config, new PostItStore(), shellServices)
@@ -88,6 +87,7 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
 
         _store.Save(note);
         var vm = AddNoteViewModel(note);
+        vm.StartInEdit = true;   // freshly created empty note opens ready to type
         UpdateStatus();
         return vm;
     }
@@ -95,8 +95,9 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
     [RelayCommand]
     private void PasteAsNote()
     {
-        string text;
-        try { text = Clipboard.GetText(); } catch { return; }
+        string? text;
+        try { text = MarkdownClipboard.ReadBestMarkdown(Clipboard.GetDataObject()); }
+        catch { return; }
         if (string.IsNullOrEmpty(text)) return;
 
         var center = ViewportCenter();
@@ -142,10 +143,17 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
     [RelayCommand]
     private void EmptyRecycleBin()
     {
-        var confirmed = ConfirmAction?.Invoke("Empty Recycle Bin",
-            "Permanently delete all notes in the recycle bin?") ?? true;
-        if (!confirmed) return;
+        if (_shellServices is null) { EmptyRecycleBinConfirmed(); return; }
 
+        _shellServices.ShowConfirmation(
+            "Empty Recycle Bin",
+            "Permanently delete all notes in the recycle bin?",
+            onConfirm: EmptyRecycleBinConfirmed,
+            onCancel:  () => { });
+    }
+
+    private void EmptyRecycleBinConfirmed()
+    {
         _store.EmptyRecycleBin();
         RecycleBinNotes.Clear();
     }
