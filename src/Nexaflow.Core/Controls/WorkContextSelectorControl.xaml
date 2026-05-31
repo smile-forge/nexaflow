@@ -83,7 +83,7 @@
                 <ItemsControl x:Name="ContextList"
                               ItemsSource="{Binding WorkContexts, ElementName=Root}">
                     <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="{x:Type m:WorkContext}">
+                        <DataTemplate DataType="{x:Type m:WorkContextConfig}">
                             <Button Style="{StaticResource CtxItemButton}"
                                     Tag="{Binding}"
                                     Click="OnContextItemClick">

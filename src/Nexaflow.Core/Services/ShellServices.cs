@@ -67,6 +67,8 @@ public sealed class ShellServices : IShellServices
     /// </summary>
     internal Func<IWindowHost>? CreateWindowFactory { get; set; }
 
+    internal bool HasWindows => _windows.Count > 0;
+
     internal void RegisterWindow(IWindowHost host) => _windows.Add(host);
 
     /// <summary>
@@ -98,16 +100,13 @@ public sealed class ShellServices : IShellServices
         if (_focused == host)
             _focused = _windows.FirstOrDefault();
 
-        // Shut down only when the last window across ALL contexts closes — a per-context check would
-        // kill the whole app when one context's only window closes while others are still open.
-        // When running as a resident login daemon (--prestart), stay alive windowless so the next
-        // click can show a window instantly; see App.IsResident.
-        bool anyWindowsOpen = WorkContextManager.Instance.Contexts
-            .Any(ctx => ctx.ShellServices?._windows.Count > 0);
+        // When this context's last window closes, release its runtime resources.
+        WorkContextManager.Instance.NotifyWindowClosed(_workContext);
 
-        // During an update install the daemon must exit so the installer can replace its files —
-        // IsUpdating overrides the resident keep-alive. See App.DownloadAndInstallUpdate.
-        if (!anyWindowsOpen && (!App.IsResident || App.IsUpdating))
+        // Shut down only when no windows remain across all active contexts.
+        // In --prestart daemon mode, stay alive windowless so the next click can show a window
+        // instantly. During an update the daemon must exit so the installer can replace its files.
+        if (!WorkContextManager.Instance.AnyWindowsOpen && (!App.IsResident || App.IsUpdating))
             Application.Current.Shutdown();
     }
 

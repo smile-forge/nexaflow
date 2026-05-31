@@ -295,16 +295,16 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
     // ── Work contexts ─────────────────────────────────────────────────────
     [ObservableProperty] private WorkContext _currentWorkContext = null!;
 
-    public ObservableCollection<WorkContext> WorkContexts => WorkContextManager.Instance.Contexts;
+    public ObservableCollection<WorkContextConfig> WorkContexts => WorkContextManager.Instance.Configs;
 
     [RelayCommand]
-    private void SelectWorkContext(WorkContext ctx)
+    private void SelectWorkContext(WorkContextConfig config)
     {
-        if (ReferenceEquals(ctx, CurrentWorkContext)) return;
+        if (ReferenceEquals(config, CurrentWorkContext?.Config)) return;
 
-        // Transfer this window's registration (+ tracked tabs + factory/callbacks)
-        // from the old context's ShellServices to the new one so actions instantiated
-        // for the new context can still find a window to open tabs in.
+        // Find or create the runtime context for the selected config, then transfer this
+        // window's registration so actions instantiated for the new context can find it.
+        var ctx    = WorkContextManager.Instance.GetOrCreate(config);
         var newSvc = (ShellServices)ctx.ShellServices!;
         if (!ReferenceEquals(_shellServices, newSvc))
         {
@@ -379,14 +379,16 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
 
         WireRootPane();
 
-        // When the Options panel rebuilds the context list, re-anchor to the same-named context
+        // If the current context's config was removed in the Options panel, switch to the first available.
         WorkContextManager.Instance.ContextsRefreshed += (_, _) =>
         {
-            var refreshed = WorkContextManager.Instance.Contexts
-                .FirstOrDefault(c => c.Name == CurrentWorkContext?.Name)
-                ?? WorkContextManager.Instance.Contexts.FirstOrDefault();
-            if (refreshed is not null)
-                Application.Current.Dispatcher.Invoke(() => CurrentWorkContext = refreshed);
+            if (CurrentWorkContext is null
+                || !WorkContextManager.Instance.Configs.Contains(CurrentWorkContext.Config))
+            {
+                var fallback = WorkContextManager.Instance.Configs.FirstOrDefault();
+                if (fallback is not null)
+                    Application.Current.Dispatcher.Invoke(() => SelectWorkContext(fallback));
+            }
         };
 
         // ── Voice input availability + transcription wiring ──────────────────

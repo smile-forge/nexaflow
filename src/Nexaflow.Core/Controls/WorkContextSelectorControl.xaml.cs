@@ -13,7 +13,7 @@ public partial class WorkContextSelectorControl : UserControl
             typeof(WorkContextSelectorControl), new PropertyMetadata(null));
 
     public static readonly DependencyProperty WorkContextsProperty =
-        DependencyProperty.Register(nameof(WorkContexts), typeof(ObservableCollection<WorkContext>),
+        DependencyProperty.Register(nameof(WorkContexts), typeof(ObservableCollection<WorkContextConfig>),
             typeof(WorkContextSelectorControl), new PropertyMetadata(null));
 
     public static readonly DependencyProperty SelectWorkContextCommandProperty =
@@ -26,9 +26,9 @@ public partial class WorkContextSelectorControl : UserControl
         set => SetValue(CurrentWorkContextProperty, value);
     }
 
-    public ObservableCollection<WorkContext>? WorkContexts
+    public ObservableCollection<WorkContextConfig>? WorkContexts
     {
-        get => (ObservableCollection<WorkContext>?)GetValue(WorkContextsProperty);
+        get => (ObservableCollection<WorkContextConfig>?)GetValue(WorkContextsProperty);
         set => SetValue(WorkContextsProperty, value);
     }
 
@@ -50,9 +50,9 @@ public partial class WorkContextSelectorControl : UserControl
 
     private void OnContextItemClick(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: WorkContext ctx })
+        if (sender is Button { Tag: WorkContextConfig cfg })
         {
-            SelectWorkContextCommand?.Execute(ctx);
+            SelectWorkContextCommand?.Execute(cfg);
             ContextPopup.IsOpen = false;
         }
     }

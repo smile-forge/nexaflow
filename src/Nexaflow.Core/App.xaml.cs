@@ -83,11 +83,11 @@ public partial class App : Application
         // ── Main window — skipped in --prestart mode (windowless login daemon) ──
         if (!prestart)
         {
-            var defaultCtx = WorkContextManager.Instance.Contexts[0];
-
             // Honour --context "Name" from a taskbar JumpList.
-            var startupCtx = ResolveContext(ParseContextArg(e.Args)) ?? defaultCtx;
-            startupCtx.ShellServices!.CreateWindowFactory ??= defaultCtx.ShellServices!.CreateWindowFactory;
+            var startupConfig = ResolveConfig(ParseContextArg(e.Args))
+                                ?? WorkContextManager.Instance.Configs[0];
+            var startupCtx = WorkContextManager.Instance.CreateFromConfig(startupConfig);
+            startupCtx.ShellServices!.CreateWindowFactory = MakeWindowFactory(activityManager);
             var win = new MainWindow(activityManager, startupCtx);
             win.Show();
 
@@ -139,14 +139,16 @@ public partial class App : Application
         // ── 3. Providers — union of all assembly file names across contexts ──
         ProviderManager.Instance.Initialize(activityManager);
 
-        // Each context's AI config lives in its own folder; load it so we know which provider
-        // assemblies the contexts need before we load them.
-        foreach (var ctx in wcConfig.Contexts)
-            ConfigManager.Instance.LoadFrom(
-                WorkContextManager.ContextDir(ctx.Name), ctx.AiConfig, ctx.AiConfig.ConfigName);
-
+        // Load each context's AI config (stored per-context on disk) to discover which provider
+        // assemblies are needed before loading them. WorkContextConfig has no runtime fields, so
+        // we use a temporary AiConfig per entry.
         var allProviderFiles = wcConfig.Contexts
-            .SelectMany(c => c.AiConfig.Columns.Select(p => p.AssemblyFileName))
+            .SelectMany(cfg =>
+            {
+                var ai = new AiConfig();
+                ConfigManager.Instance.LoadFrom(WorkContextManager.ContextDir(cfg.Name), ai, ai.ConfigName);
+                return ai.Columns.Select(p => p.AssemblyFileName);
+            })
             .Distinct();
         ProviderManager.Instance.LoadConfigured(allProviderFiles);
 
@@ -165,7 +167,6 @@ public partial class App : Application
         FileMapManager.Instance.Initialize(externalAppsConfig.UseRegistryMapping);
 
         // ── 6. Feature system ────────────────────────────────────────────────
-        var defaultCtx = WorkContextManager.Instance.Contexts[0];
         FeatureManager.Instance.RegisterFeatures();
 
         // ── 6a. Voice input — capability probe (model download starts later, off the show path) ──
@@ -195,15 +196,6 @@ public partial class App : Application
 
         HostCapabilityService.Instance.StartProbe();
 
-        // ── 7. Torn-off window factory ───────────────────────────────────────
-        defaultCtx.ShellServices!.CreateWindowFactory = () =>
-        {
-            // New shell windows (tearoff or "Open in new Window") use the first available WorkContext for now
-            var ctx = WorkContextManager.Instance.Contexts[0];
-            var win = new MainWindow(activityManager, ctx, openDefaultTabs: false);
-            return (IWindowHost)win.ViewModel;
-        };
-
         // ── 8. Taskbar JumpList — one entry per WorkContext ─────────────────
         JumpListService.Initialize();
 
@@ -221,26 +213,34 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Opens a new shell window. When <paramref name="contextName"/> names an existing
-    /// WorkContext (e.g. forwarded from a taskbar JumpList launch) the window opens in
-    /// that context; otherwise a fresh context is created, preserving prior behaviour.
+    /// Opens a new shell window. When <paramref name="contextName"/> names a known config
+    /// (e.g. forwarded from a taskbar JumpList launch) the window opens in a fresh context
+    /// built from that config; otherwise the first config is used.
     /// </summary>
     private static void OpenNewWindow(BackgroundActivityManager activityManager, string? contextName = null)
     {
-        var ctx = ResolveContext(contextName)
-                  ?? WorkContextManager.Instance.Create($"Window {WorkContextManager.Instance.Contexts.Count + 1}");
+        var config = ResolveConfig(contextName) ?? WorkContextManager.Instance.Configs[0];
+        var ctx    = WorkContextManager.Instance.CreateFromConfig(config);
 
-        ctx.ShellServices!.CreateWindowFactory ??= () =>
-        {
-            var c = WorkContextManager.Instance.Contexts[0];
-            var w = new MainWindow(activityManager, c, openDefaultTabs: false);
-            return (IWindowHost)w.ViewModel;
-        };
+        ctx.ShellServices!.CreateWindowFactory ??= MakeWindowFactory(activityManager);
 
         var win = new MainWindow(activityManager, ctx);
         win.Show();
         win.Activate();
     }
+
+    /// <summary>
+    /// Returns a factory that creates torn-off or "open in new window" shells, each in a
+    /// fresh <see cref="WorkContext"/> built from the first saved config.
+    /// </summary>
+    private static Func<IWindowHost> MakeWindowFactory(BackgroundActivityManager activityManager)
+        => () =>
+        {
+            var cfg = WorkContextManager.Instance.Configs[0];
+            var ctx = WorkContextManager.Instance.CreateFromConfig(cfg);
+            var win = new MainWindow(activityManager, ctx, openDefaultTabs: false);
+            return (IWindowHost)win.ViewModel;
+        };
 
     /// <summary>Reads a <c>--context "Name"</c> argument, or null if absent.</summary>
     private static string? ParseContextArg(string[] args)
@@ -251,11 +251,11 @@ public partial class App : Application
         return null;
     }
 
-    /// <summary>Resolves a context name to a live WorkContext, or null if unknown / empty.</summary>
-    private static WorkContext? ResolveContext(string? name)
+    /// <summary>Resolves a context name to a saved <see cref="WorkContextConfig"/>, or null.</summary>
+    private static WorkContextConfig? ResolveConfig(string? name)
         => string.IsNullOrEmpty(name)
             ? null
-            : WorkContextManager.Instance.Contexts.FirstOrDefault(
+            : WorkContextManager.Instance.Configs.FirstOrDefault(
                 c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase));
 
     private async Task CheckForUpdates()

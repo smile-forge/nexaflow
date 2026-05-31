@@ -37,15 +37,15 @@ public static class JumpListService
 
         var jumpList = new JumpList { ShowRecentCategory = false, ShowFrequentCategory = false };
 
-        foreach (var ctx in WorkContextManager.Instance.Contexts)
+        foreach (var cfg in WorkContextManager.Instance.Configs)
             jumpList.JumpItems.Add(new JumpTask
             {
-                Title            = ctx.Name,
-                Description      = $"Open the “{ctx.Name}” work context",
+                Title            = cfg.Name,
+                Description      = $"Open the “{cfg.Name}” work context",
                 CustomCategory   = CategoryName,
                 ApplicationPath  = exePath,
                 IconResourcePath = exePath,
-                Arguments        = $"{ContextSwitch} \"{ctx.Name}\"",
+                Arguments        = $"{ContextSwitch} \"{cfg.Name}\"",
             });
 
         try
