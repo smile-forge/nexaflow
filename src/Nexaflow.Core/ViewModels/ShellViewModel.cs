@@ -81,38 +81,17 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
 
     private void WireRootPane()
     {
+        // The breadcrumb bar binds Pane.ActivePage.Breadcrumbs directly (see PaneView.xaml),
+        // so the shell only has to re-notify its computed ActiveTab/CurrentPage facades here.
         RootPane.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(Pane.ActivePage))
             {
-                if (_activeBreadcrumbSource is not null)
-                    _activeBreadcrumbSource.CollectionChanged -= ActiveTabBreadcrumbsChanged;
-                _activeBreadcrumbSource = RootPane.ActivePage?.Breadcrumbs;
-                if (_activeBreadcrumbSource is not null)
-                    _activeBreadcrumbSource.CollectionChanged += ActiveTabBreadcrumbsChanged;
-
                 OnPropertyChanged(nameof(ActiveTab));
                 OnPropertyChanged(nameof(CurrentPage));
-                SyncBreadcrumbsFromActive();
             }
         };
     }
-
-    private ObservableCollection<BreadcrumbSegment>? _activeBreadcrumbSource;
-
-    private void ActiveTabBreadcrumbsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
-        => SyncBreadcrumbsFromActive();
-
-    private void SyncBreadcrumbsFromActive()
-    {
-        Breadcrumbs.Clear();
-        if (RootPane.ActivePage is null) return;
-        foreach (var seg in RootPane.ActivePage.Breadcrumbs)
-            Breadcrumbs.Add(seg);
-    }
-
-    // ── Breadcrumbs ────────────────────────────────────────────────────────
-    public ObservableCollection<BreadcrumbSegment> Breadcrumbs { get; } = [];
 
     // ── Notifications ─────────────────────────────────────────────────────
     // The inbox is a single app-wide store shared by every window (see MessageCenter).

@@ -4,6 +4,8 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Automation.Peers;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
@@ -75,7 +77,16 @@ public partial class TabStrip : UserControl
         AllowDrop = true;
         Drop      += TabStrip_Drop;
         DragOver  += TabStrip_DragOver;
+        OverflowPopup.CustomPopupPlacementCallback = PlaceOverflowPopup;
     }
+
+    // Anchor the dropdown's right edge to the button's right edge so it opens inward and stays
+    // inside the window (the overflow button sits at the right edge of the tab bar). Placement=Bottom
+    // would anchor the left edge and spill the popup off the right of the screen.
+    private static CustomPopupPlacement[] PlaceOverflowPopup(Size popupSize, Size targetSize, Point offset)
+        => [ new CustomPopupPlacement(
+                new Point(targetSize.Width - popupSize.Width, targetSize.Height),
+                PopupPrimaryAxis.Horizontal) ];
 
     private static void OnTabsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
@@ -89,59 +100,11 @@ public partial class TabStrip : UserControl
         }
     }
 
+    // Per-tab Title/Icon/IsActive are data-bound (see BuildTabElement + TabItemBorderStyle),
+    // so a collection change only needs to add/remove the tab elements and re-measure overflow —
+    // no per-page PropertyChanged subscription to keep the labels in sync.
     private void Tabs_CollectionChanged(object? s, NotifyCollectionChangedEventArgs e)
-    {
-        // Move repositions a tab without removing it — both NewItems and OldItems reference
-        // the same entry, so naively subscribing then unsubscribing would kill the handler.
-        if (e.Action != NotifyCollectionChangedAction.Move)
-        {
-            if (e.NewItems is not null)
-                foreach (Page t in e.NewItems)
-                    t.PropertyChanged += Tab_PropertyChanged;
-            if (e.OldItems is not null)
-                foreach (Page t in e.OldItems)
-                    t.PropertyChanged -= Tab_PropertyChanged;
-        }
-
-        RebuildAndLayout();
-    }
-
-    private void Tab_PropertyChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(Page.IsActive))
-            Dispatcher.Invoke(RefreshActiveStates);
-        else if (e.PropertyName == nameof(Page.Title) && s is Page changed)
-            Dispatcher.Invoke(() => RefreshTabLabel(changed));
-    }
-
-    private void RefreshTabLabel(Page tab)
-    {
-        foreach (UIElement child in VisiblePanel.Children)
-        {
-            if (child is Border b && b.Tag == tab &&
-                b.Child is StackPanel sp)
-            {
-                foreach (UIElement c in sp.Children)
-                    if (c is TextBlock tb && tb.Text != tab.Icon && tb.Text != "✕")
-                    {
-                        tb.Text = tab.Title;
-                        break;
-                    }
-                break;
-            }
-        }
-        // Also re-measure overflow since the width may have changed
-        MeasureOverflow();
-    }
-
-    private void RefreshActiveStates()
-    {
-        for (int i = 0; i < VisiblePanel.Children.Count; i++)
-        {
-            if (VisiblePanel.Children[i] is Border b && b.Tag is Page t)
-                ApplyActiveStyle(b, t.IsActive);
-        }
-    }
+        => RebuildAndLayout();
 
     private void RebuildAndLayout()
     {
@@ -219,9 +182,13 @@ public partial class TabStrip : UserControl
 
     private Border BuildTabElement(Page tab)
     {
-        // Inner content
-        var icon = new TextBlock { Text = tab.Icon, FontSize = 13, Margin = new Thickness(0,0,6,0) };
-        var label = new TextBlock { Text = tab.Title, FontSize = 12 };
+        // Inner content — Title/Icon are bound to the Page so they track changes automatically.
+        var icon  = new TextBlock { FontSize = 13, Margin = new Thickness(0, 0, 6, 0) };
+        icon.SetBinding(TextBlock.TextProperty, new Binding(nameof(Page.Icon)));
+
+        var label = new TextBlock { FontSize = 12 };
+        label.SetBinding(TextBlock.TextProperty, new Binding(nameof(Page.Title)));
+
         var closeBtn = new TextBlock
         {
             Text     = "✕",
@@ -237,47 +204,27 @@ public partial class TabStrip : UserControl
         row.Children.Add(label);
         row.Children.Add(closeBtn);
 
+        // DataContext = the Page drives the active/hover styling via TabItemBorderStyle's triggers.
         var border = new TabBorder
         {
-            Child   = row,
-            Padding = new Thickness(12, 0, 12, 0),
-            Tag     = tab,
-            Cursor  = Cursors.Hand,
-            CornerRadius = new CornerRadius(6, 6, 0, 0)
+            Child       = row,
+            Tag         = tab,
+            DataContext = tab,
+            Style       = (Style)FindResource("TabItemBorderStyle")
         };
         AutomationProperties.SetAutomationId(border, $"TabItem_{tab.PageKind}");
         AutomationProperties.SetAutomationId(closeBtn, $"CloseTab_{tab.PageKind}");
 
-        ApplyActiveStyle(border, tab.IsActive);
-
-        // Hover
-        border.MouseEnter += (_, _) =>
-        {
-            closeBtn.Opacity = 1;
-            if (!tab.IsActive)
-            {
-                border.Background = (Brush)FindResource("Surface2Brush");
-                label.Foreground  = (Brush)FindResource("TextBrush");
-                icon.Foreground   = (Brush)FindResource("TextBrush");
-            }
-        };
-        border.MouseLeave += (_, _) =>
-        {
-            closeBtn.Opacity = 0;
-            ApplyActiveStyle(border, tab.IsActive);
-        };
-
-        // Close-button brightens on its own hover
+        // Close button reveals on tab hover; brightens on its own hover. Pure interaction —
+        // the tab's background/foreground come from the style triggers above.
+        border.MouseEnter += (_, _) => closeBtn.Opacity = 1;
+        border.MouseLeave += (_, _) => closeBtn.Opacity = 0;
         closeBtn.MouseEnter += (_, _) =>
         {
             closeBtn.Foreground = (Brush)FindResource("TextBrush");
             closeBtn.Opacity    = 1;
         };
-        closeBtn.MouseLeave += (_, _) =>
-        {
-            closeBtn.Foreground = (Brush)FindResource("TextDimBrush");
-            // keep opacity=1 while border is still hovered
-        };
+        closeBtn.MouseLeave += (_, _) => closeBtn.Foreground = (Brush)FindResource("TextDimBrush");
 
         // Drag to ribbon — begin drag after a small movement while LMB is held.
         // Activation happens on mouse-UP (not down) so the drag-arm closure is still
@@ -341,27 +288,6 @@ public partial class TabStrip : UserControl
         return border;
     }
 
-    private void ApplyActiveStyle(Border b, bool active)
-    {
-        b.Background = active
-            ? (Brush)FindResource("Surface2Brush")
-            : Brushes.Transparent;
-
-        if (b.Child is StackPanel sp)
-        {
-            var accentBrush = (Brush)FindResource(active ? "AccentBrush" : "TextMutedBrush");
-            foreach (UIElement c in sp.Children)
-            {
-                if (c is TextBlock tb && tb.Text != "✕")
-                    tb.Foreground = accentBrush;
-            }
-        }
-
-        // Bottom accent line
-        b.BorderThickness = new Thickness(0, 0, 0, 2);
-        b.BorderBrush     = active ? (Brush)FindResource("AccentBrush") : Brushes.Transparent;
-    }
-
     private UIElement BuildOverflowItem(Page tab)
     {
         var sp = new StackPanel { Orientation = Orientation.Horizontal };
@@ -371,9 +297,8 @@ public partial class TabStrip : UserControl
         var btn = new Button
         {
             Content  = sp,
-            Style    = (Style)FindResource("RibbonButton"),
-            Padding  = new Thickness(8, 6, 8, 6),
-            HorizontalContentAlignment = HorizontalAlignment.Left
+            Style    = (Style)FindResource("RibbonOverflowEntry"),   // stretches full width, content left-aligned
+            Padding  = new Thickness(8, 6, 8, 6)
         };
         btn.Click += (_, _) =>
         {
