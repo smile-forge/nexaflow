@@ -13,20 +13,20 @@ using System.Windows.Controls;
 namespace Nexaflow.Core.Services;
 
 /// <summary>
-/// Per-WorkContext shell service that owns that context's tab + window registry.
-/// One instance per <see cref="WorkContext"/> (created by <see cref="WorkContextManager"/>
-/// during context bootstrap, before any window); each <see cref="MainWindow"/> showing this
-/// context registers its <see cref="IWindowHost"/> on activation and unregisters on close.
+/// Per-Workspace shell service that owns that workspace's tab + window registry.
+/// One instance per <see cref="Workspace"/> (created by <see cref="WorkspaceManager"/>
+/// during bootstrap, before any window); each <see cref="MainWindow"/> showing this
+/// workspace registers its <see cref="IWindowHost"/> on activation and unregisters on close.
 /// </summary>
 public sealed class ShellServices : IShellServices
 {
-    private readonly WorkContext _workContext;
+    private readonly Workspace _workspace;
     private readonly IBackgroundActivityManager? _activity;
 
-    public ShellServices(WorkContext workContext, IBackgroundActivityManager? activity = null)
+    public ShellServices(Workspace workspace, IBackgroundActivityManager? activity = null)
     {
-        _workContext = workContext;
-        _activity    = activity;
+        _workspace = workspace;
+        _activity  = activity;
     }
 
     public void QueueBackgroundTask(IBackgroundTask task, Action<bool>? onComplete = null)
@@ -100,13 +100,13 @@ public sealed class ShellServices : IShellServices
         if (_focused == host)
             _focused = _windows.FirstOrDefault();
 
-        // When this context's last window closes, release its runtime resources.
-        WorkContextManager.Instance.NotifyWindowClosed(_workContext);
+        // When this workspace's last window closes, release its runtime resources.
+        WorkspaceManager.Instance.NotifyWindowClosed(_workspace);
 
-        // Shut down only when no windows remain across all active contexts.
+        // Shut down only when no windows remain across all live workspaces.
         // In --prestart daemon mode, stay alive windowless so the next click can show a window
         // instantly. During an update the daemon must exit so the installer can replace its files.
-        if (!WorkContextManager.Instance.AnyWindowsOpen && (!App.IsResident || App.IsUpdating))
+        if (!WorkspaceManager.Instance.AnyWindowsOpen && (!App.IsResident || App.IsUpdating))
             Application.Current.Shutdown();
     }
 
@@ -182,6 +182,16 @@ public sealed class ShellServices : IShellServices
         tab.RaiseClosed();
         _tabToWindow.Remove(tab);
         host.RemoveTab(tab);
+    }
+
+    /// <summary>
+    /// Closes every tab across all of this workspace's windows (windows stay open). Used when the
+    /// workspace is reconfigured for a new profile — open pages captured the now-replaced services.
+    /// </summary>
+    internal void CloseAllTabs()
+    {
+        foreach (var tab in _tabToWindow.Keys.ToList())
+            CloseTab(tab);
     }
 
     public Page? FindTab(string pageKind, Dictionary<string, string>? pageParams = null)
@@ -265,7 +275,7 @@ public sealed class ShellServices : IShellServices
     private Page? CreateTab(string pageKind, Dictionary<string, string>? pageParams)
     {
         if (FeatureManager.Instance.IsRegistered(pageKind))
-            return FeatureManager.Instance.CreateTab(pageKind, _workContext, pageParams);
+            return FeatureManager.Instance.CreateTab(pageKind, _workspace, pageParams);
 
         return MakePlaceholderTab(pageKind, "📄");
     }

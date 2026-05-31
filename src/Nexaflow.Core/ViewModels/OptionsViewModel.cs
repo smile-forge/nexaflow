@@ -327,7 +327,7 @@ public partial class OptionsViewModel : ObservableObject
         }
 
         // Request tab refresh for feature configs (only meaningful when a window is open).
-        var activeCtx = WorkContextManager.Instance.FirstActive;
+        var activeCtx = WorkspaceManager.Instance.FirstActive;
         var pageKindsToRefresh = activeCtx is null ? [] : Sections
             .Where(s => s.RealConfig is IFeatureConfig)
             .SelectMany(s => FeatureManager.Instance.GetPageKindsForConfig(

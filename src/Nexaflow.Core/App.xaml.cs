@@ -18,7 +18,6 @@ using Nexaflow.Features.WindowsSearch;
 using System.IO;
 using System.Windows;
 using Updatum;
-using WorkContext = Nexaflow.Core.Models.WorkContext;
 using StageKit.Runtime;
 
 namespace Nexaflow.Core;
@@ -84,11 +83,11 @@ public partial class App : Application
         if (!prestart)
         {
             // Honour --context "Name" from a taskbar JumpList.
-            var startupConfig = ResolveConfig(ParseContextArg(e.Args))
-                                ?? WorkContextManager.Instance.Configs[0];
-            var startupCtx = WorkContextManager.Instance.CreateFromConfig(startupConfig);
-            startupCtx.ShellServices!.CreateWindowFactory = MakeWindowFactory(activityManager);
-            var win = new MainWindow(activityManager, startupCtx);
+            var startupProfile = ResolveProfile(ParseContextArg(e.Args))
+                                 ?? WorkspaceManager.Instance.Profiles[0];
+            var startupWs = WorkspaceManager.Instance.CreateWorkspace(startupProfile);
+            startupWs.ShellServices!.CreateWindowFactory = MakeWindowFactory(activityManager, startupWs);
+            var win = new MainWindow(activityManager, startupWs);
             win.Show();
 
             if (ConfigManager.Instance.IsFirstRun)
@@ -131,30 +130,29 @@ public partial class App : Application
         var personaConfig = new AiPersonaConfig();
         ConfigManager.Instance.Register(personaConfig, personaConfig.ConfigName);
 
-        // ── 2. WorkContexts config — must come before providers so we know
-        //       which provider assemblies each context needs ──────────────────
-        var wcConfig = new WorkContextsConfig();
+        // ── 2. Workspaces config (profiles) — must come before providers so we know
+        //       which provider assemblies each profile needs ───────────────────
+        var wcConfig = new WorkspacesConfig();
         ConfigManager.Instance.Register(wcConfig, wcConfig.ConfigName);
 
-        // ── 3. Providers — union of all assembly file names across contexts ──
+        // ── 3. Providers — union of all assembly file names across profiles ──
         ProviderManager.Instance.Initialize(activityManager);
 
-        // Load each context's AI config (stored per-context on disk) to discover which provider
-        // assemblies are needed before loading them. WorkContextConfig has no runtime fields, so
-        // we use a temporary AiConfig per entry.
+        // Load each profile's AI config (stored per-profile on disk) to discover which provider
+        // assemblies are needed before loading them. Profile has no runtime fields yet, so use a
+        // temporary AiConfig per entry.
         var allProviderFiles = wcConfig.Contexts
-            .SelectMany(cfg =>
+            .SelectMany(profile =>
             {
                 var ai = new AiConfig();
-                ConfigManager.Instance.LoadFrom(WorkContextManager.ContextDir(cfg.Name), ai, ai.ConfigName);
+                ConfigManager.Instance.LoadFrom(WorkspaceManager.ProfileDir(profile.Name), ai, ai.ConfigName);
                 return ai.Columns.Select(p => p.AssemblyFileName);
             })
             .Distinct();
         ProviderManager.Instance.LoadConfigured(allProviderFiles);
 
-        // ── 4. WorkContextManager — creates per-context AIService instances
-        //       and registers all loaded providers into each ─────────────────
-        WorkContextManager.Instance.Initialize(wcConfig);
+        // ── 4. WorkspaceManager — loads the profile list (no runtime workspaces yet) ──
+        WorkspaceManager.Instance.Initialize(wcConfig);
 
         // ── 5. File map + external apps ──────────────────────────────────────
         var fileMapConfig = new FileMapConfig();
@@ -219,26 +217,24 @@ public partial class App : Application
     /// </summary>
     private static void OpenNewWindow(BackgroundActivityManager activityManager, string? contextName = null)
     {
-        var config = ResolveConfig(contextName) ?? WorkContextManager.Instance.Configs[0];
-        var ctx    = WorkContextManager.Instance.CreateFromConfig(config);
+        var profile = ResolveProfile(contextName) ?? WorkspaceManager.Instance.Profiles[0];
+        var ws      = WorkspaceManager.Instance.CreateWorkspace(profile);
 
-        ctx.ShellServices!.CreateWindowFactory ??= MakeWindowFactory(activityManager);
+        ws.ShellServices!.CreateWindowFactory = MakeWindowFactory(activityManager, ws);
 
-        var win = new MainWindow(activityManager, ctx);
+        var win = new MainWindow(activityManager, ws);
         win.Show();
         win.Activate();
     }
 
     /// <summary>
-    /// Returns a factory that creates torn-off or "open in new window" shells, each in a
-    /// fresh <see cref="WorkContext"/> built from the first saved config.
+    /// Returns a factory that creates torn-off / "open in new window" shells in the SAME
+    /// <paramref name="owner"/> workspace (so extra windows share its tab registry and services).
     /// </summary>
-    private static Func<IWindowHost> MakeWindowFactory(BackgroundActivityManager activityManager)
+    private static Func<IWindowHost> MakeWindowFactory(BackgroundActivityManager activityManager, Workspace owner)
         => () =>
         {
-            var cfg = WorkContextManager.Instance.Configs[0];
-            var ctx = WorkContextManager.Instance.CreateFromConfig(cfg);
-            var win = new MainWindow(activityManager, ctx, openDefaultTabs: false);
+            var win = new MainWindow(activityManager, owner, openDefaultTabs: false);
             return (IWindowHost)win.ViewModel;
         };
 
@@ -251,12 +247,12 @@ public partial class App : Application
         return null;
     }
 
-    /// <summary>Resolves a context name to a saved <see cref="WorkContextConfig"/>, or null.</summary>
-    private static WorkContextConfig? ResolveConfig(string? name)
+    /// <summary>Resolves a profile name to a saved <see cref="Profile"/>, or null.</summary>
+    private static Profile? ResolveProfile(string? name)
         => string.IsNullOrEmpty(name)
             ? null
-            : WorkContextManager.Instance.Configs.FirstOrDefault(
-                c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase));
+            : WorkspaceManager.Instance.Profiles.FirstOrDefault(
+                p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
 
     private async Task CheckForUpdates()
     {

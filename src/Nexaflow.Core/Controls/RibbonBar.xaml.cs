@@ -48,9 +48,9 @@ public partial class RibbonBar : UserControl
         DependencyProperty.Register(nameof(PinFromHandlerCommand),
             typeof(ICommand), typeof(RibbonBar));
 
-    public static readonly DependencyProperty WorkContextProperty =
-        DependencyProperty.Register(nameof(WorkContext),
-            typeof(WorkContext), typeof(RibbonBar));
+    public static readonly DependencyProperty WorkspaceProperty =
+        DependencyProperty.Register(nameof(Workspace),
+            typeof(Workspace), typeof(RibbonBar));
 
     public ObservableCollection<RibbonItem>? ItemsSource
     {
@@ -82,10 +82,10 @@ public partial class RibbonBar : UserControl
         get => (ICommand?)GetValue(DeleteItemCommandProperty);
         set => SetValue(DeleteItemCommandProperty, value);
     }
-    public WorkContext? WorkContext
+    public Workspace? Workspace
     {
-        get => (WorkContext?)GetValue(WorkContextProperty);
-        set => SetValue(WorkContextProperty, value);
+        get => (Workspace?)GetValue(WorkspaceProperty);
+        set => SetValue(WorkspaceProperty, value);
     }
     public ICommand? PinFromHandlerCommand
     {
@@ -149,7 +149,7 @@ public partial class RibbonBar : UserControl
             return;
         }
 
-        if (WorkContext is { } ctx)
+        if (Workspace is { } ctx)
         {
             foreach (var h in FeatureManager.Instance.GetRibbonPinHandlers(ctx))
             {
@@ -177,7 +177,7 @@ public partial class RibbonBar : UserControl
             return;
         }
 
-        if (WorkContext is { } dropCtx)
+        if (Workspace is { } dropCtx)
         {
             foreach (var h in FeatureManager.Instance.GetRibbonPinHandlers(dropCtx))
             {

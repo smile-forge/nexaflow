@@ -12,8 +12,8 @@ public sealed class AiConfig : IProviderConfig
     public string FriendlyName => "AI";
 
     /// <summary>
-    /// The owning context's provider set — supplies the ability grid with the provider instances
-    /// and configs to list/query. Runtime-only; assigned by <see cref="Services.WorkContextManager"/>.
+    /// The editing workspace's provider set — supplies the ability grid with the provider instances
+    /// and configs to list/query. Runtime-only; assigned by <see cref="Services.WorkspaceManager"/>.
     /// </summary>
     [JsonIgnore]
     public ProviderSet? Providers { get; set; }

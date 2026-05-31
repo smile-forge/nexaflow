@@ -292,37 +292,44 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
         }
     }
 
-    // ── Work contexts ─────────────────────────────────────────────────────
-    [ObservableProperty] private WorkContext _currentWorkContext = null!;
+    // ── Profiles / workspace ──────────────────────────────────────────────
+    [ObservableProperty] private Workspace _currentWorkspace = null!;
 
-    public ObservableCollection<WorkContextConfig> WorkContexts => WorkContextManager.Instance.Configs;
+    /// <summary>The saved profiles shown in the dropdown.</summary>
+    public ObservableCollection<Profile> Profiles => WorkspaceManager.Instance.Profiles;
+
+    /// <summary>False while a modal overlay (Options / Manage-AI) is open — blocks profile switching.</summary>
+    public bool CanSwitchProfile => !OptionsOpen && !ManageAiOpen;
 
     [RelayCommand]
-    private void SelectWorkContext(WorkContextConfig config)
+    private void SelectProfile(Profile profile)
     {
-        if (ReferenceEquals(config, CurrentWorkContext?.Config)) return;
+        // Modal overlays block switching (their edits target the active workspace/profile).
+        if (!CanSwitchProfile) return;
+        if (ReferenceEquals(profile, CurrentWorkspace?.Profile)) return;
 
-        // Find or create the runtime context for the selected config, then transfer this
-        // window's registration so actions instantiated for the new context can find it.
-        var ctx    = WorkContextManager.Instance.GetOrCreate(config);
-        var newSvc = (ShellServices)ctx.ShellServices!;
-        if (!ReferenceEquals(_shellServices, newSvc))
-        {
-            _shellServices.TransferWindowTo(this, newSvc);
-            _shellServices = newSvc;
-            OnPropertyChanged(nameof(ShellServices));
-        }
+        // Cancel any in-flight AI send before the workspace is reconfigured under it.
+        _aiSendCts?.Cancel();
 
-        CurrentWorkContext = ctx;
-        // The RibbonControl observes CurrentWorkContext via its WorkContext DP
-        // and handles save/load of items per-context. The shell no longer touches the ribbon.
+        // In-place: keep this Workspace object, reconfigure it for the new profile (tabs close,
+        // providers/AIService rebuilt). ShellServices/windows reference the Workspace, which is
+        // unchanged — only its internals swap — so no window fix-up is needed.
+        WorkspaceManager.Instance.SwitchProfile(CurrentWorkspace, profile);
+
+        // Same Workspace reference; re-raise so the ribbon (bound to CurrentWorkspace.Profile)
+        // and the selector reload for the new profile.
+        OnPropertyChanged(nameof(CurrentWorkspace));
     }
 
     // ── Options overlay ───────────────────────────────────────────────────
-    [ObservableProperty] private bool _optionsOpen;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanSwitchProfile))]
+    private bool _optionsOpen;
 
     // ── Manage AI overlay ─────────────────────────────────────────────────
-    [ObservableProperty] private bool _manageAiOpen;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanSwitchProfile))]
+    private bool _manageAiOpen;
 
     // ── AI response overlay ───────────────────────────────────────────────
     // Shown in-shell when the conversational AI returns a plain message, and as the
@@ -369,25 +376,29 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
     public RibbonViewModel? Ribbon { get; set; }
 
     public ShellViewModel(BackgroundActivityManager activityManager,
-                          WorkContext workContext)
+                          Workspace workspace)
     {
         _activityManager = activityManager;
         _activityManager.IsActiveChanged += (_, active) =>
             Application.Current.Dispatcher.Invoke(() => AiIsBusy = active);
-        _currentWorkContext = workContext;
-        _shellServices = workContext.ShellServices!;
+        _currentWorkspace = workspace;
+        _shellServices = workspace.ShellServices!;
 
         WireRootPane();
 
-        // If the current context's config was removed in the Options panel, switch to the first available.
-        WorkContextManager.Instance.ContextsRefreshed += (_, _) =>
+        // If this workspace's profile was removed in the Options panel, switch to the first available.
+        WorkspaceManager.Instance.ProfilesRefreshed += (_, _) =>
         {
-            if (CurrentWorkContext is null
-                || !WorkContextManager.Instance.Configs.Contains(CurrentWorkContext.Config))
+            if (CurrentWorkspace is null
+                || !WorkspaceManager.Instance.Profiles.Contains(CurrentWorkspace.Profile))
             {
-                var fallback = WorkContextManager.Instance.Configs.FirstOrDefault();
+                var fallback = WorkspaceManager.Instance.Profiles.FirstOrDefault();
                 if (fallback is not null)
-                    Application.Current.Dispatcher.Invoke(() => SelectWorkContext(fallback));
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        WorkspaceManager.Instance.SwitchProfile(CurrentWorkspace, fallback);
+                        OnPropertyChanged(nameof(CurrentWorkspace));
+                    });
             }
         };
 
@@ -509,7 +520,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
     {
         if (item.PageKind is not null)
         {
-            var handler = FeatureManager.Instance.GetRibbonPinHandler(item.PageKind, CurrentWorkContext);
+            var handler = FeatureManager.Instance.GetRibbonPinHandler(item.PageKind, CurrentWorkspace);
             if (handler is not null)
             {
                 var paths = (CurrentPage as ISelectionProvider)?.SelectedFilePaths
@@ -535,7 +546,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
     {
         if (item.PageKind is null) return;
 
-        var handler = FeatureManager.Instance.GetRibbonPinHandler(item.PageKind, CurrentWorkContext);
+        var handler = FeatureManager.Instance.GetRibbonPinHandler(item.PageKind, CurrentWorkspace);
         if (handler is not null)
         {
             // Create the new window first so any OpenTab calls inside the handler land there.
@@ -647,7 +658,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
     private void EvaluateHandlers(string text, CancellationToken token)
     {
         var pageVm               = (CurrentPage as IPageView)?.ViewModel;
-        var (_, clearWinner, _)  = CurrentWorkContext.AiService.ScoreHandlers(text, pageVm);
+        var (_, clearWinner, _)  = CurrentWorkspace.AiService.ScoreHandlers(text, pageVm);
 
         if (clearWinner?.Symbol is not null)
         {
@@ -705,7 +716,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
         var sendToken = _aiSendCts.Token;
 
         var pageVm                                   = (CurrentPage as IPageView)?.ViewModel;
-        var svc                                      = CurrentWorkContext.AiService;
+        var svc                                      = CurrentWorkspace.AiService;
         var (scored, clearWinner, effectiveText)     = svc.ScoreHandlers(text, pageVm);
         var selected                                 = clearWinner;
         text                                         = effectiveText;
@@ -948,7 +959,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
             Attachments = [.. _agentContextPaths]
         };
 
-        try { await CurrentWorkContext.AiService.SaveAsync(record); }
+        try { await CurrentWorkspace.AiService.SaveAsync(record); }
         catch { /* persistence failures shouldn't block opening the tab */ }
 
         _shellServices.OpenTab("Conversation", new Dictionary<string, string>

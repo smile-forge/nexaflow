@@ -162,9 +162,11 @@
                     BorderThickness="0,1,0,0">
                 <ctrl:RibbonControl x:Name="RibbonControl"
                                     AutomationProperties.AutomationId="RibbonControl"
-                                    WorkContext="{Binding CurrentWorkContext}"
-                                    WorkContexts="{Binding WorkContexts}"
-                                    SelectWorkContextCommand="{Binding SelectWorkContextCommand}"
+                                    Workspace="{Binding CurrentWorkspace}"
+                                    Profile="{Binding CurrentWorkspace.Profile}"
+                                    Profiles="{Binding Profiles}"
+                                    CanSwitchProfile="{Binding CanSwitchProfile}"
+                                    SelectProfileCommand="{Binding SelectProfileCommand}"
                                     OpenPageCommand="{Binding OpenRibbonItemCommand}"
                                     OpenPageInNewWindowCommand="{Binding OpenRibbonItemInNewWindowCommand}"
                                     Shell="{Binding ShellServices}"/>

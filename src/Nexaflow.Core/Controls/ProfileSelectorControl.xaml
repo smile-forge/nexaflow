@@ -1,4 +1,4 @@
-<UserControl x:Class="Nexaflow.Core.Controls.WorkContextSelectorControl"
+<UserControl x:Class="Nexaflow.Core.Controls.ProfileSelectorControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:m="clr-namespace:Nexaflow.Core.Models"
@@ -36,16 +36,16 @@
     </UserControl.Resources>
 
     <Grid>
-        <!-- Coloured rectangle: context colour fill, full height -->
+        <!-- Coloured rectangle: profile colour fill, full height -->
         <Border x:Name="SelectorBorder"
-                Background="{Binding CurrentWorkContext.Color, ElementName=Root, Converter={StaticResource ColorBrush}}"
+                Background="{Binding CurrentProfile.Color, ElementName=Root, Converter={StaticResource ColorBrush}}"
                 ClipToBounds="True">
             <Button x:Name="TriggerButton"
                     Background="Transparent"
                     BorderThickness="0"
                     WindowChrome.IsHitTestVisibleInChrome="True"
                     Click="OnTriggerClick"
-                    ToolTip="{Binding CurrentWorkContext.Name, ElementName=Root}">
+                    ToolTip="{Binding CurrentProfile.Name, ElementName=Root}">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bg" Background="{TemplateBinding Background}">
@@ -61,14 +61,14 @@
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Button.Template>
-                <TextBlock Text="{Binding CurrentWorkContext.Icon, ElementName=Root}"
+                <TextBlock Text="{Binding CurrentProfile.Icon, ElementName=Root}"
                            FontSize="22"
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"/>
             </Button>
         </Border>
 
-        <!-- Context switcher popup -->
+        <!-- Profile switcher popup -->
         <Popup x:Name="ContextPopup"
                PlacementTarget="{Binding ElementName=SelectorBorder}"
                Placement="Bottom"
@@ -81,9 +81,9 @@
                     MinWidth="180"
                     Padding="0,4">
                 <ItemsControl x:Name="ContextList"
-                              ItemsSource="{Binding WorkContexts, ElementName=Root}">
+                              ItemsSource="{Binding Profiles, ElementName=Root}">
                     <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="{x:Type m:WorkContextConfig}">
+                        <DataTemplate DataType="{x:Type m:Profile}">
                             <Button Style="{StaticResource CtxItemButton}"
                                     Tag="{Binding}"
                                     Click="OnContextItemClick">

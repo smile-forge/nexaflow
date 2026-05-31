@@ -4,8 +4,8 @@ using System.Collections.Generic;
 namespace Nexaflow.Features.Common;
 
 /// <summary>
-/// The active WorkContext's shell handle: manages tab/window lifetime within one
-/// WorkContext. Each WorkContext owns its own instance (built by WorkContextManager),
+/// The active workspace's shell handle: manages tab/window lifetime within one
+/// workspace. Each workspace owns its own instance (built by WorkspaceManager),
 /// so this is NOT an application-wide singleton. Feature code, views, and query handlers
 /// call this instead of holding any reference to the shell or window layer.
 /// </summary>

@@ -3,10 +3,11 @@ using Nexaflow.Providers.Common;
 namespace Nexaflow.Core;
 
 /// <summary>
-/// The provider instances and configs owned by a single WorkContext. Each context gets its own
-/// set so it can hold, e.g., a different Claude subscription from the next context. Created by
-/// <see cref="ProviderManager.CreateProviderSet"/> from the currently-loaded provider assemblies;
-/// configs are loaded from (and saved to) the context's own folder.
+/// A bundle of live provider instances handed to one <see cref="Models.Workspace"/>, together with
+/// the profile-owned configs they were built from. The instances are NOT owned outright — they come
+/// from <see cref="ProviderManager"/>'s global ref-counted pool (so an identical provider config is
+/// instantiated only once process-wide). <see cref="PoolKeys"/> records the pool entries this set
+/// acquired so <see cref="ProviderManager.ReleaseProviderSet"/> can decrement them.
 /// </summary>
 public sealed class ProviderSet
 {
@@ -15,17 +16,22 @@ public sealed class ProviderSet
     /// <summary>Provider instances keyed by provider name.</summary>
     public IReadOnlyDictionary<string, ILlmProvider> Providers { get; }
 
-    /// <summary>One config instance per discovered <see cref="IProviderConfig"/> type, for editing/saving.</summary>
+    /// <summary>The profile's provider configs (one per discovered type), for editing/saving.</summary>
     public IReadOnlyList<IProviderConfig> Configs { get; }
+
+    /// <summary>Pool keys this set acquired, in acquisition order — used to release them.</summary>
+    internal IReadOnlyList<string> PoolKeys { get; }
 
     public ProviderSet(
         IReadOnlyDictionary<string, ILlmProvider> providers,
         IReadOnlyList<IProviderConfig>            configs,
-        Dictionary<string, string>                assemblyMap)
+        Dictionary<string, string>                assemblyMap,
+        IReadOnlyList<string>                     poolKeys)
     {
         Providers    = providers;
         Configs      = configs;
         _assemblyMap = assemblyMap;
+        PoolKeys     = poolKeys;
     }
 
     /// <summary>Plugin DLL file name for a provider name, or empty string if unknown.</summary>

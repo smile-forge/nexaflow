@@ -11,14 +11,21 @@ using Nexaflow.Features.Common.Ribbon;
 namespace Nexaflow.Core.ViewModels;
 
 /// <summary>
-/// Owns the ribbon's <see cref="Items"/> collection and the per-context load/save lifecycle.
-/// Switching the <see cref="WorkContext"/> saves the outgoing context's items and loads the
-/// incoming context's items (or seeds defaults). Edits to items auto-save.
+/// Owns one window's ribbon <see cref="Items"/> collection. The ribbon LAYOUT is owned by the
+/// <see cref="Profile"/> (shared by every Workspace on it): edits persist through the profile's
+/// <see cref="RibbonLayoutService"/> and raise <see cref="Models.Profile.RibbonChanged"/>, which
+/// every other window/Workspace on the same profile observes to reload its own items live.
+/// The <see cref="Workspace"/> is held separately, only to resolve per-Workspace pin handlers.
 /// </summary>
 public partial class RibbonViewModel : ObservableObject
 {
-    private WorkContext? _workContext;
-    private bool _switchingContext;
+    private Workspace? _workspace;
+    private Profile?   _profile;
+
+    // Guards: _reloading suppresses save while we repopulate Items; _isSaving lets the window that
+    // originated a change skip its own RibbonChanged reload (and prevents save/reload feedback loops).
+    private bool _reloading;
+    private bool _isSaving;
 
     public ObservableCollection<RibbonItem> Items { get; } = [];
 
@@ -36,23 +43,31 @@ public partial class RibbonViewModel : ObservableObject
         Items.CollectionChanged += OnItemsCollectionChanged;
     }
 
-    public WorkContext? WorkContext => _workContext;
+    public Profile? Profile => _profile;
 
-    /// <summary>Swap to a new work context: save outgoing items, load incoming.</summary>
-    public void SetWorkContext(WorkContext? newContext)
+    /// <summary>The Workspace this ribbon belongs to — used only to resolve pin handlers.</summary>
+    public void SetWorkspace(Workspace? workspace) => _workspace = workspace;
+
+    /// <summary>
+    /// Swap to a new profile: unhook the old profile's live-sync, clear, load the incoming layout.
+    /// Persistence is immediate per-edit, so there's nothing to flush on the way out.
+    /// </summary>
+    public void SetProfile(Profile? profile)
     {
-        if (ReferenceEquals(newContext, _workContext)) return;
+        if (ReferenceEquals(profile, _profile)) return;
 
-        _switchingContext = true;
+        _reloading = true;
         try
         {
-            _workContext?.RibbonService?.Save(Items);
+            if (_profile is not null) _profile.RibbonChanged -= OnProfileRibbonChanged;
 
             foreach (var item in Items)
                 item.PropertyChanged -= OnItemChanged;
-
             Items.Clear();
-            _workContext = newContext;
+
+            _profile = profile;
+            if (_profile is not null) _profile.RibbonChanged += OnProfileRibbonChanged;
+
             LoadOrBuildItems();
 
             foreach (var item in Items)
@@ -63,13 +78,44 @@ public partial class RibbonViewModel : ObservableObject
         }
         finally
         {
-            _switchingContext = false;
+            _reloading = false;
+        }
+    }
+
+    /// <summary>
+    /// Another window on the same profile changed the ribbon — reload our items from disk so the
+    /// edit shows live. Skipped on the window that originated the change (its items are already current).
+    /// </summary>
+    private void OnProfileRibbonChanged(object? sender, EventArgs e)
+    {
+        if (_isSaving) return;
+        Application.Current?.Dispatcher.Invoke(ReloadFromDisk);
+    }
+
+    private void ReloadFromDisk()
+    {
+        _reloading = true;
+        try
+        {
+            foreach (var item in Items)
+                item.PropertyChanged -= OnItemChanged;
+            Items.Clear();
+            LoadOrBuildItems();
+            foreach (var item in Items)
+            {
+                item.PropertyChanged -= OnItemChanged;
+                item.PropertyChanged += OnItemChanged;
+            }
+        }
+        finally
+        {
+            _reloading = false;
         }
     }
 
     private void OnItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        if (_switchingContext) return;
+        if (_reloading) return;
 
         if (e.OldItems is not null)
             foreach (RibbonItem item in e.OldItems)
@@ -97,11 +143,25 @@ public partial class RibbonViewModel : ObservableObject
     private void OnItemChanged(object? sender, PropertyChangedEventArgs e) => Save();
 
     [RelayCommand]
-    public void Save() => _workContext?.RibbonService?.Save(Items);
+    public void Save()
+    {
+        if (_reloading || _profile?.RibbonService is null) return;
+
+        _isSaving = true;
+        try
+        {
+            _profile.RibbonService.Save(Items);
+            _profile.RaiseRibbonChanged();   // live-reload other windows/Workspaces on this profile
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
 
     private void LoadOrBuildItems()
     {
-        var saved = _workContext?.RibbonService?.Load();
+        var saved = _profile?.RibbonService?.Load();
         if (saved is { Count: > 0 })
         {
             foreach (var item in saved)
@@ -141,9 +201,9 @@ public partial class RibbonViewModel : ObservableObject
         if (string.IsNullOrEmpty(tab.PageKind)) return;
 
         RibbonPinResult result;
-        if (_workContext is not null)
+        if (_workspace is not null)
         {
-            var handler = FeatureManager.Instance.GetRibbonPinHandler(tab.PageKind, _workContext);
+            var handler = FeatureManager.Instance.GetRibbonPinHandler(tab.PageKind, _workspace);
             if (handler is not null)
             {
                 var handlerResult = handler.Pin(tab, insertIndex);
@@ -171,8 +231,8 @@ public partial class RibbonViewModel : ObservableObject
     [RelayCommand]
     public void PinFromHandler(RibbonPinRequest request)
     {
-        if (_workContext is null) return;
-        var handler = FeatureManager.Instance.GetRibbonPinHandler(request.ContentKind, _workContext);
+        if (_workspace is null) return;
+        var handler = FeatureManager.Instance.GetRibbonPinHandler(request.ContentKind, _workspace);
         if (handler is null) return;
 
         var result = handler.Pin(request.Payload, request.InsertIndex);

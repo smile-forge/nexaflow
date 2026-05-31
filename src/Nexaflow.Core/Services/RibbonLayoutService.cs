@@ -7,14 +7,13 @@ using Nexaflow.Core.Models;
 namespace Nexaflow.Core.Services;
 
 ///<summary>
-/// Persists and restores the ribbon layout for a single WorkContext to/from
-/// <c>{contextDir}\ribbon.json</c>.
+/// Persists and restores the ribbon layout for a single Profile to/from
+/// <c>{profileDir}\ribbon.json</c>. One instance is shared by every Workspace on the profile.
 ///
-/// This class is intentionally a pure data layer — it only handles
-/// serialisation of <see cref="RibbonItem"/> metadata (label, icon, kind,
-/// page-kind, page-params).  Runtime <c>TabFactory</c> delegates are
-/// re-attached by <c>ShellViewModel.ReattachTabFactory</c> after loading,
-/// which is the single place that knows how to construct each page type.
+/// This class is intentionally a pure data layer — it only handles serialisation of
+/// <see cref="RibbonItem"/> metadata (label, icon, kind, page-kind, page-params). Persisted items
+/// carry no runtime open-behaviour: a button opens via its <c>PageKind</c>/<c>PageParams</c> routed
+/// through the owning window's command, so loaded items need no per-window delegate fix-up.
 /// </summary>
 public sealed class RibbonLayoutService
 {
@@ -26,9 +25,9 @@ public sealed class RibbonLayoutService
         Converters    = { new JsonStringEnumConverter() }
     };
 
-    public RibbonLayoutService(string contextDir)
+    public RibbonLayoutService(string profileDir)
     {
-        _path = Path.Combine(contextDir, "ribbon.json");
+        _path = Path.Combine(profileDir, "ribbon.json");
     }
 
     // ── Public API ────────────────────────────────────────────────────────
@@ -41,10 +40,8 @@ public sealed class RibbonLayoutService
     }
 
     /// <summary>
-    /// Returns <c>null</c> when no saved layout exists or the file is corrupt.
-    /// <c>TabFactory</c> on each returned item will be <c>null</c> — the caller
-    /// must invoke <c>ShellViewModel.ReattachTabFactory</c> before adding items
-    /// to the ribbon.
+    /// Returns <c>null</c> when no saved layout exists or the file is corrupt. Returned items are
+    /// pure metadata (no runtime delegates); they open via PageKind through the owning window.
     /// </summary>
     public List<RibbonItem>? Load()
     {
@@ -117,7 +114,7 @@ public sealed class RibbonLayoutService
         PageKind    = dto.PageKind,
         PageParams  = dto.PageParams,
         HalfItems   = dto.HalfItems?.Select(FromDto).ToList()
-        // TabFactory intentionally left null — re-attached by ShellViewModel
+        // TabFactory intentionally left null — persisted items open via PageKind.
     };
 }
 

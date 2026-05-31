@@ -1,10 +1,10 @@
 namespace Nexaflow.Core.Models;
 
 /// <summary>
-/// Curated palette of icons and colours for WorkContexts, plus a randomiser used when cloning a
-/// context so the copy is visually distinct from its source at a glance.
+/// Curated palette of icons and colours for Profiles, plus a randomiser used when cloning a
+/// profile so the copy is visually distinct from its source at a glance.
 /// </summary>
-public static class WorkContextStyle
+public static class ProfileStyle
 {
     private static readonly string[] Icons =
     [

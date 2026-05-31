@@ -13,7 +13,7 @@ namespace Nexaflow.Core;
 /// <see cref="RegisterFeatures"/> at startup to load every
 /// <c>Nexaflow.Features.*.dll</c> and record the relevant types without
 /// instantiation. Call <see cref="Instantiate"/> or the typed <c>Get*</c>
-/// helpers at runtime with a <see cref="WorkContext"/> so each instance
+/// helpers at runtime with a <see cref="Workspace"/> so each instance
 /// receives the correct scoped <see cref="IShellServices"/> and
 /// <see cref="IAIService"/>.
 ///
@@ -51,9 +51,9 @@ public sealed class FeatureManager
     public IReadOnlyList<Type> KeyboardHandlerTypes  => _keyboardHandlerTypes;
     public IReadOnlyList<Type> DropTargetTypes       => _dropTargetTypes;
 
-    // ── Per-(Type, WorkContext) instance cache ────────────────────────────
+    // ── Per-(Type, Workspace) instance cache ────────────────────────────
 
-    private readonly Dictionary<WorkContext, Dictionary<Type, object>> _cache = new();
+    private readonly Dictionary<Workspace, Dictionary<Type, object>> _cache = new();
     private readonly object _cacheLock = new();
 
     // ── Registration ──────────────────────────────────────────────────────
@@ -150,35 +150,46 @@ public sealed class FeatureManager
 
     /// <summary>
     /// Creates (or returns a cached) instance of <paramref name="targetType"/>
-    /// with constructor args resolved from <paramref name="workContext"/> and
+    /// with constructor args resolved from <paramref name="workspace"/> and
     /// the per-assembly config instances discovered during <see cref="RegisterFeatures"/>.
     /// Returns null when no satisfiable constructor is found.
     /// </summary>
-    public object? Instantiate(Type targetType, WorkContext workContext)
+    public object? Instantiate(Type targetType, Workspace workspace)
     {
         lock (_cacheLock)
         {
-            if (!_cache.TryGetValue(workContext, out var ctxCache))
+            if (!_cache.TryGetValue(workspace, out var ctxCache))
             {
                 ctxCache = new Dictionary<Type, object>();
-                _cache[workContext] = ctxCache;
+                _cache[workspace] = ctxCache;
             }
 
             if (ctxCache.TryGetValue(targetType, out var cached))
                 return cached;
 
-            var instance = TryInstantiateInternal(targetType, workContext);
+            var instance = TryInstantiateInternal(targetType, workspace);
             if (instance is not null)
                 ctxCache[targetType] = instance;
             return instance;
         }
     }
 
-    private object? TryInstantiateInternal(Type t, WorkContext workContext)
+    /// <summary>
+    /// Drops all cached feature/handler instances built for <paramref name="workspace"/>. Called
+    /// when a Workspace is reconfigured (its AIService/providers were replaced) or disposed, so the
+    /// next request rebuilds handlers against the live services. See WorkspaceManager.
+    /// </summary>
+    public void EvictWorkspace(Workspace workspace)
+    {
+        lock (_cacheLock)
+            _cache.Remove(workspace);
+    }
+
+    private object? TryInstantiateInternal(Type t, Workspace workspace)
     {
         foreach (var ctor in t.GetConstructors().OrderByDescending(c => c.GetParameters().Length))
         {
-            var args = TryResolveArgs(ctor, workContext);
+            var args = TryResolveArgs(ctor, workspace);
             if (args is null) continue;
             try { return ctor.Invoke(args); }
             catch { }
@@ -186,27 +197,27 @@ public sealed class FeatureManager
         return null;
     }
 
-    private object?[]? TryResolveArgs(ConstructorInfo ctor, WorkContext? workContext)
+    private object?[]? TryResolveArgs(ConstructorInfo ctor, Workspace? workspace)
     {
         var parms = ctor.GetParameters();
         var args  = new object?[parms.Length];
         for (int i = 0; i < parms.Length; i++)
         {
             var pt = parms[i].ParameterType;
-            if (pt == typeof(WorkContext))
+            if (pt == typeof(Workspace))
             {
-                if (workContext is null) return null;
-                args[i] = workContext;
+                if (workspace is null) return null;
+                args[i] = workspace;
             }
             else if (typeof(IShellServices).IsAssignableFrom(pt))
             {
-                if (workContext?.ShellServices is null) return null;
-                args[i] = workContext.ShellServices;
+                if (workspace?.ShellServices is null) return null;
+                args[i] = workspace.ShellServices;
             }
             else if (typeof(IAIService).IsAssignableFrom(pt))
             {
-                if (workContext?.AiService is null) return null;
-                args[i] = workContext.AiService;
+                if (workspace?.AiService is null) return null;
+                args[i] = workspace.AiService;
             }
             else if (pt == typeof(IReadOnlyDictionary<Type, IFeatureConfig>))
             {
@@ -230,16 +241,16 @@ public sealed class FeatureManager
 
     // ── Typed Get* helpers ────────────────────────────────────────────────
 
-    public IReadOnlyList<IQueryHandler> GetQueryHandlers(WorkContext ctx)
+    public IReadOnlyList<IQueryHandler> GetQueryHandlers(Workspace ctx)
         => Instantiate<IQueryHandler>(_queryHandlerTypes, ctx);
 
-    public IReadOnlyList<IRibbonPinHandler> GetRibbonPinHandlers(WorkContext ctx)
+    public IReadOnlyList<IRibbonPinHandler> GetRibbonPinHandlers(Workspace ctx)
         => Instantiate<IRibbonPinHandler>(_ribbonPinHandlerTypes, ctx);
 
-    public IRibbonPinHandler? GetRibbonPinHandler(string contentKind, WorkContext ctx)
+    public IRibbonPinHandler? GetRibbonPinHandler(string contentKind, Workspace ctx)
         => GetRibbonPinHandlers(ctx).FirstOrDefault(h => h.ContentKind == contentKind);
 
-    private IReadOnlyList<T> Instantiate<T>(List<Type> types, WorkContext ctx)
+    private IReadOnlyList<T> Instantiate<T>(List<Type> types, Workspace ctx)
     {
         var result = new List<T>(types.Count);
         foreach (var t in types)
@@ -254,11 +265,11 @@ public sealed class FeatureManager
 
     public bool IsRegistered(string pageKind) => _registrationTypes.ContainsKey(pageKind);
 
-    public Page? CreateTab(string pageKind, WorkContext workContext,
+    public Page? CreateTab(string pageKind, Workspace workspace,
                            Dictionary<string, string>? pageParams = null)
     {
         if (!_registrationTypes.TryGetValue(pageKind, out var regType)) return null;
-        var reg = Instantiate(regType, workContext) as IPageRegistration;
+        var reg = Instantiate(regType, workspace) as IPageRegistration;
         if (reg is null) return null;
         var tab = reg.CreatePage(pageParams);
         if (tab is not null)
@@ -269,7 +280,7 @@ public sealed class FeatureManager
         return tab;
     }
 
-    public IReadOnlyList<string> GetPageKindsForConfig(Type configType, WorkContext ctx)
+    public IReadOnlyList<string> GetPageKindsForConfig(Type configType, Workspace ctx)
     {
         if (!_configToRegTypes.TryGetValue(configType, out var regTypes)) return [];
         var pageKinds = new List<string>(regTypes.Count);
