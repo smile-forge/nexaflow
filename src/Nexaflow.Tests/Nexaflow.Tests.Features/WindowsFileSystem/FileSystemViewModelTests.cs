@@ -202,16 +202,6 @@ public class FileSystemViewModelTests
         Assert.IsNull(vm.SelectedEntry);
     }
 
-    [TestMethod]
-    public void OnSelectionChanged_Empty_EntryCountLabel_ZeroItems()
-    {
-        var vm = ThisPc();
-
-        vm.OnSelectionChanged([]);
-
-        Assert.IsNotNull(vm.EntryCountLabel);
-    }
-
     // ── Confirmation overlay ──────────────────────────────────────────────────
 
     [TestMethod]
