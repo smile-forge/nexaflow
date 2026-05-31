@@ -4,9 +4,10 @@ using System.Collections.Generic;
 namespace Nexaflow.Features.Common;
 
 /// <summary>
-/// Application-level singleton that manages tab lifetime across all windows.
-/// Feature code, views, and query handlers call this instead of holding
-/// any reference to the shell or window layer.
+/// The active WorkContext's shell handle: manages tab/window lifetime within one
+/// WorkContext. Each WorkContext owns its own instance (built by WorkContextManager),
+/// so this is NOT an application-wide singleton. Feature code, views, and query handlers
+/// call this instead of holding any reference to the shell or window layer.
 /// </summary>
 public interface IShellServices
 {

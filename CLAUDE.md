@@ -15,20 +15,26 @@ dotnet run --project src/Nexaflow.Core/Nexaflow.Core.csproj
 
 ```
 src/
-  Nexaflow.Core/                    shell chrome, main window, ribbon, AI input bar
+  Nexaflow.Core/                    shell chrome, main window, ribbon, AI input bar, FeatureManager
   Nexaflow.Features/
-    Nexaflow.Features.Common/       ALL contracts (interfaces, TabEntry, FeatureManager)
-    Nexaflow.Features.AIChat/       AI conversation tab
+    Nexaflow.Features.Common/       ALL contracts (interfaces + small DTOs). NO FeatureManager — that's in Core.
+    Nexaflow.Features.AIChat/       AI conversation tab (now a browser over conversations)
     Nexaflow.Features.Console/      PTY terminal
-    Nexaflow.Features.Images/       image viewer
-    Nexaflow.Features.Logs/         log viewer
     Nexaflow.Features.Git/			git interface
+    Nexaflow.Features.Hex/          binary / hex viewer
+    Nexaflow.Features.Images/       image viewer
+    Nexaflow.Features.Json/         JSON viewer (seek-by-item windowing)
+    Nexaflow.Features.Logs/         log viewer (tail-first streaming)
     Nexaflow.Features.Markdown/     markdown editor + preview
     Nexaflow.Features.Projects/     project + backlog management
     Nexaflow.Features.Scratchpad/   virtual corkboard
-    Nexaflow.Features.Text/         text editor
+    Nexaflow.Features.Tabular/      CSV/TSV/fixed-width viewer (shape detection + transforms)
+    Nexaflow.Features.Text/         text editor (head-first windowing)
     Nexaflow.Features.Web/          WebView2 browser tab
+    Nexaflow.Features.WindowsFileSystem/ file explorer tab (the DirectoryTree + file list)
     Nexaflow.Features.WindowsSearch/ Windows Search integration
+  Nexaflow.Visuals.Common/          shared WPF controls + value converters (PieChart, BoolToVisibility, …)
+  Nexaflow.Visuals.Text/            shared markdown rendering (MarkdownView / SelectableMarkdownView / MarkdownFlowDocument)
   Nexaflow.Providers/
     Nexaflow.Providers.Common/      LlmProviderRegistry, shared message types
     Nexaflow.Providers.Aria/        named-pipe Aria client
@@ -36,12 +42,15 @@ src/
     Nexaflow.Providers.Ollama/      Ollama local models
 ```
 
+Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI) — mirror that pattern for any future shared-but-not-a-contract code rather than dumping it in `Features.Common`.
+
 ## Hard Rules
 
-- Features depend only on `Features.Common` — never on Core, rarely on each other
+- Features depend only on `Features.Common` (and the `Nexaflow.Visuals.*` UI libs) — never on Core, rarely on each other
 - Providers depend only on 'Providers.Common' - never on Core, never on each other.
 - Core never instantiates feature view or ViewModel types directly. All view (tabs) and viewlet creation goes through `FeatureManager`.
-- Features communicate back to the shell only via `IShellServices` (injected into `ITabRegistration` constructors by `FeatureManager`).
+- Features communicate back to the shell only via `IShellServices` (injected into `IPageRegistration` constructors by `FeatureManager`).
+- A feature advertises a page via `IPageRegistration` (`PageKind` + `CreatePage`); `FeatureManager` discovers it by reflection (each registration exposes a `static string StaticPageKind`) — there is no manual `Register(typeof(...))` call.
 
 ## Key Files
 
@@ -49,16 +58,36 @@ src/
 |------|--------------------|
 | `src/Nexaflow.Core/ViewModels/ShellViewModel.cs` | Tab lifecycle, ribbon, AI routing — god object, be careful |
 | `src/Nexaflow.Core/Services/ShellServices.cs` | `IShellServices` implementation |
+| `src/Nexaflow.Core/FeatureManager.cs` | Reflection discovery + per-`WorkContext` constructor injection for features (lives in **Core**, not Common) |
+| `src/Nexaflow.Core/Services/FileSystemFeatureRegistry.cs` | Discovery for the file-system contracts (`IFileAction`/`IFolderAction`/`IFileCreateAction`/`IFolderViewlet`) — NOT FeatureManager |
 | `src/Nexaflow.Features/Nexaflow.Features.Common/*.cs` | Contracts — changes here affect everything |
-| `src/Nexaflow.Features/Nexaflow.Features.Common/FeatureManager.cs` | Discovery + constructor injection for features |
+| `src/Nexaflow.Features/Nexaflow.Features.Common/IPageRegistration.cs`, `Page.cs` | The tab/page factory contract (`CreatePage`) and the `Page` model (`Title`/`Icon`/`Breadcrumbs`/`ContentFactory`). NB: the older names `ITabRegistration`/`TabEntry`/`PageFactory` are gone |
+| `src/Nexaflow.Core/Themes/Styles.xaml` | App-merged theme: brushes + shared control styles. Feature XAML references these by key (`{StaticResource …}`) — no assembly ref needed |
 
 ## Config & Data Paths
 
+Base: `%APPDATA%\Smile\nexaflow\`
+
 ```
-%APPDATA%\Smile\Nexaflow\ribbon.json          ribbon layout
-%APPDATA%\Smile\Nexaflow\Conversations\       AI chat history
-%APPDATA%\Smile\Nexaflow\{ConfigName}\        per-feature config (IFeatureConfig.ConfigName)
+{ConfigName}\                 GLOBAL app/feature config (IFeatureConfig.ConfigName) — shared by all contexts
+Contexts\<name>\              PER-WORKCONTEXT data:
+  ai-abilities\               AI ability grid (which provider/model per ability)
+  <provider configs>\         provider API keys / subscriptions for THIS context
+  Conversations\              AI chat history for THIS context
+  <ribbon layout>             ribbon items for THIS context
 ```
+
+Ribbon and conversations are **per-context** (not global). Feature `IFeatureConfig` is **global** (one instance per assembly).
+
+## WorkContext scoping
+
+A `WorkContext` is a named workspace. Getting scope wrong is the easiest way to add a bug — full detail in [docs/Architecture.md → Ownership & Lifetime](docs/Architecture.md#ownership--lifetime).
+
+- **Central (one per process):** `ConfigManager`, `ProviderManager` (loads provider **assemblies/types** only — no instances), `WorkContextManager`, `FeatureManager` (feature **types**; builds instances per context), `BackgroundActivityManager`. Global configs incl. the **AI persona** (assistant name + system prompt) and every feature `IFeatureConfig`.
+- **Per-`WorkContext`:** provider **instances** + API keys (`ProviderSet`), ability→model assignments (`AiConfig`), `AIService` (agent loop + conversations), `ShellServices` (windows/tabs), ribbon layout. All under `Contexts\<name>\`.
+- The `IShellServices` / `IAIService` injected into a feature are the **active context's** — opening a tab or asking the AI always acts within one context.
+
+Mnemonic: **persona & feature settings = global; provider/model-per-ability, conversations, ribbon, windows/tabs = per-context.**
 
 ## Tests
 
@@ -83,7 +112,16 @@ A bare string assigned to ToolTip inherits the parent's TextAlignment when WPF w
 
 ## Other design considerations
 
-For features that need to stream large files: the existing precedents are Logs (tail-first + background head-load) and Tabular (full-scan from start; no byte anchors, because StreamReader buffers ahead and makes BaseStream.Position unreliable for cross-call seeks). Look at those before inventing a third.
+**Large-file reading** — there are four established strategies; pick the one whose access pattern matches your data shape before inventing a fifth. Each reader's *strategy* is deliberately feature-specific (the data structure differs); only mechanical leaves (encoding/BOM sniffing, the debounced `FileSystemWatcher` wrapper) are duplication worth sharing — see [docs/arch_improvements.md](docs/arch_improvements.md).
+
+| Strategy | Canonical reader | When |
+|----------|------------------|------|
+| Tail-first + background head-load | `Logs/ViewModels/LogViewModel.cs` | append-only files where the recent end matters most |
+| Head-first window + placeholder padding for scrollbar | `Text/ViewModels/TextViewModel.cs` | top-of-file-first text; line index built up front |
+| Full-rescan per window (no byte anchors) | `Tabular/RowWindowReader.cs` | row data; `StreamReader` buffering makes `BaseStream.Position` unreliable for cross-call seeks |
+| Seek-by-item via byte-offset index | `Json/JsonFileLoader.cs` | random access to structured items |
+
+**Shared UI & theming** — shared controls live in `Nexaflow.Visuals.Common` (controls + converters) and `Nexaflow.Visuals.Text` (markdown). Theme brushes **and** shared control styles live in the app-merged `src/Nexaflow.Core/Themes/Styles.xaml`; feature XAML pulls them by `{StaticResource <key>}` with no assembly reference (the resource lookup walks up to `Application.Resources`). Put a new *shared* style there and reference it by key rather than copy-pasting per view. Markdown rendering is centralised in `Nexaflow.Visuals.Text` (`SelectableMarkdownView`) — used by Core's AI overlay and AIChat; reuse it rather than hand-rolling `RichTextBox`.
 
 ## Style Notes
 

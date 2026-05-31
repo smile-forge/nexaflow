@@ -13,9 +13,10 @@ using System.Windows.Controls;
 namespace Nexaflow.Core.Services;
 
 /// <summary>
-/// Application-level singleton that owns the global tab registry.
-/// Created in <see cref="App"/> before any windows; each <see cref="MainWindow"/>
-/// registers its <see cref="IWindowHost"/> on activation and unregisters on close.
+/// Per-WorkContext shell service that owns that context's tab + window registry.
+/// One instance per <see cref="WorkContext"/> (created by <see cref="WorkContextManager"/>
+/// during context bootstrap, before any window); each <see cref="MainWindow"/> showing this
+/// context registers its <see cref="IWindowHost"/> on activation and unregisters on close.
 /// </summary>
 public sealed class ShellServices : IShellServices
 {

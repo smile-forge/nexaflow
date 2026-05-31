@@ -1,4 +1,4 @@
-// Makes Page, BreadcrumbSegment, ITabRegistration, IFeatureConfig, etc.
+// Makes Page, BreadcrumbSegment, IPageRegistration, IFeatureConfig, etc.
 // available throughout Nexaflow.Core without per-file using statements.
 global using Nexaflow.Features.Common;
 

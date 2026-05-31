@@ -1,13 +1,23 @@
 # Nexaflow Architecture
 
+> **Freshness:** reviewed/refreshed 2026-05-31, including the per-`WorkContext` provider/`AIService`
+> model — see [Ownership & Lifetime](#ownership--lifetime) for what is central vs context-scoped.
+> Architectural cleanup opportunities are tracked in [arch_improvements.md](arch_improvements.md).
+>
+> **Renamed since earlier drafts** (old → new): `ITabRegistration` → `IPageRegistration`
+> (`CreateTab` → `CreatePage`), `TabEntry` → `Page` (`PageFactory` → `ContentFactory`,
+> cached `Page` → `Content`). Removed: `IInputPromptService` (use `IShellServices.ShowPrompt`/
+> `ShowConfirmation`), `IShellServices.UpdateTabMeta`. `FeatureManager` lives in **Core**, not Common.
+
 ## Table of Contents
 
 1. [Solution Layout](#solution-layout)
-2. [Module Responsibilities](#module-responsibilities)
-3. [Key Data Models](#key-data-models)
-4. [Extensibility Points](#extensibility-points)
-5. [Core Flows](#core-flows)
-6. [Separation-of-Concerns Issues](#separation-of-concerns-issues)
+2. [Ownership & Lifetime](#ownership--lifetime)
+3. [Module Responsibilities](#module-responsibilities)
+4. [Key Data Models](#key-data-models)
+5. [Extensibility Points](#extensibility-points)
+6. [Core Flows](#core-flows)
+7. [Separation-of-Concerns Issues](#separation-of-concerns-issues)
 
 ---
 
@@ -15,20 +25,28 @@
 
 ```
 nexaflow/src/
-├── Nexaflow.Core/                              ← WinExe entry point; shell UI
+├── Nexaflow.Core/                              ← WinExe entry point; shell UI; FeatureManager
 │
 ├── Nexaflow.Features/
-│   ├── Nexaflow.Features.Common/              ← Shared contracts (interfaces, TabEntry, FeatureManager)
-│   ├── Nexaflow.Features.AIChat/              ← AI conversation tab
+│   ├── Nexaflow.Features.Common/              ← Shared contracts (interfaces + small DTOs). FeatureManager is NOT here — it's in Core.
+│   ├── Nexaflow.Features.AIChat/              ← AI conversation tab (browser over saved conversations)
 │   ├── Nexaflow.Features.Console/             ← PTY terminal tab
+│   ├── Nexaflow.Features.Git/                 ← Git interface tab
+│   ├── Nexaflow.Features.Hex/                 ← Binary / hex viewer tab
 │   ├── Nexaflow.Features.Images/              ← Image viewer tab
-│   ├── Nexaflow.Features.Logs/                ← Log viewer tab
+│   ├── Nexaflow.Features.Json/                ← JSON viewer tab (seek-by-item windowing)
+│   ├── Nexaflow.Features.Logs/                ← Log viewer tab (tail-first streaming)
 │   ├── Nexaflow.Features.Markdown/            ← Markdown editor/preview tab
 │   ├── Nexaflow.Features.Projects/            ← Project management tabs
 │   ├── Nexaflow.Features.Scratchpad/          ← Virtual corkboard tab
-│   ├── Nexaflow.Features.Text/                ← Text editor tab
+│   ├── Nexaflow.Features.Tabular/             ← CSV/TSV/fixed-width viewer tab (shape detection + transforms)
+│   ├── Nexaflow.Features.Text/                ← Text editor tab (head-first windowing)
 │   ├── Nexaflow.Features.Web/                 ← HTML/URL viewer tab
+│   ├── Nexaflow.Features.WindowsFileSystem/   ← File explorer tab (DirectoryTree + file list)
 │   └── Nexaflow.Features.WindowsSearch/       ← Windows Search integration tab
+│
+├── Nexaflow.Visuals.Common/                    ← Shared WPF controls + value converters (PieChart, BoolToVisibility, …)
+├── Nexaflow.Visuals.Text/                      ← Shared markdown rendering (MarkdownView / SelectableMarkdownView / MarkdownFlowDocument)
 │
 └── Nexaflow.Providers/
     ├── Nexaflow.Providers.Common/             ← LlmProviderRegistry, shared message types
@@ -37,7 +55,53 @@ nexaflow/src/
     └── Nexaflow.Providers.Ollama/             ← Ollama local model provider
 ```
 
-**Dependency rule:** Features depend on `Features.Common` only — never on Core or each other. `Nexaflow.Core` depends on all features and providers (for registration in `App.xaml.cs`) but never instantiates feature view or view-model types in its hot paths — all tab creation goes through `FeatureManager`. Features communicate back to the shell exclusively through `IShellServices`.
+**Dependency rule:** Features depend on `Features.Common` (and the `Nexaflow.Visuals.*` UI libs) only — never on Core or each other. `Nexaflow.Core` depends on all features and providers (for registration in `App.xaml.cs`) but never instantiates feature view or view-model types in its hot paths — all tab creation goes through `FeatureManager` (which lives in Core). Features communicate back to the shell exclusively through `IShellServices`. Shared non-contract code goes in `Nexaflow.Visuals.*`, not `Features.Common`.
+
+---
+
+## Ownership & Lifetime
+
+There are four nesting scopes. **Getting a thing's scope wrong is the easiest way to introduce a bug**, so this is the canonical reference for what is central to the process vs tied to a `WorkContext` vs per-feature vs per-window/tab.
+
+### Central — one instance per process
+
+`*.Instance` singletons created during `App.InitializeApp`, before any window:
+
+| Singleton | Owns | NOT responsible for |
+|-----------|------|---------------------|
+| `ConfigManager` | Base data path; **global** config registry. `Register(cfg,name)` = global config; `LoadFrom`/`SaveTo(dir,…)` = per-context config in that context's folder | — |
+| `ProviderManager` | Loads provider **assemblies** by file name; records provider/config **types**; owns the shared `ActivityManager` | Holds **no** provider instances — each context builds its own `ProviderSet` via `CreateProviderSet(contextDir)` |
+| `BackgroundActivityManager` | The one activity/notification surface (passed to ProviderManager, every window, every ShellServices) | — |
+| `WorkContextManager` | Registry of all `WorkContext`s (`Contexts`) + their create/clone/remove/bootstrap lifecycle | — |
+| `FeatureManager` | Reflection discovery of feature **types** once at startup; builds feature instances **per (Type, WorkContext)** on demand | File-system contracts (those go to `FileSystemFeatureRegistry`) |
+| `FileMapManager`, `ExternalAppRegistry`, `WhisperModelManager`, `HostCapabilityService`, `MessageCenter`, `JumpListService` | Misc app-wide services | — |
+
+**Global configs** (registered app-level, shared by every context): `ShellConfig` (theme), **`AiPersonaConfig` (assistant name + system prompt)**, `WorkContextsConfig` (the context-list metadata), `FileMapConfig`, `ExternalAppsConfig`, `VoiceConfig`.
+
+> ⚠️ The **AI persona** (name + system prompt) is **global**, but **which provider/model answers each ability** is **per-context**. Don't conflate them.
+
+### Per-`WorkContext` — one instance per named context
+
+A `WorkContext` (`Core/Models/WorkContext.cs`) is a named, themed workspace. Only `Name`/`Color`/`Icon` persist (in `WorkContextsConfig`); everything below is runtime-only (`[JsonIgnore]`), rebuilt by `WorkContextManager.BootstrapServices`, with on-disk state under `…\Smile\nexaflow\Contexts\<Name>\`:
+
+| Field on `WorkContext` | What it scopes | On disk |
+|------------------------|----------------|---------|
+| `Providers : ProviderSet` | This context's LLM provider **instances** + their configs (API keys / subscriptions). Two contexts can hold different subscriptions for the same provider | provider config folders |
+| `AiConfig` | The ability → provider/model **assignments** + configured columns (the AI ability grid) | `ai-abilities/` |
+| `AiService : AIService` | The agent loop + AI-input-bar routing for this context — resolves each `AiAbility` through **this context's** providers/assignments; owns this context's conversation history | `Conversations/` |
+| `ShellServices : ShellServices` | This context's **window registry + tab registry** (the windows/tabs currently showing this context). Preserved across re-init — holds live state | — |
+| `RibbonService : RibbonLayoutService` | This context's ribbon layout — **the ribbon is per-context** | per-context file |
+
+The `IShellServices` / `IAIService` injected into a feature are the **active context's** instances (`FeatureManager` resolves them per `WorkContext`). So "open a tab" and "ask the AI" always act within exactly one context.
+
+### Per-window / per-tab
+
+- A **window** (`IWindowHost`) registers into its context's `ShellServices`. Several windows can show one context; a window can **switch** context, which moves its host + tabs to the target context's `ShellServices` via `TransferWindowTo`. Tearoff / "new window" currently default to `Contexts[0]`.
+- A **`Page`** (tab) is built by `FeatureManager.CreateTab(pageKind, workContext, params)` → the matching `IPageRegistration.CreatePage`. Its ViewModel + content live for the life of the tab.
+
+### Per-feature (assembly)
+
+- An **`IFeatureConfig`** is a **single, app-level instance per assembly** — discovered once in `RegisterFeatures`, never rebuilt. **Feature settings are global, not per-context** (persisted at `…\Smile\nexaflow\<ConfigName>\`, outside `Contexts\`). Contrast `AiConfig`, which *is* per-context. There is no per-context feature-config mechanism today — adding one would be new work, not a config-path change.
 
 ---
 
@@ -49,13 +113,20 @@ The shell host. Owns the window chrome, tab strip, ribbon bar, breadcrumb bar, a
 
 | File | Responsibility |
 |------|----------------|
-| `App.xaml.cs` | Startup: provider registration, singleton wiring, feature registration, first window |
+| `App.xaml.cs` | Startup (`InitializeApp`): global-config + provider-**assembly** load, per-context bootstrap via `WorkContextManager`, feature discovery, first window. Also the windowless `--prestart` daemon and single-instance / new-window IPC |
+| `Models/WorkContext.cs` | The per-context workspace model (holds `Providers`/`AiConfig`/`AiService`/`ShellServices`/`RibbonService`) — see [Ownership & Lifetime](#ownership--lifetime) |
+| `Services/WorkContextManager.cs` | Singleton registry of `WorkContext`s; `Initialize`/`Create`/`Clone`/`Remove`, and `BootstrapServices` (builds each context's per-context services) |
+| `ProviderManager.cs` | Singleton: loads provider **assemblies** + records provider/config **types**; `CreateProviderSet(contextDir)` builds a context's instances. Holds no provider instances itself |
+| `ProviderSet.cs` | A single context's provider **instances** + their configs + assembly map |
+| `Services/AIService.cs` | `IAIService` impl — **per-context**: provider registry, ability→model resolution, the agent loop, conversation history |
+| `AI/AiConfig.cs` | Per-context AI ability config (`Columns` + ability→column `Assignments`); rendered by `AiAbilityGridControl` |
 | `MainWindow.xaml.cs` | Wires shell commands; creates `ShellViewModel`; handles ESC/breadcrumb clicks |
 | `ViewModels/ShellViewModel.cs` | Tab lifecycle, ribbon lifecycle, notifications, AI routing, background tasks |
-| `Services/ShellServices.cs` | `IShellServices` implementation — global tab registry, multi-window coordination |
-| `Services/RibbonLayoutService.cs` | Serialize/deserialize ribbon items to `%APPDATA%\Smile\Nexaflow\ribbon.json` |
+| `Services/ShellServices.cs` | `IShellServices` impl — **per-WorkContext** (not an app-level singleton, despite the older class comment). Owns that context's window + tab registry and coordinates the windows showing this context |
+| `FeatureManager.cs` | Singleton (`FeatureManager.Instance`). Reflection-loads every `Nexaflow.Features.*.dll` at startup, records `IPageRegistration`/config/handler **types** without instantiating, then builds instances per `WorkContext` with scoped `IShellServices` + `IAIService`. File-system contracts are **not** here (see below) |
+| `Services/FileSystemFeatureRegistry.cs` | Discovery + matching for `IFileAction`/`IFolderAction`/`IFileCreateAction`/`IFolderViewlet` (deliberately split out of `FeatureManager`) |
+| `Services/RibbonLayoutService.cs` | Serialize/deserialize ribbon items — **per-context** (constructed with the context's own folder), not a single global `ribbon.json` |
 | `Services/WindowManager.cs` | Multi-window registry; tab tearoff; cross-window drag-transfer; DPI maths |
-| `Services/ConversationPersistenceService.cs` | Save/load `ConversationRecord` JSON to `%APPDATA%\Smile\Nexaflow\Conversations\` |
 | `FileActions/` | Core-owned file actions: copy, delete, rename, and other system-level operations |
 | `Controls/RibbonEditor.xaml.cs` | Interactive ribbon customization; local draft, commit on Done |
 | `Controls/TabStrip.xaml.cs` | Renders tabs; emits tearoff drag events |
@@ -69,24 +140,25 @@ The contract layer. Every feature depends on this; nothing else does.
 
 | File | Responsibility |
 |------|----------------|
-| `TabEntry.cs` | Observable tab state: title, icon, breadcrumbs, `PageFactory` delegate, cached `Page` |
-| `BreadcrumbSegment` (same file) | One crumb: label, drop-down children, same-tab `Navigate` action, or cross-tab `TargetPageKind` |
-| `ITabRegistration.cs` | Interface features implement to register a page kind with the shell |
+| `Page.cs` | Observable page/tab state: `Title`, `Icon`, `IsActive`, `Breadcrumbs`, `PageKind`, `PageParams`, `ContentFactory` delegate, cached `Content`, `Closed` event |
+| `BreadcrumbSegment.cs` | One crumb: label, drop-down children, same-tab `Navigate` action, or cross-tab `TargetPageKind` |
+| `IPageRegistration.cs` | Interface a feature implements to advertise one page kind: `PageKind` + `CreatePage(params)`. Each impl also exposes `static string StaticPageKind` so `FeatureManager` discovers it by reflection |
+| `OpenPageRequest.cs` | `(PageKind, PageParams)` carrier for shell-level open commands (breadcrumb follow-links). Core-internal MVVM glue — `arch_improvements.md` proposes relocating it to Core |
 | `IPageView.cs` | Thin shell-lifecycle contract implemented by tab `UserControl`s: exposes `IPageViewModel? ViewModel` and `Reinitialize` |
 | `IPageViewModel.cs` | AI pipeline contract implemented by ViewModels: `GetContext`, `GetClientTools`, `GetContextObject` |
-| `IShellServices.cs` | Application-level singleton injected into feature code for tab management |
-| `IAIService.cs` | AI disambiguation and contextual chat, injected as a singleton service |
+| `IShellServices.cs` (under `Services/`) | The **active WorkContext's** shell handle injected into feature code (one impl per context, not an app singleton): `OpenTab`/`CloseTab`/`FindTab`, `QueueBackgroundTask`, `ShowError`/`ShowNotification`/`ShowPrompt`/`ShowConfirmation`, `PinToRibbon`, `DiscoverImplementations<T>` |
+| `IAIService.cs` | Per-`WorkContext` AI service: handler scoring/disambiguation, the `RunAgentAsync` agent loop, conversation load/save, analysis + artifacts |
+| `IBackgroundTask.cs` | Self-contained background work (`Description` + `RunAsync`) handed to `IShellServices.QueueBackgroundTask` |
 | `IFeatureConfig.cs` | Marks a POCO as a config section; discovered and instantiated by `FeatureManager` |
 | `IContext.cs` / `FileSystemContext.cs` | Typed context objects offered by ViewModels via `IPageViewModel.GetContextObject()` |
-| `ClientTools/*.cs` | `IClientTool` / `DelegateClientTool`, `ClientToolParameter`, `ToolSafety`, `ToolResult`, the `ClientBlockParser`, and `IToolApprovalCoordinator` for the agent loop |
-| `ConfigAttributes.cs` | `[ConfigDisplayName]`, `[FolderPath]`, `[ListSource]`, `[CustomControl]` / `ICustomConfigApply` |
-| `AiResponse.cs` | `AiResponse` record and `AiResponseKind` enum returned by `IAIService.RunAgentAsync` |
-| `ConversationRecord.cs` | Chat conversation + message list |
+| `ClientTools/*.cs` | Agent-loop contracts: `IClientTool`/`DelegateClientTool`, `ClientToolParameter`, `ToolSafety`, `ToolCall`, `ToolResult`, `ClientPlan`, `IToolApprovalCoordinator`. **Also** currently holds the Core-only wire-protocol parser `ClientBlockParser` + `ParsedAssistantTurn` — `arch_improvements.md` proposes moving those two to Core |
+| `ConfigAttributes.cs` | `[ConfigDisplayName]`, `[FolderPath]`, `[FilePath]`, `[ListSource]`, `[CustomControl]` / `ICustomConfigApply` / `IConfigChangeTracker` |
+| `AiResponse.cs` | `AiResponse` record returned by `IAIService.RunAgentAsync` |
+| `ConversationRecord.cs` | Chat conversation + message list + attachments |
 | `Services/IQueryHandler.cs` | Intercepts the AI input bar; registered globally or inferred from the active page's ViewModel |
-| `Services/IInputPromptService.cs` | Lets file actions show modal overlays without referencing Core |
-| `FileActions/IFileAction.cs` | Interface for file-selection context actions |
-| `FileActions/IFolderAction.cs` | Interface for folder-selection context actions |
-| `FileActions/IFileCreateAction.cs` | Interface for "new file" context actions |
+| `FileActions/IFileAction.cs` / `IFolderAction.cs` / `IFileCreateAction.cs` / `ICacheable.cs` | File/folder context-action contracts (discovered by `FileSystemFeatureRegistry`, not `FeatureManager`) |
+| `Ribbon/*.cs` | `IRibbonPinHandler`, `IRibbonExecutionContext`, `ISelectionProvider`, `RibbonPinResult` — drag-to-ribbon pinning |
+| `Viewlets/*.cs` | `IFolderViewlet`, `IViewletController`, `ViewletDisplayMode` — folder-display extensions |
 | `IKeyboardHandler.cs` | Claims global keyboard shortcuts; queried against the active page |
 | `IDropTarget.cs` | Accepts file drag-drop; resolved from the active page by the file browser |
 
@@ -94,12 +166,23 @@ The contract layer. Every feature depends on this; nothing else does.
 
 Each feature assembly follows the same internal structure:
 
-- One or more `*TabRegistration : ITabRegistration` — factory entry points, injected with `IShellServices` and any `IFeatureConfig` the assembly declares
+- One or more `*PageRegistration : IPageRegistration` (some older ones still named `*TabRegistration`) — factory entry points, injected with `IShellServices` and any `IFeatureConfig` the assembly declares
 - `ViewModels/` — MVVM Toolkit `ObservableObject` view models; never reference Core
 - `Views/` — WPF `UserControl`s; implement `IPageView` to expose context to the AI pipeline
 - Optional: `IQueryHandler` implementations registered globally or resolved from the active ViewModel
 - Optional: `IFileAction` / `IFolderAction` implementations for file browser context menus
 - Optional: `IFeatureConfig` POCO for persisted settings (auto-discovered by `FeatureManager`)
+
+### Shared UI (Nexaflow.Visuals.*)
+
+Non-contract UI shared across features and Core. Features may reference these (they are not `Features.Common`, but they carry no contracts — only controls/converters), and they never reference Core or a feature.
+
+| Assembly | Holds |
+|----------|-------|
+| `Nexaflow.Visuals.Common` | Reusable WPF controls (`PieChart`) and the value converters (`BoolToVisibilityConverter`, `InverseBoolToVisibilityConverter`, `NullToBoolConverter`, …) used in nearly every feature view |
+| `Nexaflow.Visuals.Text` | Markdown rendering: `MarkdownView` / `SelectableMarkdownView` (copy-aware) over `MarkdownFlowDocument` + `BlockRenderer`, plus Mermaid `DiagramRenderer`. Used by Core's `AiResponseOverlay` and AIChat's `ConversationView` |
+
+**Theme/styles:** application brushes **and** shared control styles live in the app-merged `Nexaflow.Core/Themes/Styles.xaml`. Feature XAML references them by `{StaticResource <key>}` — there is no assembly reference; the lookup resolves up the tree to `Application.Resources`. Define a shared style there once rather than copy-pasting per view (`arch_improvements.md` tracks the duplicated toolbar/list/grid styles that should move here).
 
 ### Nexaflow.Providers.*
 
@@ -116,13 +199,14 @@ All providers implement `ILlmProvider` (and optionally `IAsyncDisposable`) from 
 ## Key Data Models
 
 ```
-TabEntry
-  ├── Title, Icon, IsActive           (observable — drives tab strip UI)
-  ├── PageKind: string?               (e.g. "Search", "Projects")
-  ├── PageParams: Dict?               (current params, kept in sync by the page via IShellServices)
-  ├── Breadcrumbs: List<BreadcrumbSegment>
-  ├── PageFactory: Func<UserControl>  (set by ITabRegistration; lazy-created on first activation)
-  └── Page: UserControl               (cached after GetOrCreatePage() first call)
+Page  (ObservableObject)
+  ├── Title, Icon, IsActive             (observable — drives tab strip UI)
+  ├── PageKind: string?                 (e.g. "Search", "Projects")
+  ├── PageParams: Dict?                 (current params, kept in sync by the page via IShellServices)
+  ├── Breadcrumbs: ObservableCollection<BreadcrumbSegment>
+  ├── ContentFactory: Func<UserControl>? (set by IPageRegistration.CreatePage; lazy-invoked on first activation)
+  ├── Content: UserControl              (cached after GetOrCreateContent() first call)
+  └── Closed: event                     (raised on permanent close, not deactivation)
 
 BreadcrumbSegment
   ├── Label
@@ -136,7 +220,7 @@ RibbonItem
   ├── Label, Icon, IsHalf, AccentColor
   ├── PageKind: string?               (persisted to ribbon.json)
   ├── PageParams: Dict?               (persisted alongside PageKind)
-  └── TabFactory: Func<TabEntry>?     (runtime only — re-attached on load via FeatureManager)
+  └── TabFactory: Func<Page>?         (runtime only — re-attached on load via FeatureManager)
 
 ConversationRecord
   ├── Id: Guid
@@ -150,38 +234,32 @@ ConversationRecord
 
 ## Extensibility Points
 
-### `ITabRegistration` — Adding a new page kind
+### `IPageRegistration` — Adding a new page kind
 
-Implement in your feature assembly. `FeatureManager` discovers it during `Register()` and injects constructor dependencies automatically: any `IFeatureConfig` declared in the same assembly, `IShellServices`, and any singleton registered via `RegisterSingletonService()`.
+Implement in your feature assembly. `FeatureManager.RegisterFeatures()` discovers it **automatically by reflection** at startup — there is no manual `Register(typeof(...))` call. It injects constructor dependencies per `WorkContext`: any `IFeatureConfig` declared in the same assembly, the scoped `IShellServices`, and `IAIService`. Expose a `static string StaticPageKind` so discovery can read the page kind without instantiating.
 
 ```csharp
-public sealed class MyTabRegistration(MyConfig config, IShellServices shellServices) : ITabRegistration
+public sealed class MyPageRegistration(MyConfig config, IShellServices shellServices) : IPageRegistration
 {
-    public string PageKind => "MyFeature";
+    public static string StaticPageKind => "MyFeature";   // read by FeatureManager via reflection
+    public string PageKind => StaticPageKind;
 
-    public TabEntry CreateTab(Dictionary<string, string>? pageParams = null)
+    public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {
         var vm = new MyViewModel(config, shellServices);
-        var tab = new TabEntry
+        return new Page
         {
-            Title       = "My Feature",
-            Icon        = "🔧",
-            PageParams  = pageParams,
-            Breadcrumbs = [new BreadcrumbSegment { Label = "My Feature" }]
+            Title          = "My Feature",
+            Icon           = "🔧",
+            PageParams     = pageParams,
+            Breadcrumbs    = { new BreadcrumbSegment { Label = "My Feature" } }, // get-only collection
+            ContentFactory = () => new MyView(vm)                                // lazy-invoked on first activation
         };
-        tab.PageFactory = () => new MyView(vm);
-        return tab;
     }
 }
 ```
 
-Register in `App.xaml.cs → RegisterFeatures()`:
-
-```csharp
-fm.Register(typeof(MyTabRegistration));
-```
-
-The page kind string is then available in the ribbon editor automatically.
+The page kind string is then available in the ribbon editor automatically. (Registration classes are conventionally named `*PageRegistration`; some older ones are still named `*TabRegistration` but implement the same `IPageRegistration` interface.)
 
 ---
 
@@ -250,9 +328,9 @@ FeatureManager.Instance.RegisterQueryHandler(new MyQueryHandler());
 
 ### `IFileAction` / `IFolderAction` / `IFileCreateAction` — File browser context actions
 
-Implement in the assembly that owns the concern. `FileActionManager.Discover()` scans Core and all registered feature types for implementations. Actions that open a viewer tab belong in the feature that owns the viewer; system-level actions (copy, rename…) belong in `Nexaflow.Core.FileActions`.
+Implement in the assembly that owns the concern. `FileSystemFeatureRegistry` (in Core — **not** `FeatureManager`) discovers these across Core and the feature assemblies. Actions that open a viewer tab belong in the feature that owns the viewer; system-level actions (copy, rename…) belong in `Nexaflow.Core.FileActions`.
 
-Actions are matched to files via `ExperienceId` — a hierarchical path (e.g. `"/image"`, `"/binary/installer"`) that `FileMapManager` resolves against the selected file. Constructor dependencies (`IShellServices`, `IInputPromptService`) are injected by `FeatureManager`.
+Actions are matched to files via `ExperienceId` — a hierarchical path (e.g. `"/image"`, `"/binary/installer"`) that `FileMapManager` resolves against the selected file. Constructor dependencies (e.g. `IShellServices`) are injected on resolution; show modal prompts via `IShellServices.ShowPrompt` / `ShowConfirmation` (the old `IInputPromptService` is gone).
 
 Key `IFileAction` members:
 
@@ -271,22 +349,24 @@ Key `IFileAction` members:
 
 ### `IShellServices` — Calling back to the shell
 
-Injected into `ITabRegistration` and `IFileAction` constructors. Provides the only approved path for features to interact with the tab strip.
+Injected into `IPageRegistration` and `IFileAction` constructors. Provides the only approved path for features to interact with the shell. To update a page's own title/breadcrumbs, mutate the `Page` object directly (its properties are observable) — there is no `UpdateTabMeta`.
 
 ```csharp
 shellServices.OpenTab("ProjectDetail", new() { ["folder"] = folder }, callerPage);
-shellServices.CloseTab(tab);
-shellServices.UpdateTabMeta(tab, title: "New Title", breadcrumbs: [...], pageParams: newParams);
+shellServices.CloseTab(page);
 shellServices.FindTab("Search", new() { ["root"] = root });
 shellServices.ShowError("Something went wrong");
 shellServices.ShowNotification("Done");
+shellServices.ShowPrompt("Rename", "New name", current, onConfirm: name => …, onCancel: () => …);
+shellServices.ShowConfirmation("Delete?", "This cannot be undone.", onConfirm: () => …, onCancel: () => …);
+shellServices.QueueBackgroundTask(myBackgroundTask, onComplete: ok => …);
 ```
 
 ---
 
 ### `IFeatureConfig` — Persisted settings
 
-Implement a plain POCO. `FeatureManager.Register()` discovers it, instantiates it, and makes it available for injection into `ITabRegistration` constructors. The Options panel renders a property grid for free using reflection and the config attributes.
+Implement a plain POCO. `FeatureManager` discovers it during `RegisterFeatures()`, instantiates it, and makes it available for injection into `IPageRegistration` constructors. The Options panel renders a property grid for free using reflection and the config attributes.
 
 ```csharp
 public sealed class MyConfig : IFeatureConfig
@@ -343,25 +423,31 @@ Expose tools from a page by overriding `IPageViewModel.GetClientTools()`. Each t
 
 ```
 App.OnStartup
-  → new BackgroundActivityManager()
-  → ProviderManager.Register(Aria, Ollama, Claude providers)
-  → ConfigManager.Register(ShellConfig, FileMapConfig)
-  → FileMapManager.Initialize()
-  → new AIService() → FeatureManager.RegisterSingletonService(IAIService, ...)
-  → new ShellServices() → FeatureManager.SetShellServices(shellServices)
-  → RegisterFeatures()
-      → dynamic feature discovery
-      Each assembly Register():
-        - discovers IFeatureConfig implementations → instantiates → ConfigManager.Register
-        - discovers ITabRegistration implementations → resolves constructor deps → instantiates
-        - collects IFileAction / IFolderAction / IFileCreateAction / IKeyboardHandler / IDropTarget types
-        - discovers IQueryHandler implementations → instantiates resolvable ones globally
-	 - discovers IFolderViewlet implementations
-  → new MainWindow(activityManager, aiService, shellServices)
-      → new ShellViewModel()
-          → LoadOrBuildRibbon() → RibbonLayoutService.Load() → ReattachTabFactory each item
+  → new BackgroundActivityManager()                         ← the one shared activity surface
+  → InitializeApp(activityManager):
+      → ConfigManager.Initialize(%AppData%\Smile\nexaflow)   ← base data path
+      → register GLOBAL configs: ShellConfig (+ apply theme), AiPersonaConfig,
+        WorkContextsConfig, FileMapConfig, ExternalAppsConfig, VoiceConfig
+      → ProviderManager.Initialize(activityManager)         ← records the shared ActivityManager
+      → for each saved context: ConfigManager.LoadFrom(ContextDir, ctx.AiConfig)
+            (need each context's columns to know which provider DLLs to load)
+      → ProviderManager.LoadConfigured(⋃ AssemblyFileName across all contexts' AiConfigs)
+      → WorkContextManager.Initialize(wcConfig)             ← PER-CONTEXT bootstrap, for each context:
+            CreateProviderSet(contextDir) → new AIService(ctx, Conversations\) →
+            register providers → LoadAbilityConfig → ShellServices (preserved) → RibbonLayoutService
+      → FileMapManager / ExternalAppRegistry init
+      → FeatureManager.RegisterFeatures()                   ← reflection-load Nexaflow.Features.*.dll,
+            record IPageRegistration / IFeatureConfig / handler TYPES (no instances yet)
+      → WhisperModelManager + HostCapability probe, JumpList, single-instance IPC listener
+  → pick startup WorkContext (Contexts[0], or the one named by --context "Name")
+  → new MainWindow(activityManager, startupCtx)             ← window is bound to ONE context
+      → ShellViewModel(ctx)   (CurrentWorkContext = ctx)
+          → ctx.RibbonService.Load() → ReattachTabFactory each item
           → OpenDefaultTabs()
   → win.Show()
+
+  (--prestart launches the windowless resident daemon: InitializeApp runs, no window is shown;
+   a later click / JumpList signal opens a window via the single-instance IPC listener.)
 ```
 
 ### Opening a tab
@@ -369,18 +455,19 @@ App.OnStartup
 ```
 User clicks ribbon button
   → ShellViewModel.RibbonAction(item)
-  → item.TabFactory()                       ← Func<TabEntry> set by ReattachTabFactory
-  → ShellViewModel.OpenTab(tab)
-  → tab.GetOrCreatePage()                   ← PageFactory invoked on first activation
+  → item.TabFactory()                       ← Func<Page> set by ReattachTabFactory
+  → ShellViewModel.OpenTab(page)
+  → page.GetOrCreateContent()               ← ContentFactory invoked on first activation
   → CurrentPage = page, breadcrumbs updated
 
 Feature code calls shellServices.OpenTab("PageKind", params, callerPage)
+  (shellServices = the caller's WorkContext instance)
   → ShellServices resolves target window from callerPage / focused window
-  → Searches globally for existing matching tab
+  → Searches this context's windows for an existing matching tab
   → If found: move to target window if needed → Reinitialize(params) → activate
-  → If not found: FeatureManager.CreateTab(pageKind, params)
-      → matching ITabRegistration.CreateTab(params)
-  → IWindowHost.AddTab(tab) → prepends, sets active, loads page
+  → If not found: FeatureManager.CreateTab(pageKind, workContext, params)   ← internal; returns a Page
+      → matching IPageRegistration.CreatePage(params)
+  → IWindowHost.AddTab(page) → prepends, sets active, loads content
 ```
 
 ### AI input bar
@@ -411,7 +498,7 @@ ShellServices:
   → resolves target window from callerPageView
   → FindTab("ProjectDetail", params) — check if already open
   → FeatureManager.CreateTab("ProjectDetail", params) if not found
-      → ProjectDetailTabRegistration.CreateTab(params)
+      → ProjectDetailTabRegistration.CreatePage(params)
   → IWindowHost.AddTab(tab)
 ```
 
@@ -422,7 +509,7 @@ User selects file in file browser → clicks action button
   → FileActionManager.PerformAction(action, paths)
   → e.g. ShowMarkdownAction.PerformAction(path)
       _shellServices.OpenTab("Markdown", { "path": filePath })
-  → ShellServices → MarkdownTabRegistration.CreateTab(params) → tab opens
+  → ShellServices → MarkdownTabRegistration.CreatePage(params) → tab opens
 ```
 
 ### Ribbon persistence cycle
@@ -497,9 +584,9 @@ Ordered by impact.
 
 **Where:** `ShellViewModel.BuildDefaultItems()`
 
-**Problem:** String literals must match `ITabRegistration.PageKind` exactly. No compile-time check.
+**Problem:** String literals must match `IPageRegistration.PageKind` exactly. No compile-time check.
 
-**Fix:** Expose `public const string Kind` on each registration class and reference the constant in `BuildDefaultItems`.
+**Fix:** Registrations already expose `static string StaticPageKind` (used for reflection discovery) — reference that constant from `BuildDefaultItems` instead of re-typing the literal.
 
 ---
 
