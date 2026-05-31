@@ -21,6 +21,23 @@ public sealed partial class PostItViewModel : ObservableObject
 
     public bool IsPinned => ExpiresAt is null;
 
+    /// <summary>Transient (not persisted): the view enters edit mode on load when set —
+    /// used so a freshly created empty note is immediately editable.</summary>
+    public bool StartInEdit { get; set; }
+
+    /// <summary>First 15 characters of the first non-empty content line — shown in the recycle bin.</summary>
+    public string RecycleBinLabel
+    {
+        get
+        {
+            var line = (Content ?? string.Empty)
+                .Split('\n')
+                .Select(l => l.Trim())
+                .FirstOrDefault(l => l.Length > 0) ?? string.Empty;
+            return line.Length <= 15 ? line : line[..15];
+        }
+    }
+
     public string TimeRemainingText
     {
         get
@@ -72,7 +89,10 @@ public sealed partial class PostItViewModel : ObservableObject
 
         switch (e.PropertyName)
         {
-            case nameof(Content):  Note.Content  = Content;  break;
+            case nameof(Content):
+                Note.Content = Content;
+                OnPropertyChanged(nameof(RecycleBinLabel));
+                break;
             case nameof(X):        Note.X        = X;        break;
             case nameof(Y):        Note.Y        = Y;        break;
             case nameof(Width):    Note.Width    = Width;    break;
@@ -88,7 +108,7 @@ public sealed partial class PostItViewModel : ObservableObject
                 break;
         }
 
-        var skip = new[] { nameof(TimeRemainingText), nameof(IsPinned) };
+        var skip = new[] { nameof(TimeRemainingText), nameof(IsPinned), nameof(RecycleBinLabel) };
         if (!skip.Contains(e.PropertyName))
             RequestSave?.Invoke(this);
     }

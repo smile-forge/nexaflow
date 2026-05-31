@@ -23,6 +23,40 @@ public static class MarkdownClipboard
     /// <summary>Custom clipboard format carrying the raw markdown source.</summary>
     public const string MarkdownFormat = "Markdown";
 
+    /// <summary>
+    /// Extracts the best markdown representation from a clipboard / drag payload:
+    /// the custom <see cref="MarkdownFormat"/> if present, else HTML converted to
+    /// markdown, else plain text. Returns null if the payload carries none of these.
+    /// </summary>
+    public static string? ReadBestMarkdown(IDataObject? data)
+    {
+        if (data is null) return null;
+        try
+        {
+            if (data.GetDataPresent(MarkdownFormat) &&
+                data.GetData(MarkdownFormat) is string md && !string.IsNullOrEmpty(md))
+                return md;
+        }
+        catch { /* ignore malformed format */ }
+
+        try
+        {
+            if (data.GetDataPresent(DataFormats.Html) &&
+                data.GetData(DataFormats.Html) is string html && !string.IsNullOrWhiteSpace(html))
+            {
+                var converted = HtmlToMarkdown.ConvertClipboardHtml(html);
+                if (!string.IsNullOrWhiteSpace(converted)) return converted;
+            }
+        }
+        catch { /* fall through to plain text */ }
+
+        if (data.GetDataPresent(DataFormats.UnicodeText))
+            return data.GetData(DataFormats.UnicodeText) as string;
+        if (data.GetDataPresent(DataFormats.Text))
+            return data.GetData(DataFormats.Text) as string;
+        return null;
+    }
+
     public static void CopySelection(TextSelection selection, FlowDocument document, string source)
     {
         bool whole = selection.IsEmpty || SpansWholeDocument(selection, document);

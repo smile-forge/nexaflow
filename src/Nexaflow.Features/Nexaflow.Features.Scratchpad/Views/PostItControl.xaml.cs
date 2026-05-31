@@ -1,5 +1,6 @@
 using Nexaflow.Features.Scratchpad.Converters;
 using Nexaflow.Features.Scratchpad.ViewModels;
+using Nexaflow.Visuals.Text.Markdown;
 using System.IO;
 using System.Text;
 using System.Windows;
@@ -7,7 +8,6 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Navigation;
 
 namespace Nexaflow.Features.Scratchpad.Views;
 
@@ -35,9 +35,6 @@ public partial class PostItControl : System.Windows.Controls.UserControl
     private double _rotateStartAngle;
     private double _rotateStartMouseAngle;
 
-    // ── Content sync ──────────────────────────────────────────────────────
-    private bool _contentLoading;
-
     private static readonly ShapeToClipConverter _clipConverter = new();
 
     public PostItControl()
@@ -46,9 +43,14 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         DataContextChanged += OnDataContextChanged;
         SizeChanged        += OnSizeChanged;
 
-        ContentBox.AddHandler(Hyperlink.RequestNavigateEvent,
-            new RequestNavigateEventHandler(OnHyperlinkNavigate));
-        ContentBox.TextChanged += ContentBox_TextChanged;
+        // Links open in an in-app web tab; fall back to the OS browser if unwired.
+        Editor.LinkNavigate = url =>
+        {
+            var open = Vm.OpenUrl;
+            if (open is null) return false;
+            open(url);
+            return true;
+        };
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -59,8 +61,15 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         if (e.NewValue is PostItViewModel vm)
         {
             vm.PropertyChanged += OnVmPropertyChanged;
-            LoadContent(vm.Content);
+            MigrateLegacyContent(vm);
             UpdateClip();
+
+            if (vm.StartInEdit)
+            {
+                vm.StartInEdit = false;
+                Dispatcher.BeginInvoke(() => Editor.BeginEdit(),
+                    System.Windows.Threading.DispatcherPriority.Loaded);
+            }
         }
     }
 
@@ -72,9 +81,6 @@ public partial class PostItControl : System.Windows.Controls.UserControl
             case nameof(PostItViewModel.Width):
             case nameof(PostItViewModel.Height):
                 UpdateClip();
-                break;
-            case nameof(PostItViewModel.Content):
-                if (!_contentLoading) LoadContent(Vm.Content);
                 break;
         }
     }
@@ -92,60 +98,35 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         RootGrid.Clip = clip;
     }
 
-    // ── Content (RichTextBox) ─────────────────────────────────────────────
+    // ── Legacy content migration ──────────────────────────────────────────
 
-    private void LoadContent(string content)
+    /// <summary>
+    /// Notes created before the markdown switch stored serialized RichTextBox XAML.
+    /// Convert such content to plain text once, in place, so the editor shows text
+    /// rather than raw markup.
+    /// </summary>
+    private static void MigrateLegacyContent(PostItViewModel vm)
     {
-        _contentLoading = true;
-        ContentBox.TextChanged -= ContentBox_TextChanged;
-        try
+        var content = vm.Content;
+        if (!string.IsNullOrEmpty(content) &&
+            content.TrimStart().StartsWith("<Section", StringComparison.Ordinal) &&
+            XamlToPlainText(content) is string migrated)
         {
-            if (!string.IsNullOrEmpty(content) &&
-                content.TrimStart().StartsWith("<Section", StringComparison.Ordinal))
-            {
-                try
-                {
-                    var range = new TextRange(ContentBox.Document.ContentStart, ContentBox.Document.ContentEnd);
-                    using var ms = new MemoryStream(Encoding.UTF8.GetBytes(content));
-                    range.Load(ms, DataFormats.Xaml);
-                    return;
-                }
-                catch { /* fall through to plain text */ }
-            }
-
-            ContentBox.Document.Blocks.Clear();
-            if (!string.IsNullOrEmpty(content))
-                ContentBox.Document.Blocks.Add(new Paragraph(new Run(content)));
-        }
-        finally
-        {
-            ContentBox.TextChanged += ContentBox_TextChanged;
-            _contentLoading = false;
+            vm.Content = migrated;
         }
     }
 
-    private void ContentBox_TextChanged(object sender, TextChangedEventArgs e)
+    private static string? XamlToPlainText(string xaml)
     {
-        if (_contentLoading || DataContext is not PostItViewModel vm) return;
-        _contentLoading = true;
         try
         {
-            var range = new TextRange(ContentBox.Document.ContentStart, ContentBox.Document.ContentEnd);
-            using var ms = new MemoryStream();
-            range.Save(ms, DataFormats.Xaml);
-            ms.Position = 0;
-            vm.Content = new System.IO.StreamReader(ms).ReadToEnd();
+            var doc   = new FlowDocument();
+            var range = new TextRange(doc.ContentStart, doc.ContentEnd);
+            using var ms = new MemoryStream(Encoding.UTF8.GetBytes(xaml));
+            range.Load(ms, DataFormats.Xaml);
+            return new TextRange(doc.ContentStart, doc.ContentEnd).Text.TrimEnd();
         }
-        finally
-        {
-            _contentLoading = false;
-        }
-    }
-
-    private void OnHyperlinkNavigate(object sender, RequestNavigateEventArgs e)
-    {
-        Vm.OpenUrl?.Invoke(e.Uri.ToString());
-        e.Handled = true;
+        catch { return null; }
     }
 
     // ── Header right-click → delegate to ScratchpadView-level ribbon ──────

@@ -5,6 +5,7 @@ using Nexaflow.Features.Scratchpad;
 using Nexaflow.Features.Scratchpad.Models;
 using Nexaflow.Features.Scratchpad.Services;
 using Nexaflow.Features.Scratchpad.ViewModels;
+using NSubstitute;
 
 namespace Nexaflow.Tests.Features.Scratchpad;
 
@@ -30,7 +31,17 @@ public class ScratchpadViewModelTests
             Directory.Delete(_root, recursive: true);
     }
 
-    private ScratchpadViewModel NewVm() => new(_config, _store);
+    private ScratchpadViewModel NewVm(IShellServices? shell = null) => new(_config, _store, shell);
+
+    /// <summary>A shell whose confirmation overlay auto-answers (confirm or cancel).</summary>
+    private static IShellServices ShellWithConfirm(bool confirm)
+    {
+        var shell = Substitute.For<IShellServices>();
+        shell.When(s => s.ShowConfirmation(Arg.Any<string>(), Arg.Any<string>(),
+                                           Arg.Any<Action>(), Arg.Any<Action>()))
+             .Do(ci => ci.ArgAt<Action>(confirm ? 2 : 3).Invoke());
+        return shell;
+    }
 
     [TestMethod]
     public void Ctor_EmptyStore_HasNoNotes_AndStatusText()
@@ -150,9 +161,8 @@ public class ScratchpadViewModelTests
         _store.Save(trash);
         _store.MoveToRecycleBin(trash);
 
-        using var vm = NewVm();
+        using var vm = NewVm(ShellWithConfirm(confirm: true));
         vm.ToggleRecycleBinCommand.Execute(null);
-        vm.ConfirmAction = (_, _) => true;
         vm.EmptyRecycleBinCommand.Execute(null);
 
         Assert.AreEqual(0, vm.RecycleBinNotes.Count);
@@ -166,9 +176,8 @@ public class ScratchpadViewModelTests
         _store.Save(trash);
         _store.MoveToRecycleBin(trash);
 
-        using var vm = NewVm();
+        using var vm = NewVm(ShellWithConfirm(confirm: false));
         vm.ToggleRecycleBinCommand.Execute(null);
-        vm.ConfirmAction = (_, _) => false;
         vm.EmptyRecycleBinCommand.Execute(null);
 
         Assert.AreEqual(1, vm.RecycleBinNotes.Count);

@@ -20,6 +20,10 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// fall back to the UIElement output of <see cref="BlockRenderer"/> wrapped in a
 /// <see cref="BlockUIContainer"/>.
 ///
+/// Colours and the link hook come from a <see cref="MarkdownRenderContext"/>
+/// (a <see cref="MarkdownPalette"/> converts implicitly; defaults to
+/// <see cref="MarkdownPalette.Dark"/>).
+///
 /// Leaf runs are tagged with their Markdig <see cref="SourceSpan"/> (via
 /// <see cref="BlockRenderer.AddInlines"/> and the code/heading paths here) so a
 /// partial selection can be mapped back to the original markdown source — see
@@ -27,13 +31,15 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// </summary>
 public static class MarkdownFlowDocument
 {
-    public static FlowDocument Build(string? markdown)
+    public static FlowDocument Build(string? markdown, MarkdownRenderContext? context = null)
     {
+        var ctx = context ?? MarkdownRenderContext.Dark;
+        var p   = ctx.Palette;
         var doc = new FlowDocument
         {
             FontFamily  = BlockRenderer.BodyFont,
             FontSize    = BlockRenderer.BaseFontSize,
-            Foreground  = BlockRenderer.TextBrush,
+            Foreground  = p.Text,
             Background  = Brushes.Transparent,
             PagePadding = new Thickness(0),
         };
@@ -45,7 +51,7 @@ public static class MarkdownFlowDocument
         var rawLines = raw.Split('\n');
 
         foreach (var block in parsed)
-            foreach (var b in RenderBlock(block, BlockRaw(block, rawLines)))
+            foreach (var b in RenderBlock(block, BlockRaw(block, rawLines), ctx))
                 doc.Blocks.Add(b);
 
         return doc;
@@ -53,109 +59,112 @@ public static class MarkdownFlowDocument
 
     // ── Block dispatch ────────────────────────────────────────────────────
 
-    private static IEnumerable<WpfBlock> RenderBlock(MdBlock block, string raw)
+    private static IEnumerable<WpfBlock> RenderBlock(MdBlock block, string raw, MarkdownRenderContext ctx)
     {
         try
         {
             return block switch
             {
-                HeadingBlock    hb => Heading(hb),
-                ParagraphBlock  pb => [Para(pb)],
-                ThematicBreakBlock => [Hr()],
-                QuoteBlock      qb => [Quote(qb)],
-                ListBlock       lb => [ListOf(lb)],
+                HeadingBlock    hb => Heading(hb, ctx),
+                ParagraphBlock  pb => [Para(pb, ctx)],
+                ThematicBreakBlock => [Hr(ctx)],
+                QuoteBlock      qb => [Quote(qb, ctx)],
+                ListBlock       lb => [ListOf(lb, ctx)],
                 // MathBlock extends FencedCodeBlock — match first
-                MathBlock          => [UiFallback(block, raw)],
+                MathBlock          => [UiFallback(block, raw, ctx)],
                 FencedCodeBlock fc when DiagramRenderer.IsDiagramLanguage(fc.Info)
-                                   => [UiFallback(block, raw)],
-                FencedCodeBlock fc => [Code(fc.Lines.ToString(), fc.Span)],
-                CodeBlock       cb => [Code(cb.Lines.ToString(), cb.Span)],
-                MdTable         t  => [TableOf(t)],
-                _                  => [UiFallback(block, raw)],
+                                   => [UiFallback(block, raw, ctx)],
+                FencedCodeBlock fc => [Code(fc.Lines.ToString(), fc.Span, ctx)],
+                CodeBlock       cb => [Code(cb.Lines.ToString(), cb.Span, ctx)],
+                MdTable         t  => [TableOf(t, ctx)],
+                _                  => [UiFallback(block, raw, ctx)],
             };
         }
         catch
         {
             return [new Paragraph(new Run(block.ToString() ?? string.Empty))
-                { Foreground = BlockRenderer.TextMutedBrush }];
+                { Foreground = ctx.Palette.TextMuted }];
         }
     }
 
     // ── Headings ──────────────────────────────────────────────────────────
 
-    private static IEnumerable<WpfBlock> Heading(HeadingBlock hb)
+    private static IEnumerable<WpfBlock> Heading(HeadingBlock hb, MarkdownRenderContext ctx)
     {
+        var p = ctx.Palette;
         double[] sizes = [28, 22, 18, 16, 14.5, BlockRenderer.BaseFontSize];
-        var p = new Paragraph
+        var para = new Paragraph
         {
             FontSize   = sizes[Math.Clamp(hb.Level - 1, 0, 5)],
             FontWeight = FontWeights.Bold,
-            Foreground = BlockRenderer.HeadingBrush,
+            Foreground = p.Heading,
             Margin     = new Thickness(0, hb.Level == 1 ? 14 : 10, 0, 4),
             Tag        = hb.Span,
         };
         if (hb.Inline is not null)
             foreach (var inl in hb.Inline)
-                BlockRenderer.AddInlines(p.Inlines, inl);
+                BlockRenderer.AddInlines(para.Inlines, inl, ctx);
 
         if (hb.Level <= 2)
         {
-            p.BorderBrush     = BlockRenderer.HrBrush;
-            p.BorderThickness = new Thickness(0, 0, 0, 1);
-            p.Padding         = new Thickness(0, 0, 0, 4);
+            para.BorderBrush     = p.Hr;
+            para.BorderThickness = new Thickness(0, 0, 0, 1);
+            para.Padding         = new Thickness(0, 0, 0, 4);
         }
-        return [p];
+        return [para];
     }
 
     // ── Paragraph ─────────────────────────────────────────────────────────
 
-    private static Paragraph Para(ParagraphBlock pb)
+    private static Paragraph Para(ParagraphBlock pb, MarkdownRenderContext ctx)
     {
-        var p = new Paragraph { Margin = new Thickness(0, 4, 0, 8), Tag = pb.Span };
+        var para = new Paragraph { Margin = new Thickness(0, 4, 0, 8), Tag = pb.Span };
         if (pb.Inline is not null)
             foreach (var inl in pb.Inline)
-                BlockRenderer.AddInlines(p.Inlines, inl);
-        return p;
+                BlockRenderer.AddInlines(para.Inlines, inl, ctx);
+        return para;
     }
 
     // ── Thematic break ────────────────────────────────────────────────────
 
-    private static WpfBlock Hr() =>
+    private static WpfBlock Hr(MarkdownRenderContext ctx) =>
         new BlockUIContainer(new System.Windows.Controls.Border
         {
             Height     = 1,
-            Background  = BlockRenderer.HrBrush,
+            Background  = ctx.Palette.Hr,
             Margin     = new Thickness(0, 10, 0, 10),
         });
 
     // ── Block-quote ───────────────────────────────────────────────────────
 
-    private static WpfBlock Quote(QuoteBlock qb)
+    private static WpfBlock Quote(QuoteBlock qb, MarkdownRenderContext ctx)
     {
+        var p = ctx.Palette;
         var section = new Section
         {
-            Background      = BlockRenderer.QuoteBgBrush,
-            BorderBrush     = BlockRenderer.AccentBrush,
+            Background      = p.QuoteBg,
+            BorderBrush     = p.Accent,
             BorderThickness = new Thickness(4, 0, 0, 0),
             Padding         = new Thickness(12, 6, 12, 6),
             Margin          = new Thickness(0, 4, 0, 8),
             Tag             = qb.Span,
         };
         foreach (var child in qb)
-            foreach (var b in RenderBlock(child, string.Empty))
+            foreach (var b in RenderBlock(child, string.Empty, ctx))
                 section.Blocks.Add(b);
         return section;
     }
 
     // ── Lists ─────────────────────────────────────────────────────────────
 
-    private static WpfBlock ListOf(ListBlock lb)
+    private static WpfBlock ListOf(ListBlock lb, MarkdownRenderContext ctx)
     {
+        var p = ctx.Palette;
         var list = new List
         {
             Margin      = new Thickness(0, 4, 0, 8),
             MarkerStyle = MarkerStyleFor(lb),
-            Foreground  = BlockRenderer.TextMutedBrush,   // marker colour
+            Foreground  = p.TextMuted,   // marker colour
         };
         if (lb.IsOrdered && int.TryParse(lb.OrderedStart, out var start) && start > 0)
             list.StartIndex = start;
@@ -164,14 +173,14 @@ public static class MarkdownFlowDocument
         {
             var item = new ListItem();
             foreach (var child in li)
-                foreach (var b in RenderBlock(child, string.Empty))
+                foreach (var b in RenderBlock(child, string.Empty, ctx))
                 {
                     // Tighten the airy default paragraph spacing inside list items
                     // and restore body colour (the List sets a muted marker colour).
                     if (b is Paragraph bp)
                     {
                         bp.Margin     = new Thickness(0, 1, 0, 1);
-                        bp.Foreground = BlockRenderer.TextBrush;
+                        bp.Foreground = p.Text;
                     }
                     item.Blocks.Add(b);
                 }
@@ -196,19 +205,20 @@ public static class MarkdownFlowDocument
 
     // ── Code ──────────────────────────────────────────────────────────────
 
-    private static WpfBlock Code(string text, SourceSpan span)
+    private static WpfBlock Code(string text, SourceSpan span, MarkdownRenderContext ctx)
     {
+        var p = ctx.Palette;
         var run = new Run(text.TrimEnd('\n'))
         {
             FontFamily = BlockRenderer.MonoFont,
             FontSize   = 12,
-            Foreground = BlockRenderer.TextBrush,
+            Foreground = p.Text,
             Tag        = span,
         };
         return new Paragraph(run)
         {
-            Background      = BlockRenderer.CodeBgBrush,
-            BorderBrush     = BlockRenderer.CodeBorderBrush,
+            Background      = p.CodeBg,
+            BorderBrush     = p.CodeBorder,
             BorderThickness = new Thickness(1),
             Padding         = new Thickness(12, 8, 12, 8),
             Margin          = new Thickness(0, 4, 0, 10),
@@ -217,8 +227,9 @@ public static class MarkdownFlowDocument
 
     // ── Tables ────────────────────────────────────────────────────────────
 
-    private static WpfBlock TableOf(MdTable table)
+    private static WpfBlock TableOf(MdTable table, MarkdownRenderContext ctx)
     {
+        var p = ctx.Palette;
         var t = new Table { Margin = new Thickness(0, 8, 0, 12), CellSpacing = 0 };
 
         int colCount = table.ColumnDefinitions.Count;
@@ -244,11 +255,11 @@ public static class MarkdownFlowDocument
                     ? table.ColumnDefinitions[colIdx].Alignment ?? TableColumnAlign.Left
                     : TableColumnAlign.Left;
 
-                var p = new Paragraph
+                var para = new Paragraph
                 {
                     Margin        = new Thickness(0),
                     FontWeight    = row.IsHeader ? FontWeights.SemiBold : FontWeights.Normal,
-                    Foreground    = row.IsHeader ? BlockRenderer.HeadingBrush : BlockRenderer.TextBrush,
+                    Foreground    = row.IsHeader ? p.Heading : p.Text,
                     FontSize      = row.IsHeader ? 13 : BlockRenderer.BaseFontSize,
                     TextAlignment = align switch
                     {
@@ -259,16 +270,16 @@ public static class MarkdownFlowDocument
                 };
                 if (cell.Count > 0 && cell[0] is ParagraphBlock cpb && cpb.Inline is not null)
                     foreach (var inl in cpb.Inline)
-                        BlockRenderer.AddInlines(p.Inlines, inl);
+                        BlockRenderer.AddInlines(para.Inlines, inl, ctx);
 
-                var tc = new TableCell(p)
+                var tc = new TableCell(para)
                 {
-                    BorderBrush     = BlockRenderer.TableBorderBrush,
+                    BorderBrush     = p.TableBorder,
                     BorderThickness = new Thickness(1),
                     Padding         = new Thickness(8, 5, 8, 5),
                     Background      = row.IsHeader
-                        ? BlockRenderer.TableHeaderBg
-                        : (rowIdx % 2 == 1 ? BlockRenderer.TableAltRowBg : Brushes.Transparent),
+                        ? p.TableHeaderBg
+                        : (rowIdx % 2 == 1 ? p.TableAltRowBg : Brushes.Transparent),
                     ColumnSpan      = Math.Max(1, cell.ColumnSpan),
                     RowSpan         = Math.Max(1, cell.RowSpan),
                 };
@@ -284,8 +295,8 @@ public static class MarkdownFlowDocument
 
     // ── Math / diagram / unknown fallback ───────────────────────────────────
 
-    private static WpfBlock UiFallback(MdBlock block, string raw) =>
-        new BlockUIContainer(BlockRenderer.Render(block, raw)) { Margin = new Thickness(0) };
+    private static WpfBlock UiFallback(MdBlock block, string raw, MarkdownRenderContext ctx) =>
+        new BlockUIContainer(BlockRenderer.Render(block, raw, ctx)) { Margin = new Thickness(0) };
 
     // ── Raw-source extraction (mirrors MarkdownView) ────────────────────────
 
