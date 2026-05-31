@@ -311,6 +311,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
         // Cancel any in-flight AI send before the workspace is reconfigured under it.
         _aiSendCts?.Cancel();
 
+        // Collapse the workspace to this window: the others would otherwise be left empty (their
+        // tabs close on reconfigure) and still showing the old profile's ribbon.
+        _shellServices.CloseOtherWindows(this);
+
         // In-place: keep this Workspace object, reconfigure it for the new profile (tabs close,
         // providers/AIService rebuilt). ShellServices/windows reference the Workspace, which is
         // unchanged — only its internals swap — so no window fix-up is needed.

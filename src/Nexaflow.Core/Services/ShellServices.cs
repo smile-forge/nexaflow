@@ -194,6 +194,17 @@ public sealed class ShellServices : IShellServices
             CloseTab(tab);
     }
 
+    /// <summary>
+    /// Closes every window in this workspace except <paramref name="keep"/>. Used on a profile
+    /// switch so the change collapses to the acting window instead of leaving the others empty and
+    /// showing the old profile.
+    /// </summary>
+    internal void CloseOtherWindows(IWindowHost keep)
+    {
+        foreach (var host in _windows.Where(w => !ReferenceEquals(w, keep)).ToList())
+            host.Window.Close();
+    }
+
     public Page? FindTab(string pageKind, Dictionary<string, string>? pageParams = null)
         => FindTabCore(pageKind, pageParams);
 
