@@ -58,7 +58,8 @@ Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI) — mirror that pat
 |------|--------------------|
 | `src/Nexaflow.Core/ViewModels/ShellViewModel.cs` | Tab lifecycle, ribbon, AI routing — god object, be careful |
 | `src/Nexaflow.Core/Services/ShellServices.cs` | `IShellServices` implementation |
-| `src/Nexaflow.Core/FeatureManager.cs` | Reflection discovery + per-`WorkContext` constructor injection for features (lives in **Core**, not Common) |
+| `src/Nexaflow.Core/FeatureManager.cs` | Reflection discovery + per-`Workspace` constructor injection for features (lives in **Core**, not Common); `EvictWorkspace` clears the cache on reconfigure |
+| `src/Nexaflow.Core/Services/WorkspaceManager.cs` | The `Profiles` list (dropdown) + live `Workspace`s; create/switch/reconfigure/dispose lifecycle |
 | `src/Nexaflow.Core/Services/FileSystemFeatureRegistry.cs` | Discovery for the file-system contracts (`IFileAction`/`IFolderAction`/`IFileCreateAction`/`IFolderViewlet`) — NOT FeatureManager |
 | `src/Nexaflow.Features/Nexaflow.Features.Common/*.cs` | Contracts — changes here affect everything |
 | `src/Nexaflow.Features/Nexaflow.Features.Common/IPageRegistration.cs`, `Page.cs` | The tab/page factory contract (`CreatePage`) and the `Page` model (`Title`/`Icon`/`Breadcrumbs`/`ContentFactory`). NB: the older names `ITabRegistration`/`TabEntry`/`PageFactory` are gone |
@@ -69,25 +70,27 @@ Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI) — mirror that pat
 Base: `%APPDATA%\Smile\nexaflow\`
 
 ```
-{ConfigName}\                 GLOBAL app/feature config (IFeatureConfig.ConfigName) — shared by all contexts
-Contexts\<name>\              PER-WORKCONTEXT data:
+{ConfigName}\                 GLOBAL app/feature config (IFeatureConfig.ConfigName) — shared by all profiles
+Contexts\<name>\              PER-PROFILE data (folder name kept as "Contexts" for compat):
   ai-abilities\               AI ability grid (which provider/model per ability)
-  <provider configs>\         provider API keys / subscriptions for THIS context
-  Conversations\              AI chat history for THIS context
-  <ribbon layout>             ribbon items for THIS context
+  <provider configs>\         provider API keys / subscriptions for THIS profile
+  Conversations\              AI chat history for THIS profile
+  <ribbon layout>             ribbon items for THIS profile
 ```
 
-Ribbon and conversations are **per-context** (not global). Feature `IFeatureConfig` is **global** (one instance per assembly).
+Ribbon, AI ability grid, provider configs and conversations are **per-profile** (not global). Feature `IFeatureConfig` is **global** (one instance per assembly).
 
-## WorkContext scoping
+## Profile / Workspace scoping
 
-A `WorkContext` is a named workspace. Getting scope wrong is the easiest way to add a bug — full detail in [docs/Architecture.md → Ownership & Lifetime](docs/Architecture.md#ownership--lifetime).
+A **`Profile`** is the saved, shared config shown in the dropdown; a **`Workspace`** is a runtime grouping of one-or-more window frames running ONE profile. Getting scope wrong is the easiest way to add a bug — full detail in [docs/Architecture.md → Ownership & Lifetime](docs/Architecture.md#ownership--lifetime).
 
-- **Central (one per process):** `ConfigManager`, `ProviderManager` (loads provider **assemblies/types** only — no instances), `WorkContextManager`, `FeatureManager` (feature **types**; builds instances per context), `BackgroundActivityManager`. Global configs incl. the **AI persona** (assistant name + system prompt) and every feature `IFeatureConfig`.
-- **Per-`WorkContext`:** provider **instances** + API keys (`ProviderSet`), ability→model assignments (`AiConfig`), `AIService` (agent loop + conversations), `ShellServices` (windows/tabs), ribbon layout. All under `Contexts\<name>\`.
-- The `IShellServices` / `IAIService` injected into a feature are the **active context's** — opening a tab or asking the AI always acts within one context.
+- **Central (one per process):** `ConfigManager`, `ProviderManager` (loads provider **assemblies/types**; owns the **ref-counted instance pool** — identical configs share one provider), `WorkspaceManager` (the `Profiles` list + live `Workspace`s), `FeatureManager` (feature **types**; builds instances per Workspace), `BackgroundActivityManager`. Global configs incl. the **AI persona** and every feature `IFeatureConfig`.
+- **Per-`Profile` (shared, saved):** ability→model assignments (`AiConfig`), provider configs (API keys), ribbon layout (live-synced across its workspaces via `RibbonChanged`), conversations. All under `Contexts\<name>\`.
+- **Per-`Workspace` (runtime):** `ShellServices` (windows/tabs), `AIService` (agent loop), the **acquired** provider instances. App/IPC launch = a new Workspace; tear-off / "open in new window" = same Workspace; dropdown switch reconfigures the current Workspace in place (tabs close, providers/AIService rebuilt); closing the last window disposes it.
+- The `IShellServices` / `IAIService` injected into a feature are the **active workspace's** — opening a tab or asking the AI always acts within one workspace.
+- Options & Manage-AI overlays are **modal** (block profile switching); you can't delete the active profile; there's always ≥1 profile.
 
-Mnemonic: **persona & feature settings = global; provider/model-per-ability, conversations, ribbon, windows/tabs = per-context.**
+Mnemonic: **persona & feature settings = global; ability grid, provider configs, conversations, ribbon = per-profile (shared); AIService, providers, windows/tabs = per-workspace (runtime).**
 
 ## Tests
 

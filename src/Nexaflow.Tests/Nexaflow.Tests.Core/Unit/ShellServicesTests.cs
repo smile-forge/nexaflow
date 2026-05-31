@@ -9,7 +9,7 @@ namespace Nexaflow.Tests.Core.Unit;
 [TestClass]
 public class ShellServicesTests
 {
-    private static ShellServices CreateSvc() => new(new WorkContext());
+    private static ShellServices CreateSvc() => new(new Workspace());
 
     /// <summary>
     /// Seeds a page directly into ShellServices' private tab registry.
@@ -109,22 +109,5 @@ public class ShellServicesTests
 
         // Should not throw
         svc.CloseTab(new Page { PageKind = "Files" });
-    }
-
-    [TestMethod]
-    public void TransferWindowTo_MovesTabToTargetRegistry()
-    {
-        var src = CreateSvc();
-        var dst = CreateSvc();
-        var host = new FakeWindowHost();
-        src.RegisterWindow(host);
-        var tab = new Page { PageKind = "Files" };
-        host.AddTab(tab);
-        SeedTab(src, tab, host);
-
-        src.TransferWindowTo(host, dst);
-
-        Assert.IsNull(src.FindTab("Files"));
-        Assert.IsNotNull(dst.FindTab("Files"));
     }
 }

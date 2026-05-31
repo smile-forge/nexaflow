@@ -5,9 +5,9 @@ using System.Windows.Shell;
 namespace Nexaflow.Core.Services;
 
 /// <summary>
-/// Builds and applies the Windows taskbar JumpList — one task per <see cref="Models.WorkContext"/>,
-/// each launching the app with <c>--context "Name"</c> so it opens straight into that context.
-/// Rebuilt whenever the context list changes (e.g. the user edits contexts in Options).
+/// Builds and applies the Windows taskbar JumpList — one task per <see cref="Models.Profile"/>,
+/// each launching the app with <c>--context "Name"</c> so it opens straight into that profile.
+/// Rebuilt whenever the profile list changes (e.g. the user edits profiles in Options).
 /// </summary>
 public static class JumpListService
 {
@@ -18,11 +18,11 @@ public static class JumpListService
 
     /// <summary>
     /// Applies the initial JumpList and subscribes to context-list changes so it stays in sync.
-    /// Call once after <see cref="WorkContextManager"/> has been initialised.
+    /// Call once after <see cref="WorkspaceManager"/> has been initialised.
     /// </summary>
     public static void Initialize()
     {
-        WorkContextManager.Instance.ContextsRefreshed += (_, _) =>
+        WorkspaceManager.Instance.ProfilesRefreshed += (_, _) =>
             Application.Current?.Dispatcher.Invoke(Refresh);
         Refresh();
     }
@@ -37,15 +37,15 @@ public static class JumpListService
 
         var jumpList = new JumpList { ShowRecentCategory = false, ShowFrequentCategory = false };
 
-        foreach (var ctx in WorkContextManager.Instance.Contexts)
+        foreach (var cfg in WorkspaceManager.Instance.Profiles)
             jumpList.JumpItems.Add(new JumpTask
             {
-                Title            = ctx.Name,
-                Description      = $"Open the “{ctx.Name}” work context",
+                Title            = cfg.Name,
+                Description      = $"Open the “{cfg.Name}” work context",
                 CustomCategory   = CategoryName,
                 ApplicationPath  = exePath,
                 IconResourcePath = exePath,
-                Arguments        = $"{ContextSwitch} \"{ctx.Name}\"",
+                Arguments        = $"{ContextSwitch} \"{cfg.Name}\"",
             });
 
         try

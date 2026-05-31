@@ -18,7 +18,7 @@ public sealed class AIService : IAIService
 
     private AiConfig? _abilityConfig;
 
-    /// <summary>Registers a named provider. Called by WorkContextManager during startup.</summary>
+    /// <summary>Registers a named provider. Called by WorkspaceManager during startup.</summary>
     public void Register(string name, ILlmProvider provider)
     {
         ArgumentNullException.ThrowIfNull(provider);
@@ -70,7 +70,7 @@ public sealed class AIService : IAIService
 
     // ── Persistence ───────────────────────────────────────────────────────
 
-    private readonly WorkContext _workContext;
+    private readonly Workspace _workspace;
     private readonly string _baseDir;
 
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -83,12 +83,12 @@ public sealed class AIService : IAIService
 
     public ConversationRecord? ActiveConversation { get; }
 
-    /// <param name="workContext">The owning WorkContext — used to resolve query handlers via FeatureManager.</param>
-    /// <param name="conversationsDir">Full path to the directory where this context's conversations are stored.</param>
-    public AIService(WorkContext workContext, string conversationsDir)
+    /// <param name="workspace">The owning Workspace — used to resolve query handlers via FeatureManager.</param>
+    /// <param name="conversationsDir">Full path to the directory where this profile's conversations are stored.</param>
+    public AIService(Workspace workspace, string conversationsDir)
     {
-        _workContext = workContext;
-        _baseDir     = conversationsDir;
+        _workspace = workspace;
+        _baseDir   = conversationsDir;
     }
 
     public async Task<IEnumerable<ConversationRecord>> LoadAllAsync()
@@ -164,7 +164,7 @@ public sealed class AIService : IAIService
             string EffectiveText)
         ScoreHandlers(string text, IPageViewModel? pageVm)
     {
-        var allHandlers   = FeatureManager.Instance.GetQueryHandlers(_workContext).ToList();
+        var allHandlers   = FeatureManager.Instance.GetQueryHandlers(_workspace).ToList();
         var effectiveText = text;
 
         // Symbol prefix → narrow to matching handlers and strip the prefix character

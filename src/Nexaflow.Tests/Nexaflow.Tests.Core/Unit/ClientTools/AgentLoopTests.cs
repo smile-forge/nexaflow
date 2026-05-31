@@ -85,7 +85,7 @@ public class AgentLoopTests
 
     private static AIService BuildService(ILlmProvider provider)
     {
-        var svc = new AIService(new WorkContext(), Path.GetTempPath());
+        var svc = new AIService(new Workspace(), Path.GetTempPath());
         svc.Register("fake", provider);
         svc.LoadAbilityConfig(new AiConfig
         {

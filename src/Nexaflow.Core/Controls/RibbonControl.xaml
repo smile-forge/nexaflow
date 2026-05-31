@@ -16,18 +16,19 @@
         <Border VerticalAlignment="Top" Height="10"
                 Background="{DynamicResource SurfaceBrush}"/>
 
-        <!-- WorkContext accent: first 240 px of bevel in context colour -->
+        <!-- Profile accent: first 240 px of bevel in profile colour -->
         <Border VerticalAlignment="Top" HorizontalAlignment="Left"
                 Width="240" Height="10"
-                Background="{Binding WorkContext.Color, ElementName=Root,
+                Background="{Binding Profile.Color, ElementName=Root,
                              Converter={StaticResource ColorStringToBrush}}"/>
 
-        <!-- WorkContext selector: 48 px wide rectangle + popup -->
-        <ctrl:WorkContextSelectorControl
+        <!-- Profile selector: 48 px wide rectangle + popup -->
+        <ctrl:ProfileSelectorControl
                 HorizontalAlignment="Left" Width="42"
-                CurrentWorkContext="{Binding WorkContext, ElementName=Root}"
-                WorkContexts="{Binding WorkContexts, ElementName=Root}"
-                SelectWorkContextCommand="{Binding SelectWorkContextCommand, ElementName=Root}"/>
+                CurrentProfile="{Binding Profile, ElementName=Root}"
+                Profiles="{Binding Profiles, ElementName=Root}"
+                CanSwitch="{Binding CanSwitchProfile, ElementName=Root}"
+                SelectProfileCommand="{Binding SelectProfileCommand, ElementName=Root}"/>
 
         <!-- Ribbon strip, shifted right to clear the selector -->
         <ctrl:RibbonBar x:Name="RibbonBarControl"
@@ -39,6 +40,6 @@
                         PinFromHandlerCommand="{Binding ViewModel.PinFromHandlerCommand, ElementName=Root}"
                         OpenInNewWindowCommand="{Binding InternalOpenInNewWindowCommand, ElementName=Root}"
                         DeleteItemCommand="{Binding InternalDeleteCommand, ElementName=Root}"
-                        WorkContext="{Binding WorkContext, ElementName=Root}"/>
+                        Workspace="{Binding Workspace, ElementName=Root}"/>
     </Grid>
 </UserControl>

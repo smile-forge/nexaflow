@@ -10,10 +10,10 @@ using Nexaflow.Features.Common;
 namespace Nexaflow.Core.Controls;
 
 /// <summary>
-/// Self-contained ribbon component: owns its <see cref="RibbonViewModel"/>, applies
-/// the work-context frame styling (bevel + accent + selector), and renders the
-/// items via <see cref="RibbonBar"/>. The shell hands it a <see cref="WorkContext"/>
-/// and an <see cref="OpenPageCommand"/>; everything else lives inside.
+/// Self-contained ribbon component: owns its <see cref="RibbonViewModel"/>, applies the profile
+/// frame styling (bevel + accent + selector), and renders the items via <see cref="RibbonBar"/>.
+/// The shell hands it the active <see cref="Workspace"/> (for pin handlers), its <see cref="Profile"/>
+/// (which drives the shared ribbon layout + live-sync), and an <see cref="OpenPageCommand"/>.
 /// </summary>
 public partial class RibbonControl : UserControl
 {
@@ -21,15 +21,24 @@ public partial class RibbonControl : UserControl
 
     // ── Public DPs (the shell's interface to the ribbon) ───────────────────
 
-    public static readonly DependencyProperty WorkContextProperty =
-        DependencyProperty.Register(nameof(WorkContext), typeof(WorkContext), typeof(RibbonControl),
-            new PropertyMetadata(null, OnWorkContextChanged));
+    public static readonly DependencyProperty WorkspaceProperty =
+        DependencyProperty.Register(nameof(Workspace), typeof(Workspace), typeof(RibbonControl),
+            new PropertyMetadata(null, OnWorkspaceChanged));
 
-    public static readonly DependencyProperty WorkContextsProperty =
-        DependencyProperty.Register(nameof(WorkContexts), typeof(IEnumerable), typeof(RibbonControl));
+    /// <summary>The active workspace's profile — drives the shared ribbon layout + live-sync.</summary>
+    public static readonly DependencyProperty ProfileProperty =
+        DependencyProperty.Register(nameof(Profile), typeof(Profile), typeof(RibbonControl),
+            new PropertyMetadata(null, OnProfileChanged));
 
-    public static readonly DependencyProperty SelectWorkContextCommandProperty =
-        DependencyProperty.Register(nameof(SelectWorkContextCommand), typeof(ICommand), typeof(RibbonControl));
+    public static readonly DependencyProperty ProfilesProperty =
+        DependencyProperty.Register(nameof(Profiles), typeof(IEnumerable), typeof(RibbonControl));
+
+    public static readonly DependencyProperty SelectProfileCommandProperty =
+        DependencyProperty.Register(nameof(SelectProfileCommand), typeof(ICommand), typeof(RibbonControl));
+
+    public static readonly DependencyProperty CanSwitchProfileProperty =
+        DependencyProperty.Register(nameof(CanSwitchProfile), typeof(bool), typeof(RibbonControl),
+            new PropertyMetadata(true));
 
     public static readonly DependencyProperty OpenPageCommandProperty =
         DependencyProperty.Register(nameof(OpenPageCommand), typeof(ICommand), typeof(RibbonControl));
@@ -43,22 +52,34 @@ public partial class RibbonControl : UserControl
     public static readonly DependencyProperty PinFromHandlerCommandProperty =
         DependencyProperty.Register(nameof(PinFromHandlerCommand), typeof(ICommand), typeof(RibbonControl));
 
-    public WorkContext? WorkContext
+    public Workspace? Workspace
     {
-        get => (WorkContext?)GetValue(WorkContextProperty);
-        set => SetValue(WorkContextProperty, value);
+        get => (Workspace?)GetValue(WorkspaceProperty);
+        set => SetValue(WorkspaceProperty, value);
     }
 
-    public IEnumerable? WorkContexts
+    public Profile? Profile
     {
-        get => (IEnumerable?)GetValue(WorkContextsProperty);
-        set => SetValue(WorkContextsProperty, value);
+        get => (Profile?)GetValue(ProfileProperty);
+        set => SetValue(ProfileProperty, value);
     }
 
-    public ICommand? SelectWorkContextCommand
+    public IEnumerable? Profiles
     {
-        get => (ICommand?)GetValue(SelectWorkContextCommandProperty);
-        set => SetValue(SelectWorkContextCommandProperty, value);
+        get => (IEnumerable?)GetValue(ProfilesProperty);
+        set => SetValue(ProfilesProperty, value);
+    }
+
+    public ICommand? SelectProfileCommand
+    {
+        get => (ICommand?)GetValue(SelectProfileCommandProperty);
+        set => SetValue(SelectProfileCommandProperty, value);
+    }
+
+    public bool CanSwitchProfile
+    {
+        get => (bool)GetValue(CanSwitchProfileProperty);
+        set => SetValue(CanSwitchProfileProperty, value);
     }
 
     public ICommand? OpenPageCommand
@@ -133,6 +154,9 @@ public partial class RibbonControl : UserControl
         ViewModel.FlashItem = item => RibbonBarControl.FlashItem(item);
     }
 
-    private static void OnWorkContextChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        => ((RibbonControl)d).ViewModel.SetWorkContext(e.NewValue as WorkContext);
+    private static void OnWorkspaceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        => ((RibbonControl)d).ViewModel.SetWorkspace(e.NewValue as Workspace);
+
+    private static void OnProfileChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        => ((RibbonControl)d).ViewModel.SetProfile(e.NewValue as Profile);
 }

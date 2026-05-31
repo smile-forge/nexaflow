@@ -1,6 +1,7 @@
 using Nexaflow.Providers.Common;
 using System.IO;
 using System.Reflection;
+using System.Text.Json;
 
 namespace Nexaflow.Core;
 
@@ -8,8 +9,10 @@ namespace Nexaflow.Core;
 /// Loads LLM provider plugin assemblies at runtime and records the provider/config TYPES they
 /// expose. Provider assemblies are never referenced at compile time; they are discovered and
 /// loaded by file name so that new providers can be dropped alongside the executable.
-/// Instances are NOT created here — each WorkContext builds its own <see cref="ProviderSet"/> via
-/// <see cref="CreateProviderSet"/> so providers and their configs are per-context.
+/// Live provider instances are deduplicated process-wide: <see cref="AcquireProviderSet"/> hands
+/// out one shared <see cref="ILlmProvider"/> per unique (provider + config payload), ref-counted,
+/// and <see cref="ReleaseProviderSet"/> unloads it once no Workspace references it. Provider
+/// <em>configs</em> live on the owning <see cref="Models.Profile"/>.
 /// </summary>
 public sealed class ProviderManager
 {
@@ -18,6 +21,18 @@ public sealed class ProviderManager
     private IBackgroundActivityManager? _activityManager;
     private readonly HashSet<string>          _loadedAssemblies = [];
     private readonly List<AssemblyDescriptor> _descriptors      = [];
+
+    // ── Global ref-counted provider instance pool ─────────────────────────────
+    private sealed class PoolEntry
+    {
+        public required ILlmProvider Provider;
+        public required string       AssemblyFile;
+        public int                   RefCount;
+    }
+    private readonly Dictionary<string, PoolEntry> _pool = [];
+    private readonly object _poolLock = new();
+
+    private static readonly JsonSerializerOptions _keyOpts = new() { WriteIndented = false };
 
     /// <summary>The provider/config types found in one loaded plugin assembly.</summary>
     private sealed record AssemblyDescriptor(
@@ -65,44 +80,90 @@ public sealed class ProviderManager
     }
 
     /// <summary>
-    /// Builds a fresh <see cref="ProviderSet"/> for one WorkContext: instantiates each discovered
-    /// config type, loads it from <paramref name="contextDir"/>, then constructs each provider with
-    /// that context's configs. Providers in assemblies not yet loaded are absent (call
+    /// Instantiates each discovered config type and loads it from <paramref name="dir"/>, returning
+    /// one config instance per type. These live on the owning <see cref="Models.Profile"/> and are
+    /// shared by all its Workspaces. Providers in assemblies not yet loaded are absent (call
     /// <see cref="DiscoverAll"/> first to include them).
     /// </summary>
-    public ProviderSet CreateProviderSet(string contextDir)
+    public IReadOnlyList<IProviderConfig> LoadProviderConfigs(string dir)
     {
-        var providers   = new Dictionary<string, ILlmProvider>(StringComparer.OrdinalIgnoreCase);
-        var configs     = new List<IProviderConfig>();
-        var assemblyMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
+        var configs = new List<IProviderConfig>();
         foreach (var desc in _descriptors)
-        {
-            // One config instance per type, populated from this context's own folder.
-            var byType = new Dictionary<Type, IProviderConfig>();
             foreach (var ct in desc.ConfigTypes)
             {
                 var cfg = (IProviderConfig)Activator.CreateInstance(ct)!;
-                ConfigManager.Instance.LoadFrom(contextDir, cfg, cfg.ConfigName);
-                byType[ct] = cfg;
+                ConfigManager.Instance.LoadFrom(dir, cfg, cfg.ConfigName);
                 configs.Add(cfg);
             }
+        return configs;
+    }
 
-            foreach (var (type, ctor) in desc.Providers)
-            {
-                var args = ctor.GetParameters()
-                    .Select(p =>
-                        typeof(IBackgroundActivityManager).IsAssignableFrom(p.ParameterType)
+    /// <summary>
+    /// Acquires the live provider instances for a Workspace from the given profile-owned
+    /// <paramref name="profileConfigs"/>. Each provider is deduplicated process-wide by
+    /// (provider type + serialized payload of the configs feeding its constructor), so two
+    /// Workspaces with identical config share one instance. Increments the pool ref-count for each.
+    /// Call <see cref="ReleaseProviderSet"/> when the Workspace is reconfigured or disposed.
+    /// </summary>
+    public ProviderSet AcquireProviderSet(IReadOnlyList<IProviderConfig> profileConfigs)
+    {
+        var providers   = new Dictionary<string, ILlmProvider>(StringComparer.OrdinalIgnoreCase);
+        var assemblyMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var poolKeys    = new List<string>();
+
+        lock (_poolLock)
+        {
+            foreach (var desc in _descriptors)
+                foreach (var (type, ctor) in desc.Providers)
+                {
+                    var parms = ctor.GetParameters();
+                    var args  = parms
+                        .Select(p => typeof(IBackgroundActivityManager).IsAssignableFrom(p.ParameterType)
                             ? (object?)_activityManager
-                            : (object?)byType.Values.FirstOrDefault(c => c.GetType() == p.ParameterType))
-                    .ToArray();
-                var provider = (ILlmProvider)ctor.Invoke(args);
-                providers[provider.Name]   = provider;
-                assemblyMap[provider.Name] = desc.FileName;
-            }
+                            : profileConfigs.FirstOrDefault(c => c.GetType() == p.ParameterType))
+                        .ToArray();
+
+                    var feeding = parms
+                        .Select(p => profileConfigs.FirstOrDefault(c => c.GetType() == p.ParameterType))
+                        .Where(c => c is not null)
+                        .OrderBy(c => c!.GetType().FullName, StringComparer.Ordinal);
+                    var key = type.FullName + "|" +
+                              string.Join("|", feeding.Select(c => JsonSerializer.Serialize(c, c!.GetType(), _keyOpts)));
+
+                    if (!_pool.TryGetValue(key, out var entry))
+                    {
+                        var provider = (ILlmProvider)ctor.Invoke(args);
+                        entry = new PoolEntry { Provider = provider, AssemblyFile = desc.FileName };
+                        _pool[key] = entry;
+                    }
+                    entry.RefCount++;
+
+                    providers[entry.Provider.Name]   = entry.Provider;
+                    assemblyMap[entry.Provider.Name] = entry.AssemblyFile;
+                    poolKeys.Add(key);
+                }
         }
 
-        return new ProviderSet(providers, configs, assemblyMap);
+        return new ProviderSet(providers, profileConfigs, assemblyMap, poolKeys);
+    }
+
+    /// <summary>
+    /// Releases the pool references held by <paramref name="set"/>. Any provider whose ref-count
+    /// reaches zero is removed from the pool and disposed (if <see cref="IDisposable"/>) — "unloaded".
+    /// </summary>
+    public void ReleaseProviderSet(ProviderSet? set)
+    {
+        if (set is null) return;
+        lock (_poolLock)
+        {
+            foreach (var key in set.PoolKeys)
+            {
+                if (!_pool.TryGetValue(key, out var entry)) continue;
+                if (--entry.RefCount > 0) continue;
+                _pool.Remove(key);
+                (entry.Provider as IDisposable)?.Dispose();
+            }
+        }
     }
 
     private void LoadAssembly(string assemblyPath)

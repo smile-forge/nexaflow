@@ -1,7 +1,8 @@
 # Nexaflow Architecture
 
-> **Freshness:** reviewed/refreshed 2026-05-31, including the per-`WorkContext` provider/`AIService`
-> model — see [Ownership & Lifetime](#ownership--lifetime) for what is central vs context-scoped.
+> **Freshness:** reviewed/refreshed 2026-05-31, including the `Profile` (saved config) vs `Workspace`
+> (runtime) split and the ref-counted provider pool — see [Ownership & Lifetime](#ownership--lifetime)
+> for what is central vs profile-scoped vs workspace-scoped.
 > Architectural cleanup opportunities are tracked in [arch_improvements.md](arch_improvements.md).
 >
 > **Renamed since earlier drafts** (old → new): `ITabRegistration` → `IPageRegistration`
@@ -61,7 +62,9 @@ nexaflow/src/
 
 ## Ownership & Lifetime
 
-There are four nesting scopes. **Getting a thing's scope wrong is the easiest way to introduce a bug**, so this is the canonical reference for what is central to the process vs tied to a `WorkContext` vs per-feature vs per-window/tab.
+There are nesting scopes. **Getting a thing's scope wrong is the easiest way to introduce a bug**, so this is the canonical reference for what is central to the process vs tied to a `Profile` (saved config) vs a `Workspace` (runtime) vs per-feature vs per-window/tab.
+
+The model has two halves: a **`Profile`** is the saved, shared configuration shown in the dropdown (name/colour/icon + ribbon layout + AI ability grid + provider configs + conversations); a **`Workspace`** is a runtime grouping of one-or-more window frames all running ONE profile. App/IPC launch always creates a *new* Workspace (launch ×3 ⇒ 3 Workspaces, possibly all on one profile); tear-off / "open in new window" reuse the *same* Workspace; switching the dropdown reconfigures the current Workspace in place; closing a Workspace's last window disposes it.
 
 ### Central — one instance per process
 
@@ -69,30 +72,39 @@ There are four nesting scopes. **Getting a thing's scope wrong is the easiest wa
 
 | Singleton | Owns | NOT responsible for |
 |-----------|------|---------------------|
-| `ConfigManager` | Base data path; **global** config registry. `Register(cfg,name)` = global config; `LoadFrom`/`SaveTo(dir,…)` = per-context config in that context's folder | — |
-| `ProviderManager` | Loads provider **assemblies** by file name; records provider/config **types**; owns the shared `ActivityManager` | Holds **no** provider instances — each context builds its own `ProviderSet` via `CreateProviderSet(contextDir)` |
+| `ConfigManager` | Base data path; **global** config registry. `Register(cfg,name)` = global config; `LoadFrom`/`SaveTo(dir,…)` = per-profile config in that profile's folder | — |
+| `ProviderManager` | Loads provider **assemblies** by file name; records provider/config **types**; owns the shared `ActivityManager`; owns the **global ref-counted provider instance pool** (`AcquireProviderSet`/`ReleaseProviderSet`) so identical configs share one `ILlmProvider` | Holds provider **configs** — those live on the `Profile` |
 | `BackgroundActivityManager` | The one activity/notification surface (passed to ProviderManager, every window, every ShellServices) | — |
-| `WorkContextManager` | Registry of all `WorkContext`s (`Contexts`) + their create/clone/remove/bootstrap lifecycle | — |
-| `FeatureManager` | Reflection discovery of feature **types** once at startup; builds feature instances **per (Type, WorkContext)** on demand | File-system contracts (those go to `FileSystemFeatureRegistry`) |
+| `WorkspaceManager` | The `Profiles` list (dropdown source) + the live `Workspace`s; create/switch/reconfigure/dispose lifecycle | — |
+| `FeatureManager` | Reflection discovery of feature **types** once at startup; builds feature instances **per (Type, Workspace)** on demand; `EvictWorkspace` drops them on reconfigure/dispose | File-system contracts (those go to `FileSystemFeatureRegistry`) |
 | `FileMapManager`, `ExternalAppRegistry`, `WhisperModelManager`, `HostCapabilityService`, `MessageCenter`, `JumpListService` | Misc app-wide services | — |
 
-**Global configs** (registered app-level, shared by every context): `ShellConfig` (theme), **`AiPersonaConfig` (assistant name + system prompt)**, `WorkContextsConfig` (the context-list metadata), `FileMapConfig`, `ExternalAppsConfig`, `VoiceConfig`.
+**Global configs** (registered app-level, shared by every profile): `ShellConfig` (theme), **`AiPersonaConfig` (assistant name + system prompt)**, `WorkspacesConfig` (the profile-list metadata; `ConfigName` is still `"workcontexts"` on disk), `FileMapConfig`, `ExternalAppsConfig`, `VoiceConfig`.
 
-> ⚠️ The **AI persona** (name + system prompt) is **global**, but **which provider/model answers each ability** is **per-context**. Don't conflate them.
+> ⚠️ The **AI persona** (name + system prompt) is **global**, but **which provider/model answers each ability** is **per-profile**. Don't conflate them.
 
-### Per-`WorkContext` — one instance per named context
+### Per-`Profile` — shared, saved (one instance per named profile)
 
-A `WorkContext` (`Core/Models/WorkContext.cs`) is a named, themed workspace. Only `Name`/`Color`/`Icon` persist (in `WorkContextsConfig`); everything below is runtime-only (`[JsonIgnore]`), rebuilt by `WorkContextManager.BootstrapServices`, with on-disk state under `…\Smile\nexaflow\Contexts\<Name>\`:
+A `Profile` (`Core/Models/Profile.cs`) is a named, themed, saved workspace configuration. `Name`/`Color`/`Icon` persist (in `WorkspacesConfig`); the shared services below are runtime-only (`[JsonIgnore]`), loaded once by `Profile.EnsureSharedServicesLoaded`, with on-disk state under `…\Smile\nexaflow\Contexts\<Name>\` (folder kept for compat):
 
-| Field on `WorkContext` | What it scopes | On disk |
-|------------------------|----------------|---------|
-| `Providers : ProviderSet` | This context's LLM provider **instances** + their configs (API keys / subscriptions). Two contexts can hold different subscriptions for the same provider | provider config folders |
-| `AiConfig` | The ability → provider/model **assignments** + configured columns (the AI ability grid) | `ai-abilities/` |
-| `AiService : AIService` | The agent loop + AI-input-bar routing for this context — resolves each `AiAbility` through **this context's** providers/assignments; owns this context's conversation history | `Conversations/` |
-| `ShellServices : ShellServices` | This context's **window registry + tab registry** (the windows/tabs currently showing this context). Preserved across re-init — holds live state | — |
-| `RibbonService : RibbonLayoutService` | This context's ribbon layout — **the ribbon is per-context** | per-context file |
+| Member on `Profile` | What it scopes | On disk |
+|---------------------|----------------|---------|
+| `AiConfig` | The ability → provider/model **assignments** + configured columns. Shared, so an edit shows in every Workspace on this profile | `ai-abilities/` |
+| `ProviderConfigs` | The provider configs (API keys / subscriptions) used to build provider instances | provider config folders |
+| `RibbonService : RibbonLayoutService` + `RibbonChanged` | The shared ribbon layout. Saving raises `RibbonChanged`, which every window/Workspace on this profile observes to reload live | `ribbon.json` |
+| `ConversationsDir` | Where this profile's conversations are stored | `Conversations/` |
 
-The `IShellServices` / `IAIService` injected into a feature are the **active context's** instances (`FeatureManager` resolves them per `WorkContext`). So "open a tab" and "ask the AI" always act within exactly one context.
+### Per-`Workspace` — runtime (one per app/IPC launch; can have many windows)
+
+A `Workspace` (`Core/Models/Workspace.cs`) points at one `Profile` and owns the live per-session services, built by `WorkspaceManager.BootstrapServices` / rebuilt by `ReconfigureWorkspace`:
+
+| Member on `Workspace` | What it scopes |
+|-----------------------|----------------|
+| `Providers : ProviderSet` | The live provider instances **acquired from the pool** for this workspace (deduped by config across all workspaces/profiles); released when the workspace is reconfigured/disposed |
+| `AiService : AIService` | The agent loop + AI-input-bar routing — resolves each `AiAbility` through this profile's assignments + this workspace's providers; reads/writes the profile's conversations |
+| `ShellServices : ShellServices` | This workspace's **window + tab registry** (every window in the workspace). Stable for the workspace's life — a profile switch reconfigures internals, not this object |
+
+The `IShellServices` / `IAIService` injected into a feature are the **active workspace's** instances (`FeatureManager` resolves them per `Workspace`). So "open a tab" and "ask the AI" always act within exactly one workspace.
 
 ### Per-window / per-tab
 
@@ -101,7 +113,7 @@ The `IShellServices` / `IAIService` injected into a feature are the **active con
 
 ### Per-feature (assembly)
 
-- An **`IFeatureConfig`** is a **single, app-level instance per assembly** — discovered once in `RegisterFeatures`, never rebuilt. **Feature settings are global, not per-context** (persisted at `…\Smile\nexaflow\<ConfigName>\`, outside `Contexts\`). Contrast `AiConfig`, which *is* per-context. There is no per-context feature-config mechanism today — adding one would be new work, not a config-path change.
+- An **`IFeatureConfig`** is a **single, app-level instance per assembly** — discovered once in `RegisterFeatures`, never rebuilt. **Feature settings are global, not per-profile** (persisted at `…\Smile\nexaflow\<ConfigName>\`, outside `Contexts\`). Contrast `AiConfig`, which *is* per-profile. There is no per-profile feature-config mechanism today — adding one would be new work, not a config-path change.
 
 ---
 
@@ -113,19 +125,20 @@ The shell host. Owns the window chrome, tab strip, ribbon bar, breadcrumb bar, a
 
 | File | Responsibility |
 |------|----------------|
-| `App.xaml.cs` | Startup (`InitializeApp`): global-config + provider-**assembly** load, per-context bootstrap via `WorkContextManager`, feature discovery, first window. Also the windowless `--prestart` daemon and single-instance / new-window IPC |
-| `Models/WorkContext.cs` | The per-context workspace model (holds `Providers`/`AiConfig`/`AiService`/`ShellServices`/`RibbonService`) — see [Ownership & Lifetime](#ownership--lifetime) |
-| `Services/WorkContextManager.cs` | Singleton registry of `WorkContext`s; `Initialize`/`Create`/`Clone`/`Remove`, and `BootstrapServices` (builds each context's per-context services) |
-| `ProviderManager.cs` | Singleton: loads provider **assemblies** + records provider/config **types**; `CreateProviderSet(contextDir)` builds a context's instances. Holds no provider instances itself |
-| `ProviderSet.cs` | A single context's provider **instances** + their configs + assembly map |
-| `Services/AIService.cs` | `IAIService` impl — **per-context**: provider registry, ability→model resolution, the agent loop, conversation history |
-| `AI/AiConfig.cs` | Per-context AI ability config (`Columns` + ability→column `Assignments`); rendered by `AiAbilityGridControl` |
+| `App.xaml.cs` | Startup (`InitializeApp`): global-config + provider-**assembly** load, `WorkspaceManager.Initialize` (profiles only), feature discovery, first window (a fresh `Workspace`). Also the windowless `--prestart` daemon and single-instance / new-window IPC (each IPC launch = a new `Workspace`) |
+| `Models/Profile.cs` | The saved, shared profile (holds `AiConfig`/`ProviderConfigs`/`RibbonService`+`RibbonChanged`/conversations dir) — see [Ownership & Lifetime](#ownership--lifetime) |
+| `Models/Workspace.cs` | The runtime workspace (points at a `Profile`; holds `Providers`/`AiService`/`ShellServices`) |
+| `Services/WorkspaceManager.cs` | Singleton: the `Profiles` list + live `Workspace`s; `Initialize`/`CreateWorkspace`/`SwitchProfile`/`ReconfigureWorkspace`/`NotifyWindowClosed`, `Add`/`Clone`/`RemoveProfile`, `BootstrapServices` |
+| `ProviderManager.cs` | Singleton: loads provider **assemblies** + records provider/config **types**; `LoadProviderConfigs(dir)` + the ref-counted pool `AcquireProviderSet`/`ReleaseProviderSet` (identical configs share one instance) |
+| `ProviderSet.cs` | A workspace's acquired provider **instances** + the profile's configs + assembly map + pool keys |
+| `Services/AIService.cs` | `IAIService` impl — **per-Workspace**: provider registry, ability→model resolution, the agent loop, conversation history |
+| `AI/AiConfig.cs` | Per-profile AI ability config (`Columns` + ability→column `Assignments`); rendered by `AiAbilityGridControl` |
 | `MainWindow.xaml.cs` | Wires shell commands; creates `ShellViewModel`; handles ESC/breadcrumb clicks |
-| `ViewModels/ShellViewModel.cs` | Tab lifecycle, ribbon lifecycle, notifications, AI routing, background tasks |
-| `Services/ShellServices.cs` | `IShellServices` impl — **per-WorkContext** (not an app-level singleton, despite the older class comment). Owns that context's window + tab registry and coordinates the windows showing this context |
-| `FeatureManager.cs` | Singleton (`FeatureManager.Instance`). Reflection-loads every `Nexaflow.Features.*.dll` at startup, records `IPageRegistration`/config/handler **types** without instantiating, then builds instances per `WorkContext` with scoped `IShellServices` + `IAIService`. File-system contracts are **not** here (see below) |
+| `ViewModels/ShellViewModel.cs` | Tab lifecycle, ribbon lifecycle, notifications, AI routing, background tasks; `SelectProfile` (in-place switch, blocked while a modal overlay is open) |
+| `Services/ShellServices.cs` | `IShellServices` impl — **per-Workspace** (not an app-level singleton, despite the older class comment). Owns that workspace's window + tab registry |
+| `FeatureManager.cs` | Singleton (`FeatureManager.Instance`). Reflection-loads every `Nexaflow.Features.*.dll` at startup, records `IPageRegistration`/config/handler **types** without instantiating, then builds instances per `Workspace` with scoped `IShellServices` + `IAIService` (`EvictWorkspace` drops them on reconfigure). File-system contracts are **not** here (see below) |
 | `Services/FileSystemFeatureRegistry.cs` | Discovery + matching for `IFileAction`/`IFolderAction`/`IFileCreateAction`/`IFolderViewlet` (deliberately split out of `FeatureManager`) |
-| `Services/RibbonLayoutService.cs` | Serialize/deserialize ribbon items — **per-context** (constructed with the context's own folder), not a single global `ribbon.json` |
+| `Services/RibbonLayoutService.cs` | Serialize/deserialize ribbon items — **per-profile** (constructed with the profile's own folder, shared by its workspaces), not a single global `ribbon.json` |
 | `Services/WindowManager.cs` | Multi-window registry; tab tearoff; cross-window drag-transfer; DPI maths |
 | `FileActions/` | Core-owned file actions: copy, delete, rename, and other system-level operations |
 | `Controls/RibbonEditor.xaml.cs` | Interactive ribbon customization; local draft, commit on Done |
@@ -146,8 +159,8 @@ The contract layer. Every feature depends on this; nothing else does.
 | `OpenPageRequest.cs` | `(PageKind, PageParams)` carrier for shell-level open commands (breadcrumb follow-links). Core-internal MVVM glue — `arch_improvements.md` proposes relocating it to Core |
 | `IPageView.cs` | Thin shell-lifecycle contract implemented by tab `UserControl`s: exposes `IPageViewModel? ViewModel` and `Reinitialize` |
 | `IPageViewModel.cs` | AI pipeline contract implemented by ViewModels: `GetContext`, `GetClientTools`, `GetContextObject` |
-| `IShellServices.cs` (under `Services/`) | The **active WorkContext's** shell handle injected into feature code (one impl per context, not an app singleton): `OpenTab`/`CloseTab`/`FindTab`, `QueueBackgroundTask`, `ShowError`/`ShowNotification`/`ShowPrompt`/`ShowConfirmation`, `PinToRibbon`, `DiscoverImplementations<T>` |
-| `IAIService.cs` | Per-`WorkContext` AI service: handler scoring/disambiguation, the `RunAgentAsync` agent loop, conversation load/save, analysis + artifacts |
+| `IShellServices.cs` (under `Services/`) | The **active Workspace's** shell handle injected into feature code (one impl per workspace, not an app singleton): `OpenTab`/`CloseTab`/`FindTab`, `QueueBackgroundTask`, `ShowError`/`ShowNotification`/`ShowPrompt`/`ShowConfirmation`, `PinToRibbon`, `DiscoverImplementations<T>` |
+| `IAIService.cs` | Per-`Workspace` AI service: handler scoring/disambiguation, the `RunAgentAsync` agent loop, conversation load/save, analysis + artifacts |
 | `IBackgroundTask.cs` | Self-contained background work (`Description` + `RunAsync`) handed to `IShellServices.QueueBackgroundTask` |
 | `IFeatureConfig.cs` | Marks a POCO as a config section; discovered and instantiated by `FeatureManager` |
 | `IContext.cs` / `FileSystemContext.cs` | Typed context objects offered by ViewModels via `IPageViewModel.GetContextObject()` |
@@ -236,7 +249,7 @@ ConversationRecord
 
 ### `IPageRegistration` — Adding a new page kind
 
-Implement in your feature assembly. `FeatureManager.RegisterFeatures()` discovers it **automatically by reflection** at startup — there is no manual `Register(typeof(...))` call. It injects constructor dependencies per `WorkContext`: any `IFeatureConfig` declared in the same assembly, the scoped `IShellServices`, and `IAIService`. Expose a `static string StaticPageKind` so discovery can read the page kind without instantiating.
+Implement in your feature assembly. `FeatureManager.RegisterFeatures()` discovers it **automatically by reflection** at startup — there is no manual `Register(typeof(...))` call. It injects constructor dependencies per `Workspace`: any `IFeatureConfig` declared in the same assembly, the scoped `IShellServices`, and `IAIService`. Expose a `static string StaticPageKind` so discovery can read the page kind without instantiating.
 
 ```csharp
 public sealed class MyPageRegistration(MyConfig config, IShellServices shellServices) : IPageRegistration
@@ -427,43 +440,44 @@ App.OnStartup
   → InitializeApp(activityManager):
       → ConfigManager.Initialize(%AppData%\Smile\nexaflow)   ← base data path
       → register GLOBAL configs: ShellConfig (+ apply theme), AiPersonaConfig,
-        WorkContextsConfig, FileMapConfig, ExternalAppsConfig, VoiceConfig
+        WorkspacesConfig, FileMapConfig, ExternalAppsConfig, VoiceConfig
       → ProviderManager.Initialize(activityManager)         ← records the shared ActivityManager
-      → for each saved context: ConfigManager.LoadFrom(ContextDir, ctx.AiConfig)
-            (need each context's columns to know which provider DLLs to load)
-      → ProviderManager.LoadConfigured(⋃ AssemblyFileName across all contexts' AiConfigs)
-      → WorkContextManager.Initialize(wcConfig)             ← PER-CONTEXT bootstrap, for each context:
-            CreateProviderSet(contextDir) → new AIService(ctx, Conversations\) →
-            register providers → LoadAbilityConfig → ShellServices (preserved) → RibbonLayoutService
+      → for each saved profile: temp AiConfig ← ConfigManager.LoadFrom(ProfileDir)
+            (need each profile's columns to know which provider DLLs to load)
+      → ProviderManager.LoadConfigured(⋃ AssemblyFileName across all profiles' AiConfigs)
+      → WorkspaceManager.Initialize(wcConfig)               ← loads the Profiles list ONLY (no runtime workspaces)
       → FileMapManager / ExternalAppRegistry init
       → FeatureManager.RegisterFeatures()                   ← reflection-load Nexaflow.Features.*.dll,
             record IPageRegistration / IFeatureConfig / handler TYPES (no instances yet)
       → WhisperModelManager + HostCapability probe, JumpList, single-instance IPC listener
-  → pick startup WorkContext (Contexts[0], or the one named by --context "Name")
-  → new MainWindow(activityManager, startupCtx)             ← window is bound to ONE context
-      → ShellViewModel(ctx)   (CurrentWorkContext = ctx)
-          → ctx.RibbonService.Load() → ReattachTabFactory each item
+  → pick startup Profile (Profiles[0], or the one named by --context "Name")
+  → WorkspaceManager.CreateWorkspace(profile)               ← profile.EnsureSharedServicesLoaded +
+        BootstrapServices: AcquireProviderSet(pool) → new AIService(ws, Conversations\) →
+        register providers → LoadAbilityConfig → ShellServices
+  → new MainWindow(activityManager, startupWs)              ← window bound to ONE workspace
+      → ShellViewModel(ws)   (CurrentWorkspace = ws)
+          → ribbon binds ws.Profile → RibbonViewModel.SetProfile → Load() (shared layout)
           → OpenDefaultTabs()
   → win.Show()
 
-  (--prestart launches the windowless resident daemon: InitializeApp runs, no window is shown;
-   a later click / JumpList signal opens a window via the single-instance IPC listener.)
+  (Each subsequent app/IPC launch = a NEW Workspace. Tear-off / "open in new window" reuse the SAME
+   workspace. --prestart launches the windowless resident daemon: InitializeApp runs, NO workspace is
+   created; a later click / JumpList signal opens a window — a new workspace — via the IPC listener.)
 ```
 
 ### Opening a tab
 
 ```
 User clicks ribbon button
-  → ShellViewModel.RibbonAction(item)
-  → item.TabFactory()                       ← Func<Page> set by ReattachTabFactory
-  → ShellViewModel.OpenTab(page)
+  → RibbonControl.InternalRibbonActionCommand → ShellViewModel.OpenRibbonItem(item)
+  → _shellServices.OpenTab(item.PageKind, item.PageParams)   ← persisted items carry only PageKind/params
   → page.GetOrCreateContent()               ← ContentFactory invoked on first activation
   → CurrentPage = page, breadcrumbs updated
 
 Feature code calls shellServices.OpenTab("PageKind", params, callerPage)
-  (shellServices = the caller's WorkContext instance)
+  (shellServices = the caller's Workspace instance)
   → ShellServices resolves target window from callerPage / focused window
-  → Searches this context's windows for an existing matching tab
+  → Searches this workspace's windows for an existing matching tab
   → If found: move to target window if needed → Reinitialize(params) → activate
   → If not found: FeatureManager.CreateTab(pageKind, workContext, params)   ← internal; returns a Page
       → matching IPageRegistration.CreatePage(params)
@@ -515,14 +529,13 @@ User selects file in file browser → clicks action button
 ### Ribbon persistence cycle
 
 ```
-Save:  RibbonItems changes → CollectionChanged → RibbonLayoutService.Save()
-         TabFactory delegates not serialized (runtime lambdas)
+Save:  RibbonItems changes → CollectionChanged → RibbonViewModel.Save()
+         → profile.RibbonService.Save(items) → profile.RaiseRibbonChanged()
+         → every other window/Workspace on this profile reloads its items live
 
-Load:  App restart → RibbonLayoutService.Load() → items with null TabFactory
-         → ReattachTabFactory(item):
-             PageKinds.FileSystem → Core factory
-             FeatureManager.IsRegistered key → FeatureManager.CreateTab lambda
-             unknown → MakePlaceholderTab
+Load:  profile bound → RibbonViewModel.SetProfile → profile.RibbonService.Load()
+         items are pure metadata (PageKind + params); they open via the window's
+         OpenRibbonItem command — no per-window delegate reattachment needed
 ```
 
 ---

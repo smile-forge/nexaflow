@@ -14,27 +14,27 @@ public partial class ManageAiViewModel : ObservableObject
     [ObservableProperty] private ConfigEditViewModel? _selectedSection;
 
     private ConfigEditViewModel? _listeningSection;
-    private readonly WorkContext _workContext;
+    private readonly Workspace _workspace;
 
     public event Action<string>? ApplyError;
 
-    public ManageAiViewModel(WorkContext workContext)
+    public ManageAiViewModel(Workspace workspace)
     {
-        _workContext = workContext;
+        _workspace = workspace;
 
-        // Ensure every provider plugin is loaded, then (re)build this context's provider set so
+        // Ensure every provider plugin is loaded, then (re)build this workspace's provider set so
         // newly discovered providers and on-disk config changes are reflected in the editor.
         ProviderManager.Instance.DiscoverAll();
-        WorkContextManager.Instance.RefreshProviders(workContext);
+        WorkspaceManager.Instance.RefreshProviders(workspace);
 
-        // First section: the WorkContext-specific AI ability grid
+        // First section: the profile's AI ability grid (shared across its Workspaces).
         Sections.Add(new ConfigEditViewModel(
-            workContext.AiConfig,
-            workContext.AiConfig.ConfigName,
-            workContext.AiConfig.FriendlyName));
+            workspace.AiConfig,
+            workspace.AiConfig.ConfigName,
+            workspace.AiConfig.FriendlyName));
 
-        // Remaining sections: this context's own provider configs (API keys etc.)
-        foreach (var config in workContext.Providers!.Configs)
+        // Remaining sections: the profile's provider configs (API keys etc.).
+        foreach (var config in workspace.Profile.ProviderConfigs)
             Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName));
 
         SelectedSection = Sections.FirstOrDefault();
@@ -70,16 +70,17 @@ public partial class ManageAiViewModel : ObservableObject
         if (SelectedSection is null) return;
 
         SelectedSection.ApplyToReal();
+        var profile = _workspace.Profile;
 
-        if (ReferenceEquals(SelectedSection.RealConfig, _workContext.AiConfig))
+        if (ReferenceEquals(SelectedSection.RealConfig, _workspace.AiConfig))
         {
-            // WorkContext-specific AiConfig: hot-reload the AIService and persist to the context's
-            // own folder; also persist the context list metadata so the context is known.
-            _workContext.AiService?.LoadAbilityConfig(_workContext.AiConfig);
+            // Ability grid: persist to the profile's folder and hot-reload the AIService. The shared
+            // AiConfig is already mutated, so every Workspace on this profile sees the new assignments.
+            _workspace.AiService?.LoadAbilityConfig(_workspace.AiConfig);
             try
             {
-                WorkContextManager.Instance.SaveContextAiConfig(_workContext);
-                WorkContextManager.Instance.SaveConfig();
+                WorkspaceManager.Instance.SaveProfileAiConfig(profile);
+                WorkspaceManager.Instance.SaveProfiles();
                 SelectedSection.ResetChanges();
             }
             catch (Exception ex)
@@ -89,12 +90,14 @@ public partial class ManageAiViewModel : ObservableObject
         }
         else
         {
-            // Per-context provider config — save to this context's own folder.
+            // Provider config (API keys etc.): save to the profile's folder, then reconfigure THIS
+            // workspace so its AIService is rebuilt — the pool loads the now-needed provider and
+            // unloads any provider no longer referenced.
             try
             {
                 ConfigManager.Instance.SaveTo(
-                    WorkContextManager.ContextDir(_workContext.Name),
-                    SelectedSection.RealConfig, SelectedSection.ConfigName);
+                    profile.Dir, SelectedSection.RealConfig, SelectedSection.ConfigName);
+                WorkspaceManager.Instance.ReconfigureWorkspace(_workspace);
                 SelectedSection.ResetChanges();
             }
             catch (Exception ex)

@@ -9,25 +9,25 @@ using Nexaflow.Core.Views;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common;
 using TaskStatus = Nexaflow.Core.Models.TaskStatus;
-using WorkContext = Nexaflow.Core.Models.WorkContext;
+using Workspace = Nexaflow.Core.Models.Workspace;
 
 namespace Nexaflow.Core;
 
 public partial class MainWindow : Window
 {
     private readonly ShellViewModel _vm;
-    private ShellServices _shellServices;
+    private readonly ShellServices _shellServices;
     private SnapLayoutHook _snapHook = null!;
 
     public ShellViewModel ViewModel => _vm;
 
-    public MainWindow(BackgroundActivityManager activityManager, WorkContext workContext,
+    public MainWindow(BackgroundActivityManager activityManager, Workspace workspace,
                       bool openDefaultTabs = true)
     {
         InitializeComponent();
 
-        _shellServices = workContext.ShellServices!;
-        _vm = new ShellViewModel(activityManager, workContext)
+        _shellServices = workspace.ShellServices!;
+        _vm = new ShellViewModel(activityManager, workspace)
         {
             Window = this
         };
@@ -87,7 +87,7 @@ public partial class MainWindow : Window
 
     private void ResetManageAiPanel()
     {
-        var manageAiVm = new ManageAiViewModel(_vm.CurrentWorkContext);
+        var manageAiVm = new ManageAiViewModel(_vm.CurrentWorkspace);
         manageAiVm.ApplyError += msg => _vm.ShowErrorToast(msg);
         ManageAiPanelControl.DataContext = manageAiVm;
     }
@@ -99,13 +99,8 @@ public partial class MainWindow : Window
 
         _vm.Ribbon = RibbonControl.ViewModel;
 
-        // Keep _shellServices in sync when the user switches WorkContext so that
-        // Activated / Deactivated / Closing handlers always reference the live service.
-        _vm.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(ShellViewModel.CurrentWorkContext))
-                _shellServices = (ShellServices)_vm.CurrentWorkContext.ShellServices!;
-        };
+        // ShellServices is stable for the life of the window: switching profiles reconfigures the
+        // Workspace in place (same ShellServices), so no resync is needed here.
 
         _vm.PropertyChanged += (_, e) =>
         {
