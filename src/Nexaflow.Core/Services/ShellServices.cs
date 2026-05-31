@@ -105,7 +105,9 @@ public sealed class ShellServices : IShellServices
         bool anyWindowsOpen = WorkContextManager.Instance.Contexts
             .Any(ctx => ctx.ShellServices?._windows.Count > 0);
 
-        if (!anyWindowsOpen && !App.IsResident)
+        // During an update install the daemon must exit so the installer can replace its files —
+        // IsUpdating overrides the resident keep-alive. See App.DownloadAndInstallUpdate.
+        if (!anyWindowsOpen && (!App.IsResident || App.IsUpdating))
             Application.Current.Shutdown();
     }
 

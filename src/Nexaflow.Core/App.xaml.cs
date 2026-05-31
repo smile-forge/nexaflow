@@ -47,6 +47,14 @@ public partial class App : Application
     /// </summary>
     public static bool IsResident { get; private set; }
 
+    /// <summary>
+    /// True once an update install has been kicked off and this process is committed to exiting so the
+    /// installer can replace its (otherwise locked) files. Overrides the resident keep-alive in
+    /// <see cref="ShellServices.UnregisterWindow"/> — a <c>--prestart</c> daemon must actually die for
+    /// the installer's wait-for-exit script to proceed, instead of lingering windowless.
+    /// </summary>
+    public static bool IsUpdating { get; private set; }
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -280,7 +288,27 @@ public partial class App : Application
 
     public async Task DownloadAndInstallUpdate()
     {
-        try { _ = await AppUpdater.DownloadAndInstallUpdateAsync(); }
+        try
+        {
+            // 1. Download while the app stays fully usable. Only the install step needs us gone.
+            var asset = await AppUpdater.DownloadUpdateAsync();
+            if (asset is null) return;
+
+            // 2. Commit to exiting. The installer's script waits for this process to die before it can
+            //    replace the in-use binaries; the resident keep-alive would otherwise leave us running
+            //    windowless and stall (or corrupt) the install. IsUpdating lifts that keep-alive.
+            IsUpdating = true;
+
+            // 3. Drop the single-instance mutex so the relaunched/new version can claim it, and close
+            //    every window so nothing holds a lock on the install directory.
+            _singleInstance.Dispose();
+            foreach (var window in Current.Windows.Cast<Window>().ToList())
+                window.Close();
+
+            // 4. Launch the installer and terminate this process so msiexec /qb can replace the now
+            //    unlocked files, then relaunch. forceTerminate ⇒ this call does not return.
+            await AppUpdater.InstallUpdateAsync(asset, forceTerminate: true, runArguments: null);
+        }
         catch { }
     }
 }
