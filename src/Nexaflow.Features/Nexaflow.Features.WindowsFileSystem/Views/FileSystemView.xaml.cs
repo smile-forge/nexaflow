@@ -63,6 +63,13 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         ViewModel.PropertyChanged   += OnViewModelPropertyChanged;
         WireDragDrop();
         WireActionStripDrag();
+
+        // Column-header sorting. GridViewColumnHeader is a ButtonBase that captures the
+        // mouse on press, so a Button inside the header template never sees the click —
+        // handle its Click at the ListView level instead. Whole header is clickable.
+        FileListView.AddHandler(ButtonBase.ClickEvent,  new RoutedEventHandler(OnColumnHeaderClick));
+        DriveListView.AddHandler(ButtonBase.ClickEvent, new RoutedEventHandler(OnColumnHeaderClick));
+
         Loaded += (_, _) => UpdateListViewVisibility();
     }
 
@@ -366,6 +373,13 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
             if (container.ItemContainerGenerator.ContainerFromItem(child) is TreeViewItem childTvi)
                 ScrollTreeItemIntoView(childTvi, item);
         }
+    }
+
+    // ── Column header sorting ─────────────────────────────────────────────
+    private void OnColumnHeaderClick(object sender, RoutedEventArgs e)
+    {
+        if (e.OriginalSource is GridViewColumnHeader { Column.Header: SortableHeader header })
+            ViewModel.SortByCommand.Execute(header.Key);
     }
 
     // ── File list selection ───────────────────────────────────────────────

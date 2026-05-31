@@ -14,9 +14,13 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Data;
 using System.Windows.Threading;
 
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
+
+/// <summary>Footer quick-filter for the entry list.</summary>
+public enum EntryFilter { None, FoldersOnly, FilesOnly }
 
 
 // ── Main ViewModel ────────────────────────────────────────────────────────────
@@ -25,7 +29,40 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
 {
     [ObservableProperty] private string _currentPath = string.Empty;
     [ObservableProperty] private FileSystemEntry? _selectedEntry;
-    [ObservableProperty] private string _entryCountLabel = string.Empty;
+
+    // ── Footer: clickable folder/file counts + quick-filter ────────────────────
+    [ObservableProperty] private string _selectionSummary   = string.Empty; // "N selected · " or ""
+    [ObservableProperty] private string _folderCountText    = string.Empty; // "38 folders"
+    [ObservableProperty] private string _fileCountText      = string.Empty; // "2 files"
+    [ObservableProperty] private bool   _hasFolders;
+    [ObservableProperty] private bool   _hasFiles;
+    [ObservableProperty] private bool   _showCountSeparator;
+    [ObservableProperty] private bool   _isEmpty = true;
+
+    /// <summary>Active footer filter; drives which entries the list view shows.</summary>
+    [ObservableProperty] private EntryFilter _activeFilter = EntryFilter.None;
+
+    partial void OnActiveFilterChanged(EntryFilter value) => ApplyEntryFilter();
+
+    private void ApplyEntryFilter()
+    {
+        var view = CollectionViewSource.GetDefaultView(Entries);
+        if (view is null) return;
+        view.Filter = ActiveFilter switch
+        {
+            EntryFilter.FoldersOnly => static o => o is FileSystemEntry { IsDirectory: true },
+            EntryFilter.FilesOnly   => static o => o is FileSystemEntry { IsDirectory: false },
+            _                       => null
+        };
+    }
+
+    [RelayCommand]
+    private void ToggleFolderFilter() =>
+        ActiveFilter = ActiveFilter == EntryFilter.FoldersOnly ? EntryFilter.None : EntryFilter.FoldersOnly;
+
+    [RelayCommand]
+    private void ToggleFileFilter() =>
+        ActiveFilter = ActiveFilter == EntryFilter.FilesOnly ? EntryFilter.None : EntryFilter.FilesOnly;
 
     // ── File action strip ─────────────────────────────────────────────────────
     private readonly FileActionManager _actionRegistry;
@@ -376,8 +413,12 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     public  bool   IsThisPcMode => _isThisPcMode;
     private string _rootPath      = string.Empty;
     public  string RootPath       => _rootPath;
-    private string _sortColumn    = nameof(FileSystemEntry.Name);
-    private bool   _sortAscending = true;
+
+    // Active sort column (a FileSystemEntry property name) + direction. Observable so the
+    // GridView headers can render the sort-direction glyph on the active column.
+    [ObservableProperty] private string _sortColumn    = nameof(FileSystemEntry.Name);
+    [ObservableProperty] private bool   _sortAscending = true;
+
     private bool   _navigating;
     private bool   _refreshing;
 
@@ -390,19 +431,15 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
         _selectedCount = selectedCount;
         var folders = Entries.Count(e => e.IsDirectory);
         var files   = Entries.Count(e => !e.IsDirectory);
-        int total   = folders + files;
 
-        string totals = (folders, files) switch
-        {
-            (0, 0) => "0 items",
-            (0, _) => $"{files} {(files == 1 ? "file" : "files")}",
-            (_, 0) => $"{folders} {(folders == 1 ? "folder" : "folders")}",
-            _      => $"{folders} {(folders == 1 ? "folder" : "folders")}, {files} {(files == 1 ? "file" : "files")}"
-        };
+        HasFolders         = folders > 0;
+        HasFiles           = files   > 0;
+        ShowCountSeparator = folders > 0 && files > 0;
+        IsEmpty            = folders == 0 && files == 0;
 
-        EntryCountLabel = selectedCount > 0
-            ? $"{selectedCount} selected  ·  {totals}"
-            : totals;
+        FolderCountText  = $"{folders} {(folders == 1 ? "folder" : "folders")}";
+        FileCountText    = $"{files} {(files == 1 ? "file" : "files")}";
+        SelectionSummary = selectedCount > 0 ? $"{selectedCount} selected  ·  " : string.Empty;
     }
 
     public ObservableCollection<FileSystemTreeNode> TreeRoots { get; } = [];
@@ -622,6 +659,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
         {
             _isThisPcMode = true;
             CurrentPath   = string.Empty;
+            ResetSortAndFilter();
 
             _actionDebounceTimer.Stop();
             FileActions.Clear();
@@ -699,6 +737,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
         {
             _isThisPcMode = false;
                 CurrentPath   = path;
+                ResetSortAndFilter();
                 RefreshEntries();
                 SelectAndExpandPath(path);  // sync tree
                 FireNavigationChanged(path); // sync breadcrumb
@@ -1051,31 +1090,50 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
 
     private IEnumerable<FileSystemEntry> ApplySort(IEnumerable<FileSystemEntry> source)
     {
-        Func<FileSystemEntry, object> key = _sortColumn switch
+        Func<FileSystemEntry, object> key = SortColumn switch
         {
-            nameof(FileSystemEntry.Modified) => e => e.Modified,
-            nameof(FileSystemEntry.SizeBytes) => e => (object)e.SizeBytes,
+            nameof(FileSystemEntry.Modified)  => e => e.Modified,
+            // Drives report capacity via DriveTotalBytes; files via SizeBytes.
+            nameof(FileSystemEntry.SizeBytes) => e => (object)(e.IsDrive ? e.DriveTotalBytes : e.SizeBytes),
             nameof(FileSystemEntry.TypeLabel) => e => e.TypeLabel,
             _ => e => e.Name
         };
 
         // Folders always first, then sort within group
-        return _sortAscending
+        return SortAscending
             ? source.OrderBy(e => !e.IsDirectory).ThenBy(key)
             : source.OrderBy(e => !e.IsDirectory).ThenByDescending(key);
+    }
+
+    /// <summary>Reorders the current <see cref="Entries"/> in place using the active sort —
+    /// without re-reading the directory, so it works in "This PC" (drive list) mode too.</summary>
+    private void ResortEntries()
+    {
+        var sorted = ApplySort(Entries.ToList()).ToList();
+        Entries.Clear();
+        foreach (var e in sorted) Entries.Add(e);
+    }
+
+    /// <summary>Resets sort to Name-ascending and clears the footer filter — called on navigation
+    /// so each folder starts from a clean view.</summary>
+    private void ResetSortAndFilter()
+    {
+        SortColumn    = nameof(FileSystemEntry.Name);
+        SortAscending = true;
+        ActiveFilter  = EntryFilter.None;
     }
 
     [RelayCommand]
     private void SortBy(string column)
     {
-        if (_sortColumn == column)
-            _sortAscending = !_sortAscending;
+        if (SortColumn == column)
+            SortAscending = !SortAscending;
         else
         {
-            _sortColumn    = column;
-            _sortAscending = true;
+            SortColumn    = column;
+            SortAscending = true;
         }
-        RefreshEntries();
+        ResortEntries();
     }
 
 }
