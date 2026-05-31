@@ -7,7 +7,7 @@
     "Minimise context switching for all simple activities"
   ],
   "SolutionFile": null,
-  "LastUpdate": "2026-05-29T22:59:36.2995668Z",
+  "LastUpdate": "2026-05-30T08:47:53.8010156Z",
   "Backlog": [
     {
       "Id": "49ca9f9c-663a-474d-a282-daa6d7adda82",
@@ -102,6 +102,14 @@
       "Title": "add environment variable expansion to filesystemview",
       "Notes": null,
       "Status": "AwaitingFinalisation",
+      "ImpPlan": null,
+      "TestPlan": null
+    },
+    {
+      "Id": "6af25108-8050-4445-8821-e654f03b1673",
+      "Title": "support for zip files",
+      "Notes": null,
+      "Status": "NotStarted",
       "ImpPlan": null,
       "TestPlan": null
     }
