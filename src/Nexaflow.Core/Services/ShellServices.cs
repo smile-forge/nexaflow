@@ -71,25 +71,6 @@ public sealed class ShellServices : IShellServices
 
     internal void RegisterWindow(IWindowHost host) => _windows.Add(host);
 
-    /// <summary>
-    /// Moves <paramref name="host"/> and all its tracked tabs from this service to
-    /// <paramref name="target"/>. Used when the user switches WorkContext in a window.
-    /// Does NOT trigger application shutdown even if this service becomes empty.
-    /// </summary>
-    internal void TransferWindowTo(IWindowHost host, ShellServices target)
-    {
-        foreach (var tab in host.Tabs.ToList())
-        {
-            if (_tabToWindow.Remove(tab))
-                target._tabToWindow[tab] = host;
-        }
-        _windows.Remove(host);
-        if (_focused == host) _focused = _windows.FirstOrDefault();
-        target._windows.Add(host);
-        target._focused ??= host;
-        target.CreateWindowFactory ??= CreateWindowFactory;
-    }
-
     internal void UnregisterWindow(IWindowHost host)
     {
         foreach (var tab in host.Tabs.ToList())
