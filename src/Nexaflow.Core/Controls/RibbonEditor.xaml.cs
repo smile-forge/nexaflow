@@ -71,12 +71,15 @@ public partial class RibbonEditor : UserControl
     ];
 
     // ── Colour swatches ───────────────────────────────────────────────────
-    private static readonly string[] Swatches =
+    // Sourced from the shared categorical swatch bank (Tokens.xaml / per-theme overrides) so the
+    // ribbon picker offers the same curated, theme-tuned palette every other component draws from.
+    // Resolved to hex at build time — AccentColor stays a hex string (a deliberate per-button choice),
+    // and a custom hex can still be typed into HexInput.
+    private static readonly string[] SwatchKeys =
     [
-        "#E8EAF2","#7880A0","#4A5270",
-        "#4F8EF7","#7C5CFC","#22D3A5",
-        "#F97316","#EF4444","#EC4899",
-        "#FACC15","#84CC16","#06B6D4",
+        "Swatch.Blue",  "Swatch.Cyan",   "Swatch.Teal",  "Swatch.Green",
+        "Swatch.Lime",  "Swatch.Yellow", "Swatch.Amber", "Swatch.Orange",
+        "Swatch.Red",   "Swatch.Pink",   "Swatch.Purple","Swatch.Slate",
     ];
 
     public RibbonEditor()
@@ -528,9 +531,14 @@ public partial class RibbonEditor : UserControl
     {
         ColorSwatches.Children.Clear();
         ColorSwatches.Children.Add(BuildSwatch(null));
-        foreach (var hex in Swatches)
-            ColorSwatches.Children.Add(BuildSwatch(hex));
+        foreach (var key in SwatchKeys)
+            if (SwatchHex(key) is { } hex)
+                ColorSwatches.Children.Add(BuildSwatch(hex));
     }
+
+    /// <summary>Resolve a swatch-bank key to its current-theme hex string, or null if absent.</summary>
+    private string? SwatchHex(string key)
+        => TryFindResource(key) is SolidColorBrush b ? b.Color.ToString() : null;
 
     private Border BuildSwatch(string? hex)
     {

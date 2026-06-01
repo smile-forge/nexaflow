@@ -4,13 +4,47 @@ using Nexaflow.Features.Common;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace Nexaflow.Core.Controls;
+
+/// <summary>A pickable colour from the shared swatch bank: the brush to show + the hex to store.</summary>
+public sealed record SwatchOption(string Hex, Brush Brush);
 
 public partial class ProfilesConfigControl : UserControl, ICustomConfigApply
 {
     private ObservableCollection<Profile>? _editProfiles;
     private WorkspacesConfig?              _config;
+
+    private static readonly Random _rng = new();
+
+    // The shared categorical bank (Tokens.xaml / per-theme overrides), resolved to brushes + hex for
+    // the per-profile colour picker. Same source the ribbon picker and project pie draw from.
+    private static readonly string[] SwatchKeys =
+    [
+        "Swatch.Blue",  "Swatch.Cyan",   "Swatch.Teal",  "Swatch.Green",
+        "Swatch.Lime",  "Swatch.Yellow", "Swatch.Amber", "Swatch.Orange",
+        "Swatch.Red",   "Swatch.Pink",   "Swatch.Purple","Swatch.Slate",
+    ];
+
+    public IReadOnlyList<SwatchOption> Swatches { get; } = BuildSwatches();
+
+    private static IReadOnlyList<SwatchOption> BuildSwatches()
+    {
+        var list = new List<SwatchOption>();
+        foreach (var key in SwatchKeys)
+        {
+            // Throw (not silently skip) if a bank key is missing, so a typo surfaces instead of a gap.
+            if (Application.Current?.Resources[key] is not SolidColorBrush b)
+                throw new InvalidOperationException($"Swatch brush '{key}' not found.");
+            list.Add(new SwatchOption(b.Color.ToString(), b));
+        }
+        return list;
+    }
+
+    /// <summary>Random colour from the swatch bank (falls back to the legacy palette if unresolved).</summary>
+    private string RandomSwatchColor()
+        => Swatches.Count > 0 ? Swatches[_rng.Next(Swatches.Count)].Hex : ProfileStyle.Random().Color;
 
     // Maps each editable copy back to the original profile so Apply can write the edited
     // Name/Color/Icon onto the original without disturbing live workspaces.
@@ -88,8 +122,22 @@ public partial class ProfilesConfigControl : UserControl, ICustomConfigApply
 
     private void OnAddClick(object sender, RoutedEventArgs e)
     {
-        var (icon, color) = ProfileStyle.Random();
-        _editProfiles?.Add(new Profile { Name = "New Context", Color = color, Icon = icon });
+        var (icon, _) = ProfileStyle.Random();
+        _editProfiles?.Add(new Profile { Name = "New Context", Color = RandomSwatchColor(), Icon = icon });
+    }
+
+    // Click a swatch → set the colour of the profile that owns this row. Profile is observable, so the
+    // hex box and colour preview update live. The owning profile is the nearest DataContext up the tree
+    // (the swatch button's own DataContext is the SwatchOption).
+    private void OnSwatchClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string hex } fe) return;
+        for (DependencyObject? d = fe; d is not null; d = VisualTreeHelper.GetParent(d))
+            if (d is FrameworkElement { DataContext: Profile p })
+            {
+                p.Color = hex;
+                return;
+            }
     }
 
     private void OnCloneClick(object sender, RoutedEventArgs e)
@@ -102,8 +150,8 @@ public partial class ProfilesConfigControl : UserControl, ICustomConfigApply
                    : null;
         if (source is null) return;   // a brand-new unsaved profile has no persisted settings to copy
 
-        var (icon, color) = ProfileStyle.Random();
-        var clone = new Profile { Name = edit.Name + " copy", Color = color, Icon = icon };
+        var (icon, _) = ProfileStyle.Random();
+        var clone = new Profile { Name = edit.Name + " copy", Color = RandomSwatchColor(), Icon = icon };
         _editCloneSource[clone] = source;
 
         _editProfiles.Insert(_editProfiles.IndexOf(edit) + 1, clone);

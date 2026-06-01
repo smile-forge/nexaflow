@@ -53,9 +53,14 @@ bootstrap merge for the designer; `Apply` rebuilds the list deterministically.
 
 Every `Colors.<Theme>.xaml` supplies the same key set — both a `Color` and a matching `…Brush`:
 `Bg`, `Surface`, `Surface2`, `Border`, `BorderLight`, `Accent`, `Accent2`, `Text`, `TextMuted`,
-`TextDim`, `Green`, `Orange`, `DeepBg`, plus `AccentGradientBrush` / `BarGradientBrush` and the
+`TextDim`, `DeepBg`, plus `AccentGradientBrush` / `BarGradientBrush` and the
 `TopBarHeight` / `TabBarHeight` / `InteractionHeight` dimensions. This is the legacy contract — most
 feature views still bind these directly, and that's fine (see *Feature participation*).
+
+> **No tone-named colour keys.** The palette is deliberately structural/neutral — there is **no**
+> `GreenBrush`/`OrangeBrush` (removed). A "green" or "amber" need is a *purpose*: use the semantic
+> tokens `SuccessBrush` / `WarningBrush` / `DangerBrush` (Tokens.xaml), or the categorical `Swatch.*`
+> bank for syntax/series colours. This keeps callers from reaching for a tone when they mean a meaning.
 
 ### Region tokens (layer 2)
 
@@ -174,6 +179,35 @@ public sealed class MyThemeContribution : IThemeContribution
 Add a feature later → existing themes don't name its region → it falls back. Update a theme → it can
 art-direct a feature it was never compiled against. Both sides stay independently shippable.
 
+## Rule: a feature never hard-codes a colour
+
+Every colour a feature paints — **even one it "owns"** (a status pip, a chart/pie series, a selection
+or search wash, post-it paper) — must resolve from a theme resource so a theme can retune it. There is
+no "this colour is intrinsic to the feature" exception: expose it as a token *just in case*. Never ship
+a literal `#RRGGBB`, `Color.FromRgb(...)` or `Brushes.X` as the **final** value. In order of preference:
+
+1. **Reuse an existing token** — palette (`TextBrush`, `AccentBrush`, `BorderBrush`, surfaces…) or
+   semantic (`SuccessBrush` / `WarningBrush` / `DangerBrush`, `OnAccentBrush`).
+2. **The categorical `Swatch.*` bank** when you need *N mutually-distinct* colours (pie/chart series,
+   category dots, colour pickers). Distinctness is the point — don't use the close-together chrome tones.
+3. **A feature-owned token via `IThemeContribution`** when the colour is specific to the feature (e.g.
+   the scratchpad's `PostIt.*`, a log-level tint). It merges below the active theme, so any theme
+   overrides it by string key. This is the same seam as `IPageRegistration` — no Core⇄feature reference.
+
+**XAML** binds the key: `Foreground="{StaticResource SuccessBrush}"`. **Code-drawn surfaces** (OnRender
+panels, AvalonEdit colorizers) can't bind, so read the resource at paint time with a literal *fallback*:
+
+```csharp
+Application.Current?.Resources["AccentBrush"] as Brush ?? Brushes.DodgerBlue   // fallback ONLY for design-time/tests
+```
+
+The literal is the last resort, never the source of truth. For a translucent wash, pull the token's
+`Color` and reapply alpha (see `VirtualizedRowsControl.SelectionWash` / `HexRenderPanel.MakeSemiAccent`).
+Theme switching restarts the window, so a fresh read per paint always reflects the current theme.
+
+**Genuinely-not-a-colour exceptions** (leave as literals): `Transparent`; drop-shadow `Color="Black"`;
+modal scrims (`#CC000000`); and scene art (`OceanReefScene` etc., which *is* the theme).
+
 ## Keeping Dark (and the other plain themes) identical
 
 - Region tokens in `Tokens.xaml` alias the exact palette brush each region used before → no visual
@@ -205,8 +239,22 @@ art-direct a feature it was never compiled against. Both sides stay independentl
 
 ## Roadmap / not done yet
 
-- Feature-internal panels and the control templates in `Styles.xaml` still bind palette keys directly.
-  They inherit a theme's colours but aren't yet region-addressable — the deeper sweep, only needed to
-  art-direct *within* a feature.
+- **Per-feature region tokens (opt-in, panels only).** Most feature views bind the generic palette
+  (`SurfaceBrush`/`Surface2Brush`/`BorderBrush`…) directly. That's correct and fully themed — *not* a
+  bug — but it means a theme can't art-direct one feature differently from the rest (e.g. tint the
+  Console panel unlike the JSON tree, or show a `Scene.*` behind only one feature), because they all
+  resolve to the same shell-wide brushes. Making a feature independently styleable is the
+  `FileList.PanelBg` pattern: wrap its container(s) in `ThemedRegion Region="<Feature>"`, add
+  `<Feature>.*` surface/border tokens to `Tokens.xaml` that default-alias the palette (so plain themes
+  stay pixel-identical), repoint that feature's *panel* bindings to them, then let a theme override
+  the tokens / supply `Scene.<Feature>`. **Scope when doing this:**
+  - It only covers **surface/background/border** containers (panels, headers, list/row fills). Leave
+    `TextBrush`/`AccentBrush` foregrounds on the shared tokens — text and accents should stay consistent.
+  - It does **not** include the shared control templates in `Styles.xaml` (buttons, combo, scrollbar,
+    toggle, textbox): those are app-wide controls and should look the same everywhere, so they keep
+    binding the palette directly.
+  - It's **opt-in per feature** — only worth doing for a feature you actually want a theme to treat
+    distinctly. Adding region tokens for all features up-front just creates palette-aliasing churn with
+    no visible change until a theme uses them.
 - Per-theme tuning of the remaining immersive themes (Sunny, Nature, Sandstone) toward their own scenes.
 - Optional "reduce motion / performance" switch to disable scenes (falls back to the flat `{Region}.Bg`).

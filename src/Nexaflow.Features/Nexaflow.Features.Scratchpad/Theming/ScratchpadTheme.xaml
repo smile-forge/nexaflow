@@ -1,0 +1,64 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ════ Post-it note colour bank ════
+         The scratchpad's own categorical bank, shipped as an IThemeContribution so it merges BELOW
+         the active theme (layer 3) — every theme gets these pastel "paper" defaults for free, and any
+         theme may retune a key by name (e.g. cooler paper on Ocean) without Core or the feature
+         referencing each other. Consumed by PostItColorTo*Converter (note fill + header) and the
+         minimap. Each colour has a two-tone Fill gradient and a slightly darker Header strip. -->
+
+    <!-- Yellow -->
+    <LinearGradientBrush x:Key="PostIt.Yellow.Fill" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#FFF59D" Offset="0"/>
+        <GradientStop Color="#FFF176" Offset="1"/>
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="PostIt.Yellow.Header" Color="#FFE557"/>
+
+    <!-- Blue -->
+    <LinearGradientBrush x:Key="PostIt.Blue.Fill" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#90CAF9" Offset="0"/>
+        <GradientStop Color="#64B5F6" Offset="1"/>
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="PostIt.Blue.Header" Color="#42A5F5"/>
+
+    <!-- Green -->
+    <LinearGradientBrush x:Key="PostIt.Green.Fill" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#A5D6A7" Offset="0"/>
+        <GradientStop Color="#81C784" Offset="1"/>
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="PostIt.Green.Header" Color="#66BB6A"/>
+
+    <!-- Pink -->
+    <LinearGradientBrush x:Key="PostIt.Pink.Fill" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#F48FB1" Offset="0"/>
+        <GradientStop Color="#F06292" Offset="1"/>
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="PostIt.Pink.Header" Color="#EC407A"/>
+
+    <!-- Orange -->
+    <LinearGradientBrush x:Key="PostIt.Orange.Fill" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#FFCC80" Offset="0"/>
+        <GradientStop Color="#FFA726" Offset="1"/>
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="PostIt.Orange.Header" Color="#FF8700"/>
+
+    <!-- Purple -->
+    <LinearGradientBrush x:Key="PostIt.Purple.Fill" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#CE93D8" Offset="0"/>
+        <GradientStop Color="#BA68C8" Offset="1"/>
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="PostIt.Purple.Header" Color="#AB47BC"/>
+
+    <!-- White -->
+    <LinearGradientBrush x:Key="PostIt.White.Fill" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#FAFAFA" Offset="0"/>
+        <GradientStop Color="#F5F5F5" Offset="1"/>
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="PostIt.White.Header" Color="#E0E0E0"/>
+
+    <!-- Minimap viewport indicator (the rectangle showing the current view over the note cloud). -->
+    <SolidColorBrush x:Key="Scratchpad.MinimapViewportStroke" Color="#C864B4FF"/>  <!-- a=200 -->
+    <SolidColorBrush x:Key="Scratchpad.MinimapViewportFill"   Color="#1E64B4FF"/>  <!-- a=30  -->
+
+</ResourceDictionary>

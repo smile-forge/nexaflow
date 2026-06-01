@@ -51,6 +51,7 @@ Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI) — mirror that pat
 - Core never instantiates feature view or ViewModel types directly. All view (tabs) and viewlet creation goes through `FeatureManager`.
 - Features communicate back to the shell only via `IShellServices` (injected into `IPageRegistration` constructors by `FeatureManager`).
 - A feature advertises a page via `IPageRegistration` (`PageKind` + `CreatePage`); `FeatureManager` discovers it by reflection (each registration exposes a `static string StaticPageKind`) — there is no manual `Register(typeof(...))` call.
+- **Features never hard-code colours.** Every colour — even one a feature "owns" (status pip, chart/pie series, selection/search wash, post-it paper) — resolves from a theme resource so a theme can retune it: reuse a palette/semantic token (`TextBrush`/`AccentBrush`/`SuccessBrush`/`WarningBrush`/`DangerBrush`/`OnAccentBrush`), the categorical `Swatch.*` bank (for N distinct colours), or a feature-owned token shipped via `IThemeContribution` (like the scratchpad's `PostIt.*`). Code-drawn surfaces read the resource at paint time with a literal only as a last-resort fallback. Full rule + patterns in [docs/theming.md](docs/theming.md) → *Rule: a feature never hard-codes a colour*.
 
 ## Key Files
 

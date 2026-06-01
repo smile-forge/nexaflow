@@ -1,6 +1,7 @@
 using ICSharpCode.AvalonEdit.Document;
 using ICSharpCode.AvalonEdit.Rendering;
 using Nexaflow.Features.Logs.Parsing;
+using System.Windows;
 using System.Windows.Media;
 
 namespace Nexaflow.Features.Logs.Rendering;
@@ -12,14 +13,22 @@ namespace Nexaflow.Features.Logs.Rendering;
 /// </summary>
 public sealed class LogLevelColorizer : DocumentColorizingTransformer
 {
-    private static readonly Dictionary<LogLevel, SolidColorBrush> LevelBrushes = new()
+    // Resolved from the active theme's Log.* tokens (shipped via the Logs theme contribution); lazily
+    // built per instance, and a colorizer is created per view — recreated on theme switch, so it stays
+    // current. A missing token throws (named) rather than silently painting a literal.
+    private Dictionary<LogLevel, Brush>? _levelBrushes;
+    private Dictionary<LogLevel, Brush> LevelBrushes => _levelBrushes ??= new()
     {
-        [LogLevel.Fatal]   = new SolidColorBrush(Color.FromArgb(70,  200,  20,  60)),
-        [LogLevel.Error]   = new SolidColorBrush(Color.FromArgb(60,  255,  69,  58)),
-        [LogLevel.Warning] = new SolidColorBrush(Color.FromArgb(60,  255, 165,   0)),
-        [LogLevel.Info]    = new SolidColorBrush(Color.FromArgb(40,   30, 144, 255)),
-        [LogLevel.Debug]   = new SolidColorBrush(Color.FromArgb(30,  128, 128, 128)),
+        [LogLevel.Fatal]   = Res("Log.Fatal"),
+        [LogLevel.Error]   = Res("Log.Error"),
+        [LogLevel.Warning] = Res("Log.Warning"),
+        [LogLevel.Info]    = Res("Log.Info"),
+        [LogLevel.Debug]   = Res("Log.Debug"),
     };
+
+    private static Brush Res(string key)
+        => Application.Current?.Resources[key] as Brush
+           ?? throw new InvalidOperationException($"Theme brush '{key}' not found.");
 
     public HashSet<LogLevel> EnabledLevels { get; set; } = [];
     public ILogParser? Parser { get; set; }

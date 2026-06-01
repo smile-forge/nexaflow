@@ -13,10 +13,12 @@ namespace Nexaflow.Features.Logs.Views;
 /// </summary>
 public sealed class LineSelectionMargin : AbstractMargin
 {
-    private static readonly SolidColorBrush SelectionBrush =
-        new(Color.FromArgb(100, 100, 160, 255));
-    private static readonly SolidColorBrush HoverBrush =
-        new(Color.FromArgb(50, 100, 160, 255));
+    // Themed (Log.Selection / Log.SelectionHover); resolved lazily via FindResource, which throws
+    // (naming the key) if a token is missing — no silent literal fallback.
+    private Brush? _selection;
+    private Brush? _hover;
+    private Brush SelectionBrush => _selection ??= (Brush)FindResource("Log.Selection");
+    private Brush HoverBrush      => _hover     ??= (Brush)FindResource("Log.SelectionHover");
 
     private readonly Action<int>             _toggleSelection;
     private readonly Func<IReadOnlySet<int>> _getSelected;

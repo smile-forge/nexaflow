@@ -1,3 +1,4 @@
+using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Services;
 using Nexaflow.Providers.Common;
@@ -14,11 +15,13 @@ namespace Nexaflow.Core.Models;
 /// directory. One Profile can back many <see cref="Workspace"/> runtimes; its shared config is
 /// loaded once and seen live by all of them.
 /// </summary>
-public sealed class Profile
+public sealed partial class Profile : ObservableObject
 {
-    public string Name  { get; set; } = "Default";
-    public string Color { get; set; } = "#5B8CFF";
-    public string Icon  { get; set; } = "⬡";
+    // Observable so the options editor's hex box, colour preview and swatch picker update live when
+    // any one of them changes the value. Serialised by name (Name/Color/Icon) exactly as before.
+    [ObservableProperty] private string _name  = "Default";
+    [ObservableProperty] private string _color = "#5B8CFF";
+    [ObservableProperty] private string _icon  = "⬡";
 
     // ── Shared per-profile state (runtime; lazily loaded, never serialised inline) ──
 

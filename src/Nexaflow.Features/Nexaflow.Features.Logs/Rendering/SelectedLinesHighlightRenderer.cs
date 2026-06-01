@@ -12,8 +12,10 @@ namespace Nexaflow.Features.Logs.Rendering;
 /// </summary>
 public sealed class SelectedLinesHighlightRenderer : IBackgroundRenderer
 {
-    private static readonly SolidColorBrush SelectionBrush =
-        new(Color.FromArgb(70, 100, 160, 255));
+    // Themed (Log.SelectionLine); resolved lazily per instance, throws if missing.
+    private Brush? _brush;
+    private Brush SelectionBrush => _brush ??= Application.Current?.Resources["Log.SelectionLine"] as Brush
+        ?? throw new InvalidOperationException("Theme brush 'Log.SelectionLine' not found.");
 
     public IReadOnlySet<int> SelectedLines { get; set; } = new HashSet<int>();
 

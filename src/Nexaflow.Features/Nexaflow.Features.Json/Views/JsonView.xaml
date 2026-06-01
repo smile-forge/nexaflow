@@ -341,7 +341,7 @@
                 Background="{StaticResource DeepBgBrush}"
                 Visibility="{Binding ErrorMessage, Converter={StaticResource StringVis}}">
             <TextBlock Text="{Binding ErrorMessage}"
-                       Foreground="{StaticResource OrangeBrush}"
+                       Foreground="{StaticResource DangerBrush}"
                        FontSize="13"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
@@ -378,12 +378,12 @@
                            FontSize="11"
                            Margin="0,0,16,0"/>
                 <TextBlock Text="Streaming"
-                           Foreground="{StaticResource OrangeBrush}"
+                           Foreground="{StaticResource WarningBrush}"
                            FontSize="11"
                            Margin="0,0,16,0"
                            Visibility="{Binding IsLargeFile, Converter={StaticResource BoolVis}}"/>
                 <TextBlock Text="Modified"
-                           Foreground="{StaticResource OrangeBrush}"
+                           Foreground="{StaticResource WarningBrush}"
                            FontSize="11"
                            Visibility="{Binding IsModified, Converter={StaticResource BoolVis}}"/>
             </StackPanel>

@@ -26,4 +26,31 @@
     <!-- File view tree + action strip: part of the grey frame around the white-ish list. -->
     <SolidColorBrush x:Key="FileList.PanelBg" Color="#E6ECF3"/>
 
+    <!-- User chat bubble: soft accent tint so near-black text (#172230) stays readable (~15:1). -->
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#DBEAFE"/>
+
+    <!-- Danger hover: 15% red is nearly invisible on white — strengthen so the Delete button
+         clearly reddens on hover. -->
+    <SolidColorBrush x:Key="DangerSubtleBrush" Color="#55DC2626"/>
+
+    <!-- AI status dot: deepen the indicator hues so they read on the light grey/white AI bar
+         (the bright dark-theme versions wash out). Still mutually distinct. -->
+    <SolidColorBrush x:Key="AiStatus.Ready"   Color="#16A34A"/>  <!-- green  -->
+    <SolidColorBrush x:Key="AiStatus.Busy"    Color="#EA580C"/>  <!-- orange -->
+    <SolidColorBrush x:Key="AiStatus.Handler" Color="#4F46E5"/>  <!-- indigo -->
+    <LinearGradientBrush x:Key="AiStatus.ListenBrush" StartPoint="0,0" EndPoint="1,1">
+        <!-- violet → fuchsia: deep enough to read on the light bar, distinct from green/orange -->
+        <GradientStop Color="#7C3AED" Offset="0"/>
+        <GradientStop Color="#DB2777" Offset="1"/>
+    </LinearGradientBrush>
+
+    <!-- The "White" post-it blends into this theme's light canvas — give it a soft blue-grey paper so
+         it stays visible while the fixed dark ink remains readable (~9:1). Other note colours keep the
+         contributed pastel defaults. -->
+    <LinearGradientBrush x:Key="PostIt.White.Fill" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#DCE3EF" Offset="0"/>
+        <GradientStop Color="#C6D0E0" Offset="1"/>
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="PostIt.White.Header" Color="#ADBAD0"/>
+
 </ResourceDictionary>

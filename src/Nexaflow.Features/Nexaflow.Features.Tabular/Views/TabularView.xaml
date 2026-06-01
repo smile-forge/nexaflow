@@ -34,7 +34,7 @@
                            VerticalAlignment="Center" Margin="0,0,12,0"
                            FontSize="11"/>
                 <TextBlock Text="{Binding StatusMessage}"
-                           Foreground="{StaticResource OrangeBrush}"
+                           Foreground="{StaticResource WarningBrush}"
                            Margin="12,0,0,0"
                            VerticalAlignment="Center" FontSize="11"/>
             </StackPanel>
@@ -94,7 +94,7 @@
                            Visibility="{Binding IsSmallMode, Converter={StaticResource BoolVis}}">
                     <Run Text="(small — sort enabled)"/>
                 </TextBlock>
-                <TextBlock FontSize="11" Foreground="{StaticResource OrangeBrush}" Margin="12,0,0,0"
+                <TextBlock FontSize="11" Foreground="{StaticResource WarningBrush}" Margin="12,0,0,0"
                            Visibility="{Binding IsCountingRows, Converter={StaticResource BoolVis}}">
                     <Run Text="⟳ counting rows…"/>
                 </TextBlock>

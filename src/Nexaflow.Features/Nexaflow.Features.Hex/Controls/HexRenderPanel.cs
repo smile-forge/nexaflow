@@ -73,22 +73,24 @@ public sealed class HexRenderPanel : FrameworkElement
 
     private void EnsureBrushes()
     {
-        _bgBrush     ??= Res("BgBrush")       ?? Brushes.Black;
-        _surfBrush   ??= Res("SurfaceBrush")  ?? Brushes.DimGray;
-        _textBrush   ??= Res("TextBrush")     ?? Brushes.White;
-        _mutedBrush  ??= Res("TextMutedBrush")?? Brushes.Gray;
-        _accentBrush ??= Res("AccentBrush")   ?? Brushes.DodgerBlue;
+        _bgBrush     ??= Res("BgBrush");
+        _surfBrush   ??= Res("SurfaceBrush");
+        _textBrush   ??= Res("TextBrush");
+        _mutedBrush  ??= Res("TextMutedBrush");
+        _accentBrush ??= Res("AccentBrush");
         _selBrush    ??= MakeSemiAccent();
-        _editBrush   ??= Brushes.Orange;
-        _nullBrush   ??= Res("TextMutedBrush")?? Brushes.DarkGray;
-        _borderBrush ??= Res("BorderBrush")   ?? Brushes.DimGray;
+        _editBrush   ??= Res("WarningBrush");
+        _nullBrush   ??= Res("TextMutedBrush");
+        _borderBrush ??= Res("BorderBrush");
         _cursorStroke ??= _accentBrush;
     }
 
-    private Brush? Res(string key) => TryFindResource(key) as Brush;
+    // FindResource throws (naming the key) if a theme resource is missing — no silent literal fallback
+    // that would hide a mis-themed reference.
+    private Brush Res(string key) => (Brush)FindResource(key);
     private Brush MakeSemiAccent()
     {
-        var c = (_accentBrush as SolidColorBrush)?.Color ?? Colors.DodgerBlue;
+        var c = ((SolidColorBrush)_accentBrush!).Color;
         var b = new SolidColorBrush(Color.FromArgb(60, c.R, c.G, c.B));
         b.Freeze(); return b;
     }

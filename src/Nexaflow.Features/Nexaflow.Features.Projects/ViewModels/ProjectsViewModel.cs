@@ -4,6 +4,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Projects.Model;
 using Nexaflow.Visuals.Common.Controls;
 using System.Collections.ObjectModel;
+using System.Windows;
 using System.Windows.Media;
 
 namespace Nexaflow.Features.Projects.ViewModels;
@@ -53,18 +54,19 @@ public partial class ProjectsViewModel : ObservableObject, IPageViewModel
     public event Action<string>? OpenFilesRequested;
 
     // ── Status-bucket colours (shared with detail view) ───────────────────
-    internal static readonly SolidColorBrush BrushNotStarted  = new(Color.FromRgb(0x4A, 0x52, 0x70));
-    internal static readonly SolidColorBrush BrushInProgress  = new(Color.FromRgb(0x4F, 0x8E, 0xF7));
-    internal static readonly SolidColorBrush BrushDone        = new(Color.FromRgb(0x22, 0xD3, 0xA5));
-    internal static readonly SolidColorBrush BrushCancelled   = new(Color.FromRgb(0x7C, 0x5C, 0xFC));
-
-    static ProjectsViewModel()
-    {
-        BrushNotStarted.Freeze();
-        BrushInProgress.Freeze();
-        BrushDone.Freeze();
-        BrushCancelled.Freeze();
-    }
+    // Read from the active theme at call-time; theme restarts the window so these are stable
+    // within any one session. Fallback colours match the Dark-theme palette exactly.
+    // Resolve from the active theme; throw (not silently fall back to a literal) if the key is missing,
+    // so a mis-typed or undefined token surfaces immediately instead of painting a plausible colour.
+    private static Brush Res(string key)
+        => Application.Current?.Resources[key] as Brush
+           ?? throw new InvalidOperationException($"Theme brush '{key}' not found.");
+    // Distinct categorical swatches — the four buckets must read apart in a pie/legend, so they pull
+    // from the swatch bank (slate / blue / green / red), not the theme's close-together chrome tones.
+    internal static Brush BrushNotStarted => Res("Swatch.Slate");
+    internal static Brush BrushInProgress => Res("Swatch.Blue");
+    internal static Brush BrushDone       => Res("Swatch.Green");
+    internal static Brush BrushCancelled  => Res("Swatch.Red");
 
     public ProjectsViewModel(ProjectOperations ops)
     {

@@ -406,9 +406,27 @@ public partial class VirtualizedRowsControl : UserControl
     private static FrameworkElementFactory ThumbVisual()
     {
         var rect = new FrameworkElementFactory(typeof(System.Windows.Shapes.Rectangle));
-        rect.SetValue(System.Windows.Shapes.Shape.FillProperty,
-            new SolidColorBrush(Color.FromArgb(0x60, 0x80, 0x80, 0x80)));
+        rect.SetValue(System.Windows.Shapes.Shape.FillProperty, ThumbFill());
         return rect;
+    }
+
+    // Column-resize thumb: a translucent take on the theme's border colour. Throws (no literal
+    // fallback) if the token is missing so a mis-themed reference surfaces.
+    private static Brush ThumbFill()
+    {
+        var c = System.Windows.Application.Current?.Resources["BorderColor"] as Color?
+                ?? throw new InvalidOperationException("Theme colour 'BorderColor' not found.");
+        var b = new SolidColorBrush(Color.FromArgb(0x90, c.R, c.G, c.B));
+        b.Freeze();
+        return b;
+    }
+
+    // Row/column selection wash: the theme accent at a given alpha, so selection tracks the theme.
+    // FindResource + cast throw if AccentBrush is missing or not a solid colour.
+    private Brush SelectionWash(byte alpha)
+    {
+        var c = ((SolidColorBrush)FindResource("AccentBrush")).Color;
+        return new SolidColorBrush(Color.FromArgb(alpha, c.R, c.G, c.B));
     }
 
     private static string SortGlyphFor(SortDirection dir, bool sortable) => dir switch
@@ -448,9 +466,7 @@ public partial class VirtualizedRowsControl : UserControl
         if (Columns is null) return;
         int colIdx = Columns.IndexOf(col);
         if (colIdx < 0) return;
-        Brush? tint = col.IsSelected
-            ? new SolidColorBrush(Color.FromArgb(0x33, 0x4F, 0x8E, 0xF7))
-            : null;
+        Brush? tint = col.IsSelected ? SelectionWash(0x33) : null;
         foreach (var rv in _rowPool)
             if (colIdx < rv.DataCells.Length)
                 rv.DataCells[colIdx].Background = tint;
@@ -616,7 +632,7 @@ public partial class VirtualizedRowsControl : UserControl
     {
         if (rv.Bound is not { } row) return;
         if (row.IsSelected)
-            rv.Container.Background = new SolidColorBrush(Color.FromArgb(0x55, 0x4F, 0x8E, 0xF7));
+            rv.Container.Background = SelectionWash(0x55);
         else
             rv.Container.Background = row.IsAlternate
                 ? (Brush)FindResource("SurfaceBrush")

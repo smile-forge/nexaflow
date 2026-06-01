@@ -274,7 +274,7 @@
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="root" Property="Background" Value="{StaticResource AccentBrush}"/>
                             <Setter TargetName="root" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
-                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

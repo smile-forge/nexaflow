@@ -2,7 +2,6 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
 using Nexaflow.Features.AIChat.ViewModels;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Text.Markdown;
@@ -84,10 +83,7 @@ public partial class ConversationView : UserControl, IPageView
 
         if (msg.IsUser)
         {
-            bubble.Background = new LinearGradientBrush(
-                Color.FromRgb(0x2a, 0x4a, 0x8a),
-                Color.FromRgb(0x1e, 0x35, 0x70),
-                new Point(0, 0), new Point(1, 1));
+            bubble.SetResourceReference(Border.BackgroundProperty, "UserBubbleBrush");
         }
         else
         {

@@ -35,4 +35,29 @@
         <t:SunnyScene/>
     </DataTemplate>
 
+    <!-- User chat bubble: soft warm peach — dark navy text (#2D3444) readable at ~10:1. Distinct from
+         white Surface panels while staying in the warm sky palette. -->
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#FFE8DA"/>
+
+    <!-- Danger hover: strengthen so the Delete button clearly reddens on the light cream surface. -->
+    <SolidColorBrush x:Key="DangerSubtleBrush" Color="#55DC2626"/>
+
+    <!-- AI status dot: deepen the hues to read on the bright cream/white bar; playful but distinct. -->
+    <SolidColorBrush x:Key="AiStatus.Ready"   Color="#1FA565"/>  <!-- green  -->
+    <SolidColorBrush x:Key="AiStatus.Busy"    Color="#FF7A2D"/>  <!-- orange -->
+    <SolidColorBrush x:Key="AiStatus.Handler" Color="#6D5BE0"/>  <!-- indigo -->
+    <LinearGradientBrush x:Key="AiStatus.ListenBrush" StartPoint="0,0" EndPoint="1,1">
+        <!-- playful violet → pink: distinct from green ready and orange busy -->
+        <GradientStop Color="#9B6BFF" Offset="0"/>
+        <GradientStop Color="#FF6BB5" Offset="1"/>
+    </LinearGradientBrush>
+
+    <!-- The "White" post-it blends into the warm cream sky canvas — give it a cool blue-grey paper so
+         it pops against the warm background; the fixed dark ink stays readable. -->
+    <LinearGradientBrush x:Key="PostIt.White.Fill" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#DCE6F2" Offset="0"/>
+        <GradientStop Color="#C9D8EA" Offset="1"/>
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="PostIt.White.Header" Color="#AEC2DC"/>
+
 </ResourceDictionary>

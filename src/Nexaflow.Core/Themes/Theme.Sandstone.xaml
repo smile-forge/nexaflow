@@ -36,4 +36,22 @@
         <t:SandstoneWall/>
     </DataTemplate>
 
+    <!-- User chat bubble: deep umber — cream text (#F4ECDC) readable at ~13:1. Distinct from
+         Surface2 (#3C2C1E); darker toward DeepBg so it reads as recessed/filled. -->
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#1E1509"/>
+    <!-- AccentBrush is warm orange (#E0975A) — white borderline ~3:1. Use dark umber instead. -->
+    <SolidColorBrush x:Key="OnAccentBrush"   Color="#18110A"/>
+
+    <!-- AI status dot: earth-toned but distinct (sage green, terracotta, a dusty-mauve pip, a
+         teal→mauve listen sweep) so the states read against the deep-umber bar. -->
+    <SolidColorBrush x:Key="AiStatus.Ready"       Color="#9CB85E"/>  <!-- sage green -->
+    <SolidColorBrush x:Key="AiStatus.Busy"        Color="#E0975A"/>  <!-- terracotta -->
+    <SolidColorBrush x:Key="AiStatus.Handler"     Color="#C39BE0"/>  <!-- dusty mauve pip -->
+    <SolidColorBrush x:Key="AiStatus.HandlerText" Color="#18110A"/>
+    <LinearGradientBrush x:Key="AiStatus.ListenBrush" StartPoint="0,0" EndPoint="1,1">
+        <!-- desert-dusk amethyst → rose: distinct from sage-green ready and terracotta busy -->
+        <GradientStop Color="#B07FD5" Offset="0"/>
+        <GradientStop Color="#E08BA8" Offset="1"/>
+    </LinearGradientBrush>
+
 </ResourceDictionary>

@@ -140,12 +140,16 @@ public partial class MarkdownView : UserControl, IPageView
 
     // ── Source view ───────────────────────────────────────────────────────
 
-    private static readonly Brush SourceTextBrush  = Frozen(Color.FromRgb(0xE8, 0xEA, 0xF2));
-    private static readonly Brush SourceBgBrush    = Frozen(Color.FromRgb(0x0D, 0x10, 0x1A));
-    private static readonly Brush SourceBorderBrush= Frozen(Color.FromRgb(0x4F, 0x8E, 0xF7));
-    private static readonly Brush SourceCaretBrush = Frozen(Color.FromRgb(0x4F, 0x8E, 0xF7));
+    // Resolved from the active theme so the source view tracks the theme like everything else; a missing
+    // key throws (naming it) rather than silently painting a literal.
+    private static Brush SourceTextBrush   => Res("TextBrush");
+    private static Brush SourceBgBrush     => Res("DeepBgBrush");
+    private static Brush SourceBorderBrush => Res("AccentBrush");
+    private static Brush SourceCaretBrush  => Res("AccentBrush");
 
-    private static Brush Frozen(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
+    private static Brush Res(string key)
+        => System.Windows.Application.Current?.Resources[key] as Brush
+           ?? throw new InvalidOperationException($"Theme brush '{key}' not found.");
 
     private Border BuildSourceView(MarkdownBlockModel block)
     {
@@ -249,7 +253,7 @@ public partial class MarkdownView : UserControl, IPageView
         new()
         {
             Text         = text,
-            Foreground   = new SolidColorBrush(Color.FromRgb(0x78, 0x80, 0xA0)),
+            Foreground   = Res("TextMutedBrush"),
             FontSize     = 13.5,
             TextWrapping = TextWrapping.Wrap
         };
