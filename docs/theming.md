@@ -239,8 +239,22 @@ modal scrims (`#CC000000`); and scene art (`OceanReefScene` etc., which *is* the
 
 ## Roadmap / not done yet
 
-- Feature-internal panels and the control templates in `Styles.xaml` still bind palette keys directly.
-  They inherit a theme's colours but aren't yet region-addressable — the deeper sweep, only needed to
-  art-direct *within* a feature.
+- **Per-feature region tokens (opt-in, panels only).** Most feature views bind the generic palette
+  (`SurfaceBrush`/`Surface2Brush`/`BorderBrush`…) directly. That's correct and fully themed — *not* a
+  bug — but it means a theme can't art-direct one feature differently from the rest (e.g. tint the
+  Console panel unlike the JSON tree, or show a `Scene.*` behind only one feature), because they all
+  resolve to the same shell-wide brushes. Making a feature independently styleable is the
+  `FileList.PanelBg` pattern: wrap its container(s) in `ThemedRegion Region="<Feature>"`, add
+  `<Feature>.*` surface/border tokens to `Tokens.xaml` that default-alias the palette (so plain themes
+  stay pixel-identical), repoint that feature's *panel* bindings to them, then let a theme override
+  the tokens / supply `Scene.<Feature>`. **Scope when doing this:**
+  - It only covers **surface/background/border** containers (panels, headers, list/row fills). Leave
+    `TextBrush`/`AccentBrush` foregrounds on the shared tokens — text and accents should stay consistent.
+  - It does **not** include the shared control templates in `Styles.xaml` (buttons, combo, scrollbar,
+    toggle, textbox): those are app-wide controls and should look the same everywhere, so they keep
+    binding the palette directly.
+  - It's **opt-in per feature** — only worth doing for a feature you actually want a theme to treat
+    distinctly. Adding region tokens for all features up-front just creates palette-aliasing churn with
+    no visible change until a theme uses them.
 - Per-theme tuning of the remaining immersive themes (Sunny, Nature, Sandstone) toward their own scenes.
 - Optional "reduce motion / performance" switch to disable scenes (falls back to the flat `{Region}.Bg`).
