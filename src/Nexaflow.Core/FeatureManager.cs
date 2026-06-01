@@ -46,10 +46,21 @@ public sealed class FeatureManager
     private readonly List<Type> _queryHandlerTypes     = [];
     private readonly List<Type> _ribbonPinHandlerTypes = [];
 
+    // Theme resource dictionaries contributed by features (see IThemeContribution) — pack URIs only,
+    // gathered during RegisterFeatures so ThemeManager can merge them without Core referencing any feature.
+    private readonly List<Uri> _themeContributionUris = [];
+
     // ── Read-only type lists (for callers that need the raw types) ────────
 
     public IReadOnlyList<Type> KeyboardHandlerTypes  => _keyboardHandlerTypes;
     public IReadOnlyList<Type> DropTargetTypes       => _dropTargetTypes;
+
+    /// <summary>
+    /// Pack URIs of every feature-contributed theme <c>ResourceDictionary</c>, discovered by
+    /// reflection during <see cref="RegisterFeatures"/>. Passed to <c>ThemeManager.Apply</c> so the
+    /// dictionaries merge below the active theme (fallbacks a theme may override). Usually empty.
+    /// </summary>
+    public IReadOnlyList<Uri> ThemeContributionUris => _themeContributionUris;
 
     // ── Per-(Type, Workspace) instance cache ────────────────────────────
 
@@ -143,6 +154,18 @@ public sealed class FeatureManager
             if (typeof(IDropTarget).IsAssignableFrom(t))      _dropTargetTypes.Add(t);
             if (typeof(IQueryHandler).IsAssignableFrom(t))    _queryHandlerTypes.Add(t);
             if (typeof(IRibbonPinHandler).IsAssignableFrom(t)) _ribbonPinHandlerTypes.Add(t);
+
+            // Theme contributions are read once, up front (no Workspace needed) — a feature opts in
+            // by advertising pack URIs of dictionaries to merge below the active theme.
+            if (typeof(IThemeContribution).IsAssignableFrom(t))
+            {
+                try
+                {
+                    if (Activator.CreateInstance(t) is IThemeContribution contribution)
+                        _themeContributionUris.AddRange(contribution.ResourceDictionaryUris);
+                }
+                catch { }
+            }
         }
     }
 

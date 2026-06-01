@@ -16,13 +16,13 @@
             <Setter Property="TextElement.Foreground" Value="{DynamicResource TextMutedBrush}"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background"             Value="{DynamicResource Surface2Brush}"/>
+                    <Setter Property="Background"             Value="{DynamicResource Tab.HoverBg}"/>
                     <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}"/>
                 </Trigger>
                 <DataTrigger Binding="{Binding IsActive}" Value="True">
-                    <Setter Property="Background"             Value="{DynamicResource Surface2Brush}"/>
-                    <Setter Property="BorderBrush"            Value="{DynamicResource AccentBrush}"/>
-                    <Setter Property="TextElement.Foreground" Value="{DynamicResource AccentBrush}"/>
+                    <Setter Property="Background"             Value="{DynamicResource Tab.ActiveBg}"/>
+                    <Setter Property="BorderBrush"            Value="{DynamicResource Tab.Accent}"/>
+                    <Setter Property="TextElement.Foreground" Value="{DynamicResource Tab.Accent}"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>

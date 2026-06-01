@@ -4,8 +4,13 @@
              ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
         <ResourceDictionary>
+            <!-- Bootstrap merge (design-time + pre-feature). ThemeManager.Apply rebuilds this
+                 deterministically at startup: palette → tokens → feature contributions →
+                 theme overrides+scenes → styles. -->
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="Themes/Colors.Dark.xaml"/>
+                <ResourceDictionary Source="Themes/Tokens.xaml"/>
+                <ResourceDictionary Source="Themes/Theme.Dark.xaml"/>
                 <ResourceDictionary Source="Themes/Styles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>

@@ -63,7 +63,7 @@ Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI) — mirror that pat
 | `src/Nexaflow.Core/Services/FileSystemFeatureRegistry.cs` | Discovery for the file-system contracts (`IFileAction`/`IFolderAction`/`IFileCreateAction`/`IFolderViewlet`) — NOT FeatureManager |
 | `src/Nexaflow.Features/Nexaflow.Features.Common/*.cs` | Contracts — changes here affect everything |
 | `src/Nexaflow.Features/Nexaflow.Features.Common/IPageRegistration.cs`, `Page.cs` | The tab/page factory contract (`CreatePage`) and the `Page` model (`Title`/`Icon`/`Breadcrumbs`/`ContentFactory`). NB: the older names `ITabRegistration`/`TabEntry`/`PageFactory` are gone |
-| `src/Nexaflow.Core/Themes/Styles.xaml` | App-merged theme: brushes + shared control styles. Feature XAML references these by key (`{StaticResource …}`) — no assembly ref needed |
+| `src/Nexaflow.Core/Themes/Styles.xaml` | App-merged shared control styles. Feature XAML references theme keys by `{StaticResource …}` — no assembly ref needed. A theme is layered (palette → region tokens → per-theme overrides + scenes → styles); see [docs/theming.md](docs/theming.md) |
 
 ## Config & Data Paths
 
@@ -124,7 +124,7 @@ A bare string assigned to ToolTip inherits the parent's TextAlignment when WPF w
 | Full-rescan per window (no byte anchors) | `Tabular/RowWindowReader.cs` | row data; `StreamReader` buffering makes `BaseStream.Position` unreliable for cross-call seeks |
 | Seek-by-item via byte-offset index | `Json/JsonFileLoader.cs` | random access to structured items |
 
-**Shared UI & theming** — shared controls live in `Nexaflow.Visuals.Common` (controls + converters) and `Nexaflow.Visuals.Text` (markdown). Theme brushes **and** shared control styles live in the app-merged `src/Nexaflow.Core/Themes/Styles.xaml`; feature XAML pulls them by `{StaticResource <key>}` with no assembly reference (the resource lookup walks up to `Application.Resources`). Put a new *shared* style there and reference it by key rather than copy-pasting per view. Markdown rendering is centralised in `Nexaflow.Visuals.Text` (`SelectableMarkdownView`) — used by Core's AI overlay and AIChat; reuse it rather than hand-rolling `RichTextBox`.
+**Shared UI & theming** — shared controls live in `Nexaflow.Visuals.Common` (controls + converters) and `Nexaflow.Visuals.Text` (markdown). Theme brushes **and** shared control styles live in the app-merged `src/Nexaflow.Core/Themes/Styles.xaml`; feature XAML pulls them by `{StaticResource <key>}` with no assembly reference (the resource lookup walks up to `Application.Resources`). Put a new *shared* style there and reference it by key rather than copy-pasting per view. A theme is assembled in layers (palette → region tokens → per-theme overrides + scenes → styles) by `ThemeManager`; a region can carry an animated backdrop via `ThemedRegion` + a `Scene.{Region}` template, and a feature can extend theming without Core referencing it via `IThemeContribution` — full model in [docs/theming.md](docs/theming.md). Markdown rendering is centralised in `Nexaflow.Visuals.Text` (`SelectableMarkdownView`) — used by Core's AI overlay and AIChat; reuse it rather than hand-rolling `RichTextBox`.
 
 ## Style Notes
 

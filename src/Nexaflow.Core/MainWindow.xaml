@@ -6,6 +6,7 @@
         xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
         xmlns:cvn="clr-namespace:Nexaflow.Core.Converters"
         xmlns:ctrl="clr-namespace:Nexaflow.Core.Controls"
+        xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
         Title="NexaFlow" Height="880" Width="1280"
         AutomationProperties.AutomationId="MainWindow"
         MinHeight="600" MinWidth="900"
@@ -87,10 +88,18 @@
         </Grid.RowDefinitions>
 
         <!-- ═══════════════════════════════════════════════════════════
+             WINDOW BACKDROP — a single themed scene behind every row.
+             An immersive theme supplies Scene.Window (e.g. the Ocean reef); Pro themes
+             supply none and this is inert. Never hit-tests, sits beneath all content.
+             ═══════════════════════════════════════════════════════════ -->
+        <vcc:ThemedRegion Grid.Row="0" Grid.RowSpan="5" Region="Window"
+                          IsHitTestVisible="False" Panel.ZIndex="-10"/>
+
+        <!-- ═══════════════════════════════════════════════════════════
              ROW 0 — DRAG BAR
              Full-width caption strip; min/max/close pinned top-right.
              ═══════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="0" Background="{StaticResource DeepBgBrush}"/>
+        <Border Grid.Row="0" Background="{StaticResource Chrome.Deep}"/>
         <StackPanel Grid.Row="0" Orientation="Horizontal"
                     HorizontalAlignment="Right" VerticalAlignment="Stretch">
             <Button x:Name="MinimizeButton"
@@ -114,7 +123,7 @@
              ROW 1 — TOP BAR
              Left: logo + activity ticker | Mid: ribbon | Right: actions
              ═══════════════════════════════════════════════════════════ -->
-        <Grid Grid.Row="1" Background="{StaticResource SurfaceBrush}"
+        <Grid Grid.Row="1" Background="{StaticResource Chrome.Panel}"
               x:Name="TopBar">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="200"/>
@@ -124,8 +133,8 @@
 
             <!-- ── Left: logo + activity ticker ── -->
             <Border Grid.Column="0"
-                    Background="{StaticResource DeepBgBrush}"
-                    BorderBrush="{StaticResource BorderBrush}"
+                    Background="{StaticResource Chrome.Deep}"
+                    BorderBrush="{StaticResource Chrome.Border}"
                     BorderThickness="0,0,1,0"
                     ClipToBounds="True">
 
@@ -135,16 +144,11 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Logo -->
+                    <!-- Logo — gradient follows the theme's accent so it matches per-theme -->
                     <TextBlock Grid.Row="0" VerticalAlignment="Center"
                                FontSize="20" FontWeight="Bold" FontFamily="Segoe UI"
+                               Foreground="{StaticResource AccentGradientBrush}"
                                ToolTip="NexaFlow">
-                        <TextBlock.Foreground>
-                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                <GradientStop Color="#A8D4FF" Offset="0"/>
-                                <GradientStop Color="#C4A8FF" Offset="1"/>
-                            </LinearGradientBrush>
-                        </TextBlock.Foreground>
                         ⬡ NexaFlow
                     </TextBlock>
 
@@ -157,8 +161,8 @@
             </Border>
 
             <!-- ── Middle: self-contained ribbon component ── -->
-            <Border Grid.Column="1" Background="{StaticResource Surface2Brush}"
-                    BorderBrush="{StaticResource BorderBrush}"
+            <Border Grid.Column="1" Background="{StaticResource Chrome.Bg}"
+                    BorderBrush="{StaticResource Chrome.Border}"
                     BorderThickness="0,1,0,0">
                 <ctrl:RibbonControl x:Name="RibbonControl"
                                     AutomationProperties.AutomationId="RibbonControl"
@@ -174,9 +178,9 @@
 
             <!-- ── Right: messages + options ── -->
             <Border Grid.Column="2"
-                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderBrush="{StaticResource Chrome.Border}"
                     BorderThickness="1,0,0,0"
-                    Background="{StaticResource SurfaceBrush}">
+                    Background="{StaticResource Chrome.Panel}">
                 <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Right"
                             Margin="0,0,20,10">
 
@@ -257,10 +261,13 @@
 
         <!-- ═══════════════════════════════════════════════════════════
              ROW 4 — AI INTERACTION BAR
+             Wrapped as the "AiBar" region: an immersive theme can paint a backdrop here
+             independently of the page area. The bar surface comes from the AiBar.Bg veil,
+             so the inner Border stays transparent and only keeps the top divider line.
              ═══════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="4"
-                Background="{StaticResource SurfaceBrush}"
-                BorderBrush="{StaticResource BorderBrush}"
+        <vcc:ThemedRegion Grid.Row="4" Region="AiBar">
+        <Border Background="Transparent"
+                BorderBrush="{StaticResource AiBar.Border}"
                 BorderThickness="0,1,0,0">
             <Grid Margin="16,0">
                 <Grid.ColumnDefinitions>
@@ -270,31 +277,33 @@
                     <ColumnDefinition Width="Auto"/>   <!-- context + clear -->
                 </Grid.ColumnDefinitions>
 
-                <!-- Left: AI indicator + clear — top-aligned -->
-                <StackPanel Grid.Column="0" VerticalAlignment="Top"
-                            Margin="0,4,12,0">
+                <!-- Left: AI indicator + clear — on a dark panel matching the input -->
+                <Border Grid.Column="0" VerticalAlignment="Stretch" Margin="0,6,12,6"
+                        Background="{StaticResource AiBar.ClusterBg}" CornerRadius="10" Padding="7,8">
+                    <StackPanel VerticalAlignment="Top">
 
-                    <!-- Status dot -->
-                    <ctrl:AiStatusDot IsBusy="{Binding AiIsBusy}"
-                                      HandlerSymbol="{Binding AiHandlerSymbol}"
-                                      IsListening="{Binding AiIsListening}"
-                                      Width="28" Height="28"/>
+                        <!-- Status dot -->
+                        <ctrl:AiStatusDot IsBusy="{Binding AiIsBusy}"
+                                          HandlerSymbol="{Binding AiHandlerSymbol}"
+                                          IsListening="{Binding AiIsListening}"
+                                          Width="28" Height="28"/>
 
-                    <!-- Clear input -->
-                    <Button Style="{StaticResource IconButton}"
-                            ToolTip="Clear input"
-                            Command="{Binding ClearAiInputCommand}"
-                            IsEnabled="{Binding AiIsBusy, Converter={StaticResource InvBool}}"
-                            Margin="0,6,0,0">
-                        <TextBlock Text="⊗" FontSize="13"/>
-                    </Button>
-                </StackPanel>
+                        <!-- Clear input -->
+                        <Button Style="{StaticResource IconButton}"
+                                ToolTip="Clear input"
+                                Command="{Binding ClearAiInputCommand}"
+                                IsEnabled="{Binding AiIsBusy, Converter={StaticResource InvBool}}"
+                                Margin="0,6,0,0">
+                            <TextBlock Text="⊗" FontSize="13"/>
+                        </Button>
+                    </StackPanel>
+                </Border>
 
                 <!-- Centre: textarea — stretches to fill bar height -->
                 <Border Grid.Column="1"
                         VerticalAlignment="Stretch"
                         Margin="0,6,0,6"
-                        Background="{StaticResource Surface2Brush}"
+                        Background="{StaticResource AiBar.InputBg}"
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="1" CornerRadius="10">
                     <ctrl:PlaceholderTextBox
@@ -382,35 +391,38 @@
                     </Button.Style>
                 </Button>
 
-                <!-- Right: context toggle + mic — top-aligned -->
-                <StackPanel Grid.Column="3" VerticalAlignment="Top"
-                            Margin="12,4,0,0">
+                <!-- Right: context toggle + mic — on a dark panel matching the input -->
+                <Border Grid.Column="3" VerticalAlignment="Stretch" Margin="12,6,0,6"
+                        Background="{StaticResource AiBar.ClusterBg}" CornerRadius="10" Padding="7,8">
+                    <StackPanel VerticalAlignment="Top">
 
-                    <ToggleButton ToolTip="Include page context"
-                                  IsChecked="{Binding IncludeContext}"
-                                  IsEnabled="{Binding AiIsBusy, Converter={StaticResource InvBool}}"
-                                  Style="{StaticResource ContextToggleButton}">
-                        <TextBlock Text="🔗" FontSize="14"/>
-                    </ToggleButton>
+                        <ToggleButton ToolTip="Include page context"
+                                      IsChecked="{Binding IncludeContext}"
+                                      IsEnabled="{Binding AiIsBusy, Converter={StaticResource InvBool}}"
+                                      Style="{StaticResource ContextToggleButton}">
+                            <TextBlock Text="🔗" FontSize="14"/>
+                        </ToggleButton>
 
-                    <!-- Mic button — enabled only when voice is available; red while listening -->
-                    <Button ToolTip="Voice input (toggle)"
-                            Command="{Binding ToggleVoiceCommand}"
-                            Margin="0,6,0,0">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsRecording}" Value="True">
-                                        <Setter Property="Foreground" Value="#E11D48"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                        <TextBlock Text="🎙" FontSize="14"/>
-                    </Button>
-                </StackPanel>
+                        <!-- Mic button — enabled only when voice is available; red while listening -->
+                        <Button ToolTip="Voice input (toggle)"
+                                Command="{Binding ToggleVoiceCommand}"
+                                Margin="0,6,0,0">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsRecording}" Value="True">
+                                            <Setter Property="Foreground" Value="#E11D48"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <TextBlock Text="🎙" FontSize="14"/>
+                        </Button>
+                    </StackPanel>
+                </Border>
             </Grid>
         </Border>
+        </vcc:ThemedRegion>
 
         <!-- ═══════════════════════════════════════════════════════════
              OVERLAY — NOTIFICATIONS PANEL

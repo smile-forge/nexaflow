@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Windows;
 using System.Windows.Media;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -29,6 +31,26 @@ public sealed class MarkdownPalette
     public required Brush FigureBorder  { get; init; }
     public required Brush FigureBg      { get; init; }
     public required Brush FooterBg      { get; init; }
+
+    /// <summary>Distinct, saturated colours for chart series / pie slices / graph accents. Read
+    /// cyclically by the graph + chart renderers. Saturated enough to read on light or dark surfaces;
+    /// a theme can supply its own set.</summary>
+    public IReadOnlyList<Brush> Series { get; init; } = DefaultSeries;
+
+    /// <summary>The shared "mini palette" of chart colours.</summary>
+    public static readonly IReadOnlyList<Brush> DefaultSeries =
+    [
+        Frozen(0x4F, 0x8E, 0xF7), // blue
+        Frozen(0xFF, 0x6B, 0x6B), // red
+        Frozen(0x4E, 0xCB, 0x71), // green
+        Frozen(0xFF, 0xD0, 0x60), // amber
+        Frozen(0xA0, 0x60, 0xFF), // purple
+        Frozen(0xFF, 0x9F, 0x43), // orange
+        Frozen(0x48, 0xDB, 0xFB), // cyan
+        Frozen(0xFF, 0x6B, 0xB5), // pink
+        Frozen(0x1D, 0xD1, 0xA1), // teal
+        Frozen(0xFE, 0xCA, 0x57), // yellow
+    ];
 
     private static Brush Frozen(byte r, byte g, byte b)
     {
@@ -85,4 +107,37 @@ public sealed class MarkdownPalette
         FigureBg      = Frozen(0x10, 0x00, 0x00, 0x00),
         FooterBg      = Frozen(0x10, 0x00, 0x00, 0x00),
     };
+
+    /// <summary>
+    /// Builds a palette from the active application theme's brushes (TextBrush, AccentBrush, surfaces…),
+    /// so markdown text + backgrounds match whatever theme is loaded — light themes get dark text,
+    /// dark/immersive themes get their own accents. Falls back to <see cref="Dark"/> for any key that
+    /// isn't present (or when there is no <see cref="Application"/>, e.g. in tests).
+    /// </summary>
+    public static MarkdownPalette FromTheme()
+    {
+        var res = Application.Current?.Resources;
+        Brush R(string key, Brush fallback) => res?[key] as Brush ?? fallback;
+        var d = Dark;
+
+        return new MarkdownPalette
+        {
+            Text          = R("TextBrush",        d.Text),
+            TextMuted     = R("TextMutedBrush",   d.TextMuted),
+            Accent        = R("AccentBrush",      d.Accent),
+            Heading       = R("AccentBrush",      d.Heading),
+            DefTerm       = R("TextBrush",        d.DefTerm),
+            Citation      = R("Accent2Brush",     d.Citation),
+            CodeBg        = R("DeepBgBrush",      d.CodeBg),
+            CodeBorder    = R("BorderBrush",      d.CodeBorder),
+            QuoteBg       = R("Surface2Brush",    d.QuoteBg),
+            Hr            = R("BorderBrush",       d.Hr),
+            TableBorder   = R("BorderLightBrush", d.TableBorder),
+            TableHeaderBg = R("Surface2Brush",    d.TableHeaderBg),
+            TableAltRowBg = R("SurfaceBrush",     d.TableAltRowBg),
+            FigureBorder  = R("BorderBrush",      d.FigureBorder),
+            FigureBg      = R("SurfaceBrush",     d.FigureBg),
+            FooterBg      = R("SurfaceBrush",     d.FooterBg),
+        };
+    }
 }

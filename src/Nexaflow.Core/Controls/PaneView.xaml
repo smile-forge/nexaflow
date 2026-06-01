@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ctrl="clr-namespace:Nexaflow.Core.Controls"
+             xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              mc:Ignorable="d"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -14,8 +15,8 @@
 
         <!-- Tab bar: breadcrumb left, tabs right -->
         <Border Grid.Row="0"
-                Background="{DynamicResource SurfaceBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
+                Background="{DynamicResource TabStrip.Bg}"
+                BorderBrush="{DynamicResource TabStrip.Border}"
                 BorderThickness="0,0,0,1">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -26,7 +27,7 @@
                 <ctrl:BreadcrumbBar x:Name="BreadcrumbBarControl"
                                     Grid.Column="0"
                                     Segments="{Binding Pane.ActivePage.Breadcrumbs, ElementName=PaneRoot}"
-                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderBrush="{DynamicResource TabStrip.Border}"
                                     BorderThickness="0,0,1,0"/>
 
                 <ctrl:TabStrip x:Name="TabStripControl"
@@ -41,7 +42,10 @@
             </Grid>
         </Border>
 
-        <!-- Page content host -->
-        <ContentPresenter Grid.Row="1" x:Name="ContentHost"/>
+        <!-- Page content host. Wrapped so the active theme can render a backdrop ("Page" region)
+             behind whatever feature page is shown — Pro themes supply none and this is inert. -->
+        <vcc:ThemedRegion Grid.Row="1" Region="Page">
+            <ContentPresenter x:Name="ContentHost"/>
+        </vcc:ThemedRegion>
     </Grid>
 </UserControl>

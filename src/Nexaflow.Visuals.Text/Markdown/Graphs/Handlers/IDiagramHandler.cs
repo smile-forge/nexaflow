@@ -16,8 +16,8 @@ public interface IDiagramHandler
     bool CanHandle(string language);
 
     /// <summary>
-    /// Parse <paramref name="source"/> and return a rendered WPF element.
-    /// Must not throw; return an informative fallback element on failure.
+    /// Parse <paramref name="source"/> and return a rendered WPF element, themed with
+    /// <paramref name="palette"/>. Must not throw; return an informative fallback element on failure.
     /// </summary>
-    FrameworkElement Render(string source);
+    FrameworkElement Render(string source, MarkdownPalette palette);
 }

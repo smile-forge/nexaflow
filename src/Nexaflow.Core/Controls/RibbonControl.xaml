@@ -14,7 +14,7 @@
     <Grid>
         <!-- Bevel: top 10 px in surface colour -->
         <Border VerticalAlignment="Top" Height="10"
-                Background="{DynamicResource SurfaceBrush}"/>
+                Background="{DynamicResource Chrome.Panel}"/>
 
         <!-- Profile accent: first 240 px of bevel in profile colour -->
         <Border VerticalAlignment="Top" HorizontalAlignment="Left"

@@ -1,0 +1,19 @@
+<UserControl x:Class="Nexaflow.Core.Themes.ForestScene"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             IsHitTestVisible="False">
+    <Grid x:Name="Root" ClipToBounds="True">
+        <Grid.Background>
+            <!-- Sunlit woodland: warm light filtering through the canopy at the top, fading to a
+                 shaded forest floor below. -->
+            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                <GradientStop Color="#7BAA5A" Offset="0"/>
+                <GradientStop Color="#62954C" Offset="0.28"/>
+                <GradientStop Color="#4E8242" Offset="0.55"/>
+                <GradientStop Color="#3C6C36" Offset="0.80"/>
+                <GradientStop Color="#2E562C" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
+        <Canvas x:Name="Layer"/>
+    </Grid>
+</UserControl>

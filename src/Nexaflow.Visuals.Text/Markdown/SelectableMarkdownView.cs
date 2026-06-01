@@ -59,15 +59,16 @@ public class SelectableMarkdownView : UserControl
     private static void OnMarkdownChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         => ((SelectableMarkdownView)d).Rebuild();
 
-    /// <summary>Colour scheme for rendering. Defaults to <see cref="MarkdownPalette.Dark"/>;
-    /// set <see cref="MarkdownPalette.Light"/> for light surfaces (e.g. scratchpad post-its).</summary>
+    /// <summary>Colour scheme for rendering. When unset, follows the active theme via
+    /// <see cref="MarkdownPalette.FromTheme"/> (light themes get dark text, etc.); set
+    /// <see cref="MarkdownPalette.Light"/> for fixed light surfaces (e.g. scratchpad post-its).</summary>
     public static readonly DependencyProperty PaletteProperty =
         DependencyProperty.Register(nameof(Palette), typeof(MarkdownPalette), typeof(SelectableMarkdownView),
-            new PropertyMetadata(MarkdownPalette.Dark, (d, _) => ((SelectableMarkdownView)d).Rebuild()));
+            new PropertyMetadata(null, (d, _) => ((SelectableMarkdownView)d).Rebuild()));
 
-    public MarkdownPalette Palette
+    public MarkdownPalette? Palette
     {
-        get => (MarkdownPalette)GetValue(PaletteProperty);
+        get => (MarkdownPalette?)GetValue(PaletteProperty);
         set => SetValue(PaletteProperty, value);
     }
 
@@ -76,7 +77,7 @@ public class SelectableMarkdownView : UserControl
     public Func<string, bool>? LinkNavigate { get; set; }
 
     private void Rebuild() => _rtb.Document = MarkdownFlowDocument.Build(
-        Markdown, new MarkdownRenderContext { Palette = Palette, OnNavigate = LinkNavigate });
+        Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = LinkNavigate });
 
     /// <summary>
     /// Inner editor's vertical scrollbar. Default <see cref="ScrollBarVisibility.Disabled"/>

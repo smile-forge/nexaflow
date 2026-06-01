@@ -265,7 +265,7 @@
 
         <!-- ── Left: Directory Tree ──────────────────────────────────── -->
         <Border Grid.Column="0"
-                Background="{StaticResource SurfaceBrush}"
+                Background="{StaticResource FileList.PanelBg}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,1,0">
             <TreeView x:Name="DirectoryTree"
@@ -801,7 +801,7 @@
             <!-- ── File Action Strip ─────────────────────────────────── -->
             <Border x:Name="ActionStrip"
                     Grid.Row="1" Grid.Column="1" Grid.RowSpan="2"
-                    Background="{StaticResource SurfaceBrush}"
+                    Background="{StaticResource FileList.PanelBg}"
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1,0,0,0"
                     Width="120"
