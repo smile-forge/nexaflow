@@ -40,4 +40,23 @@
         <t:OceanReefScene Variant="Full"/>
     </DataTemplate>
 
+    <!-- User chat bubble: deep ocean trench — light cyan text (#EAFBFF) readable at ~9:1. Distinct from
+         Surface2 (#17506A); sits between DeepBg and Surface so it reads as filled/submerged. -->
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#0B3245"/>
+    <!-- AccentBrush is bright cyan (#3DDCE8) — white gives only ~1.7:1. Use deep ocean instead. -->
+    <SolidColorBrush x:Key="OnAccentBrush"   Color="#07232E"/>
+
+    <!-- AI status dot: reef-toned but kept mutually distinct (a reef-green, a warm coral, a sky-blue
+         pip, a cyan→blue listen sweep) so the states stay readable against the deep-teal bar. -->
+    <SolidColorBrush x:Key="AiStatus.Ready"       Color="#2EE6A6"/>  <!-- reef green -->
+    <SolidColorBrush x:Key="AiStatus.Busy"        Color="#FF8A5C"/>  <!-- warm coral -->
+    <SolidColorBrush x:Key="AiStatus.Handler"     Color="#5AA6FF"/>  <!-- sky blue pip -->
+    <SolidColorBrush x:Key="AiStatus.HandlerText" Color="#06222E"/>
+    <LinearGradientBrush x:Key="AiStatus.ListenBrush" StartPoint="0,0" EndPoint="1,1">
+        <!-- deep-sea bioluminescent violet → orchid: distinct from the cyan accent, reef-green ready
+             and sky-blue handler that already populate this theme -->
+        <GradientStop Color="#7C6CF0" Offset="0"/>
+        <GradientStop Color="#C86BE0" Offset="1"/>
+    </LinearGradientBrush>
+
 </ResourceDictionary>

@@ -1,0 +1,26 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ════ Log viewer colour tokens ════
+         Shipped as an IThemeContribution so they merge BELOW the active theme (layer 3): every theme
+         gets these defaults, and any theme may retune a key by name. Consumed by the AvalonEdit
+         colorizers / renderers + the selection margin. All are deliberately translucent (they wash
+         OVER the log text), so the alpha is baked into the brush. -->
+
+    <!-- Per-level row washes (background tint of a whole log line). -->
+    <SolidColorBrush x:Key="Log.Fatal"   Color="#46C8143C"/>  <!-- a=70  deep crimson -->
+    <SolidColorBrush x:Key="Log.Error"   Color="#3CFF453A"/>  <!-- a=60  red          -->
+    <SolidColorBrush x:Key="Log.Warning" Color="#3CFFA500"/>  <!-- a=60  amber        -->
+    <SolidColorBrush x:Key="Log.Info"    Color="#281E90FF"/>  <!-- a=40  blue         -->
+    <SolidColorBrush x:Key="Log.Debug"   Color="#1E808080"/>  <!-- a=30  grey         -->
+
+    <!-- Line-selection feedback (margin bar, margin hover preview, full-line highlight). -->
+    <SolidColorBrush x:Key="Log.Selection"      Color="#6464A0FF"/>  <!-- a=100 margin bar      -->
+    <SolidColorBrush x:Key="Log.SelectionHover" Color="#3264A0FF"/>  <!-- a=50  margin hover    -->
+    <SolidColorBrush x:Key="Log.SelectionLine"  Color="#4664A0FF"/>  <!-- a=70  whole-line wash -->
+
+    <!-- Filtered-out (non-matching) lines fade to this; custom search-term match highlight. -->
+    <SolidColorBrush x:Key="Log.Filter" Color="#50808080"/>  <!-- a=80  faded grey  -->
+    <SolidColorBrush x:Key="Log.Term"   Color="#6E50C878"/>  <!-- a=110 green match -->
+
+</ResourceDictionary>

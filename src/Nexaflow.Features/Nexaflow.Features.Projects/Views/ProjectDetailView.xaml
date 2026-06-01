@@ -72,8 +72,8 @@
         <!-- ── Danger button ──────────────────────────────────────────── -->
         <Style x:Key="DangerButton" TargetType="Button">
             <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="#FF4444"/>
-            <Setter Property="BorderBrush"     Value="#FF4444"/>
+            <Setter Property="Foreground"      Value="{StaticResource DangerBrush}"/>
+            <Setter Property="BorderBrush"     Value="{StaticResource DangerBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="FontSize"        Value="12"/>
@@ -90,7 +90,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="root" Property="Background" Value="#22FF4444"/>
+                                <Setter TargetName="root" Property="Background" Value="{StaticResource DangerSubtleBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -492,7 +492,7 @@
                 Background="#CC000000"
                 Panel.ZIndex="20">
             <Border Background="{StaticResource SurfaceBrush}"
-                    BorderBrush="#FFFF3333"
+                    BorderBrush="{StaticResource DangerBrush}"
                     BorderThickness="1"
                     CornerRadius="8"
                     Width="320"
@@ -517,7 +517,7 @@
                             Margin="0,0,0,6">
                         <Button.Style>
                             <Style TargetType="Button">
-                                <Setter Property="Background"      Value="#CCFF2222"/>
+                                <Setter Property="Background"      Value="{StaticResource DangerBrush}"/>
                                 <Setter Property="Foreground"      Value="White"/>
                                 <Setter Property="BorderThickness" Value="0"/>
                                 <Setter Property="Padding"         Value="0,8"/>
@@ -534,7 +534,7 @@
                                             </Border>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="Bd" Property="Background" Value="#FFFF2222"/>
+                                                    <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
                                                 </Trigger>
                                                 <Trigger Property="IsPressed" Value="True">
                                                     <Setter TargetName="Bd" Property="Opacity" Value="0.75"/>

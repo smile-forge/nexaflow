@@ -35,11 +35,14 @@ public class AiStatusDot : ContentControl
     public bool    IsListening   { get => (bool)GetValue(IsListeningProperty);   set => SetValue(IsListeningProperty, value); }
 
     // ── Colors ────────────────────────────────────────────────────────────
+    // Each state reads its own AiStatus.* theme token so a theme can art-direct the dot. Missing tokens
+    // throw (naming the key) rather than silently falling back to a literal, so a mis-themed dot shows up.
 
-    private static readonly Color GreenColor  = Color.FromRgb(0x22, 0xD3, 0xA5);
-    private static readonly Color OrangeColor = Color.FromRgb(0xF9, 0x73, 0x16);
-    private static readonly Color IndigoColor = Color.FromRgb(0x63, 0x66, 0xF1);
-    private static readonly Color CyanColor   = Color.FromRgb(0x06, 0xB6, 0xD4);
+    private static Brush ThemeBrush(string key) =>
+        Application.Current?.Resources[key] as Brush
+        ?? throw new InvalidOperationException($"Theme brush '{key}' not found.");
+
+    private static Brush ListenBrush() => ThemeBrush("AiStatus.ListenBrush");
 
     // ── Visual children ───────────────────────────────────────────────────
 
@@ -59,7 +62,6 @@ public class AiStatusDot : ContentControl
         {
             Width               = 28,
             Height              = 28,
-            Fill                = new SolidColorBrush(GreenColor),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment   = VerticalAlignment.Center
         };
@@ -69,16 +71,15 @@ public class AiStatusDot : ContentControl
         {
             FontSize            = 13,
             FontWeight          = FontWeights.SemiBold,
-            Foreground          = Brushes.White,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment   = VerticalAlignment.Center
         };
+        _symbolText.SetResourceReference(TextBlock.ForegroundProperty, "AiStatus.HandlerText");
         _symbolBorder = new Border
         {
             Width               = 28,
             Height              = 28,
             CornerRadius        = new CornerRadius(14),
-            Background          = new SolidColorBrush(IndigoColor),
             Child               = _symbolText,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment   = VerticalAlignment.Center,
@@ -134,7 +135,7 @@ public class AiStatusDot : ContentControl
         {
             _symbolBorder.Visibility = Visibility.Collapsed;
             _dot.Visibility          = Visibility.Visible;
-            _dot.Fill                = new SolidColorBrush(OrangeColor);
+            _dot.Fill                = ThemeBrush("AiStatus.Busy");
             _busySb.Begin();
             ToolTip = "AI busy…";
             return;
@@ -144,7 +145,8 @@ public class AiStatusDot : ContentControl
         {
             _dot.Visibility          = Visibility.Collapsed;
             _symbolBorder.Visibility = Visibility.Visible;
-            _symbolText.Text         = sym;
+            _symbolBorder.Background  = ThemeBrush("AiStatus.Handler");
+            _symbolText.Text          = sym;
             ToolTip = $"Handler: {sym}";
             return;
         }
@@ -153,14 +155,7 @@ public class AiStatusDot : ContentControl
         {
             _symbolBorder.Visibility = Visibility.Collapsed;
             _dot.Visibility          = Visibility.Visible;
-            _dot.Fill = new LinearGradientBrush(
-                new GradientStopCollection
-                {
-                    new GradientStop(IndigoColor, 0.0),
-                    new GradientStop(CyanColor,   1.0)
-                },
-                new System.Windows.Point(0, 0),
-                new System.Windows.Point(1, 1));
+            _dot.Fill                = ListenBrush();
             _listenSb.Begin();
             ToolTip = "Listening…";
             return;
@@ -169,7 +164,7 @@ public class AiStatusDot : ContentControl
         // Default: ready
         _symbolBorder.Visibility = Visibility.Collapsed;
         _dot.Visibility          = Visibility.Visible;
-        _dot.Fill                = new SolidColorBrush(GreenColor);
+        _dot.Fill                = ThemeBrush("AiStatus.Ready");
         ToolTip = "AI ready";
     }
 }

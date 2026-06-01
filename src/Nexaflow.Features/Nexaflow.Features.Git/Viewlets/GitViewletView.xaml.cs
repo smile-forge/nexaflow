@@ -19,10 +19,14 @@ public partial class GitViewletView : UserControl
     private string       _currentBranch = string.Empty;
     private List<string> _localBranches = [];
 
-    // Colours used in the inline status line
-    private static readonly Brush StagedBrush    = new SolidColorBrush(Color.FromRgb(0x4C, 0xAF, 0x50));  // green
-    private static readonly Brush ModifiedBrush  = new SolidColorBrush(Color.FromRgb(0xFF, 0x98, 0x00));  // amber
-    private static readonly Brush ErrorBrush     = new SolidColorBrush(Color.FromRgb(0xE0, 0x40, 0x30));  // red
+    // Colours used in the inline status line — resolved from the active theme; throw (no silent literal
+    // fallback) if a token is missing so a mis-themed reference surfaces immediately.
+    private static Brush ThemeBrush(string key)
+        => Application.Current?.Resources[key] as Brush
+           ?? throw new InvalidOperationException($"Theme brush '{key}' not found.");
+    private static Brush StagedBrush   => ThemeBrush("SuccessBrush");
+    private static Brush ModifiedBrush => ThemeBrush("WarningBrush");
+    private static Brush ErrorBrush    => ThemeBrush("DangerBrush");
 
     public GitViewletView(GitOptions options, string folderPath, IViewletController controller)
     {

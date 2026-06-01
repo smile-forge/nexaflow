@@ -12,8 +12,10 @@ namespace Nexaflow.Features.Logs.Rendering;
 /// </summary>
 public sealed class CustomTermHighlightRenderer : IBackgroundRenderer
 {
-    private static readonly SolidColorBrush HighlightBrush =
-        new(Color.FromArgb(110, 80, 200, 120));
+    // Themed (Log.Term); resolved lazily per instance, throws if the token is missing.
+    private Brush? _brush;
+    private Brush HighlightBrush => _brush ??= Application.Current?.Resources["Log.Term"] as Brush
+        ?? throw new InvalidOperationException("Theme brush 'Log.Term' not found.");
 
     public IReadOnlyList<(int offset, int length)> Highlights { get; set; } = [];
 

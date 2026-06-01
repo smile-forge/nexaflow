@@ -1,7 +1,9 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Scratchpad.Converters;
 using Nexaflow.Features.Scratchpad.ViewModels;
 using Nexaflow.Visuals.Text.Markdown;
 using System.Collections.Specialized;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -423,9 +425,9 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
         {
             Width           = Math.Max(4, (viewRight  - viewLeft)  * scale),
             Height          = Math.Max(4, (viewBottom - viewTop)   * scale),
-            Stroke          = new SolidColorBrush(Color.FromArgb(200, 100, 180, 255)),
+            Stroke          = (Brush)FindResource("Scratchpad.MinimapViewportStroke"),
             StrokeThickness = 1,
-            Fill            = new SolidColorBrush(Color.FromArgb(30, 100, 180, 255))
+            Fill            = (Brush)FindResource("Scratchpad.MinimapViewportFill")
         };
         Canvas.SetLeft(vp, offX + (viewLeft - minX) * scale);
         Canvas.SetTop(vp,  offY + (viewTop  - minY) * scale);
@@ -434,16 +436,12 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
         MiniMapBorder.Visibility = Visibility.Visible;
     }
 
-    private static SolidColorBrush NoteColorToBrush(string color) => color switch
-    {
-        "Yellow" => new SolidColorBrush(Color.FromRgb(0xFF, 0xF5, 0x9D)),
-        "Blue"   => new SolidColorBrush(Color.FromRgb(0x90, 0xCA, 0xF9)),
-        "Green"  => new SolidColorBrush(Color.FromRgb(0xA5, 0xD6, 0xA7)),
-        "Pink"   => new SolidColorBrush(Color.FromRgb(0xF4, 0x8F, 0xB1)),
-        "Orange" => new SolidColorBrush(Color.FromRgb(0xFF, 0xCC, 0x80)),
-        "Purple" => new SolidColorBrush(Color.FromRgb(0xCE, 0x93, 0xD8)),
-        _        => new SolidColorBrush(Color.FromRgb(0xFA, 0xFA, 0xFA))
-    };
+    // Reuse the note-fill converter so the minimap draws from the SAME (themed) colour source as the
+    // notes — no second copy of the palette to keep in sync.
+    private static readonly PostItColorToBrushConverter _fillConverter = new();
+
+    private static Brush NoteColorToBrush(string color)
+        => (Brush)_fillConverter.Convert(color, typeof(Brush), null!, CultureInfo.InvariantCulture);
 
     // ── IPageView ─────────────────────────────────────────────────────────
 

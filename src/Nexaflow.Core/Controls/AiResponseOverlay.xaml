@@ -67,17 +67,17 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="✦"
                                    FontSize="15" Margin="0,0,8,0"
-                                   Foreground="White" VerticalAlignment="Center"/>
+                                   Foreground="{StaticResource OnAccentBrush}" VerticalAlignment="Center"/>
                         <TextBlock Grid.Column="1"
                                    Text="{Binding AiResponseAiName}"
                                    FontSize="14" FontWeight="SemiBold"
-                                   Foreground="White"
+                                   Foreground="{StaticResource OnAccentBrush}"
                                    VerticalAlignment="Center"/>
                         <Button Grid.Column="2"
                                 Style="{StaticResource TopBarAction}"
                                 Command="{Binding CloseAiResponseOverlayCommand}"
                                 ToolTip="Close">
-                            <TextBlock Text="✕" FontSize="13" Foreground="White"/>
+                            <TextBlock Text="✕" FontSize="13" Foreground="{StaticResource OnAccentBrush}"/>
                         </Button>
                     </Grid>
                 </Border>
@@ -113,7 +113,7 @@
                                     Command="{Binding ContinueAsConversationCommand}"
                                     FontSize="12"
                                     Background="{StaticResource AccentBrush}"
-                                    Foreground="White"
+                                    Foreground="{StaticResource OnAccentBrush}"
                                     BorderThickness="0"
                                     Template="{StaticResource PillButton}"/>
                         </StackPanel>
@@ -142,7 +142,7 @@
                                         Command="{Binding AcceptToolBatchCommand}"
                                         FontSize="12"
                                         Background="{StaticResource AccentBrush}"
-                                        Foreground="White"
+                                        Foreground="{StaticResource OnAccentBrush}"
                                         BorderThickness="0"
                                         Template="{StaticResource PillButton}"/>
                             </StackPanel>

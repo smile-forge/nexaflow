@@ -17,7 +17,7 @@ internal sealed class ValueKindToBrushConverter : IValueConverter
             JsonValueKind.String            => GetResource("AccentBrush"),
             JsonValueKind.Number            => GetResource("TextBrush"),
             JsonValueKind.True or
-            JsonValueKind.False             => GetResource("OrangeBrush"),
+            JsonValueKind.False             => GetResource("Swatch.Orange"),
             JsonValueKind.Null              => GetResource("TextDimBrush"),
             _                              => GetResource("TextMutedBrush"),
         };
@@ -28,5 +28,5 @@ internal sealed class ValueKindToBrushConverter : IValueConverter
 
     private static Brush GetResource(string key)
         => Application.Current.Resources[key] as Brush
-           ?? Brushes.White;
+           ?? throw new InvalidOperationException($"Theme brush '{key}' not found.");
 }

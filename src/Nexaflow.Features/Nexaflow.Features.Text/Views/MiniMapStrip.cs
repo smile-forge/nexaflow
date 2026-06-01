@@ -39,8 +39,9 @@ public sealed class MiniMapStrip : FrameworkElement
         set => SetValue(MarksProperty, value);
     }
 
-    private static readonly SolidColorBrush TickBrush =
-        new(Color.FromArgb(220, 255, 200, 0));
+    // Themed (Text.MinimapMark); resolved lazily via FindResource (throws if the token is missing).
+    private Brush? _tick;
+    private Brush TickBrush => _tick ??= (Brush)FindResource("Text.MinimapMark");
 
     // Top inset keeps tick marks within the vertical scrollbar's thumb-travel region.
     private const double TopPadding = 8.0;

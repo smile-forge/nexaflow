@@ -37,4 +37,22 @@
         <t:ForestScene/>
     </DataTemplate>
 
+    <!-- User chat bubble: deep forest floor — cream text (#F2F7EA) readable at ~12:1. Distinct from
+         Surface2 (#1F4A2B); darker toward DeepBg so it reads as recessed/filled. -->
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#0F2217"/>
+    <!-- AccentBrush is gold (#EBB749) — white gives only ~2.2:1. Use dark forest instead. -->
+    <SolidColorBrush x:Key="OnAccentBrush"   Color="#152515"/>
+
+    <!-- AI status dot: woodland-toned but distinct (leaf green, honey, an orchid pip, a sky→teal
+         listen sweep) so the states read against the deep-green bar. -->
+    <SolidColorBrush x:Key="AiStatus.Ready"       Color="#6FCB6A"/>  <!-- leaf green -->
+    <SolidColorBrush x:Key="AiStatus.Busy"        Color="#EBB749"/>  <!-- honey gold -->
+    <SolidColorBrush x:Key="AiStatus.Handler"     Color="#C98BE0"/>  <!-- orchid pip -->
+    <SolidColorBrush x:Key="AiStatus.HandlerText" Color="#152515"/>
+    <LinearGradientBrush x:Key="AiStatus.ListenBrush" StartPoint="0,0" EndPoint="1,1">
+        <!-- wildflower violet → magenta: distinct from leaf-green ready and honey busy -->
+        <GradientStop Color="#9D7CE0" Offset="0"/>
+        <GradientStop Color="#DC6FC0" Offset="1"/>
+    </LinearGradientBrush>
+
 </ResourceDictionary>

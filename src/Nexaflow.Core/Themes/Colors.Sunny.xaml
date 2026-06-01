@@ -18,8 +18,6 @@
     <Color x:Key="TextColor">#2D3444</Color>
     <Color x:Key="TextMutedColor">#6B7488</Color>
     <Color x:Key="TextDimColor">#9AA2B2</Color>
-    <Color x:Key="GreenColor">#2BC56E</Color>
-    <Color x:Key="OrangeColor">#FF8A3D</Color>
     <Color x:Key="DeepBgColor">#F4ECDA</Color>
 
     <!-- ── Brushes ── -->
@@ -33,8 +31,6 @@
     <SolidColorBrush x:Key="TextBrush"       Color="{StaticResource TextColor}"/>
     <SolidColorBrush x:Key="TextMutedBrush"  Color="{StaticResource TextMutedColor}"/>
     <SolidColorBrush x:Key="TextDimBrush"    Color="{StaticResource TextDimColor}"/>
-    <SolidColorBrush x:Key="GreenBrush"      Color="{StaticResource GreenColor}"/>
-    <SolidColorBrush x:Key="OrangeBrush"     Color="{StaticResource OrangeColor}"/>
     <SolidColorBrush x:Key="DeepBgBrush"     Color="{StaticResource DeepBgColor}"/>
 
     <!-- Rainbow logo — fun is here. -->

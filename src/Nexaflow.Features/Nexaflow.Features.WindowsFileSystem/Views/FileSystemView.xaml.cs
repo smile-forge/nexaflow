@@ -491,7 +491,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         var surfaceBrush     = (Brush)Application.Current.Resources["SurfaceBrush"];
         var surface2Brush    = (Brush)Application.Current.Resources["Surface2Brush"];
         var borderBrush      = (Brush)Application.Current.Resources["BorderBrush"];
-        var destructiveBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0x55, 0x55));
+        var destructiveBrush = (Brush)Application.Current.Resources["DangerBrush"];
 
         var menu = new ContextMenu
         {

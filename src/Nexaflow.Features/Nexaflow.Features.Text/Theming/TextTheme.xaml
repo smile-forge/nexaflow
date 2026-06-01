@@ -1,0 +1,11 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ════ Text viewer highlight tokens ════
+         Shipped as an IThemeContribution (merges below the active theme), so every theme gets these
+         gold search-highlight defaults and any theme can retune them by key. Translucent washes drawn
+         over the text, so the alpha is baked in. -->
+    <SolidColorBrush x:Key="Text.SearchMatch" Color="#64FFC800"/>  <!-- a=100 in-text match wash -->
+    <SolidColorBrush x:Key="Text.MinimapMark" Color="#DCFFC800"/>  <!-- a=220 minimap tick mark -->
+
+</ResourceDictionary>

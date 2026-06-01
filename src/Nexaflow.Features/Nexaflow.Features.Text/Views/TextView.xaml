@@ -214,7 +214,7 @@
                            Margin="0,0,16,0"
                            Visibility="{Binding IsSearchActive, Converter={StaticResource BoolVis}}"/>
                 <TextBlock Text="Streaming"
-                           Foreground="{StaticResource OrangeBrush}"
+                           Foreground="{StaticResource WarningBrush}"
                            FontSize="11"
                            Visibility="{Binding IsLargeFile, Converter={StaticResource BoolVis}}"/>
             </StackPanel>

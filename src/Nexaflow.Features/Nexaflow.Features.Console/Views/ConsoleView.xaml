@@ -54,7 +54,7 @@
                              Style="{StaticResource ConsoleTextBoxStyle}"
                              TextWrapping="Wrap"/>
                     <TextBlock Text=" running..."
-                               Foreground="{StaticResource OrangeBrush}"
+                               Foreground="{StaticResource WarningBrush}"
                                FontSize="10" VerticalAlignment="Center"
                                Visibility="{Binding IsRunning, Converter={StaticResource BoolVis}}"/>
                 </StackPanel>
@@ -137,7 +137,7 @@
                            FontFamily="Consolas, Courier New" FontSize="13"
                            VerticalAlignment="Center"/>
                 <TextBlock Text="  [running...]"
-                           Foreground="{StaticResource OrangeBrush}" FontSize="11"
+                           Foreground="{StaticResource WarningBrush}" FontSize="11"
                            VerticalAlignment="Center"
                            Visibility="{Binding IsBusy, Converter={StaticResource BoolVis}}"/>
             </StackPanel>

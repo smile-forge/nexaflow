@@ -48,4 +48,63 @@
          unchanged; a theme can make them transparent-to-scene like the file list. ── -->
     <SolidColorBrush x:Key="FileList.PanelBg" Color="{StaticResource SurfaceColor}"/>
 
+    <!-- ── Cross-feature semantic tokens ── -->
+    <!-- User chat-bubble background. Default = AccentBrush (Dark: #4F8EF7 blue — light text readable).
+         Override in Theme.<Name>.xaml where AccentColor is too light (e.g. gold, cyan) or where the
+         theme background is light and the text colour is dark. -->
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="{StaticResource AccentColor}"/>
+    <!-- Foreground for UI elements placed on top of AccentBrush (checked toggle buttons, etc.).
+         Default = White (passes AA on all blue-family accents). Override where the accent is a light
+         colour (gold, cyan, orange) and white would fail contrast. -->
+    <SolidColorBrush x:Key="OnAccentBrush"   Color="White"/>
+    <!-- Destructive / danger colour. Universally understood as red; works on both dark and light
+         surfaces. No per-theme override expected — any readable red serves the semantic meaning. -->
+    <SolidColorBrush x:Key="DangerBrush"       Color="#DC2626"/>
+    <!-- Subtle hover fill for danger-action surfaces (same hue at ~15% opacity). -->
+    <SolidColorBrush x:Key="DangerSubtleBrush" Color="#26DC2626"/>
+
+    <!-- Semantic status colours — meaning, not tone. DELIBERATELY NOT aliased to the palette's
+         Green/Orange: those are mood-tinted per theme (Ocean "green" is a reef-cyan), which would make
+         success/warning/danger blend into one another. Status must stay mutually DISTINCT for instant
+         recognition, so these carry their own green/amber/red. A theme may retune them tonally but
+         should keep them distinct (green stays green). -->
+    <SolidColorBrush x:Key="SuccessBrush" Color="#22C55E"/>   <!-- done / staged / go      (green) -->
+    <SolidColorBrush x:Key="WarningBrush" Color="#F59E0B"/>   <!-- modified / attention    (amber) -->
+
+    <!-- ════ Categorical swatch bank ════
+         A dozen mutually-distinct hues for components that need RECOGNISABLY DIFFERENT colours next to
+         one another — pie / chart series, status buckets, category dots — rather than the theme's
+         chrome/accent tones (which are close together by design). Distinctness is the whole point: a
+         theme may re-tune the bank tonally (deeper for light surfaces, brighter on dark glass) but the
+         hues must stay separable. Mirrors the hardcoded post-it / MarkdownPalette.Series banks, but as
+         overridable theme resources. Consumers bind these brushes directly. -->
+    <SolidColorBrush x:Key="Swatch.Blue"   Color="#4F8EF7"/>
+    <SolidColorBrush x:Key="Swatch.Red"    Color="#FF6B6B"/>
+    <SolidColorBrush x:Key="Swatch.Green"  Color="#4ECB71"/>
+    <SolidColorBrush x:Key="Swatch.Amber"  Color="#FFD060"/>
+    <SolidColorBrush x:Key="Swatch.Purple" Color="#A060FF"/>
+    <SolidColorBrush x:Key="Swatch.Orange" Color="#FF9F43"/>
+    <SolidColorBrush x:Key="Swatch.Cyan"   Color="#48DBFB"/>
+    <SolidColorBrush x:Key="Swatch.Pink"   Color="#FF6BB5"/>
+    <SolidColorBrush x:Key="Swatch.Teal"   Color="#1DD1A1"/>
+    <SolidColorBrush x:Key="Swatch.Yellow" Color="#FECA57"/>
+    <SolidColorBrush x:Key="Swatch.Slate"  Color="#8893B5"/>
+    <SolidColorBrush x:Key="Swatch.Lime"   Color="#A8D85C"/>
+
+    <!-- ── AI status dot (lives in the AiBar) ──
+         A primary interaction element, so it carries its OWN art-directable tokens rather than
+         borrowing palette tones — each theme can tune the states to fit its mood. Defaults are the
+         original indicator colours so plain themes are unchanged. -->
+    <SolidColorBrush x:Key="AiStatus.Ready"       Color="#22D3A5"/>  <!-- idle / ready  (steady)       -->
+    <SolidColorBrush x:Key="AiStatus.Busy"        Color="#F97316"/>  <!-- working      (size-pulse)    -->
+    <SolidColorBrush x:Key="AiStatus.Handler"     Color="#6366F1"/>  <!-- single handler matched (pip) -->
+    <SolidColorBrush x:Key="AiStatus.HandlerText" Color="White"/>    <!-- symbol drawn on the pip      -->
+    <LinearGradientBrush x:Key="AiStatus.ListenBrush" StartPoint="0,0" EndPoint="1,1">
+        <!-- listening / ambiguous (opacity-pulse). A violet "thinking" glow — deliberately in a hue
+             family of its own (not the blue accents, not the green/amber solid states) so the state
+             reads at a glance. Each theme retunes it (see Theme.<name>.xaml). -->
+        <GradientStop Color="#6366F1" Offset="0"/>
+        <GradientStop Color="#A855F7" Offset="1"/>
+    </LinearGradientBrush>
+
 </ResourceDictionary>

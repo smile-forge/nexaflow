@@ -2,6 +2,7 @@ using ICSharpCode.AvalonEdit.Document;
 using ICSharpCode.AvalonEdit.Rendering;
 using Nexaflow.Features.Logs.Parsing;
 using System.Text.RegularExpressions;
+using System.Windows;
 using System.Windows.Media;
 
 namespace Nexaflow.Features.Logs.Rendering;
@@ -14,10 +15,15 @@ namespace Nexaflow.Features.Logs.Rendering;
 /// </summary>
 public sealed class LogFilterColorizer : DocumentColorizingTransformer
 {
-    private static readonly SolidColorBrush DefaultFadedBrush =
-        new(Color.FromArgb(80, 128, 128, 128));
-
-    public Brush FadedBrush { get; set; } = DefaultFadedBrush;
+    // Themed (Log.Filter) by default; resolved lazily so a caller can still override it. Throws if the
+    // token is missing rather than silently using a literal.
+    private Brush? _faded;
+    public Brush FadedBrush
+    {
+        get => _faded ??= Application.Current?.Resources["Log.Filter"] as Brush
+            ?? throw new InvalidOperationException("Theme brush 'Log.Filter' not found.");
+        set => _faded = value;
+    }
 
     public Regex? ActiveFilter     { get; set; }
     public (DateTime? Start, DateTime? End)? TimestampRange { get; set; }

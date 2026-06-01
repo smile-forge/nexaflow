@@ -9,8 +9,10 @@ namespace Nexaflow.Features.Text.Rendering;
 /// </summary>
 public sealed class SearchHighlightRenderer : IBackgroundRenderer
 {
-    private static readonly SolidColorBrush HighlightBrush =
-        new(Color.FromArgb(100, 255, 200, 0));
+    // Themed (Text.SearchMatch); resolved lazily per instance, throws if the token is missing.
+    private Brush? _brush;
+    private Brush HighlightBrush => _brush ??= Application.Current?.Resources["Text.SearchMatch"] as Brush
+        ?? throw new InvalidOperationException("Theme brush 'Text.SearchMatch' not found.");
 
     public IReadOnlyList<(int offset, int length)> Highlights { get; set; } = [];
 

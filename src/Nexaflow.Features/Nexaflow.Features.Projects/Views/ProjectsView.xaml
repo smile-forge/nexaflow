@@ -50,7 +50,7 @@
 
         <Style x:Key="AccentButton" TargetType="Button">
             <Setter Property="Background"      Value="{StaticResource AccentBrush}"/>
-            <Setter Property="Foreground"      Value="White"/>
+            <Setter Property="Foreground"      Value="{StaticResource OnAccentBrush}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="FontSize"        Value="12"/>
@@ -272,7 +272,7 @@
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                            <Border Width="10" Height="10" CornerRadius="2" Background="#4A5270"
+                            <Border Width="10" Height="10" CornerRadius="2" Background="{StaticResource Swatch.Slate}"
                                     Margin="0,0,8,0" VerticalAlignment="Center"/>
                             <TextBlock FontSize="12" Foreground="{StaticResource TextMutedBrush}">
                                 <Run Text="Not started: "/>
@@ -281,7 +281,7 @@
                             </TextBlock>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                            <Border Width="10" Height="10" CornerRadius="2" Background="#4F8EF7"
+                            <Border Width="10" Height="10" CornerRadius="2" Background="{StaticResource Swatch.Blue}"
                                     Margin="0,0,8,0" VerticalAlignment="Center"/>
                             <TextBlock FontSize="12" Foreground="{StaticResource TextMutedBrush}">
                                 <Run Text="In progress: "/>
@@ -290,7 +290,7 @@
                             </TextBlock>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                            <Border Width="10" Height="10" CornerRadius="2" Background="#22D3A5"
+                            <Border Width="10" Height="10" CornerRadius="2" Background="{StaticResource Swatch.Green}"
                                     Margin="0,0,8,0" VerticalAlignment="Center"/>
                             <TextBlock FontSize="12" Foreground="{StaticResource TextMutedBrush}">
                                 <Run Text="Awaiting finalisation: "/>
@@ -299,7 +299,7 @@
                             </TextBlock>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal">
-                            <Border Width="10" Height="10" CornerRadius="2" Background="#7C5CFC"
+                            <Border Width="10" Height="10" CornerRadius="2" Background="{StaticResource Swatch.Red}"
                                     Margin="0,0,8,0" VerticalAlignment="Center"/>
                             <TextBlock FontSize="12" Foreground="{StaticResource TextMutedBrush}">
                                 <Run Text="Cancelled: "/>
