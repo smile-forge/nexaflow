@@ -71,7 +71,15 @@ public partial class MainWindow : Window
         var optionsVm = new OptionsViewModel();
         optionsVm.SaveError           += msg   => _vm.ShowErrorToast(msg);
         optionsVm.TabRefreshRequested += kinds => _vm.RefreshTabs(kinds);
-        optionsVm.SaveCompleted       += ()    => _vm.OptionsOpen = false;
+        optionsVm.SaveCompleted       += ()    =>
+        {
+            _vm.OptionsOpen = false;
+            // A theme change can't live-reflow (StaticResource by design); restart this window in
+            // place, reopening the same tabs against the new theme.
+            if (ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault() is { } shell
+                && shell.Theme != ThemeManager.Current)
+                _shellServices.RestartWindowForTheme(_vm, shell.Theme);
+        };
         OptionsPanelControl.DataContext = optionsVm;
     }
 

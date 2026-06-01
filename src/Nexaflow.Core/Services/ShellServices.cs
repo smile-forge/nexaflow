@@ -98,6 +98,50 @@ public sealed class ShellServices : IShellServices
             w.IsFocused = w == host;
     }
 
+    /// <summary>
+    /// Applies <paramref name="theme"/> and restarts <paramref name="current"/> so the new theme takes
+    /// effect, reopening the same tabs (order + active tab preserved). Themes bind via StaticResource
+    /// for rendering performance and so do not live-reflow an open window — changing the theme in
+    /// Options rebuilds the window instead. The fresh window is created and shown BEFORE the old one
+    /// closes so the workspace is never left window-less (which would dispose it); closing the old
+    /// window first clears its tabs from the registry, so the reopen below builds them fresh against
+    /// the new theme rather than moving the old (old-theme) page objects across.
+    /// </summary>
+    internal void RestartWindowForTheme(IWindowHost current, ThemeOption theme)
+    {
+        if (CreateWindowFactory is null) return;
+
+        // Snapshot the acting window's tabs (front-to-back) and which one is active.
+        var snapshot = current.Tabs
+            .Where(t => !string.IsNullOrEmpty(t.PageKind))
+            .Select(t => (Kind: t.PageKind!, t.PageParams, t.IsActive))
+            .ToList();
+
+        ThemeManager.Apply(theme, FeatureManager.Instance.ThemeContributionUris);
+
+        // Fresh window, placed where the old one was, then close the old one.
+        var fresh = CreateWindowFactory();
+        var src   = current.Window;
+        var dst   = fresh.Window;
+        dst.WindowStartupLocation = WindowStartupLocation.Manual;
+        var bounds = src.WindowState == WindowState.Maximized
+            ? src.RestoreBounds
+            : new Rect(src.Left, src.Top, src.Width, src.Height);
+        dst.Left = bounds.Left; dst.Top = bounds.Top; dst.Width = bounds.Width; dst.Height = bounds.Height;
+        dst.Show();
+        if (src.WindowState == WindowState.Maximized) dst.WindowState = WindowState.Maximized;
+
+        current.Window.Close();   // synchronously unregisters its tabs from _tabToWindow
+
+        // Reopen in reverse (Pane.Add prepends) so the original left-to-right order is preserved.
+        for (int i = snapshot.Count - 1; i >= 0; i--)
+            OpenTabCore(snapshot[i].Kind, snapshot[i].PageParams, null);
+
+        var active = snapshot.FirstOrDefault(s => s.IsActive);
+        if (active.Kind is not null && FindTabCore(active.Kind, active.PageParams) is { } activeTab)
+            fresh.SetActiveTab(activeTab);
+    }
+
     internal void ClearFocused(IWindowHost host)
     {
         if (_focused == host)

@@ -94,13 +94,16 @@ public class InlineMarkdownEditor : UserControl
 
     public static readonly DependencyProperty PaletteProperty =
         DependencyProperty.Register(nameof(Palette), typeof(MarkdownPalette), typeof(InlineMarkdownEditor),
-            new PropertyMetadata(MarkdownPalette.Dark, (d, _) => ((InlineMarkdownEditor)d).OnPaletteChanged()));
+            new PropertyMetadata(null, (d, _) => ((InlineMarkdownEditor)d).OnPaletteChanged()));
 
-    public MarkdownPalette Palette
+    public MarkdownPalette? Palette
     {
-        get => (MarkdownPalette)GetValue(PaletteProperty);
+        get => (MarkdownPalette?)GetValue(PaletteProperty);
         set => SetValue(PaletteProperty, value);
     }
+
+    /// <summary>Palette in effect — an explicit <see cref="Palette"/>, else the active theme.</summary>
+    private MarkdownPalette Pal => Palette ?? MarkdownPalette.FromTheme();
 
     public static readonly DependencyProperty PlaceholderProperty =
         DependencyProperty.Register(nameof(Placeholder), typeof(string), typeof(InlineMarkdownEditor),
@@ -116,13 +119,13 @@ public class InlineMarkdownEditor : UserControl
     /// then skips opening the OS browser). When null, links open externally.</summary>
     public Func<string, bool>? LinkNavigate { get; set; }
 
-    private MarkdownRenderContext Context => new() { Palette = Palette, OnNavigate = LinkNavigate };
+    private MarkdownRenderContext Context => new() { Palette = Pal, OnNavigate = LinkNavigate };
 
     private void OnPaletteChanged()
     {
-        _rtb.Foreground = Palette.Text;
-        _rtb.CaretBrush = Palette.Text;
-        _placeholder.Foreground = Palette.TextMuted;
+        _rtb.Foreground = Pal.Text;
+        _rtb.CaretBrush = Pal.Text;
+        _placeholder.Foreground = Pal.TextMuted;
         if (!_rtb.IsKeyboardFocusWithin) RenderAll();
     }
 
@@ -512,7 +515,7 @@ public class InlineMarkdownEditor : UserControl
     {
         FontFamily  = BlockRenderer.BodyFont,
         FontSize    = BlockRenderer.BaseFontSize,
-        Foreground  = Palette.Text,
+        Foreground  = Pal.Text,
         Background  = Brushes.Transparent,
         PagePadding = new Thickness(0),
     };
@@ -523,7 +526,7 @@ public class InlineMarkdownEditor : UserControl
         if (text.Trim().Length == 0)
         {
             // Empty block while it is not being edited: a thin clickable line.
-            var ph = new Paragraph(new Run(" ")) { Foreground = Palette.TextMuted, Tag = index };
+            var ph = new Paragraph(new Run(" ")) { Foreground = Pal.TextMuted, Tag = index };
             return [ph];
         }
 
@@ -539,9 +542,9 @@ public class InlineMarkdownEditor : UserControl
         var p = new Paragraph
         {
             Margin     = new Thickness(0, 2, 0, 2),
-            Background = Palette.CodeBg,            // subtle tint marks the block being edited
+            Background = Pal.CodeBg,                // subtle tint marks the block being edited
             FontFamily = BlockRenderer.BodyFont,
-            Foreground = Palette.Text,
+            Foreground = Pal.Text,
         };
         var lines = text.Split('\n');
         for (int i = 0; i < lines.Length; i++)

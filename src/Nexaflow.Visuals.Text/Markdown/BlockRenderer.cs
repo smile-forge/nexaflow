@@ -48,7 +48,7 @@ public static class BlockRenderer
     /// <param name="context">Colours + link hook; defaults to <see cref="MarkdownPalette.Dark"/>.</param>
     public static FrameworkElement Render(MdBlock block, string rawMarkdown = "", MarkdownRenderContext? context = null)
     {
-        var ctx = context ?? MarkdownRenderContext.Dark;
+        var ctx = context ?? (MarkdownRenderContext)MarkdownPalette.FromTheme();
         var p   = ctx.Palette;
         try
         {
@@ -63,7 +63,7 @@ public static class BlockRenderer
                 MathBlock          mb  => RenderMathBlock(mb, rawMarkdown, ctx),
                 // Diagram blocks: check Info before falling through to generic code
                 FencedCodeBlock    fc when DiagramRenderer.IsDiagramLanguage(fc.Info)
-                                       => DiagramRenderer.Render(fc.Info!, ExtractFencedContent(fc, rawMarkdown)),
+                                       => DiagramRenderer.Render(fc.Info!, ExtractFencedContent(fc, rawMarkdown), p),
                 FencedCodeBlock    fc  => RenderCode(fc.Lines.ToString(), ctx),
                 CodeBlock          cb  => RenderCode(cb.Lines.ToString(), ctx),
                 MdTable            t   => RenderTable(t, ctx),
@@ -520,7 +520,7 @@ public static class BlockRenderer
 
     internal static void AddInlines(InlineCollection target, MdInline inline, MarkdownRenderContext? context = null)
     {
-        var ctx = context ?? MarkdownRenderContext.Dark;
+        var ctx = context ?? (MarkdownRenderContext)MarkdownPalette.FromTheme();
         var p   = ctx.Palette;
         switch (inline)
         {

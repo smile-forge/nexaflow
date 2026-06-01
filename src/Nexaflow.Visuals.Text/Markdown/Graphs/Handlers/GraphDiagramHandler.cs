@@ -20,10 +20,10 @@ public sealed class GraphDiagramHandler : IDiagramHandler
 
     public bool CanHandle(string language) => _parser.CanParse(language);
 
-    public FrameworkElement Render(string source)
+    public FrameworkElement Render(string source, MarkdownPalette palette)
     {
         var graph  = _parser.Parse(source);
         var layout = SugiyamaLayout.Compute(graph, preferredMaxWidth: 900);
-        return WpfGraphRenderer.Render(layout);
+        return WpfGraphRenderer.Render(layout, palette);
     }
 }

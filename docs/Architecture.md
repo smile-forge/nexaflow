@@ -276,6 +276,17 @@ The page kind string is then available in the ribbon editor automatically. (Regi
 
 ---
 
+### `IThemeContribution` — Extending theming from a feature
+
+Optional. A feature ships a `ResourceDictionary` of region-token defaults and/or `Scene.{Region}`
+templates and advertises its pack URIs via `IThemeContribution`; `FeatureManager` discovers it by
+reflection (same path as `IPageRegistration`) and `ThemeManager` merges it below the active theme as a
+fallback. The coupling between features, shell and themes is only string resource keys, so all three stay
+independently shippable. Full model — region tokens, `ThemedRegion` scenes, authoring a theme — in
+[theming.md](theming.md).
+
+---
+
 ### `IPageView` / `IPageViewModel` — Exposing context to the AI pipeline
 
 `IPageView` is the shell's typed handle to a tab `UserControl` — implement it on your `UserControl`. It exposes the ViewModel and handles shell lifecycle. `Reinitialize` is called on first load and whenever the shell activates the tab with a new param set (including re-clicking the active tab).

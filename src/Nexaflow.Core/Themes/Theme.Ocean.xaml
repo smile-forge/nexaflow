@@ -1,0 +1,43 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:t="clr-namespace:Nexaflow.Core.Themes">
+
+    <!-- ════════════════════════════════════════════════════════════════════════
+         OCEAN — immersive theme overrides + scene.
+         A single Scene.Window reef sits behind the whole shell; every region surface
+         goes translucent (chrome only slightly, the page area generously) so the one
+         continuous backdrop reads cohesively through the window. Pro themes override
+         none of this and the reef never instantiates.
+         ════════════════════════════════════════════════════════════════════════ -->
+
+    <!-- Chrome: deep-teal wings (logo column + right panel match) framing a brighter ribbon strip.
+         Near-opaque so it stays a solid FRAME — the fish tank is the page, not the chrome.
+         Ribbon buttons get a darker recessed tile to stand out from the ribbon strip. -->
+    <SolidColorBrush x:Key="Chrome.Deep"     Color="#F5123F50"/>
+    <SolidColorBrush x:Key="Chrome.Panel"    Color="#F5123F50"/>
+    <SolidColorBrush x:Key="Chrome.Bg"       Color="#F21E6E84"/>
+    <SolidColorBrush x:Key="Chrome.Border"   Color="#663A8AA0"/>
+    <SolidColorBrush x:Key="Ribbon.ButtonBg" Color="#4D0C3242"/>
+
+    <!-- Tab strip: dark like the AI input panel, framing the top of the "fish tank" page. -->
+    <SolidColorBrush x:Key="TabStrip.Bg"     Color="#F00A2E3A"/>
+    <SolidColorBrush x:Key="TabStrip.Border" Color="#663A8AA0"/>
+    <SolidColorBrush x:Key="Tab.HoverBg"     Color="#991E6E84"/>
+    <SolidColorBrush x:Key="Tab.ActiveBg"    Color="#C0247E96"/>
+
+    <!-- AI bar: the surround stays transparent to the sea (continuous with the page); the input and
+         the button clusters are dark panels, so coral reads as growing from BEHIND them, not through. -->
+    <SolidColorBrush x:Key="AiBar.Bg"        Color="#570B3442"/>
+    <SolidColorBrush x:Key="AiBar.InputBg"   Color="#E00A2E3A"/>
+    <SolidColorBrush x:Key="AiBar.ClusterBg" Color="#E00A2E3A"/>
+    <SolidColorBrush x:Key="AiBar.Border"    Color="#663A8AA0"/>
+
+    <!-- File view tree + action strip: transparent to the reef, matching the file list. -->
+    <SolidColorBrush x:Key="FileList.PanelBg" Color="#570B3442"/>
+
+    <!-- The one backdrop, behind every row. -->
+    <DataTemplate x:Key="Scene.Window">
+        <t:OceanReefScene Variant="Full"/>
+    </DataTemplate>
+
+</ResourceDictionary>

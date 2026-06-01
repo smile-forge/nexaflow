@@ -1,0 +1,17 @@
+<UserControl x:Class="Nexaflow.Core.Themes.SandstoneWall"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             IsHitTestVisible="False">
+    <Grid x:Name="Root" ClipToBounds="True">
+        <Grid.Background>
+            <!-- Warm sandstone, a touch more sunlit toward the top. The masonry + travelling light
+                 are drawn over this. -->
+            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                <GradientStop Color="#CBB084" Offset="0"/>
+                <GradientStop Color="#BDA176" Offset="0.5"/>
+                <GradientStop Color="#AC8F64" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
+        <Canvas x:Name="Layer"/>
+    </Grid>
+</UserControl>

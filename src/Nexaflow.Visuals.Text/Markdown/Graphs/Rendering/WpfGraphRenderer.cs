@@ -14,30 +14,52 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 /// </summary>
 public static class WpfGraphRenderer
 {
-    // ── Dark-theme palette ─────────────────────────────────────────────────
+    // ── Theme ───────────────────────────────────────────────────────────────
+    // Set once per render from the MarkdownPalette. Markdown renders synchronously on the UI thread,
+    // so these shared statics are never touched concurrently.
 
-    private static readonly Brush BgBrush         = Frozen(Color.FromRgb(0x0D, 0x10, 0x1A));
-    private static readonly Brush NodeBg           = Frozen(Color.FromRgb(0x1E, 0x24, 0x38));
-    private static readonly Brush NodeBorder       = Frozen(Color.FromRgb(0x4F, 0x8E, 0xF7));
-    private static readonly Brush NodeText         = Frozen(Color.FromRgb(0xE8, 0xEA, 0xF2));
-    private static readonly Brush DiamondBg        = Frozen(Color.FromRgb(0x2A, 0x1A, 0x3A));
-    private static readonly Brush DiamondBorder    = Frozen(Color.FromRgb(0xA0, 0x60, 0xFF));
-    private static readonly Brush EdgeBrush        = Frozen(Color.FromRgb(0x4F, 0x8E, 0xF7));
-    private static readonly Brush EdgeDashedBrush  = Frozen(Color.FromRgb(0x78, 0x80, 0xA0));
-    private static readonly Brush EdgeThickBrush   = Frozen(Color.FromRgb(0xFF, 0xD0, 0x60));
-    private static readonly Brush LabelBg          = Frozen(Color.FromRgb(0x12, 0x16, 0x24));
-    private static readonly Brush LabelText        = Frozen(Color.FromRgb(0x78, 0x80, 0xA0));
-    private static readonly Brush TitleBrush       = Frozen(Color.FromRgb(0xA8, 0xD4, 0xFF));
+    private static Brush BgBrush        = Frozen(Color.FromRgb(0x0D, 0x10, 0x1A));
+    private static Brush NodeBg         = Frozen(Color.FromRgb(0x1E, 0x24, 0x38));
+    private static Brush NodeBorder     = Frozen(Color.FromRgb(0x4F, 0x8E, 0xF7));
+    private static Brush NodeText       = Frozen(Color.FromRgb(0xE8, 0xEA, 0xF2));
+    private static Brush DiamondBg      = Frozen(Color.FromRgb(0x2A, 0x1A, 0x3A));
+    private static Brush DiamondBorder  = Frozen(Color.FromRgb(0xA0, 0x60, 0xFF));
+    private static Brush EdgeBrush      = Frozen(Color.FromRgb(0x4F, 0x8E, 0xF7));
+    private static Brush EdgeDashedBrush= Frozen(Color.FromRgb(0x78, 0x80, 0xA0));
+    private static Brush EdgeThickBrush = Frozen(Color.FromRgb(0xFF, 0xD0, 0x60));
+    private static Brush LabelBg        = Frozen(Color.FromRgb(0x12, 0x16, 0x24));
+    private static Brush LabelText      = Frozen(Color.FromRgb(0x78, 0x80, 0xA0));
+    private static Brush TitleBrush     = Frozen(Color.FromRgb(0xA8, 0xD4, 0xFF));
+    private static Color AccentColor    = Color.FromRgb(0x4F, 0x8E, 0xF7);
 
     private static readonly FontFamily BodyFont = new("Segoe UI");
     private const double FontSize = 12.0;
 
     private static Brush Frozen(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
 
+    private static void SetTheme(MarkdownPalette p)
+    {
+        BgBrush         = p.CodeBg;
+        NodeBg          = p.TableHeaderBg;
+        NodeBorder      = p.Accent;
+        NodeText        = p.Text;
+        DiamondBg       = p.QuoteBg;
+        DiamondBorder   = p.Citation;
+        EdgeBrush       = p.Accent;
+        EdgeDashedBrush = p.TextMuted;
+        EdgeThickBrush  = p.Series.Count > 3 ? p.Series[3] : p.Accent;   // an amber for "thick" edges
+        LabelBg         = p.CodeBg;
+        LabelText       = p.TextMuted;
+        TitleBrush      = p.Heading;
+        AccentColor     = (p.Accent as SolidColorBrush)?.Color ?? Color.FromRgb(0x4F, 0x8E, 0xF7);
+    }
+
     // ── Public API ─────────────────────────────────────────────────────────
 
-    public static FrameworkElement Render(LayoutedGraph lg)
+    public static FrameworkElement Render(LayoutedGraph lg, MarkdownPalette palette)
     {
+        SetTheme(palette);
+
         var canvas = new Canvas
         {
             Width      = lg.Width,
@@ -405,8 +427,8 @@ public static class WpfGraphRenderer
 
     private static void DrawSubgraphBox(Canvas canvas, string label, Rect bounds)
     {
-        var fillBrush   = new SolidColorBrush(Color.FromArgb(0x22, 0x4F, 0x8E, 0xF7));
-        var strokeBrush = new SolidColorBrush(Color.FromArgb(0x55, 0x4F, 0x8E, 0xF7));
+        var fillBrush   = new SolidColorBrush(Color.FromArgb(0x22, AccentColor.R, AccentColor.G, AccentColor.B));
+        var strokeBrush = new SolidColorBrush(Color.FromArgb(0x55, AccentColor.R, AccentColor.G, AccentColor.B));
         fillBrush.Freeze();
         strokeBrush.Freeze();
 

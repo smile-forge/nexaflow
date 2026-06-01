@@ -1,0 +1,17 @@
+<UserControl x:Class="Nexaflow.Core.Themes.SunnyScene"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             IsHitTestVisible="False">
+    <Grid x:Name="Root" ClipToBounds="True">
+        <Grid.Background>
+            <!-- A bright, cheerful sky warming toward the horizon. -->
+            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                <GradientStop Color="#8CD2FF" Offset="0"/>
+                <GradientStop Color="#B4E4FF" Offset="0.4"/>
+                <GradientStop Color="#E0F4FF" Offset="0.72"/>
+                <GradientStop Color="#FFEFC6" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
+        <Canvas x:Name="Layer"/>
+    </Grid>
+</UserControl>

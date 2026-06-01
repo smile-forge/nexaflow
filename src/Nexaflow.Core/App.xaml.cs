@@ -167,6 +167,10 @@ public partial class App : Application
         // ── 6. Feature system ────────────────────────────────────────────────
         FeatureManager.Instance.RegisterFeatures();
 
+        // Re-apply the theme now that features are loaded, folding in any feature theme
+        // contributions (IThemeContribution) below the active theme. No-op when none contribute.
+        ThemeManager.Apply(shellConfig.Theme, FeatureManager.Instance.ThemeContributionUris);
+
         // ── 6a. Voice input — capability probe (model download starts later, off the show path) ──
         var voiceConfig = new VoiceConfig();
         ConfigManager.Instance.Register(voiceConfig, voiceConfig.ConfigName);

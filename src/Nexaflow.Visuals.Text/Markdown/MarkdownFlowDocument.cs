@@ -33,7 +33,7 @@ public static class MarkdownFlowDocument
 {
     public static FlowDocument Build(string? markdown, MarkdownRenderContext? context = null)
     {
-        var ctx = context ?? MarkdownRenderContext.Dark;
+        var ctx = context ?? (MarkdownRenderContext)MarkdownPalette.FromTheme();
         var p   = ctx.Palette;
         var doc = new FlowDocument
         {

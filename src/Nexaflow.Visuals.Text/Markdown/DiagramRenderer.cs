@@ -29,15 +29,16 @@ public static class DiagramRenderer
     public static bool IsDiagramLanguage(string? info) =>
         info is not null && Handlers.Any(h => h.CanHandle(info));
 
-    public static FrameworkElement Render(string language, string source)
+    public static FrameworkElement Render(string language, string source, MarkdownPalette? palette = null)
     {
+        var pal = palette ?? MarkdownPalette.FromTheme();
         try
         {
             var handler = Handlers.FirstOrDefault(h => h.CanHandle(language));
             if (handler is null)
                 return ErrorElement($"No handler for diagram language '{language}'.", source);
 
-            return handler.Render(source);
+            return handler.Render(source, pal);
         }
         catch (Exception ex)
         {

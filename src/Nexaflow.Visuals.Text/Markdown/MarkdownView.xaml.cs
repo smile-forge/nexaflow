@@ -32,16 +32,17 @@ public partial class MarkdownView : UserControl
         set => SetValue(MarkdownProperty, value);
     }
 
-    /// <summary>Colour scheme for rendering. Defaults to <see cref="MarkdownPalette.Dark"/>;
-    /// set <see cref="MarkdownPalette.Light"/> for light surfaces (e.g. scratchpad post-its).</summary>
+    /// <summary>Colour scheme for rendering. When unset, follows the active theme via
+    /// <see cref="MarkdownPalette.FromTheme"/>; set <see cref="MarkdownPalette.Light"/> for fixed
+    /// light surfaces (e.g. scratchpad post-its).</summary>
     public static readonly DependencyProperty PaletteProperty =
         DependencyProperty.Register(
             nameof(Palette), typeof(MarkdownPalette), typeof(MarkdownView),
-            new PropertyMetadata(MarkdownPalette.Dark, OnMarkdownChanged));
+            new PropertyMetadata(null, OnMarkdownChanged));
 
-    public MarkdownPalette Palette
+    public MarkdownPalette? Palette
     {
-        get => (MarkdownPalette)GetValue(PaletteProperty);
+        get => (MarkdownPalette?)GetValue(PaletteProperty);
         set => SetValue(PaletteProperty, value);
     }
 
@@ -66,7 +67,7 @@ public partial class MarkdownView : UserControl
                 ? string.Join("\n", rawLines[start..(end + 1)])
                 : string.Empty;
 
-            BlocksPanel.Children.Add(BlockRenderer.Render(block, blockRaw, Palette));
+            BlocksPanel.Children.Add(BlockRenderer.Render(block, blockRaw, Palette ?? MarkdownPalette.FromTheme()));
         }
     }
 

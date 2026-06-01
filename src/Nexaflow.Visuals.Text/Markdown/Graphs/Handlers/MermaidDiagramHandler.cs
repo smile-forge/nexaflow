@@ -26,12 +26,12 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
     public bool CanHandle(string language) =>
         language.Equals("mermaid", StringComparison.OrdinalIgnoreCase);
 
-    public FrameworkElement Render(string source)
+    public FrameworkElement Render(string source, MarkdownPalette palette)
     {
         return SubtypeOf(source) switch
         {
-            MermaidSubtype.Pie     => RenderPie(source),
-            MermaidSubtype.Graph   => RenderGraph(source),
+            MermaidSubtype.Pie     => RenderPie(source, palette),
+            MermaidSubtype.Graph   => RenderGraph(source, palette),
             _                      => RenderSourceText(source),
         };
     }
@@ -78,10 +78,10 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 
     // ── Sub-renderers ──────────────────────────────────────────────────────
 
-    private static FrameworkElement RenderPie(string source)
+    private static FrameworkElement RenderPie(string source, MarkdownPalette palette)
     {
         var chart = PieParser.Parse(source);
-        return WpfPieChartRenderer.Render(chart);
+        return WpfPieChartRenderer.Render(chart, palette);
     }
 
     private static FrameworkElement RenderSourceText(string source) =>
@@ -103,10 +103,10 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             },
         };
 
-    private static FrameworkElement RenderGraph(string source)
+    private static FrameworkElement RenderGraph(string source, MarkdownPalette palette)
     {
         var graph  = FlowParser.Parse(source);
         var layout = SugiyamaLayout.Compute(graph, preferredMaxWidth: 900);
-        return WpfGraphRenderer.Render(layout);
+        return WpfGraphRenderer.Render(layout, palette);
     }
 }

@@ -1,0 +1,20 @@
+<UserControl x:Class="Nexaflow.Core.Themes.OceanReefScene"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             IsHitTestVisible="False">
+    <Grid x:Name="Root" ClipToBounds="True">
+        <Grid.Background>
+            <!-- Sunlit reef: deep teal at the surface fading to warm sand at the floor (from the HTML). -->
+            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                <GradientStop Color="#0A5A70" Offset="0"/>
+                <GradientStop Color="#0E7F95" Offset="0.12"/>
+                <GradientStop Color="#1AA3B4" Offset="0.30"/>
+                <GradientStop Color="#3CC2C8" Offset="0.50"/>
+                <GradientStop Color="#74D6CB" Offset="0.70"/>
+                <GradientStop Color="#AEDFC6" Offset="0.86"/>
+                <GradientStop Color="#D8D6B2" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
+        <Canvas x:Name="Layer"/>
+    </Grid>
+</UserControl>

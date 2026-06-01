@@ -1,22 +1,26 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- ── Palette ── -->
-    <Color x:Key="BgColor">#FDFBF7</Color>
-    <Color x:Key="SurfaceColor">#FFFFFF</Color>
-    <Color x:Key="Surface2Color">#F5EFE4</Color>
-    <Color x:Key="BorderColor">#E6DBC4</Color>
-    <Color x:Key="BorderLightColor">#F0EAD8</Color>
-    <Color x:Key="AccentColor">#D97706</Color>
-    <!-- Warm Amber -->
-    <Color x:Key="Accent2Color">#DC2626</Color>
-    <!-- Crimson Sun -->
-    <Color x:Key="TextColor">#451A03</Color>
-    <Color x:Key="TextMutedColor">#78350F</Color>
-    <Color x:Key="TextDimColor">#A16207</Color>
-    <Color x:Key="GreenColor">#15803D</Color>
-    <Color x:Key="OrangeColor">#EA580C</Color>
-    <Color x:Key="DeepBgColor">#F3EAD3</Color>
+    <!-- ── Palette: bright & playful ──
+         A LIGHT immersive theme: a cheerful sunny sky with drifting balloons & confetti (Scene.Window)
+         shows softly through translucent white panels. Clean white surfaces, friendly navy text, and
+         strong primary/secondary accents (coral + sunny yellow) carry the fun — "rich kindergarten":
+         bright and playful but tasteful. -->
+    <Color x:Key="BgColor">#66FFF7E8</Color>       <!-- page root: warm-white glass over the sky -->
+    <Color x:Key="SurfaceColor">#FFFFFF</Color>     <!-- clean white panels / hover -->
+    <Color x:Key="Surface2Color">#FBEEDA</Color>    <!-- warm inset / selection -->
+    <Color x:Key="BorderColor">#E7D9C0</Color>
+    <Color x:Key="BorderLightColor">#F1E8D6</Color>
+    <Color x:Key="AccentColor">#FF5D5D</Color>
+    <!-- Playful coral -->
+    <Color x:Key="Accent2Color">#FFC83D</Color>
+    <!-- Sunny yellow -->
+    <Color x:Key="TextColor">#2D3444</Color>
+    <Color x:Key="TextMutedColor">#6B7488</Color>
+    <Color x:Key="TextDimColor">#9AA2B2</Color>
+    <Color x:Key="GreenColor">#2BC56E</Color>
+    <Color x:Key="OrangeColor">#FF8A3D</Color>
+    <Color x:Key="DeepBgColor">#F4ECDA</Color>
 
     <!-- ── Brushes ── -->
     <SolidColorBrush x:Key="BgBrush"         Color="{StaticResource BgColor}"/>
@@ -33,9 +37,11 @@
     <SolidColorBrush x:Key="OrangeBrush"     Color="{StaticResource OrangeColor}"/>
     <SolidColorBrush x:Key="DeepBgBrush"     Color="{StaticResource DeepBgColor}"/>
 
+    <!-- Rainbow logo — fun is here. -->
     <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#FBBF24" Offset="0"/>
-        <GradientStop Color="#F87171" Offset="1"/>
+        <GradientStop Color="#FF5D5D" Offset="0"/>
+        <GradientStop Color="#FFC83D" Offset="0.5"/>
+        <GradientStop Color="#38B6FF" Offset="1"/>
     </LinearGradientBrush>
 
     <LinearGradientBrush x:Key="BarGradientBrush" StartPoint="0,0" EndPoint="0,1">
