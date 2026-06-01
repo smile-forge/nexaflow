@@ -3,7 +3,6 @@
   { "Kind": "Separator"                                                                   },
   { "Kind": "Button",    "Label": "This PC",   "Icon": "🖥",  "PageKind": "FileSystem",  "PageParams": { "mode": "thispc" }                           },
   { "Kind": "Button",    "Label": "AI Chat",   "Icon": "💬",  "PageKind": "AIChat"      },
-  { "Kind": "Button",    "Label": "Console",   "Icon": "⌨",  "PageKind": "Console"     },
   { "Kind": "Button",    "Label": "Scratchpad","Icon": "📌",  "PageKind": "Scratchpad"  },
   { "Kind": "Separator"                                                                   },
   { "Kind": "Button",    "Label": "Documents", "Icon": "📄",  "PageKind": "FileSystem",  "PageParams": { "mode": "path", "path": "{Documents}" }      },
