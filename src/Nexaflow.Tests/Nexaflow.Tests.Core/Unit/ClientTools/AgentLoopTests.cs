@@ -26,7 +26,7 @@ public class AgentLoopTests
         public string Name => "fake";
 
         public Task<LlmResponse?> CompleteAsync(
-            IReadOnlyList<LlmMessage> messages, string model,
+            IReadOnlyList<LlmMessage> messages,
             IReadOnlyList<LlmAttachment>? attachments = null, CancellationToken ct = default)
         {
             ct.ThrowIfCancellationRequested();
@@ -86,7 +86,7 @@ public class AgentLoopTests
     private static AIService BuildService(ILlmProvider provider)
     {
         var svc = new AIService(new Workspace(), Path.GetTempPath());
-        svc.Register("fake", provider);
+        svc.Register("c1", provider);   // execution instances are keyed by column id
         svc.LoadAbilityConfig(new AiConfig
         {
             Columns     = [new ProviderModelPair { Id = "c1", ProviderName = "fake", Model = "m" }],

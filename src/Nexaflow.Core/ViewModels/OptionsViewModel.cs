@@ -85,8 +85,19 @@ public partial class PropertyEditViewModel : ObservableObject
     private static object? ConvertToTargetType(object? value, Type targetType)
     {
         if (value is null) return null;
-        if (targetType.IsEnum && value is string s)
-            return Enum.Parse(targetType, s);
+        var target = Nullable.GetUnderlyingType(targetType) ?? targetType;
+        if (target.IsEnum && value is string s)
+            return Enum.Parse(target, s);
+
+        // TextBox editors hand back strings; coerce to the property's numeric type.
+        if (value is string str && target != typeof(string) && target.IsValueType)
+        {
+            if (string.IsNullOrWhiteSpace(str)) return Activator.CreateInstance(target);
+            if (target == typeof(int))     return int.Parse(str);
+            if (target == typeof(long))    return long.Parse(str);
+            if (target == typeof(double))  return double.Parse(str);
+            if (target == typeof(decimal)) return decimal.Parse(str);
+        }
         return value;
     }
 

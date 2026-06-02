@@ -13,18 +13,19 @@ public sealed class OpenAILlmProvider : ILlmProvider
 
     private readonly OpenAIConfig               _config;
     private readonly IBackgroundActivityManager _activityManager;
+    private readonly string                     _model;
 
-    public OpenAILlmProvider(IBackgroundActivityManager activityManager, OpenAIConfig config)
+    public OpenAILlmProvider(IBackgroundActivityManager activityManager, OpenAIConfig config, ProviderModel model)
     {
         _activityManager = activityManager;
         _config          = config;
+        _model           = model.Model;
     }
 
     // ── ILlmProvider ───────────────────────────────────────────────────────
 
     public Task<LlmResponse?> CompleteAsync(
         IReadOnlyList<LlmMessage>     messages,
-        string                        model,
         IReadOnlyList<LlmAttachment>? attachments = null,
         CancellationToken             ct = default)
     {
@@ -41,7 +42,7 @@ public sealed class OpenAILlmProvider : ILlmProvider
             });
         }
 
-        return SendAsync(model, chatMessages, ct);
+        return SendAsync(chatMessages, ct);
     }
 
     public async Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
@@ -70,11 +71,10 @@ public sealed class OpenAILlmProvider : ILlmProvider
     // ── Internal ───────────────────────────────────────────────────────────
 
     private async Task<LlmResponse?> SendAsync(
-        string                     model,
         IReadOnlyList<ChatMessage> messages,
         CancellationToken          ct)
     {
-        var activity = _activityManager.StartActivity($"OpenAI ({model})…");
+        var activity = _activityManager.StartActivity($"OpenAI ({_model})…");
         try
         {
             var clientOptions = new OpenAIClientOptions();
@@ -82,7 +82,7 @@ public sealed class OpenAILlmProvider : ILlmProvider
                 clientOptions.Endpoint = new Uri(_config.BaseUrl);
 
             var client     = new OpenAIClient(new ApiKeyCredential(_config.ApiKey), clientOptions);
-            var chatClient = client.GetChatClient(model);
+            var chatClient = client.GetChatClient(_model);
 
             var sb = new StringBuilder();
             await foreach (var update in chatClient.CompleteChatStreamingAsync(messages, cancellationToken: ct))

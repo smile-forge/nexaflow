@@ -12,30 +12,30 @@ namespace Nexaflow.Core.Services;
 public sealed class AIService : IAIService
 {
     // ── Provider registry ─────────────────────────────────────────────────
+    // Keyed by ability-grid column id: each entry is a model-bound execution instance for that column.
 
-    private readonly Dictionary<string, ILlmProvider> _providers
-        = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ILlmProvider> _providers = [];
 
     private AiConfig? _abilityConfig;
 
-    /// <summary>Registers a named provider. Called by WorkspaceManager during startup.</summary>
-    public void Register(string name, ILlmProvider provider)
+    /// <summary>Registers the execution provider for an ability-grid column. Called by WorkspaceManager.</summary>
+    public void Register(string columnId, ILlmProvider provider)
     {
         ArgumentNullException.ThrowIfNull(provider);
-        _providers[name] = provider;
+        _providers[columnId] = provider;
     }
 
-    /// <summary>All registered providers, keyed by name.</summary>
-    public IReadOnlyDictionary<string, ILlmProvider> AllProviders => _providers;
+    /// <summary>Clears all registered execution providers (before a hot re-registration).</summary>
+    public void ClearProviders() => _providers.Clear();
 
-    /// <summary>Loads the ability-to-provider mapping. Called once per context when providers are ready.</summary>
+    /// <summary>Loads the ability-to-column mapping. Called once per context when providers are ready.</summary>
     public void LoadAbilityConfig(AiConfig config) => _abilityConfig = config;
 
     /// <summary>
-    /// Returns the provider and model assigned to <paramref name="ability"/>, or null if none
-    /// is configured or the configured provider is not registered.
+    /// Returns the model-bound execution provider assigned to <paramref name="ability"/>, or null if
+    /// none is configured or its column has no registered provider.
     /// </summary>
-    private (ILlmProvider Provider, string Model)? GetProvider(AiAbility ability)
+    private ILlmProvider? GetProvider(AiAbility ability)
     {
         if (_abilityConfig is null) return null;
 
@@ -44,12 +44,7 @@ public sealed class AIService : IAIService
             || string.IsNullOrEmpty(columnId))
             return null;
 
-        var pair = _abilityConfig.Columns.FirstOrDefault(c => c.Id == columnId);
-        if (pair is null) return null;
-
-        return _providers.TryGetValue(pair.ProviderName, out var p)
-            ? (p, pair.Model)
-            : null;
+        return _providers.TryGetValue(columnId, out var p) ? p : null;
     }
 
     /// <summary>
@@ -58,11 +53,11 @@ public sealed class AIService : IAIService
     /// </summary>
     public async Task<int?> GetConversationContextWindowAsync(CancellationToken ct = default)
     {
-        var resolved = GetProvider(AiAbility.Conversation);
-        if (resolved is null) return null;
+        var provider = GetProvider(AiAbility.Conversation);
+        if (provider is null) return null;
         try
         {
-            var info = await resolved.Value.Provider.GetModelInfoAsync(resolved.Value.Model, ct);
+            var info = await provider.GetModelInfoAsync(ct);
             return info?.ContextWindowTokens;
         }
         catch { return null; }
@@ -199,9 +194,8 @@ public sealed class AIService : IAIService
         IPageViewModel? page, string input,
         IReadOnlyList<(IQueryHandler Handler, float Score)> candidates)
     {
-        var resolved = GetProvider(AiAbility.Disambiguation);
-        if (resolved is null) return null;
-        var (provider, model) = resolved.Value;
+        var provider = GetProvider(AiAbility.Disambiguation);
+        if (provider is null) return null;
 
         var context  = page?.GetContext() ?? "No specific context.";
         var toolList = string.Join("\n", candidates.Select((c, i) =>
@@ -215,8 +209,7 @@ public sealed class AIService : IAIService
             "Which tool number should handle this request?";
 
         var response = await provider.CompleteAsync(
-            [new(LlmRole.System, systemPrompt), new(LlmRole.User, userPrompt)],
-            model);
+            [new(LlmRole.System, systemPrompt), new(LlmRole.User, userPrompt)]);
         var raw      = response?.RawText?.Trim() ?? string.Empty;
 
         var digit = raw.FirstOrDefault(char.IsDigit);
@@ -234,9 +227,8 @@ public sealed class AIService : IAIService
     {
         if (options is null || options.Count == 0) return null;
 
-        var resolved = GetProvider(AiAbility.Disambiguation);
-        if (resolved is null) return null;
-        var (provider, model) = resolved.Value;
+        var provider = GetProvider(AiAbility.Disambiguation);
+        if (provider is null) return null;
 
         var optionList = string.Join("\n", options.Select((o, i) =>
             $"{i + 1}. {o.Label} — {o.Detail}"));
@@ -250,8 +242,7 @@ public sealed class AIService : IAIService
             "Reply with only the number of your chosen option.";
 
         var response = await provider.CompleteAsync(
-            [new(LlmRole.System, systemPrompt), new(LlmRole.User, userPrompt)],
-            model);
+            [new(LlmRole.System, systemPrompt), new(LlmRole.User, userPrompt)]);
         var raw = response?.RawText?.Trim() ?? string.Empty;
 
         // Allow multi-digit answers (e.g. "12") so we don't cap at 9 options.
@@ -268,13 +259,12 @@ public sealed class AIService : IAIService
 
     public async Task<string?> RunAnalysisAsync(string systemPrompt, string userPrompt, CancellationToken ct = default)
     {
-        var resolved = GetProvider(AiAbility.Analysis);
-        if (resolved is null) return null;
-        var (provider, model) = resolved.Value;
+        var provider = GetProvider(AiAbility.Analysis);
+        if (provider is null) return null;
 
         var response = await provider.CompleteAsync(
             [new(LlmRole.System, systemPrompt), new(LlmRole.User, userPrompt)],
-            model, null, ct);
+            null, ct);
         return response?.RawText;
     }
 
@@ -290,9 +280,8 @@ public sealed class AIService : IAIService
         IPageViewModel? page, string input, bool includeContext,
         IToolApprovalCoordinator approval, CancellationToken ct = default)
     {
-        var resolved = GetProvider(AiAbility.Conversation);
-        if (resolved is null) return null;
-        var (provider, model) = resolved.Value;
+        var provider = GetProvider(AiAbility.Conversation);
+        if (provider is null) return null;
 
         var context   = includeContext ? page?.GetContext() ?? "No specific context." : "No specific context.";
         var pageTools = includeContext ? page?.GetClientTools() ?? [] : [];
@@ -332,7 +321,7 @@ public sealed class AIService : IAIService
             {
                 ct.ThrowIfCancellationRequested();
 
-                var resp = await provider.CompleteAsync(messages, model, null, ct);
+                var resp = await provider.CompleteAsync(messages, null, ct);
                 var raw  = resp?.RawText?.Trim() ?? string.Empty;
                 var turn = ClientBlockParser.Parse(raw);
 
@@ -476,9 +465,8 @@ public sealed class AIService : IAIService
     private async Task<IReadOnlyList<IClientTool>> RankToolsAsync(
         string input, IReadOnlyList<IClientTool> tools, string context, CancellationToken ct)
     {
-        var resolved = GetProvider(AiAbility.Disambiguation);
-        if (resolved is null) return [.. tools.Take(MaxUnfilteredTools)];
-        var (provider, model) = resolved.Value;
+        var provider = GetProvider(AiAbility.Disambiguation);
+        if (provider is null) return [.. tools.Take(MaxUnfilteredTools)];
 
         var list   = string.Join('\n', tools.Select((t, i) => $"{i + 1}. {t.Name} — {t.Description}"));
         var system = "You select the tools most relevant to a user request. Reply with the numbers of up to " +
@@ -489,7 +477,7 @@ public sealed class AIService : IAIService
         try
         {
             var resp = await provider.CompleteAsync(
-                [new(LlmRole.System, system), new(LlmRole.User, user)], model, null, ct);
+                [new(LlmRole.System, system), new(LlmRole.User, user)], null, ct);
             raw = resp?.RawText ?? string.Empty;
         }
         catch (OperationCanceledException) { throw; }
