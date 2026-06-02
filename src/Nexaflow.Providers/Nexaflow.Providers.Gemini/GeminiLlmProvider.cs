@@ -12,18 +12,19 @@ public sealed class GeminiLlmProvider : ILlmProvider
 
     private readonly GeminiConfig                _config;
     private readonly IBackgroundActivityManager  _activityManager;
+    private readonly string                      _model;
 
-    public GeminiLlmProvider(IBackgroundActivityManager activityManager, GeminiConfig config)
+    public GeminiLlmProvider(IBackgroundActivityManager activityManager, GeminiConfig config, ProviderModel model)
     {
         _activityManager = activityManager;
         _config          = config;
+        _model           = model.Model;
     }
 
     // ── ILlmProvider ───────────────────────────────────────────────────────
 
     public Task<LlmResponse?> CompleteAsync(
         IReadOnlyList<LlmMessage>     messages,
-        string                        model,
         IReadOnlyList<LlmAttachment>? attachments = null,
         CancellationToken             ct = default)
     {
@@ -53,7 +54,7 @@ public sealed class GeminiLlmProvider : ILlmProvider
             });
         }
 
-        return SendAsync(model, contents, systemInstruction, ct);
+        return SendAsync(contents, systemInstruction, ct);
     }
 
     public async Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
@@ -88,12 +89,11 @@ public sealed class GeminiLlmProvider : ILlmProvider
     // ── Internal ───────────────────────────────────────────────────────────
 
     private async Task<LlmResponse?> SendAsync(
-        string            model,
         List<Content>     contents,
         Content?          systemInstruction,
         CancellationToken ct)
     {
-        var activity = _activityManager.StartActivity($"Gemini ({model})…");
+        var activity = _activityManager.StartActivity($"Gemini ({_model})…");
         try
         {
             var client = new Client(apiKey: _config.ApiKey);
@@ -103,7 +103,7 @@ public sealed class GeminiLlmProvider : ILlmProvider
 
             var sb = new StringBuilder();
             await foreach (var chunk in client.Models.GenerateContentStreamAsync(
-                               model: model, contents: contents, config: config))
+                               model: _model, contents: contents, config: config))
             {
                 var text = chunk.Text;
                 if (text is not null)

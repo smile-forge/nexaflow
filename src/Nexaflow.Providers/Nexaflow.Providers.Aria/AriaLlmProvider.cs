@@ -26,7 +26,6 @@ public sealed class AriaLlmProvider : ILlmProvider, IAsyncDisposable
 
     public Task<LlmResponse?> CompleteAsync(
         IReadOnlyList<LlmMessage>     messages,
-        string                        model,
         IReadOnlyList<LlmAttachment>? attachments = null,
         CancellationToken             ct = default)
     {

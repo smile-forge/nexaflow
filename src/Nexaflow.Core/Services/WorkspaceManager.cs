@@ -1,3 +1,4 @@
+using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -98,20 +99,15 @@ public sealed class WorkspaceManager
         // 2. Drop cached feature/handler instances that captured the old AIService/IShellServices.
         FeatureManager.Instance.EvictWorkspace(ws);
 
-        // 3. Re-acquire providers (pool reuses unchanged ones, unloads now-unused). Acquire before
-        //    release so providers whose config is unchanged never drop to zero refs.
-        var fresh = ProviderManager.Instance.AcquireProviderSet(profile.ProviderConfigs);
-        var old   = ws.Providers;
-        ws.Providers           = fresh;
-        profile.AiConfig.Providers = fresh;
-        ProviderManager.Instance.ReleaseProviderSet(old);
-
-        // 4. Rebuild the AIService for the (possibly new) profile.
+        // 3. Rebuild the AIService for the (possibly new) profile.
         var service = new AIService(ws, profile.ConversationsDir);
-        foreach (var (name, provider) in fresh.Providers)
-            service.Register(name, provider);
         service.LoadAbilityConfig(profile.AiConfig);
         ws.AiService = service;
+
+        // 4. Re-acquire providers (pool reuses unchanged ones; warms newly-assigned models, cools
+        //    now-unused ones — acquire before release so unchanged instances never drop to zero refs)
+        //    and register the execution instances into the new AIService.
+        AcquireAndRegister(ws);
 
         // 5. Reopen the default tab so the windows aren't left empty.
         ws.ShellServices?.OpenTab("FileSystem", new() { ["mode"] = "thispc" });
@@ -126,7 +122,7 @@ public sealed class WorkspaceManager
         if (ws.ShellServices is { HasWindows: true }) return;
 
         FeatureManager.Instance.EvictWorkspace(ws);
-        ProviderManager.Instance.ReleaseProviderSet(ws.Providers);
+        ProviderManager.Instance.ReleaseProviderSet(ws.Providers);   // cools any now-unused models
         ws.Providers = null;
         ws.AiService = null;
         _workspaces.Remove(ws);
@@ -134,23 +130,21 @@ public sealed class WorkspaceManager
 
     /// <summary>
     /// Rebuilds <paramref name="ws"/>'s provider set from disk (reloading the profile's provider
-    /// configs so newly discovered providers appear) and re-registers them into its AIService.
-    /// Called when the AI options panel opens.
+    /// configs so newly discovered providers appear) and re-registers the execution instances into its
+    /// AIService. Called when the AI options panel opens.
     /// </summary>
     public void RefreshProviders(Workspace ws)
     {
         ws.Profile.ReloadProviderConfigs();
-
-        var fresh = ProviderManager.Instance.AcquireProviderSet(ws.Profile.ProviderConfigs);
-        var old   = ws.Providers;
-        ws.Providers               = fresh;
-        ws.Profile.AiConfig.Providers = fresh;
-        ProviderManager.Instance.ReleaseProviderSet(old);
-
-        if (ws.AiService is { } svc)
-            foreach (var (name, provider) in fresh.Providers)
-                svc.Register(name, provider);
+        AcquireAndRegister(ws);
     }
+
+    /// <summary>
+    /// Re-acquires <paramref name="ws"/>'s provider set for its current ability-grid columns (without
+    /// touching tabs) and re-registers the execution instances. Called after the ability grid is edited
+    /// so newly-assigned models get an execution instance (and are warmed) and dropped ones are cooled.
+    /// </summary>
+    public void SyncProviders(Workspace ws) => AcquireAndRegister(ws);
 
     /// <summary>Adds a new profile with a random icon/colour to <see cref="Profiles"/>.</summary>
     public Profile AddProfile(string name)
@@ -221,18 +215,46 @@ public sealed class WorkspaceManager
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Acquires a fresh provider set for <paramref name="ws"/>'s current configs and assigned grid
+    /// columns, swaps it in (acquire-before-release, so the pool warms newly-needed models and cools
+    /// dropped ones), and re-registers the execution instances into the AIService keyed by column id.
+    /// </summary>
+    private static void AcquireAndRegister(Workspace ws)
+    {
+        var profile = ws.Profile;
+
+        var fresh = ProviderManager.Instance.AcquireProviderSet(
+            profile.ProviderConfigs, AssignedColumns(profile.AiConfig));
+        var old   = ws.Providers;
+        ws.Providers               = fresh;
+        profile.AiConfig.Providers = fresh;
+        ProviderManager.Instance.ReleaseProviderSet(old);
+
+        if (ws.AiService is { } svc)
+        {
+            svc.ClearProviders();
+            foreach (var (columnId, provider) in fresh.Execution)
+                svc.Register(columnId, provider);
+        }
+    }
+
+    /// <summary>The grid columns actually assigned to an ability — the models in use (need an instance).</summary>
+    private static IReadOnlyList<ProviderModelPair> AssignedColumns(AiConfig cfg)
+    {
+        var assigned = cfg.Assignments.Values.Where(v => !string.IsNullOrEmpty(v)).ToHashSet();
+        return [.. cfg.Columns.Where(c => assigned.Contains(c.Id))];
+    }
+
     private static void BootstrapServices(Workspace ws)
     {
         var profile = ws.Profile;
 
-        ws.Providers               = ProviderManager.Instance.AcquireProviderSet(profile.ProviderConfigs);
-        profile.AiConfig.Providers = ws.Providers;
-
         var service = new AIService(ws, profile.ConversationsDir);
-        foreach (var (name, provider) in ws.Providers.Providers)
-            service.Register(name, provider);
         service.LoadAbilityConfig(profile.AiConfig);
         ws.AiService = service;
+
+        AcquireAndRegister(ws);
 
         ws.ShellServices ??= new ShellServices(ws, ProviderManager.Instance.ActivityManager);
     }

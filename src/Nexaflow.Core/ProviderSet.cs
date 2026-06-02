@@ -5,16 +5,20 @@ namespace Nexaflow.Core;
 /// <summary>
 /// A bundle of live provider instances handed to one <see cref="Models.Workspace"/>, together with
 /// the profile-owned configs they were built from. The instances are NOT owned outright — they come
-/// from <see cref="ProviderManager"/>'s global ref-counted pool (so an identical provider config is
-/// instantiated only once process-wide). <see cref="PoolKeys"/> records the pool entries this set
-/// acquired so <see cref="ProviderManager.ReleaseProviderSet"/> can decrement them.
+/// from <see cref="ProviderManager"/>'s global ref-counted pool. <see cref="PoolKeys"/> records the
+/// pool entries this set acquired so <see cref="ProviderManager.ReleaseProviderSet"/> can decrement them.
 /// </summary>
 public sealed class ProviderSet
 {
     private readonly Dictionary<string, string> _assemblyMap;
 
-    /// <summary>Provider instances keyed by provider name.</summary>
+    /// <summary>Model-agnostic capability instances keyed by provider name — for the options UI's
+    /// model enumeration (<see cref="ILlmProvider.GetAvailableModelsAsync"/>).</summary>
     public IReadOnlyDictionary<string, ILlmProvider> Providers { get; }
+
+    /// <summary>Model-bound execution instances keyed by ability-grid column id — used by the AIService
+    /// to run an ability. Each is bound to a specific (config, model).</summary>
+    public IReadOnlyDictionary<string, ILlmProvider> Execution { get; }
 
     /// <summary>The profile's provider configs (one per discovered type), for editing/saving.</summary>
     public IReadOnlyList<IProviderConfig> Configs { get; }
@@ -24,11 +28,13 @@ public sealed class ProviderSet
 
     public ProviderSet(
         IReadOnlyDictionary<string, ILlmProvider> providers,
+        IReadOnlyDictionary<string, ILlmProvider> execution,
         IReadOnlyList<IProviderConfig>            configs,
         Dictionary<string, string>                assemblyMap,
         IReadOnlyList<string>                     poolKeys)
     {
         Providers    = providers;
+        Execution    = execution;
         Configs      = configs;
         _assemblyMap = assemblyMap;
         PoolKeys     = poolKeys;

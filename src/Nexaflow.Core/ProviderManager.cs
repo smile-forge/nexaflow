@@ -1,3 +1,4 @@
+using Nexaflow.Core.AI;
 using Nexaflow.Providers.Common;
 using System.IO;
 using System.Reflection;
@@ -9,10 +10,20 @@ namespace Nexaflow.Core;
 /// Loads LLM provider plugin assemblies at runtime and records the provider/config TYPES they
 /// expose. Provider assemblies are never referenced at compile time; they are discovered and
 /// loaded by file name so that new providers can be dropped alongside the executable.
-/// Live provider instances are deduplicated process-wide: <see cref="AcquireProviderSet"/> hands
-/// out one shared <see cref="ILlmProvider"/> per unique (provider + config payload), ref-counted,
-/// and <see cref="ReleaseProviderSet"/> unloads it once no Workspace references it. Provider
-/// <em>configs</em> live on the owning <see cref="Models.Profile"/>.
+/// <para>
+/// Live provider instances are deduplicated process-wide and ref-counted by <see cref="AcquireProviderSet"/>
+/// / <see cref="ReleaseProviderSet"/>. There are two kinds:
+/// <list type="bullet">
+/// <item><b>Capability</b> — one per (provider type + config payload), model-agnostic, used only to
+/// enumerate models for the options UI.</item>
+/// <item><b>Execution</b> — one per (provider type + config payload + model), bound to that model via
+/// an injected <see cref="ProviderModel"/>. Each ability-grid assignment maps to one of these. An
+/// execution instance is <see cref="ILlmProvider.WarmupAsync">warmed</see> when first created (first
+/// owner) and <see cref="ILlmProvider.CooldownAsync">cooled</see> when its last ref drops — so model
+/// lifetime and instance lifetime are one and the same.</item>
+/// </list>
+/// </para>
+/// Provider <em>configs</em> live on the owning <see cref="Models.Profile"/>.
 /// </summary>
 public sealed class ProviderManager
 {
@@ -27,6 +38,8 @@ public sealed class ProviderManager
     {
         public required ILlmProvider Provider;
         public required string       AssemblyFile;
+        /// <summary>The bound model, or empty for a model-agnostic capability instance.</summary>
+        public required string       Model;
         public int                   RefCount;
     }
     private readonly Dictionary<string, PoolEntry> _pool = [];
@@ -99,61 +112,115 @@ public sealed class ProviderManager
     }
 
     /// <summary>
-    /// Acquires the live provider instances for a Workspace from the given profile-owned
-    /// <paramref name="profileConfigs"/>. Each provider is deduplicated process-wide by
-    /// (provider type + serialized payload of the configs feeding its constructor), so two
-    /// Workspaces with identical config share one instance. Increments the pool ref-count for each.
+    /// Acquires the live provider instances for a Workspace: a model-agnostic <b>capability</b> instance
+    /// per discovered provider type (for the options UI's model enumeration), plus one model-bound
+    /// <b>execution</b> instance per assigned <paramref name="columns"/> entry. All are deduplicated
+    /// process-wide and ref-counted; an execution instance created here for the first time is warmed up.
+    /// Acquire the fresh set BEFORE releasing the old one so unchanged instances never drop to zero refs.
     /// Call <see cref="ReleaseProviderSet"/> when the Workspace is reconfigured or disposed.
     /// </summary>
-    public ProviderSet AcquireProviderSet(IReadOnlyList<IProviderConfig> profileConfigs)
+    public ProviderSet AcquireProviderSet(
+        IReadOnlyList<IProviderConfig> profileConfigs,
+        IReadOnlyList<ProviderModelPair> columns)
     {
-        var providers   = new Dictionary<string, ILlmProvider>(StringComparer.OrdinalIgnoreCase);
+        var capability  = new Dictionary<string, ILlmProvider>(StringComparer.OrdinalIgnoreCase);
+        var execution   = new Dictionary<string, ILlmProvider>();
         var assemblyMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var poolKeys    = new List<string>();
+        var toWarm      = new List<ILlmProvider>();
+
+        // Provider Name → the type/ctor that produced its capability instance, so columns can be mapped
+        // to the right provider type to build an execution instance from.
+        var byName = new Dictionary<string, (ConstructorInfo Ctor, string ConfigKey, string AssemblyFile)>(
+            StringComparer.OrdinalIgnoreCase);
 
         lock (_poolLock)
         {
+            // 1. Capability instance per provider type (model unbound).
             foreach (var desc in _descriptors)
                 foreach (var (type, ctor) in desc.Providers)
                 {
-                    var parms = ctor.GetParameters();
-                    var args  = parms
-                        .Select(p => typeof(IBackgroundActivityManager).IsAssignableFrom(p.ParameterType)
-                            ? (object?)_activityManager
-                            : profileConfigs.FirstOrDefault(c => c.GetType() == p.ParameterType))
-                        .ToArray();
+                    var cfgKey = ConfigKey(ctor, profileConfigs);
+                    var key    = $"{type.FullName}|cap|{cfgKey}";
+                    var entry  = Acquire(key, ctor, profileConfigs, model: "", desc.FileName, toWarm);
 
-                    var feeding = parms
-                        .Select(p => profileConfigs.FirstOrDefault(c => c.GetType() == p.ParameterType))
-                        .Where(c => c is not null)
-                        .OrderBy(c => c!.GetType().FullName, StringComparer.Ordinal);
-                    var key = type.FullName + "|" +
-                              string.Join("|", feeding.Select(c => JsonSerializer.Serialize(c, c!.GetType(), _keyOpts)));
-
-                    if (!_pool.TryGetValue(key, out var entry))
-                    {
-                        var provider = (ILlmProvider)ctor.Invoke(args);
-                        entry = new PoolEntry { Provider = provider, AssemblyFile = desc.FileName };
-                        _pool[key] = entry;
-                    }
-                    entry.RefCount++;
-
-                    providers[entry.Provider.Name]   = entry.Provider;
-                    assemblyMap[entry.Provider.Name] = entry.AssemblyFile;
+                    capability[entry.Provider.Name]  = entry.Provider;
+                    assemblyMap[entry.Provider.Name] = desc.FileName;
+                    byName[entry.Provider.Name]      = (ctor, cfgKey, desc.FileName);
                     poolKeys.Add(key);
                 }
+
+            // 2. Execution instance per assigned (provider, model) column.
+            foreach (var col in columns)
+            {
+                if (string.IsNullOrEmpty(col.Model)) continue;
+                if (!byName.TryGetValue(col.ProviderName, out var t)) continue;   // provider not available
+
+                var key   = $"{t.Ctor.DeclaringType!.FullName}|exec|{col.Model}|{t.ConfigKey}";
+                var entry = Acquire(key, t.Ctor, profileConfigs, col.Model, t.AssemblyFile, toWarm);
+
+                execution[col.Id] = entry.Provider;
+                poolKeys.Add(key);
+            }
         }
 
-        return new ProviderSet(providers, profileConfigs, assemblyMap, poolKeys);
+        foreach (var p in toWarm) _ = WarmCoolSafe(p.WarmupAsync());
+
+        return new ProviderSet(capability, execution, profileConfigs, assemblyMap, poolKeys);
+    }
+
+    /// <summary>Gets or creates a pooled instance for <paramref name="key"/>, incrementing its ref-count.
+    /// A newly-created model-bound (execution) instance is queued for warm-up. Caller holds the lock.</summary>
+    private PoolEntry Acquire(
+        string key, ConstructorInfo ctor, IReadOnlyList<IProviderConfig> configs,
+        string model, string assemblyFile, List<ILlmProvider> toWarm)
+    {
+        if (!_pool.TryGetValue(key, out var entry))
+        {
+            entry = new PoolEntry
+            {
+                Provider     = Instantiate(ctor, configs, model),
+                AssemblyFile = assemblyFile,
+                Model        = model
+            };
+            _pool[key] = entry;
+            if (!string.IsNullOrEmpty(model)) toWarm.Add(entry.Provider);
+        }
+        entry.RefCount++;
+        return entry;
+    }
+
+    /// <summary>Builds a provider, injecting the activity manager, the bound <see cref="ProviderModel"/>,
+    /// and any config the constructor declares (matched by type).</summary>
+    private ILlmProvider Instantiate(ConstructorInfo ctor, IReadOnlyList<IProviderConfig> configs, string model)
+    {
+        var args = ctor.GetParameters().Select(p =>
+            typeof(IBackgroundActivityManager).IsAssignableFrom(p.ParameterType) ? (object?)_activityManager
+            : p.ParameterType == typeof(ProviderModel)                           ? new ProviderModel(model)
+            : configs.FirstOrDefault(c => c.GetType() == p.ParameterType))
+            .ToArray();
+        return (ILlmProvider)ctor.Invoke(args);
+    }
+
+    /// <summary>Stable key fragment for the configs feeding a provider's constructor (model-independent).</summary>
+    private static string ConfigKey(ConstructorInfo ctor, IReadOnlyList<IProviderConfig> configs)
+    {
+        var feeding = ctor.GetParameters()
+            .Select(p => configs.FirstOrDefault(c => c.GetType() == p.ParameterType))
+            .Where(c => c is not null)
+            .OrderBy(c => c!.GetType().FullName, StringComparer.Ordinal);
+        return string.Join("|", feeding.Select(c => JsonSerializer.Serialize(c, c!.GetType(), _keyOpts)));
     }
 
     /// <summary>
-    /// Releases the pool references held by <paramref name="set"/>. Any provider whose ref-count
-    /// reaches zero is removed from the pool and disposed (if <see cref="IDisposable"/>) — "unloaded".
+    /// Releases the pool references held by <paramref name="set"/>. Any instance whose ref-count reaches
+    /// zero is removed and disposed (if <see cref="IDisposable"/>) — "unloaded"; a model-bound execution
+    /// instance is cooled down first so its model is unloaded from the backend.
     /// </summary>
     public void ReleaseProviderSet(ProviderSet? set)
     {
         if (set is null) return;
+        var toCool = new List<ILlmProvider>();
         lock (_poolLock)
         {
             foreach (var key in set.PoolKeys)
@@ -161,9 +228,16 @@ public sealed class ProviderManager
                 if (!_pool.TryGetValue(key, out var entry)) continue;
                 if (--entry.RefCount > 0) continue;
                 _pool.Remove(key);
+                if (!string.IsNullOrEmpty(entry.Model)) toCool.Add(entry.Provider);
                 (entry.Provider as IDisposable)?.Dispose();
             }
         }
+        foreach (var p in toCool) _ = WarmCoolSafe(p.CooldownAsync());
+    }
+
+    private static async Task WarmCoolSafe(Task t)
+    {
+        try { await t; } catch { /* warm/cool are best-effort; providers must not throw */ }
     }
 
     private void LoadAssembly(string assemblyPath)

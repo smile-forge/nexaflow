@@ -13,18 +13,19 @@ public sealed class ClaudeLlmProvider : ILlmProvider
 
     private readonly ClaudeConfig               _config;
     private readonly IBackgroundActivityManager _activityManager;
+    private readonly string                     _model;
 
-    public ClaudeLlmProvider(IBackgroundActivityManager activityManager, ClaudeConfig config)
+    public ClaudeLlmProvider(IBackgroundActivityManager activityManager, ClaudeConfig config, ProviderModel model)
     {
         _activityManager = activityManager;
         _config          = config;
+        _model           = model.Model;
     }
 
     // ── ILlmProvider ───────────────────────────────────────────────────────
 
     public Task<LlmResponse?> CompleteAsync(
         IReadOnlyList<LlmMessage>     messages,
-        string                        model,
         IReadOnlyList<LlmAttachment>? attachments = null,
         CancellationToken             ct = default)
     {
@@ -51,18 +52,17 @@ public sealed class ClaudeLlmProvider : ILlmProvider
             });
         }
 
-        return SendAsync(systemPrompt, model, msgParams, ct);
+        return SendAsync(systemPrompt, msgParams, ct);
     }
 
     // ── Internal ───────────────────────────────────────────────────────────
 
     private async Task<LlmResponse?> SendAsync(
         string? systemPrompt,
-        string model,
         IReadOnlyList<MessageParam> messages,
         CancellationToken ct)
     {
-        var activity = _activityManager.StartActivity($"Claude ({model})…");
+        var activity = _activityManager.StartActivity($"Claude ({_model})…");
         try
         {
             var client = new AnthropicClient(new ClientOptions
@@ -73,7 +73,7 @@ public sealed class ClaudeLlmProvider : ILlmProvider
 
             var request = new MessageCreateParams
             {
-                Model     = model,
+                Model     = _model,
                 MaxTokens = 8096,
                 Messages  = messages
             };
@@ -116,13 +116,13 @@ public sealed class ClaudeLlmProvider : ILlmProvider
         return Task.FromResult(models);
     }
 
-    public Task<ModelInfo?> GetModelInfoAsync(string model, CancellationToken ct = default)
+    public Task<ModelInfo?> GetModelInfoAsync(CancellationToken ct = default)
     {
         // All currently-shipping Claude models in our model list use a 200k context window.
         // Future models with larger windows can override here.
-        ModelInfo? info = string.IsNullOrWhiteSpace(model)
+        ModelInfo? info = string.IsNullOrWhiteSpace(_model)
             ? null
-            : new ModelInfo(ContextWindowTokens: 200_000, DisplayName: model);
+            : new ModelInfo(ContextWindowTokens: 200_000, DisplayName: _model);
         return Task.FromResult(info);
     }
 

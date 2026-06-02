@@ -82,7 +82,10 @@ public partial class ManageAiViewModel : ObservableObject
         {
             // Ability grid: persist to the profile's folder and hot-reload the AIService. The shared
             // AiConfig is already mutated, so every Workspace on this profile sees the new assignments.
+            // SyncProviders rebuilds the execution instances for the new assignments (warming any
+            // newly-assigned model, cooling any dropped one) without disturbing open tabs.
             _workspace.AiService?.LoadAbilityConfig(_workspace.AiConfig);
+            WorkspaceManager.Instance.SyncProviders(_workspace);
             try
             {
                 WorkspaceManager.Instance.SaveProfileAiConfig(profile);

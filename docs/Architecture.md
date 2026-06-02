@@ -73,7 +73,7 @@ The model has two halves: a **`Profile`** is the saved, shared configuration sho
 | Singleton | Owns | NOT responsible for |
 |-----------|------|---------------------|
 | `ConfigManager` | Base data path; **global** config registry. `Register(cfg,name)` = global config; `LoadFrom`/`SaveTo(dir,…)` = per-profile config in that profile's folder | — |
-| `ProviderManager` | Loads provider **assemblies** by file name; records provider/config **types**; owns the shared `ActivityManager`; owns the **global ref-counted provider instance pool** (`AcquireProviderSet`/`ReleaseProviderSet`) so identical configs share one `ILlmProvider` | Holds provider **configs** — those live on the `Profile` |
+| `ProviderManager` | Loads provider **assemblies** by file name; records provider/config **types**; owns the shared `ActivityManager`; owns the **global ref-counted provider instance pool** (`AcquireProviderSet`/`ReleaseProviderSet`). Each `ILlmProvider` is **model-bound** (model injected via `ProviderModel`): one *capability* instance per (type+config) for model enumeration, plus one *execution* instance per (type+config+**model**) the grid assigns — warmed on first acquire, cooled on last release | Holds provider **configs** — those live on the `Profile` |
 | `BackgroundActivityManager` | The one activity/notification surface (passed to ProviderManager, every window, every ShellServices) | — |
 | `WorkspaceManager` | The `Profiles` list (dropdown source) + the live `Workspace`s; create/switch/reconfigure/dispose lifecycle | — |
 | `FeatureManager` | Reflection discovery of feature **types** once at startup; builds feature instances **per (Type, Workspace)** on demand; `EvictWorkspace` drops them on reconfigure/dispose | File-system contracts (those go to `FileSystemFeatureRegistry`) |
@@ -129,7 +129,7 @@ The shell host. Owns the window chrome, tab strip, ribbon bar, breadcrumb bar, a
 | `Models/Profile.cs` | The saved, shared profile (holds `AiConfig`/`ProviderConfigs`/`RibbonService`+`RibbonChanged`/conversations dir) — see [Ownership & Lifetime](#ownership--lifetime) |
 | `Models/Workspace.cs` | The runtime workspace (points at a `Profile`; holds `Providers`/`AiService`/`ShellServices`) |
 | `Services/WorkspaceManager.cs` | Singleton: the `Profiles` list + live `Workspace`s; `Initialize`/`CreateWorkspace`/`SwitchProfile`/`ReconfigureWorkspace`/`NotifyWindowClosed`, `Add`/`Clone`/`RemoveProfile`, `BootstrapServices` |
-| `ProviderManager.cs` | Singleton: loads provider **assemblies** + records provider/config **types**; `LoadProviderConfigs(dir)` + the ref-counted pool `AcquireProviderSet`/`ReleaseProviderSet` (identical configs share one instance) |
+| `ProviderManager.cs` | Singleton: loads provider **assemblies** + records provider/config **types**; `LoadProviderConfigs(dir)` + the ref-counted pool `AcquireProviderSet`/`ReleaseProviderSet`. Instances are model-bound (capability per config + execution per config+model); execution instances warm/cool with their pool lifetime |
 | `ProviderSet.cs` | A workspace's acquired provider **instances** + the profile's configs + assembly map + pool keys |
 | `Services/AIService.cs` | `IAIService` impl — **per-Workspace**: provider registry, ability→model resolution, the agent loop, conversation history |
 | `AI/AiConfig.cs` | Per-profile AI ability config (`Columns` + ability→column `Assignments`); rendered by `AiAbilityGridControl` |
