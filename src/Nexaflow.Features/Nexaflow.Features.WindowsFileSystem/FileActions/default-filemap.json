@@ -63,6 +63,13 @@
     ]
   },
   {
+    "ExperienceId": "/json",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.json" }
+    ]
+  },
+  {
     "ExperienceId": "/image",
     "Source": "User",
     "Criteria": [
