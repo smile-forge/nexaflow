@@ -732,7 +732,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
         if (showOverlay)
         {
             SyncAiName();
-            AiProgressText        = "Considering…";
+            AiProgressText        = "Considering";
             AiOverlayState        = AiOverlayState.Running;
             AiResponseOverlayOpen = true;
         }
@@ -812,8 +812,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
 
     private void SyncAiName()
     {
-        var persona = ConfigManager.Instance.GetAll().OfType<AiPersonaConfig>().FirstOrDefault();
-        AiResponseAiName = string.IsNullOrWhiteSpace(persona?.Name) ? "Aria" : persona!.Name;
+        var persona = CurrentWorkspace?.Profile?.Persona;
+        AiResponseAiName = string.IsNullOrWhiteSpace(persona?.Name) ? "Aria" : persona!.Name!.Trim();
     }
 
     [RelayCommand]
@@ -892,7 +892,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
     [RelayCommand]
     private void AcceptToolBatch()
     {
-        AiProgressText = "Working…";
+        AiProgressText = "Working";
         AiOverlayState = AiOverlayState.Running;
         var tcs = _toolApprovalTcs;
         _toolApprovalTcs = null;
@@ -902,7 +902,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
     [RelayCommand]
     private void DenyToolBatch()
     {
-        AiProgressText = $"Declined — asking {AiResponseAiName}…";
+        AiProgressText = $"Declined — asking {AiResponseAiName}";
         AiOverlayState = AiOverlayState.Running;
         var tcs = _toolApprovalTcs;
         _toolApprovalTcs = null;

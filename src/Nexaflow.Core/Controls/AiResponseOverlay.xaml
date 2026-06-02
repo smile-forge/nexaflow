@@ -34,6 +34,12 @@
             <ColumnDefinition Width="*"/>   <!-- ~10% gap -->
         </Grid.ColumnDefinitions>
 
+        <!-- Dimmed modal backdrop: spans the whole control and swallows clicks
+             behind the panel so nothing underneath is interactive. -->
+        <Border Grid.Row="0" Grid.RowSpan="2"
+                Grid.Column="0" Grid.ColumnSpan="3"
+                Background="#CC0F1117"/>
+
         <Border x:Name="Panel"
                 Grid.Row="1" Grid.Column="1"
                 Background="{StaticResource Surface2Brush}"
@@ -90,12 +96,40 @@
                                                Margin="20,14"
                                                Visibility="{Binding AiOverlayShowsMarkdown, Converter={StaticResource BoolVis}}"/>
 
-                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                    <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center" HorizontalAlignment="Center"
                                 Visibility="{Binding AiOverlayIsRunning, Converter={StaticResource BoolVis}}">
                         <TextBlock Text="{Binding AiProgressText}"
                                    FontSize="16" FontStyle="Italic"
-                                   HorizontalAlignment="Center"
                                    Foreground="{StaticResource TextMutedBrush}"/>
+                        <!-- Animated ellipsis: cycles "" → "." → ".." → "..." while the agent works. -->
+                        <TextBlock x:Name="EllipsisDots" Text="…" Width="22"
+                                   FontSize="16" FontStyle="Italic"
+                                   Foreground="{StaticResource TextMutedBrush}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding AiOverlayIsRunning}" Value="True">
+                                            <DataTrigger.EnterActions>
+                                                <BeginStoryboard x:Name="DotsAnim">
+                                                    <Storyboard RepeatBehavior="Forever">
+                                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Text" Duration="0:0:1.2">
+                                                            <DiscreteObjectKeyFrame KeyTime="0:0:0"   Value=""/>
+                                                            <DiscreteObjectKeyFrame KeyTime="0:0:0.3" Value="."/>
+                                                            <DiscreteObjectKeyFrame KeyTime="0:0:0.6" Value=".."/>
+                                                            <DiscreteObjectKeyFrame KeyTime="0:0:0.9" Value="..."/>
+                                                        </ObjectAnimationUsingKeyFrames>
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </DataTrigger.EnterActions>
+                                            <DataTrigger.ExitActions>
+                                                <StopStoryboard BeginStoryboardName="DotsAnim"/>
+                                            </DataTrigger.ExitActions>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </StackPanel>
                 </Grid>
 

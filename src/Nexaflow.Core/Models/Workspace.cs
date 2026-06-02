@@ -22,6 +22,9 @@ public sealed class Workspace
     /// <summary>The profile's shared ability grid (delegated for code that reads <c>ws.AiConfig</c>).</summary>
     public AiConfig AiConfig => Profile.AiConfig;
 
+    /// <summary>The profile's assistant persona (name + system prompt).</summary>
+    public AiPersonaConfig Persona => Profile.Persona;
+
     /// <summary>Provider instances acquired from the global pool; released on dispose/reconfigure.</summary>
     public ProviderSet?   Providers     { get; internal set; }
     public AIService?     AiService     { get; internal set; }

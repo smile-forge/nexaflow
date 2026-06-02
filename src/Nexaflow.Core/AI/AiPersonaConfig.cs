@@ -5,8 +5,9 @@ using ProviderCustomControl = Nexaflow.Providers.Common.CustomControlAttribute;
 namespace Nexaflow.Core.AI;
 
 /// <summary>
-/// Global persona settings for the conversational AI: the display name shown on
-/// the response overlay and the system prompt prepended to every conversation.
+/// Per-profile persona settings for the conversational AI: the display name shown on
+/// the response overlay and the system prompt prepended to every conversation. Stored
+/// per profile under <c>Contexts/&lt;name&gt;/ai-persona</c> (see <see cref="Models.Profile"/>).
 /// Edited from the "AI Customisation" tab of the Manage AI popup.
 /// </summary>
 [ProviderCustomControl(typeof(AiPersonaControl))]

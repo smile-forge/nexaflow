@@ -528,9 +528,9 @@ public sealed class AIService : IAIService
                 $"{pageTools.Count} tool(s) available", DescribeCatalog(pageTools))),
             parallelizable: true);
 
-    private static string BuildSystemPrompt(string context, IReadOnlyList<IClientTool> tools)
+    private string BuildSystemPrompt(string context, IReadOnlyList<IClientTool> tools)
     {
-        var persona = ConfigManager.Instance.GetAll().OfType<AiPersonaConfig>().FirstOrDefault();
+        var persona = _workspace.Profile.Persona;
         var aiName  = string.IsNullOrWhiteSpace(persona?.Name) ? "Aria" : persona!.Name!.Trim();
 
         var sb = new StringBuilder();

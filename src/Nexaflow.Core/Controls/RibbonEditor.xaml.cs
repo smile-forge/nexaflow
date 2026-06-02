@@ -490,7 +490,10 @@ public partial class RibbonEditor : UserControl
         {
             var btn = new Button
             {
-                Content             = new TextBlock { Text = icon, FontSize = 18, HorizontalAlignment = HorizontalAlignment.Center, IsHitTestVisible = false },
+                // TopBarAction's template is a bare ContentPresenter, so the content itself is the
+                // only hit-testable surface — it must stay hit-test-visible (and fill the cell, via a
+                // transparent background + stretch) or clicks never reach IconBtn_Click.
+                Content             = new TextBlock { Text = icon, FontSize = 18, TextAlignment = TextAlignment.Center, Padding = new Thickness(0, 4, 0, 0), Background = Brushes.Transparent, HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch },
                 Style               = (Style)FindResource("TopBarAction"),
                 Width               = 34,
                 Height              = 34,

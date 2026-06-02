@@ -85,13 +85,13 @@ Ribbon, AI ability grid, provider configs and conversations are **per-profile** 
 
 A **`Profile`** is the saved, shared config shown in the dropdown; a **`Workspace`** is a runtime grouping of one-or-more window frames running ONE profile. Getting scope wrong is the easiest way to add a bug — full detail in [docs/Architecture.md → Ownership & Lifetime](docs/Architecture.md#ownership--lifetime).
 
-- **Central (one per process):** `ConfigManager`, `ProviderManager` (loads provider **assemblies/types**; owns the **ref-counted instance pool** — identical configs share one provider), `WorkspaceManager` (the `Profiles` list + live `Workspace`s), `FeatureManager` (feature **types**; builds instances per Workspace), `BackgroundActivityManager`. Global configs incl. the **AI persona** and every feature `IFeatureConfig`.
-- **Per-`Profile` (shared, saved):** ability→model assignments (`AiConfig`), provider configs (API keys), ribbon layout (live-synced across its workspaces via `RibbonChanged`), conversations. All under `Contexts\<name>\`.
+- **Central (one per process):** `ConfigManager`, `ProviderManager` (loads provider **assemblies/types**; owns the **ref-counted instance pool** — identical configs share one provider), `WorkspaceManager` (the `Profiles` list + live `Workspace`s), `FeatureManager` (feature **types**; builds instances per Workspace), `BackgroundActivityManager`. Global configs = every feature `IFeatureConfig`.
+- **Per-`Profile` (shared, saved):** ability→model assignments (`AiConfig`), the **AI persona** (`AiPersonaConfig`: name + system prompt, under `ai-persona`), provider configs (API keys), ribbon layout (live-synced across its workspaces via `RibbonChanged`), conversations. All under `Contexts\<name>\`.
 - **Per-`Workspace` (runtime):** `ShellServices` (windows/tabs), `AIService` (agent loop), the **acquired** provider instances. App/IPC launch = a new Workspace; tear-off / "open in new window" = same Workspace; dropdown switch reconfigures the current Workspace in place (tabs close, providers/AIService rebuilt); closing the last window disposes it.
 - The `IShellServices` / `IAIService` injected into a feature are the **active workspace's** — opening a tab or asking the AI always acts within one workspace.
 - Options & Manage-AI overlays are **modal** (block profile switching); you can't delete the active profile; there's always ≥1 profile.
 
-Mnemonic: **persona & feature settings = global; ability grid, provider configs, conversations, ribbon = per-profile (shared); AIService, providers, windows/tabs = per-workspace (runtime).**
+Mnemonic: **feature settings = global; persona, ability grid, provider configs, conversations, ribbon = per-profile (shared); AIService, providers, windows/tabs = per-workspace (runtime).**
 
 ## Tests
 

@@ -126,10 +126,6 @@ public partial class App : Application
         ConfigManager.Instance.Register(shellConfig, shellConfig.ConfigName);
         ThemeManager.Apply(shellConfig.Theme);
 
-        // ── 1a. AI persona (global): name + system prompt for the assistant ──
-        var personaConfig = new AiPersonaConfig();
-        ConfigManager.Instance.Register(personaConfig, personaConfig.ConfigName);
-
         // ── 2. Workspaces config (profiles) — must come before providers so we know
         //       which provider assemblies each profile needs ───────────────────
         var wcConfig = new WorkspacesConfig();

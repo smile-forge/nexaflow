@@ -174,6 +174,7 @@ public sealed class WorkspaceManager
 
         source.EnsureSharedServicesLoaded();
         ConfigManager.Instance.SaveTo(destDir, source.AiConfig, source.AiConfig.ConfigName);
+        ConfigManager.Instance.SaveTo(destDir, source.Persona, source.Persona.ConfigName);
         foreach (var cfg in source.ProviderConfigs)
             ConfigManager.Instance.SaveTo(destDir, cfg, cfg.ConfigName);
 
@@ -213,6 +214,10 @@ public sealed class WorkspaceManager
     /// <summary>Persists one profile's AI ability config to its own folder.</summary>
     public void SaveProfileAiConfig(Profile profile)
         => ConfigManager.Instance.SaveTo(ProfileDir(profile.Name), profile.AiConfig, profile.AiConfig.ConfigName);
+
+    /// <summary>Persists one profile's assistant persona (name + system prompt) to its own folder.</summary>
+    public void SaveProfilePersona(Profile profile)
+        => ConfigManager.Instance.SaveTo(ProfileDir(profile.Name), profile.Persona, profile.Persona.ConfigName);
 
     // ── Private helpers ───────────────────────────────────────────────────────
 

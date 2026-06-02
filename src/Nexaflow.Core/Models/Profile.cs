@@ -28,6 +28,9 @@ public sealed partial class Profile : ObservableObject
     /// <summary>Ability grid (Columns + Assignments). Persisted to <c>Contexts/&lt;name&gt;/ai-abilities</c>.</summary>
     [JsonIgnore] public AiConfig AiConfig { get; } = new();
 
+    /// <summary>Assistant persona (name + system prompt). Persisted to <c>Contexts/&lt;name&gt;/ai-persona</c>.</summary>
+    [JsonIgnore] public AiPersonaConfig Persona { get; } = new();
+
     /// <summary>Stateless disk layer for this profile's ribbon layout.</summary>
     [JsonIgnore] public RibbonLayoutService? RibbonService { get; private set; }
 
@@ -53,6 +56,7 @@ public sealed partial class Profile : ObservableObject
     {
         if (RibbonService is not null) return;
         ConfigManager.Instance.LoadFrom(Dir, AiConfig, AiConfig.ConfigName);
+        ConfigManager.Instance.LoadFrom(Dir, Persona, Persona.ConfigName);
         RibbonService   = new RibbonLayoutService(Dir);
         ProviderConfigs = ProviderManager.Instance.LoadProviderConfigs(Dir);
     }

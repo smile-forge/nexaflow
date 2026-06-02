@@ -160,7 +160,7 @@ public partial class MainWindow : Window
 
     private void CapAiRowHeight()
     {
-        double maxAi = (ActualHeight - 87) * 0.5;
+        double maxAi = (ActualHeight - 91) * 0.5;
         if (maxAi < 72) maxAi = 72;
         AiRow.MaxHeight = maxAi;
     }

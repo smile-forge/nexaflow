@@ -49,7 +49,7 @@ public class PlaceholderTextBox : TextBox
 
     public PlaceholderTextBox()
     {
-        AcceptsReturn  = false;
+        AcceptsReturn  = true;   // Shift+Enter / paste insert newlines; bare Enter sends (see OnPreviewKeyDown)
         TextWrapping   = TextWrapping.Wrap;
         SpellCheck.IsEnabled = true;   // local WPF spell-checker (red squiggle)
         Language       = System.Windows.Markup.XmlLanguage.GetLanguage(

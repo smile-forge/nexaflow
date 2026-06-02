@@ -15,7 +15,7 @@
         AllowsTransparency="False">
 
     <WindowChrome.WindowChrome>
-        <WindowChrome CaptionHeight="15"
+        <WindowChrome CaptionHeight="19"
                       ResizeBorderThickness="{x:Static SystemParameters.WindowResizeBorderThickness}"
                       GlassFrameThickness="0"
                       UseAeroCaptionButtons="False"/>
@@ -80,7 +80,7 @@
     <!-- Root grid: TopBar | ContentArea | Splitter | Interaction -->
     <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
-            <RowDefinition Height="15"/>    <!-- 0: drag bar         -->
+            <RowDefinition Height="19"/>    <!-- 0: drag bar         -->
             <RowDefinition Height="72"/>    <!-- 1: top bar          -->
             <RowDefinition Height="*" MinHeight="100"/>     <!-- 2: content area     -->
             <RowDefinition Height="5"/>     <!-- 3: drag splitter    -->
@@ -238,12 +238,13 @@
                        OpenPageCommand="{Binding OpenPageCommand}"/>
 
         <!-- ═══════════════════════════════════════════════════════════
-             OVERLAY — AI RESPONSE (slides up from the input bar)
-             Anchored inside the content area (row 2) so the tab strip
-             remains visible above it.
+             OVERLAY — AI RESPONSE (modal over the page only)
+             Dimmed backdrop spans rows 0–3 (drag bar, ribbon/tabs, content,
+             splitter) so the page can't be clicked, but deliberately leaves
+             row 4 (the AI input bar) live so the user can cancel the action.
              ═══════════════════════════════════════════════════════════ -->
-        <ctrl:AiResponseOverlay Grid.Row="2"
-                                Panel.ZIndex="90"
+        <ctrl:AiResponseOverlay Grid.Row="0" Grid.RowSpan="4"
+                                Panel.ZIndex="100"
                                 DataContext="{Binding}"/>
 
         <!-- ═══════════════════════════════════════════════════════════
@@ -318,7 +319,7 @@
                         Padding="14,10"
                         VerticalScrollBarVisibility="Auto"
                         TextWrapping="Wrap"
-                        AcceptsReturn="False"
+                        AcceptsReturn="True"
                         SendCommand="{Binding SendAiMessageCommand}"
                         CompletionText="{Binding AiCompletionSuggestion}"
                         CaretBrush="#FFD8D8D8">

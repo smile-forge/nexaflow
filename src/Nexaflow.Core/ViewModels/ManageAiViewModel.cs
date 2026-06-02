@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using System.Collections.ObjectModel;
@@ -32,6 +33,11 @@ public partial class ManageAiViewModel : ObservableObject
             workspace.AiConfig,
             workspace.AiConfig.ConfigName,
             workspace.AiConfig.FriendlyName));
+
+        // AI Customisation: the profile's assistant persona (name + system prompt). Per-profile, like
+        // the ability grid — not part of the provider set, so it's added explicitly.
+        var persona = workspace.Profile.Persona;
+        Sections.Add(new ConfigEditViewModel(persona, persona.ConfigName, persona.FriendlyName));
 
         // Remaining sections: the profile's provider configs (API keys etc.).
         foreach (var config in workspace.Profile.ProviderConfigs)
@@ -86,6 +92,20 @@ public partial class ManageAiViewModel : ObservableObject
             catch (Exception ex)
             {
                 ApplyError?.Invoke($"Could not save AI settings: {ex.Message}");
+            }
+        }
+        else if (SelectedSection.RealConfig is AiPersonaConfig)
+        {
+            // Persona is a per-profile config. ApplyToReal has already written the edits into the
+            // profile's live Persona instance (which AIService reads live), so just persist it.
+            try
+            {
+                WorkspaceManager.Instance.SaveProfilePersona(profile);
+                SelectedSection.ResetChanges();
+            }
+            catch (Exception ex)
+            {
+                ApplyError?.Invoke($"Could not save AI customisation: {ex.Message}");
             }
         }
         else
