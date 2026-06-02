@@ -209,12 +209,32 @@
 
                     <!-- Shape row 2: Rounded -->
                     <Button x:Name="RibbonShapeRounded" Tag="Rounded" Click="RibbonShapeBtn_Click"
-                            Style="{StaticResource RibbonBtn}" HorizontalAlignment="Stretch" Margin="0,0,0,8">
+                            Style="{StaticResource RibbonBtn}" HorizontalAlignment="Stretch" Margin="0,0,0,2">
                         <StackPanel Orientation="Horizontal">
                             <Border Width="13" Height="13" CornerRadius="3"
                                     BorderBrush="#C8D0E8" BorderThickness="2"
                                     Margin="0,0,6,0" VerticalAlignment="Center"/>
                             <TextBlock Text="Rounded" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Shape row 3: Diagonals rounded (TL + BR corners) -->
+                    <Button x:Name="RibbonShapeDiagonals" Tag="DiagonalsRounded" Click="RibbonShapeBtn_Click"
+                            Style="{StaticResource RibbonBtn}" HorizontalAlignment="Stretch" Margin="0,0,0,2">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="13" Height="13" CornerRadius="5,0,5,0"
+                                    BorderBrush="#C8D0E8" BorderThickness="2"
+                                    Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="Diagonals" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Shape row 4: Speech bubble -->
+                    <Button x:Name="RibbonShapeBubble" Tag="SpeechBubble" Click="RibbonShapeBtn_Click"
+                            Style="{StaticResource RibbonBtn}" HorizontalAlignment="Stretch" Margin="0,0,0,8">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="💬" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="Speech bubble" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
 
@@ -397,7 +417,11 @@
                     CornerRadius="4"
                     Panel.ZIndex="100"
                     Visibility="Collapsed"
-                    ToolTip="Overview — viewport shown in blue">
+                    Cursor="SizeAll"
+                    MouseLeftButtonDown="MiniMap_MouseLeftButtonDown"
+                    MouseMove="MiniMap_MouseMove"
+                    MouseLeftButtonUp="MiniMap_MouseLeftButtonUp"
+                    ToolTip="Overview — drag to move the view; viewport shown in blue">
                 <Canvas x:Name="MiniMapCanvas" Width="158" Height="98"/>
             </Border>
 
@@ -492,16 +516,74 @@
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,0"
                 Padding="12,0">
-            <DockPanel>
+            <DockPanel LastChildFill="False">
                 <TextBlock Text="{Binding StatusText}"
+                           DockPanel.Dock="Left"
                            Foreground="{StaticResource TextMutedBrush}"
                            FontSize="11"
                            VerticalAlignment="Center"/>
+
+                <!-- Zoom %: click to pick a preset (left side, gapped from the note count) -->
                 <TextBlock x:Name="ZoomLabel"
-                           DockPanel.Dock="Right"
+                           DockPanel.Dock="Left"
                            Foreground="{StaticResource TextMutedBrush}"
                            FontSize="11"
-                           VerticalAlignment="Center"/>
+                           VerticalAlignment="Center"
+                           Margin="20,0,0,0"
+                           Padding="6,3"
+                           Cursor="Hand"
+                           ToolTip="Click to set zoom"
+                           MouseLeftButtonUp="ZoomLabel_Click"/>
+
+                <Popup x:Name="ZoomPopup"
+                       PlacementTarget="{Binding ElementName=ZoomLabel}"
+                       Placement="Top"
+                       StaysOpen="False"
+                       AllowsTransparency="True"
+                       PopupAnimation="Fade"
+                       HorizontalOffset="-4" VerticalOffset="-4">
+                    <Border Background="{StaticResource SurfaceBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="4">
+                        <Border.Resources>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Setter Property="FontSize" Value="12"/>
+                                <Setter Property="MinWidth" Value="72"/>
+                                <Setter Property="Cursor" Value="Hand"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="bg" Background="{TemplateBinding Background}"
+                                                    CornerRadius="3" Padding="12,5">
+                                                <ContentPresenter HorizontalAlignment="Left"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="bg" Property="Background"
+                                                            Value="{StaticResource AccentBrush}"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Border.Resources>
+                        <StackPanel>
+                            <Button Content="50%"  Tag="0.5"  Click="ZoomPreset_Click"/>
+                            <Button Content="75%"  Tag="0.75" Click="ZoomPreset_Click"/>
+                            <Button Content="100%" Tag="1.0"  Click="ZoomPreset_Click"/>
+                            <Button Content="125%" Tag="1.25" Click="ZoomPreset_Click"/>
+                            <Button Content="150%" Tag="1.5"  Click="ZoomPreset_Click"/>
+                        </StackPanel>
+                    </Border>
+                </Popup>
             </DockPanel>
         </Border>
     </Grid>

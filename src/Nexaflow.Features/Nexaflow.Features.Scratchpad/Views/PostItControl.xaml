@@ -14,14 +14,28 @@
     <UserControl.Resources>
         <conv:PostItColorToBrushConverter       x:Key="ColorBrush"/>
         <conv:PostItColorToHeaderBrushConverter x:Key="HeaderBrush"/>
+        <conv:PostItColorToTailBrushConverter   x:Key="TailBrush"/>
         <conv:ShapeToClipConverter              x:Key="ShapeClip"/>
     </UserControl.Resources>
 
-    <Grid x:Name="RootGrid">
+    <!-- Outer wrapper carries the shadow so it spans body + speech-bubble tail as one shape. -->
+    <Grid x:Name="OuterGrid">
         <Grid.Effect>
             <DropShadowEffect BlurRadius="14" ShadowDepth="4" Direction="315"
                               Color="#40000000" Opacity="0.55"/>
         </Grid.Effect>
+
+        <!-- Speech-bubble tail: a protrusion bolted onto the body's bottom edge, drawn
+             behind the body. Geometry + visibility set in code-behind. Hosting it in a
+             Canvas lets it render below the note bounds without affecting layout, so the
+             body stays a plain rounded rectangle with full resize + text area. -->
+        <Canvas IsHitTestVisible="False">
+            <Path x:Name="TailPath"
+                  Fill="{Binding Color, Converter={StaticResource TailBrush}}"
+                  Visibility="Collapsed"/>
+        </Canvas>
+
+        <Grid x:Name="RootGrid">
 
         <!-- Background fill (shape clip applied in code-behind) -->
         <Rectangle x:Name="BgRect"
@@ -160,5 +174,6 @@
         <Rectangle Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Top"    Cursor="SizeNESW" Fill="Transparent" Tag="NE" MouseDown="Resize_MouseDown" MouseMove="Resize_MouseMove" MouseUp="Resize_MouseUp"/>
         <Rectangle Width="10" Height="10" HorizontalAlignment="Left"  VerticalAlignment="Bottom" Cursor="SizeNESW" Fill="Transparent" Tag="SW" MouseDown="Resize_MouseDown" MouseMove="Resize_MouseMove" MouseUp="Resize_MouseUp"/>
         <Rectangle Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Bottom" Cursor="SizeNWSE" Fill="Transparent" Tag="SE" MouseDown="Resize_MouseDown" MouseMove="Resize_MouseMove" MouseUp="Resize_MouseUp"/>
+        </Grid>
     </Grid>
 </UserControl>

@@ -11,7 +11,7 @@ public sealed class PostItNote
     public double  Rotation  { get; set; } = 0;
     public int     ZIndex    { get; set; } = 0;
     public string  Color     { get; set; } = "Yellow";
-    public string  Shape     { get; set; } = "Square";
+    public string  Shape     { get; set; } = "Rounded";
     public DateTimeOffset  CreatedAt { get; set; } = DateTimeOffset.Now;
     public DateTimeOffset? ExpiresAt { get; set; }
 }

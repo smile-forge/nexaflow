@@ -63,6 +63,7 @@ public partial class PostItControl : System.Windows.Controls.UserControl
             vm.PropertyChanged += OnVmPropertyChanged;
             MigrateLegacyContent(vm);
             UpdateClip();
+            UpdateTail();
 
             if (vm.StartInEdit)
             {
@@ -81,11 +82,16 @@ public partial class PostItControl : System.Windows.Controls.UserControl
             case nameof(PostItViewModel.Width):
             case nameof(PostItViewModel.Height):
                 UpdateClip();
+                UpdateTail();
                 break;
         }
     }
 
-    private void OnSizeChanged(object sender, SizeChangedEventArgs e) => UpdateClip();
+    private void OnSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateClip();
+        UpdateTail();
+    }
 
     private void UpdateClip()
     {
@@ -96,6 +102,41 @@ public partial class PostItControl : System.Windows.Controls.UserControl
             System.Globalization.CultureInfo.InvariantCulture)
             as Geometry;
         RootGrid.Clip = clip;
+    }
+
+    // Builds the speech-bubble tail that hangs below the body's bottom edge. The tail
+    // overlaps a few px up into the body so there's no seam (the body is drawn on top).
+    private void UpdateTail()
+    {
+        if (DataContext is not PostItViewModel vm ||
+            vm.Shape != "SpeechBubble" || vm.Width <= 0 || vm.Height <= 0)
+        {
+            TailPath.Visibility = Visibility.Collapsed;
+            TailPath.Data       = null;
+            return;
+        }
+
+        double w = vm.Width, h = vm.Height;
+        double depth   = Math.Min(20, h * 0.14);
+        const double overlap = 3;
+
+        // Tail leaning left: apex sits left of its base → "slightly angled".
+        double baseLeft  = w * 0.30;
+        double baseRight = w * 0.42;
+        double apexX     = w * 0.22;
+        double apexY     = h + depth;
+
+        var g = new StreamGeometry();
+        using (var c = g.Open())
+        {
+            c.BeginFigure(new Point(baseLeft, h - overlap), isFilled: true, isClosed: true);
+            c.LineTo(new Point(baseRight, h - overlap), true, false);
+            c.LineTo(new Point(apexX, apexY),           true, false);
+        }
+        g.Freeze();
+
+        TailPath.Data       = g;
+        TailPath.Visibility = Visibility.Visible;
     }
 
     // ── Legacy content migration ──────────────────────────────────────────
@@ -203,27 +244,43 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         var dy     = pos.Y - _resizeStart.Y;
         const double minSize = 80;
 
-        if (_resizeEdge.Contains('W'))
-        {
-            var newW = Math.Max(minSize, _resizeStartW - dx);
-            Vm.Width = newW;
-            Vm.X     = (_resizeStartX + _resizeStartW) - newW;
-        }
-        else if (_resizeEdge.Contains('E'))
-        {
-            Vm.Width = Math.Max(minSize, _resizeStartW + dx);
-        }
+        // The note rotates about its centre, so resizing in canvas (screen) axes would
+        // both skew the drag and shift the note as the pivot moves. Work in the note's
+        // local axes and pin the un-dragged corner in canvas space.
+        var theta = Vm.Rotation * Math.PI / 180.0;
+        var cos   = Math.Cos(theta);
+        var sin   = Math.Sin(theta);
 
-        if (_resizeEdge.Contains('N'))
-        {
-            var newH = Math.Max(minSize, _resizeStartH - dy);
-            Vm.Height = newH;
-            Vm.Y      = (_resizeStartY + _resizeStartH) - newH;
-        }
-        else if (_resizeEdge.Contains('S'))
-        {
-            Vm.Height = Math.Max(minSize, _resizeStartH + dy);
-        }
+        // Project the screen drag onto the note's local axes (rotate by -θ).
+        var localDx =  dx * cos + dy * sin;
+        var localDy = -dx * sin + dy * cos;
+
+        var w = _resizeStartW;
+        var h = _resizeStartH;
+        if (_resizeEdge.Contains('E')) w = Math.Max(minSize, _resizeStartW + localDx);
+        if (_resizeEdge.Contains('W')) w = Math.Max(minSize, _resizeStartW - localDx);
+        if (_resizeEdge.Contains('S')) h = Math.Max(minSize, _resizeStartH + localDy);
+        if (_resizeEdge.Contains('N')) h = Math.Max(minSize, _resizeStartH - localDy);
+
+        // Anchor = the fixed corner (centre offset of the side(s) not being dragged),
+        // captured in canvas space from the start geometry…
+        var ax0 = _resizeEdge.Contains('W') ?  _resizeStartW / 2 : -_resizeStartW / 2;
+        var ay0 = _resizeEdge.Contains('N') ?  _resizeStartH / 2 : -_resizeStartH / 2;
+        var cx0 = _resizeStartX + _resizeStartW / 2;
+        var cy0 = _resizeStartY + _resizeStartH / 2;
+        var anchorX = cx0 + (ax0 * cos - ay0 * sin);
+        var anchorY = cy0 + (ax0 * sin + ay0 * cos);
+
+        // …then solve for the new centre that keeps that same corner pinned.
+        var ax1 = _resizeEdge.Contains('W') ?  w / 2 : -w / 2;
+        var ay1 = _resizeEdge.Contains('N') ?  h / 2 : -h / 2;
+        var cx1 = anchorX - (ax1 * cos - ay1 * sin);
+        var cy1 = anchorY - (ax1 * sin + ay1 * cos);
+
+        Vm.Width  = w;
+        Vm.Height = h;
+        Vm.X      = cx1 - w / 2;
+        Vm.Y      = cy1 - h / 2;
 
         e.Handled = true;
     }
