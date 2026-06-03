@@ -36,6 +36,11 @@ public static class LoginAutoStartService
     /// </summary>
     public static void Set(bool enabled)
     {
+        // A portable / isolated-config run (NEXAFLOW_CONFIG_DIR set, e.g. UI tests) must never touch
+        // the machine's real per-user login entry.
+        if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("NEXAFLOW_CONFIG_DIR")))
+            return;
+
         try
         {
             using var key = Registry.CurrentUser.CreateSubKey(RunKeyPath);

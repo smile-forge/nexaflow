@@ -1,0 +1,173 @@
+<UserControl x:Class="Nexaflow.Core.Controls.ConfigEditorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Nexaflow.Core.Controls"
+             xmlns:cvn="clr-namespace:Nexaflow.Core.Converters"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:vm="clr-namespace:Nexaflow.Core.ViewModels">
+    <!--
+      Renders a single ConfigEditViewModel (its [CustomControl] or a reflected property grid). The
+      same editor surface the Options / Configure panels show, extracted so the setup wizard reuses it.
+      DataContext = a ConfigEditViewModel.
+    -->
+    <UserControl.Resources>
+        <cvn:ValidationErrorToBorderBrushConverter x:Key="ValidationBorderBrush"/>
+        <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
+        <cvn:InverseBoolToVisibilityConverter x:Key="InverseBoolVis"/>
+
+        <Style x:Key="RowGrid" TargetType="Grid">
+            <Setter Property="Margin" Value="0,6"/>
+        </Style>
+
+        <!-- ── TextBox ── -->
+        <DataTemplate x:Key="TextBoxTemplate" DataType="{x:Type vm:PropertyEditViewModel}">
+            <Grid Style="{StaticResource RowGrid}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding Label}"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="12" VerticalAlignment="Center"/>
+                <TextBox Grid.Column="1"
+                         Style="{StaticResource DarkTextBox}"
+                         IsEnabled="{Binding IsEnabled}"
+                         AutomationProperties.AutomationId="{Binding AutomationId}"
+                         Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                         FontSize="12"/>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ── FolderPath ── -->
+        <DataTemplate x:Key="FolderPathTemplate" DataType="{x:Type vm:PropertyEditViewModel}">
+            <Grid Style="{StaticResource RowGrid}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding Label}"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="12" VerticalAlignment="Center"/>
+                <TextBox Grid.Column="1"
+                         Style="{StaticResource DarkTextBox}"
+                         IsEnabled="{Binding IsEnabled}"
+                         AutomationProperties.AutomationId="{Binding AutomationId}"
+                         Text="{Binding Value, UpdateSourceTrigger=LostFocus}"
+                         FontSize="12"
+                         BorderBrush="{Binding ValidationError, Converter={StaticResource ValidationBorderBrush}}"
+                         ToolTip="{Binding ValidationError}"/>
+                <Button Grid.Column="2" Margin="6,0,0,0"
+                        Style="{StaticResource IconButton}"
+                        ToolTip="Browse for folder…"
+                        Command="{Binding BrowseFolderCommand}">
+                    <TextBlock Text="…" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
+                </Button>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ── FilePath ── -->
+        <DataTemplate x:Key="FilePathTemplate" DataType="{x:Type vm:PropertyEditViewModel}">
+            <Grid Style="{StaticResource RowGrid}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding Label}"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="12" VerticalAlignment="Center"/>
+                <TextBox Grid.Column="1"
+                         Style="{StaticResource DarkTextBox}"
+                         IsEnabled="{Binding IsEnabled}"
+                         AutomationProperties.AutomationId="{Binding AutomationId}"
+                         Text="{Binding Value, UpdateSourceTrigger=LostFocus}"
+                         FontSize="12"
+                         BorderBrush="{Binding ValidationError, Converter={StaticResource ValidationBorderBrush}}"
+                         ToolTip="{Binding ValidationError}"/>
+                <Button Grid.Column="2" Margin="6,0,0,0"
+                        Style="{StaticResource IconButton}"
+                        ToolTip="Browse for file…"
+                        Command="{Binding BrowseFileCommand}">
+                    <TextBlock Text="…" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
+                </Button>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ── Enum ComboBox ── -->
+        <DataTemplate x:Key="EnumComboBoxTemplate" DataType="{x:Type vm:PropertyEditViewModel}">
+            <Grid Style="{StaticResource RowGrid}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding Label}"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="12" VerticalAlignment="Center"/>
+                <ComboBox Grid.Column="1"
+                          Style="{StaticResource DarkComboBox}"
+                          IsEnabled="{Binding IsEnabled}"
+                          AutomationProperties.AutomationId="{Binding AutomationId}"
+                          ItemsSource="{Binding EnumOptions}"
+                          SelectedItem="{Binding Value}"/>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ── List ComboBox ── -->
+        <DataTemplate x:Key="ListComboBoxTemplate" DataType="{x:Type vm:PropertyEditViewModel}">
+            <Grid Style="{StaticResource RowGrid}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding Label}"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="12" VerticalAlignment="Center"/>
+                <ComboBox Grid.Column="1"
+                          Style="{StaticResource DarkComboBox}"
+                          IsEnabled="{Binding IsEnabled}"
+                          AutomationProperties.AutomationId="{Binding AutomationId}"
+                          ItemsSource="{Binding ListOptions}"
+                          SelectedItem="{Binding Value}"/>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ── Toggle ── -->
+        <DataTemplate x:Key="ToggleTemplate" DataType="{x:Type vm:PropertyEditViewModel}">
+            <Grid Style="{StaticResource RowGrid}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding Label}"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="12" VerticalAlignment="Center"/>
+                <ToggleButton Grid.Column="1"
+                              Style="{StaticResource ToggleSwitch}"
+                              IsEnabled="{Binding IsEnabled}"
+                              AutomationProperties.AutomationId="{Binding AutomationId}"
+                              IsChecked="{Binding Value}"/>
+            </Grid>
+        </DataTemplate>
+
+        <local:PropertyEditorSelector x:Key="EditorSelector"
+                                      TextBoxTemplate="{StaticResource TextBoxTemplate}"
+                                      FolderPathTemplate="{StaticResource FolderPathTemplate}"
+                                      FilePathTemplate="{StaticResource FilePathTemplate}"
+                                      EnumComboBoxTemplate="{StaticResource EnumComboBoxTemplate}"
+                                      ListComboBoxTemplate="{StaticResource ListComboBoxTemplate}"
+                                      ToggleTemplate="{StaticResource ToggleTemplate}"/>
+    </UserControl.Resources>
+
+    <Grid>
+        <!-- Custom control mode -->
+        <ContentControl Content="{Binding CustomControlInstance}"
+                        Visibility="{Binding HasCustomControl, Converter={StaticResource BoolVis}}"/>
+        <!-- Property-grid mode -->
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                      Visibility="{Binding HasCustomControl, Converter={StaticResource InverseBoolVis}}">
+            <ItemsControl ItemsSource="{Binding Properties}"
+                          ItemTemplateSelector="{StaticResource EditorSelector}"/>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

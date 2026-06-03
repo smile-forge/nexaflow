@@ -1,0 +1,149 @@
+<Window x:Class="Nexaflow.Core.Views.SetupWizardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ctrl="clr-namespace:Nexaflow.Core.Controls"
+        xmlns:vm="clr-namespace:Nexaflow.Core.ViewModels"
+        xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+        xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
+        Title="Nexaflow Setup"
+        Width="780" Height="620"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        Background="{StaticResource SurfaceBrush}">
+
+    <Window.Resources>
+        <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
+
+        <!-- Step content: a ConfigEditViewModel renders via the shared editor view. -->
+        <DataTemplate DataType="{x:Type vm:ConfigEditViewModel}">
+            <ctrl:ConfigEditorView/>
+        </DataTemplate>
+
+        <!-- What's New markdown. -->
+        <DataTemplate DataType="{x:Type vm:WizardMarkdownContent}">
+            <md:SelectableMarkdownView Markdown="{Binding Markdown}"
+                                       VerticalScrollBarVisibility="Auto"/>
+        </DataTemplate>
+
+        <!-- Provider picker. -->
+        <DataTemplate DataType="{x:Type vm:WizardProviderPickContent}">
+            <StackPanel>
+                <TextBlock Text="Pick the AI provider to set up first. You can add more later."
+                           Foreground="{StaticResource TextMutedBrush}" FontSize="12"
+                           Margin="0,0,0,10" TextWrapping="Wrap"/>
+                <ListBox ItemsSource="{Binding Providers}"
+                         SelectedItem="{Binding SelectedProvider, Mode=TwoWay}"
+                         Style="{StaticResource DarkListBox}"
+                         AutomationProperties.AutomationId="WizardProviderList"
+                         BorderThickness="0">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource DarkListBoxItem}">
+                            <Setter Property="Padding" Value="12,10"/>
+                            <Setter Property="FontSize" Value="13"/>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                </ListBox>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Model picker. -->
+        <DataTemplate DataType="{x:Type vm:WizardModelPickContent}">
+            <StackPanel>
+                <TextBlock Text="Choose the model to use for every ability (you can fine-tune this later in Configure)."
+                           Foreground="{StaticResource TextMutedBrush}" FontSize="12"
+                           Margin="0,0,0,10" TextWrapping="Wrap"/>
+                <!-- Shown only while fetching; the list below is empty until it arrives, so they never overlap. -->
+                <TextBlock Text="Loading models…"
+                           Foreground="{StaticResource TextMutedBrush}" FontSize="13"
+                           Margin="0,0,0,8"
+                           Visibility="{Binding IsLoading, Converter={StaticResource BoolVis}}"/>
+                <ListBox ItemsSource="{Binding Models}"
+                         SelectedItem="{Binding SelectedModel, Mode=TwoWay}"
+                         Style="{StaticResource DarkListBox}"
+                         AutomationProperties.AutomationId="WizardModelList"
+                         BorderThickness="0"
+                         MaxHeight="360">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource DarkListBoxItem}">
+                            <Setter Property="Padding" Value="12,8"/>
+                            <Setter Property="FontSize" Value="13"/>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                </ListBox>
+            </StackPanel>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>  <!-- header (draggable) -->
+                <RowDefinition Height="*"/>     <!-- step content -->
+                <RowDefinition Height="Auto"/>  <!-- footer -->
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <Border Grid.Row="0" Background="{StaticResource Surface2Brush}"
+                    MouseLeftButtonDown="OnHeaderDrag" Padding="24,18">
+                <StackPanel>
+                    <TextBlock Text="{Binding CurrentStep.Title}" FontSize="18" FontWeight="Bold"
+                               Foreground="{StaticResource TextBrush}"/>
+                    <TextBlock Text="{Binding StepIndicator}" FontSize="12"
+                               Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Step content -->
+            <ContentControl Grid.Row="1"
+                            Margin="24,18"
+                            Content="{Binding CurrentStep.Content}"/>
+
+            <!-- Footer -->
+            <Border Grid.Row="2"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,1,0,0"
+                    Padding="20,14">
+                <Grid>
+                    <Button Content="Back"
+                            HorizontalAlignment="Left"
+                            Width="90" Height="34" FontSize="12"
+                            Style="{StaticResource TopBarAction}"
+                            AutomationProperties.AutomationId="WizardBackButton"
+                            Visibility="{Binding ShowBack, Converter={StaticResource BoolVis}}"
+                            Command="{Binding BackCommand}"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Skip"
+                                Width="90" Height="34" Margin="0,0,8,0" FontSize="12"
+                                Style="{StaticResource TopBarAction}"
+                                AutomationProperties.AutomationId="WizardSkipButton"
+                                Command="{Binding SkipCommand}"/>
+                        <Button Content="{Binding NextButtonText}"
+                                Width="110" Height="34" FontSize="12"
+                                Background="{StaticResource AccentBrush}"
+                                Foreground="White" BorderThickness="0" Cursor="Hand"
+                                AutomationProperties.AutomationId="WizardNextButton"
+                                Command="{Binding NextCommand}">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="root" Background="{TemplateBinding Background}"
+                                            CornerRadius="7" Padding="8,6">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsEnabled" Value="False">
+                                            <Setter TargetName="root" Property="Opacity" Value="0.4"/>
+                                        </Trigger>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="root" Property="Opacity" Value="0.85"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

@@ -17,6 +17,7 @@
                            FontSize="12" VerticalAlignment="Center"/>
                 <ComboBox Grid.Column="1"
                           Style="{StaticResource DarkComboBox}"
+                          AutomationProperties.AutomationId="ShellThemeCombo"
                           ItemsSource="{Binding ThemeOptions}"
                           SelectedItem="{Binding SelectedTheme}"/>
             </Grid>
@@ -58,6 +59,7 @@
                            FontSize="12" VerticalAlignment="Center"/>
                 <ComboBox Grid.Column="1"
                           Style="{StaticResource DarkComboBox}"
+                          AutomationProperties.AutomationId="ShellLanguageCombo"
                           ItemsSource="{Binding LanguageOptions}"
                           SelectedItem="{Binding SelectedLanguage}"/>
             </Grid>
@@ -73,6 +75,7 @@
                            FontSize="12" VerticalAlignment="Center"/>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <ToggleButton Style="{StaticResource ToggleSwitch}"
+                                  AutomationProperties.AutomationId="ShellPrestartToggle"
                                   IsChecked="{Binding PrestartAtLogin}"/>
                     <TextBlock Text="Preload at login for instant startup"
                                Foreground="{StaticResource TextBrush}"

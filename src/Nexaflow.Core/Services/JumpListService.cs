@@ -14,7 +14,7 @@ public static class JumpListService
     /// <summary>Command-line switch a JumpTask passes to request a specific WorkContext.</summary>
     public const string ContextSwitch = "--context";
 
-    private const string CategoryName = "Work Contexts";
+    private const string CategoryName = "Workspaces";
 
     /// <summary>
     /// Applies the initial JumpList and subscribes to context-list changes so it stays in sync.

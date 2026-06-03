@@ -2,6 +2,8 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
+using Nexaflow.Core.ViewModels;
+using Nexaflow.Core.Views;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
 using Nexaflow.Features.AIChat;
@@ -80,18 +82,14 @@ public partial class App : Application
         var voiceConfig = InitializeApp(activityManager);
 
         // ── Main window — skipped in --prestart mode (windowless login daemon) ──
+        // A --prestart daemon shows nothing now; the wizard runs the first time a window is actually
+        // due (OpenNewWindow), so EnsureConfiguredThenCreateWindow gates both paths.
         if (!prestart)
         {
             // Honour --context "Name" from a taskbar JumpList.
             var startupProfile = ResolveProfile(ParseContextArg(e.Args))
                                  ?? WorkspaceManager.Instance.Profiles[0];
-            var startupWs = WorkspaceManager.Instance.CreateWorkspace(startupProfile);
-            startupWs.ShellServices!.CreateWindowFactory = MakeWindowFactory(activityManager, startupWs);
-            var win = new MainWindow(activityManager, startupWs);
-            win.Show();
-
-            if (ConfigManager.Instance.IsFirstRun)
-                win.ViewModel.OptionsOpen = true;
+            EnsureConfiguredThenCreateWindow(activityManager, startupProfile, activate: false);
         }
 
         // Voice model download — background, kicked off only after the window is up (or after init in
@@ -117,9 +115,14 @@ public partial class App : Application
     private VoiceConfig InitializeApp(BackgroundActivityManager activityManager)
     {
         // ── 0. Base path — single source of truth for all app-data paths ─────
-        ConfigManager.Instance.Initialize(Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Smile", "nexaflow"));
+        // NEXAFLOW_CONFIG_DIR overrides the default (used by UI tests for an isolated, fresh config
+        // root, and handy for portable installs); otherwise %AppData%\Smile\nexaflow.
+        var baseDir = Environment.GetEnvironmentVariable("NEXAFLOW_CONFIG_DIR");
+        if (string.IsNullOrWhiteSpace(baseDir))
+            baseDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "Smile", "nexaflow");
+        ConfigManager.Instance.Initialize(baseDir);
 
         // ── 1. Shell config ──────────────────────────────────────────────────
         var shellConfig = new ShellConfig();
@@ -149,6 +152,10 @@ public partial class App : Application
 
         // ── 4. WorkspaceManager — loads the profile list (no runtime workspaces yet) ──
         WorkspaceManager.Instance.Initialize(wcConfig);
+
+        // A workspace rebuild (Configure panel) needs to create a replacement window for a fresh
+        // workspace; hand WorkspaceManager the factory that knows how to build MainWindow.
+        WorkspaceManager.Instance.WindowHostFactory = ws => CreateWorkspaceWindow(activityManager, ws);
 
         // ── 5. File map + external apps ──────────────────────────────────────
         var fileMapConfig = new FileMapConfig();
@@ -218,13 +225,50 @@ public partial class App : Application
     private static void OpenNewWindow(BackgroundActivityManager activityManager, string? contextName = null)
     {
         var profile = ResolveProfile(contextName) ?? WorkspaceManager.Instance.Profiles[0];
-        var ws      = WorkspaceManager.Instance.CreateWorkspace(profile);
+        EnsureConfiguredThenCreateWindow(activityManager, profile, activate: true);
+    }
 
+    /// <summary>Tracks whether the first window of this process has already run the setup check.</summary>
+    private static bool _setupShown;
+
+    /// <summary>
+    /// Creates a shell window for <paramref name="profile"/>, running the first-run / post-update
+    /// wizard first the very first time a window is due (so a <c>--prestart</c> daemon shows nothing
+    /// until its first real window). Skipping or finishing the wizard always proceeds to the window;
+    /// committed steps persist either way.
+    /// </summary>
+    private static MainWindow EnsureConfiguredThenCreateWindow(
+        BackgroundActivityManager activityManager, Profile profile, bool activate)
+    {
+        if (!_setupShown)
+        {
+            _setupShown = true;
+
+            var wizard = SetupWizardViewModel.Build(profile);
+            if (wizard is not null)
+                new SetupWizardWindow(wizard).ShowDialog();   // modal; returns on Finish / Skip / close
+
+            StampLastRunVersion();
+        }
+
+        var ws = WorkspaceManager.Instance.CreateWorkspace(profile);
         ws.ShellServices!.CreateWindowFactory = MakeWindowFactory(activityManager, ws);
 
         var win = new MainWindow(activityManager, ws);
         win.Show();
-        win.Activate();
+        if (activate) win.Activate();
+        return win;
+    }
+
+    /// <summary>Records the current version so the next launch can detect an update (drives What's New).</summary>
+    private static void StampLastRunVersion()
+    {
+        if (ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault() is not { } shell)
+            return;
+        var current = SetupWizardViewModel.CurrentVersion();
+        if (shell.LastRunVersion == current) return;   // unchanged — skip the write
+        shell.LastRunVersion = current;
+        try { ConfigManager.Instance.Save(shell, shell.ConfigName); } catch { }
     }
 
     /// <summary>
@@ -237,6 +281,19 @@ public partial class App : Application
             var win = new MainWindow(activityManager, owner, openDefaultTabs: false);
             return (IWindowHost)win.ViewModel;
         };
+
+    /// <summary>
+    /// Builds (does not show) the first window for a freshly-created <paramref name="ws"/> and wires
+    /// its tear-off factory. Registered as <see cref="WorkspaceManager.WindowHostFactory"/> so a
+    /// workspace rebuild (Configure panel) can spin up a replacement window without Core.Services
+    /// referencing <see cref="MainWindow"/>.
+    /// </summary>
+    private static IWindowHost CreateWorkspaceWindow(BackgroundActivityManager activityManager, Workspace ws)
+    {
+        ws.ShellServices!.CreateWindowFactory = MakeWindowFactory(activityManager, ws);
+        var win = new MainWindow(activityManager, ws, openDefaultTabs: false);
+        return (IWindowHost)win.ViewModel;
+    }
 
     /// <summary>Reads a <c>--context "Name"</c> argument, or null if absent.</summary>
     private static string? ParseContextArg(string[] args)

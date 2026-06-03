@@ -330,10 +330,36 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
     [NotifyPropertyChangedFor(nameof(CanSwitchProfile))]
     private bool _optionsOpen;
 
-    // ── Manage AI overlay ─────────────────────────────────────────────────
+    // ── Manage AI / Configure overlay ─────────────────────────────────────
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSwitchProfile))]
     private bool _manageAiOpen;
+
+    /// <summary>
+    /// The profile the Configure (Manage-AI) overlay targets — set by <see cref="ConfigureProfile"/>
+    /// right before the overlay opens. Null means the active workspace's profile. Cleared on close.
+    /// </summary>
+    public Profile? ConfigureTargetProfile { get; private set; }
+
+    /// <summary>
+    /// True when Configure was opened from the Options → Workspaces tab. If the user makes no changes,
+    /// closing Configure returns to the Options popup (handled by MainWindow). Reset after each close.
+    /// </summary>
+    public bool ConfigureReturnToOptions { get; set; }
+
+    partial void OnManageAiOpenChanged(bool value)
+    {
+        if (!value) ConfigureTargetProfile = null;
+    }
+
+    /// <summary>Opens the Configure panel for a profile chosen in the Options → Workspaces tab,
+    /// remembering to return to Options if nothing is changed.</summary>
+    public void OpenConfigureFromOptions(Profile profile)
+    {
+        OptionsOpen = false;
+        ConfigureReturnToOptions = true;
+        ConfigureProfile(profile);
+    }
 
     // ── AI response overlay ───────────────────────────────────────────────
     // Shown in-shell when the conversational AI returns a plain message, and as the
@@ -615,13 +641,23 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
     [RelayCommand]
     private void CloseOptions() => OptionsOpen = false;
 
-    // ── Manage AI ─────────────────────────────────────────────────────────
-
-    [RelayCommand]
-    private void ToggleManageAi() => ManageAiOpen = !ManageAiOpen;
+    // ── Configure (per-workspace) ─────────────────────────────────────────
 
     [RelayCommand]
     private void CloseManageAi() => ManageAiOpen = false;
+
+    /// <summary>Opens the per-workspace Configure panel for a specific profile (may be non-active).</summary>
+    [RelayCommand]
+    private void ConfigureProfile(Profile? profile)
+    {
+        if (profile is null) return;
+        ConfigureTargetProfile = profile;
+        ManageAiOpen = true;
+    }
+
+    /// <summary>Right-click entry point: configure the currently active workspace.</summary>
+    [RelayCommand]
+    private void ConfigureCurrentWorkspace() => ConfigureProfile(CurrentWorkspace?.Profile);
 
     // ── AI ────────────────────────────────────────────────────────────────
 

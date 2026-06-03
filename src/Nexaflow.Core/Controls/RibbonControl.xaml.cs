@@ -36,6 +36,10 @@ public partial class RibbonControl : UserControl
     public static readonly DependencyProperty SelectProfileCommandProperty =
         DependencyProperty.Register(nameof(SelectProfileCommand), typeof(ICommand), typeof(RibbonControl));
 
+    /// <summary>Right-click "Configure" on the profile selector — configures the current workspace.</summary>
+    public static readonly DependencyProperty ConfigureProfileCommandProperty =
+        DependencyProperty.Register(nameof(ConfigureProfileCommand), typeof(ICommand), typeof(RibbonControl));
+
     public static readonly DependencyProperty CanSwitchProfileProperty =
         DependencyProperty.Register(nameof(CanSwitchProfile), typeof(bool), typeof(RibbonControl),
             new PropertyMetadata(true));
@@ -74,6 +78,12 @@ public partial class RibbonControl : UserControl
     {
         get => (ICommand?)GetValue(SelectProfileCommandProperty);
         set => SetValue(SelectProfileCommandProperty, value);
+    }
+
+    public ICommand? ConfigureProfileCommand
+    {
+        get => (ICommand?)GetValue(ConfigureProfileCommandProperty);
+        set => SetValue(ConfigureProfileCommandProperty, value);
     }
 
     public bool CanSwitchProfile

@@ -30,8 +30,11 @@ public sealed class FeatureManager
 
     private readonly Dictionary<string, Type> _registrationTypes        = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<Type, List<Type>> _configToRegTypes     = new();
-    // Per-assembly config instances — populated during RegisterFeatures, never changed after.
+    // Per-assembly GLOBAL config instances — populated during RegisterFeatures, never changed after.
     private readonly Dictionary<Type, IFeatureConfig> _configs          = new();
+    // Config TYPES marked [WorkspaceScopedConfig]: never registered globally; one instance is built
+    // per profile (see Profile.WorkspaceConfigs) and injected from the owning workspace's profile.
+    private readonly List<Type> _workspaceScopedConfigTypes             = [];
 
     /// <summary>
     /// Read-only view of the per-assembly <see cref="IFeatureConfig"/> instances
@@ -40,6 +43,13 @@ public sealed class FeatureManager
     /// to resolve config types as constructor args without going through the shell.
     /// </summary>
     public IReadOnlyDictionary<Type, IFeatureConfig> Configs => _configs;
+
+    /// <summary>
+    /// Config types marked <see cref="WorkspaceScopedConfigAttribute"/>. A <see cref="Profile"/>
+    /// instantiates one of each and loads it from its own folder; the per-workspace Configure panel
+    /// edits them. See <see cref="Models.Profile.WorkspaceConfigs"/>.
+    /// </summary>
+    public IReadOnlyList<Type> WorkspaceScopedConfigTypes => _workspaceScopedConfigTypes;
 
     private readonly List<Type> _keyboardHandlerTypes  = [];
     private readonly List<Type> _dropTargetTypes       = [];
@@ -95,11 +105,20 @@ public sealed class FeatureManager
     {
         var types = asm.GetTypes();
 
-        // 1. Discover and register IFeatureConfig types.
+        // 1. Discover IFeatureConfig types. Global ones are registered with ConfigManager and shared
+        //    across all profiles; [WorkspaceScopedConfig] ones are NOT registered globally — only their
+        //    type is recorded, so each Profile builds its own instance under Contexts\<name>\.
         var localConfigs = new Dictionary<Type, IFeatureConfig>();
         foreach (var t in types.Where(t => !t.IsAbstract && !t.IsInterface
                                            && typeof(IFeatureConfig).IsAssignableFrom(t)))
         {
+            if (t.GetCustomAttribute<WorkspaceScopedConfigAttribute>() is not null)
+            {
+                if (!_workspaceScopedConfigTypes.Contains(t))
+                    _workspaceScopedConfigTypes.Add(t);
+                continue;
+            }
+
             var cfg = (IFeatureConfig)Activator.CreateInstance(t)!;
             ConfigManager.Instance.Register(cfg, cfg.ConfigName);
             localConfigs[t]  = cfg;
@@ -244,7 +263,16 @@ public sealed class FeatureManager
             }
             else if (pt == typeof(IReadOnlyDictionary<Type, IFeatureConfig>))
             {
-                args[i] = (IReadOnlyDictionary<Type, IFeatureConfig>)_configs;
+                args[i] = BuildScopedConfigView(workspace);
+            }
+            else if (workspace?.Profile.FindWorkspaceConfig(pt) is { } scoped)
+            {
+                args[i] = scoped;
+            }
+            else if (_workspaceScopedConfigTypes.Contains(pt))
+            {
+                // Scoped type that this (null/window-less) workspace can't supply — unsatisfiable.
+                return null;
             }
             else if (_configs.TryGetValue(pt, out var cfg))
             {
@@ -319,4 +347,22 @@ public sealed class FeatureManager
 
     private static ConstructorInfo BestConstructor(Type t)
         => t.GetConstructors().OrderByDescending(c => c.GetParameters().Length).First();
+
+    /// <summary>
+    /// The <see cref="IFeatureConfig"/> view handed to feature-scoped registries
+    /// (e.g. <see cref="Services.FileSystemFeatureRegistry"/>). For a live workspace this is the
+    /// global <see cref="_configs"/> overlaid with that workspace's profile's per-workspace scoped
+    /// instances, so a viewlet ctor that takes a scoped config (e.g. ProjectsConfig) resolves the
+    /// profile-specific instance. Falls back to the raw global map when there's no workspace.
+    /// </summary>
+    private IReadOnlyDictionary<Type, IFeatureConfig> BuildScopedConfigView(Workspace? workspace)
+    {
+        if (workspace?.Profile.WorkspaceConfigs is not { Count: > 0 } scoped)
+            return _configs;
+
+        var merged = new Dictionary<Type, IFeatureConfig>(_configs);
+        foreach (var cfg in scoped)
+            merged[cfg.GetType()] = cfg;
+        return merged;
+    }
 }

@@ -11,6 +11,7 @@ public enum LanguageOption { English }
 /// part of any feature assembly scanned by FeatureManager.
 /// </summary>
 [CustomControl(typeof(ShellConfigControl))]
+[Nexaflow.Features.Common.MandatorySetup]   // shown in the setup wizard (theme/language/start-with-windows)
 public sealed class ShellConfig : IFeatureConfig
 {
     public string ConfigName   => "shell";
@@ -28,4 +29,12 @@ public sealed class ShellConfig : IFeatureConfig
     /// </summary>
     [ConfigDisplayName("Start with Windows")]
     public bool PrestartAtLogin { get; set; }
+
+    /// <summary>
+    /// Assembly version of the last run that reached the main window. Compared to the current version
+    /// to decide whether to show the "What's New" wizard step after an update. Not user-editable
+    /// (ShellConfig renders via <c>ShellConfigControl</c>, so this property never appears in the grid);
+    /// written by App on launch. Null until the first run completes.
+    /// </summary>
+    public string? LastRunVersion { get; set; }
 }

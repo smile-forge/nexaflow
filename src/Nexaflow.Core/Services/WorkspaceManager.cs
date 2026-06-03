@@ -1,7 +1,9 @@
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
+using Nexaflow.Features.Common;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Windows;
 
 namespace Nexaflow.Core.Services;
 
@@ -35,6 +37,14 @@ public sealed class WorkspaceManager
         => _workspaces.Any(w => w.ShellServices is { } s && s.HasWindows);
 
     private WorkspacesConfig? _savedConfig;
+
+    /// <summary>
+    /// Set by <c>App</c> at startup. Given a freshly-created <see cref="Workspace"/>, builds (but does
+    /// not show) its first window host and wires the tear-off factory — the same logic App uses on
+    /// launch. Lets <see cref="RestartWorkspace"/> spin up a new workspace+window without Core.Services
+    /// referencing <c>MainWindow</c>.
+    /// </summary>
+    internal Func<Workspace, IWindowHost>? WindowHostFactory { get; set; }
 
     private WorkspaceManager() { }
 
@@ -171,6 +181,8 @@ public sealed class WorkspaceManager
         ConfigManager.Instance.SaveTo(destDir, source.Persona, source.Persona.ConfigName);
         foreach (var cfg in source.ProviderConfigs)
             ConfigManager.Instance.SaveTo(destDir, cfg, cfg.ConfigName);
+        foreach (var cfg in source.WorkspaceConfigs)
+            ConfigManager.Instance.SaveTo(destDir, cfg, cfg.ConfigName);
 
         Profiles.Add(profile);
         ProfilesRefreshed?.Invoke(this, EventArgs.Empty);
@@ -193,6 +205,59 @@ public sealed class WorkspaceManager
     public bool IsProfileInUse(Profile profile)
         => _workspaces.Any(w => ReferenceEquals(w.Profile, profile));
 
+    /// <summary>The live workspace running <paramref name="profile"/>, or null when none is open.</summary>
+    public Workspace? FindLiveWorkspace(Profile profile)
+        => _workspaces.FirstOrDefault(w => ReferenceEquals(w.Profile, profile));
+
+    /// <summary>
+    /// Rebuilds <paramref name="old"/> as a brand-new workspace on the same profile and swaps its
+    /// window: snapshots the focused window's tabs, creates a fresh workspace (fresh ShellServices /
+    /// AIService / providers / file-system registry that pick up the just-saved per-workspace config),
+    /// opens a replacement window where the old one was, reopens the tabs, then closes the old
+    /// workspace's windows (its last close disposes it). Used by the Configure panel after a
+    /// provider-config or workspace-scoped feature-config change — the theme-restart pattern, but
+    /// swapping the whole workspace. Falls back to <see cref="ReconfigureWorkspace"/> if no window
+    /// factory is wired (e.g. headless).
+    /// </summary>
+    internal void RestartWorkspace(Workspace old)
+    {
+        var acting = old.ShellServices?.FocusedWindow;
+        if (acting is null || WindowHostFactory is null) { ReconfigureWorkspace(old); return; }
+
+        // Snapshot the acting window's tabs (kind/params/active) and its placement.
+        var snapshot = acting.Tabs
+            .Where(t => !string.IsNullOrEmpty(t.PageKind))
+            .Select(t => (Kind: t.PageKind!, t.PageParams, t.IsActive))
+            .ToList();
+        var src       = acting.Window;
+        bool maximized = src.WindowState == WindowState.Maximized;
+        var bounds    = maximized ? src.RestoreBounds
+                                  : new Rect(src.Left, src.Top, src.Width, src.Height);
+
+        // Fresh workspace on the same profile — the shared Profile already carries the saved edits.
+        var fresh = CreateWorkspace(old.Profile);
+
+        // Replacement window, placed where the old one was, shown BEFORE the old closes so the
+        // workspace is never left window-less (which would dispose it / shut the app down).
+        var freshHost = WindowHostFactory(fresh);
+        var dst = freshHost.Window;
+        dst.WindowStartupLocation = WindowStartupLocation.Manual;
+        dst.Left = bounds.Left; dst.Top = bounds.Top; dst.Width = bounds.Width; dst.Height = bounds.Height;
+        dst.Show();
+        if (maximized) dst.WindowState = WindowState.Maximized;
+
+        // Tear down the old workspace's windows (last close releases its providers + evicts caches).
+        old.ShellServices?.CloseAllWindows();
+
+        // Reopen in reverse (AddTab prepends) so the original left-to-right order is preserved.
+        for (int i = snapshot.Count - 1; i >= 0; i--)
+            fresh.ShellServices!.OpenTab(snapshot[i].Kind, snapshot[i].PageParams);
+
+        var active = snapshot.FirstOrDefault(s => s.IsActive);
+        if (active.Kind is not null && fresh.ShellServices!.FindTab(active.Kind, active.PageParams) is { } activeTab)
+            freshHost.SetActiveTab(activeTab);
+    }
+
     /// <summary>Per-profile data folder: <c>%AppData%\…\Contexts\&lt;name&gt;</c> (folder name kept for compat).</summary>
     public static string ProfileDir(string name)
         => Path.Combine(ConfigManager.Instance.BaseDir, "Contexts", name);
@@ -212,6 +277,10 @@ public sealed class WorkspaceManager
     /// <summary>Persists one profile's assistant persona (name + system prompt) to its own folder.</summary>
     public void SaveProfilePersona(Profile profile)
         => ConfigManager.Instance.SaveTo(ProfileDir(profile.Name), profile.Persona, profile.Persona.ConfigName);
+
+    /// <summary>Persists one of a profile's per-workspace feature configs to its own folder.</summary>
+    public void SaveProfileWorkspaceConfig(Profile profile, IFeatureConfig config)
+        => ConfigManager.Instance.SaveTo(ProfileDir(profile.Name), config, config.ConfigName);
 
     // ── Private helpers ───────────────────────────────────────────────────────
 

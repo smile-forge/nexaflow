@@ -45,6 +45,7 @@
                     BorderThickness="0"
                     WindowChrome.IsHitTestVisibleInChrome="True"
                     Click="OnTriggerClick"
+                    MouseRightButtonUp="OnTriggerRightClick"
                     ToolTip="{Binding CurrentProfile.Name, ElementName=Root}">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
