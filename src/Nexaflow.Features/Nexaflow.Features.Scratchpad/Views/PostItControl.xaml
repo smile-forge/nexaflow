@@ -154,6 +154,7 @@
                                      Margin="8,6"
                                      Palette="{x:Static md:MarkdownPalette.Light}"
                                      Placeholder="Type to add a note…"
+                                     BaseDirectory="{Binding AttachmentDirectory}"
                                      Markdown="{Binding Content, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
 
             <!-- Bottom grip -->

@@ -1,6 +1,8 @@
 using Nexaflow.Features.Scratchpad.Converters;
+using Nexaflow.Features.Scratchpad.Services;
 using Nexaflow.Features.Scratchpad.ViewModels;
 using Nexaflow.Visuals.Text.Markdown;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Windows;
@@ -8,6 +10,7 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace Nexaflow.Features.Scratchpad.Views;
 
@@ -43,14 +46,68 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         DataContextChanged += OnDataContextChanged;
         SizeChanged        += OnSizeChanged;
 
-        // Links open in an in-app web tab; fall back to the OS browser if unwired.
-        Editor.LinkNavigate = url =>
+        // A clicked link (file path or URL) is dispatched by the shell to whichever feature
+        // claims it; if none does, returning false lets the renderer open it in the OS browser.
+        Editor.LinkNavigate = url => Vm.OpenUrl?.Invoke(url) ?? false;
+
+        // Dropping an image / file / url / text onto a note inserts it as a block at the drop point.
+        // The editor handles drops over its own (RichTextBox) area; PostItControl covers the rest of the
+        // note (header, grips). Both insert a block rather than letting the drop create a new post-it.
+        Editor.ContentDropped += InsertDropped;
+        AllowDrop = true;
+        DragOver += PostIt_DragOver;
+        Drop     += PostIt_Drop;
+    }
+
+    // ── Drag-and-drop onto the note ───────────────────────────────────────
+
+    private void PostIt_DragOver(object sender, DragEventArgs e)
+    {
+        bool ok = e.Data.GetDataPresent(DataFormats.FileDrop)
+               || e.Data.GetDataPresent(DataFormats.Bitmap)
+               || e.Data.GetDataPresent(DataFormats.UnicodeText)
+               || e.Data.GetDataPresent(DataFormats.Text);
+        e.Effects = ok ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void PostIt_Drop(object sender, DragEventArgs e)
+    {
+        InsertDropped(e.Data, e.GetPosition(Editor));
+        e.Handled = true;   // consume so the canvas doesn't also create a new post-it
+    }
+
+    private void InsertDropped(IDataObject data, Point editorPoint)
+    {
+        var markdown = DropToMarkdown(data);
+        if (!string.IsNullOrEmpty(markdown))
+            Editor.InsertMarkdownAt(markdown, editorPoint);
+    }
+
+    /// <summary>Builds the markdown block(s) for dropped content: images are copied into this note's
+    /// attachment folder and embedded; files/folders become links; text/urls are inserted as-is.</summary>
+    private string? DropToMarkdown(IDataObject data)
+    {
+        var dir = Vm.AttachmentDirectory;
+
+        if (data.GetDataPresent(DataFormats.FileDrop) && data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0)
         {
-            var open = Vm.OpenUrl;
-            if (open is null) return false;
-            open(url);
-            return true;
-        };
+            var blocks = new List<string>();
+            foreach (var f in files)
+            {
+                if (DroppedMedia.IsImageFile(f) && dir is not null && DroppedMedia.CopyImageInto(f, dir) is { } name)
+                    blocks.Add($"![]({name})");
+                else
+                    blocks.Add(DroppedMedia.FileLinkMarkdown(f));
+            }
+            return string.Join("\n\n", blocks);
+        }
+
+        if (data.GetDataPresent(DataFormats.Bitmap) && data.GetData(DataFormats.Bitmap) is BitmapSource bmp
+            && dir is not null && DroppedMedia.SaveBitmapInto(bmp, dir) is { } bitmapName)
+            return $"![]({bitmapName})";
+
+        return MarkdownClipboard.ReadBestMarkdown(data);   // text / url inserted as-is
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)

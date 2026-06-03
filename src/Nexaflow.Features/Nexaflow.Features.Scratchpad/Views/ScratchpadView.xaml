@@ -339,6 +339,8 @@
             <Border x:Name="CanvasHost"
                     ClipToBounds="True"
                     AllowDrop="True"
+                    Focusable="True"
+                    FocusVisualStyle="{x:Null}"
                     MouseWheel="CanvasHost_MouseWheel"
                     MouseDown="CanvasHost_MouseDown"
                     MouseMove="CanvasHost_MouseMove"
@@ -350,6 +352,7 @@
                 <Border.ContextMenu>
                     <ContextMenu>
                         <MenuItem Header="New post-it here" Click="NewNoteHere_Click"/>
+                        <MenuItem x:Name="CanvasPasteItem" Header="Paste as post-it" Click="PasteHere_Click"/>
                     </ContextMenu>
                 </Border.ContextMenu>
 

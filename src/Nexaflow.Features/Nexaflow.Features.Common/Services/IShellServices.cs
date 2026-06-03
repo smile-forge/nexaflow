@@ -72,6 +72,17 @@ public interface IShellServices
     void PinToRibbon(string contentKind, object payload);
 
     /// <summary>
+    /// Dispatches <paramref name="obj"/> to the first registered
+    /// <see cref="IGenericObjectHandler"/> whose <c>CanHandleObject</c> returns true, and
+    /// invokes its <c>Handle</c>. Returns true if a handler claimed it, false if none did
+    /// (the caller can then fall back, e.g. open in the OS browser). Runs on the UI thread.
+    /// Lets a feature act on an object owned by another feature without a direct reference —
+    /// e.g. the scratchpad opens a clicked file/URL link without knowing the file-system or
+    /// web features exist.
+    /// </summary>
+    bool HandleObject(object obj);
+
+    /// <summary>
     /// Enumerates every concrete, non-abstract type across the loaded
     /// <c>Nexaflow.*</c> assemblies (Core + each <c>Nexaflow.Features.*</c>)
     /// that is assignable to <typeparamref name="TInterface"/>.

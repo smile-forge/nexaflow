@@ -5,6 +5,7 @@ using Markdig.Extensions.TaskLists;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -570,11 +571,20 @@ public static class BlockRenderer
                 });
                 break;
 
+            case LinkInline link when link.IsImage:
+                if (TryRenderImage(link.Url, ctx) is { } image)
+                    target.Add(image);
+                else
+                    // Unresolved/remote image → show its alt text so nothing is silently lost.
+                    foreach (var child in link) AddInlines(target, child, ctx);
+                break;
+
             case LinkInline link when !link.IsImage:
                 var hyper = new Hyperlink
                 {
                     Foreground      = p.Accent,
                     TextDecorations = TextDecorations.Underline,
+                    Cursor          = System.Windows.Input.Cursors.Hand,   // signal the link is clickable
                     NavigateUri     = Uri.TryCreate(link.Url, UriKind.Absolute, out var uri) ? uri : null
                 };
                 var onNavigate = ctx.OnNavigate;
@@ -627,6 +637,69 @@ public static class BlockRenderer
                 target.Add(new Run(inline.ToString() ?? string.Empty));
                 break;
         }
+    }
+
+    // ── Image rendering (local files only) ────────────────────────────────
+
+    /// <summary>
+    /// Builds an inline image for a markdown <c>![](src)</c> when <paramref name="src"/> resolves
+    /// to an existing LOCAL file — an absolute path, a <c>file:</c> URI, or a name relative to
+    /// <see cref="MarkdownRenderContext.BaseDirectory"/>. Remote <c>http(s)</c> sources are never
+    /// fetched (returns null so the caller shows alt text). The bitmap is loaded with
+    /// <see cref="BitmapCacheOption.OnLoad"/> so the renderer holds no file handle.
+    /// </summary>
+    private static WpfInline? TryRenderImage(string? src, MarkdownRenderContext ctx)
+    {
+        var path = ResolveLocalImagePath(src, ctx.BaseDirectory);
+        if (path is null) return null;
+
+        try
+        {
+            var bmp = new System.Windows.Media.Imaging.BitmapImage();
+            bmp.BeginInit();
+            bmp.CacheOption  = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+            bmp.CreateOptions = System.Windows.Media.Imaging.BitmapCreateOptions.IgnoreImageCache;
+            bmp.UriSource    = new Uri(path, UriKind.Absolute);
+            bmp.EndInit();
+            bmp.Freeze();
+
+            var img = new Image
+            {
+                Source           = bmp,
+                Stretch          = Stretch.Uniform,
+                StretchDirection = StretchDirection.DownOnly,
+                MaxWidth         = 600,
+                MaxHeight        = 600,
+                Margin           = new Thickness(0, 2, 0, 2),
+            };
+            return new InlineUIContainer(img) { BaselineAlignment = BaselineAlignment.Bottom };
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Resolves a markdown image src to a local file path that exists, or null. Handles
+    /// <c>file:</c> URIs, rooted paths, and names relative to <paramref name="baseDir"/>.
+    /// Returns null for remote schemes and missing files.
+    /// </summary>
+    private static string? ResolveLocalImagePath(string? src, string? baseDir)
+    {
+        if (string.IsNullOrWhiteSpace(src)) return null;
+
+        if (Uri.TryCreate(src, UriKind.Absolute, out var abs))
+        {
+            if (abs.IsFile) return File.Exists(abs.LocalPath) ? abs.LocalPath : null;
+            return null;   // http(s)/data/etc. — not a local file
+        }
+
+        var candidate = src;
+        if (!Path.IsPathRooted(candidate) && !string.IsNullOrEmpty(baseDir))
+            candidate = Path.Combine(baseDir, Uri.UnescapeDataString(src));
+
+        return File.Exists(candidate) ? Path.GetFullPath(candidate) : null;
     }
 
     // ── Fenced-content extraction ─────────────────────────────────────────

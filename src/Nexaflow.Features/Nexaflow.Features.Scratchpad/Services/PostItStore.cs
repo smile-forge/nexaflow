@@ -15,6 +15,7 @@ public sealed class PostItStore
 
     private readonly string _postitsPath;
     private readonly string _recyclePath;
+    private readonly string _attachmentsPath;
 
     public PostItStore() : this(Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -24,11 +25,36 @@ public sealed class PostItStore
 
     public PostItStore(string root)
     {
-        _postitsPath = Path.Combine(root, "postits");
-        _recyclePath = Path.Combine(root, "recyclebin");
+        _postitsPath     = Path.Combine(root, "postits");
+        _recyclePath     = Path.Combine(root, "recyclebin");
+        _attachmentsPath = Path.Combine(root, "attachments");
 
         Directory.CreateDirectory(_postitsPath);
         Directory.CreateDirectory(_recyclePath);
+        Directory.CreateDirectory(_attachmentsPath);
+    }
+
+    /// <summary>
+    /// The per-note folder that holds a post-it's backing files (dropped images, URL preview
+    /// images). Keyed on the note Id; its existence is the attachment state. The folder follows
+    /// the note's lifetime — it survives recycle/restore and is removed only on permanent deletion
+    /// (<see cref="Delete"/> / <see cref="PurgeRecycleBin"/> / <see cref="EmptyRecycleBin"/>).
+    /// </summary>
+    public string AttachmentDir(Guid id) => Path.Combine(_attachmentsPath, id.ToString());
+
+    /// <summary>Creates (if needed) and returns the note's attachment folder.</summary>
+    public string EnsureAttachmentDir(Guid id)
+    {
+        var dir = AttachmentDir(id);
+        Directory.CreateDirectory(dir);
+        return dir;
+    }
+
+    private void DeleteAttachmentDir(Guid id)
+    {
+        var dir = AttachmentDir(id);
+        if (Directory.Exists(dir))
+            try { Directory.Delete(dir, recursive: true); } catch { }
     }
 
     public IReadOnlyList<PostItNote> LoadAll()       => LoadFrom(_postitsPath);
@@ -43,6 +69,7 @@ public sealed class PostItStore
         if (File.Exists(live)) File.Delete(live);
         var bin = RecyclePath(note.Id);
         if (File.Exists(bin)) File.Delete(bin);
+        DeleteAttachmentDir(note.Id);
     }
 
     public void MoveToRecycleBin(PostItNote note)
@@ -77,7 +104,10 @@ public sealed class PostItStore
 
                 var timestamp = note.ExpiresAt ?? note.CreatedAt;
                 if (retentionDays == 0 || timestamp < cutoff)
+                {
                     File.Delete(file);
+                    DeleteAttachmentDir(note.Id);
+                }
             }
             catch { /* skip corrupt files */ }
         }
@@ -88,7 +118,13 @@ public sealed class PostItStore
     {
         foreach (var file in Directory.GetFiles(_recyclePath, "*.json"))
         {
-            try { File.Delete(file); } catch { }
+            try
+            {
+                File.Delete(file);
+                if (Guid.TryParse(Path.GetFileNameWithoutExtension(file), out var id))
+                    DeleteAttachmentDir(id);
+            }
+            catch { }
         }
     }
 

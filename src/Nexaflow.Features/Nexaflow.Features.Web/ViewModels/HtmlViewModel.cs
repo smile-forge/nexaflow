@@ -20,6 +20,10 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel
     [ObservableProperty] private string _currentUrl = string.Empty;
     [ObservableProperty] private bool   _isLoading  = true;
 
+    /// <summary>The loaded document's title (from WebView2), or empty before it's known.
+    /// Drives the tab title when present; otherwise the URL-derived form is used.</summary>
+    [ObservableProperty] private string _pageTitle = string.Empty;
+
     public HtmlViewModel(string filePath)
     {
         FileName = Path.GetFileName(filePath);

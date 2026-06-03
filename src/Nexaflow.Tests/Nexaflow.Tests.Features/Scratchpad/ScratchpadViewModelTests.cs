@@ -119,6 +119,43 @@ public class ScratchpadViewModelTests
     }
 
     [TestMethod]
+    public void AddFileLinkNote_CreatesClickableFileLink()
+    {
+        var file = Path.Combine(_root, "report.pdf");
+        File.WriteAllText(file, "x");
+
+        using var vm = NewVm();
+        var note = vm.AddFileLinkNote(file, new Point(0, 0));
+
+        StringAssert.Contains(note.Content, "report.pdf");
+        StringAssert.Contains(note.Content, new Uri(file).AbsoluteUri);
+    }
+
+    [TestMethod]
+    public void AddUrlNote_ShowsBareUrlImmediately()
+    {
+        using var vm = NewVm();   // null shell → no preview task, just the bare URL
+        var note = vm.AddUrlNote("https://example.com/some/page", new Point(0, 0));
+
+        Assert.AreEqual("https://example.com/some/page", note.Content);
+    }
+
+    [TestMethod]
+    public void AddImageNote_EmbedsImageAndCopiesIntoAttachmentFolder()
+    {
+        var img = Path.Combine(_root, "pic.png");
+        File.WriteAllText(img, "pretend-image");   // copy succeeds; sizing fails gracefully
+
+        using var vm = NewVm();
+        var note = vm.AddImageNote(img, new Point(0, 0));
+
+        StringAssert.StartsWith(note.Content, "![](");
+        var attDir = _store.AttachmentDir(note.Note.Id);
+        Assert.IsTrue(Directory.Exists(attDir));
+        Assert.AreEqual(1, Directory.GetFiles(attDir).Length, "the image was copied into the note's folder");
+    }
+
+    [TestMethod]
     public void LoadedNote_RemoveCommand_MovesToRecycleBin()
     {
         var existing = new PostItNote { Content = "kill me" };
