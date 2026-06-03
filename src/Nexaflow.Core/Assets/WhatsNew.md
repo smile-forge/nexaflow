@@ -8,14 +8,9 @@ Thanks for updating! Here's what changed.
   project directory and terminal environments instead of sharing one global set.
 - A new **Configure** panel collects everything a workspace owns: its AI ability grid, persona,
   provider keys, and per-workspace feature settings.
-
-## Reaching it
-
-- **Right-click** the workspace button (top-left of the ribbon) and choose **Configure workspace…**
-  to configure the active workspace.
-- In **Options → Workspaces** (formerly *Work Contexts*), each workspace row now has a **⚙** button
-  to configure that workspace directly.
-- The old **Manage AI** button has moved into this Configure panel.
+- Scratchpad has been upgraded with rich drag support, so you can drag and drop files, folders, and even text snippets from the editor into the
+  scratchpad.
+- improved themes and UI polish across the board.
 
 ## Guided setup
 
