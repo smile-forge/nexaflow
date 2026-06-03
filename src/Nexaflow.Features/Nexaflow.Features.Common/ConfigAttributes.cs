@@ -30,6 +30,25 @@ public sealed class FilePathAttribute(params string[] extensions) : Attribute
 }
 
 /// <summary>
+/// Applied to a property to grey out its editor whenever the named sibling property is "set"
+/// (a true bool, a non-zero number, or a non-empty string). Use two of these — one on each property —
+/// to make a pair mutually exclusive.
+/// </summary>
+[AttributeUsage(AttributeTargets.Property)]
+public sealed class DisabledIfSetAttribute(string propertyName) : Attribute
+{
+    public string PropertyName { get; } = propertyName;
+}
+
+/// <summary>The inverse of <see cref="DisabledIfSetAttribute"/>: grey out this editor UNTIL the named
+/// sibling property is set (e.g. a project folder only matters once "Enable projects" is on).</summary>
+[AttributeUsage(AttributeTargets.Property)]
+public sealed class DisabledIfNotSetAttribute(string propertyName) : Attribute
+{
+    public string PropertyName { get; } = propertyName;
+}
+
+/// <summary>
 /// Marks a string property as list-sourced.
 /// The Options panel invokes <see cref="SourceType"/>.<see cref="MethodName"/>() —
 /// a public static parameterless method — and uses the returned <see cref="IEnumerable{T}"/>
@@ -59,6 +78,26 @@ public sealed class CustomControlAttribute(Type controlType) : Attribute
 {
     public Type ControlType { get; } = controlType;
 }
+
+/// <summary>
+/// Applied to an <see cref="IFeatureConfig"/> class to mark it as <b>per-workspace</b> rather than
+/// global. A scoped config is never registered with the global <c>ConfigManager</c>; instead one
+/// instance is created per profile and stored under <c>Contexts\&lt;name&gt;\&lt;ConfigName&gt;</c>
+/// (exactly like a provider config), edited from the per-workspace Configure panel, and injected
+/// into features from the owning workspace's profile. Default (no attribute) = global.
+/// A feature needing both scopes ships two config classes — one annotated, one not.
+/// </summary>
+[AttributeUsage(AttributeTargets.Class)]
+public sealed class WorkspaceScopedConfigAttribute : Attribute { }
+
+/// <summary>
+/// Applied to a config class (feature, provider persona, etc.) to include it as a step in the
+/// first-run / post-update setup wizard. Without it, the config is skipped by the wizard (it stays
+/// fully editable in Options / the Configure panel). Use it only for settings a user truly must see
+/// up front — the wizard's essential AI bootstrap (provider, key, model) always runs regardless.
+/// </summary>
+[AttributeUsage(AttributeTargets.Class)]
+public sealed class MandatorySetupAttribute : Attribute { }
 
 /// <summary>
 /// Implemented by a custom Options control to participate in the Options panel Save flow.

@@ -36,6 +36,11 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- Shown by the setup wizard's "What's New" step (read via Application.GetResourceStream). -->
+    <Resource Include="Assets\WhatsNew.md" />
+  </ItemGroup>
   
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.AIChat\Nexaflow.Features.AIChat.csproj" />

@@ -2,174 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:Nexaflow.Core.Controls"
-             xmlns:cvn="clr-namespace:Nexaflow.Core.Converters"
-             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:vm="clr-namespace:Nexaflow.Core.ViewModels">
-
-    <UserControl.Resources>
-        <cvn:ValidationErrorToBorderBrushConverter x:Key="ValidationBorderBrush"/>
-        <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
-        <cvn:InverseBoolToVisibilityConverter x:Key="InverseBoolVis"/>
-
-        <Style x:Key="RowGrid" TargetType="Grid">
-            <Setter Property="Margin" Value="0,6"/>
-        </Style>
-
-        <!-- ── TextBox template ── -->
-        <DataTemplate x:Key="TextBoxTemplate"
-                      DataType="{x:Type vm:PropertyEditViewModel}">
-            <Grid x:Name="RowContainer" Style="{StaticResource RowGrid}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="180"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="{Binding Label}"
-                           Foreground="{StaticResource TextMutedBrush}"
-                           FontSize="12" VerticalAlignment="Center"/>
-                <TextBox Grid.Column="1"
-                         Style="{StaticResource DarkTextBox}"
-                         Text="{Binding Value, UpdateSourceTrigger=LostFocus}"
-                         FontSize="12"/>
-                <Button x:Name="ClearBtn"
-                        Grid.Column="2"
-                        Margin="4,0,0,0"
-                        Width="22" Height="22"
-                        Opacity="0"
-                        Cursor="Hand"
-                        ToolTip="Clear"
-                        Command="{Binding ClearValueCommand}"
-                        VerticalAlignment="Center">
-                    <Button.Template>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="bg" Background="Transparent" CornerRadius="4" Padding="3">
-                                <TextBlock Text="✕" FontSize="10"
-                                           Foreground="{StaticResource TextMutedBrush}"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="bg" Property="Background" Value="{StaticResource BorderBrush}"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Button.Template>
-                </Button>
-            </Grid>
-            <DataTemplate.Triggers>
-                <!-- Fade in when mouse enters the row -->
-                <Trigger SourceName="RowContainer" Property="IsMouseOver" Value="True">
-                    <Trigger.EnterActions>
-                        <BeginStoryboard>
-                            <Storyboard>
-                                <DoubleAnimation Storyboard.TargetName="ClearBtn"
-                                                 Storyboard.TargetProperty="Opacity"
-                                                 To="1" Duration="0:0:0.12"/>
-                            </Storyboard>
-                        </BeginStoryboard>
-                    </Trigger.EnterActions>
-                </Trigger>
-                <!-- Fade in when the TextBox receives keyboard focus -->
-                <Trigger SourceName="RowContainer" Property="IsKeyboardFocusWithin" Value="True">
-                    <Trigger.EnterActions>
-                        <BeginStoryboard>
-                            <Storyboard>
-                                <DoubleAnimation Storyboard.TargetName="ClearBtn"
-                                                 Storyboard.TargetProperty="Opacity"
-                                                 To="1" Duration="0:0:0.1"/>
-                            </Storyboard>
-                        </BeginStoryboard>
-                    </Trigger.EnterActions>
-                </Trigger>
-                <!-- Fade out only when BOTH conditions are gone -->
-                <MultiTrigger>
-                    <MultiTrigger.Conditions>
-                        <Condition SourceName="RowContainer" Property="IsMouseOver" Value="False"/>
-                        <Condition SourceName="RowContainer" Property="IsKeyboardFocusWithin" Value="False"/>
-                    </MultiTrigger.Conditions>
-                    <MultiTrigger.EnterActions>
-                        <BeginStoryboard>
-                            <Storyboard>
-                                <DoubleAnimation Storyboard.TargetName="ClearBtn"
-                                                 Storyboard.TargetProperty="Opacity"
-                                                 To="0" Duration="0:0:0.15"/>
-                            </Storyboard>
-                        </BeginStoryboard>
-                    </MultiTrigger.EnterActions>
-                </MultiTrigger>
-            </DataTemplate.Triggers>
-        </DataTemplate>
-
-        <!-- ── FolderPath template ── -->
-        <DataTemplate x:Key="FolderPathTemplate"
-                      DataType="{x:Type vm:PropertyEditViewModel}">
-            <Grid Style="{StaticResource RowGrid}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="180"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="{Binding Label}"
-                           Foreground="{StaticResource TextMutedBrush}"
-                           FontSize="12" VerticalAlignment="Center"/>
-                <TextBox Grid.Column="1"
-                         Style="{StaticResource DarkTextBox}"
-                         Text="{Binding Value, UpdateSourceTrigger=LostFocus}"
-                         FontSize="12"
-                         BorderBrush="{Binding ValidationError, Converter={StaticResource ValidationBorderBrush}}"
-                         ToolTip="{Binding ValidationError}"/>
-                <Button Grid.Column="2"
-                        Margin="6,0,0,0"
-                        Style="{StaticResource IconButton}"
-                        ToolTip="Browse for folder…"
-                        Command="{Binding BrowseFolderCommand}">
-                    <TextBlock Text="…" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
-                </Button>
-            </Grid>
-        </DataTemplate>
-
-        <!-- ── Enum ComboBox template ── -->
-        <DataTemplate x:Key="EnumComboBoxTemplate"
-                      DataType="{x:Type vm:PropertyEditViewModel}">
-            <Grid Style="{StaticResource RowGrid}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="180"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="{Binding Label}"
-                           Foreground="{StaticResource TextMutedBrush}"
-                           FontSize="12" VerticalAlignment="Center"/>
-                <ComboBox Grid.Column="1"
-                          Style="{StaticResource DarkComboBox}"
-                          ItemsSource="{Binding EnumOptions}"
-                          SelectedItem="{Binding Value}"/>
-            </Grid>
-        </DataTemplate>
-
-        <!-- ── List-sourced ComboBox template ── -->
-        <DataTemplate x:Key="ListComboBoxTemplate"
-                      DataType="{x:Type vm:PropertyEditViewModel}">
-            <Grid Style="{StaticResource RowGrid}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="180"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="{Binding Label}"
-                           Foreground="{StaticResource TextMutedBrush}"
-                           FontSize="12" VerticalAlignment="Center"/>
-                <ComboBox Grid.Column="1"
-                          Style="{StaticResource DarkComboBox}"
-                          ItemsSource="{Binding ListOptions}"
-                          SelectedItem="{Binding Value}"/>
-            </Grid>
-        </DataTemplate>
-
-        <local:PropertyEditorSelector x:Key="EditorSelector"
-                                      TextBoxTemplate="{StaticResource TextBoxTemplate}"
-                                      FolderPathTemplate="{StaticResource FolderPathTemplate}"
-                                      EnumComboBoxTemplate="{StaticResource EnumComboBoxTemplate}"
-                                      ListComboBoxTemplate="{StaticResource ListComboBoxTemplate}"/>
-    </UserControl.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -180,7 +13,7 @@
 
         <!-- Header -->
         <Grid Grid.Row="0" Margin="20,16,20,8">
-            <TextBlock Text="Manage AI" FontSize="16" FontWeight="Bold"
+            <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="Bold"
                        Foreground="{StaticResource TextBrush}"/>
             <Button HorizontalAlignment="Right"
                     Style="{StaticResource TopBarAction}"
@@ -221,17 +54,9 @@
                 </ListBox>
             </Border>
 
-            <!-- Right: custom control or property grid -->
-            <Grid Grid.Column="1">
-                <ContentControl Content="{Binding SelectedSection.CustomControlInstance}"
-                                Visibility="{Binding SelectedSection.HasCustomControl, Converter={StaticResource BoolVis}}"/>
-                <ScrollViewer Padding="20,12"
-                              HorizontalScrollBarVisibility="Disabled"
-                              Visibility="{Binding SelectedSection.HasCustomControl, Converter={StaticResource InverseBoolVis}}">
-                    <ItemsControl ItemsSource="{Binding SelectedSection.Properties}"
-                                  ItemTemplateSelector="{StaticResource EditorSelector}"/>
-                </ScrollViewer>
-            </Grid>
+            <!-- Right: shared config editor (custom control or reflected property grid) -->
+            <local:ConfigEditorView Grid.Column="1" Margin="20,12"
+                                    DataContext="{Binding SelectedSection}"/>
         </Grid>
 
         <!-- Footer -->
@@ -269,34 +94,20 @@
                     </Button.Template>
                 </Button>
 
-                <!-- Close: becomes the visual primary when nothing has changed -->
-                <Button Width="90" Height="32"
+                <!-- Close: applies pending changes to the running workspace on the way out -->
+                <Button Content="Close"
+                        Width="90" Height="32"
                         FontSize="12"
-                        BorderThickness="1"
+                        Background="{StaticResource AccentBrush}"
+                        Foreground="White"
+                        BorderThickness="0"
                         Cursor="Hand"
                         Command="{Binding RelativeSource={RelativeSource AncestorType=Window},
                                           Path=DataContext.CloseManageAiCommand}">
-                    <Button.Style>
-                        <Style TargetType="Button">
-                            <Setter Property="Content"      Value="Close"/>
-                            <Setter Property="Background"   Value="{StaticResource Surface2Brush}"/>
-                            <Setter Property="Foreground"   Value="{StaticResource TextBrush}"/>
-                            <Setter Property="BorderBrush"  Value="{StaticResource BorderBrush}"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedSection.HasChanges}" Value="False">
-                                    <Setter Property="Background"  Value="{StaticResource AccentBrush}"/>
-                                    <Setter Property="Foreground"  Value="White"/>
-                                    <Setter Property="BorderBrush" Value="Transparent"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
                             <Border x:Name="root"
                                     Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}"
                                     CornerRadius="7" Padding="8,6">
                                 <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Border>

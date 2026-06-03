@@ -11,13 +11,25 @@
     <ScrollViewer Padding="20,12">
         <StackPanel x:Name="RootPanel">
 
-            <!-- Profile list -->
+            <!-- Add button (top of the list) -->
+            <Button Content="+ Add Workspace"
+                    Style="{StaticResource TopBarAction}"
+                    HorizontalAlignment="Left"
+                    Margin="0,0,0,10"
+                    Click="OnAddClick"/>
+
+            <!-- Workspace list -->
             <ItemsControl x:Name="ProfileItems">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Margin="0,0,0,8" Padding="12"
+                        <!-- Thin border separates each workspace -->
+                        <Border Margin="0,0,0,6" Padding="5"
                                 Background="{StaticResource Surface2Brush}"
-                                CornerRadius="4">
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                AllowDrop="True"
+                                Drop="OnItemDrop">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -25,118 +37,137 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
-                                <!-- Colour swatch -->
-                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="4"
-                                        Margin="0,0,10,0" VerticalAlignment="Center"
-                                        Background="{Binding Color, Converter={StaticResource ColorBrush}}">
-                                    <TextBlock Text="{Binding Icon}" FontSize="16"
+                                <!-- Display icon (48px, +50%) — doubles as the drag handle to reorder -->
+                                <Border Grid.Column="0" Width="48" Height="48" CornerRadius="6"
+                                        Margin="0,0,12,0" VerticalAlignment="Center"
+                                        Cursor="SizeAll"
+                                        ToolTip="Drag to reorder"
+                                        Background="{Binding Color, Converter={StaticResource ColorBrush}}"
+                                        MouseLeftButtonDown="OnDragHandleMouseDown"
+                                        MouseMove="OnDragHandleMouseMove">
+                                    <TextBlock Text="{Binding Icon}" FontSize="24"
                                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
-
-                                <!-- Fields -->
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <Grid Margin="0,0,0,4">
+                                
+                                <StackPanel Grid.Column="1">
+                                    <!-- Row 1: Name + Icon on one line -->
+                                    <Grid Margin="0,0,0,6">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="60"/>
+                                            <ColumnDefinition Width="44"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="36"/>
+                                            <ColumnDefinition Width="56"/>
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Grid.Column="0" Text="Name"
-                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                   FontSize="11" VerticalAlignment="Center"/>
+                                              Foreground="{StaticResource TextMutedBrush}"
+                                              FontSize="11" VerticalAlignment="Center"/>
                                         <TextBox Grid.Column="1"
-                                                 Style="{StaticResource DarkTextBox}"
-                                                 Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
-                                                 FontSize="12"/>
+                                            Style="{StaticResource DarkTextBox}"
+                                            Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                            FontSize="12"/>
+                                        <TextBlock Grid.Column="2" Text="Icon" Margin="10,0,0,0"
+                                              Foreground="{StaticResource TextMutedBrush}"
+                                              FontSize="11" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="3"
+                                            Style="{StaticResource DarkTextBox}"
+                                            Text="{Binding Icon, UpdateSourceTrigger=PropertyChanged}"
+                                            MaxLength="3"
+                                            FontSize="12"/>
                                     </Grid>
-                                    <Grid Margin="0,0,0,4">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="60"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="Color"
-                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                   FontSize="11" VerticalAlignment="Center"/>
-                                        <TextBox Grid.Column="1"
-                                                 Style="{StaticResource DarkTextBox}"
-                                                 Text="{Binding Color, UpdateSourceTrigger=PropertyChanged}"
-                                                 FontSize="12"/>
-                                    </Grid>
-
-                                    <!-- Swatch picker (shared bank) — click sets this profile's colour;
-                                         the hex box above remains for a custom value. -->
-                                    <ItemsControl Margin="60,0,0,4"
-                                                  ItemsSource="{Binding Swatches,
-                                                      RelativeSource={RelativeSource AncestorType={x:Type local:ProfilesConfigControl}}}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <WrapPanel Orientation="Horizontal"/>
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Button Width="18" Height="18" Margin="0,0,4,0"
-                                                        Cursor="Hand"
-                                                        Background="{Binding Brush}"
-                                                        Tag="{Binding Hex}"
-                                                        ToolTip="{Binding Hex}"
-                                                        Click="OnSwatchClick">
-                                                    <Button.Template>
-                                                        <ControlTemplate TargetType="Button">
-                                                            <Border Background="{TemplateBinding Background}"
-                                                                    CornerRadius="9"
-                                                                    BorderBrush="{StaticResource BorderBrush}"
-                                                                    BorderThickness="1"/>
-                                                        </ControlTemplate>
-                                                    </Button.Template>
-                                                </Button>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                    <!-- Row 2: swatch picker + hex value to its right -->
                                     <Grid>
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="60"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="Icon"
-                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                   FontSize="11" VerticalAlignment="Center"/>
-                                        <TextBox Grid.Column="1"
+                                        <ItemsControl Grid.Column="0" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                      ItemsSource="{Binding Swatches,
+                                                          RelativeSource={RelativeSource AncestorType={x:Type local:ProfilesConfigControl}}}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel Orientation="Horizontal"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Button Width="18" Height="18" Margin="0,0,4,0"
+                                                            Cursor="Hand"
+                                                            Background="{Binding Brush}"
+                                                            Tag="{Binding Hex}"
+                                                            ToolTip="{Binding Hex}"
+                                                            Click="OnSwatchClick">
+                                                        <Button.Template>
+                                                            <ControlTemplate TargetType="Button">
+                                                                <Border Background="{TemplateBinding Background}"
+                                                                        CornerRadius="9"
+                                                                        BorderBrush="{StaticResource BorderBrush}"
+                                                                        BorderThickness="1"/>
+                                                            </ControlTemplate>
+                                                        </Button.Template>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBox Grid.Column="1" Width="95" Margin="4,0,0,0" Padding="4"
+                                                 VerticalAlignment="Center"
+                                                 HorizontalAlignment="Left"
                                                  Style="{StaticResource DarkTextBox}"
-                                                 Text="{Binding Icon, UpdateSourceTrigger=PropertyChanged}"
-                                                 FontSize="12"/>
+                                                 Text="{Binding Color, UpdateSourceTrigger=PropertyChanged}"
+                                                 FontSize="12"
+                                                 ToolTip="Hex colour (e.g. #5B8CFF)"/>
                                     </Grid>
                                 </StackPanel>
 
-                                <!-- Clone + Remove buttons -->
-                                <StackPanel Grid.Column="2" Orientation="Horizontal"
-                                            VerticalAlignment="Center">
-                                    <Button Content="⧉"
-                                            Margin="8,0,0,0"
-                                            Style="{StaticResource TopBarAction}"
-                                            FontSize="12"
-                                            ToolTip="Clone this profile (new symbol &amp; colour, all other settings copied)"
-                                            Tag="{Binding}"
-                                            Click="OnCloneClick"/>
-                                    <Button Content="✕"
-                                            Margin="4,0,0,0"
-                                            Style="{StaticResource TopBarAction}"
-                                            FontSize="12"
-                                            ToolTip="Remove this profile (the active profile can't be removed)"
-                                            Tag="{Binding}"
-                                            Click="OnRemoveClick"/>
+                                <!-- Action buttons: vertical stack -->
+                                <StackPanel Grid.Column="2" Orientation="Vertical"
+                                            VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="108">
+                                    <Button Style="{StaticResource TopBarAction}"
+                                            Height="24" Margin="0,0,0,4"
+                                            HorizontalContentAlignment="Left"
+                                            ToolTip="Configure this workspace (AI, providers, per-workspace settings)"
+                                            Tag="{Binding}" Click="OnConfigureClick">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="⚙" FontSize="13" Margin="0,0,8,0"/>
+                                            <TextBlock Text="Configure" FontSize="12"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Style="{StaticResource TopBarAction}"
+                                            Height="24" Margin="0,0,0,4"
+                                            HorizontalContentAlignment="Left"
+                                            ToolTip="Clone this workspace (new symbol &amp; colour, all other settings copied)"
+                                            Tag="{Binding}" Click="OnCloneClick">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="⧉" FontSize="13" Margin="0,0,8,0"/>
+                                            <TextBlock Text="Clone" FontSize="12"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <!-- Hidden for the live (active) workspace — it can't be removed. -->
+                                    <Button Height="24"
+                                            HorizontalContentAlignment="Left"
+                                            ToolTip="Remove this workspace"
+                                            Tag="{Binding}" Click="OnRemoveClick">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource TopBarAction}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsInUse}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="✕" FontSize="13" Margin="0,0,8,0"
+                                                       Foreground="{StaticResource DangerBrush}"/>
+                                            <TextBlock Text="Delete" FontSize="12"
+                                                       Foreground="{StaticResource DangerBrush}"/>
+                                        </StackPanel>
+                                    </Button>
                                 </StackPanel>
                             </Grid>
                         </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-
-            <!-- Add button -->
-            <Button Content="+ Add Work Context"
-                    Style="{StaticResource TopBarAction}"
-                    HorizontalAlignment="Left"
-                    Margin="0,4,0,0"
-                    Click="OnAddClick"/>
 
         </StackPanel>
     </ScrollViewer>

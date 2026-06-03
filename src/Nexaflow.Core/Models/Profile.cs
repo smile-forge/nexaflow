@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Services;
+using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using System.IO;
 using System.Text.Json.Serialization;
@@ -23,6 +24,11 @@ public sealed partial class Profile : ObservableObject
     [ObservableProperty] private string _color = "#5B8CFF";
     [ObservableProperty] private string _icon  = "⬡";
 
+    /// <summary>UI-only, transient: set by the Workspaces editor on each row copy to mark whether the
+    /// workspace is currently live (its Delete button is hidden — a running workspace can't be removed).
+    /// Never serialised; false on the saved profiles.</summary>
+    [JsonIgnore] public bool IsInUse { get; set; }
+
     // ── Shared per-profile state (runtime; lazily loaded, never serialised inline) ──
 
     /// <summary>Ability grid (Columns + Assignments). Persisted to <c>Contexts/&lt;name&gt;/ai-abilities</c>.</summary>
@@ -36,6 +42,17 @@ public sealed partial class Profile : ObservableObject
 
     /// <summary>Provider configs (API keys etc.) — one instance per discovered config type.</summary>
     [JsonIgnore] public IReadOnlyList<IProviderConfig> ProviderConfigs { get; private set; } = [];
+
+    /// <summary>
+    /// Per-workspace feature configs (one instance per <see cref="WorkspaceScopedConfigAttribute"/>
+    /// type) loaded from this profile's folder — mirrors <see cref="ProviderConfigs"/>. Injected into
+    /// features via <c>FeatureManager.TryResolveArgs</c> for the owning workspace.
+    /// </summary>
+    [JsonIgnore] public IReadOnlyList<IFeatureConfig> WorkspaceConfigs { get; private set; } = [];
+
+    /// <summary>The per-workspace feature config of the given concrete type, or null.</summary>
+    public IFeatureConfig? FindWorkspaceConfig(Type t)
+        => WorkspaceConfigs.FirstOrDefault(c => c.GetType() == t);
 
     [JsonIgnore] public string Dir => WorkspaceManager.ProfileDir(Name);
     [JsonIgnore] public string ConversationsDir => Path.Combine(Dir, "Conversations");
@@ -57,8 +74,9 @@ public sealed partial class Profile : ObservableObject
         if (RibbonService is not null) return;
         ConfigManager.Instance.LoadFrom(Dir, AiConfig, AiConfig.ConfigName);
         ConfigManager.Instance.LoadFrom(Dir, Persona, Persona.ConfigName);
-        RibbonService   = new RibbonLayoutService(Dir);
-        ProviderConfigs = ProviderManager.Instance.LoadProviderConfigs(Dir);
+        RibbonService    = new RibbonLayoutService(Dir);
+        ProviderConfigs  = ProviderManager.Instance.LoadProviderConfigs(Dir);
+        WorkspaceConfigs = LoadWorkspaceConfigs();
     }
 
     /// <summary>
@@ -67,4 +85,35 @@ public sealed partial class Profile : ObservableObject
     /// </summary>
     internal void ReloadProviderConfigs()
         => ProviderConfigs = ProviderManager.Instance.LoadProviderConfigs(Dir);
+
+    /// <summary>Re-reads the per-workspace feature configs from this profile's folder.</summary>
+    internal void ReloadWorkspaceConfigs()
+        => WorkspaceConfigs = LoadWorkspaceConfigs();
+
+    /// <summary>
+    /// Re-reads ALL shared config (ability grid, persona, provider + per-workspace feature configs)
+    /// from disk into the live instances. Called when the Configure panel closes after edits were
+    /// applied to disk, so a subsequent <see cref="WorkspaceManager.RestartWorkspace"/> rebuilds the
+    /// workspace from the saved values (the panel deliberately leaves the live instances untouched
+    /// while editing). The runtime-only <see cref="AiConfig.Providers"/> is preserved (JsonIgnore).
+    /// </summary>
+    internal void ReloadSharedConfigs()
+    {
+        ConfigManager.Instance.LoadFrom(Dir, AiConfig, AiConfig.ConfigName);
+        ConfigManager.Instance.LoadFrom(Dir, Persona, Persona.ConfigName);
+        ProviderConfigs  = ProviderManager.Instance.LoadProviderConfigs(Dir);
+        WorkspaceConfigs = LoadWorkspaceConfigs();
+    }
+
+    private List<IFeatureConfig> LoadWorkspaceConfigs()
+    {
+        var configs = new List<IFeatureConfig>();
+        foreach (var t in FeatureManager.Instance.WorkspaceScopedConfigTypes)
+        {
+            var cfg = (IFeatureConfig)Activator.CreateInstance(t)!;
+            ConfigManager.Instance.LoadFrom(Dir, cfg, cfg.ConfigName);
+            configs.Add(cfg);
+        }
+        return configs;
+    }
 }

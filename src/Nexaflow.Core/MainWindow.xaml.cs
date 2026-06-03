@@ -56,6 +56,9 @@ public partial class MainWindow : Window
         FinishInit();
     }
 
+    // Set when Options is reopened to land on a specific tab (e.g. returning from Configure).
+    private string? _returnToOptionsSection;
+
     private void WireOptionsPanel()
     {
         _vm.PropertyChanged += (_, e) =>
@@ -80,23 +83,47 @@ public partial class MainWindow : Window
                 && shell.Theme != ThemeManager.Current)
                 _shellServices.RestartWindowForTheme(_vm, shell.Theme);
         };
+
+        if (_returnToOptionsSection is not null)
+        {
+            optionsVm.SelectSection(_returnToOptionsSection);
+            _returnToOptionsSection = null;
+        }
+
         OptionsPanelControl.DataContext = optionsVm;
     }
 
+    private ManageAiViewModel? _manageAiVm;
+
     private void WireManageAiPanel()
     {
+        // Built lazily on open — the Configure panel loads config from disk and acquires a provider
+        // set, so there's no point doing that work at every window startup.
         _vm.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(ShellViewModel.ManageAiOpen) && _vm.ManageAiOpen)
-                ResetManageAiPanel();
+            if (e.PropertyName != nameof(ShellViewModel.ManageAiOpen)) return;
+            if (_vm.ManageAiOpen) { ResetManageAiPanel(); return; }
+
+            // Closing: apply pending disk changes to the running workspace. If nothing changed and the
+            // panel was opened from Options, bounce back to the Options popup — on the Workspaces tab.
+            bool changed = _manageAiVm?.Close() ?? false;
+            bool returnToOptions = _vm.ConfigureReturnToOptions;
+            _vm.ConfigureReturnToOptions = false;
+            if (!changed && returnToOptions)
+            {
+                _returnToOptionsSection = "workcontexts";   // WorkspacesConfig.ConfigName
+                _vm.OptionsOpen = true;
+            }
         };
-        ResetManageAiPanel();
     }
 
     private void ResetManageAiPanel()
     {
-        var manageAiVm = new ManageAiViewModel(_vm.CurrentWorkspace);
+        _manageAiVm?.Close();
+        var profile = _vm.ConfigureTargetProfile ?? _vm.CurrentWorkspace.Profile;
+        var manageAiVm = new ManageAiViewModel(profile);
         manageAiVm.ApplyError += msg => _vm.ShowErrorToast(msg);
+        _manageAiVm = manageAiVm;
         ManageAiPanelControl.DataContext = manageAiVm;
     }
 

@@ -37,6 +37,15 @@ public partial class PropertyEditViewModel : ObservableObject
     public PropertyEditorKind EditorKind   { get; }
     public bool               IsRequired   { get; }
 
+    /// <summary>Stable UI-automation id for this field's editor (e.g. <c>cfg_ApiKey</c>) so tests
+    /// can drive a specific property regardless of label/layout.</summary>
+    public string             AutomationId => $"cfg_{PropertyName}";
+
+    /// <summary>Name of a sibling property whose state greys out this editor (DisabledIfSet/DisabledIfNotSet).</summary>
+    public string?            DisabledIfProperty    { get; }
+    /// <summary>True when the editor is disabled while the sibling is SET (DisabledIfSet); false for the inverse.</summary>
+    public bool               DisabledWhenSiblingSet { get; }
+
     /// <summary>Enum names for EnumComboBox editors.</summary>
     public IReadOnlyList<string>? EnumOptions { get; }
 
@@ -45,6 +54,7 @@ public partial class PropertyEditViewModel : ObservableObject
 
     [ObservableProperty] private object? _value;
     [ObservableProperty] private string? _validationError;
+    [ObservableProperty] private bool    _isEnabled = true;
 
     private object? _originalValue;
 
@@ -64,7 +74,16 @@ public partial class PropertyEditViewModel : ObservableObject
         }
         catch { /* type mismatch — ignore */ }
 
-        Validate(value);
+        if (IsEnabled) Validate(value);
+        _onChanged();
+    }
+
+    // A disabled field (e.g. project directory while "Enable projects" is off) must not show as
+    // invalid; re-validate when it becomes enabled again.
+    partial void OnIsEnabledChanged(bool value)
+    {
+        if (value) Validate(Value);
+        else       ValidationError = null;
         _onChanged();
     }
 
@@ -74,7 +93,7 @@ public partial class PropertyEditViewModel : ObservableObject
         ValidationError = EditorKind switch
         {
             // Empty is allowed (no-op); a non-empty path must exist.
-            PropertyEditorKind.FolderPath when string.IsNullOrWhiteSpace(path) || !Directory.Exists(path)
+            PropertyEditorKind.FolderPath when !string.IsNullOrWhiteSpace(path) && !Directory.Exists(path)
                 => "Directory does not exist",
             PropertyEditorKind.FilePath when !string.IsNullOrWhiteSpace(path) && !File.Exists(path)
                 => "File does not exist",
@@ -126,6 +145,14 @@ public partial class PropertyEditViewModel : ObservableObject
         Label        = displayAttr ?? pi.Name;
         PropertyName = pi.Name;
         IsRequired   = pi.GetCustomAttribute<RequiredAttribute>() is not null;
+        var disabledIfSet =
+            pi.GetCustomAttribute<Nexaflow.Features.Common.DisabledIfSetAttribute>()?.PropertyName
+            ?? pi.GetCustomAttribute<Nexaflow.Providers.Common.DisabledIfSetAttribute>()?.PropertyName;
+        var disabledIfNotSet =
+            pi.GetCustomAttribute<Nexaflow.Features.Common.DisabledIfNotSetAttribute>()?.PropertyName
+            ?? pi.GetCustomAttribute<Nexaflow.Providers.Common.DisabledIfNotSetAttribute>()?.PropertyName;
+        if (disabledIfSet is not null)      { DisabledIfProperty = disabledIfSet;    DisabledWhenSiblingSet = true;  }
+        else if (disabledIfNotSet is not null) { DisabledIfProperty = disabledIfNotSet; DisabledWhenSiblingSet = false; }
 
         var folderAttr  = pi.GetCustomAttribute<FolderPathAttribute>();
         var fileAttr    = pi.GetCustomAttribute<FilePathAttribute>();
@@ -278,8 +305,38 @@ public partial class ConfigEditViewModel : ObservableObject
             Properties.Add(new PropertyEditViewModel(pi, EditingClone, RecheckValidity));
         }
 
+        WireConditionalEnables();
         RecheckValidity();
     }
+
+    /// <summary>
+    /// Wires [DisabledIfSet]: each property that names a sibling is greyed out while that sibling is
+    /// "set", re-evaluated whenever the sibling's value changes. Two of them on a pair → mutual exclusion.
+    /// </summary>
+    private void WireConditionalEnables()
+    {
+        foreach (var dependent in Properties.Where(p => p.DisabledIfProperty is not null))
+        {
+            var src = Properties.FirstOrDefault(q => q.PropertyName == dependent.DisabledIfProperty);
+            if (src is null) continue;
+
+            void Update() => dependent.IsEnabled =
+                dependent.DisabledWhenSiblingSet ? !IsValueSet(src.Value) : IsValueSet(src.Value);
+            Update();
+            src.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(PropertyEditViewModel.Value)) Update();
+            };
+        }
+    }
+
+    private static bool IsValueSet(object? v) => v switch
+    {
+        null     => false,
+        bool b   => b,
+        string s => !string.IsNullOrWhiteSpace(s) && s.Trim() != "0",
+        _        => System.Convert.ToDouble(v) != 0,
+    };
 }
 
 // ── Root Options view model ───────────────────────────────────────────────────
@@ -317,6 +374,14 @@ public partial class OptionsViewModel : ObservableObject
     }
 
     private void RecheckCanSave() => CanSave = Sections.All(s => s.IsValid);
+
+    /// <summary>Selects the section for the given config name (e.g. returning to the Workspaces tab).</summary>
+    public void SelectSection(string configName)
+    {
+        var match = Sections.FirstOrDefault(
+            s => string.Equals(s.ConfigName, configName, StringComparison.OrdinalIgnoreCase));
+        if (match is not null) SelectedSection = match;
+    }
 
     [RelayCommand]
     private void Save()

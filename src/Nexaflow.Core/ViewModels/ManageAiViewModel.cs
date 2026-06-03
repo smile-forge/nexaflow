@@ -3,47 +3,119 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
+using Nexaflow.Features.Common;
+using Nexaflow.Providers.Common;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 
 namespace Nexaflow.Core.ViewModels;
 
+/// <summary>
+/// The per-workspace "Configure" panel. Drives a <see cref="Profile"/> (which may have no live
+/// <see cref="Workspace"/>). To avoid disrupting a running workspace mid-edit, the panel works on a
+/// SEPARATE set of config instances loaded from the profile's folder — <see cref="Apply"/> writes
+/// them to disk only; the live instances are untouched. If anything was applied, <see cref="Close"/>
+/// reloads the profile from disk and rebuilds the live workspace once (no per-apply popup).
+/// </summary>
 public partial class ManageAiViewModel : ObservableObject
 {
     public ObservableCollection<ConfigEditViewModel> Sections { get; } = [];
 
     [ObservableProperty] private ConfigEditViewModel? _selectedSection;
 
+    /// <summary>Header text — names the workspace being configured (it may not be the active one).</summary>
+    public string Title { get; }
+
     private ConfigEditViewModel? _listeningSection;
-    private readonly Workspace _workspace;
+
+    private readonly Profile _profile;
+
+    // Disk-backed EDITING copies — independent of the profile's live instances.
+    private readonly AiConfig                       _aiConfig;
+    private readonly AiPersonaConfig                _persona;
+    private IReadOnlyList<IProviderConfig>          _providerConfigs;
+    private readonly IReadOnlyList<IFeatureConfig>  _workspaceConfigs;
+
+    // Provider set the ability grid queries for model lists; re-acquired when a key changes.
+    private ProviderSet? _editingProviderSet;
+
+    // Set once any section is applied to disk — drives the single rebuild on Close.
+    private bool _dirty;
 
     public event Action<string>? ApplyError;
 
-    public ManageAiViewModel(Workspace workspace)
+    public ManageAiViewModel(Profile profile)
     {
-        _workspace = workspace;
+        _profile = profile;
+        Title    = $"Configure Workspace — {profile.Name}";
 
-        // Ensure every provider plugin is loaded, then (re)build this workspace's provider set so
-        // newly discovered providers and on-disk config changes are reflected in the editor.
+        // Discover provider plugins, then make sure the profile's folder + scoped-type list exist.
         ProviderManager.Instance.DiscoverAll();
-        WorkspaceManager.Instance.RefreshProviders(workspace);
+        profile.EnsureSharedServicesLoaded();
 
-        // First section: the profile's AI ability grid (shared across its Workspaces).
-        Sections.Add(new ConfigEditViewModel(
-            workspace.AiConfig,
-            workspace.AiConfig.ConfigName,
-            workspace.AiConfig.FriendlyName));
+        var dir = profile.Dir;
 
-        // AI Customisation: the profile's assistant persona (name + system prompt). Per-profile, like
-        // the ability grid — not part of the provider set, so it's added explicitly.
-        var persona = workspace.Profile.Persona;
-        Sections.Add(new ConfigEditViewModel(persona, persona.ConfigName, persona.FriendlyName));
+        _aiConfig = new AiConfig();
+        ConfigManager.Instance.LoadFrom(dir, _aiConfig, _aiConfig.ConfigName);
 
-        // Remaining sections: the profile's provider configs (API keys etc.).
-        foreach (var config in workspace.Profile.ProviderConfigs)
-            Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName));
+        _persona = new AiPersonaConfig();
+        ConfigManager.Instance.LoadFrom(dir, _persona, _persona.ConfigName);
 
+        _providerConfigs  = ProviderManager.Instance.LoadProviderConfigs(dir);
+        _workspaceConfigs = LoadEditingWorkspaceConfigs(dir);
+
+        // Capability instances for the ability grid's model lists (model-agnostic; columns: none).
+        _editingProviderSet  = ProviderManager.Instance.AcquireProviderSet(_providerConfigs, []);
+        _aiConfig.Providers  = _editingProviderSet;
+
+        BuildSections();
         SelectedSection = Sections.FirstOrDefault();
+    }
+
+    private void BuildSections()
+    {
+        Sections.Add(new ConfigEditViewModel(_aiConfig, _aiConfig.ConfigName, _aiConfig.FriendlyName));
+        Sections.Add(new ConfigEditViewModel(_persona, _persona.ConfigName, _persona.FriendlyName));
+        foreach (var config in _providerConfigs)
+            Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName));
+        foreach (var config in _workspaceConfigs)
+            Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName));
+    }
+
+    private static List<IFeatureConfig> LoadEditingWorkspaceConfigs(string dir)
+    {
+        var list = new List<IFeatureConfig>();
+        foreach (var t in FeatureManager.Instance.WorkspaceScopedConfigTypes)
+        {
+            var cfg = (IFeatureConfig)Activator.CreateInstance(t)!;
+            ConfigManager.Instance.LoadFrom(dir, cfg, cfg.ConfigName);
+            list.Add(cfg);
+        }
+        return list;
+    }
+
+    /// <summary>
+    /// Releases the editing provider set and, if anything was applied, reloads the profile from disk
+    /// and rebuilds the live workspace once. Called by the host when the panel closes. Returns true
+    /// when changes were applied (so the host knows not to bounce back to the Options popup).
+    /// </summary>
+    public bool Close()
+    {
+        if (_editingProviderSet is not null)
+        {
+            ProviderManager.Instance.ReleaseProviderSet(_editingProviderSet);
+            _editingProviderSet = null;
+            _aiConfig.Providers = null;
+        }
+
+        if (!_dirty) return false;
+        _dirty = false;
+
+        // Pull the just-saved values into the live profile, then rebuild the running workspace (if any).
+        _profile.ReloadSharedConfigs();
+        if (WorkspaceManager.Instance.FindLiveWorkspace(_profile) is { } ws)
+            WorkspaceManager.Instance.RestartWorkspace(ws);
+        return true;
     }
 
     partial void OnSelectedSectionChanged(ConfigEditViewModel? value)
@@ -74,59 +146,36 @@ public partial class ManageAiViewModel : ObservableObject
     private void Apply()
     {
         if (SelectedSection is null) return;
+        var section = SelectedSection;
 
-        SelectedSection.ApplyToReal();
-        var profile = _workspace.Profile;
+        section.ApplyToReal();   // clone -> editing instance (NOT the live profile instance)
+        try
+        {
+            ConfigManager.Instance.SaveTo(_profile.Dir, section.RealConfig, section.ConfigName);
+            section.ResetChanges();
+            _dirty = true;
 
-        if (ReferenceEquals(SelectedSection.RealConfig, _workspace.AiConfig))
-        {
-            // Ability grid: persist to the profile's folder and hot-reload the AIService. The shared
-            // AiConfig is already mutated, so every Workspace on this profile sees the new assignments.
-            // SyncProviders rebuilds the execution instances for the new assignments (warming any
-            // newly-assigned model, cooling any dropped one) without disturbing open tabs.
-            _workspace.AiService?.LoadAbilityConfig(_workspace.AiConfig);
-            WorkspaceManager.Instance.SyncProviders(_workspace);
-            try
+            // A provider config (not the ability grid / persona, which are also IProviderConfig)
+            // changed — rebuild the editing provider set so the grid can list models with the new key.
+            if (section.RealConfig is IProviderConfig
+                && !ReferenceEquals(section.RealConfig, _aiConfig)
+                && !ReferenceEquals(section.RealConfig, _persona))
             {
-                WorkspaceManager.Instance.SaveProfileAiConfig(profile);
-                WorkspaceManager.Instance.SaveProfiles();
-                SelectedSection.ResetChanges();
-            }
-            catch (Exception ex)
-            {
-                ApplyError?.Invoke($"Could not save AI settings: {ex.Message}");
+                ReacquireEditingProviderSet();
             }
         }
-        else if (SelectedSection.RealConfig is AiPersonaConfig)
+        catch (Exception ex)
         {
-            // Persona is a per-profile config. ApplyToReal has already written the edits into the
-            // profile's live Persona instance (which AIService reads live), so just persist it.
-            try
-            {
-                WorkspaceManager.Instance.SaveProfilePersona(profile);
-                SelectedSection.ResetChanges();
-            }
-            catch (Exception ex)
-            {
-                ApplyError?.Invoke($"Could not save AI customisation: {ex.Message}");
-            }
+            ApplyError?.Invoke($"Could not save {section.FriendlyName} settings: {ex.Message}");
         }
-        else
-        {
-            // Provider config (API keys etc.): save to the profile's folder, then reconfigure THIS
-            // workspace so its AIService is rebuilt — the pool loads the now-needed provider and
-            // unloads any provider no longer referenced.
-            try
-            {
-                ConfigManager.Instance.SaveTo(
-                    profile.Dir, SelectedSection.RealConfig, SelectedSection.ConfigName);
-                WorkspaceManager.Instance.ReconfigureWorkspace(_workspace);
-                SelectedSection.ResetChanges();
-            }
-            catch (Exception ex)
-            {
-                ApplyError?.Invoke($"Could not save {SelectedSection.FriendlyName} settings: {ex.Message}");
-            }
-        }
+    }
+
+    private void ReacquireEditingProviderSet()
+    {
+        var fresh = ProviderManager.Instance.AcquireProviderSet(_providerConfigs, []);
+        var old   = _editingProviderSet;
+        _editingProviderSet = fresh;
+        _aiConfig.Providers = fresh;            // same AiConfig instance the grid holds — picks it up
+        if (old is not null) ProviderManager.Instance.ReleaseProviderSet(old);
     }
 }

@@ -69,6 +69,9 @@ public sealed class ShellServices : IShellServices
 
     internal bool HasWindows => _windows.Count > 0;
 
+    /// <summary>The focused window, or the first open one (null when window-less).</summary>
+    internal IWindowHost? FocusedWindow => _focused ?? _windows.FirstOrDefault();
+
     internal void RegisterWindow(IWindowHost host) => _windows.Add(host);
 
     internal void UnregisterWindow(IWindowHost host)
@@ -227,6 +230,18 @@ public sealed class ShellServices : IShellServices
     internal void CloseOtherWindows(IWindowHost keep)
     {
         foreach (var host in _windows.Where(w => !ReferenceEquals(w, keep)).ToList())
+            host.Window.Close();
+    }
+
+    /// <summary>
+    /// Closes every window in this workspace. The last close runs <see cref="UnregisterWindow"/> →
+    /// <see cref="WorkspaceManager.NotifyWindowClosed"/>, releasing the workspace's providers and
+    /// evicting its caches. Used by <see cref="WorkspaceManager.RestartWorkspace"/> after a fresh
+    /// replacement workspace+window is already showing.
+    /// </summary>
+    internal void CloseAllWindows()
+    {
+        foreach (var host in _windows.ToList())
             host.Window.Close();
     }
 

@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Console.Models;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
@@ -8,10 +9,11 @@ using System.Windows.Controls;
 
 namespace Nexaflow.Features.Console.Controls;
 
-public partial class ConsoleEnvironmentsEditorControl : UserControl, ICustomConfigApply
+public partial class ConsoleEnvironmentsEditorControl : UserControl, ICustomConfigApply, IConfigChangeTracker
 {
     private ObservableCollection<EnvRow> _rows = [];
     private ConsoleConfig? _config;
+    private bool _hasChanges;
 
     public ConsoleEnvironmentsEditorControl()
     {
@@ -19,8 +21,21 @@ public partial class ConsoleEnvironmentsEditorControl : UserControl, ICustomConf
         Loaded += OnLoaded;
     }
 
+    // IConfigChangeTracker — lets the Configure panel disable Apply until the user edits something.
+    public bool HasChanges => _hasChanges;
+    public event EventHandler? HasChangesChanged;
+
+    private void MarkDirty()
+    {
+        if (_hasChanges) return;
+        _hasChanges = true;
+        HasChangesChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        // Loaded can fire again after the control is re-shown; only build once.
+        if (_config is not null) return;
         _config = DataContext as ConsoleConfig;
         if (_config is null) return;
         _rows = new ObservableCollection<EnvRow>(_config.Environments.Select(env => new EnvRow(env)));
@@ -34,13 +49,32 @@ public partial class ConsoleEnvironmentsEditorControl : UserControl, ICustomConf
         EnsureSingleDefault();
 
         EnvGrid.ItemsSource = _rows;
+
+        // Track edits only AFTER the initial (load-time) state is established.
+        _rows.CollectionChanged += OnRowsChanged;
+        foreach (var row in _rows) row.PropertyChanged += OnRowChanged;
     }
+
+    private void OnRowsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems is not null)
+            foreach (EnvRow r in e.OldItems) r.PropertyChanged -= OnRowChanged;
+        if (e.NewItems is not null)
+            foreach (EnvRow r in e.NewItems) r.PropertyChanged += OnRowChanged;
+        MarkDirty();
+    }
+
+    private void OnRowChanged(object? sender, PropertyChangedEventArgs e) => MarkDirty();
 
     public void Apply()
     {
         if (_config is null) return;
         EnsureSingleDefault();
         _config.Environments = _rows.Select(r => r.ToModel()).ToList();
+
+        // Saved — back to a clean state so Apply disables until the next edit.
+        _hasChanges = false;
+        HasChangesChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Guarantees exactly one row is the default: keeps the first flagged one,

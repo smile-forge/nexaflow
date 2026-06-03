@@ -15,7 +15,9 @@ namespace Nexaflow.Features.WindowsFileSystem.Services;
 /// </summary>
 public sealed class FileSystemFeatureRegistry
 {
-    private static readonly Dictionary<IShellServices, FileSystemFeatureRegistry> _instances = new();
+    // Weak-keyed so a registry is collected once its owning workspace's IShellServices is gone
+    // (a workspace rebuild creates a new shell and orphans the old entry — see WorkspaceManager.RestartWorkspace).
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IShellServices, FileSystemFeatureRegistry> _instances = new();
     private static readonly object _instancesLock = new();
 
     /// <summary>
@@ -30,7 +32,7 @@ public sealed class FileSystemFeatureRegistry
         lock (_instancesLock)
         {
             if (!_instances.TryGetValue(shell, out var r))
-                _instances[shell] = r = new FileSystemFeatureRegistry(shell, ai, configs);
+                _instances.Add(shell, r = new FileSystemFeatureRegistry(shell, ai, configs));
             return r;
         }
     }
