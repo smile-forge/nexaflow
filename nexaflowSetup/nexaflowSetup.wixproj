@@ -14,11 +14,34 @@
     Generate AppComponents.wxs at build time from all files in the Core output directory.
     This replaces the old hand-authored AppComponents.wxs which only listed Nexacore.exe.
   -->
-  <Target Name="HarvestCoreOutput" BeforeTargets="CoreCompile">
+  <Target Name="HarvestCoreOutput" AfterTargets="ResolveProjectReferences" BeforeTargets="CoreCompile">
+    <!--
+      Harvest from the EXACT directory MSBuild built Nexaflow.Core into: build Core, then ask it
+      for its TargetPath. The old code hardcoded bin\$(Configuration)\net10.0-windows\win-x64 —
+      which silently shipped a stale/leftover folder whenever Core's output was out of date, and
+      that is how the Gemini provider DLL went missing from the installer with no error.
+      GetTargetPath returns a path relative to Core's project, so root it at Core's dir (Path.Combine
+      ignores the base when the returned path is already absolute, so this is correct either way).
+    -->
     <PropertyGroup>
-      <_CoreOutDir>$(MSBuildThisFileDirectory)..\src\Nexaflow.Core\bin\$(Configuration)\net10.0-windows\win-x64\</_CoreOutDir>
+      <_CoreProjDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\src\Nexaflow.Core'))</_CoreProjDir>
+    </PropertyGroup>
+
+    <MSBuild Projects="$(_CoreProjDir)\Nexaflow.Core.csproj" Targets="Build"
+             Properties="Configuration=$(Configuration)" />
+    <MSBuild Projects="$(_CoreProjDir)\Nexaflow.Core.csproj" Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_CoreRef" />
+    </MSBuild>
+
+    <PropertyGroup>
+      <_CoreTargetPath>@(_CoreRef)</_CoreTargetPath>
+      <_CoreOutDir>$([System.IO.Path]::GetDirectoryName($([System.IO.Path]::Combine('$(_CoreProjDir)', '$(_CoreTargetPath)'))))\</_CoreOutDir>
       <_HarvestWxs>$(IntermediateOutputPath)AppComponents.wxs</_HarvestWxs>
     </PropertyGroup>
+
+    <Error Condition="'$(_CoreTargetPath)' == '' or !Exists('$(_CoreOutDir)')"
+           Text="Could not resolve Nexaflow.Core's build output. GetTargetPath returned '$(_CoreTargetPath)', resolved dir '$(_CoreOutDir)' does not exist. Cannot harvest the installer payload." />
 
     <MakeDir Directories="$(IntermediateOutputPath)" />
 
@@ -26,6 +49,19 @@
     <ItemGroup>
       <_CoreFile Include="$(_CoreOutDir)**\*" Exclude="$(_CoreOutDir)**\*.pdb" />
     </ItemGroup>
+
+    <!--
+      Completeness guard: every provider project must have produced a DLL in the payload.
+      Turns a stale/incomplete harvest (the Gemini bug) from a silent omission into a hard error.
+    -->
+    <ItemGroup>
+      <_ProviderProj Include="$(MSBuildThisFileDirectory)..\src\Nexaflow.Providers\**\*.csproj" />
+      <_HarvestedProvider Include="@(_CoreFile)"
+          Condition="'%(Extension)' == '.dll' and $([System.String]::Copy('%(Filename)').StartsWith('Nexaflow.Providers.'))" />
+    </ItemGroup>
+
+    <Error Condition="'@(_ProviderProj->Count())' != '@(_HarvestedProvider->Count())'"
+           Text="Installer payload is incomplete: harvested @(_HarvestedProvider->Count()) provider DLL(s) from $(_CoreOutDir) but the solution has @(_ProviderProj->Count()) provider project(s). Core's output is stale — clean/rebuild Nexaflow.Core for $(Configuration), then rebuild the installer. Harvested: @(_HarvestedProvider->'%(Filename)', ', ')." />
 
     <!--
       Generate one <Component> per file.
