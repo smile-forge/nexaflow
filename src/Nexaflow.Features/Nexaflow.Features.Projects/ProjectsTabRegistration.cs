@@ -26,7 +26,7 @@ public sealed class ProjectsTabRegistration : IPageRegistration
     public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {
         var ops = new ProjectOperations(_config);
-        var vm  = new ProjectsViewModel(ops);
+        var vm  = new ProjectsViewModel(ops, _config.EnableProjects);
         var tab = new Page
         {
             Title       = "Projects",

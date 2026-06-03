@@ -34,6 +34,10 @@ public partial class ProjectSummaryItem : ObservableObject
             return string.Join(" ", lines);
         }
     }
+
+    /// <summary>Description for the detail panel, with a placeholder when none is set.</summary>
+    public string DescriptionDisplay
+        => string.IsNullOrWhiteSpace(Description) ? "This project does not have a description" : Description;
 }
 
 // ── Main view-model ───────────────────────────────────────────────────────────
@@ -46,6 +50,10 @@ public partial class ProjectsViewModel : ObservableObject, IPageViewModel
 
     [ObservableProperty] private ProjectSummaryItem? _selectedProject;
     [ObservableProperty] private int _projectCount;
+
+    /// <summary>False when the Projects feature is disabled for this workspace — the view shows a
+    /// "enable in settings" placeholder instead of the list/detail split.</summary>
+    [ObservableProperty] private bool _isEnabled;
 
     // Raised when the user clicks "Open Project" — shell wires this to open a tab
     public event Action<string>? OpenProjectRequested;
@@ -68,14 +76,18 @@ public partial class ProjectsViewModel : ObservableObject, IPageViewModel
     internal static Brush BrushDone       => Res("Swatch.Green");
     internal static Brush BrushCancelled  => Res("Swatch.Red");
 
-    public ProjectsViewModel(ProjectOperations ops)
+    public ProjectsViewModel(ProjectOperations ops, bool isEnabled)
     {
         _svc = ops;
-        Load();
+        IsEnabled = isEnabled;
+        if (isEnabled) Load();
     }
 
     [RelayCommand]
-    private void Refresh() => Load();
+    private void Refresh()
+    {
+        if (IsEnabled) Load();
+    }
 
     private void Load()
     {
@@ -93,6 +105,7 @@ public partial class ProjectsViewModel : ObservableObject, IPageViewModel
         catch { /* show empty list on error */ }
 
         ProjectCount = Projects.Count;
+        SelectedProject = Projects.FirstOrDefault();
     }
 
     private static ProjectSummaryItem BuildSummary(string folder, string name, ProjectInfo info)

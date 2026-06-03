@@ -12,6 +12,7 @@
         <cv:CountToVisibilityConverter x:Key="CountVis"/>
         <cv:ZeroCountToVisibilityConverter x:Key="ZeroVis"/>
         <BooleanToVisibilityConverter  x:Key="BoolVis"/>
+        <cv:InverseBoolToVisibilityConverter x:Key="InverseBoolVis"/>
 
         <Style x:Key="ProjectRowStyle" TargetType="ListViewItem">
             <Setter Property="Background"                 Value="Transparent"/>
@@ -105,8 +106,23 @@
         </Style>
     </UserControl.Resources>
 
-    <!-- 40/60 split: list left, detail right -->
     <Grid>
+
+        <!-- ══ Feature disabled placeholder ════════════════════════════════ -->
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Visibility="{Binding IsEnabled, Converter={StaticResource InverseBoolVis}}">
+            <TextBlock Text="🗂" FontSize="48" HorizontalAlignment="Center" Opacity="0.3"/>
+            <TextBlock Text="Projects is disabled"
+                       Foreground="{StaticResource TextBrush}"
+                       FontSize="16" FontWeight="SemiBold"
+                       Margin="0,12,0,0" HorizontalAlignment="Center"/>
+            <TextBlock Text="Enable this feature in settings to use it."
+                       Foreground="{StaticResource TextMutedBrush}"
+                       FontSize="13" Margin="0,6,0,0" HorizontalAlignment="Center"/>
+        </StackPanel>
+
+    <!-- 40/60 split: list left, detail right -->
+    <Grid Visibility="{Binding IsEnabled, Converter={StaticResource BoolVis}}">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="2*" MinWidth="200"/>
             <ColumnDefinition Width="5"/>
@@ -250,7 +266,7 @@
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled"
                               Margin="32,0,32,0">
-                    <TextBlock Text="{Binding SelectedProject.Description}"
+                    <TextBlock Text="{Binding SelectedProject.DescriptionDisplay}"
                                FontSize="13"
                                Foreground="{StaticResource TextMutedBrush}"
                                TextWrapping="Wrap"
@@ -333,5 +349,6 @@
 
             </Grid>
         </Grid>
+    </Grid>
     </Grid>
 </UserControl>
