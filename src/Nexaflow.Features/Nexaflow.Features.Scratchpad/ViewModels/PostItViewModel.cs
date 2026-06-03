@@ -19,6 +19,11 @@ public sealed partial class PostItViewModel : ObservableObject
     [ObservableProperty] private string  _shape;
     [ObservableProperty] private DateTimeOffset? _expiresAt;
 
+    /// <summary>Transient (not persisted): the note's attachment folder, used as the base
+    /// directory for resolving relative <c>![](file.png)</c> image paths in the editor.
+    /// Set by ScratchpadViewModel from the store.</summary>
+    [ObservableProperty] private string? _attachmentDirectory;
+
     public bool IsPinned => ExpiresAt is null;
 
     /// <summary>Transient (not persisted): the view enters edit mode on load when set —
@@ -63,8 +68,10 @@ public sealed partial class PostItViewModel : ObservableObject
     /// <summary>Returns the configured lifetime for new/unpinned notes.</summary>
     public Func<TimeSpan>? GetNoteLifetime { get; set; }
 
-    /// <summary>Opens a URL in a web tab. Wired by ScratchpadViewModel via IShellServices.</summary>
-    public Action<string>? OpenUrl { get; set; }
+    /// <summary>Handles a clicked link (file path or URL) via the shell's object dispatch.
+    /// Returns true if a feature claimed it; false lets the renderer fall back to the OS browser.
+    /// Wired by ScratchpadViewModel via IShellServices.</summary>
+    public Func<string, bool>? OpenUrl { get; set; }
 
     public PostItViewModel(PostItNote note)
     {
@@ -108,7 +115,7 @@ public sealed partial class PostItViewModel : ObservableObject
                 break;
         }
 
-        var skip = new[] { nameof(TimeRemainingText), nameof(IsPinned), nameof(RecycleBinLabel) };
+        var skip = new[] { nameof(TimeRemainingText), nameof(IsPinned), nameof(RecycleBinLabel), nameof(AttachmentDirectory) };
         if (!skip.Contains(e.PropertyName))
             RequestSave?.Invoke(this);
     }

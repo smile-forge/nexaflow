@@ -76,8 +76,12 @@ public class SelectableMarkdownView : UserControl
     /// renderer then skips opening the OS browser). When null, links open externally.</summary>
     public Func<string, bool>? LinkNavigate { get; set; }
 
+    /// <summary>Base directory for resolving relative <c>![](file.png)</c> image paths to a local
+    /// file. When null, only absolute/<c>file:</c> images render (remote images stay text).</summary>
+    public string? BaseDirectory { get; set; }
+
     private void Rebuild() => _rtb.Document = MarkdownFlowDocument.Build(
-        Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = LinkNavigate });
+        Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = LinkNavigate, BaseDirectory = BaseDirectory });
 
     /// <summary>
     /// Inner editor's vertical scrollbar. Default <see cref="ScrollBarVisibility.Disabled"/>

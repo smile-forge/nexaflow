@@ -3,8 +3,8 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Scratchpad.Models;
 using Nexaflow.Features.Scratchpad.Services;
-using Nexaflow.Visuals.Text.Markdown;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 
@@ -62,29 +62,39 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
     {
         var vm = new PostItViewModel(note)
         {
-            RequestRemove   = RemoveNote,
-            RequestSave     = ScheduleSave,
-            GetMaxZIndex    = () => Notes.Count > 0 ? Notes.Max(n => n.ZIndex) : 0,
-            GetNoteLifetime = () => _config.GetNoteLifetime(),
-            OpenUrl         = url => _shellServices?.OpenTab("Web", new() { ["url"] = url })
+            RequestRemove       = RemoveNote,
+            RequestSave         = ScheduleSave,
+            GetMaxZIndex        = () => Notes.Count > 0 ? Notes.Max(n => n.ZIndex) : 0,
+            GetNoteLifetime     = () => _config.GetNoteLifetime(),
+            OpenUrl             = HandleLink,
+            AttachmentDirectory = _store.AttachmentDir(note.Id),
         };
         Notes.Add(vm);
         return vm;
     }
 
+    /// <summary>Routes a clicked link (file path or http(s) URL) to the shell's object dispatch;
+    /// the file-system / web feature claims it. Returns false when unclaimed so the markdown
+    /// renderer falls back to opening it in the OS browser.</summary>
+    private bool HandleLink(string url) => _shellServices?.HandleObject(url) ?? false;
+
     // ── Commands ─────────────────────────────────────────────────────────
+
+    /// <summary>A new post-it centred on <paramref name="canvasPosition"/> (notes are 200 wide),
+    /// with a fresh z-order, slight random tilt and the configured lifetime.</summary>
+    private PostItNote CreateNoteAt(Point canvasPosition, string content = "") => new()
+    {
+        Content   = content,
+        X         = canvasPosition.X - 100,
+        Y         = canvasPosition.Y - 100,
+        ZIndex    = Notes.Count > 0 ? Notes.Max(n => n.ZIndex) + 1 : 1,
+        Rotation  = (_rng.NextDouble() * 16) - 8,
+        ExpiresAt = DateTimeOffset.Now + _config.GetNoteLifetime()
+    };
 
     public PostItViewModel AddNote(Point canvasPosition)
     {
-        var note = new PostItNote
-        {
-            X         = canvasPosition.X - 100,
-            Y         = canvasPosition.Y - 100,
-            ZIndex    = Notes.Count > 0 ? Notes.Max(n => n.ZIndex) + 1 : 1,
-            Rotation  = (_rng.NextDouble() * 16) - 8,
-            ExpiresAt = DateTimeOffset.Now + _config.GetNoteLifetime()
-        };
-
+        var note = CreateNoteAt(canvasPosition);
         _store.Save(note);
         var vm = AddNoteViewModel(note);
         vm.StartInEdit = true;   // freshly created empty note opens ready to type
@@ -92,45 +102,104 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
         return vm;
     }
 
-    [RelayCommand]
-    private void PasteAsNote()
+    /// <summary>Creates a plain text/markdown note.</summary>
+    public PostItViewModel AddNoteWithContent(string content, Point canvasPosition)
     {
-        string? text;
-        try { text = MarkdownClipboard.ReadBestMarkdown(Clipboard.GetDataObject()); }
-        catch { return; }
-        if (string.IsNullOrEmpty(text)) return;
-
-        var center = ViewportCenter();
-        var note = new PostItNote
-        {
-            Content   = text,
-            X         = center.X - 100,
-            Y         = center.Y - 100,
-            ZIndex    = Notes.Count > 0 ? Notes.Max(n => n.ZIndex) + 1 : 1,
-            Rotation  = (_rng.NextDouble() * 16) - 8,
-            ExpiresAt = DateTimeOffset.Now + _config.GetNoteLifetime()
-        };
-
+        var note = CreateNoteAt(canvasPosition, content);
         _store.Save(note);
-        AddNoteViewModel(note);
+        var vm = AddNoteViewModel(note);
         UpdateStatus();
+        return vm;
     }
 
-    public void AddNoteWithContent(string content, Point canvasPosition)
+    /// <summary>Creates an image post-it from a dropped image file: copies the file into the note's
+    /// attachment folder (it then follows the note's lifetime) and renders it via <c>![](name)</c>.</summary>
+    public PostItViewModel AddImageNote(string sourcePath, Point canvasPosition)
     {
-        var note = new PostItNote
+        var note = CreateNoteAt(canvasPosition);
+        var dir  = _store.EnsureAttachmentDir(note.Id);
+        if (DroppedMedia.CopyImageInto(sourcePath, dir) is { } fileName)
         {
-            Content   = content,
-            X         = canvasPosition.X - 100,
-            Y         = canvasPosition.Y - 100,
-            ZIndex    = Notes.Count > 0 ? Notes.Max(n => n.ZIndex) + 1 : 1,
-            Rotation  = (_rng.NextDouble() * 16) - 8,
-            ExpiresAt = DateTimeOffset.Now + _config.GetNoteLifetime()
-        };
-
+            note.Content = $"![]({fileName})";
+            SizeNoteToImage(note, Path.Combine(dir, fileName));
+        }
+        else
+        {
+            note.Content = DroppedMedia.FileLinkMarkdown(sourcePath);   // couldn't copy → link instead
+        }
         _store.Save(note);
-        AddNoteViewModel(note);
+        var vm = AddNoteViewModel(note);
         UpdateStatus();
+        return vm;
+    }
+
+    /// <summary>Creates an image post-it from a raw bitmap (e.g. a browser image drag with no file):
+    /// encodes it as PNG into the note's attachment folder.</summary>
+    public PostItViewModel AddBitmapNote(System.Windows.Media.Imaging.BitmapSource bitmap, Point canvasPosition)
+    {
+        var note = CreateNoteAt(canvasPosition);
+        var dir  = _store.EnsureAttachmentDir(note.Id);
+        if (DroppedMedia.SaveBitmapInto(bitmap, dir) is { } fileName)
+        {
+            note.Content = $"![]({fileName})";
+            SizeNoteToImage(note, Path.Combine(dir, fileName));
+        }
+        _store.Save(note);
+        var vm = AddNoteViewModel(note);
+        UpdateStatus();
+        return vm;
+    }
+
+    /// <summary>Creates a post-it with a clickable link to a non-image file or folder. Clicking it
+    /// routes through the shell so it opens with its default action (see <see cref="HandleLink"/>).</summary>
+    public PostItViewModel AddFileLinkNote(string path, Point canvasPosition)
+    {
+        var note = CreateNoteAt(canvasPosition, DroppedMedia.FileLinkMarkdown(path));
+        _store.Save(note);
+        var vm = AddNoteViewModel(note);
+        UpdateStatus();
+        return vm;
+    }
+
+    /// <summary>Creates a post-it showing the bare URL immediately, then queues a background task to
+    /// replace it with a rich preview (title, description, downloaded image) — see <see cref="UrlPreviewTask"/>.</summary>
+    public PostItViewModel AddUrlNote(string url, Point canvasPosition)
+    {
+        var note = CreateNoteAt(canvasPosition, url);
+        _store.Save(note);
+        var vm = AddNoteViewModel(note);
+        UpdateStatus();
+
+        if (_shellServices is not null)
+        {
+            var task = new UrlPreviewTask(url, _store.EnsureAttachmentDir(note.Id));
+            _shellServices.QueueBackgroundTask(task, onComplete: ok =>
+            {
+                // onComplete runs on the UI thread; setting Content triggers the debounced save.
+                if (ok && task.PreviewMarkdown is { } md) vm.Content = md;
+            });
+        }
+        return vm;
+    }
+
+    /// <summary>Sizes a note so a freshly added image fits without clipping, capped and aspect-preserved.</summary>
+    private static void SizeNoteToImage(PostItNote note, string imagePath)
+    {
+        try
+        {
+            var frame = System.Windows.Media.Imaging.BitmapFrame.Create(
+                new Uri(imagePath),
+                System.Windows.Media.Imaging.BitmapCreateOptions.None,
+                System.Windows.Media.Imaging.BitmapCacheOption.None);
+            double w = frame.PixelWidth, h = frame.PixelHeight;
+            if (w <= 0 || h <= 0) return;
+
+            const double max = 360, min = 140, padW = 16, chromeH = 44;
+            var scale = Math.Min(1.0, max / Math.Max(w, h));
+            note.Width  = Math.Max(min, w * scale + padW);
+            note.Height = Math.Max(min, h * scale + chromeH);
+        }
+        catch { /* keep default size */ }
     }
 
     [RelayCommand]
@@ -168,7 +237,8 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
         vm.RequestSave      = ScheduleSave;
         vm.GetMaxZIndex     = () => Notes.Count > 0 ? Notes.Max(n => n.ZIndex) : 0;
         vm.GetNoteLifetime  = () => _config.GetNoteLifetime();
-        vm.OpenUrl          = url => _shellServices?.OpenTab("Web", new() { ["url"] = url });
+        vm.OpenUrl          = HandleLink;
+        vm.AttachmentDirectory = _store.AttachmentDir(vm.Note.Id);
         Notes.Add(vm);
         UpdateStatus();
     }

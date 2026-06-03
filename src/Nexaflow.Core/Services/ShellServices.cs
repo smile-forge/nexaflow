@@ -395,6 +395,24 @@ public sealed class ShellServices : IShellServices
         => (_focused ?? _windows.FirstOrDefault())
             ?.AddRibbonPin(new RibbonPinRequest(contentKind, payload));
 
+    public bool HandleObject(object obj)
+    {
+        ArgumentNullException.ThrowIfNull(obj);
+
+        foreach (var type in DiscoverImplementations<IGenericObjectHandler>())
+        {
+            // Instances are cached per (type, workspace) and ctor-injected with this
+            // workspace's shell/ai/configs — same path as feature tab creation.
+            if (FeatureManager.Instance.Instantiate(type, _workspace) is IGenericObjectHandler handler
+                && handler.CanHandleObject(obj))
+            {
+                handler.Handle(obj);
+                return true;
+            }
+        }
+        return false;
+    }
+
     public IEnumerable<Type> DiscoverImplementations<TInterface>()
     {
         var target = typeof(TInterface);

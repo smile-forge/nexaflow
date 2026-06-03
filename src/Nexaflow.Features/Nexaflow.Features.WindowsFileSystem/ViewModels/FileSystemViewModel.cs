@@ -66,6 +66,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
 
     // ── File action strip ─────────────────────────────────────────────────────
     private readonly FileActionManager _actionRegistry;
+    private readonly DefaultFileOpener _opener;
     public ObservableCollection<FileActionViewModel> FileActions { get; } = [];
 
     // ── Ribbon pinning ────────────────────────────────────────────────────────
@@ -594,6 +595,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
         _ai             = ai;
         Registry        = FileSystemFeatureRegistry.For(shell, ai, configs);
         _actionRegistry = new FileActionManager(Registry);
+        _opener         = new DefaultFileOpener(Registry);
         FileMapManager.Instance.RegisterKnownExperiences(_actionRegistry.AllExperiences);
     }
 
@@ -756,57 +758,13 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     }
 
     /// <summary>
-    /// Resolves and executes the default "open" action for a file, applying the rule:
-    /// FileExtension > MagicNumber > PerceivedType > ContentType, and at the same
-    /// specificity level an internal action beats a shell "open" verb.
+    /// Resolves and executes the default "open" action for a file via <see cref="DefaultFileOpener"/>
+    /// (FileExtension &gt; MagicNumber &gt; PerceivedType &gt; ContentType; internal beats shell at the
+    /// same specificity), refreshing the view when the action mutated the file system.
     /// </summary>
     private async Task OpenFileDefaultAsync(FileSystemEntry entry)
     {
-        var fileInfo = new FileInfo(entry.FullPath);
-        var ext      = Path.GetExtension(entry.Name);
-
-        var canPerform = _actionRegistry.SnapshotCanPerform();
-
-        var (internalActions, shellOpenVerb) = await Task.Run(() =>
-        {
-            var actions  = _actionRegistry.FilterActions([entry], canPerform.File);
-            var typeInfo = ShellTypeResolver.Resolve(ext);
-            var openVerb = typeInfo?.Verbs.FirstOrDefault(v =>
-                string.Equals(v.Verb, "open", StringComparison.OrdinalIgnoreCase));
-            return (actions, openVerb);
-        });
-
-        // Find highest-specificity internal action
-        IFileAction? bestInternal    = null;
-        int          bestInternalSpec = -1;
-        foreach (var action in internalActions)
-        {
-            int spec = FileMapManager.Instance.GetMatchSpecificity(fileInfo, action.ExperienceId);
-            if (spec > bestInternalSpec) { bestInternal = action; bestInternalSpec = spec; }
-        }
-
-        // Shell "open" verb is Extension-level (4); encode priority as spec*2 + (internal?1:0)
-        // so that internal wins over shell at the same specificity level.
-        int internalPriority = bestInternal  is not null ? bestInternalSpec * 2 + 1 : -1;
-        int shellPriority    = shellOpenVerb is not null ? 4 * 2 + 0               : -1;
-
-        if (internalPriority >= shellPriority && bestInternal is not null)
-        {
-            bestInternal.PerformAction(entry.FullPath);
-            if (bestInternal.RequiresRefresh) Refresh();
-        }
-        else if (shellOpenVerb is not null)
-        {
-            try
-            {
-                Process.Start(new ProcessStartInfo(entry.FullPath)
-                {
-                    Verb            = shellOpenVerb.Verb,
-                    UseShellExecute = true
-                });
-            }
-            catch { }
-        }
+        if (await _opener.OpenAsync(entry.FullPath)) Refresh();
     }
 
     public void NavigateUp()

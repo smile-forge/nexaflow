@@ -210,4 +210,78 @@ public class PostItStoreTests
         _store.RestoreFromRecycleBin(MakeNote()); // never saved/moved
         Assert.AreEqual(0, _store.LoadAll().Count);
     }
+
+    // ── Attachment folders (backing files for image / preview drops) ──────
+
+    /// <summary>Creates the note's attachment folder with one file in it; returns the folder path.</summary>
+    private string SeedAttachment(Guid id)
+    {
+        var dir = _store.EnsureAttachmentDir(id);
+        File.WriteAllText(Path.Combine(dir, "img.png"), "x");
+        return dir;
+    }
+
+    [TestMethod]
+    public void EnsureAttachmentDir_CreatesFolderKeyedOnNoteId()
+    {
+        var id  = Guid.NewGuid();
+        var dir = _store.EnsureAttachmentDir(id);
+
+        Assert.IsTrue(Directory.Exists(dir));
+        Assert.AreEqual(dir, _store.AttachmentDir(id));
+    }
+
+    [TestMethod]
+    public void Delete_RemovesAttachmentFolder()
+    {
+        var note = MakeNote();
+        _store.Save(note);
+        var dir = SeedAttachment(note.Id);
+
+        _store.Delete(note);
+
+        Assert.IsFalse(Directory.Exists(dir), "permanent delete removes attachments");
+    }
+
+    [TestMethod]
+    public void RecycleThenRestore_KeepsAttachments()
+    {
+        var note = MakeNote();
+        _store.Save(note);
+        var dir = SeedAttachment(note.Id);
+
+        _store.MoveToRecycleBin(note);
+        Assert.IsTrue(Directory.Exists(dir), "recycling keeps attachments so a restore still has them");
+
+        _store.RestoreFromRecycleBin(note);
+        Assert.IsTrue(Directory.Exists(dir), "restoring keeps attachments");
+    }
+
+    [TestMethod]
+    public void PurgeRecycleBin_RemovesAttachmentsForPurgedNotes()
+    {
+        var note = MakeNote();
+        _store.Save(note);
+        var dir = SeedAttachment(note.Id);
+        _store.MoveToRecycleBin(note);
+
+        _store.PurgeRecycleBin(0);
+
+        Assert.AreEqual(0, _store.LoadRecycleBin().Count);
+        Assert.IsFalse(Directory.Exists(dir));
+    }
+
+    [TestMethod]
+    public void EmptyRecycleBin_RemovesAttachmentFolders()
+    {
+        var note = MakeNote();
+        _store.Save(note);
+        var dir = SeedAttachment(note.Id);
+        _store.MoveToRecycleBin(note);
+
+        _store.EmptyRecycleBin();
+
+        Assert.AreEqual(0, _store.LoadRecycleBin().Count);
+        Assert.IsFalse(Directory.Exists(dir));
+    }
 }

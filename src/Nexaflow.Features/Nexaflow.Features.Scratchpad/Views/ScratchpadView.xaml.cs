@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Scratchpad.Converters;
+using Nexaflow.Features.Scratchpad.Services;
 using Nexaflow.Features.Scratchpad.ViewModels;
 using Nexaflow.Visuals.Text.Markdown;
 using System.Collections.Specialized;
@@ -70,7 +71,8 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
     {
         if (key == Key.V && modifiers == ModifierKeys.Control)
         {
-            Vm.PasteAsNoteCommand.Execute(null);
+            // Same classification as a drop, so pasting an image / file / URL behaves consistently.
+            try { HandleDrop(Clipboard.GetDataObject(), ViewportCenter()); } catch { }
             return true;
         }
         if (key == Key.Add      && modifiers == ModifierKeys.Control) { ZoomBy(1.15);       return true; }
@@ -94,32 +96,72 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
     public bool CanAcceptDrop(IDataObject data)
         => data.GetDataPresent(DataFormats.Text)
         || data.GetDataPresent(DataFormats.UnicodeText)
-        || data.GetDataPresent(DataFormats.FileDrop);
+        || data.GetDataPresent(DataFormats.FileDrop)
+        || data.GetDataPresent(DataFormats.Bitmap);
 
     public string GetDropDescription(IDataObject data, string? targetFolderName, bool isMove)
         => "Create post-it";
 
+    // IDropTarget.Drop carries no coordinates, so intra-app drops land at the viewport centre.
     public new void Drop(IDataObject data, string destinationPath, bool move)
-    {
-        var content = BestDropContent(data);
-        if (!string.IsNullOrEmpty(content))
-            Vm.AddNoteWithContent(content, ViewportCenter());
-    }
+        => HandleDrop(data, ViewportCenter());
 
     /// <summary>
-    /// Markdown (custom format) wins; HTML is converted to markdown; otherwise plain
-    /// text; finally a file-drop list. See <see cref="MarkdownClipboard.ReadBestMarkdown"/>.
+    /// Classifies dropped/pasted data into the right kind of post-it (shared by both drop paths
+    /// and Ctrl+V):
+    /// image file → image note; non-image file → file-link note; raw bitmap → image note;
+    /// a bare URL → URL note (with background preview); otherwise plain text/markdown.
+    /// Multiple files cascade so they don't stack exactly.
     /// </summary>
-    private static string? BestDropContent(IDataObject data)
+    private void HandleDrop(IDataObject data, Point canvasPt)
     {
-        var markdown = MarkdownClipboard.ReadBestMarkdown(data);
-        if (!string.IsNullOrEmpty(markdown)) return markdown;
-
         if (data.GetDataPresent(DataFormats.FileDrop) &&
-            data.GetData(DataFormats.FileDrop) is string[] files)
-            return string.Join("\n", files);
+            data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0)
+        {
+            for (int i = 0; i < files.Length; i++)
+            {
+                var pt = new Point(canvasPt.X + i * 24, canvasPt.Y + i * 24);
+                if (DroppedMedia.IsImageFile(files[i])) Vm.AddImageNote(files[i], pt);
+                else                                    Vm.AddFileLinkNote(files[i], pt);
+            }
+            return;
+        }
 
-        return null;
+        // Browser image drag with no backing file → a raw bitmap.
+        if (data.GetDataPresent(DataFormats.Bitmap) &&
+            data.GetData(DataFormats.Bitmap) is System.Windows.Media.Imaging.BitmapSource bmp)
+        {
+            Vm.AddBitmapNote(bmp, canvasPt);
+            return;
+        }
+
+        if (TryGetSingleUrl(data, out var url))
+        {
+            Vm.AddUrlNote(url, canvasPt);
+            return;
+        }
+
+        var content = MarkdownClipboard.ReadBestMarkdown(data);
+        if (!string.IsNullOrEmpty(content))
+            Vm.AddNoteWithContent(content, canvasPt);
+    }
+
+    /// <summary>True when the dropped/pasted text is a single bare http(s) URL.</summary>
+    private static bool TryGetSingleUrl(IDataObject data, out string url)
+    {
+        url = string.Empty;
+        var text = (data.GetDataPresent(DataFormats.UnicodeText) ? data.GetData(DataFormats.UnicodeText)
+                  : data.GetDataPresent(DataFormats.Text)        ? data.GetData(DataFormats.Text)
+                  : null) as string;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+
+        text = text.Trim();
+        if (text.Any(char.IsWhiteSpace)) return false;   // multiple tokens → not a bare URL
+        if (!Uri.TryCreate(text, UriKind.Absolute, out var u)) return false;
+        if (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps) return false;
+
+        url = text;
+        return true;
     }
 
     // ── Note mini-ribbon (rendered at ScratchpadView level, never rotated) ─
@@ -184,13 +226,8 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
 
     private void CanvasHost_MouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ChangedButton == MouseButton.Left && e.ClickCount == 2)
-        {
-            var canvasPt = ScreenToCanvas(e.GetPosition(CanvasHost));
-            Vm.AddNote(canvasPt);
-            e.Handled = true;
-            return;
-        }
+        // (New post-its are created via the toolbar, the canvas right-click menu, or paste —
+        //  double-clicking the canvas deliberately does nothing.)
 
         // Middle button pans immediately.
         if (e.ChangedButton == MouseButton.Middle)
@@ -214,9 +251,11 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
             _panStart     = e.GetPosition(CanvasHost);
             _panStartOffX = CanvasTranslateTransform.X;
             _panStartOffY = CanvasTranslateTransform.Y;
-        }
 
-        Focus();
+            // Pull keyboard focus off any post-it that's being edited so it commits and leaves edit mode.
+            // (A click on a note is handled by the note itself; we don't steal its focus.)
+            Keyboard.Focus(CanvasHost);
+        }
     }
 
     private void CanvasHost_MouseMove(object sender, MouseEventArgs e)
@@ -283,12 +322,8 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
 
     private void CanvasHost_Drop(object sender, DragEventArgs e)
     {
-        var content = BestDropContent(e.Data);
-        if (string.IsNullOrEmpty(content)) return;
-
         // Use actual drop position for placement — unavailable via IDropTarget.Drop
-        var canvasPt = ScreenToCanvas(e.GetPosition(CanvasHost));
-        Vm.AddNoteWithContent(content, canvasPt);
+        HandleDrop(e.Data, ScreenToCanvas(e.GetPosition(CanvasHost)));
         e.Handled = true;
     }
 
@@ -297,10 +332,24 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
     private Point _newNoteCanvasPt;
 
     private void CanvasHost_ContextMenuOpening(object sender, ContextMenuEventArgs e)
-        => _newNoteCanvasPt = ScreenToCanvas(Mouse.GetPosition(CanvasHost));
+    {
+        _newNoteCanvasPt = ScreenToCanvas(Mouse.GetPosition(CanvasHost));
+        CanvasPasteItem.IsEnabled = ClipboardHasContent();
+    }
 
     private void NewNoteHere_Click(object sender, RoutedEventArgs e)
         => Vm.AddNote(_newNoteCanvasPt);
+
+    private void PasteHere_Click(object sender, RoutedEventArgs e)
+    {
+        try { HandleDrop(Clipboard.GetDataObject(), _newNoteCanvasPt); } catch { }
+    }
+
+    private static bool ClipboardHasContent()
+    {
+        try { return Clipboard.ContainsText() || Clipboard.ContainsImage() || Clipboard.ContainsFileDropList(); }
+        catch { return false; }
+    }
 
     // ── Toolbar button handlers ───────────────────────────────────────────
 

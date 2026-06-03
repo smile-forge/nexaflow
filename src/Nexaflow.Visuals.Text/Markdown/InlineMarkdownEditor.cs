@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -40,14 +42,27 @@ public class InlineMarkdownEditor : UserControl
     private Paragraph? _activePara;
     private bool       _suppress;             // guard around programmatic document/caret changes
     private bool       _navQueued;
+    private bool       _menuOpen;             // a context menu is open → don't treat the focus loss as leaving edit mode
+    private Point?     _pendingClickPoint;    // where the last left-click landed, consumed by the deferred activation
+
+    // Block-model undo: a snapshot of (blocks, active block, caret-in-block) taken at the start of each
+    // editing session. Edits within one block coalesce into a single undo step (block-level, not per key).
+    private readonly List<(List<string> Blocks, int Active, int Caret)> _undo = [];
+    private int       _undoGroupBlock = -2;   // block the current coalesced undo group covers (-2 = none)
+    private const int UndoLimit = 200;
+
+    private MenuItem _cutItem   = null!;
+    private MenuItem _copyItem  = null!;
+    private MenuItem _pasteItem = null!;
 
     public InlineMarkdownEditor()
     {
         _rtb = new RichTextBox
         {
             AcceptsTab                    = false,   // Tab is intercepted to insert a tab
-            AllowDrop                     = false,   // drops are handled at the note/canvas level
+            AllowDrop                     = true,    // a drop target, but its native text-drop is overridden below
             IsUndoEnabled                 = false,   // we rebuild the document; WPF undo would fight it
+            IsInactiveSelectionHighlightEnabled = true,  // keep the selection visible while the context menu has focus
             BorderThickness               = new Thickness(0),
             Background                    = Brushes.Transparent,
             Padding                       = new Thickness(0),
@@ -59,9 +74,16 @@ public class InlineMarkdownEditor : UserControl
 
         _rtb.PreviewTextInput  += OnPreviewTextInput;
         _rtb.PreviewKeyDown    += OnPreviewKeyDown;
+        _rtb.PreviewMouseLeftButtonDown  += OnPreviewMouseLeftButtonDown;
+        _rtb.PreviewMouseRightButtonDown += OnPreviewMouseRightButtonDown;
+        _rtb.PreviewMouseRightButtonUp   += OnPreviewMouseRightButtonUp;
+        _rtb.PreviewDragEnter  += OnPreviewDrag;   // override the RichTextBox's native drag-drop, which
+        _rtb.PreviewDragOver   += OnPreviewDrag;   // otherwise shows "no drop" for files/images and would
+        _rtb.PreviewDrop       += OnPreviewDrop;   // insert dragged text itself
         _rtb.SelectionChanged  += OnSelectionChanged;
         _rtb.GotKeyboardFocus  += (_, _) => ScheduleNavigate();
         _rtb.LostKeyboardFocus += OnLostFocus;
+        _rtb.ContextMenu = BuildContextMenu();
         DataObject.AddPastingHandler(_rtb, OnPasting);
         CommandManager.AddPreviewExecutedHandler(_rtb, OnPreviewExecuted);
 
@@ -119,7 +141,23 @@ public class InlineMarkdownEditor : UserControl
     /// then skips opening the OS browser). When null, links open externally.</summary>
     public Func<string, bool>? LinkNavigate { get; set; }
 
-    private MarkdownRenderContext Context => new() { Palette = Pal, OnNavigate = LinkNavigate };
+    /// <summary>Raised when content is dropped onto the editor (the data object + the drop point in the
+    /// editor's coordinates). The host turns it into markdown and calls <see cref="InsertMarkdownAt"/>.</summary>
+    public event Action<IDataObject, Point>? ContentDropped;
+
+    /// <summary>Base directory for resolving relative <c>![](file.png)</c> image paths to a local
+    /// file (e.g. a post-it's attachment folder). When null, only absolute/<c>file:</c> images render.</summary>
+    public static readonly DependencyProperty BaseDirectoryProperty =
+        DependencyProperty.Register(nameof(BaseDirectory), typeof(string), typeof(InlineMarkdownEditor),
+            new PropertyMetadata(null, (d, _) => { var e = (InlineMarkdownEditor)d; if (!e._rtb.IsKeyboardFocusWithin) e.RenderAll(); }));
+
+    public string? BaseDirectory
+    {
+        get => (string?)GetValue(BaseDirectoryProperty);
+        set => SetValue(BaseDirectoryProperty, value);
+    }
+
+    private MarkdownRenderContext Context => new() { Palette = Pal, OnNavigate = LinkNavigate, BaseDirectory = BaseDirectory };
 
     private void OnPaletteChanged()
     {
@@ -144,6 +182,8 @@ public class InlineMarkdownEditor : UserControl
         if (self._rtb.IsKeyboardFocusWithin) return; // don't clobber an in-progress edit
         self._blocks = MarkdownBlocks.Split((string?)e.NewValue);
         self._active = -1;
+        self._undo.Clear();                          // a new document → discard the old undo history
+        self._undoGroupBlock = -2;
         self.RenderAll();
     }
 
@@ -162,17 +202,299 @@ public class InlineMarkdownEditor : UserControl
         Keyboard.Focus(_rtb);
     }
 
+    /// <summary>
+    /// Inserts <paramref name="markdown"/> as new block(s) at a drop point: after the block under
+    /// <paramref name="pointInEditor"/>, or appended when dropped in the empty space below the text.
+    /// Any in-progress edit is committed first. Used for drag-and-drop onto a note.
+    /// </summary>
+    public void InsertMarkdownAt(string markdown, Point pointInEditor)
+    {
+        if (string.IsNullOrWhiteSpace(markdown)) return;
+        var parts = MarkdownBlocks.Split(markdown);
+
+        // Resolve the insertion point against the current document, before committing.
+        int after = -1;
+        if (!IsBelowContent(pointInEditor)
+            && _rtb.GetPositionFromPoint(pointInEditor, snapToText: true) is { } pos)
+            after = PointerToModel(pos, preferEnd: false).block;
+
+        if (_active >= 0) { _blocks = MarkdownBlocks.Compact(_blocks); _active = -1; }   // commit any edit
+        _undo.Clear();
+        _undoGroupBlock = -2;
+
+        int index = after < 0 ? _blocks.Count : Math.Min(after + 1, _blocks.Count);
+        _blocks.InsertRange(index, parts);
+
+        PushMarkdown();
+        RenderAll();
+    }
+
     // ── Edits (applied to the block model) ────────────────────────────────
 
     /// <summary>Replaces text in the active block between two in-block offsets, then rebuilds.</summary>
     private void EditActive(int from, int to, string insert)
     {
+        Snapshot();
         insert = insert.Replace("\r\n", "\n").Replace("\r", "\n");
         var block = _blocks[_active];
         from = Math.Clamp(from, 0, block.Length);
         to   = Math.Clamp(to,   from, block.Length);
         _blocks[_active] = block[..from] + insert + block[to..];
         Activate(_active, from + insert.Length);
+        PushMarkdown();
+    }
+
+    /// <summary>
+    /// A click strictly inside a rendered link follows it. Any other click is left to WPF's native
+    /// handling (focus + caret); the block under the caret is then activated by the deferred
+    /// <see cref="ScheduleNavigate"/> — which runs after the mouse is released, so it never disturbs the
+    /// RichTextBox's mouse capture, and it skips activation when a drag produced a selection.
+    /// </summary>
+    private void OnPreviewMouseLeftButtonDown(object? sender, MouseButtonEventArgs e)
+    {
+        _pendingClickPoint = null;
+        if (e.ClickCount != 1) return;   // let double-click select a word for editing
+
+        var glyph = _rtb.GetPositionFromPoint(e.GetPosition(_rtb), snapToText: false);
+        if (glyph is not null && FindHyperlink(glyph) is { NavigateUri: { } uri } link
+            && glyph.CompareTo(link.ContentStart) > 0 && glyph.CompareTo(link.ContentEnd) < 0)
+        {
+            e.Handled = true;
+            var url = uri.ToString();
+            if (LinkNavigate?.Invoke(url) == true) return;
+            try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
+            catch { }
+            return;
+        }
+
+        // Remember where the click landed so the deferred activation can start a fresh trailing block
+        // when the click is below the text (rather than editing the last line).
+        _pendingClickPoint = e.GetPosition(_rtb);
+    }
+
+    /// <summary>True when <paramref name="pt"/> (in RichTextBox coordinates) is below the last line of text.</summary>
+    private bool IsBelowContent(Point pt)
+    {
+        var last = _rtb.Document.Blocks.LastBlock;
+        if (last is null) return true;
+        try { return pt.Y > last.ContentEnd.GetCharacterRect(LogicalDirection.Backward).Bottom; }
+        catch { return false; }
+    }
+
+    // ── Drag-and-drop onto the editor ─────────────────────────────────────
+
+    private void OnPreviewDrag(object? sender, DragEventArgs e)
+    {
+        e.Effects  = AcceptsDropData(e.Data) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled  = true;   // suppress the RichTextBox's own drag handling (which rejects files/images)
+    }
+
+    private void OnPreviewDrop(object? sender, DragEventArgs e)
+    {
+        e.Handled = true;
+        ContentDropped?.Invoke(e.Data, e.GetPosition(_rtb));
+    }
+
+    private static bool AcceptsDropData(IDataObject d)
+        => d.GetDataPresent(DataFormats.FileDrop) || d.GetDataPresent(DataFormats.Bitmap)
+        || d.GetDataPresent(DataFormats.UnicodeText) || d.GetDataPresent(DataFormats.Text);
+
+    /// <summary>Leaves edit mode: drops transient empty blocks, re-renders, and pushes the markdown.
+    /// When not editing (a render-mode drag-select / Select All), collapses the selection so it doesn't
+    /// stay highlighted after focus moves away (inactive-selection highlight is on).</summary>
+    private void CommitEdit()
+    {
+        if (_active >= 0)
+        {
+            _blocks = MarkdownBlocks.Compact(_blocks);
+            _active = -1;
+            _undoGroupBlock = -2;
+            RenderAll();           // a fresh document → the selection is cleared
+            PushMarkdown();
+        }
+        else if (!_rtb.Selection.IsEmpty)
+        {
+            _suppress = true;
+            try { _rtb.Selection.Select(_rtb.Selection.Start, _rtb.Selection.Start); }
+            finally { _suppress = false; }
+        }
+    }
+
+    /// <summary>The <see cref="Hyperlink"/> containing <paramref name="pos"/>, or null.</summary>
+    private static Hyperlink? FindHyperlink(TextPointer pos)
+    {
+        for (DependencyObject? el = pos.Parent; el is not null;
+             el = el is FrameworkContentElement fce ? fce.Parent : null)
+            if (el is Hyperlink h) return h;
+        return null;
+    }
+
+    // ── Right-click menu (Cut / Copy / Paste / Select All) ────────────────
+    // The RichTextBox's built-in editing menu is unstyled and a right-click would clear the
+    // selection and steal focus (rebuilding the doc into render mode). We supply our own themed
+    // menu, preserve the selection, and keep edit mode while it is open.
+
+    private ContextMenu BuildContextMenu()
+    {
+        _cutItem   = NewMenuItem("Cut",   DoCut);
+        _copyItem  = NewMenuItem("Copy",  DoCopy);
+        _pasteItem = NewMenuItem("Paste", DoPaste);
+
+        var menu = new ContextMenu();
+        menu.Items.Add(_cutItem);
+        menu.Items.Add(_copyItem);
+        menu.Items.Add(_pasteItem);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(NewMenuItem("Select All", SelectAll));
+        menu.Closed += (_, _) =>
+        {
+            _menuOpen = false;
+            // Resume editing, or take focus so a render-mode selection (e.g. Select All) stays highlighted.
+            if (_active >= 0 || !_rtb.Selection.IsEmpty) { _rtb.Focus(); Keyboard.Focus(_rtb); }
+        };
+        return menu;
+    }
+
+    private static MenuItem NewMenuItem(string header, Action onClick)
+    {
+        var item = new MenuItem { Header = header };
+        item.Click += (_, _) => onClick();
+        return item;
+    }
+
+    private void OnPreviewMouseRightButtonDown(object? sender, MouseButtonEventArgs e)
+    {
+        // A right-click must NOT focus/activate this editor (that would drop the post-it into edit mode)
+        // and must NOT disturb an existing selection. Swallowing the event keeps WPF from doing either;
+        // the menu is opened on button-up.
+        e.Handled = true;
+    }
+
+    private void OnPreviewMouseRightButtonUp(object? sender, MouseButtonEventArgs e)
+    {
+        UpdateMenuState();
+        _menuOpen = true;
+        var menu = _rtb.ContextMenu!;
+        menu.PlacementTarget = _rtb;
+        menu.Placement       = PlacementMode.MousePoint;
+        menu.IsOpen          = true;
+        e.Handled = true;
+    }
+
+    private void UpdateMenuState()
+    {
+        bool hasSel = !_rtb.Selection.IsEmpty;
+        _cutItem.IsEnabled   = hasSel && _active >= 0;
+        _copyItem.IsEnabled  = true;                       // copies the selection, or the whole note
+        _pasteItem.IsEnabled = _active >= 0 && ClipboardHasContent();
+    }
+
+    private static bool ClipboardHasContent()
+    {
+        try { return Clipboard.ContainsText() || Clipboard.ContainsImage() || Clipboard.ContainsFileDropList(); }
+        catch { return false; }
+    }
+
+    /// <summary>Copies the selection (or the whole note when nothing is selected) as markdown, with the
+    /// blank-line separators between blocks preserved. Acts on THIS editor's model — never the one that
+    /// happens to hold focus.</summary>
+    private void DoCopy()
+    {
+        var md = SelectedMarkdown();
+        if (string.IsNullOrEmpty(md)) return;
+        try { Clipboard.SetText(md); } catch { }
+    }
+
+    /// <summary>The markdown for the current selection (the whole note when nothing is selected). Both
+    /// endpoints are mapped to (block, source-offset) — exact for the block being edited, and via each
+    /// rendered run's source span for rendered blocks — so a partial selection across rendered blocks
+    /// copies just the selected text with the blank-line separators preserved.</summary>
+    private string SelectedMarkdown()
+    {
+        var sel = _rtb.Selection;
+        if (sel.IsEmpty) return MarkdownBlocks.Join(_blocks);
+
+        var (sb, so) = PointerToModel(sel.Start, preferEnd: false);
+        var (eb, eo) = PointerToModel(sel.End,   preferEnd: true);
+        if (sb < 0 || eb < 0) return sel.Text;                       // fallback: rendered text
+        if (sb > eb || (sb == eb && so > eo)) ((sb, so), (eb, eo)) = ((eb, eo), (sb, so));
+
+        so = Math.Clamp(so, 0, _blocks[sb].Length);
+        eo = Math.Clamp(eo, 0, _blocks[eb].Length);
+        if (sb == eb) return _blocks[sb][so..eo];
+
+        var parts = new List<string> { _blocks[sb][so..] };
+        for (int i = sb + 1; i < eb; i++) parts.Add(_blocks[i]);
+        parts.Add(_blocks[eb][..eo]);
+        return MarkdownBlocks.Join(parts);
+    }
+
+    /// <summary>Maps a document pointer to a (block, in-block source offset). For a rendered block it uses
+    /// the run's <see cref="Markdig.Syntax.SourceSpan"/>; where no source-mapped run is under the pointer
+    /// (block boundary / link / image) it snaps to the block's start or end per <paramref name="preferEnd"/>.</summary>
+    private (int block, int offset) PointerToModel(TextPointer p, bool preferEnd)
+    {
+        if (_activePara is not null
+            && p.CompareTo(_activePara.ContentStart) >= 0 && p.CompareTo(_activePara.ContentEnd) <= 0)
+            return (_active, Math.Clamp(CharCount(_activePara.ContentStart, p), 0, _blocks[_active].Length));
+
+        int b = BlockIndexAtPointer(p);
+        if (b < 0) return (-1, 0);
+        if (p.Parent is Run { Tag: Markdig.Syntax.SourceSpan span } run && !span.IsEmpty)
+            return (b, Math.Clamp(span.Start + CharCount(run.ContentStart, p), 0, _blocks[b].Length));
+        return (b, preferEnd ? _blocks[b].Length : 0);
+    }
+
+    private void DoCut()
+    {
+        if (_active < 0) return;
+        var (from, to) = SelectionInActiveBlock();
+        if (from == to) return;
+        DoCopy();
+        EditActive(from, to, string.Empty);
+    }
+
+    private void DoPaste()
+    {
+        if (_active < 0) return;
+        string? md;
+        try { md = MarkdownClipboard.ReadBestMarkdown(Clipboard.GetDataObject()); } catch { return; }
+        if (string.IsNullOrEmpty(md)) return;
+        var (from, to) = SelectionInActiveBlock();
+        InsertPaste(md, from, to);
+    }
+
+    /// <summary>Selects the whole note and focuses the editor so the selection is visible even when the
+    /// note isn't being edited (an unfocused selection wouldn't paint).</summary>
+    private void SelectAll()
+    {
+        _rtb.SelectAll();
+        _rtb.Focus();
+        Keyboard.Focus(_rtb);
+    }
+
+    // ── Undo (block-model) ────────────────────────────────────────────────
+
+    /// <summary>Records the pre-edit state at the start of an editing session so <see cref="Undo"/> can
+    /// restore it. Edits within the same block coalesce (one undo step per block session), so undo is
+    /// block-level, not per keystroke. No-op when not editing.</summary>
+    private void Snapshot()
+    {
+        if (_active < 0) return;
+        if (_active == _undoGroupBlock) return;   // already snapshotted this block's session
+        _undo.Add(([.. _blocks], _active, CaretInActiveBlock()));
+        if (_undo.Count > UndoLimit) _undo.RemoveAt(0);
+        _undoGroupBlock = _active;
+    }
+
+    private void Undo()
+    {
+        if (_undo.Count == 0) return;
+        var (blocks, active, caret) = _undo[^1];
+        _undo.RemoveAt(_undo.Count - 1);
+        _blocks = blocks;
+        _undoGroupBlock = -2;                       // next edit starts a fresh undo group
+        Activate(Math.Clamp(active, 0, _blocks.Count - 1), caret);
         PushMarkdown();
     }
 
@@ -201,9 +523,14 @@ public class InlineMarkdownEditor : UserControl
                 e.Handled = true;
                 break;
             }
+            case Key.Z when ctrl:
+                Undo();
+                e.Handled = true;
+                break;
             case Key.Enter:
             {
                 // Split the block at the caret → a new block (the one you leave renders).
+                Snapshot();
                 var (from, to) = SelectionInActiveBlock();
                 string before = block[..from], after = block[Math.Max(from, to)..];
                 _blocks[_active] = before;
@@ -276,6 +603,7 @@ public class InlineMarkdownEditor : UserControl
 
     private void MergeWithPrevious()
     {
+        Snapshot();
         int join = _blocks[_active - 1].Length;
         _blocks[_active - 1] += _blocks[_active];
         _blocks.RemoveAt(_active);
@@ -285,6 +613,7 @@ public class InlineMarkdownEditor : UserControl
 
     private void MergeWithNext()
     {
+        Snapshot();
         int join = _blocks[_active].Length;
         _blocks[_active] += _blocks[_active + 1];
         _blocks.RemoveAt(_active + 1);
@@ -333,6 +662,7 @@ public class InlineMarkdownEditor : UserControl
         var parts = MarkdownBlocks.Split(pasted);
         if (parts.Count == 1) { EditActive(from, to, parts[0]); return; }
 
+        Snapshot();
         var block = _blocks[_active];
         from = Math.Clamp(from, 0, block.Length);
         to   = Math.Clamp(to,   from, block.Length);
@@ -358,23 +688,36 @@ public class InlineMarkdownEditor : UserControl
 
     private void OnLostFocus(object? sender, KeyboardFocusChangedEventArgs e)
     {
-        if (_suppress) return;
-        _blocks = MarkdownBlocks.Compact(_blocks);   // drop the transient empty block(s)
-        _active = -1;
-        RenderAll();
-        PushMarkdown();
+        if (_suppress || _menuOpen) return;          // a context menu took focus — stay in edit mode
+        CommitEdit();
     }
 
-    /// <summary>Defers activating the block under the caret until after the current
-    /// input/navigation completes (never rebuild inside a WPF change block).</summary>
+    /// <summary>
+    /// Defers activating the block under the caret until after the current input/navigation completes —
+    /// crucially, after the mouse is released, so it never disturbs the RichTextBox's mouse capture
+    /// (rebuilding the document mid-click leaves capture stuck, which manifested as "needs two clicks").
+    /// Skips activation when a drag left a selection (so drag-select stays in render mode).
+    /// </summary>
     private void ScheduleNavigate()
     {
-        if (_navQueued) return;
+        if (_navQueued || _menuOpen) return;
         _navQueued = true;
         Dispatcher.BeginInvoke(() =>
         {
             _navQueued = false;
-            if (_suppress || !_rtb.IsKeyboardFocusWithin || !_rtb.Selection.IsEmpty) return;
+            var clickPoint = _pendingClickPoint;
+            _pendingClickPoint = null;
+
+            if (_suppress || _menuOpen || !_rtb.IsKeyboardFocusWithin || !_rtb.Selection.IsEmpty) return;
+
+            // A click in the empty space below the text starts a fresh trailing block.
+            if (clickPoint is { } pt && IsBelowContent(pt))
+            {
+                if (_blocks[^1].Trim().Length != 0) { _blocks.Add(string.Empty); PushMarkdown(); }
+                Activate(_blocks.Count - 1, 0);
+                return;
+            }
+
             var (block, off) = CaretLocation();
             if (block != _active) Activate(block, off);
         }, DispatcherPriority.Background);
@@ -416,7 +759,9 @@ public class InlineMarkdownEditor : UserControl
             // Rendered-block runs carry a SourceSpan local to that block's content.
             if (caret.Parent is Run { Tag: Markdig.Syntax.SourceSpan span } run && !span.IsEmpty)
                 return (b, Math.Clamp(span.Start + CharCount(run.ContentStart, caret), 0, _blocks[b].Length));
-            return (b, 0);
+            // No source-mapped run under the caret (e.g. a link, or empty space) → caret at end of block,
+            // not the start, so clicking after a link doesn't jump the caret to the block's beginning.
+            return (b, _blocks[b].Length);
         }
         return (_active >= 0 ? _active : 0, 0);
     }
