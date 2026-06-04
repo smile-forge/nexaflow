@@ -262,8 +262,27 @@ public partial class TabStrip : UserControl
             _dragArmed  = false;
             _isDragging = true;
 
+            // The desktop isn't a WPF drop target, so DoDragDrop reports None there
+            // and WPF would draw the "no-drop" cursor — yet dropping on the desktop is a
+            // valid tear-off. Suppress the default cursors and always show a move cursor:
+            // every outcome (re-dock to a strip, or tear off) is a Move.
+            void GiveFeedback(object _, GiveFeedbackEventArgs fe)
+            {
+                fe.UseDefaultCursors = false;
+                Mouse.SetCursor(Cursors.Hand);
+                fe.Handled = true;
+            }
+
+            border.GiveFeedback += GiveFeedback;
             var data = new DataObject(typeof(Page), tab);
-            DragDrop.DoDragDrop(border, data, DragDropEffects.Move);
+            try
+            {
+                DragDrop.DoDragDrop(border, data, DragDropEffects.Move);
+            }
+            finally
+            {
+                border.GiveFeedback -= GiveFeedback;
+            }
 
             _isDragging = false;
 

@@ -312,6 +312,27 @@
         </Setter>
     </Style>
 
+    <!-- ══ Read-only, user-selectable text ══
+         Looks like a TextBlock but allows selecting + Ctrl+C (WPF TextBlock can't).
+         Caller sets Text/Foreground/FontSize as on a TextBlock. -->
+    <Style x:Key="SelectableText" TargetType="TextBox">
+        <Setter Property="IsReadOnly" Value="True"/>
+        <Setter Property="IsReadOnlyCaretVisible" Value="False"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="Cursor" Value="IBeam"/>
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <ScrollViewer x:Name="PART_ContentHost"/>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ══ Popup border/shadow wrapper ══ -->
     <Style x:Key="PopupBorder" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource Surface2Brush}"/>

@@ -421,10 +421,16 @@
         <!-- ═══════════════════════════════════════════════════════════
              OVERLAY — NOTIFICATIONS PANEL
              ═══════════════════════════════════════════════════════════ -->
+        <!-- Click-outside scrim: a transparent full-window catch layer below the
+             panel that dismisses it when clicked off. -->
+        <Border Grid.Row="0" Grid.RowSpan="5"
+                Visibility="{Binding NotificationsOpen, Converter={StaticResource BoolVis}}"
+                Background="Transparent" Panel.ZIndex="49"
+                MouseDown="NotificationScrim_MouseDown"/>
         <Border Grid.Row="0" Grid.RowSpan="5"
                 Visibility="{Binding NotificationsOpen, Converter={StaticResource BoolVis}}"
                 HorizontalAlignment="Right" VerticalAlignment="Top"
-                Margin="0,87,0,0" Width="320"
+                Margin="0,87,0,0" Width="640"
                 Style="{StaticResource PopupBorder}"
                 Padding="12" Panel.ZIndex="50">
             <StackPanel>
@@ -441,12 +447,14 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel>
-                                        <TextBlock Text="{Binding Title}"
-                                                   Foreground="{StaticResource TextBrush}"
-                                                   FontSize="12" FontWeight="Medium"/>
-                                        <TextBlock Text="{Binding Body}"
-                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                   FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                        <TextBox Text="{Binding Title}"
+                                                 Style="{StaticResource SelectableText}"
+                                                 Foreground="{StaticResource TextBrush}"
+                                                 FontSize="12" FontWeight="Medium"/>
+                                        <TextBox Text="{Binding Body}"
+                                                 Style="{StaticResource SelectableText}"
+                                                 Foreground="{StaticResource TextMutedBrush}"
+                                                 FontSize="11" Margin="0,2,0,0"/>
                                         <!-- Message actions — same actions as the toast, triggerable from the inbox -->
                                         <ItemsControl ItemsSource="{Binding Actions}"
                                                       Visibility="{Binding HasActions, Converter={StaticResource BoolVis}}"
@@ -661,22 +669,19 @@
                 CornerRadius="8"
                 Padding="16,14">
             <Border.Style>
-                <!-- Default = Info palette; DataTriggers override per severity. -->
-                <Style TargetType="Border">
-                    <Setter Property="Background" Value="#CC0a2818"/>
-                    <Setter Property="BorderBrush" Value="#FF336655"/>
+                <!-- Theme-driven: popup surface + a severity-coloured border, drawn from
+                     semantic theme brushes so every theme retints it. Info = accent. -->
+                <Style TargetType="Border" BasedOn="{StaticResource PopupBorder}">
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding Severity}" Value="Warning">
-                            <Setter Property="Background" Value="#CC2a0a0a"/>
-                            <Setter Property="BorderBrush" Value="#FF6B3333"/>
+                            <Setter Property="BorderBrush" Value="{StaticResource WarningBrush}"/>
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Severity}" Value="Error">
-                            <Setter Property="Background" Value="#CC2a0a0a"/>
-                            <Setter Property="BorderBrush" Value="#FF6B3333"/>
+                            <Setter Property="BorderBrush" Value="{StaticResource DangerBrush}"/>
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Severity}" Value="Update">
-                            <Setter Property="Background" Value="#CC0a1828"/>
-                            <Setter Property="BorderBrush" Value="#FF336688"/>
+                            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
@@ -701,19 +706,19 @@
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Text" Value="ℹ"/>
-                                <Setter Property="Foreground" Value="#66FFAA"/>
+                                <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding Severity}" Value="Warning">
                                         <Setter Property="Text" Value="⚠"/>
-                                        <Setter Property="Foreground" Value="#FFDD6B"/>
+                                        <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Severity}" Value="Error">
                                         <Setter Property="Text" Value="⚠"/>
-                                        <Setter Property="Foreground" Value="#FFDD6B"/>
+                                        <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Severity}" Value="Update">
                                         <Setter Property="Text" Value="⬆"/>
-                                        <Setter Property="Foreground" Value="#66AAFF"/>
+                                        <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -769,8 +774,8 @@
                                     <Style TargetType="Button" BasedOn="{StaticResource TopBarAction}">
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsPrimary}" Value="True">
-                                                <Setter Property="Background" Value="#1A4488CC"/>
-                                                <Setter Property="BorderBrush" Value="#FF4488CC"/>
+                                                <Setter Property="Background" Value="{StaticResource AccentSubtleBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
                                                 <Setter Property="BorderThickness" Value="1"/>
                                             </DataTrigger>
                                         </Style.Triggers>

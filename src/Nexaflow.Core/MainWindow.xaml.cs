@@ -185,6 +185,9 @@ public partial class MainWindow : Window
         RootGrid.LayoutUpdated += (_, _) => CapAiRowHeight();
     }
 
+    private void NotificationScrim_MouseDown(object sender, MouseButtonEventArgs e)
+        => _vm.NotificationsOpen = false;
+
     private void CapAiRowHeight()
     {
         double maxAi = (ActualHeight - 91) * 0.5;

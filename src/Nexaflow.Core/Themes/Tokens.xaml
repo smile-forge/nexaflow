@@ -57,6 +57,9 @@
          Default = White (passes AA on all blue-family accents). Override where the accent is a light
          colour (gold, cyan, orange) and white would fail contrast. -->
     <SolidColorBrush x:Key="OnAccentBrush"   Color="White"/>
+    <!-- Subtle accent fill (same hue, low opacity) for highlighted/primary surfaces — e.g. a
+         primary action button. Derived from AccentColor so it retints with every theme. -->
+    <SolidColorBrush x:Key="AccentSubtleBrush" Color="{StaticResource AccentColor}" Opacity="0.12"/>
     <!-- Destructive / danger colour. Universally understood as red; works on both dark and light
          surfaces. No per-theme override expected — any readable red serves the semantic meaning. -->
     <SolidColorBrush x:Key="DangerBrush"       Color="#DC2626"/>
