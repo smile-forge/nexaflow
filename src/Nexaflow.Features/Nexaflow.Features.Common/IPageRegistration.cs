@@ -17,7 +17,37 @@ public interface IPageRegistration
     /// </summary>
     string PageKind { get; }
 
-    /// <summary>Creates a ready-to-open <see cref="Page"/> for this page kind.</summary>
+    /// <summary>
+    /// Returns a lightweight <see cref="Page"/> <b>definition</b> for this page kind: its
+    /// <see cref="Page.Title"/>, <see cref="Page.Icon"/>, breadcrumbs, and an <b>un-invoked</b>
+    /// <see cref="Page.ContentFactory"/>. The real view/view-model is built lazily only when the page
+    /// is shown (<see cref="Page.GetOrCreateContent"/>).
+    /// <para>
+    /// Keep this method cheap and side-effect-free — do NOT construct view-models, open files, hit the
+    /// network, or load data here. Callers create definitions speculatively (e.g. to read a page's
+    /// Title/Icon for a menu) without ever realizing them. Put all such work inside the
+    /// <see cref="Page.ContentFactory"/> closure so it runs only when the content is actually needed.
+    /// </para>
+    /// </summary>
     /// <param name="pageParams">Optional parameters (e.g. <c>{"folder":"MyProject"}</c>).</param>
-    Page CreatePage(Dictionary<string, string>? pageParams = null);
+    Page CreatePageDefinition(Dictionary<string, string>? pageParams = null);
+
+    /// <summary>
+    /// The parameters this page kind accepts in <paramref name="pageParams"/>. Default: none.
+    /// Override to advertise required/optional params so the shell can describe openable pages to
+    /// the AI and other callers.
+    /// </summary>
+    IReadOnlyList<PageParameter> Parameters => [];
+
+    /// <summary>
+    /// True when this page can be created without any specific context (no required params) and is
+    /// meaningful standalone — so it may be offered in the AI conversation's "add context" menu.
+    /// Default: false. May be dynamic (e.g. only when the owning feature is enabled for the workspace).
+    /// <para>
+    /// When this is (or can become) true, <see cref="CreatePageDefinition"/> MUST be cheap: the menu
+    /// builds a definition just to read its Title/Icon and discards it if not chosen, so any heavy work
+    /// must live in the <see cref="Page.ContentFactory"/>, not in the definition.
+    /// </para>
+    /// </summary>
+    bool CanBeContextItem => false;
 }

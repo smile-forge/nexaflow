@@ -2,13 +2,13 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Animation;
-using Nexaflow.Core.ViewModels;
+using Nexaflow.Core.Services;
 
 namespace Nexaflow.Core.Controls;
 
 public partial class AiResponseOverlay : UserControl
 {
-    private ShellViewModel? _vm;
+    private ShellAIResponseHandler? _vm;
 
     public AiResponseOverlay()
     {
@@ -21,7 +21,7 @@ public partial class AiResponseOverlay : UserControl
         if (_vm is not null)
             _vm.PropertyChanged -= OnVmPropertyChanged;
 
-        _vm = DataContext as ShellViewModel;
+        _vm = DataContext as ShellAIResponseHandler;
 
         if (_vm is not null)
             _vm.PropertyChanged += OnVmPropertyChanged;
@@ -29,7 +29,7 @@ public partial class AiResponseOverlay : UserControl
 
     private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(ShellViewModel.AiResponseOverlayOpen)
+        if (e.PropertyName == nameof(ShellAIResponseHandler.AiResponseOverlayOpen)
             && _vm?.AiResponseOverlayOpen == true)
             Dispatcher.Invoke(PlaySlideUp);
     }

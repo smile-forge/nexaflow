@@ -45,7 +45,7 @@ namespace Nexaflow.Features.Common
             IPageViewModel? pageVm,
             string input,
             bool includeContext,
-            IToolApprovalCoordinator approval,
+            IAIResponseHandler handler,
             CancellationToken ct = default);
 
         /// <summary>

@@ -34,6 +34,11 @@ public partial class AiChatViewModel : ObservableObject, IPageViewModel
         _ = RefreshAsync();
     }
 
+    /// <summary>Opens a fresh, empty conversation tab (persisted on its first exchange).</summary>
+    [RelayCommand]
+    public void NewConversation()
+        => _shell.OpenTab("Conversation", new Dictionary<string, string>());
+
     /// <summary>Opens the conversation in a ConversationView tab.</summary>
     [RelayCommand]
     public void OpenConversation(ConversationRowViewModel? row)

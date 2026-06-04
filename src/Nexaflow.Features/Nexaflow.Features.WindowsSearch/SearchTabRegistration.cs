@@ -10,7 +10,7 @@ public sealed class SearchTabRegistration(IShellServices shellServices) : IPageR
     public static string StaticPageKind => "Search";
     public string PageKind => StaticPageKind;
 
-    public Page CreatePage(Dictionary<string, string>? pageParams = null)
+    public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var query  = pageParams?.GetValueOrDefault("query")  ?? string.Empty;
         var root   = pageParams?.GetValueOrDefault("root")   ?? string.Empty;

@@ -23,10 +23,11 @@ public sealed class ProjectsTabRegistration : IPageRegistration
     public static string StaticPageKind => "Projects";
     public string PageKind => StaticPageKind;
 
-    public Page CreatePage(Dictionary<string, string>? pageParams = null)
+    /// <summary>The Projects landing page needs no params; offer it as an AI context item when enabled.</summary>
+    public bool CanBeContextItem => _config.EnableProjects;
+
+    public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
-        var ops = new ProjectOperations(_config);
-        var vm  = new ProjectsViewModel(ops, _config.EnableProjects);
         var tab = new Page
         {
             Title       = "Projects",
@@ -34,8 +35,12 @@ public sealed class ProjectsTabRegistration : IPageRegistration
             Breadcrumbs = {new BreadcrumbSegment { Label = "Projects" }}
         };
 
+        // Build the operations + VM lazily so CreatePageDefinition stays side-effect-free (the VM's ctor loads
+        // projects) — callers may peek a page's Title/Icon without realizing its content.
         tab.ContentFactory = () =>
         {
+            var ops  = new ProjectOperations(_config);
+            var vm   = new ProjectsViewModel(ops, _config.EnableProjects);
             var page = new ProjectsView(vm);
             vm.OpenProjectRequested += folder =>
                 _shellServices.OpenTab("ProjectDetail", new() { ["folder"] = folder }, page);

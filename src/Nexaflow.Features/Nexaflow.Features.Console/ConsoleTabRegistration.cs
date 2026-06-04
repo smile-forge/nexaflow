@@ -21,7 +21,13 @@ public sealed class ConsoleTabRegistration : IPageRegistration
     public static string StaticPageKind => "Console";
     public string PageKind => StaticPageKind;
 
-    public Page CreatePage(Dictionary<string, string>? pageParams = null)
+    public IReadOnlyList<PageParameter> Parameters =>
+    [
+        new("path", "Working directory to start the terminal in.", Required: false),
+        new("env",  "Name of a configured console environment to use.", Required: false),
+    ];
+
+    public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var initialPath = pageParams?.GetValueOrDefault("path");
         var envName     = pageParams?.GetValueOrDefault("env");

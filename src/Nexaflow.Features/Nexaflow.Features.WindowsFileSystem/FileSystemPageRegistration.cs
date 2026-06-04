@@ -24,7 +24,14 @@ public sealed class FileSystemPageRegistration(
     public static string StaticPageKind => PageKind;
     string IPageRegistration.PageKind => PageKind;
 
-    public Page CreatePage(Dictionary<string, string>? pageParams = null)
+    IReadOnlyList<PageParameter> IPageRegistration.Parameters =>
+    [
+        new("mode",  "\"thispc\" for the drive list (default), or \"path\" to open a folder.", Required: false),
+        new("path",  "Folder to open. Required when mode is \"path\".", Required: false),
+        new("label", "Display name for the tab.", Required: false),
+    ];
+
+    public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var mode = pageParams?.GetValueOrDefault("mode") ?? "thispc";
 

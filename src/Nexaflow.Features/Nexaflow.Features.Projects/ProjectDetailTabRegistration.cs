@@ -23,7 +23,12 @@ public sealed class ProjectDetailTabRegistration : IPageRegistration
     public static string StaticPageKind => "ProjectDetail";
     public string PageKind => StaticPageKind;
 
-    public Page CreatePage(Dictionary<string, string>? pageParams = null)
+    public IReadOnlyList<PageParameter> Parameters =>
+    [
+        new("folder", "The project folder name to open (as listed on the Projects page)."),
+    ];
+
+    public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var folderName = pageParams?.GetValueOrDefault("folder") ?? string.Empty;
         var ops = new ProjectOperations(_config);

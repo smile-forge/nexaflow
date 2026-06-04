@@ -14,6 +14,11 @@ public sealed class ConversationTabRegistration : IPageRegistration
     public static string StaticPageKind => "Conversation";
     public string PageKind => StaticPageKind;
 
+    public IReadOnlyList<PageParameter> Parameters =>
+    [
+        new("conversationId", "Id of an existing conversation to open. Omit to start a new one.", Required: false),
+    ];
+
     private readonly IAIService     _aiService;
     private readonly IShellServices _shell;
     private readonly AiChatConfig   _config;
@@ -25,7 +30,7 @@ public sealed class ConversationTabRegistration : IPageRegistration
         _config    = config;
     }
 
-    public Page CreatePage(Dictionary<string, string>? pageParams = null)
+    public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var tab = new Page
         {
@@ -43,6 +48,10 @@ public sealed class ConversationTabRegistration : IPageRegistration
                 pageParams.TryGetValue("conversationId", out var convId))
             {
                 _ = vm.LoadAsync(convId);
+            }
+            else
+            {
+                _ = vm.StartNew();
             }
             return view;
         };

@@ -15,7 +15,7 @@ public sealed class MarkdownTabRegistration : IPageRegistration
     public static string StaticPageKind => "Markdown";
     public string PageKind => StaticPageKind;
 
-    public Page CreatePage(Dictionary<string, string>? pageParams = null)
+    public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var filePath = pageParams?.GetValueOrDefault("path") ?? "";
         var title    = Path.GetFileName(filePath);

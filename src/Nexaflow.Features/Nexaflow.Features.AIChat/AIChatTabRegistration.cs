@@ -23,7 +23,7 @@ namespace Nexaflow.Features.AIChat
             _config    = config;
         }
 
-        public Page CreatePage(Dictionary<string, string>? pageParams = null)
+        public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
         {
             var tab = new Page
             {

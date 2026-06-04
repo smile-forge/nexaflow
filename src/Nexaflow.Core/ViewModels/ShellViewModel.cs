@@ -3,8 +3,6 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
-using Nexaflow.Features.AIChat;
-using Nexaflow.Features.AIChat.ViewModels;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Providers.Common;
@@ -15,10 +13,7 @@ using System.Windows.Controls;
 
 namespace Nexaflow.Core.ViewModels;
 
-/// <summary>Which surface the AI response overlay is currently showing.</summary>
-public enum AiOverlayState { Message, Approval, Running }
-
-public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprovalCoordinator
+public partial class ShellViewModel : ObservableObject, IWindowHost
 {
     // ── IWindowHost ───────────────────────────────────────────────────────
 
@@ -361,41 +356,12 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
         ConfigureProfile(profile);
     }
 
-    // ── AI response overlay ───────────────────────────────────────────────
-    // Shown in-shell when the conversational AI returns a plain message, and as the
-    // approval / progress surface while the agent harness runs client tools.
-    [ObservableProperty] private bool   _aiResponseOverlayOpen;
-    [ObservableProperty] private string _aiResponseAiName  = "Aria";
-    [ObservableProperty] private string _aiResponseText    = string.Empty;
-    [ObservableProperty] private string _aiResponsePrompt  = string.Empty;
-
-    [ObservableProperty] private string _aiToolApprovalSummary = string.Empty;
-    [ObservableProperty] private string _aiProgressText        = string.Empty;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(AiOverlayIsMessage))]
-    [NotifyPropertyChangedFor(nameof(AiOverlayIsApproval))]
-    [NotifyPropertyChangedFor(nameof(AiOverlayIsRunning))]
-    [NotifyPropertyChangedFor(nameof(AiOverlayShowsMarkdown))]
-    private AiOverlayState _aiOverlayState = AiOverlayState.Message;
-
-    public bool AiOverlayIsMessage  => AiOverlayState == AiOverlayState.Message;
-    public bool AiOverlayIsApproval => AiOverlayState == AiOverlayState.Approval;
-    public bool AiOverlayIsRunning  => AiOverlayState == AiOverlayState.Running;
-    /// <summary>True in Message/Approval states (markdown body + footer); false while Running.</summary>
-    public bool AiOverlayShowsMarkdown => AiOverlayState != AiOverlayState.Running;
-
-    // True once an agent run has taken over the overlay (approval / progress shown), so the
-    // final message is rendered into the overlay rather than routed as a fresh reply.
-    private bool _agentOverlayActive;
-
-    // Resolves the pending tool-batch / plan approval (Accept = true, Deny / cancel = false).
-    private TaskCompletionSource<bool>? _toolApprovalTcs;
-
-    // Captured per send for "Continue as Conversation": the tab the agent ran against, and the
-    // files its tools read/created.
-    private Page? _agentOriginTab;
-    private IReadOnlyList<string> _agentContextPaths = [];
+    /// <summary>
+    /// The shell's default AI response handler — the in-shell popup overlay (progress, approvals,
+    /// final answer, "Continue as Conversation"). Used whenever the active page does not render AI
+    /// responses itself. <c>AiResponseOverlay.xaml</c> binds to this. See <see cref="IAIResponseHandler"/>.
+    /// </summary>
+    public ShellAIResponseHandler Ai { get; }
 
     private ShellServices _shellServices;
 
@@ -413,6 +379,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
             Application.Current.Dispatcher.Invoke(() => AiIsBusy = active);
         _currentWorkspace = workspace;
         _shellServices = workspace.ShellServices!;
+        Ai = new ShellAIResponseHandler(this);
 
         WireRootPane();
 
@@ -732,6 +699,12 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
         AiCompletionSuggestion = string.IsNullOrEmpty(suggestion) ? null : suggestion;
     }
 
+    private enum TurnOutcome { Completed, Cancelled, Prefill, Error }
+
+    /// <summary>The handler driving the in-flight run, or null when idle. While set, a new submission is
+    /// queued into it as an interjection rather than starting a fresh run.</summary>
+    private IAIResponseHandler? _runningHandler;
+
     [RelayCommand]
     private async Task SendAiMessage()
     {
@@ -742,12 +715,12 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
         AiHandlerSymbol        = null;
         AiIsListening          = false;
         AiCompletionSuggestion = null;
-        // A new prompt always replaces the previous overlay response.
-        AiResponseOverlayOpen  = false;
-        _agentOverlayActive    = false;
-        AiResponsePrompt       = text;   // original prompt, for "Continue as Conversation"
-        _agentOriginTab        = ActiveTab;
-        _agentContextPaths     = [];
+
+        // A run is already in flight → queue this as an interjection; the agent picks it up at the next
+        // turn boundary (it can steer mid-task). Cancel is still available separately.
+        if (_runningHandler is not null) { _runningHandler.Enqueue(text); return; }
+
+        var originalInput = text;   // restored to the bar if the user cancels this run
 
         // A new send cancels any in-flight agent run; its pending approval (if any) resolves
         // to "deny" through the token registration below.
@@ -755,262 +728,94 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IToolApprov
         _aiSendCts = new CancellationTokenSource();
         var sendToken = _aiSendCts.Token;
 
-        var pageVm                                   = (CurrentPage as IPageView)?.ViewModel;
-        var svc                                      = CurrentWorkspace.AiService;
-        var (scored, clearWinner, effectiveText)     = svc.ScoreHandlers(text, pageVm);
-        var selected                                 = clearWinner;
-        text                                         = effectiveText;
-
-        // Show an immediate placeholder so there's visible activity while we think (during the
-        // possible disambiguation call and the agent run). Conversation pages show the exchange
-        // inline, so they skip the overlay.
-        var showOverlay = pageVm is not ConversationViewModel;
-        if (showOverlay)
+        // On an EXPLICIT cancel (the Cancel button cancels this run's token in place), put the user's
+        // message back in the bar so they can tweak and resend. A newer send installs a fresh CTS, so
+        // we never clobber a message the user is already sending.
+        void RestoreInputIfCancelled()
         {
-            SyncAiName();
-            AiProgressText        = "Considering";
-            AiOverlayState        = AiOverlayState.Running;
-            AiResponseOverlayOpen = true;
+            var superseded = _aiSendCts is null || _aiSendCts.Token != sendToken;
+            if (sendToken.IsCancellationRequested && !superseded)
+                AiInputText = originalInput;
         }
 
-        if (selected is null && scored.Count > 0)
-        {
-            try   { selected = await svc.DisambiguateToolSelection(pageVm, text, scored); }
-            catch (Exception ex) { AiResponseOverlayOpen = false; ShowError("AI error", ex.Message); return; }
-        }
+        var pageVm = (CurrentPage as IPageView)?.ViewModel;
+        var svc    = CurrentWorkspace.AiService;
 
-        // 3. A handler was identified — run it (results go to the AIChat tab, not the overlay)
-        if (selected is not null)
+        // The active page may render AI responses itself (e.g. the conversation, inline); otherwise the
+        // shell popup (Ai) handles them. Either way the agent loop talks only to this handler.
+        IAIResponseHandler handler = pageVm as IAIResponseHandler ?? Ai;
+
+        // Runs one prompt → answer. Returns how it ended so the outer loop can deliver any late interjections.
+        async Task<TurnOutcome> RunTurn(string input)
         {
-            AiResponseOverlayOpen = false;
-            string? result;
+            handler.BeginResponse(input);   // echo the user + show a "considering" placeholder
+
+            var (scored, clearWinner, effectiveText) = svc.ScoreHandlers(input, pageVm);
+            var selected = clearWinner;
+            var effective = effectiveText;
+
+            if (selected is null && scored.Count > 0)
+            {
+                try   { selected = await svc.DisambiguateToolSelection(pageVm, effective, scored); }
+                catch (Exception ex) { handler.Abort(); ShowError("AI error", ex.Message); return TurnOutcome.Error; }
+            }
+
+            // A query handler matched — run it; its result is the final answer.
+            if (selected is not null)
+            {
+                string? result;
+                try   { result = await selected.ProcessAsync(effective, pageVm); }
+                catch (Exception ex) { handler.Abort(); ShowError("AI error", ex.Message); return TurnOutcome.Error; }
+
+                if (result is not null) handler.ShowFinal(result);
+                else                    handler.Abort();
+                return TurnOutcome.Completed;
+            }
+
+            // No handler → client-side agent run; the loop drives `handler` (progress / approval / final).
+            AiResponse? response;
             try
             {
-                result = await selected.ProcessAsync(text, pageVm);
+                response = await svc.RunAgentAsync(pageVm, effective, IncludeContext, handler, sendToken);
             }
-            catch (Exception ex)
+            catch (OperationCanceledException) { handler.Abort(); return TurnOutcome.Cancelled; }
+            catch (Exception ex)               { handler.Abort(); ShowError("AI error", ex.Message); return TurnOutcome.Error; }
+
+            if (response is null)
             {
-                ShowError("AI error", ex.Message);
-                return;
+                handler.Abort();
+                return sendToken.IsCancellationRequested ? TurnOutcome.Cancelled : TurnOutcome.Completed;
             }
 
-            if (result is not null)
-                ShowAiResponseOverlay(text, result);
-            return;
+            // Carry the agent's touched files for the shell handler's "Continue as Conversation".
+            Ai.AgentContextPaths = response.Attachments;
+
+            if (response.Kind == AiResponseKind.Prefill)
+            {
+                handler.Abort();
+                await AnimatePrefillAsync(response.Text!);
+                return TurnOutcome.Prefill;
+            }
+            return TurnOutcome.Completed;   // Message: already rendered by handler.ShowFinal in the loop
         }
 
-        // 4. No handler → client-side agent run (LLM may call this page's tools, see results, loop).
-        AiResponse? response;
+        _runningHandler = handler;
         try
         {
-            response = await svc.RunAgentAsync(pageVm, text, IncludeContext, this, sendToken);
-        }
-        catch (OperationCanceledException) { AiResponseOverlayOpen = false; return; }
-        catch (Exception ex)
-        {
-            AiResponseOverlayOpen = false;
-            ShowError("AI error", ex.Message);
-            return;
-        }
-
-        if (response is null) { AiResponseOverlayOpen = false; return; }
-
-        _agentContextPaths = response.Attachments;
-
-        switch (response.Kind)
-        {
-            case AiResponseKind.Prefill:
-                AiResponseOverlayOpen = false;
-                await AnimatePrefillAsync(response.Text!);
-                break;
-
-            case AiResponseKind.Message:
-                // When the agent used the overlay (approval / progress), the final answer was
-                // already rendered there by ShowFinal. Otherwise route the reply: append to an
-                // active Conversation, else open a fresh overlay.
-                if (_agentOverlayActive) break;
-                if (pageVm is ConversationViewModel convVm)
-                    await convVm.AppendExchangeAsync(text, response.Text!);
-                else
-                    ShowAiResponseOverlay(text, response.Text!);
-                break;
-        }
-    }
-
-    private void ShowAiResponseOverlay(string input, string response)
-    {
-        SyncAiName();
-        AiResponsePrompt      = input;
-        AiResponseText        = response;
-        AiOverlayState        = AiOverlayState.Message;
-        AiResponseOverlayOpen = true;
-    }
-
-    private void SyncAiName()
-    {
-        var persona = CurrentWorkspace?.Profile?.Persona;
-        AiResponseAiName = string.IsNullOrWhiteSpace(persona?.Name) ? "Aria" : persona!.Name!.Trim();
-    }
-
-    [RelayCommand]
-    private void CloseAiResponseOverlay()
-    {
-        // Closing while an approval is pending counts as a denial.
-        _toolApprovalTcs?.TrySetResult(false);
-        AiResponseOverlayOpen = false;
-    }
-
-    // ── IToolApprovalCoordinator (agent harness → overlay) ─────────────────
-
-    public Task<bool> RequestToolBatchApprovalAsync(
-        string explanationMarkdown, IReadOnlyList<ToolCall> batch, CancellationToken ct)
-    {
-        var d = Application.Current?.Dispatcher;
-        if (d is not null && !d.CheckAccess())
-            return d.Invoke(() => RequestToolBatchApprovalAsync(explanationMarkdown, batch, ct));
-
-        SyncAiName();
-        AiResponseText        = string.IsNullOrWhiteSpace(explanationMarkdown)
-            ? $"{AiResponseAiName} would like to run the following:"
-            : explanationMarkdown;
-        AiToolApprovalSummary = BuildBatchSummary(batch);
-        return ShowApprovalAndWait(ct);
-    }
-
-    public Task<bool> RequestPlanApprovalAsync(ClientPlan plan, CancellationToken ct)
-    {
-        var d = Application.Current?.Dispatcher;
-        if (d is not null && !d.CheckAccess())
-            return d.Invoke(() => RequestPlanApprovalAsync(plan, ct));
-
-        SyncAiName();
-        AiResponseText        = BuildPlanMarkdown(plan);
-        AiToolApprovalSummary = $"Approve plan: {plan.Title}";
-        return ShowApprovalAndWait(ct);
-    }
-
-    private Task<bool> ShowApprovalAndWait(CancellationToken ct)
-    {
-        _agentOverlayActive   = true;
-        AiOverlayState        = AiOverlayState.Approval;
-        AiResponseOverlayOpen = true;
-
-        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _toolApprovalTcs = tcs;
-        ct.Register(() => tcs.TrySetResult(false));
-        return tcs.Task;
-    }
-
-    public void ReportProgress(string message)
-    {
-        var d = Application.Current?.Dispatcher;
-        if (d is not null && !d.CheckAccess()) { d.Invoke(() => ReportProgress(message)); return; }
-
-        _agentOverlayActive   = true;
-        AiProgressText        = message;
-        AiOverlayState        = AiOverlayState.Running;
-        AiResponseOverlayOpen = true;
-    }
-
-    public void ShowFinal(string finalMarkdown)
-    {
-        var d = Application.Current?.Dispatcher;
-        if (d is not null && !d.CheckAccess()) { d.Invoke(() => ShowFinal(finalMarkdown)); return; }
-
-        // Only take over the overlay when the agent actually used it this run; a plain
-        // conversational reply is routed by SendAiMessage instead.
-        if (!_agentOverlayActive) return;
-        AiResponseText        = finalMarkdown;
-        AiOverlayState        = AiOverlayState.Message;
-        AiResponseOverlayOpen = true;
-    }
-
-    [RelayCommand]
-    private void AcceptToolBatch()
-    {
-        AiProgressText = "Working";
-        AiOverlayState = AiOverlayState.Running;
-        var tcs = _toolApprovalTcs;
-        _toolApprovalTcs = null;
-        tcs?.TrySetResult(true);
-    }
-
-    [RelayCommand]
-    private void DenyToolBatch()
-    {
-        AiProgressText = $"Declined — asking {AiResponseAiName}";
-        AiOverlayState = AiOverlayState.Running;
-        var tcs = _toolApprovalTcs;
-        _toolApprovalTcs = null;
-        tcs?.TrySetResult(false);
-    }
-
-    private static string BuildBatchSummary(IReadOnlyList<ToolCall> batch)
-    {
-        if (batch.Count == 1)
-            return $"Run {batch[0].Tool}?";
-        var grouped = batch
-            .GroupBy(c => c.Tool)
-            .Select(g => g.Count() > 1 ? $"{g.Key} ×{g.Count()}" : g.Key);
-        return "Run " + string.Join(", ", grouped) + "?";
-    }
-
-    private static string BuildPlanMarkdown(ClientPlan plan)
-    {
-        var sb = new StringBuilder();
-        sb.Append("### ").Append(plan.Title).Append("\n\n");
-        if (!string.IsNullOrWhiteSpace(plan.Mermaid))
-            sb.Append("```mermaid\n").Append(plan.Mermaid!.Trim()).Append("\n```\n\n");
-        if (plan.Steps.Count > 0)
-        {
-            sb.Append("**Steps**\n\n");
-            var n = 1;
-            foreach (var s in plan.Steps)
+            var input = text;
+            while (true)
             {
-                sb.Append(n++).Append(". ").Append(s.Title);
-                if (s.IsDecisionPoint)               sb.Append("  _(decision)_");
-                else if (!string.IsNullOrEmpty(s.Tool)) sb.Append("  `").Append(s.Tool).Append('`');
-                sb.Append('\n');
+                var outcome = await RunTurn(input);
+                if (outcome == TurnOutcome.Cancelled) { RestoreInputIfCancelled(); break; }
+                if (outcome != TurnOutcome.Completed) break;   // Prefill / Error
+
+                // A message arrived after the run's last turn boundary — run it as a fresh follow-up.
+                var leftover = handler.DrainQueue();
+                if (leftover.Count == 0) break;
+                input = string.Join("\n", leftover);
             }
         }
-        return sb.ToString();
-    }
-
-    [RelayCommand]
-    private async Task ContinueAsConversation()
-    {
-        var prompt   = AiResponsePrompt;
-        var response = AiResponseText;
-        AiResponseOverlayOpen = false;
-
-        if (string.IsNullOrEmpty(prompt)) return;
-
-        var record = new ConversationRecord
-        {
-            Id        = Guid.NewGuid().ToString(),
-            StartedAt = DateTime.Now,
-            Title     = ConversationTitleGenerator.Generate(prompt),
-            Messages  =
-            [
-                new ConversationMessage { Text = prompt,   IsUser = true,  Timestamp = DateTime.Now },
-                new ConversationMessage { Text = response, IsUser = false, Timestamp = DateTime.Now },
-            ],
-            // Carry the files the agent's tools read/created so the conversation can keep using them.
-            Attachments = [.. _agentContextPaths]
-        };
-
-        try { await CurrentWorkspace.AiService.SaveAsync(record); }
-        catch { /* persistence failures shouldn't block opening the tab */ }
-
-        _shellServices.OpenTab("Conversation", new Dictionary<string, string>
-        {
-            ["conversationId"] = record.Id
-        });
-
-        // Add the tab the agent ran against as a live context item (not persistable — it's a live page).
-        if (_agentOriginTab is not null &&
-            (CurrentPage as IPageView)?.ViewModel is ConversationViewModel convVm)
-            convVm.AddContextItem(_agentOriginTab);
+        finally { _runningHandler = null; }
     }
 
     private async Task AnimatePrefillAsync(string prefill)

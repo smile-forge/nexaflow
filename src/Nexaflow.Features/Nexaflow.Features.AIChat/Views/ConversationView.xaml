@@ -2,13 +2,143 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:Nexaflow.Features.AIChat.ViewModels"
+             xmlns:tl="clr-namespace:Nexaflow.Features.AIChat.ViewModels.Timeline"
+             xmlns:conv="clr-namespace:Nexaflow.Features.AIChat.Converters"
              xmlns:m="clr-namespace:Nexaflow.Features.Common;assembly=Nexaflow.Features.Common"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
         <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
         <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
+        <conv:ContextRiskToVisibilityConverter x:Key="RiskBadgeVis"/>
+
+        <!-- ── Timeline item templates (rendered by the conversation thread) ── -->
+
+        <DataTemplate DataType="{x:Type tl:TimelineUserMessage}">
+            <Border Background="{StaticResource UserBubbleBrush}"
+                    CornerRadius="14,14,4,14" Padding="14,10" Margin="0,6"
+                    MaxWidth="720" HorizontalAlignment="Right">
+                <md:SelectableMarkdownView Markdown="{Binding Text}"/>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type tl:TimelineAssistantMessage}">
+            <Border Background="{StaticResource Surface2Brush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                    CornerRadius="14,14,14,4" Padding="14,10" Margin="0,6"
+                    MaxWidth="720" HorizontalAlignment="Left">
+                <md:SelectableMarkdownView Markdown="{Binding Text}"/>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type tl:TimelineToolBatch}">
+            <StackPanel Margin="0,4" HorizontalAlignment="Left" MaxWidth="720">
+                <ToggleButton IsChecked="{Binding IsExpanded, Mode=TwoWay}" Cursor="Hand" HorizontalAlignment="Left">
+                    <ToggleButton.Template>
+                        <ControlTemplate TargetType="ToggleButton">
+                            <Border Background="{StaticResource Surface2Brush}"
+                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                    CornerRadius="8" Padding="10,5">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock x:Name="Chev" Text="▸" Margin="0,0,7,0"
+                                               Foreground="{StaticResource TextMutedBrush}"/>
+                                    <TextBlock Text="🛠" Margin="0,0,7,0" FontSize="12"/>
+                                    <TextBlock Text="{Binding Header}" FontSize="12"
+                                               Foreground="{StaticResource TextMutedBrush}"/>
+                                </StackPanel>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Chev" Property="Text" Value="▾"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </ToggleButton.Template>
+                </ToggleButton>
+                <ItemsControl ItemsSource="{Binding Tools}" Margin="20,4,0,0"
+                              Visibility="{Binding IsExpanded, Converter={StaticResource BoolVis}}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type tl:TimelineToolRun}">
+                            <StackPanel Orientation="Horizontal" Margin="0,1">
+                                <TextBlock Text="{Binding Tool}" FontFamily="Consolas" FontSize="12"
+                                           Foreground="{StaticResource TextBrush}"/>
+                                <TextBlock x:Name="Sum" Text="{Binding Summary}" FontSize="11" Margin="8,0,0,0"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           TextTrimming="CharacterEllipsis" MaxWidth="540"/>
+                            </StackPanel>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding IsError}" Value="True">
+                                    <Setter TargetName="Sum" Property="Foreground" Value="{StaticResource DangerBrush}"/>
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type tl:TimelineApproval}">
+            <Border Background="{StaticResource Surface2Brush}"
+                    BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
+                    CornerRadius="10" Padding="14,10" Margin="0,6"
+                    MaxWidth="720" HorizontalAlignment="Left">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="{Binding Summary}" FontWeight="SemiBold"
+                               TextWrapping="Wrap" VerticalAlignment="Center"
+                               Foreground="{StaticResource TextBrush}"/>
+
+                    <!-- Buttons inline to the right of the question (while unresolved) -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
+                                Margin="14,0,0,0"
+                                Visibility="{Binding Resolved, Converter={StaticResource InvBoolVis}}">
+                        <Button Style="{StaticResource RibbonButton}" Padding="12,6" Margin="0,0,8,0"
+                                Content="Deny" Command="{Binding DenyCommand}"/>
+                        <Button Style="{StaticResource RibbonButton}" Padding="12,6"
+                                Content="Accept" Command="{Binding ApproveCommand}"/>
+                    </StackPanel>
+
+                    <!-- Resolved outcome takes the buttons' place -->
+                    <Grid Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0"
+                          Visibility="{Binding Resolved, Converter={StaticResource BoolVis}}">
+                        <TextBlock Text="✓ Approved" FontSize="12" Foreground="{StaticResource SuccessBrush}"
+                                   Visibility="{Binding Approved, Converter={StaticResource BoolVis}}"/>
+                        <TextBlock Text="✕ Declined" FontSize="12" Foreground="{StaticResource TextMutedBrush}"
+                                   Visibility="{Binding Approved, Converter={StaticResource InvBoolVis}}"/>
+                    </Grid>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type tl:TimelineActivity}">
+            <StackPanel Orientation="Horizontal" Margin="2,8" HorizontalAlignment="Left">
+                <TextBlock Text="{Binding Text}" FontStyle="Italic" FontSize="14"
+                           Foreground="{StaticResource TextMutedBrush}"/>
+                <TextBlock Text="…" Width="20" FontStyle="Italic" FontSize="14"
+                           Foreground="{StaticResource TextMutedBrush}">
+                    <TextBlock.Triggers>
+                        <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                            <BeginStoryboard>
+                                <Storyboard RepeatBehavior="Forever">
+                                    <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Text" Duration="0:0:1.2">
+                                        <DiscreteObjectKeyFrame KeyTime="0:0:0"   Value=""/>
+                                        <DiscreteObjectKeyFrame KeyTime="0:0:0.3" Value="."/>
+                                        <DiscreteObjectKeyFrame KeyTime="0:0:0.6" Value=".."/>
+                                        <DiscreteObjectKeyFrame KeyTime="0:0:0.9" Value="..."/>
+                                    </ObjectAnimationUsingKeyFrames>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                    </TextBlock.Triggers>
+                </TextBlock>
+            </StackPanel>
+        </DataTemplate>
     </UserControl.Resources>
 
     <Grid>
@@ -84,10 +214,34 @@
                                             <Grid>
                                                 <StackPanel Orientation="Horizontal"
                                                             VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding Icon}" FontSize="22"
-                                                               Foreground="{StaticResource TextBrush}"
-                                                               VerticalAlignment="Center"
-                                                               Margin="0,0,10,0"/>
+                                                    <!-- Icon + bottom-right security-risk badge -->
+                                                    <Grid Margin="0,0,10,0" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Icon}" FontSize="22"
+                                                                   Foreground="{StaticResource TextBrush}"
+                                                                   VerticalAlignment="Center"/>
+                                                        <!-- Medium risk: whole (non-system) drive -->
+                                                        <Border Width="14" Height="14" CornerRadius="7"
+                                                                HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                                Margin="0,0,-4,-2"
+                                                                Background="{StaticResource WarningBrush}"
+                                                                ToolTip="Elevated risk: this tab can act across a whole drive."
+                                                                Visibility="{Binding SecurityRisk, Converter={StaticResource RiskBadgeVis}, ConverterParameter=Medium}">
+                                                            <TextBlock Text="!" FontSize="9" FontWeight="Bold"
+                                                                       Foreground="{StaticResource OnAccentBrush}"
+                                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <!-- High risk: unconfined / system-critical -->
+                                                        <Border Width="14" Height="14" CornerRadius="7"
+                                                                HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                                Margin="0,0,-4,-2"
+                                                                Background="{StaticResource DangerBrush}"
+                                                                ToolTip="High risk: this tab is not confined to a folder — the AI could read or write anywhere on this PC (This PC, the system drive, or the Windows folder)."
+                                                                Visibility="{Binding SecurityRisk, Converter={StaticResource RiskBadgeVis}, ConverterParameter=High}">
+                                                            <TextBlock Text="!" FontSize="9" FontWeight="Bold"
+                                                                       Foreground="{StaticResource OnAccentBrush}"
+                                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                    </Grid>
                                                     <TextBlock Text="{Binding Title}" FontSize="13"
                                                                Foreground="{StaticResource TextBrush}"
                                                                VerticalAlignment="Center"/>
@@ -217,14 +371,45 @@
             </Grid>
         </Border>
 
-        <!-- ── Conversation messages ────────────────────────────────────── -->
-        <ScrollViewer Grid.Row="1"
-                      x:Name="MessageScroller"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled"
-                      Padding="24,16">
-            <ItemsControl x:Name="MessageList"/>
-        </ScrollViewer>
+        <!-- ── Conversation messages + queued-interjection strip ──────────── -->
+        <Grid Grid.Row="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <ScrollViewer Grid.Row="0"
+                          x:Name="MessageScroller"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Padding="24,16">
+                <ItemsControl x:Name="MessageList" ItemsSource="{Binding Timeline}"/>
+            </ScrollViewer>
+
+            <!-- Messages typed while the agent works, awaiting delivery at the next turn boundary. -->
+            <ItemsControl Grid.Row="1"
+                          ItemsSource="{Binding PendingInterjections}"
+                          Margin="24,2,24,6"
+                          Visibility="{Binding PendingInterjections.Count, Converter={StaticResource BoolVis}}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Background="{StaticResource Surface2Brush}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                CornerRadius="9" Padding="8,3" Margin="0,2,6,2" Opacity="0.75">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="⏳" FontSize="10" Margin="0,0,5,0"/>
+                                <TextBlock Text="{Binding}" FontSize="11"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           TextTrimming="CharacterEllipsis" MaxWidth="280"/>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Grid>
 
         <!-- ── Footer (token budget) ────────────────────────────────────── -->
         <Border Grid.Row="2"

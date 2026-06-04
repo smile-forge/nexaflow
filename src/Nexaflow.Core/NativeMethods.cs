@@ -9,6 +9,50 @@ namespace Nexaflow.Core
 {
     public static class NativeMethods
     {
+        // ── Top-level window enumeration (for the AI "GetOpenWindows" tool) ──
+
+        private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern bool IsWindowVisible(IntPtr hWnd);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern int GetWindowTextLength(IntPtr hWnd);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
+
+        /// <summary>
+        /// Titles of visible, titled top-level windows (de-duplicated, capped). Used to tell the AI
+        /// which other applications the user has open. Best-effort — returns what it can read.
+        /// </summary>
+        public static IReadOnlyList<string> ListVisibleWindowTitles(int cap = 100)
+        {
+            var titles = new List<string>();
+            var seen   = new HashSet<string>(StringComparer.Ordinal);
+
+            EnumWindows((hWnd, _) =>
+            {
+                if (titles.Count >= cap) return false;          // stop enumerating
+                if (!IsWindowVisible(hWnd)) return true;
+
+                var len = GetWindowTextLength(hWnd);
+                if (len <= 0) return true;
+
+                var sb = new System.Text.StringBuilder(len + 1);
+                GetWindowText(hWnd, sb, sb.Capacity);
+                var title = sb.ToString();
+                if (!string.IsNullOrWhiteSpace(title) && seen.Add(title))
+                    titles.Add(title);
+                return true;
+            }, IntPtr.Zero);
+
+            return titles;
+        }
+
         // ── SSD/HDD detection via IOCTL_STORAGE_QUERY_PROPERTY ───────────────
 
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]

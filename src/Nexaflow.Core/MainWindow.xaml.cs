@@ -158,7 +158,7 @@ public partial class MainWindow : Window
                 _vm.OptionsOpen            = false;
                 _vm.ManageAiOpen           = false;
                 _vm.NotificationsOpen      = false;
-                _vm.AiResponseOverlayOpen  = false;
+                _vm.Ai.AiResponseOverlayOpen = false;
                 RibbonControl.ViewModel.IsEditOpen = false;
                 if (_vm.ConfirmationVisible)
                     _vm.CancelShellConfirmationCommand.Execute(null);

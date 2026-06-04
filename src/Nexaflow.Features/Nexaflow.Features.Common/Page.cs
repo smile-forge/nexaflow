@@ -16,6 +16,13 @@ public partial class Page : ObservableObject
     [ObservableProperty] private string _icon  = string.Empty;
     [ObservableProperty] private bool   _isActive;
 
+    /// <summary>
+    /// Advisory security risk of letting the AI act within this page, shown as a badge when the page is
+    /// pinned as AI context. A display carrier only — kept current by whoever pins the page (it mirrors
+    /// the page view-model's <see cref="IPageViewModel.GetContextSecurityRisk"/>). Default: Low.
+    /// </summary>
+    [ObservableProperty] private ContextSecurityRisk _securityRisk;
+
     /// <summary>Breadcrumb segments shown when this page is active. Stable identity — mutate in place.</summary>
     public ObservableCollection<BreadcrumbSegment> Breadcrumbs { get; } = [];
 

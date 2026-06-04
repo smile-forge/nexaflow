@@ -301,6 +301,22 @@ public sealed class FeatureManager
     public IRibbonPinHandler? GetRibbonPinHandler(string contentKind, Workspace ctx)
         => GetRibbonPinHandlers(ctx).FirstOrDefault(h => h.ContentKind == contentKind);
 
+    /// <summary>
+    /// Lightweight <see cref="Page"/> definitions for the page kinds that can be created without
+    /// specific context (<see cref="IPageRegistration.CanBeContextItem"/>) in this workspace — offered
+    /// in the AI conversation's "add context" menu. Content is not realized (the menu reads Title/Icon
+    /// from the definition); the chosen page is realized via <c>GetOrCreateContent</c> when pinned.
+    /// </summary>
+    public IReadOnlyList<Page> GetContextItemPages(Workspace ctx)
+    {
+        var pages = new List<Page>();
+        foreach (var (pageKind, regType) in _registrationTypes)
+            if (Instantiate(regType, ctx) is IPageRegistration { CanBeContextItem: true }
+                && CreateTab(pageKind, ctx) is { } page)
+                pages.Add(page);
+        return pages;
+    }
+
     private IReadOnlyList<T> Instantiate<T>(List<Type> types, Workspace ctx)
     {
         var result = new List<T>(types.Count);
@@ -322,13 +338,28 @@ public sealed class FeatureManager
         if (!_registrationTypes.TryGetValue(pageKind, out var regType)) return null;
         var reg = Instantiate(regType, workspace) as IPageRegistration;
         if (reg is null) return null;
-        var tab = reg.CreatePage(pageParams);
+        var tab = reg.CreatePageDefinition(pageParams);
         if (tab is not null)
         {
             tab.PageKind   = pageKind;
             tab.PageParams = pageParams;
         }
         return tab;
+    }
+
+    /// <summary>
+    /// The openable page kinds and the parameters each accepts (<see cref="IPageRegistration.Parameters"/>),
+    /// built per-workspace. Used to describe available pages to the AI.
+    /// </summary>
+    public IReadOnlyList<(string PageKind, IReadOnlyList<PageParameter> Parameters)> GetPageCatalog(Workspace ctx)
+    {
+        var result = new List<(string, IReadOnlyList<PageParameter>)>(_registrationTypes.Count);
+        foreach (var (pageKind, regType) in _registrationTypes)
+        {
+            if (Instantiate(regType, ctx) is IPageRegistration reg)
+                result.Add((pageKind, reg.Parameters));
+        }
+        return result;
     }
 
     public IReadOnlyList<string> GetPageKindsForConfig(Type configType, Workspace ctx)

@@ -49,6 +49,35 @@ public sealed class CreateTextFileTool(FileSystemViewModel vm) : IClientTool
     }
 }
 
+/// <summary>Creates a new folder in (or under) the current directory.</summary>
+public sealed class CreateDirectoryTool(FileSystemViewModel vm) : IClientTool
+{
+    public string Name => "create_directory";
+    public string Description => "Create a new folder in the current directory (parent folders are created as needed).";
+    public IReadOnlyList<ClientToolParameter> Parameters =>
+    [
+        new("name", "Folder name (or relative path) to create within the current folder."),
+    ];
+    public ToolSafety Safety => ToolSafety.RequiresApproval;
+    public bool Parallelizable => true;
+
+    public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
+    {
+        var name = FsTool.Str(arguments, "name", "path", "folder");
+        if (!FsTool.TryResolve(vm, name, out var full, out var error))
+            return ToolResult.Error(error);
+
+        if (Directory.Exists(full)) return ToolResult.Error($"'{name}' already exists.");
+        if (File.Exists(full))      return ToolResult.Error($"A file named '{name}' already exists.");
+
+        try { await Task.Run(() => Directory.CreateDirectory(full), ct); }
+        catch (Exception ex) { return ToolResult.Error($"Could not create folder '{name}': {ex.Message}"); }
+
+        vm.Refresh();
+        return ToolResult.Ok($"created folder {Path.GetFileName(full)}", $"Created folder '{FsTool.Display(vm, full)}'.");
+    }
+}
+
 /// <summary>Copies a file or folder, like Explorer's Copy/Paste.</summary>
 public sealed class CopyTool(FileSystemViewModel vm) : IClientTool
 {

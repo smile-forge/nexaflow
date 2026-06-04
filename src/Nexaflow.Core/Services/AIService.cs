@@ -270,21 +270,35 @@ public sealed class AIService : IAIService
 
     // ── Client-side agent loop ───────────────────────────────────────────────
 
-    /// <summary>Hard ceiling on automated tool turns, to bound a runaway loop.</summary>
-    private const int MaxAgentSteps = 8;
+    /// <summary>Generous hard ceiling on automated tool turns — a final backstop. Real loops are caught
+    /// earlier by repeated-batch detection, and the user can always cancel.</summary>
+    private const int MaxAgentSteps = 20;
+
+    /// <summary>Stop once the model emits the same tool batch (tool + args) this many times — it's spinning.</summary>
+    private const int MaxIdenticalBatches = 3;
 
     /// <summary>Above this many page tools, filter to the most relevant + get_client_commands.</summary>
     private const int MaxUnfilteredTools = 4;
 
     public async Task<AiResponse?> RunAgentAsync(
         IPageViewModel? page, string input, bool includeContext,
-        IToolApprovalCoordinator approval, CancellationToken ct = default)
+        IAIResponseHandler approval, CancellationToken ct = default)
     {
         var provider = GetProvider(AiAbility.Conversation);
         if (provider is null) return null;
 
-        var context   = includeContext ? page?.GetContext() ?? "No specific context." : "No specific context.";
-        var pageTools = includeContext ? page?.GetClientTools() ?? [] : [];
+        var pageContext = includeContext ? page?.GetContext() ?? "No specific context." : "No specific context.";
+        var pageTools   = new List<IClientTool>(includeContext ? page?.GetClientTools() ?? [] : []);
+
+        // Fold in shell-level context + tools (local time, workspace, theme, open windows/tabs,
+        // openable pages, and the shell tools) alongside the active page's.
+        var context = pageContext;
+        if (includeContext)
+        {
+            var shellCtx = new ShellAi.ShellAiContext(_workspace);
+            context = shellCtx.BuildContext() + "\n---\n" + pageContext;
+            pageTools.AddRange(shellCtx.BuildTools());
+        }
 
         // Built-in discovery tool, plus the resolvable catalogue (page tools + the built-in).
         var getCommands = BuildGetClientCommandsTool(pageTools);
@@ -313,6 +327,7 @@ public sealed class AIService : IAIService
         };
 
         var artifacts = new List<string>();   // files the tools read/created, for conversation context
+        var batchCounts = new Dictionary<string, int>();   // tool-batch signature → times seen (loop guard)
 
         try
         {
@@ -357,6 +372,16 @@ public sealed class AIService : IAIService
                             "\nFix the block and try again, or just answer."));
                         continue;
                     }
+                    // Before finalizing, deliver anything the user submitted while we generated this
+                    // answer: feed the model its draft + the interjection and let it reconsider.
+                    var lateInterjections = approval.TakeInterjections();
+                    if (lateInterjections.Count > 0)
+                    {
+                        messages.Add(new(LlmRole.Assistant, raw));
+                        messages.Add(new(LlmRole.User, FormatInterjections(lateInterjections)));
+                        continue;
+                    }
+
                     var final = turn.ExplanationMarkdown.Length > 0 ? turn.ExplanationMarkdown : raw;
                     approval.ShowFinal(final);
                     return AiResponse.AsMessage(final, artifacts);
@@ -364,6 +389,19 @@ public sealed class AIService : IAIService
 
                 // 4. A batch of tool calls.
                 messages.Add(new(LlmRole.Assistant, raw));
+
+                // Loop guard: if the model keeps emitting the SAME batch (tool + args), it's spinning
+                // without progress — stop rather than burn the whole step budget.
+                var signature = string.Join("|", turn.ToolCalls.Select(c => $"{c.Tool}:{c.Arguments.ToJsonString()}"));
+                batchCounts.TryGetValue(signature, out var seen);
+                batchCounts[signature] = seen + 1;
+                if (seen + 1 >= MaxIdenticalBatches)
+                {
+                    const string looped = "I've stopped because I kept repeating the same action without making " +
+                                          "progress. Let me know how you'd like to proceed. _(stopped: repeated tool call)_";
+                    approval.ShowFinal(looped);
+                    return AiResponse.AsMessage(looped, artifacts);
+                }
 
                 var calls = turn.ToolCalls
                     .Select(c => (Call: c, Tool: FindTool(fullCatalog, c.Tool)))
@@ -381,13 +419,20 @@ public sealed class AIService : IAIService
                     continue;
                 }
 
+                approval.OnToolBatchStarting(turn.ToolCalls);
                 var results = await ExecuteBatchAsync(calls, approval, ct);
+                approval.OnToolBatchFinished([.. results.Select(r => new ToolRunResult(r.Tool, r.Result))]);
                 foreach (var (_, r) in results)
                     if (r.Attachments is { } att)
                         foreach (var p in att)
                             if (!artifacts.Contains(p)) artifacts.Add(p);
 
-                messages.Add(new(LlmRole.User, FormatToolResults(results)));
+                // Fold in any messages the user interjected while the batch ran, so the model can steer.
+                var toolResultsText = FormatToolResults(results);
+                var interjections   = approval.TakeInterjections();
+                if (interjections.Count > 0)
+                    toolResultsText += "\n\n" + FormatInterjections(interjections);
+                messages.Add(new(LlmRole.User, toolResultsText));
             }
         }
         catch (OperationCanceledException) { return null; }
@@ -403,7 +448,7 @@ public sealed class AIService : IAIService
 
     private static async Task<IReadOnlyList<(string Tool, ToolResult Result)>> ExecuteBatchAsync(
         IReadOnlyList<(ToolCall Call, IClientTool? Tool)> calls,
-        IToolApprovalCoordinator approval, CancellationToken ct)
+        IAIResponseHandler approval, CancellationToken ct)
     {
         var results     = new (string Tool, ToolResult Result)[calls.Count];
         var parallelIdx = new List<int>();
@@ -444,6 +489,21 @@ public sealed class AIService : IAIService
         try { return await tool.InvokeAsync(call.Arguments, ct); }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex) { return ToolResult.Error($"{tool.Name} failed: {ex.Message}"); }
+    }
+
+    /// <summary>
+    /// Frames user messages that arrived mid-response so the model can decide whether to change course.
+    /// The interjections are also in the conversation, so nothing is lost if the model finishes first.
+    /// </summary>
+    private static string FormatInterjections(IReadOnlyList<string> interjections)
+    {
+        var sb = new StringBuilder(
+            "USER INTERJECTION\nWhile you were working, the user sent the following. If it changes the " +
+            "task, adjust now; otherwise finish the current step and address it next — it stays in the " +
+            "conversation either way:\n");
+        foreach (var msg in interjections)
+            sb.Append("- ").Append(msg).Append('\n');
+        return sb.ToString().TrimEnd();
     }
 
     private static string FormatToolResults(IReadOnlyList<(string Tool, ToolResult Result)> results)
