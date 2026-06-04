@@ -41,7 +41,20 @@
     <!-- Shown by the setup wizard's "What's New" step (read via Application.GetResourceStream). -->
     <Resource Include="Assets\WhatsNew.md" />
   </ItemGroup>
-  
+
+  <!--
+    Whisper.net.Runtime[.Cuda] ship every RID under runtimes\ regardless of our win-x64
+    RuntimeIdentifier. We're Windows-x64-only, so prune the dead trees (the linux CUDA .so
+    alone is ~160 MB). Runs after both Build and Publish; keeps win-x64 + cuda\win-x64.
+  -->
+  <Target Name="StripNonWinX64Runtimes" AfterTargets="Build;Publish">
+    <ItemGroup>
+      <_NfRuntimeRoot Include="$(OutDir)runtimes" Condition="Exists('$(OutDir)runtimes')" />
+      <_NfRuntimeRoot Include="$(PublishDir)runtimes" Condition="'$(PublishDir)' != '' and Exists('$(PublishDir)runtimes')" />
+    </ItemGroup>
+    <RemoveDir Directories="@(_NfRuntimeRoot->'%(Identity)\cuda\linux-x64');@(_NfRuntimeRoot->'%(Identity)\win-arm64');@(_NfRuntimeRoot->'%(Identity)\win-x86')" />
+  </Target>
+
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.AIChat\Nexaflow.Features.AIChat.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
