@@ -471,7 +471,7 @@
                                         HorizontalAlignment="Right"
                                         Command="{Binding DataContext.DeleteTodoCommand,
                                                   RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="{Binding SelectedItem,
+                                        CommandParameter="{Binding DataContext.SelectedItem,
                                                   RelativeSource={RelativeSource AncestorType=UserControl}}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="&#x1F5D1;" FontSize="12" Margin="0,0,6,0"/>
