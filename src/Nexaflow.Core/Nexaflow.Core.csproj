@@ -1,7 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- Win10 SDK moniker: the WindowsApps feature uses WinRT (Store package APIs); the host must
+         target an OS version >= any project it references. -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

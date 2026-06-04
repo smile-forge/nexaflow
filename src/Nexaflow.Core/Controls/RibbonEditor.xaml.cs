@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
@@ -24,6 +25,9 @@ public partial class RibbonEditor : UserControl
     public static readonly DependencyProperty SaveCommandProperty =
         DependencyProperty.Register(nameof(SaveCommand), typeof(ICommand), typeof(RibbonEditor));
 
+    public static readonly DependencyProperty AvailablePagesProperty =
+        DependencyProperty.Register(nameof(AvailablePages), typeof(IEnumerable), typeof(RibbonEditor));
+
 
     public ObservableCollection<RibbonItem>? ItemsSource
     {
@@ -39,6 +43,12 @@ public partial class RibbonEditor : UserControl
     {
         get => (ICommand?)GetValue(SaveCommandProperty);
         set => SetValue(SaveCommandProperty, value);
+    }
+    /// <summary>Catalog of openable page kinds (CanBeContextItem) shown in the "add page" dropdown.</summary>
+    public IEnumerable? AvailablePages
+    {
+        get => (IEnumerable?)GetValue(AvailablePagesProperty);
+        set => SetValue(AvailablePagesProperty, value);
     }
     // ── Working draft ─────────────────────────────────────────────────────
     // Edits happen entirely on _draft; changes only go back to ItemsSource on Done.
@@ -104,6 +114,11 @@ public partial class RibbonEditor : UserControl
         BuildIconGrid();
         BuildColorSwatches();
         RefreshPropsPanel();
+
+        // Bind the add-page dropdown to the current catalog (populated by the VM before opening).
+        PageCatalogCombo.ItemsSource = AvailablePages;
+        if (PageCatalogCombo.SelectedIndex < 0 && PageCatalogCombo.Items.Count > 0)
+            PageCatalogCombo.SelectedIndex = 0;
     }
 
     private static void OnItemsSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -670,6 +685,27 @@ public partial class RibbonEditor : UserControl
         }
         _draft.Add(sep);
         RebuildCards();
+    }
+
+    private void AddPageButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (PageCatalogCombo.SelectedItem is not RibbonCatalogEntry entry) return;
+
+        var button = new RibbonItem
+        {
+            Kind     = RibbonItemKind.Button,
+            Label    = entry.Title,
+            Icon     = entry.Icon,
+            PageKind = entry.PageKind,
+        };
+
+        // Insert before the selected card, else append (mirrors AddSeparator_Click).
+        int idx = _selected is null ? -1 : _draft.IndexOf(_selected);
+        if (idx >= 0) _draft.Insert(idx, button);
+        else          _draft.Add(button);
+
+        RebuildCards();
+        SelectItem(button);
     }
 
     private void ResetDefaults_Click(object sender, RoutedEventArgs e)

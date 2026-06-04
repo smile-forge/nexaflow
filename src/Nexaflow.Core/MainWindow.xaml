@@ -692,6 +692,7 @@
                 Visibility="{Binding ViewModel.IsEditOpen, ElementName=RibbonControl, Converter={StaticResource BoolVis}}"
                 Panel.ZIndex="60"
                 ItemsSource="{Binding ViewModel.Items, ElementName=RibbonControl}"
+                AvailablePages="{Binding ViewModel.AvailablePages, ElementName=RibbonControl}"
                 CloseCommand="{Binding ViewModel.ToggleEditCommand, ElementName=RibbonControl}"
                 SaveCommand="{Binding ViewModel.SaveCommand, ElementName=RibbonControl}"/>
 

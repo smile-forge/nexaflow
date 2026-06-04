@@ -563,6 +563,8 @@
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                            <!-- Dim the whole item; opacity isn't overridden by a per-item Foreground. -->
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.4"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
