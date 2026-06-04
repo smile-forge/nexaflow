@@ -375,8 +375,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
                           Workspace workspace)
     {
         _activityManager = activityManager;
-        _activityManager.IsActiveChanged += (_, active) =>
-            Application.Current.Dispatcher.Invoke(() => AiIsBusy = active);
+        // NB: AiIsBusy is NOT coupled to background activity — the AI bar locks only while an actual
+        // AI run is in flight (driven by SendAiMessage). Background tasks (NuGet checks, downloads,
+        // conversation analysis) report through the activity ticker without blocking AI input.
         _currentWorkspace = workspace;
         _shellServices = workspace.ShellServices!;
         Ai = new ShellAIResponseHandler(this);
@@ -800,6 +801,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         }
 
         _runningHandler = handler;
+        AiIsBusy = true;
         try
         {
             var input = text;
@@ -815,7 +817,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
                 input = string.Join("\n", leftover);
             }
         }
-        finally { _runningHandler = null; }
+        finally { _runningHandler = null; AiIsBusy = false; }
     }
 
     private async Task AnimatePrefillAsync(string prefill)
