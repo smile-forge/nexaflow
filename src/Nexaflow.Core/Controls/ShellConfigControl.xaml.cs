@@ -53,8 +53,8 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
     [ObservableProperty] private bool _prestartAtLogin;
     [ObservableProperty] private IReadOnlyList<Color> _swatches = [];
 
-    public ThemeOption    Theme    => Enum.Parse<ThemeOption>(_selectedTheme);
-    public LanguageOption Language => Enum.Parse<LanguageOption>(_selectedLanguage);
+    public ThemeOption    Theme    => Enum.Parse<ThemeOption>(SelectedTheme);
+    public LanguageOption Language => Enum.Parse<LanguageOption>(SelectedLanguage);
 
     public ShellConfigViewModel(ShellConfig cfg)
     {

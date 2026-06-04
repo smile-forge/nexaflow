@@ -18,5 +18,5 @@ public sealed partial class JsonValueNodeModel : JsonNodeModel
     };
 
     partial void OnValueChanged(object? value)     => OnPropertyChanged(nameof(DisplayValue));
-    partial void OnValueKindChanged(JsonValueKind v) => OnPropertyChanged(nameof(DisplayValue));
+    partial void OnValueKindChanged(JsonValueKind value) => OnPropertyChanged(nameof(DisplayValue));
 }

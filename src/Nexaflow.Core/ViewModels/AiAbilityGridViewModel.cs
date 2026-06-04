@@ -186,7 +186,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
         _ = LoadModelsAsync(value);
     }
 
-    partial void OnNewModelNameChanged(string? value)
+    partial void OnNewModelNameChanged(string value)
         => ConfirmAddCommand.NotifyCanExecuteChanged();
 
     private async Task LoadModelsAsync(string providerName)

@@ -36,7 +36,7 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply
 
     // ── Tree node model ──────────────────────────────────────────────────────
 
-    private sealed class ExperienceNode : INotifyPropertyChanged
+    private sealed class ExperienceNode
     {
         public string                               Segment  { get; }
         public string                               FullId   { get; }
@@ -47,8 +47,6 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply
             Segment = segment;
             FullId  = fullId;
         }
-
-        public event PropertyChangedEventHandler? PropertyChanged;
     }
 
     // ── Criteria row view model ──────────────────────────────────────────────

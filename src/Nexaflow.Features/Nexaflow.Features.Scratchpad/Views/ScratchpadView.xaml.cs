@@ -113,8 +113,9 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
     /// a bare URL → URL note (with background preview); otherwise plain text/markdown.
     /// Multiple files cascade so they don't stack exactly.
     /// </summary>
-    private void HandleDrop(IDataObject data, Point canvasPt)
+    private void HandleDrop(IDataObject? data, Point canvasPt)
     {
+        if (data is null) return;
         if (data.GetDataPresent(DataFormats.FileDrop) &&
             data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0)
         {

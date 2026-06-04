@@ -51,8 +51,7 @@ public partial class SandstoneWall : UserControl
         for (double y = -courseH * 0.35; y < h; y += courseH, row++)
         {
             double offset = (row % 2 == 0) ? 0 : -(150 + _rng.Next(90));
-            bool first = true;
-            for (double x = offset; x < w; first = false)
+            for (double x = offset; x < w;)
             {
                 double bw = 140 + _rng.Next(120);
                 // Natural stone tone variation around a warm sandstone base.

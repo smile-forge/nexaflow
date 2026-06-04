@@ -26,7 +26,7 @@ public abstract class UITestBase
     {
         Automation = new UIA3Automation();
         App        = Application.Launch(FindAppExe());
-        MainWindow = App.GetMainWindow(Automation, TimeSpan.FromSeconds(15));
+        MainWindow = App.GetMainWindow(Automation, TimeSpan.FromSeconds(15))!;
         OnUISetup();
     }
 

@@ -313,7 +313,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         // In-place: keep this Workspace object, reconfigure it for the new profile (tabs close,
         // providers/AIService rebuilt). ShellServices/windows reference the Workspace, which is
         // unchanged — only its internals swap — so no window fix-up is needed.
-        WorkspaceManager.Instance.SwitchProfile(CurrentWorkspace, profile);
+        WorkspaceManager.Instance.SwitchProfile(CurrentWorkspace!, profile);
 
         // Same Workspace reference; re-raise so the ribbon (bound to CurrentWorkspace.Profile)
         // and the selector reload for the new profile.
@@ -394,7 +394,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
                 if (fallback is not null)
                     Application.Current.Dispatcher.Invoke(() =>
                     {
-                        WorkspaceManager.Instance.SwitchProfile(CurrentWorkspace, fallback);
+                        WorkspaceManager.Instance.SwitchProfile(CurrentWorkspace!, fallback);
                         OnPropertyChanged(nameof(CurrentWorkspace));
                     });
             }
@@ -666,7 +666,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     private void EvaluateHandlers(string text, CancellationToken token)
     {
         var pageVm               = (CurrentPage as IPageView)?.ViewModel;
-        var (_, clearWinner, _)  = CurrentWorkspace.AiService.ScoreHandlers(text, pageVm);
+        var (_, clearWinner, _)  = CurrentWorkspace.AiService!.ScoreHandlers(text, pageVm);
 
         if (clearWinner?.Symbol is not null)
         {
@@ -740,7 +740,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         }
 
         var pageVm = (CurrentPage as IPageView)?.ViewModel;
-        var svc    = CurrentWorkspace.AiService;
+        var svc    = CurrentWorkspace.AiService!;
 
         // The active page may render AI responses itself (e.g. the conversation, inline); otherwise the
         // shell popup (Ai) handles them. Either way the agent loop talks only to this handler.

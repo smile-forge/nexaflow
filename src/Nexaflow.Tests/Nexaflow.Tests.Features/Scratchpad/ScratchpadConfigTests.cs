@@ -15,7 +15,7 @@ public class ScratchpadConfigTests
         Assert.AreEqual("30 days", cfg.RecycleBinRetention);
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("30 minutes", 30)]
     [DataRow("1 hour", 60)]
     [DataRow("2 hours", 120)]
@@ -35,7 +35,7 @@ public class ScratchpadConfigTests
         Assert.AreEqual(TimeSpan.FromHours(2), cfg.GetNoteLifetime());
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("None", 0)]
     [DataRow("1 day", 1)]
     [DataRow("15 days", 15)]

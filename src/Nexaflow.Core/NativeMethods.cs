@@ -217,8 +217,9 @@ namespace Nexaflow.Core
                     isCut = (DragDropEffects)BitConverter.ToInt32(bytes, 0) == DragDropEffects.Move;
             }
 
-            foreach (string source in list)
+            foreach (string? source in list)
             {
+                if (source is null) continue;
                 bool   sourceIsDir = Directory.Exists(source);
                 string sourceTrimmed = source.TrimEnd(Path.DirectorySeparatorChar,
                                                       Path.AltDirectorySeparatorChar);

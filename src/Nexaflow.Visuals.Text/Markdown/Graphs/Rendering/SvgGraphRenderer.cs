@@ -141,7 +141,7 @@ public static class SvgGraphRenderer
             double p1x  = tip.X + len * Math.Cos(a1), p1y = tip.Y + len * Math.Sin(a1);
             double p2x  = tip.X + len * Math.Cos(a2), p2y = tip.Y + len * Math.Sin(a2);
 
-            if (edge.Arrow == EdgeArrow.Open)
+            if (edge?.Arrow == EdgeArrow.Open)
                 sb.AppendLine($"""  <polyline points="{F(p1x)},{F(p1y)} {F(tip.X)},{F(tip.Y)} {F(p2x)},{F(p2y)}" fill="none" stroke="{color}" stroke-width="1.5" stroke-linejoin="round"/>""");
             else
                 sb.AppendLine($"""  <polygon points="{F(tip.X)},{F(tip.Y)} {F(p1x)},{F(p1y)} {F(p2x)},{F(p2y)}" fill="{color}" stroke="{color}" stroke-width="0.5"/>""");

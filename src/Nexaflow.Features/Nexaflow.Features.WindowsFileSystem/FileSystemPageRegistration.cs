@@ -11,6 +11,8 @@ namespace Nexaflow.Features.WindowsFileSystem;
 // builds a config→registration mapping for them; that lets OptionsViewModel fire
 // TabRefreshRequested("FileSystem") when either config is saved, which rebuilds
 // open file-system tabs so the new action set / verb gating takes effect immediately.
+// They are intentionally unread — only their types matter to the discovery.
+#pragma warning disable CS9113 // Parameter is unread.
 public sealed class FileSystemPageRegistration(
     IShellServices shell,
     IAIService ai,
@@ -18,6 +20,7 @@ public sealed class FileSystemPageRegistration(
     FileMapConfig _fileMapConfig,
     ExternalAppsConfig _externalAppsConfig) : IPageRegistration
 {
+#pragma warning restore CS9113
     public const string PageKind       = "FileSystem";
     public const string FileActionKind = "FileAction";
 

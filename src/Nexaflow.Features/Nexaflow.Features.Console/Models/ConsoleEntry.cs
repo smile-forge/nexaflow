@@ -38,7 +38,7 @@ public partial class ConsoleEntry : ObservableObject
             if (sb.Length > 0) sb.Append('\n');
             sb.Append(line.Text);
         }
-        SetProperty(ref _outputText, sb.ToString(), nameof(OutputText));
+        OutputText = sb.ToString();
     }
 }
 
