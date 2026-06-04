@@ -323,6 +323,9 @@ public sealed class ShellServices : IShellServices
 
     // ── Tab creation ──────────────────────────────────────────────────────
 
+    public IReadOnlyList<Page> GetContextItemPages()
+        => FeatureManager.Instance.GetContextItemPages(_workspace);
+
     private Page? CreateTab(string pageKind, Dictionary<string, string>? pageParams)
     {
         if (FeatureManager.Instance.IsRegistered(pageKind))
@@ -386,6 +389,45 @@ public sealed class ShellServices : IShellServices
                                          Action onConfirm, Action onCancel)
         => (_focused ?? _windows.FirstOrDefault())
             ?.ShowConfirmation(title, message, onConfirm, onCancel);
+
+    public Task<bool> ConfirmAsync(string title, string message, CancellationToken ct = default)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+            return dispatcher.Invoke(() => ConfirmAsync(title, message, ct));
+
+        var host = _focused ?? _windows.FirstOrDefault();
+        if (host is null) return Task.FromResult(false);
+
+        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        ct.Register(() => tcs.TrySetResult(false));
+        host.ShowConfirmation(title, message,
+            onConfirm: () => tcs.TrySetResult(true),
+            onCancel:  () => tcs.TrySetResult(false));
+        return tcs.Task;
+    }
+
+    /// <summary>
+    /// Snapshot of each open window in this workspace and its open tabs, taken on the UI thread so the
+    /// (thread-affine) <see cref="Window.Title"/> is safe to read. Used to describe the shell to the AI.
+    /// </summary>
+    public IReadOnlyList<(string Title, IReadOnlyList<(string Title, string? PageKind)> Tabs)> GetWindowsWithTabs()
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+            return dispatcher.Invoke(GetWindowsWithTabs);
+
+        var result = new List<(string, IReadOnlyList<(string, string?)>)>(_windows.Count);
+        var n = 1;
+        foreach (var host in _windows)
+        {
+            var title = string.IsNullOrWhiteSpace(host.Window?.Title) ? $"Window {n}" : host.Window!.Title;
+            var tabs  = host.Tabs.Select(t => (t.Title, t.PageKind)).ToList();
+            result.Add((title, tabs));
+            n++;
+        }
+        return result;
+    }
 
     // No host-level refresh — feature views drive their own refresh from
     // file-system events; actions that mutate the file system rely on that.

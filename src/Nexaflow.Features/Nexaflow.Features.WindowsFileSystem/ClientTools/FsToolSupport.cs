@@ -24,9 +24,48 @@ internal static class FsTool
     public static bool Bool(JsonObject args, string key)
         => args.TryGetPropertyValue(key, out var n) && n is JsonValue v && v.TryGetValue<bool>(out var b) && b;
 
+    /// <summary>Reads an integer argument (number or numeric string); <paramref name="fallback"/> if absent/invalid.</summary>
+    public static int Int(JsonObject args, string key, int fallback)
+    {
+        if (args.TryGetPropertyValue(key, out var n) && n is JsonValue v)
+        {
+            if (v.TryGetValue<int>(out var i)) return i;
+            if (v.TryGetValue<double>(out var d)) return (int)d;
+            if (v.TryGetValue<string>(out var s) && int.TryParse(s, out var p)) return p;
+        }
+        return fallback;
+    }
+
+    /// <summary>Cheap heuristic: a NUL byte in the first 8 KB means the file is binary, not text.</summary>
+    public static bool LooksBinary(string path)
+    {
+        try
+        {
+            using var fs = File.OpenRead(path);
+            var buf  = new byte[(int)Math.Min(8192, fs.Length)];
+            var read = fs.Read(buf, 0, buf.Length);
+            for (var i = 0; i < read; i++) if (buf[i] == 0) return true;
+            return false;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>Formats a byte count as a human-readable size (e.g. 1.4 MB).</summary>
+    public static string FormatSize(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double size = bytes; var u = 0;
+        while (size >= 1024 && u < units.Length - 1) { size /= 1024; u++; }
+        return u == 0 ? $"{bytes} B" : $"{size:0.#} {units[u]}";
+    }
+
     /// <summary>
-    /// Resolves <paramref name="nameOrPath"/> against the page's current folder. Absolute paths are
-    /// honoured; relative names must stay inside the current folder (no <c>..\</c> escapes).
+    /// Resolves <paramref name="nameOrPath"/> within the page's current folder — the tab's security
+    /// context. EVERY resolved path, absolute or relative, must stay inside that folder; anything that
+    /// escapes it (including absolute paths to elsewhere on disk and <c>..\</c> traversals) is rejected.
+    /// The one exception is an unconfined tab with no current folder (e.g. "This PC"): there is no
+    /// boundary, so absolute paths are honoured anywhere and relative names have nothing to resolve
+    /// against. Such tabs are surfaced to the user as High security risk.
     /// </summary>
     public static bool TryResolve(FileSystemViewModel vm, string? nameOrPath, out string full, out string error)
     {
@@ -41,24 +80,28 @@ internal static class FsTool
 
         try
         {
+            var basePath = vm.CurrentPath;
+            var confined = !string.IsNullOrEmpty(basePath);
+            var root     = confined ? Path.GetFullPath(basePath) : null;
+
+            string candidate;
             if (Path.IsPathFullyQualified(nameOrPath))
             {
-                full = Path.GetFullPath(nameOrPath);
-                return true;
+                candidate = Path.GetFullPath(nameOrPath);
+            }
+            else
+            {
+                if (!confined)
+                {
+                    error = "No folder is open to resolve a relative name against.";
+                    return false;
+                }
+                candidate = Path.GetFullPath(Path.Combine(root!, nameOrPath));
             }
 
-            var basePath = vm.CurrentPath;
-            if (string.IsNullOrEmpty(basePath))
+            if (confined && !IsWithin(candidate, root!))
             {
-                error = "No folder is open to resolve a relative name against.";
-                return false;
-            }
-
-            var root      = Path.GetFullPath(basePath);
-            var candidate = Path.GetFullPath(Path.Combine(root, nameOrPath));
-            if (!candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase))
-            {
-                error = "That path is outside the current folder.";
+                error = "That path is outside this tab's folder (its security context).";
                 return false;
             }
 
@@ -70,6 +113,19 @@ internal static class FsTool
             error = $"'{nameOrPath}' is not a valid path.";
             return false;
         }
+    }
+
+    /// <summary>
+    /// True when <paramref name="candidate"/> equals <paramref name="root"/> or sits beneath it,
+    /// compared on path-segment boundaries so <c>C:\foo</c> does not match <c>C:\foobar</c>.
+    /// </summary>
+    private static bool IsWithin(string candidate, string root)
+    {
+        char[] seps = [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar];
+        var c = candidate.TrimEnd(seps);
+        var r = root.TrimEnd(seps);
+        return string.Equals(c, r, StringComparison.OrdinalIgnoreCase)
+            || c.StartsWith(r + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Path display relative to the current folder, falling back to the file name.</summary>

@@ -129,6 +129,9 @@ public partial class App : Application
         ConfigManager.Instance.Register(shellConfig, shellConfig.ConfigName);
         ThemeManager.Apply(shellConfig.Theme);
 
+        var securityConfig = new SecurityConfig();
+        ConfigManager.Instance.Register(securityConfig, securityConfig.ConfigName);
+
         // ── 2. Workspaces config (profiles) — must come before providers so we know
         //       which provider assemblies each profile needs ───────────────────
         var wcConfig = new WorkspacesConfig();

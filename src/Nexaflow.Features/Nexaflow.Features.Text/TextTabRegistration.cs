@@ -10,7 +10,7 @@ public sealed class TextTabRegistration : IPageRegistration
     public static string StaticPageKind => "Text";
     public string PageKind => StaticPageKind;
 
-    public Page CreatePage(Dictionary<string, string>? pageParams = null)
+    public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
         var title = string.IsNullOrEmpty(path) ? "Text" : Path.GetFileName(path);

@@ -16,7 +16,7 @@ public sealed class ImageTabRegistration : IPageRegistration
     public static string StaticPageKind => "Images";
     public string PageKind => StaticPageKind;
 
-    public Page CreatePage(Dictionary<string, string>? pageParams = null)
+    public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var paths = pageParams?.GetValueOrDefault("paths")?
             .Split('|', StringSplitOptions.RemoveEmptyEntries)

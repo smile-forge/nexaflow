@@ -43,7 +43,7 @@ public class AgentLoopTests
             => Task.FromResult<IReadOnlyList<string>>(["m"]);
     }
 
-    private sealed class FakeApprover : IToolApprovalCoordinator
+    private sealed class FakeApprover : IAIResponseHandler
     {
         public bool BatchResult = true;
         public bool PlanResult  = true;
@@ -51,12 +51,14 @@ public class AgentLoopTests
         public int  PlanRequests;
         public string? Final;
 
+        public void BeginResponse(string userText) { }
         public Task<bool> RequestToolBatchApprovalAsync(string explanation, IReadOnlyList<ToolCall> batch, CancellationToken ct)
         { BatchRequests++; return Task.FromResult(BatchResult); }
         public Task<bool> RequestPlanApprovalAsync(ClientPlan plan, CancellationToken ct)
         { PlanRequests++; return Task.FromResult(PlanResult); }
         public void ReportProgress(string message) { }
         public void ShowFinal(string finalMarkdown) => Final = finalMarkdown;
+        public void Abort() { }
     }
 
     private sealed class RecordingTool(string name, ToolSafety safety, bool parallelizable = false) : IClientTool
@@ -159,16 +161,31 @@ public class AgentLoopTests
     }
 
     [TestMethod]
-    public async Task IterationCap_ReturnsStoppedMessage()
+    public async Task RepeatedIdenticalBatch_ReturnsStoppedMessage()
     {
+        // The model keeps emitting the SAME tool call → the loop guard stops it after a few repeats.
         var tool     = new RecordingTool("get_x", ToolSafety.ReadOnly);
         var provider = new ScriptedLlmProvider(Enumerable.Repeat(ToolBlock("get_x"), 50));
         var approver = new FakeApprover();
 
         var res = await BuildService(provider).RunAgentAsync(new TestPage(tool), "loop", true, approver, default);
 
+        StringAssert.Contains(res!.Text!, "repeated tool call");
+        Assert.AreEqual(2, tool.Invocations);   // ran on the first two, stopped before the 3rd (MaxIdenticalBatches)
+    }
+
+    [TestMethod]
+    public async Task IterationCap_ReturnsStoppedMessage()
+    {
+        // Distinct calls each step (so the repeat guard never fires) → the hard step cap stops it.
+        var tool     = new RecordingTool("get_x", ToolSafety.ReadOnly);
+        var provider = new ScriptedLlmProvider(Enumerable.Range(0, 50).Select(i => ToolBlock("get_x", $"{{\"i\":{i}}}")));
+        var approver = new FakeApprover();
+
+        var res = await BuildService(provider).RunAgentAsync(new TestPage(tool), "loop", true, approver, default);
+
         StringAssert.Contains(res!.Text!, "max steps");
-        Assert.AreEqual(8, tool.Invocations);   // MaxAgentSteps
+        Assert.AreEqual(20, tool.Invocations);   // MaxAgentSteps
     }
 
     [TestMethod]

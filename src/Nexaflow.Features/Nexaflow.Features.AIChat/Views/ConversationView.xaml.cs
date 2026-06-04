@@ -4,7 +4,6 @@ using System.Windows;
 using System.Windows.Controls;
 using Nexaflow.Features.AIChat.ViewModels;
 using Nexaflow.Features.Common;
-using Nexaflow.Visuals.Text.Markdown;
 using Page = Nexaflow.Features.Common.Page;
 
 namespace Nexaflow.Features.AIChat.Views;
@@ -20,14 +19,44 @@ public partial class ConversationView : UserControl, IPageView
         ViewModel   = viewModel;
         DataContext = ViewModel;
 
-        ViewModel.Messages.CollectionChanged += OnMessagesChanged;
+        ViewModel.Timeline.CollectionChanged += OnTimelineChanged;
         ViewModel.PropertyChanged            += OnVmPropertyChanged;
 
         ContextBanner.Drop     += OnContextBannerDrop;
         ContextBanner.DragOver += OnContextBannerDragOver;
 
-        RebuildMessages();
+        var contextMenu = new ContextMenu();
+        contextMenu.Opened += OnContextMenuOpened;
+        ContextBanner.ContextMenu = contextMenu;
+
         RefreshFooter();
+    }
+
+    // ── Context-source menu (right-click the banner) ──────────────────────
+
+    /// <summary>Rebuilds the right-click menu of addable context pages on each open, so it reflects
+    /// current availability.</summary>
+    private void OnContextMenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ContextMenu menu) return;
+        menu.Items.Clear();
+
+        var pages = ViewModel.AvailableContextPages;
+        if (pages.Count == 0)
+        {
+            menu.Items.Add(new MenuItem { Header = "No context sources available", IsEnabled = false });
+            return;
+        }
+
+        foreach (var page in pages)
+        {
+            menu.Items.Add(new MenuItem
+            {
+                Header           = string.IsNullOrEmpty(page.Icon) ? page.Title : $"{page.Icon}  {page.Title}",
+                Command          = ViewModel.AddContextPageCommand,
+                CommandParameter = page,
+            });
+        }
     }
 
     public void Reinitialize(Dictionary<string, string> pageParams)
@@ -38,62 +67,14 @@ public partial class ConversationView : UserControl, IPageView
 
     // ── Message rendering ─────────────────────────────────────────────────
 
-    private void OnMessagesChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        // Always rebuild — message edits are rare and the list is small.
-        Dispatcher.Invoke(() =>
-        {
-            RebuildMessages();
-            ScrollToBottom();
-            RefreshFooter();
-        });
-    }
+    private void OnTimelineChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        => Dispatcher.Invoke(() => { ScrollToBottom(); RefreshFooter(); });
 
     private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(ConversationViewModel.EstimatedTokens)
                            or nameof(ConversationViewModel.ContextWindow))
             Dispatcher.Invoke(RefreshFooter);
-    }
-
-    private void RebuildMessages()
-    {
-        MessageList.Items.Clear();
-        foreach (var msg in ViewModel.Messages)
-            MessageList.Items.Add(BuildMessageElement(msg));
-    }
-
-    private static FrameworkElement BuildMessageElement(ConversationMessage msg)
-    {
-        // Selectable markdown — drag-select all or part and copy (Ctrl+C / right-click)
-        // in plain text + HTML + markdown formats.
-        var body = new SelectableMarkdownView { Markdown = msg.Text ?? string.Empty };
-
-        var bubble = new Border
-        {
-            Padding         = new Thickness(14, 10, 14, 10),
-            Margin          = new Thickness(0, 6, 0, 6),
-            CornerRadius    = msg.IsUser
-                ? new CornerRadius(14, 14, 4, 14)
-                : new CornerRadius(14, 14, 14, 4),
-            MaxWidth            = 720,
-            HorizontalAlignment = msg.IsUser ? HorizontalAlignment.Right : HorizontalAlignment.Left,
-            Child               = body,
-        };
-
-        if (msg.IsUser)
-        {
-            bubble.SetResourceReference(Border.BackgroundProperty, "UserBubbleBrush");
-        }
-        else
-        {
-            // Use a resource brush at runtime so theme changes propagate.
-            bubble.SetResourceReference(Border.BackgroundProperty, "Surface2Brush");
-            bubble.SetResourceReference(Border.BorderBrushProperty, "BorderBrush");
-            bubble.BorderThickness = new Thickness(1);
-        }
-
-        return bubble;
     }
 
     private void ScrollToBottom()

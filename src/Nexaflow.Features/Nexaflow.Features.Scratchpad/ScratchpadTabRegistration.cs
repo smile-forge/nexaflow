@@ -9,7 +9,7 @@ public sealed class ScratchpadTabRegistration(ScratchpadConfig config, IShellSer
     public static string StaticPageKind => "Scratchpad";
     public string PageKind => StaticPageKind;
 
-    public Page CreatePage(Dictionary<string, string>? pageParams = null) => new()
+    public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null) => new()
     {
         Title       = "Scratchpad",
         Icon        = "📌",

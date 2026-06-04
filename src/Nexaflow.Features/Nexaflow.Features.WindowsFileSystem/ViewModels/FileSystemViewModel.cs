@@ -811,12 +811,52 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
         new GetFileListTool(this),
         new FindFilesByNameTool(this),
         new GetFileContentsTool(this),
+        new GetLineCountTool(this),
+        new GetFileStatsTool(this),
         new CreateTextFileTool(this),
+        new CreateDirectoryTool(this),
         new CopyTool(this),
         new MoveTool(this),
         new RenameTool(this),
         new DeleteTool(this),
     ];
+
+    /// <summary>The folder these tools resolve relative names against (their confinement boundary).
+    /// Distinguishes one file-system tab from another when both are pinned as AI context.</summary>
+    public string? GetSecurityContext()
+        => IsThisPcMode                     ? "This PC"
+         : string.IsNullOrEmpty(CurrentPath) ? null
+         : CurrentPath;
+
+    /// <summary>
+    /// Risk of letting the AI act here: High when unconfined or system-critical (This PC, the system
+    /// drive root, or inside the Windows folder), Medium for a whole non-system drive root, else Low.
+    /// </summary>
+    public ContextSecurityRisk GetContextSecurityRisk()
+    {
+        if (IsThisPcMode) return ContextSecurityRisk.High;             // unconfined — AI can go anywhere
+        if (string.IsNullOrEmpty(CurrentPath)) return ContextSecurityRisk.High;
+
+        string full;
+        try { full = Path.GetFullPath(CurrentPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar); }
+        catch { return ContextSecurityRisk.Low; }
+
+        var windowsDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows)
+                                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (!string.IsNullOrEmpty(windowsDir) &&
+            (full.Equals(windowsDir, StringComparison.OrdinalIgnoreCase) ||
+             full.StartsWith(windowsDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
+            return ContextSecurityRisk.High;                          // the Windows system folder
+
+        var driveRoot  = Path.GetPathRoot(full)?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var systemRoot = Path.GetPathRoot(Environment.SystemDirectory)?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (!string.IsNullOrEmpty(driveRoot) && full.Equals(driveRoot, StringComparison.OrdinalIgnoreCase))
+            return string.Equals(driveRoot, systemRoot, StringComparison.OrdinalIgnoreCase)
+                ? ContextSecurityRisk.High                            // system drive root (e.g. C:\)
+                : ContextSecurityRisk.Medium;                         // other drive root (e.g. D:\)
+
+        return ContextSecurityRisk.Low;
+    }
 
     public IContext? GetContextObject()
     {

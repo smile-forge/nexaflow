@@ -15,7 +15,7 @@ public sealed class JsonTabRegistration : IPageRegistration
     public static string StaticPageKind => "Json";
     public string PageKind => StaticPageKind;
 
-    public Page CreatePage(Dictionary<string, string>? pageParams = null)
+    public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
         var title = string.IsNullOrEmpty(path) ? "JSON" : Path.GetFileName(path);

@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Features.Common;
 
@@ -22,6 +24,15 @@ public interface IShellServices
 
     /// <summary>Closes and removes a tab from the global tab registry.</summary>
     void CloseTab(Page tab);
+
+    /// <summary>
+    /// Lightweight <see cref="Page"/> definitions for the pages that can be created without specific
+    /// context (<see cref="IPageRegistration.CanBeContextItem"/>) in this workspace — surfaced in the
+    /// AI conversation's "add context" menu, which reads each page's Title/Icon. Built per-workspace,
+    /// so it reflects the active profile's enablement (e.g. Projects only when enabled). Content is not
+    /// realized; pin a chosen page by calling <c>GetOrCreateContent</c> on it.
+    /// </summary>
+    IReadOnlyList<Page> GetContextItemPages();
 
     /// <summary>
     /// Hands <paramref name="task"/> to the shell's background-activity manager: it is reported in
@@ -56,6 +67,13 @@ public interface IShellServices
     /// Shows a window-level yes/no confirmation overlay in the focused window.
     /// </summary>
     void ShowConfirmation(string title, string message, Action onConfirm, Action onCancel);
+
+    /// <summary>
+    /// Async form of <see cref="ShowConfirmation"/>: shows the confirmation overlay and completes with
+    /// true (confirmed) or false (cancelled). Lets a tool's <c>InvokeAsync</c> await the user's choice.
+    /// Marshals to the UI thread.
+    /// </summary>
+    Task<bool> ConfirmAsync(string title, string message, CancellationToken ct = default);
 
     /// <summary>
     /// Requests a refresh of any view that cares (e.g. a file list).

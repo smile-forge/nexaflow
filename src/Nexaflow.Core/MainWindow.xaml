@@ -238,7 +238,7 @@
              ═══════════════════════════════════════════════════════════ -->
         <ctrl:AiResponseOverlay Grid.Row="0" Grid.RowSpan="4"
                                 Panel.ZIndex="100"
-                                DataContext="{Binding}"/>
+                                DataContext="{Binding Ai}"/>
 
         <!-- ═══════════════════════════════════════════════════════════
              ROW 3 — DRAG SPLITTER
@@ -336,10 +336,46 @@
                     </ctrl:PlaceholderTextBox>
                 </Border>
 
-                <!-- Submit / Cancel — full height, swaps mode on AiIsBusy -->
-                <Button Grid.Column="2"
-                        VerticalAlignment="Stretch"
-                        Margin="12,6,0,6" MinWidth="56"
+                <!-- Submit / Cancel (swaps on AiIsBusy) + a Queue button that appears while busy so the
+                     user can add to the in-flight request AND cancel it at the same time. -->
+              <Grid Grid.Column="2" Margin="12,6,0,6" MinWidth="56">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>   <!-- queue (busy only) -->
+                    <RowDefinition Height="*"/>   <!-- send / cancel     -->
+                </Grid.RowDefinitions>
+
+                <!-- Queue addendum — visible only while the agent is working; Enter also queues.
+                     Takes the top half while busy (the main button drops to the bottom half). -->
+                <Button Grid.Row="0" VerticalAlignment="Stretch" Margin="0,0,0,3"
+                        Cursor="Hand" FontSize="14" Foreground="White"
+                        Content="➤＋" ToolTip="Queue message (delivered at the next step)"
+                        Command="{Binding SendAiMessageCommand}">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="qroot" Background="{TemplateBinding Background}" CornerRadius="10">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="qroot" Property="Opacity" Value="0.85"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding AiIsBusy}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+
+                <Button VerticalAlignment="Stretch"
                         Cursor="Hand" FontSize="16"
                         Foreground="White">
                     <Button.Style>
@@ -348,6 +384,9 @@
                             <Setter Property="Content" Value="➤"/>
                             <Setter Property="ToolTip" Value="Send (Enter)"/>
                             <Setter Property="Command" Value="{Binding SendAiMessageCommand}"/>
+                            <!-- Idle: span both rows (full height). Busy: drop to the bottom half. -->
+                            <Setter Property="Grid.Row" Value="0"/>
+                            <Setter Property="Grid.RowSpan" Value="2"/>
                             <Setter Property="Template">
                                 <Setter.Value>
                                     <ControlTemplate TargetType="Button">
@@ -366,12 +405,15 @@
                                 </Setter.Value>
                             </Setter>
                             <Style.Triggers>
-                                <!-- Busy: become a Cancel button (stays enabled while AI processes) -->
+                                <!-- Busy: become a Cancel button (stays enabled while AI processes),
+                                     and drop to the bottom half so the queue button sits above it. -->
                                 <DataTrigger Binding="{Binding AiIsBusy}" Value="True">
                                     <Setter Property="Content" Value="■"/>
                                     <Setter Property="ToolTip" Value="Cancel"/>
                                     <Setter Property="Command" Value="{Binding CancelAiCommand}"/>
                                     <Setter Property="Background" Value="#E11D48"/>
+                                    <Setter Property="Grid.Row" Value="1"/>
+                                    <Setter Property="Grid.RowSpan" Value="1"/>
                                 </DataTrigger>
                                 <!-- Listening: show a listening icon; click to stop early -->
                                 <DataTrigger Binding="{Binding IsRecording}" Value="True">
@@ -384,6 +426,7 @@
                         </Style>
                     </Button.Style>
                 </Button>
+              </Grid>
 
                 <!-- Right: context toggle + mic — on a dark panel matching the input -->
                 <Border Grid.Column="3" VerticalAlignment="Stretch" Margin="12,6,0,6"

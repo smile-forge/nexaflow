@@ -80,8 +80,37 @@
     </UserControl.Resources>
 
     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/> <!-- header -->
+            <RowDefinition Height="*"/>    <!-- list -->
+        </Grid.RowDefinitions>
+
+        <!-- Header: title + New conversation -->
+        <Grid Grid.Row="0" Margin="16,12,16,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Conversations"
+                       FontSize="15" FontWeight="SemiBold"
+                       Foreground="{StaticResource TextBrush}"
+                       VerticalAlignment="Center"/>
+            <Button Grid.Column="1"
+                    Style="{StaticResource RibbonButton}" Padding="12,6"
+                    ToolTip="Start a new conversation"
+                    Command="{Binding NewConversationCommand}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="&#x2795;" FontSize="12" Margin="0,0,6,0"
+                               Foreground="{StaticResource AccentBrush}"/>
+                    <TextBlock Text="New conversation" FontSize="12"
+                               Foreground="{StaticResource TextMutedBrush}"/>
+                </StackPanel>
+            </Button>
+        </Grid>
+
         <!-- Conversation list -->
-        <ScrollViewer VerticalScrollBarVisibility="Auto"
+        <ScrollViewer Grid.Row="1"
+                      VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
                       Padding="16,12">
             <ItemsControl x:Name="ConversationList"
@@ -90,7 +119,7 @@
         </ScrollViewer>
 
         <!-- ── Analysis detail overlay (modal: backdrop blocks the list) ── -->
-        <Border Background="#CC0B0B0F"
+        <Border Grid.Row="0" Grid.RowSpan="2" Background="#CC0B0B0F"
                 Visibility="{Binding IsAnalysisOverlayOpen, Converter={StaticResource BoolVis}}">
             <Border Width="640" MaxHeight="560"
                     HorizontalAlignment="Center" VerticalAlignment="Center"
