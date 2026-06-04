@@ -38,9 +38,12 @@ public interface IShellServices
     /// Hands <paramref name="task"/> to the shell's background-activity manager: it is reported in
     /// the activity area and its <see cref="IBackgroundTask.RunAsync"/> runs off the UI thread.
     /// <paramref name="onComplete"/>, if supplied, is invoked on the UI thread when the task ends
-    /// (true on success, false if it threw).
+    /// (true on success, false if it threw). Cancelling <paramref name="ct"/> requests the task abort
+    /// (the token is passed to <see cref="IBackgroundTask.RunAsync"/>); a cancelled task ends quietly
+    /// — no failure is reported and <paramref name="onComplete"/> is not invoked.
     /// </summary>
-    void QueueBackgroundTask(IBackgroundTask task, Action<bool>? onComplete = null);
+    void QueueBackgroundTask(IBackgroundTask task, Action<bool>? onComplete = null,
+                             CancellationToken ct = default);
 
     /// <summary>
     /// Returns the first globally-open tab whose <see cref="Page.PageKind"/>

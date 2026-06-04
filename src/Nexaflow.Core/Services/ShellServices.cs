@@ -29,7 +29,8 @@ public sealed class ShellServices : IShellServices
         _activity  = activity;
     }
 
-    public void QueueBackgroundTask(IBackgroundTask task, Action<bool>? onComplete = null)
+    public void QueueBackgroundTask(IBackgroundTask task, Action<bool>? onComplete = null,
+                                    CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(task);
 
@@ -37,11 +38,18 @@ public sealed class ShellServices : IShellServices
         _ = Task.Run(async () =>
         {
             var ok = false;
+            var cancelled = false;
             try
             {
-                await task.RunAsync(CancellationToken.None);
+                await task.RunAsync(ct);
                 handle?.Complete();
                 ok = true;
+            }
+            catch (OperationCanceledException)
+            {
+                // Caller aborted (e.g. navigated away) — finish quietly, no failure reported.
+                cancelled = true;
+                handle?.Complete();
             }
             catch (Exception ex)
             {
@@ -49,7 +57,7 @@ public sealed class ShellServices : IShellServices
             }
             finally
             {
-                if (onComplete is not null)
+                if (onComplete is not null && !cancelled)
                     Application.Current?.Dispatcher.Invoke(() => onComplete(ok));
             }
         });
