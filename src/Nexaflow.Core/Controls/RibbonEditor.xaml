@@ -147,7 +147,41 @@
                 </Border>
 
                 <!-- ── Footer ── -->
-                <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Grid Grid.Row="3">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Add a button for any openable (CanBeContextItem) page -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Add page:" FontSize="12"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="PageCatalogCombo"
+                                  Style="{StaticResource DarkComboBox}"
+                                  Width="220" MaxDropDownHeight="280">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type m:RibbonCatalogEntry}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Icon}" FontSize="14"
+                                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <TextBlock Text="{Binding Title}" FontSize="12"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <Button Content="＋ Add"
+                                Style="{StaticResource RibbonHalfButton}"
+                                Padding="12,6" FontSize="12"
+                                Foreground="{StaticResource AccentBrush}"
+                                Click="AddPageButton_Click"
+                                Margin="8,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- Layout + dismiss actions -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Content="Insert separator"
                             Style="{StaticResource RibbonHalfButton}"
                             Padding="12,6" FontSize="12"
@@ -171,7 +205,8 @@
                             Padding="20,6" FontSize="12"
                             Foreground="{StaticResource AccentBrush}"
                             Click="Done_Click"/>
-                </StackPanel>
+                    </StackPanel>
+                </Grid>
 
             </Grid>
         </Border>

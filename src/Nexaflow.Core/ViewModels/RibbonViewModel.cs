@@ -29,6 +29,13 @@ public partial class RibbonViewModel : ObservableObject
 
     public ObservableCollection<RibbonItem> Items { get; } = [];
 
+    /// <summary>
+    /// Openable page kinds offered in the editor's "add page" dropdown — the registrations whose
+    /// <c>CanBeContextItem</c> is true for this workspace. Refreshed each time the editor opens, since
+    /// availability can depend on workspace/config (e.g. a feature toggled off).
+    /// </summary>
+    public ObservableCollection<RibbonCatalogEntry> AvailablePages { get; } = [];
+
     /// <summary>Open/closed state of the inline ribbon editor overlay.</summary>
     [ObservableProperty] private bool _isEditOpen;
 
@@ -188,7 +195,26 @@ public partial class RibbonViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ToggleEdit() => IsEditOpen = !IsEditOpen;
+    private void ToggleEdit()
+    {
+        if (!IsEditOpen) RefreshAvailablePages();   // populate the catalog just before showing
+        IsEditOpen = !IsEditOpen;
+    }
+
+    /// <summary>Rebuilds <see cref="AvailablePages"/> from the workspace's context-item registrations.</summary>
+    private void RefreshAvailablePages()
+    {
+        AvailablePages.Clear();
+        if (_workspace is null) return;
+
+        var entries = FeatureManager.Instance.GetContextItemPages(_workspace)
+            .Where(p => !string.IsNullOrEmpty(p.PageKind))
+            .Select(p => new RibbonCatalogEntry(p.PageKind!, p.Title, p.Icon))
+            .OrderBy(e => e.Title, StringComparer.CurrentCultureIgnoreCase);
+
+        foreach (var entry in entries)
+            AvailablePages.Add(entry);
+    }
 
     /// <summary>
     /// Handle a tab drag-drop pin. Delegates to the registered <see cref="IRibbonPinHandler"/>
