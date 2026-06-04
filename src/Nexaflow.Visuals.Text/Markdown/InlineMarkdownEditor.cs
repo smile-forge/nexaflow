@@ -145,6 +145,11 @@ public class InlineMarkdownEditor : UserControl
     /// editor's coordinates). The host turns it into markdown and calls <see cref="InsertMarkdownAt"/>.</summary>
     public event Action<IDataObject, Point>? ContentDropped;
 
+    /// <summary>Lets the host claim a paste of rich content (image / file / URL): return true if it
+    /// handled it (typically by calling <see cref="InsertMarkdownAtCaret"/>); false falls back to the
+    /// editor's plain text/markdown paste.</summary>
+    public Func<IDataObject, bool>? ContentPasted { get; set; }
+
     /// <summary>Base directory for resolving relative <c>![](file.png)</c> image paths to a local
     /// file (e.g. a post-it's attachment folder). When null, only absolute/<c>file:</c> images render.</summary>
     public static readonly DependencyProperty BaseDirectoryProperty =
@@ -210,13 +215,29 @@ public class InlineMarkdownEditor : UserControl
     public void InsertMarkdownAt(string markdown, Point pointInEditor)
     {
         if (string.IsNullOrWhiteSpace(markdown)) return;
-        var parts = MarkdownBlocks.Split(markdown);
 
         // Resolve the insertion point against the current document, before committing.
         int after = -1;
         if (!IsBelowContent(pointInEditor)
             && _rtb.GetPositionFromPoint(pointInEditor, snapToText: true) is { } pos)
             after = PointerToModel(pos, preferEnd: false).block;
+
+        InsertBlocksAfter(markdown, after);
+    }
+
+    /// <summary>Inserts <paramref name="markdown"/> as new block(s) after the block being edited (or the
+    /// caret's block), committing any in-progress edit first. Used for pasting rich content (image /
+    /// file / URL) while editing.</summary>
+    public void InsertMarkdownAtCaret(string markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown)) return;
+        int after = _active >= 0 ? _active : BlockIndexAtPointer(_rtb.CaretPosition);
+        InsertBlocksAfter(markdown, after);
+    }
+
+    private void InsertBlocksAfter(string markdown, int after)
+    {
+        var parts = MarkdownBlocks.Split(markdown);
 
         if (_active >= 0) { _blocks = MarkdownBlocks.Compact(_blocks); _active = -1; }   // commit any edit
         _undo.Clear();
@@ -227,6 +248,19 @@ public class InlineMarkdownEditor : UserControl
 
         PushMarkdown();
         RenderAll();
+    }
+
+    /// <summary>Swaps the first block whose content equals <paramref name="from"/> for
+    /// <paramref name="to"/> (used to replace a pasted/dropped URL with its fetched preview). No-op if
+    /// the block is gone (e.g. the user deleted it).</summary>
+    public void ReplaceBlock(string from, string to)
+    {
+        int i = _blocks.IndexOf(from);
+        if (i < 0) return;
+        _blocks[i] = to;
+        PushMarkdown();
+        if (_active < 0) RenderAll();
+        else Activate(_active, CaretInActiveBlock());   // keep editing; re-render the changed block
     }
 
     // ── Edits (applied to the block model) ────────────────────────────────
@@ -457,8 +491,14 @@ public class InlineMarkdownEditor : UserControl
     private void DoPaste()
     {
         if (_active < 0) return;
-        string? md;
-        try { md = MarkdownClipboard.ReadBestMarkdown(Clipboard.GetDataObject()); } catch { return; }
+        IDataObject? data;
+        try { data = Clipboard.GetDataObject(); } catch { return; }
+        if (data is null) return;
+
+        // Same path as Ctrl+V: let the host claim rich content (image / file / URL); else inline text.
+        if (ContentPasted?.Invoke(data) == true) return;
+
+        var md = MarkdownClipboard.ReadBestMarkdown(data);
         if (string.IsNullOrEmpty(md)) return;
         var (from, to) = SelectionInActiveBlock();
         InsertPaste(md, from, to);
@@ -644,14 +684,22 @@ public class InlineMarkdownEditor : UserControl
 
     private void OnPasting(object? sender, DataObjectPastingEventArgs e)
     {
-        var pasted = MarkdownClipboard.ReadBestMarkdown(e.DataObject);
+        var data = e.DataObject;
         e.CancelCommand();
-        if (string.IsNullOrEmpty(pasted) || _active < 0) return;
+        if (_active < 0) return;
 
-        // DataObject.Pasting fires inside the RichTextBox's change block, where setting
-        // Document throws — apply the edit after the paste operation unwinds.
+        // DataObject.Pasting fires inside the RichTextBox's change block, where rebuilding the document
+        // throws — apply the paste after the operation unwinds.
         var (from, to) = SelectionInActiveBlock();
-        Dispatcher.BeginInvoke(() => InsertPaste(pasted, from, to), DispatcherPriority.Background);
+        Dispatcher.BeginInvoke(() =>
+        {
+            // Let the host claim rich content (image / file / URL) → inserted as a block.
+            if (ContentPasted?.Invoke(data) == true) return;
+
+            // Plain text / markdown → inline paste at the caret.
+            var pasted = MarkdownClipboard.ReadBestMarkdown(data);
+            if (!string.IsNullOrEmpty(pasted)) InsertPaste(pasted, from, to);
+        }, DispatcherPriority.Background);
     }
 
     private void InsertPaste(string pasted, int from, int to)

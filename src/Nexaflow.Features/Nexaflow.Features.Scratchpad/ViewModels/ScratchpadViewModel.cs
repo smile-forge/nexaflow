@@ -68,6 +68,7 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
             GetNoteLifetime     = () => _config.GetNoteLifetime(),
             OpenUrl             = HandleLink,
             AttachmentDirectory = _store.AttachmentDir(note.Id),
+            RequestUrlPreview   = (url, onReady) => QueueUrlPreview(note.Id, url, onReady),
         };
         Notes.Add(vm);
         return vm;
@@ -77,6 +78,18 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
     /// the file-system / web feature claims it. Returns false when unclaimed so the markdown
     /// renderer falls back to opening it in the OS browser.</summary>
     private bool HandleLink(string url) => _shellServices?.HandleObject(url) ?? false;
+
+    /// <summary>Queues a background fetch of a URL's preview (downloading any image into the note's
+    /// attachment folder) and invokes <paramref name="onReady"/> on the UI thread with the markdown.</summary>
+    private void QueueUrlPreview(Guid noteId, string url, Action<string> onReady)
+    {
+        if (_shellServices is null) return;
+        var task = new UrlPreviewTask(url, _store.EnsureAttachmentDir(noteId));
+        _shellServices.QueueBackgroundTask(task, onComplete: ok =>
+        {
+            if (ok && task.PreviewMarkdown is { } md) onReady(md);
+        });
+    }
 
     // ── Commands ─────────────────────────────────────────────────────────
 
@@ -170,15 +183,9 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
         var vm = AddNoteViewModel(note);
         UpdateStatus();
 
-        if (_shellServices is not null)
-        {
-            var task = new UrlPreviewTask(url, _store.EnsureAttachmentDir(note.Id));
-            _shellServices.QueueBackgroundTask(task, onComplete: ok =>
-            {
-                // onComplete runs on the UI thread; setting Content triggers the debounced save.
-                if (ok && task.PreviewMarkdown is { } md) vm.Content = md;
-            });
-        }
+        // The note is the single URL block; on completion swap its whole content for the preview.
+        // (onReady runs on the UI thread; setting Content triggers the debounced save.)
+        QueueUrlPreview(note.Id, url, md => vm.Content = md);
         return vm;
     }
 
@@ -239,6 +246,7 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
         vm.GetNoteLifetime  = () => _config.GetNoteLifetime();
         vm.OpenUrl          = HandleLink;
         vm.AttachmentDirectory = _store.AttachmentDir(vm.Note.Id);
+        vm.RequestUrlPreview   = (url, onReady) => QueueUrlPreview(vm.Note.Id, url, onReady);
         Notes.Add(vm);
         UpdateStatus();
     }

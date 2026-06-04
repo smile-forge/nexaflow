@@ -73,6 +73,11 @@ public sealed partial class PostItViewModel : ObservableObject
     /// Wired by ScratchpadViewModel via IShellServices.</summary>
     public Func<string, bool>? OpenUrl { get; set; }
 
+    /// <summary>Fetches a URL preview (title/description/image) in the background and calls back with the
+    /// markdown to swap in for the pasted/dropped URL block. Wired by ScratchpadViewModel (which owns the
+    /// store + shell). No-op when unavailable.</summary>
+    public Action<string, Action<string>>? RequestUrlPreview { get; set; }
+
     public PostItViewModel(PostItNote note)
     {
         Note      = note;

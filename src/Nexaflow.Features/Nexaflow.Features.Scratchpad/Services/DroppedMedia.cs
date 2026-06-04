@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Windows;
 using System.Windows.Media.Imaging;
 
 namespace Nexaflow.Features.Scratchpad.Services;
@@ -16,6 +18,25 @@ public static class DroppedMedia
     {
         ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif", ".ico"
     };
+
+    /// <summary>True when the dropped/pasted data is a single bare http(s) URL (e.g. dragged or copied
+    /// from a browser address bar), returning it in <paramref name="url"/>.</summary>
+    public static bool TryGetSingleUrl(IDataObject data, out string url)
+    {
+        url = string.Empty;
+        var text = (data.GetDataPresent(DataFormats.UnicodeText) ? data.GetData(DataFormats.UnicodeText)
+                  : data.GetDataPresent(DataFormats.Text)        ? data.GetData(DataFormats.Text)
+                  : null) as string;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+
+        text = text.Trim();
+        if (text.Any(char.IsWhiteSpace)) return false;   // multiple tokens → not a bare URL
+        if (!Uri.TryCreate(text, UriKind.Absolute, out var u)) return false;
+        if (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps) return false;
+
+        url = text;
+        return true;
+    }
 
     /// <summary>True when <paramref name="path"/> has an image extension we embed rather than link.</summary>
     public static bool IsImageFile(string path) => ImageExtensions.Contains(Path.GetExtension(path));

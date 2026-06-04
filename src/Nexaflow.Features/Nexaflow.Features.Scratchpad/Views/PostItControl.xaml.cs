@@ -54,6 +54,7 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         // The editor handles drops over its own (RichTextBox) area; PostItControl covers the rest of the
         // note (header, grips). Both insert a block rather than letting the drop create a new post-it.
         Editor.ContentDropped += InsertDropped;
+        Editor.ContentPasted   = OnContentPasted;   // same rich-content handling for Ctrl+V / right-click Paste
         AllowDrop = true;
         DragOver += PostIt_DragOver;
         Drop     += PostIt_Drop;
@@ -78,14 +79,38 @@ public partial class PostItControl : System.Windows.Controls.UserControl
     }
 
     private void InsertDropped(IDataObject data, Point editorPoint)
+        => InsertContent(data, md => Editor.InsertMarkdownAt(md, editorPoint));
+
+    /// <summary>Paste hook: claim image / file / URL (insert as a block, like a drop); plain text falls
+    /// back to the editor's inline paste (return false).</summary>
+    private bool OnContentPasted(IDataObject data)
     {
-        var markdown = DropToMarkdown(data);
-        if (!string.IsNullOrEmpty(markdown))
-            Editor.InsertMarkdownAt(markdown, editorPoint);
+        bool rich = DroppedMedia.TryGetSingleUrl(data, out _)
+                 || data.GetDataPresent(DataFormats.FileDrop)
+                 || data.GetDataPresent(DataFormats.Bitmap);
+        return rich && InsertContent(data, md => Editor.InsertMarkdownAtCaret(md));
     }
 
-    /// <summary>Builds the markdown block(s) for dropped content: images are copied into this note's
-    /// attachment folder and embedded; files/folders become links; text/urls are inserted as-is.</summary>
+    /// <summary>Turns dropped/pasted content into a note block via <paramref name="insert"/>: a URL is
+    /// inserted now and then swapped for its fetched preview card; images are copied + embedded; files
+    /// become links; text is inserted as-is. Returns false when there was nothing to insert.</summary>
+    private bool InsertContent(IDataObject data, Action<string> insert)
+    {
+        if (DroppedMedia.TryGetSingleUrl(data, out var url))
+        {
+            insert(url);
+            Vm.RequestUrlPreview?.Invoke(url, md => Editor.ReplaceBlock(url, md));
+            return true;
+        }
+
+        var markdown = DropToMarkdown(data);
+        if (string.IsNullOrEmpty(markdown)) return false;
+        insert(markdown);
+        return true;
+    }
+
+    /// <summary>Builds the markdown block(s) for dropped/pasted content: images are copied into this
+    /// note's attachment folder and embedded; files/folders become links; text is inserted as-is.</summary>
     private string? DropToMarkdown(IDataObject data)
     {
         var dir = Vm.AttachmentDirectory;

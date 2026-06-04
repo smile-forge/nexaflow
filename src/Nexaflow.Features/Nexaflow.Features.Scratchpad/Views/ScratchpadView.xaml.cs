@@ -135,7 +135,7 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
             return;
         }
 
-        if (TryGetSingleUrl(data, out var url))
+        if (DroppedMedia.TryGetSingleUrl(data, out var url))
         {
             Vm.AddUrlNote(url, canvasPt);
             return;
@@ -144,24 +144,6 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
         var content = MarkdownClipboard.ReadBestMarkdown(data);
         if (!string.IsNullOrEmpty(content))
             Vm.AddNoteWithContent(content, canvasPt);
-    }
-
-    /// <summary>True when the dropped/pasted text is a single bare http(s) URL.</summary>
-    private static bool TryGetSingleUrl(IDataObject data, out string url)
-    {
-        url = string.Empty;
-        var text = (data.GetDataPresent(DataFormats.UnicodeText) ? data.GetData(DataFormats.UnicodeText)
-                  : data.GetDataPresent(DataFormats.Text)        ? data.GetData(DataFormats.Text)
-                  : null) as string;
-        if (string.IsNullOrWhiteSpace(text)) return false;
-
-        text = text.Trim();
-        if (text.Any(char.IsWhiteSpace)) return false;   // multiple tokens → not a bare URL
-        if (!Uri.TryCreate(text, UriKind.Absolute, out var u)) return false;
-        if (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps) return false;
-
-        url = text;
-        return true;
     }
 
     // ── Note mini-ribbon (rendered at ScratchpadView level, never rotated) ─

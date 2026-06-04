@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Windows;
 using Nexaflow.Features.Scratchpad.Services;
 
 namespace Nexaflow.Tests.Features.Scratchpad;
@@ -7,6 +8,39 @@ namespace Nexaflow.Tests.Features.Scratchpad;
 [TestClass]
 public class DroppedMediaTests
 {
+    private static DataObject Text(string s)
+    {
+        var d = new DataObject();
+        d.SetData(DataFormats.UnicodeText, s);
+        return d;
+    }
+
+    [TestMethod]
+    public void TryGetSingleUrl_BareHttpUrl_Succeeds()
+    {
+        Assert.IsTrue(DroppedMedia.TryGetSingleUrl(Text("https://example.com/a/b?x=1"), out var url));
+        Assert.AreEqual("https://example.com/a/b?x=1", url);
+    }
+
+    [TestMethod]
+    public void TryGetSingleUrl_TrimsSurroundingWhitespace()
+    {
+        Assert.IsTrue(DroppedMedia.TryGetSingleUrl(Text("  https://example.com  "), out var url));
+        Assert.AreEqual("https://example.com", url);
+    }
+
+    [TestMethod]
+    public void TryGetSingleUrl_MultipleTokens_Fails()
+        => Assert.IsFalse(DroppedMedia.TryGetSingleUrl(Text("see https://example.com now"), out _));
+
+    [TestMethod]
+    public void TryGetSingleUrl_NonHttpScheme_Fails()
+        => Assert.IsFalse(DroppedMedia.TryGetSingleUrl(Text("file:///C:/x.txt"), out _));
+
+    [TestMethod]
+    public void TryGetSingleUrl_NoText_Fails()
+        => Assert.IsFalse(DroppedMedia.TryGetSingleUrl(new DataObject(), out _));
+
     [TestMethod]
     public void IsImageFile_RecognisesImageExtensionsCaseInsensitively()
     {
