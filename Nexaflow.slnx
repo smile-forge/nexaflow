@@ -9,17 +9,21 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.AIChat/Nexaflow.Features.AIChat.csproj" Id="2f50c24e-a2af-46ae-908a-15dea1c28659" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Common/Nexaflow.Features.Common.csproj" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Console/Nexaflow.Features.Console.csproj" Id="5d7bfb04-e2c1-4e7e-82bb-be5485084058" />
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Dotnet/Nexaflow.Features.Dotnet.csproj" Id="48d6ef11-d047-420e-a2af-1fb2b071af4e" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Git/Nexaflow.Features.Git.csproj" Id="d5be6955-0a6f-4d3a-927a-1932b7a407c0" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Hex/Nexaflow.Features.Hex.csproj" Id="28d33c5c-cfbd-4003-8503-34f8aa00b432" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Images/Nexaflow.Features.Images.csproj" Id="c6846a7e-7649-46bc-a296-62431910ff3e" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Json/Nexaflow.Features.Json.csproj" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Logs/Nexaflow.Features.Logs.csproj" Id="01595234-c9f7-4d65-acb0-f419a242509b" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Markdown/Nexaflow.Features.Markdown.csproj" Id="5a06ef32-279d-48a9-8d7f-0eba9c1b43f2" />
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Processes/Nexaflow.Features.Processes.csproj" Id="0a74fe7e-3298-46d0-bc0c-b7e20e9f71eb" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Projects/Nexaflow.Features.Projects.csproj" Id="57e7f577-d6bf-47a8-ae6f-872fd2f52a14" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Scratchpad/Nexaflow.Features.Scratchpad.csproj" Id="6bb477f1-beea-4167-88fc-68bc0ff640be" />
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.SystemInfo/Nexaflow.Features.SystemInfo.csproj" Id="d67eea32-4436-40b5-bef2-51157aefe8b4" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Tabular/Nexaflow.Features.Tabular.csproj" Id="cf60da94-6e1c-43b8-a3f2-0e0eca0bd206" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Text/Nexaflow.Features.Text.csproj" Id="77cbeb58-09f2-493e-8b0f-127bed679b92" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Web/Nexaflow.Features.Web.csproj" Id="1d58f28c-ea2b-4bd7-9424-fd71d07ecb6c" />
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.WindowsApps/Nexaflow.Features.WindowsApps.csproj" Id="2a5a2f9d-18c5-46ba-bfb5-00348abdb95d" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Nexaflow.Features.WindowsFileSystem.csproj" Id="6bff1ec5-6477-4a2f-a5c5-cdb9c665c331" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.WindowsSearch/Nexaflow.Features.WindowsSearch.csproj" />
   </Folder>
