@@ -133,6 +133,66 @@ public class FileSystemViewModelTests
         Assert.IsTrue(vm.GetClientTools().Any(t => t.Name == "get_file_list"));
     }
 
+    // ── IPageViewModel – viewlet AI surfaces ──────────────────────────────────
+
+    private sealed class StubViewletSurface(string? context, params IClientTool[] tools) : IViewletAiSurface
+    {
+        public string? GetContext() => context;
+        public IReadOnlyList<IClientTool> GetClientTools() => tools;
+    }
+
+    private static IClientTool StubTool(string name) =>
+        new DelegateClientTool(name, "stub", [], ToolSafety.ReadOnly,
+            (_, _) => Task.FromResult(ToolResult.Ok("ok")));
+
+    [TestMethod]
+    public void GetContext_WithViewletSurface_AppendsItsLine()
+    {
+        var vm = AtPath(Path.GetTempPath());
+        vm.SetActiveViewletSurfaces([new StubViewletSurface("STUB-VIEWLET-LINE")]);
+
+        StringAssert.Contains(vm.GetContext(), "STUB-VIEWLET-LINE");
+    }
+
+    [TestMethod]
+    public void GetContext_BlankSurfaceContext_AddsNothing()
+    {
+        var vm   = AtPath(Path.GetTempPath());
+        var bare = vm.GetContext();
+
+        vm.SetActiveViewletSurfaces([new StubViewletSurface(null), new StubViewletSurface("   ")]);
+
+        Assert.AreEqual(bare, vm.GetContext());
+    }
+
+    [TestMethod]
+    public void GetContext_ThisPcMode_IgnoresSurfaces()
+    {
+        var vm = ThisPc();
+        vm.SetActiveViewletSurfaces([new StubViewletSurface("STUB-VIEWLET-LINE")]);
+
+        Assert.IsFalse(vm.GetContext().Contains("STUB-VIEWLET-LINE"));
+    }
+
+    [TestMethod]
+    public void GetClientTools_WithViewletSurface_IncludesSurfaceAndFileTools()
+    {
+        var vm = AtPath(Path.GetTempPath());
+        vm.SetActiveViewletSurfaces([new StubViewletSurface(null, StubTool("stub_tool"))]);
+
+        var names = vm.GetClientTools().Select(t => t.Name).ToList();
+        CollectionAssert.Contains(names, "stub_tool");        // contributed by the viewlet
+        CollectionAssert.Contains(names, "get_file_list");    // existing file tools still present
+    }
+
+    [TestMethod]
+    public void GetClientTools_NoSurfaces_ExcludesSurfaceTools()
+    {
+        var vm = AtPath(Path.GetTempPath());
+
+        Assert.IsFalse(vm.GetClientTools().Any(t => t.Name == "stub_tool"));
+    }
+
     // ── NavigateTo ────────────────────────────────────────────────────────────
 
     [TestMethod]

@@ -8,6 +8,8 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.Dotnet.ClientTools;
 using Nexaflow.Features.Dotnet.Models;
 using Nexaflow.Features.Dotnet.Services;
 
@@ -58,6 +60,9 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
     [ObservableProperty] private bool _hasUpdates;
     [ObservableProperty] private string _updatesTooltip = string.Empty;
 
+    /// <summary>Count behind <see cref="HasUpdates"/>, surfaced in the AI context line.</summary>
+    private int _outdatedCount;
+
     public DotnetViewletViewModel(IShellServices shell, string folderPath)
     {
         _shell = shell;
@@ -92,11 +97,16 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanRun))] private Task Test()    => RunVerbAsync("test");
     [RelayCommand(CanExecute = nameof(CanRun))] private Task Clean()   => RunVerbAsync("clean");
 
-    private async Task RunVerbAsync(string verb)
+    /// <summary>
+    /// Runs a dotnet verb against the selected target and returns the captured result — or null when
+    /// there's no target or a command is already running. Drives the same busy/✓/✗ UI for both the
+    /// toolbar buttons (which ignore the return) and the AI tools (which feed the output back to the model).
+    /// </summary>
+    public async Task<DotnetCli.Result?> RunVerbAsync(string verb, CancellationToken ct = default)
     {
         var target = SelectedTarget;
-        if (target is null)
-            return;
+        if (target is null || IsBusy)
+            return null;
 
         IsBusy = true;
         StatusGlyph = string.Empty;
@@ -105,7 +115,7 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
         var progress = new Progress<string>(line => ProgressDetail = Truncate(line));
         try
         {
-            var result = await DotnetCli.RunAsync(verb, target, _folderPath, progress);
+            var result = await DotnetCli.RunAsync(verb, target, _folderPath, progress, ct);
             if (result.Succeeded)
             {
                 StatusGlyph = "✓";
@@ -118,6 +128,7 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
                 _shell.ShowError($"dotnet {verb} failed ({target.DisplayName})");
                 _shell.ShowNotification(Tail(result.Output));
             }
+            return result;
         }
         finally
         {
@@ -126,6 +137,49 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
             ProgressDetail = string.Empty;
         }
     }
+
+    // ── AI surface (merged into the file browser's context + tools by IViewletAiSurface) ──────────
+
+    /// <summary>One-line summary of the .NET target + package state for the AI context.</summary>
+    public string GetContext()
+    {
+        var target = SelectedTarget;
+        if (target is null)
+            return ".NET: no buildable target detected.";
+
+        var sb = new StringBuilder($".NET: target '{target.DisplayName}'");
+        if (Targets.Count > 1) sb.Append($" (of {Targets.Count} targets)");
+        sb.Append('.');
+        if (HasUpdates && _outdatedCount > 0)
+            sb.Append($" {_outdatedCount} package update(s) available.");
+        return sb.ToString();
+    }
+
+    /// <summary>Verb tools (build/test/restore/clean) plus a read-only outdated-package check.
+    /// <c>run</c> is intentionally not exposed — it can launch a long-lived app that never exits.</summary>
+    public IReadOnlyList<IClientTool> GetClientTools() =>
+    [
+        new DotnetVerbTool(this, "dotnet_build",   "build",   "Build the .NET target"),
+        new DotnetVerbTool(this, "dotnet_test",    "test",    "Run the .NET target's tests"),
+        new DotnetVerbTool(this, "dotnet_restore", "restore", "Restore NuGet packages for the .NET target"),
+        new DotnetVerbTool(this, "dotnet_clean",   "clean",   "Clean the .NET target's build outputs"),
+        new DotnetOutdatedPackagesTool(this),
+    ];
+
+    /// <summary>Selects the target whose display name matches <paramref name="name"/> (case-insensitive)
+    /// so a verb runs against it; falls back to the current selection when null/blank or unmatched.</summary>
+    public DotnetTarget? ResolveTarget(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return SelectedTarget;
+        return Targets.FirstOrDefault(t =>
+            string.Equals(t.DisplayName, name, StringComparison.OrdinalIgnoreCase)) ?? SelectedTarget;
+    }
+
+    /// <summary>Runs an on-demand outdated-package check for the selected target (read-only).</summary>
+    public Task<IReadOnlyList<NugetUpdateChecker.PackageUpdate>> CheckOutdatedAsync(CancellationToken ct)
+        => SelectedTarget is { } target
+            ? NugetUpdateChecker.CheckAsync(target, _folderPath, ct)
+            : Task.FromResult<IReadOnlyList<NugetUpdateChecker.PackageUpdate>>([]);
 
     private static string Gerund(string verb) => verb switch
     {
@@ -178,6 +232,7 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
         {
             HasUpdates = false;
             UpdatesTooltip = string.Empty;
+            _outdatedCount = 0;
             return;
         }
 
@@ -186,10 +241,13 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
             sb.AppendLine($"{u.Name}: {u.Current} > {u.Latest}");
 
         UpdatesTooltip = sb.ToString().TrimEnd();
+        _outdatedCount = updates.Count;
         HasUpdates = true;
     }
 
-    private static string Tail(string output, int maxLines = 30)
+    /// <summary>Last <paramref name="maxLines"/> lines of command output — used for the error toast
+    /// and for the AI tool result (a noisy build shouldn't flood the model).</summary>
+    public static string Tail(string output, int maxLines = 30)
     {
         var lines = output.Replace("\r\n", "\n").TrimEnd().Split('\n');
         if (lines.Length <= maxLines)

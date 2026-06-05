@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem.ClientTools;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
@@ -779,6 +780,15 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
 
     // ── IPageViewModel ────────────────────────────────────────────────────────
 
+    /// <summary>AI surfaces of the viewlets active for the current folder. The view re-registers these
+    /// on every navigation (see <c>FileSystemView.RefreshViewlets</c>); empty when none apply.</summary>
+    private IReadOnlyList<IViewletAiSurface> _viewletSurfaces = [];
+
+    /// <summary>Called by the view when the active viewlet set changes so their context + tools
+    /// merge into <see cref="GetContext"/> / <see cref="GetClientTools"/>.</summary>
+    public void SetActiveViewletSurfaces(IReadOnlyList<IViewletAiSurface> surfaces)
+        => _viewletSurfaces = surfaces;
+
     public string GetContext()
     {
         if (_isThisPcMode)
@@ -803,23 +813,41 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
             if (selection.Count > cap) sb.Append($" (+{selection.Count - cap} more)");
         }
         sb.Append('.');
+
+        // Append each active viewlet's context line (a .NET solution's build state, a git repo's status…).
+        foreach (var surface in _viewletSurfaces)
+        {
+            var line = surface.GetContext();
+            if (!string.IsNullOrWhiteSpace(line))
+                sb.Append('\n').Append(line);
+        }
+
         return sb.ToString();
     }
 
-    public IReadOnlyList<IClientTool> GetClientTools() =>
-    [
-        new GetFileListTool(this),
-        new FindFilesByNameTool(this),
-        new GetFileContentsTool(this),
-        new GetLineCountTool(this),
-        new GetFileStatsTool(this),
-        new CreateTextFileTool(this),
-        new CreateDirectoryTool(this),
-        new CopyTool(this),
-        new MoveTool(this),
-        new RenameTool(this),
-        new DeleteTool(this),
-    ];
+    public IReadOnlyList<IClientTool> GetClientTools()
+    {
+        var tools = new List<IClientTool>
+        {
+            new GetFileListTool(this),
+            new FindFilesByNameTool(this),
+            new GetFileContentsTool(this),
+            new GetLineCountTool(this),
+            new GetFileStatsTool(this),
+            new CreateTextFileTool(this),
+            new CreateDirectoryTool(this),
+            new CopyTool(this),
+            new MoveTool(this),
+            new RenameTool(this),
+            new DeleteTool(this),
+        };
+
+        // Tools contributed by the active viewlets (dotnet build/test, git status/diff…).
+        foreach (var surface in _viewletSurfaces)
+            tools.AddRange(surface.GetClientTools());
+
+        return tools;
+    }
 
     /// <summary>The folder these tools resolve relative names against (their confinement boundary).
     /// Distinguishes one file-system tab from another when both are pinned as AI context.</summary>
