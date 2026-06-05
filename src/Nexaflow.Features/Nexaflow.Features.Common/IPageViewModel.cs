@@ -11,6 +11,18 @@ public interface IPageViewModel
     string GetContext();
 
     /// <summary>
+    /// False while the page is still gathering the data <see cref="GetContext"/> will report (e.g. a
+    /// background system scan). Default true — synchronous pages are always ready. When false, the shell
+    /// holds the AI send and shows "waiting for data collection…" until it flips true.
+    /// <para>
+    /// A page returning a non-default value MUST be <see cref="System.ComponentModel.INotifyPropertyChanged"/>
+    /// and raise <c>PropertyChanged</c> when readiness changes, or the send will never resume. Tie it to
+    /// "loading finished" (success or failure), not "data arrived", so a failed gather still releases the gate.
+    /// </para>
+    /// </summary>
+    bool IsContextReady => true;
+
+    /// <summary>
     /// Client-side tools this page exposes to the AI agent harness. Default: none. Each tool is a
     /// self-contained <see cref="IClientTool"/> the agent may invoke (read-only tools auto-run;
     /// mutating tools are approved first).

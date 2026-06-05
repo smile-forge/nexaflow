@@ -16,7 +16,9 @@ public sealed partial class SystemInfoViewModel : ObservableObject, IPageViewMod
     private readonly IShellServices _shell;
     private readonly SystemInfoCollector _collector;
 
-    [ObservableProperty] private bool _isLoading;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsContextReady))]
+    private bool _isLoading;
 
     /// <summary>The dashboard cards. The latest snapshot's plain text, kept for <see cref="GetContext"/>.</summary>
     public ObservableCollection<SystemInfoSection> Sections { get; } = [];
@@ -59,4 +61,8 @@ public sealed partial class SystemInfoViewModel : ObservableObject, IPageViewMod
         IsLoading && Sections.Count == 0
             ? "System information: still gathering…"
             : $"Device summary for {Environment.MachineName}:\n{_contextText}";
+
+    /// <summary>Ready once the background gather has finished — success or failure (see Refresh's onComplete,
+    /// which always clears IsLoading). Tied to IsLoading, not Sections, so a failed scan still releases the send.</summary>
+    public bool IsContextReady => !IsLoading;
 }
