@@ -209,7 +209,11 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         ViewletStackPanel.Children.Clear();
         FullViewletContent.Content = null;
 
-        if (isThisPcMode || string.IsNullOrEmpty(folderPath)) return;
+        if (isThisPcMode || string.IsNullOrEmpty(folderPath))
+        {
+            ViewModel.SetActiveViewletSurfaces([]);
+            return;
+        }
 
         var matched = FolderViewletRegistry.GetMatchingViewlets(folderPath, ViewModel.Registry);
         foreach (var viewlet in matched)
@@ -221,6 +225,11 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
             host.SwitchFullViewletRequested += OnSwitchFullViewletRequested;
             _activeViewletHosts.Add(host);
         }
+
+        // Expose every active viewlet's AI surface to the page VM so its context line and tools merge
+        // into what the file browser offers the agent (see IViewletAiSurface).
+        ViewModel.SetActiveViewletSurfaces(
+            _activeViewletHosts.Select(h => h.AiSurface).OfType<IViewletAiSurface>().ToList());
 
         ApplyViewletLayout();
     }

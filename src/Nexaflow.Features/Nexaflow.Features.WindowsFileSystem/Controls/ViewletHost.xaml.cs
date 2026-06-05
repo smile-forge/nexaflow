@@ -17,6 +17,10 @@ public partial class ViewletHost : UserControl, IViewletController
 
     public ViewletDisplayMode CurrentMode => _mode;
 
+    /// <summary>The hosted viewlet's AI surface, if its view exposes one — its context line and
+    /// tools are merged into the file browser's AI context. Null when the viewlet contributes nothing.</summary>
+    public IViewletAiSurface? AiSurface => ViewletContentArea.Content as IViewletAiSurface;
+
     public ViewletHost(IFolderViewlet viewlet, string folderPath)
     {
         InitializeComponent();

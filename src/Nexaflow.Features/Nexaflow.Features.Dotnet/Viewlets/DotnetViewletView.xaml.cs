@@ -1,13 +1,16 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.Dotnet.ViewModels;
 
 namespace Nexaflow.Features.Dotnet.Viewlets;
 
-public partial class DotnetViewletView : UserControl
+public partial class DotnetViewletView : UserControl, IViewletAiSurface
 {
     private readonly DotnetViewletViewModel _vm;
     private readonly DispatcherTimer _ellipsisTimer;
@@ -51,4 +54,8 @@ public partial class DotnetViewletView : UserControl
         _phase = (_phase + 1) % 3;
         EllipsisText.Text = new string('.', _phase + 1);
     }
+
+    // ── IViewletAiSurface — delegate to the VM, which owns the target + verb runner ──────────────
+    string? IViewletAiSurface.GetContext() => _vm.GetContext();
+    IReadOnlyList<IClientTool> IViewletAiSurface.GetClientTools() => _vm.GetClientTools();
 }

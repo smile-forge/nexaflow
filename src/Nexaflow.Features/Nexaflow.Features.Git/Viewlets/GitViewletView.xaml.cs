@@ -1,6 +1,10 @@
 using LibGit2Sharp;
+using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Common.Viewlets;
+using Nexaflow.Features.Git.ClientTools;
+using Nexaflow.Features.Git.Services;
 using System.Diagnostics;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -10,11 +14,12 @@ using System.Windows.Media.Animation;
 
 namespace Nexaflow.Features.Git.Viewlets;
 
-public partial class GitViewletView : UserControl
+public partial class GitViewletView : UserControl, IViewletAiSurface
 {
     private readonly GitOptions         _options;
     private readonly string             _folderPath;
     private readonly IViewletController _controller;
+    private readonly GitService         _git;
 
     private string       _currentBranch = string.Empty;
     private List<string> _localBranches = [];
@@ -34,6 +39,7 @@ public partial class GitViewletView : UserControl
         _options    = options;
         _folderPath = folderPath;
         _controller = controller;
+        _git        = new GitService(folderPath);
 
         GitManagerButton.Visibility = string.IsNullOrWhiteSpace(options.GitManagerPath)
             ? Visibility.Collapsed
@@ -50,7 +56,7 @@ public partial class GitViewletView : UserControl
         PullButton.IsEnabled   = false;
         try
         {
-            var info = await Task.Run(LoadRepoInfo);
+            var info = await Task.Run(_git.GetStatus);
             ApplyInfo(info);
         }
         catch (RepositoryNotFoundException)
@@ -72,86 +78,14 @@ public partial class GitViewletView : UserControl
         }
     }
 
-    private GitRepoInfo LoadRepoInfo()
-    {
-        using var repo = new Repository(_folderPath);
-
-
-        var status = repo.RetrieveStatus(new StatusOptions
-        {
-            IncludeUntracked     = true,
-            RecurseUntrackedDirs = false,
-            IncludeIgnored       = false,
-            ExcludeSubmodules    = true
-        });
-
-        const FileStatus stagedMask   = FileStatus.NewInIndex | FileStatus.ModifiedInIndex
-                                      | FileStatus.DeletedFromIndex | FileStatus.RenamedInIndex
-                                      | FileStatus.TypeChangeInIndex;
-        const FileStatus modifiedMask = FileStatus.ModifiedInWorkdir | FileStatus.DeletedFromWorkdir
-                                      | FileStatus.TypeChangeInWorkdir | FileStatus.RenamedInWorkdir;
-
-        int staged    = status.Count(e => (e.State & stagedMask)   != 0);
-        int modified  = status.Count(e => (e.State & modifiedMask) != 0 && (e.State & stagedMask) == 0);
-        int untracked = status.Count(e => e.State == FileStatus.NewInWorkdir);
-
-        var head = repo.Head;
-        Branch? tracked = null;
-
-        try
-        {
-            tracked = head.TrackedBranch;
-        }
-        catch (LibGit2Sharp.InvalidSpecificationException)
-        {
-            // no valid upstream configured
-        }
-
-        int? aheadBy = null;
-        int? behindBy = null;
-        if (tracked != null)
-        {
-            var details = head.TrackingDetails;
-
-
-            aheadBy = head.IsTracking ? head.TrackingDetails.AheadBy : null;
-            behindBy = head.IsTracking ? head.TrackingDetails.BehindBy : null;
-        }
-
-        var tip     = head.Tip;
-        var hash    = tip?.Sha?[..7];
-        var message = tip?.MessageShort;
-        DateTimeOffset? when = tip?.Author.When;
-
-        var branches = repo.Branches
-            .Where(b => !b.IsRemote)
-            .Select(b => b.FriendlyName)
-            .OrderBy(n => n)
-            .ToList();
-
-        /*
-        FetchOptions options = new FetchOptions
-        {
-            TagFetchMode = TagFetchMode.None,
-            Prune = true
-        };
-        string log = "fetch --dry-run";
-        var remote = head.RemoteName != null ? repo.Network.Remotes[head.RemoteName] : null;
-        var refSpecs = remote?.FetchRefSpecs.Select(x => x.Specification) ?? Array.Empty<string>();
-        Commands.Fetch(repo, head.RemoteName, refSpecs, options, log);
-        */
-        return new GitRepoInfo(head.FriendlyName, staged, modified, untracked,
-                               aheadBy, behindBy, hash, message, when, branches);
-    }
-
     // ── Apply loaded info to UI ───────────────────────────────────────────
 
-    private void ApplyInfo(GitRepoInfo info)
+    private void ApplyInfo(GitStatus info)
     {
-        _currentBranch = info.BranchName;
-        _localBranches = info.LocalBranches;
+        _currentBranch = info.Branch;
+        _localBranches = info.LocalBranches.ToList();
 
-        BranchName.Text = info.BranchName;
+        BranchName.Text = info.Branch;
 
         // Status line — inline coloured runs
         StatusLine.Inlines.Clear();
@@ -168,10 +102,10 @@ public partial class GitViewletView : UserControl
         if (info.ModifiedCount  > 0) AddRun($"{info.ModifiedCount} modified", ModifiedBrush);
         if (info.UntrackedCount > 0) AddRun($"{info.UntrackedCount} untracked", (Brush)FindResource("TextBrush"));
 
-        if (info.AheadBy  is > 0 || info.BehindBy is > 0)
+        if (info.Ahead is > 0 || info.Behind is > 0)
         {
-            var ahead  = info.AheadBy  is > 0 ? $"↑{info.AheadBy}"  : null;
-            var behind = info.BehindBy is > 0 ? $"↓{info.BehindBy}" : null;
+            var ahead  = info.Ahead  is > 0 ? $"↑{info.Ahead}"  : null;
+            var behind = info.Behind is > 0 ? $"↓{info.Behind}" : null;
             var parts  = new[] { ahead, behind }.Where(s => s != null);
             AddRun(string.Join(" ", parts), (Brush)FindResource("TextMutedBrush"));
         }
@@ -185,7 +119,7 @@ public partial class GitViewletView : UserControl
         if (info.LastCommitHash != null)
         {
             var timeAgo = info.LastCommitWhen.HasValue ? FormatTimeAgo(info.LastCommitWhen.Value) : null;
-            var msg     = info.LastCommitMessage?.Trim();
+            var msg     = info.LastCommitSubject?.Trim();
             var display = string.IsNullOrEmpty(msg)
                 ? $"{info.LastCommitHash}  {timeAgo}"
                 : $"{info.LastCommitHash}  {msg}  ·  {timeAgo}";
@@ -367,4 +301,48 @@ public partial class GitViewletView : UserControl
         if (d.TotalDays    < 365) return $"{(int)(d.TotalDays / 30)}mo ago";
         return $"{(int)(d.TotalDays / 365)}y ago";
     }
+
+    // ── IViewletAiSurface ─────────────────────────────────────────────────
+    // Surfaces live repo state + read-only git tools to the file browser's AI context (see
+    // IViewletAiSurface). Mutating git operations are a separate, approval-gated layer (not yet built).
+
+    string? IViewletAiSurface.GetContext()
+    {
+        try
+        {
+            var s  = _git.GetStatus();
+            var sb = new StringBuilder($"Git: on '{s.Branch}'");
+            if (s.Upstream is not null && (s.Ahead is > 0 || s.Behind is > 0))
+            {
+                var ahead  = s.Ahead  is > 0 ? $"{s.Ahead}↑"  : null;
+                var behind = s.Behind is > 0 ? $"{s.Behind}↓" : null;
+                sb.Append($" ({string.Join(" ", new[] { ahead, behind }.Where(x => x != null))} vs {s.Upstream})");
+            }
+            sb.Append('.');
+
+            var parts = new List<string>();
+            if (s.StagedCount    > 0) parts.Add($"{s.StagedCount} staged");
+            if (s.ModifiedCount  > 0) parts.Add($"{s.ModifiedCount} modified");
+            if (s.UntrackedCount > 0) parts.Add($"{s.UntrackedCount} untracked");
+            sb.Append(parts.Count == 0 ? " Working tree clean." : " " + string.Join(", ", parts) + ".");
+
+            if (s.LastCommitHash is not null)
+                sb.Append($" Last commit {s.LastCommitHash} \"{s.LastCommitSubject}\".");
+            return sb.ToString();
+        }
+        catch
+        {
+            return null;   // a broken/mid-operation repo shouldn't break the whole AI context
+        }
+    }
+
+    IReadOnlyList<IClientTool> IViewletAiSurface.GetClientTools() =>
+    [
+        new GitStatusTool(_git),
+        new GitLogTool(_git),
+        new GitDiffTool(_git),
+        new GitBranchesTool(_git),
+        new GitShowTool(_git),
+        new GitRemotesTool(_git),
+    ];
 }
