@@ -138,7 +138,7 @@ public partial class App : Application
         ConfigManager.Instance.Register(wcConfig, wcConfig.ConfigName);
 
         // ── 3. Providers — union of all assembly file names across profiles ──
-        ProviderManager.Instance.Initialize(activityManager);
+        ProviderManager.Instance.Initialize(activityManager, HostCapabilityService.Instance);
 
         // Load each profile's AI config (stored per-profile on disk) to discover which provider
         // assemblies are needed before loading them. Profile has no runtime fields yet, so use a

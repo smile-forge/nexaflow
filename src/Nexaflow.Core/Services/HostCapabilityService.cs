@@ -1,3 +1,4 @@
+using Nexaflow.Providers.Common;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.RegularExpressions;
@@ -23,6 +24,7 @@ public sealed record CapabilityReport(
     string? GpuName,
     double GpuComputeCapability,
     int    GpuVramMb,
+    int    TotalRamMb,
     bool   CanRunWhisper,
     WhisperBackend RecommendedBackend);
 
@@ -31,7 +33,7 @@ public sealed record CapabilityReport(
 /// Used to decide whether Whisper voice input can be enabled and on which backend.
 /// Thread-safe and non-blocking; <see cref="CapabilitiesReady"/> fires on the UI thread.
 /// </summary>
-public sealed class HostCapabilityService
+public sealed class HostCapabilityService : IHostCapabilityService
 {
     public static HostCapabilityService Instance { get; } = new();
     private HostCapabilityService() { }
@@ -45,6 +47,12 @@ public sealed class HostCapabilityService
 
     public CapabilityReport? Report { get; private set; }
     public bool IsReady => Report is not null;
+
+    /// <summary>The Providers.Common view of the probe — the LLM-relevant subset, no Whisper fields.</summary>
+    HostCapabilities? IHostCapabilityService.Report => Report is { } r
+        ? new HostCapabilities(r.Avx, r.Avx2, r.Fma, r.F16C, r.CudaAvailable, r.CudaMajorVersion,
+                               r.GpuName, r.GpuComputeCapability, r.GpuVramMb, r.TotalRamMb)
+        : null;
 
     /// <summary>Fired on the UI thread once the probe completes.</summary>
     public event EventHandler<CapabilityReport>? CapabilitiesReady;
@@ -68,8 +76,13 @@ public sealed class HostCapabilityService
         bool fma  = Intrinsics.Fma.IsSupported;
         bool f16c = NativeMethods.HasF16C();
 
+        // Total memory available to this process — equals physical RAM on a normal desktop, or the
+        // container/job limit when constrained. Good enough to gate which local models can load on CPU.
+        int ramMb = (int)Math.Min(int.MaxValue, GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / (1024L * 1024L));
+
         var (cudaMajor, gpuName, cc, vram) = ProbeGpu();
-        bool cudaAvailable = gpuName is not null && (cudaMajor is 12 or 13);
+        // CUDA drivers are backward-compatible with the CUDA-12 runtime, so accept 12 and any newer major.
+        bool cudaAvailable = gpuName is not null && cudaMajor >= 12;
 
         bool cudaUsable = cudaAvailable && cc >= MinComputeCapability && vram >= MinCudaVramMb;
         var  backend    = cudaUsable ? WhisperBackend.Cuda : WhisperBackend.Cpu;
@@ -78,7 +91,7 @@ public sealed class HostCapabilityService
         return new CapabilityReport(
             avx, avx2, fma, f16c,
             cudaAvailable, cudaMajor,
-            gpuName, cc, vram,
+            gpuName, cc, vram, ramMb,
             canRun, backend);
     }
 

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <AssemblyVersion>0.8.0.0</AssemblyVersion>
+    <FileVersion>0.8.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LLamaSharp" Version="0.27.0" />
+    <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.27.0" />
+    <!-- CUDA backend ships the cuda12 binaries (ABI-matched to LLamaSharp 0.27 / llama.cpp commit
+         3f7c29d). On a CUDA-13 host the loader probes cuda13/, so Nexaflow.Core mirrors cuda12 → cuda13
+         at build (MirrorCuda12AsCuda13). cudart64_12.dll (CUDA 12.x toolkit) must be on PATH. -->
+    <PackageReference Include="LLamaSharp.Backend.Cuda12" Version="0.27.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Providers.Common\Nexaflow.Providers.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="catalog.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

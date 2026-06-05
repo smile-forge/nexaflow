@@ -30,6 +30,7 @@ public sealed class ProviderManager
     public static ProviderManager Instance { get; } = new();
 
     private IBackgroundActivityManager? _activityManager;
+    private IHostCapabilityService?     _hostCapabilities;
     private readonly HashSet<string>          _loadedAssemblies = [];
     private readonly List<AssemblyDescriptor> _descriptors      = [];
 
@@ -56,8 +57,11 @@ public sealed class ProviderManager
     private ProviderManager() { }
 
     /// <summary>Must be called once at startup before any Load method.</summary>
-    public void Initialize(IBackgroundActivityManager activityManager)
-        => _activityManager = activityManager;
+    public void Initialize(IBackgroundActivityManager activityManager, IHostCapabilityService hostCapabilities)
+    {
+        _activityManager  = activityManager;
+        _hostCapabilities = hostCapabilities;
+    }
 
     /// <summary>The shared background-activity manager set by <see cref="Initialize"/>, or null before startup.</summary>
     public IBackgroundActivityManager? ActivityManager => _activityManager;
@@ -196,6 +200,7 @@ public sealed class ProviderManager
     {
         var args = ctor.GetParameters().Select(p =>
             typeof(IBackgroundActivityManager).IsAssignableFrom(p.ParameterType) ? (object?)_activityManager
+            : typeof(IHostCapabilityService).IsAssignableFrom(p.ParameterType)    ? _hostCapabilities
             : p.ParameterType == typeof(ProviderModel)                           ? new ProviderModel(model)
             : configs.FirstOrDefault(c => c.GetType() == p.ParameterType))
             .ToArray();

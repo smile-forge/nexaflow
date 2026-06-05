@@ -57,6 +57,26 @@
     <RemoveDir Directories="@(_NfRuntimeRoot->'%(Identity)\cuda\linux-x64');@(_NfRuntimeRoot->'%(Identity)\win-arm64');@(_NfRuntimeRoot->'%(Identity)\win-x86')" />
   </Target>
 
+  <!--
+    LlamaSharp 0.27 probes runtimes\win-x64\native\cuda{driverMajor}\ and ONLY that folder. On a CUDA-13
+    host it looks in cuda13\, but only LLamaSharp.Backend.Cuda12 exists (cuda12\) — so it silently falls
+    back to CPU. CUDA drivers are backward-compatible, so mirror the cuda12 binaries into cuda13\ in the
+    build output. The installer's recursive harvest then ships cuda13\ (so the installed app already has
+    it — no runtime copy into a read-only Program Files dir), and dev runs pick it up directly.
+  -->
+  <Target Name="MirrorCuda12AsCuda13" AfterTargets="Build;Publish">
+    <ItemGroup>
+      <_Cuda12Out Include="$(OutDir)runtimes\win-x64\native\cuda12\*.dll"
+                  Condition="Exists('$(OutDir)runtimes\win-x64\native\cuda12')" />
+      <_Cuda12Pub Include="$(PublishDir)runtimes\win-x64\native\cuda12\*.dll"
+                  Condition="'$(PublishDir)' != '' and Exists('$(PublishDir)runtimes\win-x64\native\cuda12')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_Cuda12Out)" DestinationFolder="$(OutDir)runtimes\win-x64\native\cuda13"
+          SkipUnchangedFiles="true" Condition="'@(_Cuda12Out)' != ''" />
+    <Copy SourceFiles="@(_Cuda12Pub)" DestinationFolder="$(PublishDir)runtimes\win-x64\native\cuda13"
+          SkipUnchangedFiles="true" Condition="'@(_Cuda12Pub)' != ''" />
+  </Target>
+
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.AIChat\Nexaflow.Features.AIChat.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
@@ -81,6 +101,7 @@
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Common\Nexaflow.Providers.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Aria\Nexaflow.Providers.Aria.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Claude\Nexaflow.Providers.Claude.csproj" />
+    <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Local\Nexaflow.Providers.Local.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Ollama\Nexaflow.Providers.Ollama.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.OpenAI\Nexaflow.Providers.OpenAI.csproj" />
 	<ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Gemini\Nexaflow.Providers.Gemini.csproj" />
