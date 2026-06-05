@@ -25,7 +25,10 @@ public sealed partial class WindowsAppsViewModel : ObservableObject, IPageViewMo
     private readonly ICollectionView _view;
 
     [ObservableProperty] private string _filterText = string.Empty;
-    [ObservableProperty] private bool _isLoading;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsContextReady))]
+    private bool _isLoading;
     [ObservableProperty] private string _sortColumn = nameof(InstalledAppItem.Name);
     [ObservableProperty] private bool _sortAscending = true;
 
@@ -212,6 +215,10 @@ public sealed partial class WindowsAppsViewModel : ObservableObject, IPageViewMo
         var more  = Apps.Count > cap ? $" (+{Apps.Count - cap} more)" : "";
         return $"{Apps.Count} installed applications: {string.Join(", ", names)}{more}";
     }
+
+    /// <summary>Ready once pass 1 (the app list) has loaded; the background size pass enriches rows but
+    /// isn't context-blocking. Tied to IsLoading so a failed scan still releases the send.</summary>
+    public bool IsContextReady => !IsLoading;
 
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [

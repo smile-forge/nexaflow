@@ -7,6 +7,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Providers.Common;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
@@ -700,6 +701,32 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         AiCompletionSuggestion = string.IsNullOrEmpty(suggestion) ? null : suggestion;
     }
 
+    /// <summary>Block until the active page's context is ready (or the send is cancelled), showing a
+    /// "waiting for data collection…" line meanwhile. No-op for ready or unobservable pages so a page
+    /// that can't signal readiness never wedges the send.</summary>
+    private static async Task WaitForContextAsync(IAIResponseHandler handler, IPageViewModel? pageVm, CancellationToken ct)
+    {
+        if (pageVm is null || pageVm.IsContextReady) return;
+        if (pageVm is not INotifyPropertyChanged inpc) return;
+
+        handler.ReportProgress("Waiting for data collection…");
+
+        var tcs = new TaskCompletionSource();
+        void OnChanged(object? _, PropertyChangedEventArgs __)
+        {
+            if (pageVm.IsContextReady) tcs.TrySetResult();
+        }
+
+        inpc.PropertyChanged += OnChanged;
+        using var reg = ct.Register(() => tcs.TrySetResult());
+        try
+        {
+            if (!pageVm.IsContextReady)   // re-check after subscribing — guard the lost-update race
+                await tcs.Task;
+        }
+        finally { inpc.PropertyChanged -= OnChanged; }
+    }
+
     private enum TurnOutcome { Completed, Cancelled, Prefill, Error }
 
     /// <summary>The handler driving the in-flight run, or null when idle. While set, a new submission is
@@ -750,6 +777,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         async Task<TurnOutcome> RunTurn(string input)
         {
             handler.BeginResponse(input);   // echo the user + show a "considering" placeholder
+
+            // Pinned context may still be gathering (e.g. SystemInfo's background scan). Hold the turn
+            // until the active page reports ready so the model sees real data, not a "still gathering…" stub.
+            await WaitForContextAsync(handler, pageVm, sendToken);
+            if (sendToken.IsCancellationRequested) { handler.Abort(); return TurnOutcome.Cancelled; }
 
             var (scored, clearWinner, effectiveText) = svc.ScoreHandlers(input, pageVm);
             var selected = clearWinner;

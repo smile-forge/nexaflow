@@ -76,7 +76,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         _ownerPage = ownerPage;
 
         Messages.CollectionChanged    += (_, _) => RecomputeTokens();
-        ContextItems.CollectionChanged += (_, _) => RecomputeTokens();
+        ContextItems.CollectionChanged += (_, _) => { RecomputeTokens(); OnPropertyChanged(nameof(IsContextReady)); };
         Attachments.CollectionChanged  += (_, _) => RecomputeTokens();
 
         _ownerPage.Closed += OnOwnerClosed;
@@ -381,20 +381,27 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
             page.RaiseClosed();
     }
 
-    // ── Live security-risk badge ──────────────────────────────────────────
+    // ── Live security-risk badge + context readiness ──────────────────────
     // Keep each pinned page's SecurityRisk mirrored from its view-model and refreshed whenever that
     // view-model changes (e.g. a file-system tab navigates to a riskier folder), so the chip badge is
-    // always truthful. Subscriptions are torn down on remove / conversation close to avoid leaks.
+    // always truthful. The same subscription drives IsContextReady, so a pinned page finishing its
+    // background gather (e.g. SystemInfo) re-evaluates the aggregate and wakes a held AI send.
+    // Subscriptions are torn down on remove / conversation close to avoid leaks.
 
     private readonly Dictionary<Page, PropertyChangedEventHandler> _riskSubscriptions = [];
 
     private void TrackRisk(Page page)
     {
         UpdateRisk(page);
+        OnPropertyChanged(nameof(IsContextReady));
         if (_riskSubscriptions.ContainsKey(page)) return;
         if ((page.Content as IPageView)?.ViewModel is not INotifyPropertyChanged source) return;
 
-        PropertyChangedEventHandler handler = (_, _) => UpdateRisk(page);
+        PropertyChangedEventHandler handler = (_, _) =>
+        {
+            UpdateRisk(page);
+            OnPropertyChanged(nameof(IsContextReady));
+        };
         _riskSubscriptions[page] = handler;
         source.PropertyChanged += handler;
     }
@@ -541,6 +548,12 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     }
 
     // ── IPageViewModel ────────────────────────────────────────────────────
+
+    /// <summary>Ready only when every pinned context item is ready — a page still gathering its data
+    /// (e.g. SystemInfo's background scan) holds the whole conversation's send. Re-evaluated whenever a
+    /// pinned page changes (risk subscription) or the set of items changes.</summary>
+    public bool IsContextReady =>
+        ContextItems.All(p => (p.Content as IPageView)?.ViewModel?.IsContextReady ?? true);
 
     /// <summary>
     /// Combined context handed to the AI on every call: pinned context items, attachments, then
