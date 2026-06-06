@@ -30,8 +30,9 @@ public partial class RibbonItem : ObservableObject
     /// <summary>When true the button renders compact (icon + label side-by-side) instead of full-height stacked.</summary>
     [ObservableProperty] private bool _isHalf;
 
-    /// <summary>Optional hex colour override for the icon/label (e.g. "#FF4F8EF7"). Null = default theme colour.</summary>
-    public string? AccentColor { get; set; }
+    /// <summary>Optional hex colour override for the icon/label (e.g. "#FF4F8EF7"). Null = default theme colour.
+    /// Observable so a live right-click recolour flows through the ribbon's PropertyChanged→Save path.</summary>
+    [ObservableProperty] private string? _accentColor;
 
     /// <summary>For Kind==HalfGroup: the two stacked sub-buttons.</summary>
     public List<RibbonItem>? HalfItems { get; set; }

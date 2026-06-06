@@ -12,6 +12,7 @@
     <!-- Chrome: grey frame; logo column / drag bar a step deeper. -->
     <SolidColorBrush x:Key="Chrome.Deep"  Color="#DDE3EC"/>
     <SolidColorBrush x:Key="Chrome.Panel" Color="#E6ECF3"/>
+    <SolidColorBrush x:Key="Chrome.RightPanel" Color="#DDE3EC"/> <!-- mirror the logo wing so the right panel reads distinct from the ribbon strip -->
     <SolidColorBrush x:Key="Chrome.Bg"    Color="#E6ECF3"/>
 
     <!-- Tab strip: grey frame; the active tab lifts to white, hover is a subtle lighten. -->

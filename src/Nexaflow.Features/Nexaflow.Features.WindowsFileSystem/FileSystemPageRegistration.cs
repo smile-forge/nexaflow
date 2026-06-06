@@ -34,6 +34,57 @@ public sealed class FileSystemPageRegistration(
         new("label", "Display name for the tab.", Required: false),
     ];
 
+    /// <summary>The file browser opens standalone — offer it (and its named-folder variants) for the dropdown.</summary>
+    bool IPageRegistration.CanBeContextItem => true;
+
+    /// <summary>
+    /// "This PC" plus each named Windows folder. The folder set is resolved once (known-folder lookups
+    /// are P/Invokes); each call only builds fresh, cheap <see cref="Page"/> stubs from the cached paths.
+    /// </summary>
+    IReadOnlyList<Page> IPageRegistration.CreatePageDefinitions(Dictionary<string, string>? pageParams)
+    {
+        var pages = new List<Page> { CreatePageDefinition(new() { ["mode"] = "thispc" }) };
+        foreach (var (title, icon, path) in NamedFolders.Value)
+            pages.Add(FolderPage(title, icon, path));
+        return pages;
+    }
+
+    // GUIDs match Core's KnownFolderService so the resolved paths equal the {Token}-expanded
+    // default-ribbon paths — letting the editor exclude folders already on the ribbon.
+    private static readonly Guid Documents = new("FDD39AD0-238F-46AF-ADB4-6C85480369C7");
+    private static readonly Guid Pictures  = new("33E28130-4E1E-4676-835A-98395C3BC3BB");
+    private static readonly Guid Videos    = new("18989B1D-99B5-455B-841C-AB7C74E4DDFC");
+    private static readonly Guid Music     = new("4BD8D571-6D19-48D3-BE97-422220080E43");
+    private static readonly Guid Desktop   = new("B4BFCC3A-DB2C-424C-B029-7FE99A87C641");
+    private static readonly Guid Downloads = new("374DE290-123F-4565-9164-39C4925E467B");
+
+    /// <summary>Named Windows folders (title, icon, resolved path), resolved once per process.</summary>
+    private static readonly Lazy<IReadOnlyList<(string Title, string Icon, string Path)>> NamedFolders = new(() =>
+    {
+        var list = new List<(string, string, string)>();
+        void Add(string title, string icon, Guid folderId)
+        {
+            var path = NativeMethods.GetKnownFolderPath(folderId);
+            if (!string.IsNullOrEmpty(path)) list.Add((title, icon, path));
+        }
+        Add("Desktop",   "📂", Desktop);
+        Add("Documents", "📄", Documents);
+        Add("Downloads", "📥", Downloads);
+        Add("Pictures",  "🖼", Pictures);
+        Add("Music",     "🎵", Music);
+        Add("Videos",    "🎬", Videos);
+        return list;
+    });
+
+    /// <summary>A cheap catalog stub: metadata only, no content factory (the editor reads Title/Icon/params).</summary>
+    private static Page FolderPage(string title, string icon, string path) => new()
+    {
+        Title      = title,
+        Icon       = icon,
+        PageKind   = PageKind,
+        PageParams = new() { ["mode"] = "path", ["path"] = path },
+    };
+
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var mode = pageParams?.GetValueOrDefault("mode") ?? "thispc";

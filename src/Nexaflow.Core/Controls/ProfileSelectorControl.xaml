@@ -6,6 +6,7 @@
              x:Name="Root">
     <UserControl.Resources>
         <cv:ColorStringToBrushConverter x:Key="ColorBrush"/>
+        <cv:StringFormatConverter x:Key="StringFormat"/>
 
         <Style x:Key="CtxItemButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
@@ -46,7 +47,7 @@
                     WindowChrome.IsHitTestVisibleInChrome="True"
                     Click="OnTriggerClick"
                     MouseRightButtonUp="OnTriggerRightClick"
-                    ToolTip="{Binding CurrentProfile.Name, ElementName=Root}">
+                    ToolTip="{Binding CurrentProfile.Name, ElementName=Root, Converter={StaticResource StringFormat}, ConverterParameter='{}{0} Workspace'}">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bg" Background="{TemplateBinding Background}">

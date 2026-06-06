@@ -33,6 +33,18 @@
                         <ColumnDefinition Width="Auto"/> <!-- actions -->
                     </Grid.ColumnDefinitions>
 
+                    <!-- Delete (x) — top-right corner -->
+                    <Button Grid.ColumnSpan="3"
+                            HorizontalAlignment="Right" VerticalAlignment="Top"
+                            Style="{StaticResource RibbonButton}"
+                            Padding="5,1" Margin="0,-4,-4,0"
+                            ToolTip="Delete conversation"
+                            Command="{Binding DataContext.DeleteConversationCommand,
+                                      RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            CommandParameter="{Binding}">
+                        <TextBlock Text="&#x2715;" FontSize="11" Foreground="{StaticResource TextDimBrush}"/>
+                    </Button>
+
                     <!-- Left: title + start/end + message count -->
                     <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
                         <TextBlock Text="{Binding Title}"
@@ -91,10 +103,17 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="Conversations"
-                       FontSize="15" FontWeight="SemiBold"
-                       Foreground="{StaticResource TextBrush}"
-                       VerticalAlignment="Center"/>
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Conversations"
+                           FontSize="15" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextBrush}"
+                           VerticalAlignment="Center"/>
+                <ComboBox Style="{StaticResource DarkComboBox}"
+                          Width="130" Margin="12,0,0,0" VerticalAlignment="Center"
+                          ToolTip="Filter by date"
+                          ItemsSource="{Binding Filters}"
+                          SelectedItem="{Binding SelectedFilter}"/>
+            </StackPanel>
             <Button Grid.Column="1"
                     Style="{StaticResource RibbonButton}" Padding="12,6"
                     ToolTip="Start a new conversation"

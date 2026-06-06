@@ -156,7 +156,7 @@ public partial class ShellAIResponseHandler : ObservableObject, IAIResponseHandl
         };
         record.DeriveTitle();
 
-        try { await _shell.CurrentWorkspace.AiService!.SaveAsync(record); }
+        try { await _shell.CurrentWorkspace.AiService!.SaveConversationAsync(record); }
         catch { /* persistence failures shouldn't block opening the tab */ }
 
         _shell.ShellServices.OpenTab("Conversation", new Dictionary<string, string>

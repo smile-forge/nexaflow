@@ -33,7 +33,7 @@ namespace Nexaflow.Features.AIChat
             };
             tab.ContentFactory = () =>
             {
-                var page = new AiChatPage(_aiService, _shell, _config);
+                var page = new AiChatPage(_aiService, _shell, _config, tab);
                 if (pageParams is not null)
                     page.Reinitialize(pageParams);
                 return page;

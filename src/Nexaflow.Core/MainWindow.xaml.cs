@@ -40,12 +40,6 @@ public partial class MainWindow : Window
             _shellServices.SetFocused(_vm);
 
             _shellServices.OpenTab("FileSystem", new() { ["mode"] = "thispc" });
-
-            _vm.AddBackgroundTask(new BackgroundTask
-            {
-                Description = "Indexing workspace…",
-                Status      = TaskStatus.Running
-            });
         }
         else
         {

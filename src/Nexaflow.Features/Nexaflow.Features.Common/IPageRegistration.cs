@@ -50,4 +50,18 @@ public interface IPageRegistration
     /// </para>
     /// </summary>
     bool CanBeContextItem => false;
+
+    /// <summary>
+    /// The plural form of <see cref="CreatePageDefinition"/>: the set of page definitions this
+    /// registration contributes. Most registrations expose exactly one page (the default), but some
+    /// expand into several variants of the same page kind — e.g. the file-system registration offering
+    /// "This PC" plus each named Windows folder (Documents, Downloads, …). For
+    /// <see cref="CanBeContextItem"/> registrations these populate the ribbon editor's "add page" dropdown.
+    /// <para>
+    /// Each returned <see cref="Page"/> is a cheap definition like <see cref="CreatePageDefinition"/> —
+    /// keep it side-effect-free. Default: the single <see cref="CreatePageDefinition"/> result.
+    /// </para>
+    /// </summary>
+    IReadOnlyList<Page> CreatePageDefinitions(Dictionary<string, string>? pageParams = null)
+        => [CreatePageDefinition(pageParams)];
 }

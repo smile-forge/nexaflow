@@ -317,6 +317,29 @@ public sealed class FeatureManager
         return pages;
     }
 
+    /// <summary>
+    /// Page definitions offered in the ribbon editor's "add page" dropdown: every
+    /// <see cref="IPageRegistration.CanBeContextItem"/> registration expanded via
+    /// <see cref="IPageRegistration.CreatePageDefinitions"/> — usually its single page, but several for
+    /// registrations that expose variants (e.g. the file browser's "This PC" + named Windows folders).
+    /// Cheap stubs — content is realized later when the ribbon button is clicked.
+    /// </summary>
+    public IReadOnlyList<Page> GetRibbonCatalogPages(Workspace ctx)
+    {
+        var pages = new List<Page>();
+        foreach (var (pageKind, regType) in _registrationTypes)
+        {
+            if (Instantiate(regType, ctx) is not IPageRegistration { CanBeContextItem: true } reg) continue;
+
+            foreach (var page in reg.CreatePageDefinitions())
+            {
+                page.PageKind ??= pageKind;
+                pages.Add(page);
+            }
+        }
+        return pages;
+    }
+
     private IReadOnlyList<T> Instantiate<T>(List<Type> types, Workspace ctx)
     {
         var result = new List<T>(types.Count);
@@ -331,6 +354,12 @@ public sealed class FeatureManager
     // ── Tab creation ──────────────────────────────────────────────────────
 
     public bool IsRegistered(string pageKind) => _registrationTypes.ContainsKey(pageKind);
+
+    /// <summary>The version of the feature assembly that owns <paramref name="pageKind"/>, or null if unknown.</summary>
+    public string? GetPageKindVersion(string pageKind)
+        => _registrationTypes.TryGetValue(pageKind, out var t)
+            ? t.Assembly.GetName().Version?.ToString()
+            : null;
 
     public Page? CreateTab(string pageKind, Workspace workspace,
                            Dictionary<string, string>? pageParams = null)

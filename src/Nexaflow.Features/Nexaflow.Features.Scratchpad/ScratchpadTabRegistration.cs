@@ -9,6 +9,9 @@ public sealed class ScratchpadTabRegistration(ScratchpadConfig config, IShellSer
     public static string StaticPageKind => "Scratchpad";
     public string PageKind => StaticPageKind;
 
+    /// <summary>The Scratchpad opens standalone — offer it as a context item / ribbon "add page" entry.</summary>
+    public bool CanBeContextItem => true;
+
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null) => new()
     {
         Title       = "Scratchpad",

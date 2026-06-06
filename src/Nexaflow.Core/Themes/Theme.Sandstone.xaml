@@ -12,6 +12,7 @@
     <!-- Chrome: deep umber wings framing a slightly warmer ribbon strip. -->
     <SolidColorBrush x:Key="Chrome.Deep"     Color="#F21A120B"/>
     <SolidColorBrush x:Key="Chrome.Panel"    Color="#F21A120B"/>
+    <SolidColorBrush x:Key="Chrome.RightPanel" Color="#F21A120B"/>
     <SolidColorBrush x:Key="Chrome.Bg"       Color="#E63A2A1A"/>
     <SolidColorBrush x:Key="Chrome.Border"   Color="#59735540"/>
     <SolidColorBrush x:Key="Ribbon.ButtonBg" Color="#4D140D07"/>

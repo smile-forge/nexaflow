@@ -9,8 +9,24 @@ namespace Nexaflow.Features.Common
     {
         ConversationRecord? ActiveConversation { get; }
 
-        Task<IEnumerable<ConversationRecord>> LoadAllAsync();
-        Task SaveAsync(ConversationRecord activeConversation);
+        Task<IEnumerable<ConversationRecord>> LoadConversationsAsync();
+        Task SaveConversationAsync(ConversationRecord conversation);
+
+        /// <summary>Permanently deletes a conversation (transcript + any artifacts) by id.</summary>
+        Task DeleteConversationAsync(string conversationId);
+
+        /// <summary>
+        /// Recreates the (unrealized) context page definitions saved with <paramref name="conversation"/>
+        /// so the conversation view can re-pin them; the caller owns realizing and closing them. Centralised
+        /// here so feature view-models never construct page definitions themselves.
+        /// </summary>
+        IReadOnlyList<Page> RestoreContextPages(ConversationRecord conversation);
+
+        /// <summary>
+        /// Captures <paramref name="contextPages"/> into <paramref name="conversation"/> as durable
+        /// references (page kind + params + the owning assembly version), replacing any existing context.
+        /// </summary>
+        void SetConversationContext(ConversationRecord conversation, IEnumerable<Page> contextPages);
 
         /// <summary>
         /// Fetches all query handlers for the owning context, applies symbol-prefix filtering,
@@ -78,6 +94,13 @@ namespace Nexaflow.Features.Common
         /// conversation's transcript as <c>{name}.json</c>. Never throws on IO failure.
         /// </summary>
         Task SaveConversationArtifactAsync(string conversationId, string name, string json);
+
+        /// <summary>
+        /// Raised after a conversation artifact is successfully saved (argument = conversation id).
+        /// Lets the conversation browser refresh a row when its background analysis finishes.
+        /// May fire on a background thread.
+        /// </summary>
+        event Action<string>? ConversationArtifactSaved;
 
         /// <summary>
         /// Loads a previously-saved conversation artifact's JSON, or null if absent/unreadable.

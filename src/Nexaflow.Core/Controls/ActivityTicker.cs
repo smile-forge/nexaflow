@@ -27,18 +27,54 @@ public class ActivityTicker : ContentControl
     }
 
     private readonly TextBlock _label;
+    private readonly Canvas    _surface;
 
     public ActivityTicker()
     {
-        _label = new TextBlock
-        {
-            FontSize     = 11,
-            Foreground   = new SolidColorBrush(Color.FromRgb(0x4A, 0x52, 0x70)),
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Content = _label;
-        Height  = 18;
+        _label = new TextBlock { FontSize = 11 };
+        // Theme-driven (DynamicResource) so the ticker stays legible on every theme and retints on switch.
+        _label.SetResourceReference(TextBlock.ForegroundProperty, "TextMutedBrush");
+        Canvas.SetLeft(_label, 0);
+        Canvas.SetTop(_label, 2);   // vertically centre the ~14px line in the 18px strip
+
+        // Host the label in a Canvas: a Canvas child is always measured/arranged at its full desired
+        // width (a ContentPresenter would constrain it to the control width and clip the text), so the
+        // whole string renders and ClipToBounds + the scroll animation reveal the part past the edge.
+        _surface = new Canvas();
+        _surface.Children.Add(_label);
+
+        Content      = _surface;
+        Height       = 18;
+        ClipToBounds = true;
+        SizeChanged += (_, _) => UpdateMarquee();
+    }
+
+    /// <summary>
+    /// When the text is wider than the available space, slowly scroll it left and restart from the
+    /// beginning so the full description is readable; otherwise sit still.
+    /// </summary>
+    private void UpdateMarquee()
+    {
+        if (_label.RenderTransform is TranslateTransform prev)
+            prev.BeginAnimation(TranslateTransform.XProperty, null);   // stop any prior scroll
+        _label.RenderTransform = null;
+
+        if (string.IsNullOrEmpty(_label.Text) || ActualWidth <= 0) return;
+
+        _label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        double overflow = _label.DesiredSize.Width - ActualWidth;
+        if (overflow <= 0) return;       // fits — no scroll needed
+
+        var tt = new TranslateTransform();
+        _label.RenderTransform = tt;
+
+        double scrollSeconds = Math.Max(overflow / 18.0, 2);   // ~18 px/sec
+        var anim = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever };
+        anim.KeyFrames.Add(new LinearDoubleKeyFrame(0,         KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        anim.KeyFrames.Add(new LinearDoubleKeyFrame(0,         KeyTime.FromTimeSpan(TimeSpan.FromSeconds(1.5))));                  // dwell at start
+        anim.KeyFrames.Add(new LinearDoubleKeyFrame(-overflow, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(1.5 + scrollSeconds))));  // scroll to the end
+        anim.KeyFrames.Add(new LinearDoubleKeyFrame(-overflow, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(3.0 + scrollSeconds))));  // dwell at end, then restart
+        tt.BeginAnimation(TranslateTransform.XProperty, anim);
     }
 
     private static void OnItemsSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -71,13 +107,14 @@ public class ActivityTicker : ContentControl
             _                    => ""
         };
 
-        _label.Text      = prefix + latest.Description;
-        _label.Foreground = latest.Status == TaskStatus.Failed
-            ? new SolidColorBrush(Color.FromRgb(0xF9, 0x73, 0x16))
-            : new SolidColorBrush(Color.FromRgb(0x4A, 0x52, 0x70));
+        _label.Text = prefix + latest.Description;
+        _label.SetResourceReference(TextBlock.ForegroundProperty,
+            latest.Status == TaskStatus.Failed ? "WarningBrush" : "TextMutedBrush");
 
         // Fade-in
         var anim = new DoubleAnimation(0, 1, new Duration(TimeSpan.FromMilliseconds(400)));
         _label.BeginAnimation(OpacityProperty, anim);
+
+        UpdateMarquee();
     }
 }

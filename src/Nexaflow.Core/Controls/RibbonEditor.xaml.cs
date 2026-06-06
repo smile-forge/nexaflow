@@ -28,6 +28,11 @@ public partial class RibbonEditor : UserControl
     public static readonly DependencyProperty AvailablePagesProperty =
         DependencyProperty.Register(nameof(AvailablePages), typeof(IEnumerable), typeof(RibbonEditor));
 
+    /// <summary>Live width of the ribbon being edited; the editor card sizes itself to match.</summary>
+    public static readonly DependencyProperty RibbonWidthProperty =
+        DependencyProperty.Register(nameof(RibbonWidth), typeof(double), typeof(RibbonEditor),
+            new PropertyMetadata(0.0));
+
 
     public ObservableCollection<RibbonItem>? ItemsSource
     {
@@ -50,6 +55,11 @@ public partial class RibbonEditor : UserControl
         get => (IEnumerable?)GetValue(AvailablePagesProperty);
         set => SetValue(AvailablePagesProperty, value);
     }
+    public double RibbonWidth
+    {
+        get => (double)GetValue(RibbonWidthProperty);
+        set => SetValue(RibbonWidthProperty, value);
+    }
     // ── Working draft ─────────────────────────────────────────────────────
     // Edits happen entirely on _draft; changes only go back to ItemsSource on Done.
     private List<RibbonItem> _draft = [];
@@ -63,34 +73,11 @@ public partial class RibbonEditor : UserControl
     private Border?     _dragSource;
     private RibbonItem? _dragItem;
 
-    // ── Icon catalogue ────────────────────────────────────────────────────
-    private static readonly string[] Icons =
-    [
-        "🖥","📁","📂","💾","🗂","📄","📝","📋","🗒","🗃",
-        "🔍","🔎","🔬","🔭","📡","🛰","🌐","🔗","📎","📌",
-        "✂","🖊","🖋","✒","🖌","🖍","📐","📏","📌","📍",
-        "💬","🗨","🗯","📢","📣","🔔","🔕","📯","🎵","🎶",
-        "⌨","🖱","🖨","📠","📟","📺","📻","🎙","🎚","🎛",
-        "⚙","🔧","🔨","🪛","🔩","🪝","🧰","🪜","🧲","💡",
-        "🔋","🔌","💻","🖥","📱","⌚","🕹","🎮","🗜","💿",
-        "📦","🧳","🗺","🗓","📅","📆","🗑","📤","📥","📬",
-        "🏠","🏢","🏗","🏭","🏦","🏥","🏛","🎓","🏆","⭐",
-        "❤","💙","💚","💛","🟥","🟦","🟩","🟨","⬛","⬜",
-        "➕","➖","✖","➗","🟰","✅","❌","⚠","ℹ","🔒",
-        "🔓","👤","👥","🤖","🐛","🦋","🌟","💫","⚡","🔥",
-    ];
-
-    // ── Colour swatches ───────────────────────────────────────────────────
-    // Sourced from the shared categorical swatch bank (Tokens.xaml / per-theme overrides) so the
-    // ribbon picker offers the same curated, theme-tuned palette every other component draws from.
-    // Resolved to hex at build time — AccentColor stays a hex string (a deliberate per-button choice),
-    // and a custom hex can still be typed into HexInput.
-    private static readonly string[] SwatchKeys =
-    [
-        "Swatch.Blue",  "Swatch.Cyan",   "Swatch.Teal",  "Swatch.Green",
-        "Swatch.Lime",  "Swatch.Yellow", "Swatch.Amber", "Swatch.Orange",
-        "Swatch.Red",   "Swatch.Pink",   "Swatch.Purple","Swatch.Slate",
-    ];
+    // ── Icon + colour catalogues ──────────────────────────────────────────
+    // Shared with RibbonBar's per-button style flyouts via RibbonStyleCatalog so both surfaces
+    // offer the same palette. Swatch keys resolve to hex at build time against the live theme.
+    private static string[] Icons      => RibbonStyleCatalog.Icons;
+    private static string[] SwatchKeys => RibbonStyleCatalog.SwatchKeys;
 
     public RibbonEditor()
     {
@@ -693,16 +680,24 @@ public partial class RibbonEditor : UserControl
 
         var button = new RibbonItem
         {
-            Kind     = RibbonItemKind.Button,
-            Label    = entry.Title,
-            Icon     = entry.Icon,
-            PageKind = entry.PageKind,
+            Kind       = RibbonItemKind.Button,
+            Label      = entry.Title,
+            Icon       = entry.Icon,
+            PageKind   = entry.PageKind,
+            PageParams = entry.PageParams is null ? null : new(entry.PageParams),
         };
 
         // Insert before the selected card, else append (mirrors AddSeparator_Click).
         int idx = _selected is null ? -1 : _draft.IndexOf(_selected);
         if (idx >= 0) _draft.Insert(idx, button);
         else          _draft.Add(button);
+
+        // Drop the just-added page from the dropdown so it can't be added twice in one session.
+        if (PageCatalogCombo.ItemsSource is IList list)
+        {
+            list.Remove(entry);
+            PageCatalogCombo.SelectedIndex = PageCatalogCombo.Items.Count > 0 ? 0 : -1;
+        }
 
         RebuildCards();
         SelectItem(button);

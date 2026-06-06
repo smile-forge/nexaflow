@@ -86,7 +86,32 @@ public sealed class AIService : IAIService
         _baseDir   = conversationsDir;
     }
 
-    public async Task<IEnumerable<ConversationRecord>> LoadAllAsync()
+    public IReadOnlyList<Page> RestoreContextPages(ConversationRecord conversation)
+    {
+        var pages = new List<Page>();
+        foreach (var ctx in conversation.Context)
+        {
+            if (string.IsNullOrEmpty(ctx.PageKind)) continue;
+            if (FeatureManager.Instance.CreateTab(ctx.PageKind, _workspace, ctx.PageParams) is { } page)
+                pages.Add(page);
+        }
+        return pages;
+    }
+
+    public void SetConversationContext(ConversationRecord conversation, IEnumerable<Page> contextPages)
+    {
+        conversation.Context = contextPages
+            .Where(p => !string.IsNullOrEmpty(p.PageKind))
+            .Select(p => new ContextRef
+            {
+                PageKind        = p.PageKind!,
+                PageParams      = p.PageParams,
+                AssemblyVersion = FeatureManager.Instance.GetPageKindVersion(p.PageKind!),
+            })
+            .ToList();
+    }
+
+    public async Task<IEnumerable<ConversationRecord>> LoadConversationsAsync()
     {
         var result = new List<ConversationRecord>();
         if (!Directory.Exists(_baseDir)) return result;
@@ -109,7 +134,7 @@ public sealed class AIService : IAIService
         return result;
     }
 
-    public async Task SaveAsync(ConversationRecord activeConversation)
+    public async Task SaveConversationAsync(ConversationRecord activeConversation)
     {
         try
         {
@@ -122,6 +147,20 @@ public sealed class AIService : IAIService
         catch { /* never crash on persistence failures */ }
     }
 
+    public event Action<string>? ConversationArtifactSaved;
+
+    public Task DeleteConversationAsync(string conversationId)
+    {
+        try
+        {
+            var dir = Path.Combine(_baseDir, conversationId);
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+            _conversations.RemoveAll(c => c.Id == conversationId);
+        }
+        catch { /* never crash on delete failures */ }
+        return Task.CompletedTask;
+    }
+
     public async Task SaveConversationArtifactAsync(string conversationId, string name, string json)
     {
         try
@@ -130,6 +169,7 @@ public sealed class AIService : IAIService
             Directory.CreateDirectory(dir);
             var file = Path.Combine(dir, ArtifactFileName(name));
             await File.WriteAllTextAsync(file, json);
+            ConversationArtifactSaved?.Invoke(conversationId);
         }
         catch { /* never crash on persistence failures */ }
     }

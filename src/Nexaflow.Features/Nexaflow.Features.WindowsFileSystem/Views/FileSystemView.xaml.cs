@@ -288,7 +288,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
             {
                 nonFullHosts[i].Margin = i == 0
                     ? new Thickness(2)
-                    : new Thickness(2, 6, 2, 2);
+                    : new Thickness(2, 3, 2, 2);   // halved inter-viewlet gap (was 6)
                 ViewletStackPanel.Children.Add(nonFullHosts[i]);
             }
 

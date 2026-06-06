@@ -93,7 +93,10 @@ public partial class RibbonBar : UserControl
         set => SetValue(PinFromHandlerCommandProperty, value);
     }
 
-    private ContextMenu BuildItemContextMenu(RibbonItem item)
+    // Single live flyout for the pop-out colour/icon pickers, anchored to the right-clicked button.
+    private Popup? _styleFlyout;
+
+    private ContextMenu BuildItemContextMenu(RibbonItem item, FrameworkElement anchor)
     {
         var menu = new ContextMenu();
 
@@ -105,9 +108,31 @@ public partial class RibbonBar : UserControl
         };
         menu.Items.Add(openInNew);
 
+        // Separators are pure dividers — only buttons carry styling, so skip the style group for them.
+        if (item.Kind != RibbonItemKind.Separator)
+        {
+            menu.Items.Add(new Separator());
+
+            var recolour = new MenuItem { Header = "Recolour" };
+            recolour.Click += (_, _) => ShowColourFlyout(item, anchor);
+            menu.Items.Add(recolour);
+
+            var changeIcon = new MenuItem { Header = "Change icon" };
+            changeIcon.Click += (_, _) => ShowIconFlyout(item, anchor);
+            menu.Items.Add(changeIcon);
+
+            var resize = new MenuItem { Header = item.IsHalf ? "Grow" : "Shrink" };
+            resize.Click += (_, _) => { item.IsHalf = !item.IsHalf; RebuildItems(); };
+            menu.Items.Add(resize);
+        }
+
         menu.Items.Add(new Separator());
 
-        var delete = new MenuItem { Header = "Delete" };
+        var delete = new MenuItem
+        {
+            Header     = "Delete",
+            Foreground = (Brush)FindResource("DangerBrush")
+        };
         delete.Click += (_, _) =>
         {
             if (DeleteItemCommand?.CanExecute(item) == true)
@@ -116,6 +141,133 @@ public partial class RibbonBar : UserControl
         menu.Items.Add(delete);
 
         return menu;
+    }
+
+    // ── Per-button style flyouts (pop-out palette + icon grid) ─────────────
+
+    private void ShowColourFlyout(RibbonItem item, FrameworkElement anchor)
+    {
+        var wrap = new WrapPanel { Width = 168 };
+        wrap.Children.Add(BuildSwatch(item, null));   // "default" (no accent override)
+        foreach (var key in RibbonStyleCatalog.SwatchKeys)
+            if (SwatchHex(key) is { } hex)
+                wrap.Children.Add(BuildSwatch(item, hex));
+        OpenFlyout(wrap, anchor);
+    }
+
+    private Border BuildSwatch(RibbonItem item, string? hex)
+    {
+        Brush fill = hex is null
+            ? (Brush)FindResource("TextMutedBrush")
+            : new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+
+        var swatch = new Border
+        {
+            Width           = 22,
+            Height          = 22,
+            Margin          = new Thickness(3),
+            CornerRadius    = new CornerRadius(11),
+            Background      = fill,
+            Cursor          = Cursors.Hand,
+            ToolTip         = hex ?? "Default",
+            BorderBrush     = (Brush)FindResource("AccentBrush"),
+            BorderThickness = new Thickness(item.AccentColor == hex ? 2 : 0)
+        };
+        swatch.MouseLeftButtonDown += (_, _) =>
+        {
+            item.AccentColor = hex;
+            CloseFlyout();
+            RebuildItems();
+        };
+        return swatch;
+    }
+
+    private void ShowIconFlyout(RibbonItem item, FrameworkElement anchor)
+    {
+        var wrap = new WrapPanel { Width = 238 };
+        foreach (var icon in RibbonStyleCatalog.Icons)
+        {
+            var btn = new Button
+            {
+                Content = new TextBlock
+                {
+                    Text                = icon,
+                    FontSize            = 18,
+                    TextAlignment       = TextAlignment.Center,
+                    Background          = Brushes.Transparent,
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    VerticalAlignment   = VerticalAlignment.Stretch
+                },
+                Style   = (Style)FindResource("TopBarAction"),
+                Width   = 34,
+                Height  = 34,
+                Padding = new Thickness(0),
+                ToolTip = icon
+            };
+            btn.Click += (_, _) =>
+            {
+                item.Icon = icon;
+                CloseFlyout();
+                RebuildItems();
+            };
+            wrap.Children.Add(btn);
+        }
+
+        var scroll = new ScrollViewer
+        {
+            Content                       = wrap,
+            MaxHeight                     = 200,
+            VerticalScrollBarVisibility   = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        };
+        OpenFlyout(scroll, anchor);
+    }
+
+    /// <summary>Resolve a swatch-bank key to its current-theme hex string, or null if absent.</summary>
+    private string? SwatchHex(string key)
+        => TryFindResource(key) is SolidColorBrush b ? b.Color.ToString() : null;
+
+    private void OpenFlyout(UIElement content, FrameworkElement anchor)
+    {
+        CloseFlyout();
+
+        var card = new Border
+        {
+            Background      = (Brush)FindResource("DeepBgBrush"),
+            BorderBrush     = (Brush)FindResource("BorderBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius    = new CornerRadius(6),
+            Padding         = new Thickness(6),
+            Child           = content
+        };
+        card.Effect = new System.Windows.Media.Effects.DropShadowEffect
+        {
+            BlurRadius = 16, ShadowDepth = 3, Opacity = 0.4, Color = Colors.Black
+        };
+
+        _styleFlyout = new Popup
+        {
+            Child             = card,
+            PlacementTarget   = anchor,
+            Placement         = PlacementMode.Bottom,
+            StaysOpen         = false,
+            AllowsTransparency = true,
+            PopupAnimation    = PopupAnimation.Fade
+        };
+        // Defer the open until the closing context menu has released the mouse/focus,
+        // otherwise this StaysOpen=false popup is dismissed the instant it appears.
+        var flyout = _styleFlyout;
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (ReferenceEquals(_styleFlyout, flyout)) flyout.IsOpen = true;
+        }, System.Windows.Threading.DispatcherPriority.Input);
+    }
+
+    private void CloseFlyout()
+    {
+        if (_styleFlyout is null) return;
+        _styleFlyout.IsOpen = false;
+        _styleFlyout = null;
     }
 
     // Maps each direct child of ItemsPanel to the source RibbonItem(s) it represents.
@@ -351,15 +503,20 @@ public partial class RibbonBar : UserControl
 
                 if (hasNext)
                 {
-                    // Pair: stack top + bottom in a vertical column.
+                    // Pair: stack top + bottom in a vertical column, centred as a group so the pair
+                    // lines up with the full-height buttons and neither half clips past the ribbon edge.
                     var col = new StackPanel
                     {
                         Orientation       = Orientation.Vertical,
-                        VerticalAlignment = VerticalAlignment.Stretch,
+                        VerticalAlignment = VerticalAlignment.Center,
                         Margin            = new Thickness(2, 0, 2, 0)
                     };
-                    col.Children.Add(BuildCompactButton(items[i],   topHalf: true));
-                    col.Children.Add(BuildCompactButton(items[i+1], topHalf: false));
+                    var top = BuildCompactButton(items[i],   topHalf: true);
+                    var bot = BuildCompactButton(items[i+1], topHalf: false);
+                    top.Margin = new Thickness(0, 0, 0, 2);   // 2px gap between the halves; no outer margin
+                    bot.Margin = new Thickness(0, 0, 0, 0);
+                    col.Children.Add(top);
+                    col.Children.Add(bot);
                     _childItems[col] = [items[i], items[i+1]];
                     ItemsPanel.Children.Add(col);
                     i += 2;
@@ -434,7 +591,8 @@ public partial class RibbonBar : UserControl
         {
             Orientation         = Orientation.Vertical,
             HorizontalAlignment = HorizontalAlignment.Center,
-            Margin              = new Thickness(0, 10, 0, 2)
+            // Trim 4 off the top (centred content nets ~2px higher) to ease it off the bottom edge.
+            Margin              = new Thickness(0, 6, 0, 2)
         };
         sp.Children.Add(new TextBlock
         {
@@ -449,7 +607,8 @@ public partial class RibbonBar : UserControl
             FontSize            = 11,
             HorizontalAlignment = HorizontalAlignment.Center,
             Foreground          = fg,
-            Margin              = new Thickness(0, 4, 0, 0)
+            // 1px sides so a long label isn't crushed against the button edge.
+            Margin              = new Thickness(1, 4, 1, 0)
         });
 
         var btn = new Button
@@ -459,9 +618,9 @@ public partial class RibbonBar : UserControl
             Tag      = item,
             ToolTip  = item.Label,
             Margin   = new Thickness(2, 0, 2, 0),
-            MinWidth = 45,
-            ContextMenu = BuildItemContextMenu(item)
+            MinWidth = 45
         };
+        btn.ContextMenu = BuildItemContextMenu(item, btn);
         btn.Click += FullBtn_Click;
         return btn;
     }
@@ -483,7 +642,9 @@ public partial class RibbonBar : UserControl
             Text              = item.Label,
             FontSize          = 11,
             Foreground        = fg,
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Center,
+            // 1px sides so a long label isn't crushed against the button edge.
+            Margin            = new Thickness(1, 0, 1, 0)
         });
 
         var btn = new Button
@@ -495,9 +656,9 @@ public partial class RibbonBar : UserControl
             Padding           = new Thickness(10, 4, 10, 4),
             Margin            = topHalf ? new Thickness(0, 4, 0, 2) : new Thickness(0, 0, 0, 4),
             MinWidth          = 45,
-            VerticalAlignment = VerticalAlignment.Top,
-            ContextMenu       = BuildItemContextMenu(item)
+            VerticalAlignment = VerticalAlignment.Top
         };
+        btn.ContextMenu = BuildItemContextMenu(item, btn);
         btn.Click += FullBtn_Click;
         return btn;
     }

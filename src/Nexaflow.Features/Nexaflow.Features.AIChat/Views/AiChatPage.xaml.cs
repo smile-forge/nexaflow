@@ -13,10 +13,10 @@ public partial class AiChatPage : UserControl, IPageView
     public AiChatViewModel ViewModel { get; }
     IPageViewModel? IPageView.ViewModel => ViewModel;
 
-    public AiChatPage(IAIService aiService, IShellServices shell, AiChatConfig config)
+    public AiChatPage(IAIService aiService, IShellServices shell, AiChatConfig config, Nexaflow.Features.Common.Page ownerPage)
     {
         InitializeComponent();
-        ViewModel   = new AiChatViewModel(aiService, shell, config);
+        ViewModel   = new AiChatViewModel(aiService, shell, config, ownerPage);
         DataContext = ViewModel;
     }
 
