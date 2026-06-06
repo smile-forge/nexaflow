@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 
 namespace Nexaflow.Core.Themes;
 
@@ -19,17 +20,29 @@ public partial class SandstoneWall : UserControl
 {
     private readonly Random _rng = new();
     private bool _built;
+    private readonly DispatcherTimer _resizeDebounce;
 
     public SandstoneWall()
     {
         InitializeComponent();
-        SizeChanged += (_, _) => Build();
-        Unloaded    += (_, _) => { _built = false; Layer.Children.Clear(); };
+        _resizeDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
+        _resizeDebounce.Tick += (_, _) => { _resizeDebounce.Stop(); Build(); };
+        SizeChanged += OnSizeChanged;
+        Unloaded    += (_, _) => { _resizeDebounce.Stop(); _built = false; Layer.Children.Clear(); };
+    }
+
+    // First layout builds immediately; later resizes rebuild once the size settles, so the
+    // procedural elements re-fit the region instead of staying pinned to the original size.
+    private void OnSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (!_built) { Build(); return; }
+        _resizeDebounce.Stop();
+        _resizeDebounce.Start();
     }
 
     private void Build()
     {
-        if (_built || ActualWidth < 2 || ActualHeight < 2) return;
+        if (ActualWidth < 2 || ActualHeight < 2) return;
         _built = true;
 
         double w = ActualWidth, h = ActualHeight;

@@ -12,6 +12,7 @@
     <!-- Chrome: deep forest-green wings framing a slightly lighter ribbon strip. -->
     <SolidColorBrush x:Key="Chrome.Deep"     Color="#F20C2014"/>
     <SolidColorBrush x:Key="Chrome.Panel"    Color="#F20C2014"/>
+    <SolidColorBrush x:Key="Chrome.RightPanel" Color="#F20C2014"/>
     <SolidColorBrush x:Key="Chrome.Bg"       Color="#E6173E24"/>
     <SolidColorBrush x:Key="Chrome.Border"   Color="#59487950"/>
     <SolidColorBrush x:Key="Ribbon.ButtonBg" Color="#4D08160D"/>

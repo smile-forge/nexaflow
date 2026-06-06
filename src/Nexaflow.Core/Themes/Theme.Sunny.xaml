@@ -13,6 +13,7 @@
     <!-- Chrome: clean warm-cream frame (near-opaque so the sky stays in the content window). -->
     <SolidColorBrush x:Key="Chrome.Deep"   Color="#F2F3E9D2"/>
     <SolidColorBrush x:Key="Chrome.Panel"  Color="#F2FCF6EA"/>
+    <SolidColorBrush x:Key="Chrome.RightPanel" Color="#F2FCF6EA"/>
     <SolidColorBrush x:Key="Chrome.Bg"     Color="#EEF7EFDC"/>
     <SolidColorBrush x:Key="Chrome.Border" Color="#66E2D4BA"/>
 

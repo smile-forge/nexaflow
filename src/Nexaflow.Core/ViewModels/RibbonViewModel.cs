@@ -30,9 +30,10 @@ public partial class RibbonViewModel : ObservableObject
     public ObservableCollection<RibbonItem> Items { get; } = [];
 
     /// <summary>
-    /// Openable page kinds offered in the editor's "add page" dropdown — the registrations whose
-    /// <c>CanBeContextItem</c> is true for this workspace. Refreshed each time the editor opens, since
-    /// availability can depend on workspace/config (e.g. a feature toggled off).
+    /// Openable pages offered in the editor's "add page" dropdown — each registration's context-item
+    /// page plus its <c>GetTopLevelPages</c> variants (This PC, named folders, …), minus anything already
+    /// on the ribbon. Refreshed each time the editor opens, since availability can depend on
+    /// workspace/config (e.g. a feature toggled off) and on the current ribbon contents.
     /// </summary>
     public ObservableCollection<RibbonCatalogEntry> AvailablePages { get; } = [];
 
@@ -201,15 +202,24 @@ public partial class RibbonViewModel : ObservableObject
         IsEditOpen = !IsEditOpen;
     }
 
-    /// <summary>Rebuilds <see cref="AvailablePages"/> from the workspace's context-item registrations.</summary>
+    /// <summary>
+    /// Rebuilds <see cref="AvailablePages"/> from the workspace's ribbon-catalog registrations,
+    /// excluding any page already on the ribbon (matched by page kind + params).
+    /// </summary>
     private void RefreshAvailablePages()
     {
         AvailablePages.Clear();
         if (_workspace is null) return;
 
-        var entries = FeatureManager.Instance.GetContextItemPages(_workspace)
+        bool AlreadyInRibbon(string pageKind, Dictionary<string, string>? prms) =>
+            Items.Any(r => r.Kind == RibbonItemKind.Button
+                && r.PageKind == pageKind
+                && ParamsEqual(r.PageParams, prms));
+
+        var entries = FeatureManager.Instance.GetRibbonCatalogPages(_workspace)
             .Where(p => !string.IsNullOrEmpty(p.PageKind))
-            .Select(p => new RibbonCatalogEntry(p.PageKind!, p.Title, p.Icon))
+            .Where(p => !AlreadyInRibbon(p.PageKind!, p.PageParams))
+            .Select(p => new RibbonCatalogEntry(p.Title, p.Icon, p.PageKind!, p.PageParams))
             .OrderBy(e => e.Title, StringComparer.CurrentCultureIgnoreCase);
 
         foreach (var entry in entries)

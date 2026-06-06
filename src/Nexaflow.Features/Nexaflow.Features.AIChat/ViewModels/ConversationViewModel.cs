@@ -28,6 +28,9 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     /// <summary>True once an exchange has been appended in this open session — gates analysis on close.</summary>
     private bool _contentAddedThisSession;
 
+    /// <summary>Suppresses context/attachment persistence while we repopulate from a loaded record.</summary>
+    private bool _restoring;
+
     /// <summary>Detached pages this conversation created (via the context-area menu) and must close
     /// when they leave the context area or the conversation tab closes. Dragged tabs are NOT here —
     /// the tab strip owns those.</summary>
@@ -76,8 +79,8 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         _ownerPage = ownerPage;
 
         Messages.CollectionChanged    += (_, _) => RecomputeTokens();
-        ContextItems.CollectionChanged += (_, _) => { RecomputeTokens(); OnPropertyChanged(nameof(IsContextReady)); };
-        Attachments.CollectionChanged  += (_, _) => RecomputeTokens();
+        ContextItems.CollectionChanged += (_, _) => { RecomputeTokens(); OnPropertyChanged(nameof(IsContextReady)); SyncContext(); };
+        Attachments.CollectionChanged  += (_, _) => { RecomputeTokens(); SyncAttachments(); };
 
         _ownerPage.Closed += OnOwnerClosed;
     }
@@ -100,8 +103,11 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         _ownedContextPages.Clear();
 
         if (!_config.IsAnalysisEnabled) return;
-        if (!_contentAddedThisSession)  return;
         if (Conversation is not { Messages.Count: > 0 }) return;
+
+        // Analyze when the transcript changed this session, OR when this conversation has no prior
+        // analysis yet (so opening + closing an older, never-summarized conversation still generates one).
+        if (!_contentAddedThisSession && _resumeAnalysis is not null) return;
 
         _shell.QueueBackgroundTask(new ConversationAnalysisTask(_aiService, Conversation));
     }
@@ -109,7 +115,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     /// <summary>Loads a persisted conversation by id and pulls the model context window.</summary>
     public async Task LoadAsync(string conversationId)
     {
-        var all = await _aiService.LoadAllAsync();
+        var all = await _aiService.LoadConversationsAsync();
         var rec = all.FirstOrDefault(c => c.Id == conversationId);
         if (rec is null) return;
 
@@ -123,9 +129,24 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
             Timeline.Add(m.IsUser ? new TimelineUserMessage(m.Text) : (object)new TimelineAssistantMessage(m.Text));
         }
 
-        Attachments.Clear();
-        foreach (var a in rec.Attachments)
-            Attachments.Add(a);
+        // Repopulate attachments + the pinned-context panel from the saved record. Guarded so the
+        // collection-changed handlers don't re-persist (and briefly write an empty state) mid-restore.
+        _restoring = true;
+        try
+        {
+            Attachments.Clear();
+            foreach (var a in rec.Attachments)
+                Attachments.Add(a);
+
+            // IAIService rebuilds the page definitions; we realize them and own their lifetime.
+            foreach (var page in _aiService.RestoreContextPages(rec))
+            {
+                page.GetOrCreateContent();   // realize the VM so GetContext/tools resolve
+                _ownedContextPages.Add(page);
+                AddContextItem(page);
+            }
+        }
+        finally { _restoring = false; }
 
         UpdateBreadcrumb();
 
@@ -330,7 +351,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
             UpdateBreadcrumb();
         }
 
-        try { await _aiService.SaveAsync(Conversation); }
+        try { await _aiService.SaveConversationAsync(Conversation); }
         catch { /* persistence failures shouldn't kill the UI */ }
     }
 
@@ -360,6 +381,36 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         var d = Application.Current?.Dispatcher;
         if (d is not null && !d.CheckAccess()) d.Invoke(action);
         else action();
+    }
+
+    /// <summary>
+    /// Mirrors the pinned context into the record and persists it (so it repopulates on reopen).
+    /// Skipped while restoring; a brand-new chat is left unsaved until its first exchange to avoid
+    /// cluttering the browser with empty conversations.
+    /// </summary>
+    private void SyncContext()
+    {
+        if (_restoring || Conversation is null) return;
+
+        _aiService.SetConversationContext(Conversation, ContextItems);
+
+        if (Conversation.Messages.Count > 0)
+            _ = _aiService.SaveConversationAsync(Conversation);
+    }
+
+    /// <summary>
+    /// Mirrors dropped-file attachments into the record and persists them, so files pinned as context
+    /// survive close/reopen even without a following message exchange. Skipped while restoring and for
+    /// not-yet-persisted (empty) conversations (those save on their first exchange).
+    /// </summary>
+    private void SyncAttachments()
+    {
+        if (_restoring || Conversation is null) return;
+
+        Conversation.Attachments = [.. Attachments];
+
+        if (Conversation.Messages.Count > 0)
+            _ = _aiService.SaveConversationAsync(Conversation);
     }
 
     /// <summary>Adds a page-as-context drop target. No-op if already present.</summary>

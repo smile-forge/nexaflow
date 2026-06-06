@@ -84,7 +84,7 @@
             <RowDefinition Height="72"/>    <!-- 1: top bar          -->
             <RowDefinition Height="*" MinHeight="100"/>     <!-- 2: content area     -->
             <RowDefinition Height="5"/>     <!-- 3: drag splitter    -->
-            <RowDefinition Height="90" MinHeight="72" x:Name="AiRow"/>    <!-- 4: AI interaction   -->
+            <RowDefinition Height="90" MinHeight="90" x:Name="AiRow"/>    <!-- 4: AI interaction (≥90 keeps the mic/context cluster fully visible) -->
         </Grid.RowDefinitions>
 
         <!-- ═══════════════════════════════════════════════════════════
@@ -177,11 +177,12 @@
                                     Shell="{Binding ShellServices}"/>
             </Border>
 
-            <!-- ── Right: messages + options ── -->
+            <!-- ── Right: messages + options ── (own token so only the Light theme retints it to the
+                 logo-wing tint; every other theme keeps its intentional Chrome.Panel value) -->
             <Border Grid.Column="2"
                     BorderBrush="{StaticResource Chrome.Border}"
                     BorderThickness="1,0,0,0"
-                    Background="{StaticResource Chrome.Panel}">
+                    Background="{StaticResource Chrome.RightPanel}">
                 <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Right"
                             Margin="0,0,20,10">
 
@@ -691,6 +692,7 @@
                 Grid.Row="0" Grid.RowSpan="5"
                 Visibility="{Binding ViewModel.IsEditOpen, ElementName=RibbonControl, Converter={StaticResource BoolVis}}"
                 Panel.ZIndex="60"
+                RibbonWidth="{Binding ActualWidth, ElementName=RibbonControl}"
                 ItemsSource="{Binding ViewModel.Items, ElementName=RibbonControl}"
                 AvailablePages="{Binding ViewModel.AvailablePages, ElementName=RibbonControl}"
                 CloseCommand="{Binding ViewModel.ToggleEditCommand, ElementName=RibbonControl}"

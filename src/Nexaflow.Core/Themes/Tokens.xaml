@@ -22,7 +22,8 @@
 
     <!-- ── Chrome: top bar, logo/ticker column, ribbon strip, right action panel. ── -->
     <SolidColorBrush x:Key="Chrome.Deep"   Color="{StaticResource DeepBgColor}"/>   <!-- drag bar + logo column -->
-    <SolidColorBrush x:Key="Chrome.Panel"  Color="{StaticResource SurfaceColor}"/>  <!-- top bar + right panel + ribbon bevel -->
+    <SolidColorBrush x:Key="Chrome.Panel"  Color="{StaticResource SurfaceColor}"/>  <!-- top bar + ribbon bevel -->
+    <SolidColorBrush x:Key="Chrome.RightPanel" Color="{StaticResource SurfaceColor}"/> <!-- right action panel; Light overrides to the logo wing -->
     <SolidColorBrush x:Key="Chrome.Bg"     Color="{StaticResource Surface2Color}"/> <!-- ribbon strip surface -->
     <SolidColorBrush x:Key="Chrome.Border" Color="{StaticResource BorderColor}"/>
     <!-- Resting fill of ribbon buttons. Transparent by default (Dark unchanged); a theme can tint it

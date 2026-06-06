@@ -5,8 +5,10 @@ using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 
 namespace Nexaflow.Core.ViewModels;
@@ -23,10 +25,18 @@ public enum PropertyEditorKind
     Toggle,
 }
 
+/// <summary>One choice in an enum combo: the persisted enum <paramref name="Name"/> and a friendly
+/// <paramref name="Display"/> label (the enum's [Description] when set, else the name).</summary>
+public sealed record EnumOption(string Name, string Display);
+
 // ── Per-property view model ───────────────────────────────────────────────────
 
 public partial class PropertyEditViewModel : ObservableObject
 {
+    /// <summary>The [Description] of an enum field if present, otherwise the field name.</summary>
+    private static string EnumDisplayName(Type enumType, string name)
+        => enumType.GetField(name)?.GetCustomAttribute<DescriptionAttribute>()?.Description ?? name;
+
     private readonly PropertyInfo _pi;
     private readonly object       _editingClone;
     private readonly Action       _onChanged;   // notifies ConfigEditViewModel to recheck validity
@@ -46,8 +56,9 @@ public partial class PropertyEditViewModel : ObservableObject
     /// <summary>True when the editor is disabled while the sibling is SET (DisabledIfSet); false for the inverse.</summary>
     public bool               DisabledWhenSiblingSet { get; }
 
-    /// <summary>Enum names for EnumComboBox editors.</summary>
-    public IReadOnlyList<string>? EnumOptions { get; }
+    /// <summary>Enum options for EnumComboBox editors: the underlying name plus a friendly display
+    /// label (from a <see cref="System.ComponentModel.DescriptionAttribute"/> when present).</summary>
+    public IReadOnlyList<EnumOption>? EnumOptions { get; }
 
     /// <summary>Dynamic items for ListComboBox editors (populated via [ListSource]).</summary>
     public IReadOnlyList<string>? ListOptions { get; }
@@ -165,7 +176,9 @@ public partial class PropertyEditViewModel : ObservableObject
         else if (pi.PropertyType.IsEnum)
         {
             EditorKind  = PropertyEditorKind.EnumComboBox;
-            EnumOptions = Enum.GetNames(pi.PropertyType);
+            EnumOptions = Enum.GetNames(pi.PropertyType)
+                .Select(n => new EnumOption(n, EnumDisplayName(pi.PropertyType, n)))
+                .ToList();
         }
         else if (listAttr is not null)
         {

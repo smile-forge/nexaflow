@@ -1,15 +1,18 @@
 <UserControl x:Class="Nexaflow.Core.Controls.RibbonEditor"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:m="clr-namespace:Nexaflow.Core.Models">
+             xmlns:m="clr-namespace:Nexaflow.Core.Models"
+             x:Name="EditorRoot">
 
     <!-- Full-screen semi-transparent backdrop -->
     <Grid Background="#CC0F1117">
 
-        <!-- Centred editor card -->
+        <!-- Centred editor card — tracks the live ribbon width (+ the selector inset) so the
+             editing surface matches the strip it edits rather than a fixed size. -->
         <Border HorizontalAlignment="Center" VerticalAlignment="Center"
                 Style="{StaticResource PopupBorder}"
-                MinWidth="760" MaxWidth="960"
+                Width="{Binding RibbonWidth, ElementName=EditorRoot}"
+                MinWidth="600"
                 Padding="24">
 
             <Grid>

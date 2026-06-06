@@ -73,6 +73,28 @@ namespace Nexaflow.Features.WindowsFileSystem
             catch { return false; }
         }
 
+        // ── Known-folder resolution (SHGetKnownFolderPath) ───────────────────
+        // Honours folder redirection; used to offer named Windows folders (Downloads, …)
+        // in the ribbon's "add page" dropdown. Mirrors Core's KnownFolderService — duplicated
+        // here because features must not depend on Core.
+
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode, ExactSpelling = true, PreserveSig = false)]
+        private static extern void SHGetKnownFolderPath(
+            [MarshalAs(UnmanagedType.LPStruct)] Guid rfid, uint dwFlags, IntPtr hToken, out IntPtr ppszPath);
+
+        /// <summary>Resolves a known-folder GUID to its path, or "" if the call fails.</summary>
+        public static string GetKnownFolderPath(Guid folderId)
+        {
+            IntPtr ptr = IntPtr.Zero;
+            try
+            {
+                SHGetKnownFolderPath(folderId, 0, IntPtr.Zero, out ptr);
+                return Marshal.PtrToStringUni(ptr) ?? string.Empty;
+            }
+            catch { return string.Empty; }
+            finally { if (ptr != IntPtr.Zero) Marshal.FreeCoTaskMem(ptr); }
+        }
+
         // ── Shell execute (properties dialog) ────────────────────────────────
 
         [DllImport("shell32.dll", CharSet = CharSet.Auto)]

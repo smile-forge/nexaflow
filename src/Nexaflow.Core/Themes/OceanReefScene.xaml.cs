@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 
 namespace Nexaflow.Core.Themes;
 
@@ -36,17 +37,29 @@ public partial class OceanReefScene : UserControl
 
     private readonly Random _rng = new();
     private bool _built;
+    private readonly DispatcherTimer _resizeDebounce;
 
     public OceanReefScene()
     {
         InitializeComponent();
-        SizeChanged += (_, _) => Build();
-        Unloaded    += (_, _) => { _built = false; Layer.Children.Clear(); };
+        _resizeDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
+        _resizeDebounce.Tick += (_, _) => { _resizeDebounce.Stop(); Build(); };
+        SizeChanged += OnSizeChanged;
+        Unloaded    += (_, _) => { _resizeDebounce.Stop(); _built = false; Layer.Children.Clear(); };
+    }
+
+    // First layout builds immediately; later resizes rebuild once the size settles, so the
+    // procedural elements re-fit the region instead of staying pinned to the original size.
+    private void OnSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (!_built) { Build(); return; }
+        _resizeDebounce.Stop();
+        _resizeDebounce.Start();
     }
 
     private void Build()
     {
-        if (_built || ActualWidth < 2 || ActualHeight < 2) return;
+        if (ActualWidth < 2 || ActualHeight < 2) return;
         _built = true;
 
         double w = ActualWidth, h = ActualHeight;
@@ -248,7 +261,12 @@ public partial class OceanReefScene : UserControl
             double endX   = toRight ? w + 140 : -140;
             double dur    = 16 + _rng.Next(16);
 
-            var cross = new DoubleAnimation(startX, endX, new Duration(TimeSpan.FromSeconds(dur)))
+            // Park the fish off-screen at its start point until the crossing actually begins —
+            // otherwise the delayed (BeginTime) animation leaves it sitting at canvas x=0 (the left
+            // edge) for up to a full crossing, which reads as "stuck on the left" at startup/resize.
+            Canvas.SetLeft(fish, startX);
+
+            var cross = new DoubleAnimation(0, endX - startX, new Duration(TimeSpan.FromSeconds(dur)))
             {
                 RepeatBehavior = RepeatBehavior.Forever,
                 BeginTime      = TimeSpan.FromSeconds(_rng.NextDouble() * dur),

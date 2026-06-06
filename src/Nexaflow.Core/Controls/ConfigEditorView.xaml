@@ -109,7 +109,14 @@
                           IsEnabled="{Binding IsEnabled}"
                           AutomationProperties.AutomationId="{Binding AutomationId}"
                           ItemsSource="{Binding EnumOptions}"
-                          SelectedItem="{Binding Value}"/>
+                          SelectedValuePath="Name"
+                          SelectedValue="{Binding Value}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Display}"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
             </Grid>
         </DataTemplate>
 

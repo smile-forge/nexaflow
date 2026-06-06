@@ -15,6 +15,7 @@
          Ribbon buttons get a darker recessed tile to stand out from the ribbon strip. -->
     <SolidColorBrush x:Key="Chrome.Deep"     Color="#F5123F50"/>
     <SolidColorBrush x:Key="Chrome.Panel"    Color="#F5123F50"/>
+    <SolidColorBrush x:Key="Chrome.RightPanel" Color="#F5123F50"/>
     <SolidColorBrush x:Key="Chrome.Bg"       Color="#F21E6E84"/>
     <SolidColorBrush x:Key="Chrome.Border"   Color="#663A8AA0"/>
     <SolidColorBrush x:Key="Ribbon.ButtonBg" Color="#4D0C3242"/>

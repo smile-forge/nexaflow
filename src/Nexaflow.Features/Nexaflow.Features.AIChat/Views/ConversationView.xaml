@@ -12,6 +12,7 @@
     <UserControl.Resources>
         <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
         <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
+        <cv:MissingPathToVisibilityConverter x:Key="MissingPathVis"/>
         <conv:ContextRiskToVisibilityConverter x:Key="RiskBadgeVis"/>
 
         <!-- ── Timeline item templates (rendered by the conversation thread) ── -->
@@ -321,6 +322,15 @@
                                                                TextTrimming="CharacterEllipsis"
                                                                MaxWidth="260"/>
                                                 </StackPanel>
+
+                                                <!-- Missing-file marker: the attachment is just a reference,
+                                                     so flag it when the file no longer exists on disk. -->
+                                                <TextBlock Text="⚠" FontSize="14"
+                                                           HorizontalAlignment="Left" VerticalAlignment="Top"
+                                                           Margin="-4,-6,0,0"
+                                                           Foreground="{StaticResource DangerBrush}"
+                                                           ToolTip="File not found — it may have been moved or deleted."
+                                                           Visibility="{Binding Converter={StaticResource MissingPathVis}}"/>
                                                 <Button x:Name="AttRemoveBtn"
                                                         HorizontalAlignment="Right"
                                                         VerticalAlignment="Top"

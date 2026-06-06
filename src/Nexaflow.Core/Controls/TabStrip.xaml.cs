@@ -304,6 +304,25 @@ public partial class TabStrip : UserControl
             CloseTabCommand?.Execute(tab);
         };
 
+        // Right-click menu — quick pin / tear-off without dragging.
+        var menu = new ContextMenu();
+        var pinItem = new MenuItem { Header = "Pin to Ribbon" };
+        pinItem.Click += (_, _) =>
+        {
+            var req = new TabPinRequest(tab);
+            if (PinTabToRibbonCommand?.CanExecute(req) == true)
+                PinTabToRibbonCommand.Execute(req);
+        };
+        var newWindowItem = new MenuItem { Header = "Open in New Window" };
+        newWindowItem.Click += (_, _) =>
+        {
+            if (TearOffTabCommand?.CanExecute(tab) == true)
+                TearOffTabCommand.Execute(tab);
+        };
+        menu.Items.Add(pinItem);
+        menu.Items.Add(newWindowItem);
+        border.ContextMenu = menu;
+
         return border;
     }
 
