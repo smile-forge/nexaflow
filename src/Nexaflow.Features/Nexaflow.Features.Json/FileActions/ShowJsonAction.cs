@@ -11,7 +11,7 @@ public sealed class ShowJsonAction : IFileAction, ICacheable
     public bool   IsDestructive         => false;
     public bool   SupportsMultipleFiles => false;
     public string Icon                  => "{}";
-    public string DisplayName           => "Open in JSON Viewer";
+    public string DisplayName           => "Json View";
     public static string? StaticExperienceId => "/json";
     public string ExperienceId          => "/json";
     public string ExperienceDescription => "JSON file viewer and editor";

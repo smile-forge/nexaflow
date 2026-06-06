@@ -15,7 +15,7 @@ public class ShowMarkdownAction : IFileAction, ICacheable
     public bool   IsDestructive          => false;
     public bool   SupportsMultipleFiles  => false;
     public string Icon                   => "📝";
-    public string DisplayName            => "Show";
+    public string DisplayName            => "Markdown";
     public static string? StaticExperienceId => "/text/markdown";
     public string ExperienceId           => "/text/markdown";
     public string ExperienceDescription  => "Markdown editor";

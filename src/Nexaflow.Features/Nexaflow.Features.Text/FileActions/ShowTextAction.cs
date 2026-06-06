@@ -15,7 +15,7 @@ public sealed class ShowTextAction : IFileAction, ICacheable
     public bool   IsDestructive          => false;
     public bool   SupportsMultipleFiles  => false;
     public string Icon                   => "📄";
-    public string DisplayName            => "Show";
+    public string DisplayName            => "As Text";
     public static string? StaticExperienceId => "/text";
     public string ExperienceId           => "/text";
     public string ExperienceDescription  => "Lightweight Text editor";

@@ -16,7 +16,7 @@ public sealed class ShowBinaryAction : IFileAction, ICacheable
     public static string? StaticExperienceId => "/binary";
     public string ExperienceId          => "/binary";
     public string ExperienceDescription => "Open in hex editor";
-    public string DisplayName           => "Open in Hex Editor";
+    public string DisplayName           => "As Hex";
     public string Icon                  => "⬡";
     public bool   IsDestructive         => false;
     public bool   SupportsMultipleFiles => false;

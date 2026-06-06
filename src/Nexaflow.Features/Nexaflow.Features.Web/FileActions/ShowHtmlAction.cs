@@ -22,7 +22,7 @@ namespace Nexaflow.Features.Web.FileActions
         public bool   IsDestructive          => false;
         public bool   SupportsMultipleFiles  => false;
         public string Icon                   => "🌐";
-        public string DisplayName            => "Show";
+        public string DisplayName            => "Browse";
         public static string? StaticExperienceId => "/text/html";
         public string ExperienceId           => "/text/html";
         public string ExperienceDescription  => "Open A browser tab to display HTML content";

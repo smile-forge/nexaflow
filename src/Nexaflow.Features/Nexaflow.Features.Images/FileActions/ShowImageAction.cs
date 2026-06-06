@@ -23,7 +23,7 @@ namespace Nexaflow.Features.Images.FileActions
         public bool   IsDestructive          => false;
         public bool   SupportsMultipleFiles  => true;
         public string Icon                   => "🖼";
-        public string DisplayName            => "Show";
+        public string DisplayName            => "As Image";
         public static string? StaticExperienceId => "/image";
         public string ExperienceId           => "/image";
         public string ExperienceDescription  => "Image Viewer";
