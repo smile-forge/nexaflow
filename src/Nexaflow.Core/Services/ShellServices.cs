@@ -1,5 +1,6 @@
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Views;
+using Nexaflow.Elevation.Contracts;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using System;
@@ -22,12 +23,20 @@ public sealed class ShellServices : IShellServices
 {
     private readonly Workspace _workspace;
     private readonly IBackgroundActivityManager? _activity;
+    private readonly Elevation.ElevatedBridgeLauncher _elevation = new();
 
     public ShellServices(Workspace workspace, IBackgroundActivityManager? activity = null)
     {
         _workspace = workspace;
         _activity  = activity;
     }
+
+    /// <summary>
+    /// Runs an admin-only request out-of-process via the elevated privilege bridge (one UAC prompt per
+    /// call). The host stays non-elevated. Never throws for expected outcomes — see <see cref="ElevatedResult"/>.
+    /// </summary>
+    public Task<ElevatedResult> RunElevatedAsync(ElevatedRequest request, CancellationToken ct = default)
+        => _elevation.RunAsync(request, ct);
 
     public void QueueBackgroundTask(IBackgroundTask task, Action<bool>? onComplete = null,
                                     CancellationToken ct = default)

@@ -13,4 +13,11 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Contracts-only lib (no WPF, no behaviour). Features.Common is the shared-contract hub; naming the
+         elevation DTOs here lets IShellServices expose them, and features get them transitively. This does
+         NOT break "features depend only on Features.Common" — it is still contracts. -->
+    <ProjectReference Include="..\..\Nexaflow.Elevation\Nexaflow.Elevation.Contracts\Nexaflow.Elevation.Contracts.csproj" />
+  </ItemGroup>
+
 </Project>

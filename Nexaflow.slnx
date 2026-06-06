@@ -35,6 +35,10 @@
     <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.Ollama/Nexaflow.Providers.Ollama.csproj" />
     <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.OpenAI/Nexaflow.Providers.OpenAI.csproj" Id="213a1d5d-278a-4d03-a0e0-17fb052675ac" />
   </Folder>
+  <Folder Name="/Nexaflow.Elevation/">
+    <Project Path="src/Nexaflow.Elevation/Nexaflow.Elevation.Contracts/Nexaflow.Elevation.Contracts.csproj" />
+    <Project Path="src/Nexaflow.Elevation/Nexaflow.PrivilegeBridge/Nexaflow.PrivilegeBridge.csproj" />
+  </Folder>
   <Folder Name="/Nexaflow.Tests/">
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Core/Nexaflow.Tests.Core.csproj" Id="ccb84772-1b15-4e2b-b98a-1e9b524e7238" />
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Features/Nexaflow.Tests.Features.csproj" Id="79cfb0c8-0b1c-4342-ab15-9565928e6344" />

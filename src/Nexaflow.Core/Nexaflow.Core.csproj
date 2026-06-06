@@ -86,6 +86,44 @@
 	<ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Gemini\Nexaflow.Providers.Gemini.csproj" />
     <ProjectReference Include="..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
+
+    <!-- Elevation: the launcher uses the contract DTOs (real ref). The bridge exe is referenced for build
+         ordering only (ReferenceOutputAssembly=false) — CopyPrivilegeBridge places its output explicitly. -->
+    <ProjectReference Include="..\Nexaflow.Elevation\Nexaflow.Elevation.Contracts\Nexaflow.Elevation.Contracts.csproj" />
+    <ProjectReference Include="..\Nexaflow.Elevation\Nexaflow.PrivilegeBridge\Nexaflow.PrivilegeBridge.csproj"
+                      ReferenceOutputAssembly="false" Private="false" />
   </ItemGroup>
-  
+
+  <!--
+    Copy the privilege bridge (exe + its dep closure) into a subfolder of Core's output so
+    (a) ElevatedBridgeLauncher finds it at AppContext.BaseDirectory\PrivilegeBridge\ and
+    (b) the WiX harvester (globs $(_CoreOutDir)**\*) packages it automatically. A subfolder isolates the
+    bridge's deps (its System.Management etc.) from Core's own DLLs. Mirrors the StripNonWinX64Runtimes
+    target's style of resolving another project's output via GetTargetPath.
+  -->
+  <Target Name="CopyPrivilegeBridge" AfterTargets="Build">
+    <PropertyGroup>
+      <_BridgeProj>$(MSBuildThisFileDirectory)..\Nexaflow.Elevation\Nexaflow.PrivilegeBridge\Nexaflow.PrivilegeBridge.csproj</_BridgeProj>
+      <_BridgeDest>$(OutDir)PrivilegeBridge\</_BridgeDest>
+    </PropertyGroup>
+
+    <MSBuild Projects="$(_BridgeProj)" Targets="Build" Properties="Configuration=$(Configuration)" />
+    <MSBuild Projects="$(_BridgeProj)" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_BridgeTarget" />
+    </MSBuild>
+
+    <PropertyGroup>
+      <_BridgeOutDir>$([System.IO.Path]::GetDirectoryName('%(_BridgeTarget.Identity)'))\</_BridgeOutDir>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <_BridgeFile Include="$(_BridgeOutDir)**\*" Exclude="$(_BridgeOutDir)**\*.pdb" />
+    </ItemGroup>
+
+    <MakeDir Directories="$(_BridgeDest)" />
+    <Copy SourceFiles="@(_BridgeFile)"
+          DestinationFiles="@(_BridgeFile->'$(_BridgeDest)%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

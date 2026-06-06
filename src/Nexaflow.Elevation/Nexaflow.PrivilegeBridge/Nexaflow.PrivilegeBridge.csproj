@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Short-lived helper launched ELEVATED (requireAdministrator manifest) per request. It performs one
+    admin-only batch, returns the result over a private named pipe, and exits. Framework-dependent on
+    purpose: it shares the same .NET 10 desktop runtime the host already requires.
+  -->
+  <PropertyGroup>
+    <!-- WinExe: no console is allocated, so the brief elevated launch never flashes a window. -->
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>false</UseWPF>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>Nexaflow.PrivilegeBridge</AssemblyName>
+    <AssemblyVersion>0.8.0.0</AssemblyVersion>
+    <FileVersion>0.8.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Management" Version="10.0.8" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="10.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Elevation.Contracts\Nexaflow.Elevation.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>
