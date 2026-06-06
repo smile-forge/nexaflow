@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Nexaflow.Elevation.Contracts;
 
 namespace Nexaflow.Features.Common;
 
@@ -115,4 +116,18 @@ public interface IShellServices
     /// has already loaded every feature DLL into the AppDomain.
     /// </remarks>
     IEnumerable<Type> DiscoverImplementations<TInterface>();
+
+    /// <summary>
+    /// Performs an admin-only <paramref name="request"/> by launching the out-of-process privilege bridge
+    /// elevated via UAC — one prompt per call; batch several operations into one request to use a single
+    /// prompt. The host itself stays non-elevated (<c>asInvoker</c>); the request and its argument values
+    /// travel over a private named pipe, never on the command line.
+    /// <para>
+    /// Never throws for an expected outcome: a declined UAC returns a result with
+    /// <see cref="ElevatedErrorKind.UserDeclinedElevation"/> (check <see cref="ElevatedResult.WasDeclined"/>);
+    /// a failed operation returns <see cref="ElevatedResult.Success"/> = false with the relevant error kind.
+    /// Safe to call off the UI thread.
+    /// </para>
+    /// </summary>
+    Task<ElevatedResult> RunElevatedAsync(ElevatedRequest request, CancellationToken ct = default);
 }

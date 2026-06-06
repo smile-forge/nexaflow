@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Wire DTOs shared by the privilege bridge (elevated exe), the Core launcher, and Features.Common.
+    Deliberately WPF-free and behavior-free: it is pure contract, which is why Features.Common may
+    reference it without breaking the "features depend only on Features.Common" rule.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>false</UseWPF>
+    <AssemblyVersion>0.8.0.0</AssemblyVersion>
+    <FileVersion>0.8.0.0</FileVersion>
+  </PropertyGroup>
+
+</Project>
