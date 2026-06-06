@@ -40,11 +40,31 @@ Lightweight plain-text editor tab for quick edits without shelling out to Notepa
 
 ### Log Viewer
 
-Tail and inspect log files with filtering, as a tab.
+Tail and inspect log files with filtering, as a tab. Built for large files — recent lines stream in first.
+
+### JSON Viewer
+
+Browse large JSON documents with seek-by-item windowing, so multi-gigabyte files open instantly.
+
+### Tabular Viewer
+
+CSV / TSV / fixed-width data as a tab, with automatic shape detection and column transforms.
+
+### Hex / Binary Viewer
+
+Inspect any file byte-for-byte in a hex viewer.
 
 ### Windows Search
 
 Full-text file search backed by the Windows Search index, with AI-powered query refinement.
+
+### Windows Apps Manager
+
+Browse and manage installed Windows applications, surfaced as a tab and queryable through the AI bar.
+
+### System Info Dashboard
+
+A system-information dashboard at a glance — hardware, services, and environment variables (the latter two via an elevated privilege bridge).
 
 ### Scratchpad
 
@@ -56,7 +76,15 @@ Lightweight project tracking built for developers. Each project lives as a simpl
 
 ### Integrated Context-Aware AI
 
-An AI input bar lives at the bottom of every window. Ask questions, get answers, issue commands — the AI knows which tab is active and what project you're in. Provider support includes a local Aria service, Ollama (local models), and Claude (Anthropic).
+An AI input bar lives at the bottom of every window. Ask questions, get answers, issue commands — the AI knows which tab is active and what project you're in. It runs as an agent: multi-step, tool-using turns with client-side tools and an approval step before anything mutating happens. Provider support includes a local Aria service, Ollama (local models), Claude (Anthropic), Google Gemini, and OpenAI — assigned per *ability* so different tasks can use different models.
+
+### AI Chat
+
+A dedicated conversation tab that browses your saved chat history, with inline agent runs and a rich set of available tools.
+
+### Folder Viewlets (Git & .NET)
+
+Open a folder and Nexaflow surfaces context panels for what it contains — a Git panel for repositories, a .NET panel for projects/solutions. These viewlets feed both context *and* tools straight to the AI, so it understands your repo and project structure without being told.
 
 ### Web Viewer
 
@@ -74,7 +102,7 @@ Add, remove, and reorder toolbar buttons. The layout persists across sessions.
 
 - Windows 10 or Windows 11
 - [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- Optional: an Aria service, Ollama installation, or Claude API key for AI features
+- Optional, for AI features: an Aria service, an Ollama installation, or an API key for Claude, Gemini, or OpenAI
 
 ### Build & Run
 
@@ -96,7 +124,7 @@ Nexaflow is split into three layers with strict dependency rules:
 
 - **Shell** (`Nexaflow.Core`) — window chrome, tab strip, ribbon bar, breadcrumb navigation, AI input bar. Hosts tabs but never renders them directly.
 - **Features** (`Nexaflow.Features.*`) — individual tab implementations. Each feature depends only on the shared contracts in `Nexaflow.Features.Common` and never on Core or other features.
-- **Providers** (`Nexaflow.Providers.*`) — LLM provider adapters (Aria, Claude, Ollama). Independent of features; wired into the shell at startup.
+- **Providers** (`Nexaflow.Providers.*`) — LLM provider adapters (Aria, Claude, Gemini, Ollama, OpenAI). Independent of features; wired into the shell at startup.
 
 For a deep dive into the architecture and how to add new features see [docs/Architecture.md](docs/Architecture.md) and [docs/features.md](docs/features.md).
 
@@ -112,10 +140,10 @@ For a deep dive into the architecture and how to add new features see [docs/Arch
 
 ## Roadmap
 
-- [ ] **Additional AI providers** — Google Gemini, and local native (ONNX / DirectML) model support
-- [ ] **Additional viewers and editors** — CSV, syntax-highlighted code, binary/hex
-- [ ] **Improved input handling** — multi-modal input (image paste, file drop to AI bar), richer query routing, structured action confirmation
-- [ ] **Expanded AI capabilities** — agent-style multi-step task execution, per-project memory, inline AI suggestions inside editors
+- [ ] **Local native models** — ONNX / DirectML in-process inference
+- [ ] **Syntax-highlighted code editor**
+- [ ] **Improved input handling** — multi-modal input (image paste, file drop to AI bar) and richer query routing
+- [ ] **Expanded AI capabilities** — per-project memory and inline AI suggestions inside editors
 - [ ] **Expanded search with RAG** — semantic search across local files and project content using a local embedding index, retrieval-augmented answers in the AI bar
 - [ ] **Multi-monitor awareness and saved workspace layouts**
 

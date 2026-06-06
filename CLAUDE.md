@@ -20,17 +20,21 @@ src/
     Nexaflow.Features.Common/       ALL contracts (interfaces + small DTOs). NO FeatureManager — that's in Core.
     Nexaflow.Features.AIChat/       AI conversation tab (now a browser over conversations)
     Nexaflow.Features.Console/      PTY terminal
-    Nexaflow.Features.Git/			git interface
+    Nexaflow.Features.Dotnet/       .NET folder viewlet — feeds AI context + dotnet client tools
+    Nexaflow.Features.Git/          git folder viewlet — feeds AI context + git client tools
     Nexaflow.Features.Hex/          binary / hex viewer
     Nexaflow.Features.Images/       image viewer
     Nexaflow.Features.Json/         JSON viewer (seek-by-item windowing)
     Nexaflow.Features.Logs/         log viewer (tail-first streaming)
     Nexaflow.Features.Markdown/     markdown editor + preview
+    Nexaflow.Features.Processes/    (stub) process feature placeholder
     Nexaflow.Features.Projects/     project + backlog management
     Nexaflow.Features.Scratchpad/   virtual corkboard
+    Nexaflow.Features.SystemInfo/   system info dashboard (WMI; Services/EnvVars pages via privilege bridge)
     Nexaflow.Features.Tabular/      CSV/TSV/fixed-width viewer (shape detection + transforms)
     Nexaflow.Features.Text/         text editor (head-first windowing)
     Nexaflow.Features.Web/          WebView2 browser tab
+    Nexaflow.Features.WindowsApps/  installed-apps manager + AI query handler
     Nexaflow.Features.WindowsFileSystem/ file explorer tab (the DirectoryTree + file list)
     Nexaflow.Features.WindowsSearch/ Windows Search integration
   Nexaflow.Visuals.Common/          shared WPF controls + value converters (PieChart, BoolToVisibility, …)
@@ -39,7 +43,9 @@ src/
     Nexaflow.Providers.Common/      LlmProviderRegistry, shared message types
     Nexaflow.Providers.Aria/        named-pipe Aria client
     Nexaflow.Providers.Claude/      Claude API
+    Nexaflow.Providers.Gemini/      Google Gemini API
     Nexaflow.Providers.Ollama/      Ollama local models
+    Nexaflow.Providers.OpenAI/      OpenAI API
 ```
 
 Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI) — mirror that pattern for any future shared-but-not-a-contract code rather than dumping it in `Features.Common`.

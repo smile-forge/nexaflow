@@ -2,19 +2,22 @@
 
 Thanks for updating! Here's what changed.
 
-## Per-workspace configuration
+### 🚀 New Features
+*   **WindowsApps Manager**: Added a new manager for installed Windows applications, including a new "add page" dropdown in the ribbon for easier navigation.
+*   **SystemInfo Dashboard**: A brand new dashboard feature has been implemented to provide system information at a glance.
+*   **Services Manager**: A new manager for Windows services has been added, allowing users to easily view and manage their services.
+*   **System Environment Variables Manager**: A new manager for system environment variables has been introduced, making it easier to view and edit environment variables directly from Nexaflow.
+*   **.NET Folder Viewlets**: Introduced specialized viewlets for .NET folders, allowing for more integrated development workflows.
 
-- **Projects** and **Console** settings are now **per workspace** — each workspace keeps its own
-  project directory and terminal environments instead of sharing one global set.
-- A new **Configure** panel collects everything a workspace owns: its AI ability grid, persona,
-  provider keys, and per-workspace feature settings.
-- Scratchpad has been upgraded with rich drag support, so you can drag and drop files, folders, and even text snippets from the editor into the
-  scratchpad.
-- improved themes and UI polish across the board.
+### 🤖 AI & Context Enhancements
+The integration between the file system and the AI assistant has been significantly deepened:
+*   **Context-Aware Viewlets**: Folder viewlets (including the new .NET viewlet) can now feed context and tools directly to the AI, making it much more aware of your project structure.
+*   **AIChat Upgrades**: The AIChat interface now supports inline agent runs, a pluggable response handler, and a much richer set of available tools.
+*   **Improved Responsiveness**: The AI bar has been decoupled from background activity, ensuring that UI responsiveness isn't impacted by heavy processing tasks.
 
-## Guided setup
+### 🛠️ Bug Fixes & Improvements
+*   Fixed issues with project deletion and scratchpad stability.
+*   General build optimizations and stability improvements.
 
-- A short setup wizard now walks you through first-run and post-update configuration: any new global
-  settings, then picking a provider, entering its key, choosing a model, and a persona.
 
 Press **Next** to continue.
