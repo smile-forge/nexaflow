@@ -42,6 +42,8 @@
   <ItemGroup>
     <!-- Shown by the setup wizard's "What's New" step (read via Application.GetResourceStream). -->
     <Resource Include="Assets\WhatsNew.md" />
+    <!-- Shown by the Options "About" page (read via Application.GetResourceStream). -->
+    <Resource Include="Assets\ThirdPartyNotices.md" />
   </ItemGroup>
 
   <!--

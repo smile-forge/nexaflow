@@ -1,0 +1,72 @@
+<UserControl x:Class="Nexaflow.Core.Controls.AboutControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:local="clr-namespace:Nexaflow.Core.Controls">
+
+    <UserControl.Resources>
+        <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
+    </UserControl.Resources>
+
+    <Grid Margin="20,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>  <!-- header -->
+            <RowDefinition Height="Auto"/>  <!-- notices heading -->
+            <RowDefinition Height="*"/>     <!-- scrollable notices -->
+        </Grid.RowDefinitions>
+
+        <!-- Header: product, version, source link -->
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="Nexaflow" FontSize="22" FontWeight="Bold"
+                       Foreground="{StaticResource TextBrush}"/>
+            <TextBlock x:Name="VersionText"
+                       Margin="0,2,0,0" FontSize="12"
+                       Foreground="{StaticResource TextMutedBrush}"/>
+            <TextBlock Margin="0,8,0,0" FontSize="12" TextWrapping="Wrap"
+                       Foreground="{StaticResource TextBrush}"
+                       Text="An open-source Windows shell replacement — file explorer, terminal, editors and an AI assistant in one tabbed window."/>
+            <TextBlock Margin="0,8,0,0" FontSize="12">
+                <Hyperlink x:Name="RepoLink"
+                           Foreground="{StaticResource AccentBrush}"
+                           RequestNavigate="OnRequestNavigate"
+                           NavigateUri="https://github.com/smile-forge/nexaflow">
+                    github.com/smile-forge/nexaflow
+                </Hyperlink>
+            </TextBlock>
+        </StackPanel>
+
+        <!-- Third-party notices heading — toggles the (collapsed-by-default) list -->
+        <ToggleButton x:Name="NoticesToggle" Grid.Row="1"
+                      Margin="0,18,0,6" HorizontalAlignment="Left"
+                      Cursor="Hand" Background="Transparent" BorderThickness="0">
+            <ToggleButton.Template>
+                <ControlTemplate TargetType="ToggleButton">
+                    <StackPanel Orientation="Horizontal" Background="Transparent">
+                        <TextBlock x:Name="Chevron" Text="&#x25B8;"
+                                   FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextMutedBrush}"/>
+                        <TextBlock Text="Third-party notices" FontSize="13" FontWeight="Bold"
+                                   Foreground="{StaticResource TextBrush}"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Chevron" Property="Text" Value="&#x25BE;"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </ToggleButton.Template>
+        </ToggleButton>
+
+        <!-- Scrollable notices — shown only when the toggle is expanded -->
+        <Border Grid.Row="2"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6"
+                Visibility="{Binding IsChecked, ElementName=NoticesToggle, Converter={StaticResource BoolVis}}">
+            <ScrollViewer Padding="12,8" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <md:SelectableMarkdownView x:Name="NoticesView"/>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</UserControl>

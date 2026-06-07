@@ -204,6 +204,10 @@ public partial class App : Application
 
         HostCapabilityService.Instance.StartProbe();
 
+        // ── 7. About — read-only Options section (registered last so it sorts to the bottom) ──
+        var aboutConfig = new AboutConfig();
+        ConfigManager.Instance.Register(aboutConfig, aboutConfig.ConfigName);
+
         // ── 8. Taskbar JumpList — one entry per WorkContext ─────────────────
         JumpListService.Initialize();
 

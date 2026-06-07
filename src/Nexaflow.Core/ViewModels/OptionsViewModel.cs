@@ -368,7 +368,10 @@ public partial class OptionsViewModel : ObservableObject
 
     public OptionsViewModel()
     {
-        foreach (var config in ConfigManager.Instance.GetAll().OfType<IFeatureConfig>())
+        // Stable sort: keep registration order but always float "About" to the bottom.
+        var configs = ConfigManager.Instance.GetAll().OfType<IFeatureConfig>()
+            .OrderBy(c => c is AboutConfig ? 1 : 0);
+        foreach (var config in configs)
         {
             string friendlyName = config.FriendlyName;
             string configName   = config.ConfigName;
