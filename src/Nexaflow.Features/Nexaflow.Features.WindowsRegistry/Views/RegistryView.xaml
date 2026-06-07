@@ -1,0 +1,357 @@
+<UserControl x:Class="Nexaflow.Features.WindowsRegistry.Views.RegistryView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Nexaflow.Features.WindowsRegistry.ViewModels"
+             Background="{StaticResource BgBrush}">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
+        <!-- Toolbar button -->
+        <Style x:Key="RegTbBtn" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource Surface2Brush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Margin" Value="4,0,0,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                    <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- ── Tree item (themed: custom chevron + focus-independent selection) ── -->
+        <Style x:Key="RegTreeItemStyle" TargetType="TreeViewItem">
+            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+            <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="FontSize"   Value="13"/>
+            <Setter Property="Padding"    Value="4,3"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TreeViewItem">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition/>
+                            </Grid.RowDefinitions>
+
+                            <Border x:Name="RowBorder" Grid.Row="0" Background="Transparent"
+                                    CornerRadius="4" Margin="0,1">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="16"/>
+                                        <ColumnDefinition/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <ToggleButton x:Name="Expander" Grid.Column="0" Width="16" Height="16"
+                                                  IsChecked="{Binding IsExpanded, Mode=TwoWay,
+                                                      RelativeSource={RelativeSource AncestorType=TreeViewItem}}"
+                                                  Focusable="False" Style="{x:Null}">
+                                        <ToggleButton.Template>
+                                            <ControlTemplate TargetType="ToggleButton">
+                                                <Grid Width="16" Height="16" Background="Transparent">
+                                                    <Path x:Name="ArrowRight" Data="M 6 4 L 10 8 L 6 12"
+                                                          Stroke="{StaticResource TextMutedBrush}"
+                                                          StrokeThickness="1.5" StrokeLineJoin="Round"
+                                                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    <Path x:Name="ArrowDown" Data="M 4 6 L 8 10 L 12 6"
+                                                          Stroke="{StaticResource TextBrush}"
+                                                          StrokeThickness="1.5" StrokeLineJoin="Round"
+                                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                          Visibility="Collapsed"/>
+                                                </Grid>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsChecked" Value="True">
+                                                        <Setter TargetName="ArrowRight" Property="Visibility" Value="Collapsed"/>
+                                                        <Setter TargetName="ArrowDown"  Property="Visibility" Value="Visible"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </ToggleButton.Template>
+                                    </ToggleButton>
+
+                                    <ContentPresenter Grid.Column="1" Content="{TemplateBinding Header}"
+                                                      ContentTemplate="{TemplateBinding HeaderTemplate}"
+                                                      VerticalAlignment="Center"/>
+                                </Grid>
+                            </Border>
+
+                            <ItemsPresenter Grid.Row="1" x:Name="ItemsHost"
+                                            Margin="16,0,0,0" Visibility="Collapsed"/>
+                        </Grid>
+
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsExpanded" Value="True">
+                                <Setter TargetName="ItemsHost" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                <Setter TargetName="RowBorder" Property="Background"      Value="{StaticResource Surface2Brush}"/>
+                                <Setter TargetName="RowBorder" Property="BorderBrush"     Value="{StaticResource AccentBrush}"/>
+                                <Setter TargetName="RowBorder" Property="BorderThickness" Value="1"/>
+                            </DataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsSelected}" Value="False"/>
+                                    <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter TargetName="RowBorder" Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                            </MultiDataTrigger>
+                            <DataTrigger Binding="{Binding Children.Count}" Value="0">
+                                <Setter TargetName="Expander" Property="Visibility" Value="Hidden"/>
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── GridView column header (themed) ─────────────────────────── -->
+        <Style x:Key="RegColHeaderStyle" TargetType="GridViewColumnHeader">
+            <Setter Property="Background"  Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="Foreground"  Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontSize"    Value="11"/>
+            <Setter Property="FontWeight"  Value="SemiBold"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+            <Setter Property="Padding"     Value="8,6"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="GridViewColumnHeader">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Value row (themed; selection + hover wash) ──────────────── -->
+        <Style x:Key="RegRowStyle" TargetType="ListViewItem">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
+            <Setter Property="FontSize"        Value="13"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Padding"         Value="0,2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                        <Border x:Name="RowBg" Background="Transparent" CornerRadius="4" Margin="2,1">
+                            <GridViewRowPresenter
+                                Columns="{Binding View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                Content="{TemplateBinding Content}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="RowBg" Property="Background"  Value="{StaticResource Surface2Brush}"/>
+                                <Setter TargetName="RowBg" Property="BorderBrush"  Value="{StaticResource AccentBrush}"/>
+                                <Setter TargetName="RowBg" Property="BorderThickness" Value="1"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsSelected"  Value="False"/>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="RowBg" Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- ── Toolbar ─────────────────────────────────────────────────── -->
+        <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="8,6">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Hive:" Foreground="{StaticResource TextMutedBrush}"
+                           VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <ComboBox Width="200" ItemsSource="{Binding Hives}"
+                          SelectedItem="{Binding SelectedHive}"
+                          DisplayMemberPath="DisplayName"
+                          Style="{StaticResource DarkComboBox}"
+                          ItemContainerStyle="{StaticResource DarkComboBoxItem}"/>
+
+                <Button Style="{StaticResource RegTbBtn}" Margin="16,0,0,0"
+                        Command="{Binding ExportCommand}"
+                        Content="💾 Export" ToolTip="Export the selected key to a .reg file"/>
+                <Button Style="{StaticResource RegTbBtn}"
+                        Command="{Binding ImportCommand}"
+                        Content="📂 Import" ToolTip="Import a .reg file"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ── Tree | values ──────────────────────────────────────────── -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="180"/>
+                <ColumnDefinition Width="5"/>
+                <ColumnDefinition Width="2*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Key tree -->
+            <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
+                <TreeView x:Name="KeyTree" ItemsSource="{Binding TreeRoots}"
+                          Background="Transparent" BorderThickness="0"
+                          ItemContainerStyle="{StaticResource RegTreeItemStyle}"
+                          VirtualizingStackPanel.IsVirtualizing="True"
+                          VirtualizingStackPanel.VirtualizationMode="Recycling"
+                          ScrollViewer.CanContentScroll="True"
+                          SelectedItemChanged="KeyTree_SelectedItemChanged"
+                          PreviewMouseRightButtonDown="KeyTree_PreviewMouseRightButtonDown">
+                    <TreeView.ItemTemplate>
+                        <HierarchicalDataTemplate DataType="{x:Type vm:RegistryTreeNode}"
+                                                  ItemsSource="{Binding Children}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="📁" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </HierarchicalDataTemplate>
+                    </TreeView.ItemTemplate>
+                    <TreeView.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="New Key…"  Command="{Binding NewKeyCommand}"/>
+                            <MenuItem Header="Rename…"   Command="{Binding RenameKeyCommand}"/>
+                            <MenuItem Header="Delete"    Command="{Binding DeleteKeyCommand}"/>
+                            <Separator/>
+                            <MenuItem Header="Export…"   Command="{Binding ExportCommand}"/>
+                        </ContextMenu>
+                    </TreeView.ContextMenu>
+                </TreeView>
+            </Border>
+
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"
+                          Background="{StaticResource BorderBrush}"/>
+
+            <!-- Value list -->
+            <ListView Grid.Column="2" x:Name="ValueList" ItemsSource="{Binding Values}"
+                      Background="{StaticResource BgBrush}" BorderThickness="0"
+                      Foreground="{StaticResource TextBrush}"
+                      SelectionMode="Single"
+                      ItemContainerStyle="{StaticResource RegRowStyle}"
+                      SelectionChanged="ValueList_SelectionChanged"
+                      MouseDoubleClick="ValueList_MouseDoubleClick">
+                <ListView.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Modify…" Command="{Binding EditValueCommand}"
+                                  CommandParameter="{Binding SelectedValue}"/>
+                        <MenuItem Header="New">
+                            <MenuItem Header="String Value (REG_SZ)"        Command="{Binding NewValueCommand}" CommandParameter="String"/>
+                            <MenuItem Header="Expandable String (REG_EXPAND_SZ)" Command="{Binding NewValueCommand}" CommandParameter="ExpandString"/>
+                            <MenuItem Header="DWORD (REG_DWORD)"            Command="{Binding NewValueCommand}" CommandParameter="DWord"/>
+                            <MenuItem Header="QWORD (REG_QWORD)"            Command="{Binding NewValueCommand}" CommandParameter="QWord"/>
+                            <MenuItem Header="Binary (REG_BINARY)"          Command="{Binding NewValueCommand}" CommandParameter="Binary"/>
+                            <MenuItem Header="Multi-String (REG_MULTI_SZ)"  Command="{Binding NewValueCommand}" CommandParameter="MultiString"/>
+                        </MenuItem>
+                        <Separator/>
+                        <MenuItem Header="Delete" Command="{Binding DeleteValueCommand}"
+                                  CommandParameter="{Binding SelectedValue}"/>
+                    </ContextMenu>
+                </ListView.ContextMenu>
+                <ListView.View>
+                    <GridView ColumnHeaderContainerStyle="{StaticResource RegColHeaderStyle}">
+                        <GridViewColumn Width="240" Header="Name">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate DataType="{x:Type vm:RegistryValue}">
+                                    <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Width="120" Header="Type">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate DataType="{x:Type vm:RegistryValue}">
+                                    <TextBlock Text="{Binding TypeLabel}" Foreground="{StaticResource TextMutedBrush}"/>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Width="420" Header="Data">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate DataType="{x:Type vm:RegistryValue}">
+                                    <TextBlock Text="{Binding Data}" Foreground="{StaticResource TextBrush}"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+        </Grid>
+
+        <!-- ── Input-prompt overlay ───────────────────────────────────── -->
+        <Border Grid.Row="0" Grid.RowSpan="2" Background="#CC000000" Panel.ZIndex="20"
+                Visibility="{Binding InputPromptVisible, Converter={StaticResource BoolToVis}}">
+            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource AccentBrush}"
+                    BorderThickness="1" CornerRadius="8" Width="380" Padding="16"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel>
+                    <TextBlock Text="{Binding InputPromptTitle}" Foreground="{StaticResource TextBrush}"
+                               FontSize="13" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                    <TextBlock Text="{Binding InputPromptLabel}" Foreground="{StaticResource TextMutedBrush}"
+                               FontSize="11" Margin="0,0,0,6"/>
+                    <TextBox Text="{Binding InputPromptValue, UpdateSourceTrigger=PropertyChanged}"
+                             Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}"
+                             BorderThickness="0" Padding="8,6" AcceptsReturn="True" MaxLines="6"
+                             TextWrapping="Wrap" KeyDown="InputPrompt_KeyDown"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                        <Button Style="{StaticResource RegTbBtn}" Content="Cancel"
+                                Command="{Binding CancelInputPromptCommand}"/>
+                        <Button Style="{StaticResource RegTbBtn}" Content="OK"
+                                Command="{Binding ConfirmInputPromptCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!-- ── Confirmation overlay ───────────────────────────────────── -->
+        <Border Grid.Row="0" Grid.RowSpan="2" Background="#CC000000" Panel.ZIndex="19"
+                Visibility="{Binding ConfirmationVisible, Converter={StaticResource BoolToVis}}">
+            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource DangerBrush}"
+                    BorderThickness="1" CornerRadius="8" Width="380" Padding="16"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel>
+                    <TextBlock Text="{Binding ConfirmationTitle}" Foreground="{StaticResource TextBrush}"
+                               FontSize="13" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                    <TextBlock Text="{Binding ConfirmationPrompt}" Foreground="{StaticResource TextMutedBrush}"
+                               FontSize="12" TextWrapping="Wrap"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                        <Button Style="{StaticResource RegTbBtn}" Content="Cancel"
+                                Command="{Binding CancelConfirmationCommand}"/>
+                        <Button Style="{StaticResource RegTbBtn}" Content="Delete"
+                                Command="{Binding ConfirmActionCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Border>
+    </Grid>
+</UserControl>

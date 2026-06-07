@@ -80,6 +80,24 @@ public interface IShellServices
     Task<bool> ConfirmAsync(string title, string message, CancellationToken ct = default);
 
     /// <summary>
+    /// Shows the shell's file picker and returns the chosen existing file's full path, or null if
+    /// cancelled. Reuses the shell's themed picker window — features must use this rather than a
+    /// <c>Microsoft.Win32</c> dialog. <paramref name="extensions"/> (e.g. <c>[".reg"]</c>) limits the
+    /// selectable files; null/empty offers any. Marshals to the UI thread.
+    /// </summary>
+    Task<string?> PickOpenFileAsync(IReadOnlyList<string>? extensions = null, string? initialPath = null);
+
+    /// <summary>
+    /// Shows the shell's save-target picker and returns the chosen full destination path (folder +
+    /// file name), or null if cancelled. Reuses the shell's themed picker window — features must use
+    /// this rather than a <c>Microsoft.Win32</c> dialog. <paramref name="defaultFileName"/> pre-fills
+    /// the name; <paramref name="extensions"/> is advisory (the first is appended if the name has no
+    /// extension). Marshals to the UI thread.
+    /// </summary>
+    Task<string?> PickSaveFileAsync(string defaultFileName, IReadOnlyList<string>? extensions = null,
+                                    string? initialPath = null);
+
+    /// <summary>
     /// Requests a refresh of any view that cares (e.g. a file list).
     /// No-op at the shell level — kept for callers whose work is now driven by
     /// file-system watchers in the view layer.

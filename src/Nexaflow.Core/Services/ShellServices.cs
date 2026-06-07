@@ -1,3 +1,4 @@
+using Nexaflow.Core.Controls;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Views;
 using Nexaflow.Elevation.Contracts;
@@ -444,6 +445,51 @@ public sealed class ShellServices : IShellServices
             n++;
         }
         return result;
+    }
+
+    // ── File pickers (reuse the shell's themed picker windows) ───────────────
+
+    public Task<string?> PickOpenFileAsync(IReadOnlyList<string>? extensions = null,
+                                           string? initialPath = null)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+            return dispatcher.Invoke(() => PickOpenFileAsync(extensions, initialPath));
+
+        var owner = FocusedWindow?.Window;
+        return Task.FromResult(FileBrowserWindow.Show(initialPath, extensions, owner));
+    }
+
+    public Task<string?> PickSaveFileAsync(string defaultFileName,
+                                           IReadOnlyList<string>? extensions = null,
+                                           string? initialPath = null)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+            return dispatcher.Invoke(() => PickSaveFileAsync(defaultFileName, extensions, initialPath));
+
+        // Pick the destination folder, then prompt for the file name — composing the two existing
+        // picker surfaces gives a save-target without a Win32 SaveFileDialog.
+        var folder = FolderBrowserWindow.Show(initialPath, FocusedWindow?.Window);
+        if (folder is null) return Task.FromResult<string?>(null);
+
+        var ext = extensions is { Count: > 0 } ? extensions[0] : null;
+
+        var tcs = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var host = FocusedWindow;
+        if (host is null) return Task.FromResult<string?>(null);
+
+        host.ShowPrompt("Save As", "File name:", defaultFileName,
+            onConfirm: name =>
+            {
+                name = name.Trim();
+                if (string.IsNullOrEmpty(name)) { tcs.TrySetResult(null); return; }
+                if (ext is not null && !name.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
+                    name += ext;
+                tcs.TrySetResult(System.IO.Path.Combine(folder, name));
+            },
+            onCancel: () => tcs.TrySetResult(null));
+        return tcs.Task;
     }
 
     // No host-level refresh — feature views drive their own refresh from

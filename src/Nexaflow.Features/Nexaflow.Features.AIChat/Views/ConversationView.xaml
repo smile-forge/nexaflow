@@ -225,7 +225,7 @@
                                                                 HorizontalAlignment="Right" VerticalAlignment="Bottom"
                                                                 Margin="0,0,-4,-2"
                                                                 Background="{StaticResource WarningBrush}"
-                                                                ToolTip="Elevated risk: this tab can act across a whole drive."
+                                                                ToolTip="Elevated risk: the AI can make broad changes within this tab's scope."
                                                                 Visibility="{Binding SecurityRisk, Converter={StaticResource RiskBadgeVis}, ConverterParameter=Medium}">
                                                             <TextBlock Text="!" FontSize="9" FontWeight="Bold"
                                                                        Foreground="{StaticResource OnAccentBrush}"
@@ -236,7 +236,7 @@
                                                                 HorizontalAlignment="Right" VerticalAlignment="Bottom"
                                                                 Margin="0,0,-4,-2"
                                                                 Background="{StaticResource DangerBrush}"
-                                                                ToolTip="High risk: this tab is not confined to a folder — the AI could read or write anywhere on this PC (This PC, the system drive, or the Windows folder)."
+                                                                ToolTip="High risk: this tab's scope is broad and sensitive — the AI could read or change critical parts of your system."
                                                                 Visibility="{Binding SecurityRisk, Converter={StaticResource RiskBadgeVis}, ConverterParameter=High}">
                                                             <TextBlock Text="!" FontSize="9" FontWeight="Bold"
                                                                        Foreground="{StaticResource OnAccentBrush}"

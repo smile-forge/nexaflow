@@ -25,6 +25,7 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Web/Nexaflow.Features.Web.csproj" Id="1d58f28c-ea2b-4bd7-9424-fd71d07ecb6c" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.WindowsApps/Nexaflow.Features.WindowsApps.csproj" Id="2a5a2f9d-18c5-46ba-bfb5-00348abdb95d" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Nexaflow.Features.WindowsFileSystem.csproj" Id="6bff1ec5-6477-4a2f-a5c5-cdb9c665c331" />
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.WindowsRegistry/Nexaflow.Features.WindowsRegistry.csproj" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.WindowsSearch/Nexaflow.Features.WindowsSearch.csproj" />
   </Folder>
   <Folder Name="/Nexaflow.Providers/">
