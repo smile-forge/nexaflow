@@ -1,11 +1,12 @@
 # What's New in Nexaflow
 
-Thanks for updating! Here's what changed.
+Thanks for updating! Here's what changed in v0.9.x
 
 ### 🚀 New Features
 *   **WindowsApps Manager**: Added a new manager for installed Windows applications, including a new "add page" dropdown in the ribbon for easier navigation.
 *   **SystemInfo Dashboard**: A brand new dashboard feature has been implemented to provide system information at a glance.
 *   **Services Manager**: A new manager for Windows services has been added, allowing users to easily view and manage their services.
+*   **Registry Manager**: A new manager for the Windows registry has been introduced, allowing viewing and editing registry keys.
 *   **System Environment Variables Manager**: A new manager for system environment variables has been introduced, making it easier to view and edit environment variables directly from Nexaflow.
 *   **.NET Folder Viewlets**: Introduced specialized viewlets for .NET folders, allowing for more integrated development workflows.
 
@@ -18,6 +19,8 @@ The integration between the file system and the AI assistant has been significan
 ### 🛠️ Bug Fixes & Improvements
 *   Fixed issues with project deletion and scratchpad stability.
 *   General build optimizations and stability improvements.
+*	Conversation improvements
+*	Agent updates
 
 
 Press **Next** to continue.
