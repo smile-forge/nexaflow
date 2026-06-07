@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
@@ -11,22 +12,38 @@ namespace Nexaflow.Tests.Features.UI.Infrastructure;
 /// Launches Nexacore.exe before each test and kills it after.
 /// UI tests require an interactive desktop session — skip in headless/CI with
 /// --filter "TestCategory!=UI".
+///
+/// Each test runs against an isolated, throwaway config dir (NEXAFLOW_CONFIG_DIR) so it
+/// neither depends on nor pollutes the developer's real %APPDATA% config. A fresh config
+/// means the first-run / post-update setup wizard shows on launch; we skip it to reach the
+/// shell window, which is what these tests exercise.
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
 [DoNotParallelize]
 public abstract class UITestBase
 {
+    private string _configDir = null!;
+
     protected Application App { get; private set; } = null!;
     protected UIA3Automation Automation { get; private set; } = null!;
     protected Window MainWindow { get; private set; } = null!;
 
+    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
+
     [TestInitialize]
     public void UISetup()
     {
+        _configDir = Path.Combine(Path.GetTempPath(), "nexaflow-uitest-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(_configDir);
+
         Automation = new UIA3Automation();
-        App        = Application.Launch(FindAppExe());
-        MainWindow = App.GetMainWindow(Automation, TimeSpan.FromSeconds(15))!;
+
+        var psi = new ProcessStartInfo(FindAppExe()) { UseShellExecute = false };
+        psi.EnvironmentVariables["NEXAFLOW_CONFIG_DIR"] = _configDir;   // isolated, fresh
+        App = Application.Launch(psi);
+
+        MainWindow = ResolveShellWindow();
         OnUISetup();
     }
 
@@ -43,6 +60,39 @@ public abstract class UITestBase
     {
         try { App?.Kill(); } catch { /* already exited */ }
         Automation?.Dispose();
+        try { if (Directory.Exists(_configDir)) Directory.Delete(_configDir, recursive: true); } catch { }
+    }
+
+    /// <summary>
+    /// Returns the shell window (AutomationId "MainWindow"), skipping the setup wizard first if it
+    /// appears. A fresh config root makes the first-run wizard show modally before the shell, so a
+    /// naive GetMainWindow would grab the wizard ("Nexaflow Setup") instead of the shell.
+    /// </summary>
+    private Window ResolveShellWindow()
+    {
+        var sw = Stopwatch.StartNew();
+        while (sw.Elapsed < Timeout)
+        {
+            Window[] windows;
+            try { windows = App.GetAllTopLevelWindows(Automation); }
+            catch { windows = []; }
+
+            var shell = windows.FirstOrDefault(w =>
+                w.Properties.AutomationId.ValueOrDefault == "MainWindow");
+            if (shell is not null) return shell;
+
+            var wizard = windows.FirstOrDefault(w =>
+                string.Equals(w.Title, "Nexaflow Setup", StringComparison.Ordinal));
+            var skip = wizard?
+                .FindFirstDescendant(cf => cf.ByAutomationId("WizardSkipButton"))?
+                .AsButton();
+            if (skip is { IsEnabled: true }) skip.Invoke();
+
+            System.Threading.Thread.Sleep(100);
+        }
+
+        throw new TimeoutException(
+            $"Shell window (AutomationId 'MainWindow') did not appear within {Timeout.TotalSeconds:0}s.");
     }
 
     /// <summary>
