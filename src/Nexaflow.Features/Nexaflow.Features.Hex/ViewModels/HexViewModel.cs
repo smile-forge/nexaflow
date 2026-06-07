@@ -1,11 +1,9 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Win32;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Hex.Buffer;
 using System.Globalization;
 using System.IO;
-using System.Windows;
 
 namespace Nexaflow.Features.Hex.ViewModels;
 
@@ -14,6 +12,8 @@ public enum HexEncoding   { Auto, Ascii, Utf8, Utf16LE, Utf16BE }
 
 public sealed partial class HexViewModel : ObservableObject, IPageViewModel, IDisposable
 {
+    private readonly IShellServices _shell;
+
     // ── Buffer ────────────────────────────────────────────────────────────────
     public HexBuffer Buffer { get; }
 
@@ -54,8 +54,9 @@ public sealed partial class HexViewModel : ObservableObject, IPageViewModel, IDi
     // ── Event to request visual refresh of both panels ────────────────────────
     public event Action? InvalidateView;
 
-    public HexViewModel(string filePath)
+    public HexViewModel(string filePath, IShellServices shell)
     {
+        _shell   = shell;
         FilePath = filePath;
         Buffer   = new HexBuffer(filePath);
         TotalRows = Buffer.TotalRows;
@@ -272,26 +273,24 @@ public sealed partial class HexViewModel : ObservableObject, IPageViewModel, IDi
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Save failed: {ex.Message}", "Hex Editor", MessageBoxButton.OK, MessageBoxImage.Error);
+            _shell.ShowError($"Save failed: {ex.Message}");
         }
     }
 
     [RelayCommand(CanExecute = nameof(CanSave))]
-    private void SaveAs()
+    private async Task SaveAs()
     {
-        var dlg = new SaveFileDialog
-        {
-            Title      = "Save As",
-            FileName   = Path.GetFileName(FilePath),
-            Filter     = "All files (*.*)|*.*",
-            DefaultExt = Path.GetExtension(FilePath),
-        };
-        if (dlg.ShowDialog() != true) return;
+        var ext  = Path.GetExtension(FilePath);
+        var path = await _shell.PickSaveFileAsync(
+            Path.GetFileName(FilePath),
+            string.IsNullOrEmpty(ext) ? null : [ext],
+            Path.GetDirectoryName(FilePath));
+        if (path is null) return;
 
         try
         {
-            Buffer.Save(dlg.FileName);
-            FilePath     = dlg.FileName;
+            Buffer.Save(path);
+            FilePath     = path;
             IsModified   = false;
             FileSizeText = FormatSize(Buffer.FileLength);
             SaveCommand.NotifyCanExecuteChanged();
@@ -299,7 +298,7 @@ public sealed partial class HexViewModel : ObservableObject, IPageViewModel, IDi
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Save failed: {ex.Message}", "Hex Editor", MessageBoxButton.OK, MessageBoxImage.Error);
+            _shell.ShowError($"Save failed: {ex.Message}");
         }
     }
 
