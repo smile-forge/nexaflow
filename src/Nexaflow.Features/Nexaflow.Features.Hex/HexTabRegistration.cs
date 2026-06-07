@@ -5,7 +5,7 @@ using System.IO;
 
 namespace Nexaflow.Features.Hex;
 
-public sealed class HexTabRegistration : IPageRegistration
+public sealed class HexTabRegistration(IShellServices shell) : IPageRegistration
 {
     public static string StaticPageKind => "Hex";
     public string PageKind => StaticPageKind;
@@ -20,7 +20,7 @@ public sealed class HexTabRegistration : IPageRegistration
             Title          = title,
             Icon           = "⬡",
             Breadcrumbs    = { new BreadcrumbSegment { Label = title } },
-            ContentFactory = () => new HexView(new HexViewModel(path)),
+            ContentFactory = () => new HexView(new HexViewModel(path, shell)),
         };
     }
 }

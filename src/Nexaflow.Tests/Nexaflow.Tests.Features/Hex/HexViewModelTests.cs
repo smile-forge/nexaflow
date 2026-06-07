@@ -1,11 +1,15 @@
 using System.IO;
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Hex.ViewModels;
+using NSubstitute;
 
 namespace Nexaflow.Tests.Features.Hex;
 
 [TestClass]
 public class HexViewModelTests
 {
+    private static readonly IShellServices _shell = Substitute.For<IShellServices>();
+
     private static string WriteTempFile(byte[] bytes)
     {
         var path = Path.Combine(Path.GetTempPath(), $"hexvm_{Guid.NewGuid():N}.bin");
@@ -16,7 +20,7 @@ public class HexViewModelTests
     [TestMethod]
     public void Ctor_NoFile_StartsReadOnly_WithAsciiEncoding()
     {
-        using var vm = new HexViewModel(string.Empty);
+        using var vm = new HexViewModel(string.Empty, _shell);
         Assert.AreEqual(HexEditMode.ReadOnly, vm.EditMode);
         Assert.IsTrue(vm.IsReadOnly);
         Assert.AreEqual(HexEncoding.Auto, vm.Encoding);
@@ -30,7 +34,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[100]);
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             Assert.AreEqual(path, vm.FilePath);
             Assert.AreEqual(100, vm.Buffer.VirtualLength);
             Assert.AreEqual("100 B", vm.FileSizeText);
@@ -44,7 +48,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[] { 0xEF, 0xBB, 0xBF, 0x41 });
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             Assert.AreEqual(HexEncoding.Utf8, vm.ResolvedEncoding);
         }
         finally { File.Delete(path); }
@@ -56,7 +60,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[] { 0xFF, 0xFE, 0x41, 0x00 });
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             Assert.AreEqual(HexEncoding.Utf16LE, vm.ResolvedEncoding);
         }
         finally { File.Delete(path); }
@@ -68,7 +72,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[] { 0xFE, 0xFF, 0x00, 0x41 });
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             Assert.AreEqual(HexEncoding.Utf16BE, vm.ResolvedEncoding);
         }
         finally { File.Delete(path); }
@@ -80,7 +84,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[] { 0x48, 0x69 }); // "Hi"
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             Assert.AreEqual(HexEncoding.Ascii, vm.ResolvedEncoding);
         }
         finally { File.Delete(path); }
@@ -92,7 +96,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[] { 0xEF, 0xBB, 0xBF, 0x41 });
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             Assert.AreEqual(HexEncoding.Utf8, vm.ResolvedEncoding);
 
             vm.SetEncodingUtf16LECommand.Execute(null);
@@ -109,7 +113,7 @@ public class HexViewModelTests
     [TestMethod]
     public void SetModeCommands_FlipBooleanFlags()
     {
-        using var vm = new HexViewModel(string.Empty);
+        using var vm = new HexViewModel(string.Empty, _shell);
 
         vm.SetModeInsertCommand.Execute(null);
         Assert.AreEqual(HexEditMode.Insert, vm.EditMode);
@@ -135,7 +139,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             vm.WriteByte(0, 0xFF);
             Assert.IsFalse(vm.IsModified);
             Assert.AreEqual(1, vm.Buffer.ReadByte(0));
@@ -149,7 +153,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             vm.SetModeOverwriteCommand.Execute(null);
             vm.WriteByte(1, 0xAB);
 
@@ -166,7 +170,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             vm.SetModeInsertCommand.Execute(null);
             vm.WriteByte(1, 0x99);
 
@@ -184,7 +188,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             vm.DeleteByte(0);
             Assert.IsFalse(vm.IsModified);
             Assert.AreEqual(3, vm.Buffer.VirtualLength);
@@ -198,7 +202,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             vm.SetModeInsertCommand.Execute(null);
             vm.DeleteByte(1);
 
@@ -215,7 +219,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[] { 1, 2, 3, 4 });
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             vm.SetCursor(2);
             Assert.AreEqual(2, vm.CursorOffset);
 
@@ -234,7 +238,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[] { 1, 2, 3, 4 });
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             vm.SetSelection(1, 2);
             vm.SetCursor(0);
             Assert.AreEqual(0, vm.SelectionLength);
@@ -249,7 +253,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[] { 1, 2, 3, 4, 5 });
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             vm.SetSelection(1, 3);
             Assert.AreEqual(1, vm.SelectionStart);
             Assert.AreEqual(3, vm.SelectionLength);
@@ -266,7 +270,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[10]);
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             vm.SetCursor(3);
             vm.ExtendSelection(6);
             Assert.AreEqual(3, vm.SelectionStart);
@@ -286,7 +290,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             vm.SetCursor(1);
             StringAssert.Contains(vm.SelectionText, "Offset:");
             StringAssert.Contains(vm.SelectionText, "0x");
@@ -301,7 +305,7 @@ public class HexViewModelTests
         var path = WriteTempFile(data);
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             vm.VisibleRowCount = 4;
             vm.GotoText = "0x100"; // 256 → row 16
             vm.GotoOffsetCommand.Execute(null);
@@ -319,7 +323,7 @@ public class HexViewModelTests
         var path = WriteTempFile(data);
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             vm.GotoText = "32"; // valid hex too — parser will take hex path → 0x32 = 50
             vm.GotoOffsetCommand.Execute(null);
             Assert.AreEqual(0x32, vm.CursorOffset);
@@ -333,7 +337,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[16]);
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             vm.GotoText = "0xFFFFFF";
             vm.GotoOffsetCommand.Execute(null);
             Assert.AreEqual(15, vm.CursorOffset);
@@ -347,7 +351,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[64]);
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             vm.SetCursor(5);
             vm.GotoText = "notahex";
             vm.GotoOffsetCommand.Execute(null);
@@ -359,7 +363,7 @@ public class HexViewModelTests
     [TestMethod]
     public void ToggleEvaluatePane_FlipsFlag()
     {
-        using var vm = new HexViewModel(string.Empty);
+        using var vm = new HexViewModel(string.Empty, _shell);
         Assert.IsTrue(vm.ShowEvaluatePane);
         vm.ToggleEvaluatePaneCommand.Execute(null);
         Assert.IsFalse(vm.ShowEvaluatePane);
@@ -373,7 +377,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             vm.SetModeOverwriteCommand.Execute(null);
             vm.WriteByte(0, 0xAA);
             Assert.IsTrue(vm.IsModified);
@@ -391,7 +395,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[16 * 100]);
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             vm.VisibleRowCount = 10;
 
             vm.ScrollToRow(-50);
@@ -409,7 +413,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[16 * 100]);
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             vm.VisibleRowCount = 10;
             vm.TopRow = 0;
             vm.SetCursor(16 * 50); // row 50, off-screen below
@@ -425,7 +429,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[16 * 100]);
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             vm.VisibleRowCount = 10;
             vm.TopRow = 80;
             vm.SetCursor(16 * 5); // row 5, off-screen above
@@ -441,7 +445,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[1024]);
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             int fires = 0;
             vm.InvalidateView += () => fires++;
             vm.TopRow = 5;
@@ -456,7 +460,7 @@ public class HexViewModelTests
         var path = WriteTempFile(new byte[16]);
         try
         {
-            using var vm = new HexViewModel(path);
+            using var vm = new HexViewModel(path, _shell);
             vm.SetModeInsertCommand.Execute(null);
             var ctx = vm.GetContext();
             StringAssert.Contains(ctx, path);
