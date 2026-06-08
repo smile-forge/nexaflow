@@ -170,6 +170,14 @@ public partial class App : Application
 
         FileMapManager.Instance.Initialize(externalAppsConfig.UseRegistryMapping);
 
+        // ShellNew create-file entries from HKCR — gated on the same registry-mapping option.
+        ShellNewRegistry.Instance.Initialize(externalAppsConfig.UseRegistryMapping);
+
+        // Templated-create (user templates) — global config + its appdata template store.
+        var templatedCreateConfig = new TemplatedCreateConfig();
+        ConfigManager.Instance.Register(templatedCreateConfig, templatedCreateConfig.ConfigName);
+        TemplatedCreateRegistry.Instance.Initialize(templatedCreateConfig, ConfigManager.Instance.BaseDir);
+
         // ── 6. Feature system ────────────────────────────────────────────────
         FeatureManager.Instance.RegisterFeatures();
 

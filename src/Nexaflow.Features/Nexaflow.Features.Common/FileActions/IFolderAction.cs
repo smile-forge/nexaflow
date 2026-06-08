@@ -47,6 +47,13 @@ namespace Nexaflow.Features.Common
         ImageSource? IconImage => null;
         string? Tooltip => null;
 
+        /// <summary>
+        /// Whether this action may be pinned to the ribbon (and dragged there). Defaults to
+        /// <c>true</c>; set <c>false</c> for synthetic/menu folder actions that can't be
+        /// rehydrated from a ribbon button (e.g. the file browser's "New" button).
+        /// </summary>
+        bool IsRibbonPinnable => true;
+
         bool PerformAction(string folderPath);
         bool PerformAction(IEnumerable<string> folderPaths);
 

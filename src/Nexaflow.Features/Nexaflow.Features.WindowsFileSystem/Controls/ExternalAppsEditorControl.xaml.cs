@@ -259,6 +259,8 @@ public partial class ExternalAppsEditorControl : UserControl, ICustomConfigApply
         cfg.UseRegistryMapping = UseRegistryMapping;
         cfg.Apps = _rows.Select(r => r.ToDefinition()).ToList();
         ExternalAppRegistry.Instance.Update(cfg);
+        // Registry-derived ShellNew entries follow the same toggle: start/stop the HKCR scan.
+        ShellNewRegistry.Instance.Update(cfg.UseRegistryMapping);
         _hasChanges = false;
         HasChangesChanged?.Invoke(this, EventArgs.Empty);
     }

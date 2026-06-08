@@ -824,6 +824,7 @@
                                 <DataTemplate DataType="{x:Type vm:FileActionViewModel}">
                                     <Button Command="{Binding ExecuteCommand}"
                                             ToolTip="{Binding ButtonTooltip}"
+                                            AutomationProperties.AutomationId="{Binding DisplayName}"
                                             Width="54" Height="58"
                                             Margin="1"
                                             Cursor="Hand"
@@ -962,9 +963,13 @@
                     </ScrollViewer>
                 </Grid>
             </Border>
+        </Grid>
 
-            <!-- ── Input Prompt Overlay (spans entire right pane) ───────────── -->
-            <Border Grid.Row="0" Grid.Column="0" Grid.RowSpan="3" Grid.ColumnSpan="2"
+        <!-- ── Modal overlays — root-grid children so they cover the WHOLE page
+                 (tree + right pane), not just the file list. ─────────────────── -->
+
+        <!-- ── Input Prompt Overlay ─────────────────────────────────────── -->
+            <Border Grid.Row="0" Grid.Column="0" Grid.RowSpan="3" Grid.ColumnSpan="3"
                     Visibility="{Binding InputPromptVisible,
                                  Converter={StaticResource BoolToVis}}"
                     Background="#CC000000"
@@ -1075,8 +1080,227 @@
                 </Border>
             </Border>
 
+            <!-- ── Create Overlay (single pane: type picker + filename) ─────── -->
+            <Border x:Name="CreateOverlay"
+                    Grid.Row="0" Grid.Column="0" Grid.RowSpan="3" Grid.ColumnSpan="3"
+                    Visibility="{Binding CreateOverlayVisible,
+                                 Converter={StaticResource BoolToVis}}"
+                    Background="#CC000000"
+                    Panel.ZIndex="21">
+                <Border Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource AccentBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Width="520"
+                        MaxHeight="470"
+                        Padding="16"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="Create new"
+                                   Foreground="{StaticResource TextBrush}"
+                                   FontSize="13" FontWeight="SemiBold"
+                                   Margin="0,0,0,10"/>
+
+                        <!-- Bottom: filename, existence warning, action buttons -->
+                        <StackPanel DockPanel.Dock="Bottom">
+                            <Border BorderThickness="1" CornerRadius="3" Margin="0,10,0,0">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CreateNameExists}" Value="True">
+                                                <Setter Property="BorderBrush" Value="{StaticResource WarningBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBox x:Name="CreateFileNameBox"
+                                         Text="{Binding CreateFileName, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="{StaticResource Surface2Brush}"
+                                         Foreground="{StaticResource TextBrush}"
+                                         CaretBrush="{StaticResource TextBrush}"
+                                         BorderThickness="0"
+                                         FontSize="12"
+                                         Padding="8,6"
+                                         GotFocus="CreateFileNameBox_GotFocus"
+                                         KeyDown="CreateFileNameBox_KeyDown"/>
+                            </Border>
+                            <TextBlock x:Name="CreateNameWarning"
+                                       Text="An item with this name already exists."
+                                       Foreground="{StaticResource WarningBrush}"
+                                       FontSize="11"
+                                       Margin="0,4,0,0"
+                                       Visibility="{Binding CreateNameExists, Converter={StaticResource BoolToVis}}"/>
+                            <Button x:Name="CreateConfirmButton" Content="Create"
+                                    Command="{Binding CreateCommand}"
+                                    Cursor="Hand"
+                                    Margin="0,10,0,6">
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Setter Property="Background"      Value="{StaticResource AccentBrush}"/>
+                                        <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
+                                        <Setter Property="BorderThickness" Value="0"/>
+                                        <Setter Property="Padding"         Value="0,7"/>
+                                        <Setter Property="FontSize"        Value="12"/>
+                                        <Setter Property="FontWeight"      Value="SemiBold"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="Bd"
+                                                            Background="{TemplateBinding Background}"
+                                                            CornerRadius="4"
+                                                            Padding="{TemplateBinding Padding}">
+                                                        <ContentPresenter HorizontalAlignment="Center"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsEnabled" Value="False">
+                                                            <Setter TargetName="Bd" Property="Opacity" Value="0.4"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <Button Content="Cancel"
+                                    Command="{Binding CancelCreateCommand}"
+                                    Cursor="Hand">
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Setter Property="Background"      Value="{StaticResource Surface2Brush}"/>
+                                        <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
+                                        <Setter Property="BorderThickness" Value="0"/>
+                                        <Setter Property="Padding"         Value="0,7"/>
+                                        <Setter Property="FontSize"        Value="12"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="Bd"
+                                                            Background="{TemplateBinding Background}"
+                                                            CornerRadius="4"
+                                                            Padding="{TemplateBinding Padding}">
+                                                        <ContentPresenter HorizontalAlignment="Center"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="Bd" Property="Background"
+                                                                    Value="{StaticResource BorderBrush}"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </StackPanel>
+
+                        <!-- Middle: scrollable type icons — ~5 columns, 2 visible rows then scroll
+                             (each 84×74 cell + 3px margin = 90×80; 2 rows ≈ 160px). -->
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      MaxHeight="166"
+                                      Margin="0,0,0,4">
+                            <ItemsControl ItemsSource="{Binding CreateActions}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:CreateActionViewModel}">
+                                        <Button Command="{Binding SelectCommand}"
+                                                AutomationProperties.AutomationId="{Binding DisplayName}"
+                                                ToolTip="{Binding DisplayName}"
+                                                Width="84" Height="74" Margin="3"
+                                                Cursor="Hand">
+                                            <Button.Style>
+                                                <Style TargetType="Button">
+                                                    <Setter Property="Background"      Value="{StaticResource Surface2Brush}"/>
+                                                    <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
+                                                    <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
+                                                    <Setter Property="BorderThickness" Value="1"/>
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="Button">
+                                                                <Border x:Name="Bd"
+                                                                        Background="{TemplateBinding Background}"
+                                                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                                                        CornerRadius="4"
+                                                                        Padding="4">
+                                                                    <StackPanel VerticalAlignment="Center"
+                                                                                HorizontalAlignment="Center">
+                                                                        <Image Source="{Binding IconImage}"
+                                                                               Width="22" Height="22"
+                                                                               RenderOptions.BitmapScalingMode="HighQuality">
+                                                                            <Image.Style>
+                                                                                <Style TargetType="Image">
+                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding IconImage, Converter={x:Static cv:NullToBoolConverter.Instance}}" Value="True">
+                                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Image.Style>
+                                                                        </Image>
+                                                                        <TextBlock Text="{Binding Icon}"
+                                                                                   FontSize="20"
+                                                                                   HorizontalAlignment="Center">
+                                                                            <TextBlock.Style>
+                                                                                <Style TargetType="TextBlock">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding IconImage, Converter={x:Static cv:NullToBoolConverter.Instance}}" Value="True">
+                                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </TextBlock.Style>
+                                                                        </TextBlock>
+                                                                        <TextBlock Text="{Binding DisplayName}"
+                                                                                   FontSize="9"
+                                                                                   HorizontalAlignment="Center"
+                                                                                   TextAlignment="Center"
+                                                                                   TextTrimming="CharacterEllipsis"
+                                                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                                                   Margin="0,3,0,0"
+                                                                                   MaxWidth="74"/>
+                                                                    </StackPanel>
+                                                                </Border>
+                                                                <ControlTemplate.Triggers>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter TargetName="Bd" Property="BorderBrush"
+                                                                                Value="{StaticResource AccentBrush}"/>
+                                                                    </Trigger>
+                                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                        <Setter TargetName="Bd" Property="BorderBrush"
+                                                                                Value="{StaticResource AccentBrush}"/>
+                                                                        <Setter TargetName="Bd" Property="BorderThickness" Value="2"/>
+                                                                    </DataTrigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+            </Border>
+
             <!-- ── Confirmation Overlay (spans entire right pane) ───────────── -->
-            <Border Grid.Row="0" Grid.Column="0" Grid.RowSpan="3" Grid.ColumnSpan="2"
+            <Border Grid.Row="0" Grid.Column="0" Grid.RowSpan="3" Grid.ColumnSpan="3"
                     Visibility="{Binding ConfirmationVisible,
                                  Converter={StaticResource BoolToVis}}"
                     Background="#CC000000"
@@ -1171,8 +1395,6 @@
                     </StackPanel>
                 </Border>
             </Border>
-
-        </Grid>
 
         <!-- ── Drop tooltip: follows cursor during drag-over ────────────── -->
         <Popup x:Name="DropTooltipPopup"

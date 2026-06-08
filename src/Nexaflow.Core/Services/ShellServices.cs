@@ -492,9 +492,19 @@ public sealed class ShellServices : IShellServices
         return tcs.Task;
     }
 
-    // No host-level refresh — feature views drive their own refresh from
-    // file-system events; actions that mutate the file system rely on that.
-    void IShellServices.RequestRefresh() { }
+    // Refreshes the focused window's active page by re-initialising it with its current params.
+    // Reinitialize is the established refresh idiom (tab (re)activation calls it too); for the file
+    // browser it re-enumerates the current folder. Actions that mutate the file system from a
+    // shell-level overlay — rename / delete — call this from their confirm callback.
+    void IShellServices.RequestRefresh()
+    {
+        Application.Current?.Dispatcher.Invoke(() =>
+        {
+            var active = FocusedWindow?.Tabs.FirstOrDefault(t => t.IsActive);
+            if (active?.Content is IPageView view)
+                view.Reinitialize(active.PageParams ?? []);
+        });
+    }
 
     void IShellServices.PinToRibbon(string contentKind, object payload)
         => (_focused ?? _windows.FirstOrDefault())
