@@ -98,9 +98,9 @@ public interface IShellServices
                                     string? initialPath = null);
 
     /// <summary>
-    /// Requests a refresh of any view that cares (e.g. a file list).
-    /// No-op at the shell level — kept for callers whose work is now driven by
-    /// file-system watchers in the view layer.
+    /// Refreshes the focused window's active page (re-initialises it with its current params).
+    /// Used by actions that mutate the file system from a shell-level overlay — e.g. rename / delete —
+    /// to re-enumerate the file list once the change is committed.
     /// </summary>
     void RequestRefresh();
 

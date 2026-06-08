@@ -86,7 +86,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     }
 
     private bool CanPinFileActionToRibbon(FileActionViewModel? vm)
-        => vm is not null && !vm.IsDestructive;
+        => vm is not null && !vm.IsDestructive && vm.IsRibbonPinnable;
 
     // Debounce timer — action strip is only rebuilt after input has been idle
     // for a short interval, so rapid selection changes (including double-clicks)
@@ -186,6 +186,109 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
         _pendingInputCancel  = null;
         cancel?.Invoke();
     }
+
+    // ── Create overlay (the "New" button) ──────────────────────────────────────
+    // A single pane: pick a file type from the icon list, name it below. The name is
+    // prefilled per type, its extension follows the selected type, and a live warning
+    // shows when the resolved name already exists in the current folder.
+
+    [ObservableProperty] private bool _createOverlayVisible;
+    [ObservableProperty] private CreateActionViewModel? _selectedCreateAction;
+    [ObservableProperty] private string _createFileName = string.Empty;
+    [ObservableProperty] private bool _createNameExists;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CreateCommand))]
+    private bool _canCreate;
+
+    public ObservableCollection<CreateActionViewModel> CreateActions { get; } = [];
+
+    /// <summary>Opens the create overlay, populated live from every create-action source.</summary>
+    public void OpenCreateOverlay()
+    {
+        if (_isThisPcMode || string.IsNullOrEmpty(CurrentPath) || !Directory.Exists(CurrentPath))
+            return;
+        OpenCreateOverlayWith(_actionRegistry.GetCreateActions());
+    }
+
+    /// <summary>Populates and shows the overlay for a given action set (also the unit-test seam).</summary>
+    internal void OpenCreateOverlayWith(IReadOnlyList<IFileCreateAction> actions)
+    {
+        CreateActions.Clear();
+        foreach (var action in actions)
+            CreateActions.Add(new CreateActionViewModel(action, SelectCreateAction));
+
+        SelectedCreateAction = CreateActions.FirstOrDefault();
+        RecomputeCreateState();          // also covers the empty-list case
+        CreateOverlayVisible = true;
+    }
+
+    private void SelectCreateAction(CreateActionViewModel a) => SelectedCreateAction = a;
+
+    partial void OnSelectedCreateActionChanged(CreateActionViewModel? value)
+    {
+        foreach (var a in CreateActions)
+            a.IsSelected = ReferenceEquals(a, value);
+        CreateFileName = DefaultNameFor(value);   // triggers RecomputeCreateState via OnCreateFileNameChanged
+    }
+
+    partial void OnCreateFileNameChanged(string value) => RecomputeCreateState();
+
+    private static string DefaultNameFor(CreateActionViewModel? a)
+    {
+        if (a is null) return string.Empty;
+        return string.IsNullOrEmpty(a.FileExtension) ? "New Folder" : "New File" + a.FileExtension;
+    }
+
+    /// <summary>Applies the host extension rule: keep the user's extension, else append the type's.</summary>
+    private string ResolveCreateName()
+    {
+        var name = (CreateFileName ?? string.Empty).Trim();
+        if (name.Length == 0 || SelectedCreateAction is null) return name;
+        return Path.HasExtension(name) ? name : name + SelectedCreateAction.FileExtension;
+    }
+
+    private void RecomputeCreateState()
+    {
+        var name = ResolveCreateName();
+        bool valid = SelectedCreateAction is not null
+                     && name.Length > 0
+                     && name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
+
+        bool exists = false;
+        if (valid && !string.IsNullOrEmpty(CurrentPath))
+        {
+            var full = Path.Combine(CurrentPath, name);
+            exists = File.Exists(full) || Directory.Exists(full);
+        }
+
+        CreateNameExists = valid && exists;
+        CanCreate        = valid && !exists;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCreate))]
+    private void Create()
+    {
+        var action = SelectedCreateAction?.Action;
+        if (action is null) return;
+
+        var name = ResolveCreateName();
+        if (name.Length == 0) return;
+
+        CreateOverlayVisible = false;
+        try
+        {
+            action.Create(CurrentPath, name);
+        }
+        catch (Exception ex)
+        {
+            _shell.ShowError($"Could not create '{name}': {ex.Message}");
+        }
+        Refresh();
+    }
+
+    [RelayCommand]
+    private void CancelCreate() => CreateOverlayVisible = false;
 
     // ── Refresh ───────────────────────────────────────────────────────────────
     /// <summary>
@@ -382,7 +485,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
 
         FileActions.Clear();
 
-        void AddAction(IFileAction action)
+        FileActionViewModel BuildActionVm(IFileAction action)
         {
             var vm = new FileActionViewModel(action);
             vm.ShiftHeld = ShiftHeld;
@@ -398,8 +501,10 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
                 foreach (var other in FileActions)
                     other.IsDimmed = false;
             };
-            FileActions.Add(vm);
+            return vm;
         }
+
+        void AddAction(IFileAction action) => FileActions.Add(BuildActionVm(action));
 
         foreach (var action in applicable)
             AddAction(action);
@@ -409,6 +514,15 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
 
         foreach (var custom in customActions)
             AddAction(custom);
+
+        // "New" — the first item when an empty folder area is in focus (no file selected). It is a
+        // folder action (operates on the current folder) whose PerformAction opens the create overlay.
+        if (useFolderActions && selected.Count == 0 && !_isThisPcMode
+            && !string.IsNullOrEmpty(CurrentPath) && Directory.Exists(CurrentPath))
+        {
+            var newAction = new FolderActionAdapter(new NewMenuAction(OpenCreateOverlay));
+            FileActions.Insert(0, BuildActionVm(newAction));
+        }
     }
 
     private bool   _isThisPcMode;
@@ -749,6 +863,10 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
         {
             _navigating = false;
         }
+
+        // Build the empty-selection action strip so the "New" button is available
+        // immediately on entering a folder (no click required).
+        OnSelectionChanged([]);
     }
 
     [RelayCommand]

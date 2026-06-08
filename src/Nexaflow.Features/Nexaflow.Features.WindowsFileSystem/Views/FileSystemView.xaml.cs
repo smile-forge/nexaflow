@@ -100,7 +100,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     private void ActionStrip_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         _actionDragVm = FindActionViewModelAt(e.OriginalSource as DependencyObject);
-        if (_actionDragVm is null || _actionDragVm.IsDestructive) return;
+        if (_actionDragVm is null || _actionDragVm.IsDestructive || !_actionDragVm.IsRibbonPinnable) return;
         _actionDragStartPoint = e.GetPosition(null);
         _actionDragPending    = true;
     }
@@ -188,6 +188,24 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
                 InputPromptTextBox.SelectAll();
             });
         }
+        else if (e.PropertyName == nameof(FileSystemViewModel.CreateOverlayVisible)
+                 && ViewModel.CreateOverlayVisible)
+        {
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, () =>
+            {
+                CreateFileNameBox.Focus();
+                SelectBaseName(CreateFileNameBox);
+            });
+        }
+    }
+
+    /// <summary>Selects the name without its extension (Explorer-style), so the user types over it.</summary>
+    private static void SelectBaseName(TextBox tb)
+    {
+        var text = tb.Text ?? string.Empty;
+        int dot  = text.LastIndexOf('.');
+        if (dot > 0) tb.Select(0, dot);
+        else tb.SelectAll();
     }
 
     // ── Viewlet management ────────────────────────────────────────────────
@@ -387,8 +405,20 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     // ── Column header sorting ─────────────────────────────────────────────
     private void OnColumnHeaderClick(object sender, RoutedEventArgs e)
     {
-        if (e.OriginalSource is GridViewColumnHeader { Column.Header: SortableHeader header })
-            ViewModel.SortByCommand.Execute(header.Key);
+        if (e.OriginalSource is not GridViewColumnHeader { Column.Header: SortableHeader header }) return;
+        if (sender is not ListView lv) return;
+
+        // ResortEntries() rebuilds the Entries collection, which drops the ListView selection.
+        // Capture and restore it (same entry instances, reordered) so sorting keeps the selection.
+        var selected = lv.SelectedItems.OfType<FileSystemEntry>().ToList();
+
+        ViewModel.SortByCommand.Execute(header.Key);
+
+        if (selected.Count > 0)
+        {
+            lv.SelectedItems.Clear();
+            foreach (var entry in selected) lv.SelectedItems.Add(entry);
+        }
     }
 
     // ── File list selection ───────────────────────────────────────────────
@@ -399,17 +429,33 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         ViewModel.OnSelectionChanged(selected);
     }
 
-    // Clicking an already-selected item deselects it (works for single and multi-selection)
+    // Clicking an already-selected item deselects it (works for single and multi-selection);
+    // clicking the empty area below the rows clears the selection.
     private void FileListView_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is not ListView lv) return;
 
-        // Walk up from the clicked element to find the ListViewItem
+        // Walk up from the clicked element, noting whether we hit a row, a column header, or chrome.
         var element = e.OriginalSource as DependencyObject;
-        while (element is not null && element is not ListViewItem)
+        ListViewItem? item = null;
+        bool onHeaderOrChrome = false;
+        while (element is not null)
+        {
+            if (element is ListViewItem lvi) { item = lvi; break; }
+            if (element is GridViewColumnHeader or ScrollBar or Thumb) { onHeaderOrChrome = true; break; }
             element = System.Windows.Media.VisualTreeHelper.GetParent(element);
+        }
 
-        if (element is not ListViewItem item) return;
+        // Empty area below the rows: clear the selection (mirrors clicking a selected row).
+        // Header/scrollbar clicks are left alone so sorting keeps the selection.
+        if (item is null)
+        {
+            _listDragPending = false;
+            if (!onHeaderOrChrome && Keyboard.Modifiers == ModifierKeys.None && lv.SelectedItems.Count > 0)
+                lv.UnselectAll();
+            return;
+        }
+
         if (item.DataContext is not FileSystemEntry entry) return;
 
         // Never intercept double-clicks — let them reach the MouseBinding.
@@ -615,6 +661,26 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         else if (e.Key == Key.Escape)
         {
             ViewModel.CancelInputPromptCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
+
+    private void CreateFileNameBox_GotFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox tb) SelectBaseName(tb);
+    }
+
+    private void CreateFileNameBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            if (ViewModel.CreateCommand.CanExecute(null))
+                ViewModel.CreateCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            ViewModel.CancelCreateCommand.Execute(null);
             e.Handled = true;
         }
     }

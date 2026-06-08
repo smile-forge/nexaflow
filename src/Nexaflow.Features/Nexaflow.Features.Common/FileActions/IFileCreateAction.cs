@@ -1,3 +1,5 @@
+using System.Windows.Media;
+
 namespace Nexaflow.Features.Common;
 
 /// <summary>
@@ -10,12 +12,24 @@ public interface IFileCreateAction
     string Icon { get; }
     string DisplayName { get; }
 
-    /// <summary>File extension produced, e.g. ".html" or ".md".</summary>
+    /// <summary>
+    /// Optional WPF image to display instead of the <see cref="Icon"/> glyph (e.g. a real
+    /// shell icon for a registry ShellNew entry). Must be frozen if created off the UI thread.
+    /// </summary>
+    ImageSource? IconImage => null;
+
+    /// <summary>
+    /// Default file extension produced, e.g. ".html" or ".md".
+    /// Empty for actions that create something extensionless (e.g. a folder).
+    /// The host uses this to resolve the final name when the user omits an extension.
+    /// </summary>
     string FileExtension { get; }
 
     /// <summary>
-    /// Creates a new file in <paramref name="folderPath"/>.
-    /// Returns the full path of the created file, or <c>null</c> on cancellation/failure.
+    /// Creates the new item named <paramref name="fileName"/> inside <paramref name="folderPath"/>.
+    /// <paramref name="fileName"/> is already extension-resolved by the host (the user's extension
+    /// if they typed one, otherwise <see cref="FileExtension"/> appended), so implementations use it
+    /// verbatim. Returns the full path of the created item, or <c>null</c> on failure.
     /// </summary>
-    string? Create(string folderPath);
+    string? Create(string folderPath, string fileName);
 }

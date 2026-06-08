@@ -27,6 +27,7 @@ public sealed class FolderActionAdapter : IFileAction
     public bool         CanPerformAction      => Inner.CanPerformAction;
     public ImageSource? IconImage             => Inner.IconImage;
     public string?      Tooltip               => Inner.Tooltip;
+    public bool         IsRibbonPinnable      => Inner.IsRibbonPinnable;
 
     public bool PerformAction(string filePath)
         => Inner.PerformAction(filePath);

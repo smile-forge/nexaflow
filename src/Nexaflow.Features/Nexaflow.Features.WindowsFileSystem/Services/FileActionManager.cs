@@ -22,8 +22,19 @@ public sealed class FileActionManager
     private IReadOnlyList<IFileAction>   File   => _registry.FileActions;
     private IReadOnlyList<IFolderAction> Folder => _registry.FolderActions;
 
-    /// <summary>All discovered create-file actions.</summary>
-    public IReadOnlyList<IFileCreateAction> CreateActions => _registry.FileCreateActions;
+    /// <summary>
+    /// All create-file actions offered by the "New" picker, aggregated live from every source:
+    /// code-defined (discovered, e.g. Folder / Text File), HKCR ShellNew entries (when registry
+    /// mapping is on), and user templates. Read each time the picker opens so an Options Save is
+    /// reflected without rebuilding the tab.
+    /// </summary>
+    public IReadOnlyList<IFileCreateAction> GetCreateActions()
+    {
+        var list = new List<IFileCreateAction>(_registry.FileCreateActions);
+        list.AddRange(ShellNewRegistry.Instance.BuildCreateActions());
+        list.AddRange(TemplatedCreateRegistry.Instance.BuildCreateActions());
+        return list;
+    }
 
     /// <summary>
     /// All experience IDs advertised by the registered file actions.

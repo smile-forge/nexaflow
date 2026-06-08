@@ -7,10 +7,10 @@ using System.Linq;
 
 namespace Nexaflow.Features.WindowsFileSystem;
 
-// The FileMapConfig / ExternalAppsConfig parameters are declared so FeatureManager
-// builds a config→registration mapping for them; that lets OptionsViewModel fire
-// TabRefreshRequested("FileSystem") when either config is saved, which rebuilds
-// open file-system tabs so the new action set / verb gating takes effect immediately.
+// The FileMapConfig / ExternalAppsConfig / TemplatedCreateConfig parameters are declared so
+// FeatureManager builds a config→registration mapping for them; that lets OptionsViewModel fire
+// TabRefreshRequested("FileSystem") when any of them is saved, which rebuilds open file-system
+// tabs so the new action set / verb gating / template list takes effect immediately.
 // They are intentionally unread — only their types matter to the discovery.
 #pragma warning disable CS9113 // Parameter is unread.
 public sealed class FileSystemPageRegistration(
@@ -18,7 +18,8 @@ public sealed class FileSystemPageRegistration(
     IAIService ai,
     IReadOnlyDictionary<Type, IFeatureConfig> configs,
     FileMapConfig _fileMapConfig,
-    ExternalAppsConfig _externalAppsConfig) : IPageRegistration
+    ExternalAppsConfig _externalAppsConfig,
+    TemplatedCreateConfig _templatedCreateConfig) : IPageRegistration
 {
 #pragma warning restore CS9113
     public const string PageKind       = "FileSystem";

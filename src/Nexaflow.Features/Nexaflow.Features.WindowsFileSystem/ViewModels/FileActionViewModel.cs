@@ -30,6 +30,7 @@ public partial class FileActionViewModel : ObservableObject
     public string Icon          => _action.Icon;
     public string DisplayName   => _action.DisplayName;
     public bool   IsDestructive => _action.IsDestructive;
+    public bool   IsRibbonPinnable => _action.IsRibbonPinnable;
     public ImageSource? IconImage => _action.IconImage;
     /// <summary>
     /// Returns <see cref="IFileAction.Tooltip"/> when set, otherwise <see cref="DisplayName"/>.

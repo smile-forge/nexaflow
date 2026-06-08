@@ -29,6 +29,9 @@ public abstract class UITestBase
     protected UIA3Automation Automation { get; private set; } = null!;
     protected Window MainWindow { get; private set; } = null!;
 
+    /// <summary>The isolated config root for this test (NEXAFLOW_CONFIG_DIR).</summary>
+    protected string ConfigDir => _configDir;
+
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
 
     [TestInitialize]
