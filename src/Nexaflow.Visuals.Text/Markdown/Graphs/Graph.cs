@@ -18,6 +18,8 @@ public enum NodeShape
     ParallelogramAlt,  // [\label\]  — lean left
     Trapezoid,         // [/label\]  — wide top
     TrapezoidAlt,      // [\label/]  — wide bottom
+    Document,          // @{ shape: doc }  — rectangle with a wavy bottom
+    Card,              // @{ shape: card } — rectangle with a folded top-left corner
 }
 
 public enum EdgeStyle { Solid, Dashed, Dotted, Thick }
@@ -54,6 +56,8 @@ public sealed class Edge
     public string Label    { get; set; } = string.Empty;
     public EdgeStyle Style  { get; set; } = EdgeStyle.Solid;
     public EdgeArrow Arrow  { get; set; } = EdgeArrow.Normal;
+    /// <summary>Head at the source end — set for multidirectional links (<c>o--o</c>, <c>x--x</c>, <c>&lt;--&gt;</c>).</summary>
+    public EdgeArrow StartArrow { get; set; } = EdgeArrow.None;
     /// <summary>Set true when cycle removal reverses this edge; renderers should draw the arrowhead reversed.</summary>
     public bool IsReversed  { get; set; }
 }

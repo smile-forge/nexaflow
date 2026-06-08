@@ -429,4 +429,8 @@ FodyWeavers.xsd
 *.msp
 nexaflowSetup/*.exe
 
+# Generated, cached test fixtures — materialised on demand by
+# src/Nexaflow.Tests/Nexaflow.Tests.Core/Infrastructure/TestSampleData.cs
+/test-samples/
+
 /.claude/*

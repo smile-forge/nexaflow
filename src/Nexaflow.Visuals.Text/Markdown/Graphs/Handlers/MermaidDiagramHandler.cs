@@ -12,33 +12,54 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 ///
 /// Mermaid is a family of diagram types sharing one language tag.  This handler
 /// reads the first keyword of the source to choose the correct sub-pipeline:
-///   • <c>pie</c>              → <see cref="MermaidPieParser"/> + <see cref="WpfPieChartRenderer"/>
-///   • <c>graph / flowchart</c> → <see cref="MermaidParser"/>    + Sugiyama + <see cref="WpfGraphRenderer"/>
+///   • <c>pie</c>              → <see cref="MermaidPieParser"/>      + <see cref="WpfPieChartRenderer"/>
+///   • <c>quadrantChart</c>    → <see cref="MermaidQuadrantParser"/> + <see cref="WpfQuadrantChartRenderer"/>
+///   • <c>sequenceDiagram</c>  → <see cref="MermaidSequenceParser"/> + <see cref="WpfSequenceDiagramRenderer"/>
+///   • <c>gantt</c>            → <see cref="MermaidGanttParser"/>    + <see cref="WpfGanttRenderer"/>
+///   • <c>graph / flowchart</c> → <see cref="MermaidParser"/>        + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///
 /// Adding a new Mermaid diagram type means adding a branch in <see cref="SubtypeOf"/>
 /// and a corresponding render path — no changes outside this class.
 /// </summary>
 public sealed class MermaidDiagramHandler : IDiagramHandler
 {
-    private static readonly MermaidParser    FlowParser = new();
-    private static readonly MermaidPieParser PieParser  = new();
+    private static readonly MermaidParser         FlowParser     = new();
+    private static readonly MermaidPieParser      PieParser      = new();
+    private static readonly MermaidQuadrantParser QuadrantParser = new();
+    private static readonly MermaidSequenceParser SequenceParser = new();
+    private static readonly MermaidGanttParser    GanttParser    = new();
+    private static readonly MermaidGitGraphParser GitParser      = new();
+    private static readonly MermaidMindmapParser  MindmapParser  = new();
 
     public bool CanHandle(string language) =>
         language.Equals("mermaid", StringComparison.OrdinalIgnoreCase);
 
     public FrameworkElement Render(string source, MarkdownPalette palette)
     {
-        return SubtypeOf(source) switch
+        // A leading `--- … ---` YAML front-matter block (title/config) is stripped here so every
+        // sub-type sees only the diagram body; a front-matter title is applied to the parsed chart.
+        var (body, title) = MermaidFrontmatter.Strip(source);
+
+        return SubtypeOf(body) switch
         {
-            MermaidSubtype.Pie     => RenderPie(source, palette),
-            MermaidSubtype.Graph   => RenderGraph(source, palette),
-            _                      => RenderSourceText(source),
+            MermaidSubtype.Pie      => RenderPie(body, title, palette),
+            MermaidSubtype.Quadrant => RenderQuadrant(body, title, palette),
+            MermaidSubtype.Sequence => RenderSequence(body, title, palette),
+            MermaidSubtype.Gantt    => RenderGantt(body, title, palette),
+            MermaidSubtype.Git      => RenderGit(body, title, palette),
+            MermaidSubtype.Mindmap  => RenderMindmap(body, title, palette),
+            MermaidSubtype.Graph    => RenderGraph(body, title, palette),
+            _                       => RenderSourceText(body),
         };
     }
 
+    /// <summary>Applies a front-matter title to a chart that doesn't already carry one.</summary>
+    private static string Titled(string? existing, string? frontmatter) =>
+        string.IsNullOrWhiteSpace(existing) && !string.IsNullOrWhiteSpace(frontmatter) ? frontmatter! : existing ?? string.Empty;
+
     // ── Subtype detection ──────────────────────────────────────────────────
 
-    private enum MermaidSubtype { Graph, Pie, Unknown }
+    private enum MermaidSubtype { Graph, Pie, Quadrant, Sequence, Gantt, Git, Mindmap, Unknown }
 
     /// <summary>
     /// Reads the first non-blank, non-comment keyword to identify the diagram
@@ -53,19 +74,22 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 
             // First real keyword determines the type
             var keyword = line.Split(' ', '\t')[0].ToLowerInvariant();
+
+            // gitGraph may carry an orientation/colon ("gitGraph TB:", "gitGraph:").
+            if (keyword.StartsWith("gitgraph")) return MermaidSubtype.Git;
+
             return keyword switch
             {
                 "pie"                              => MermaidSubtype.Pie,
+                "quadrantchart"                    => MermaidSubtype.Quadrant,
+                "sequencediagram"                  => MermaidSubtype.Sequence,
+                "gantt"                            => MermaidSubtype.Gantt,
+                "mindmap"                          => MermaidSubtype.Mindmap,
                 "graph" or "flowchart"             => MermaidSubtype.Graph,
-                "sequencediagram"
-                    or "classdiagram"
+                "classdiagram"
                     or "erdiagram"
-                    or "gantt"
-                    or "gitgraph"
-                    or "mindmap"
                     or "timeline"
                     or "journey"
-                    or "quadrantchart"
                     or "requirementdiagram"
                     or "c4context"
                     or "block-beta"
@@ -78,10 +102,46 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 
     // ── Sub-renderers ──────────────────────────────────────────────────────
 
-    private static FrameworkElement RenderPie(string source, MarkdownPalette palette)
+    private static FrameworkElement RenderPie(string source, string? title, MarkdownPalette palette)
     {
         var chart = PieParser.Parse(source);
+        chart.Title = Titled(chart.Title, title);
         return WpfPieChartRenderer.Render(chart, palette);
+    }
+
+    private static FrameworkElement RenderQuadrant(string source, string? title, MarkdownPalette palette)
+    {
+        var chart = QuadrantParser.Parse(source);
+        chart.Title = Titled(chart.Title, title);
+        return WpfQuadrantChartRenderer.Render(chart, palette);
+    }
+
+    private static FrameworkElement RenderSequence(string source, string? title, MarkdownPalette palette)
+    {
+        var diagram = SequenceParser.Parse(source);
+        diagram.Title = Titled(diagram.Title, title);
+        return WpfSequenceDiagramRenderer.Render(diagram, palette);
+    }
+
+    private static FrameworkElement RenderGantt(string source, string? title, MarkdownPalette palette)
+    {
+        var chart = GanttParser.Parse(source);
+        chart.Title = Titled(chart.Title, title);
+        return WpfGanttRenderer.Render(chart, palette);
+    }
+
+    private static FrameworkElement RenderGit(string source, string? title, MarkdownPalette palette)
+    {
+        var graph = GitParser.Parse(source);
+        graph.Title = Titled(graph.Title, title);
+        return WpfGitGraphRenderer.Render(graph, palette);
+    }
+
+    private static FrameworkElement RenderMindmap(string source, string? title, MarkdownPalette palette)
+    {
+        var map = MindmapParser.Parse(source);
+        map.Title = Titled(map.Title, title);
+        return WpfMindmapRenderer.Render(map, palette);
     }
 
     private static FrameworkElement RenderSourceText(string source) =>
@@ -103,9 +163,10 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             },
         };
 
-    private static FrameworkElement RenderGraph(string source, MarkdownPalette palette)
+    private static FrameworkElement RenderGraph(string source, string? title, MarkdownPalette palette)
     {
         var graph  = FlowParser.Parse(source);
+        graph.Title = Titled(graph.Title, title);
         var layout = SugiyamaLayout.Compute(graph, preferredMaxWidth: 900);
         return WpfGraphRenderer.Render(layout, palette);
     }
