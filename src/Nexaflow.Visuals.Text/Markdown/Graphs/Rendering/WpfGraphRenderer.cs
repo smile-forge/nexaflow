@@ -135,6 +135,8 @@ public static class WpfGraphRenderer
             NodeShape.ParallelogramAlt => DrawParallelogram(ln, ln.Source!.Shape == NodeShape.ParallelogramAlt),
             NodeShape.Trapezoid or
             NodeShape.TrapezoidAlt     => DrawTrapezoid(ln, ln.Source!.Shape == NodeShape.TrapezoidAlt),
+            NodeShape.Document         => DrawDocument(ln),
+            NodeShape.Card             => DrawCard(ln),
             _                          => DrawRectShape(ln),
         };
         canvas.Children.Add(shape);
@@ -423,6 +425,52 @@ public static class WpfGraphRenderer
         };
     }
 
+    private static UIElement DrawDocument(LayoutNode ln)
+    {
+        // Rectangle with a single wave along the bottom edge — the classic "document" symbol.
+        double hw = ln.Width / 2.0, hh = ln.Height / 2.0;
+        double left = ln.X - hw, right = ln.X + hw, top = ln.Y - hh;
+        double baseY = ln.Y + hh - 4;          // mean line of the wave
+        double amp  = 5;
+
+        var fig = new PathFigure { StartPoint = new Point(left, top), IsClosed = true };
+        fig.Segments.Add(new LineSegment(new Point(right, top), true));        // top edge
+        fig.Segments.Add(new LineSegment(new Point(right, baseY), true));      // right edge
+        // wavy bottom: right → middle (dip), middle → left (rise)
+        fig.Segments.Add(new QuadraticBezierSegment(new Point(ln.X + hw / 2, baseY + amp * 2), new Point(ln.X, baseY), true));
+        fig.Segments.Add(new QuadraticBezierSegment(new Point(ln.X - hw / 2, baseY - amp * 2), new Point(left, baseY), true));
+        // left edge closes back to the start point
+
+        return new Path
+        {
+            Data            = new PathGeometry([fig]),
+            Fill            = NodeFill(ln, NodeBg),
+            Stroke          = NodeStroke(ln, NodeBorder),
+            StrokeThickness = 1.5,
+        };
+    }
+
+    private static UIElement DrawCard(LayoutNode ln)
+    {
+        // Rectangle with the top-left corner folded in — the "card" / notched-rectangle symbol.
+        double hw = ln.Width / 2.0, hh = ln.Height / 2.0;
+        double fold = Math.Min(16, Math.Min(hw, hh) * 0.6);
+        return new Polygon
+        {
+            Points = new PointCollection
+            {
+                new(ln.X - hw + fold, ln.Y - hh),     // top edge starts past the fold
+                new(ln.X + hw,        ln.Y - hh),
+                new(ln.X + hw,        ln.Y + hh),
+                new(ln.X - hw,        ln.Y + hh),
+                new(ln.X - hw,        ln.Y - hh + fold), // left edge stops below the fold
+            },
+            Fill            = NodeFill(ln, NodeBg),
+            Stroke          = NodeStroke(ln, NodeBorder),
+            StrokeThickness = 1.5,
+        };
+    }
+
     // ── Subgraph box ──────────────────────────────────────────────────────
 
     private static void DrawSubgraphBox(Canvas canvas, string label, Rect bounds)
@@ -454,11 +502,12 @@ public static class WpfGraphRenderer
                 Text       = label,
                 Foreground = LabelText,
                 FontFamily = BodyFont,
-                FontSize   = 10,
-                FontStyle  = FontStyles.Italic,
+                FontSize   = 11,
+                FontWeight = FontWeights.SemiBold,
             };
-            Canvas.SetLeft(tb, bounds.Left + 6);
-            Canvas.SetTop(tb,  bounds.Top  + 3);
+            double w = MeasureText(label, 11);
+            Canvas.SetLeft(tb, bounds.Left + (bounds.Width - w) / 2.0);   // centred along the top
+            Canvas.SetTop(tb,  bounds.Top  + 4);
             canvas.Children.Add(tb);
         }
     }
@@ -497,6 +546,10 @@ public static class WpfGraphRenderer
         // Arrowhead — direction from last bezier control point to tip
         if (edge?.Arrow != EdgeArrow.None)
             DrawArrowhead(canvas, arrowFrom, pts[^1], brush, edge?.Arrow ?? EdgeArrow.Normal);
+
+        // Start head — for multidirectional links (o--o, x--x, <-->); points back from the second waypoint.
+        if (edge is { StartArrow: not EdgeArrow.None })
+            DrawArrowhead(canvas, pts[1], pts[0], brush, edge.StartArrow);
 
         // Edge label as a floating styled box
         if (!string.IsNullOrWhiteSpace(edge?.Label))
@@ -578,9 +631,38 @@ public static class WpfGraphRenderer
         const double arrowAngle = 25 * Math.PI / 180;
 
         double angle = Math.Atan2(tip.Y - from.Y, tip.X - from.X);
-        double a1    = angle + Math.PI - arrowAngle;
-        double a2    = angle + Math.PI + arrowAngle;
 
+        // Circle terminal (--o): a hollow bulb on the line end.
+        if (arrowType == EdgeArrow.Circle)
+        {
+            const double r = 4.5;
+            double cxC = tip.X - r * Math.Cos(angle), cyC = tip.Y - r * Math.Sin(angle);
+            var dot = new Ellipse { Width = r * 2, Height = r * 2, Fill = BgBrush, Stroke = brush, StrokeThickness = 1.5 };
+            Canvas.SetLeft(dot, cxC - r);
+            Canvas.SetTop(dot, cyC - r);
+            canvas.Children.Add(dot);
+            return;
+        }
+
+        // Cross terminal (--x): an × at the line end.
+        if (arrowType == EdgeArrow.Cross)
+        {
+            const double r = 5;
+            double px = Math.Cos(angle), py = Math.Sin(angle);   // along the line
+            double qx = -py, qy = px;                            // perpendicular
+            var c = new Point(tip.X - r * px, tip.Y - r * py);   // step back so the × sits on the line
+            void Seg(double s1, double s2) => canvas.Children.Add(new Line
+            {
+                X1 = c.X + r * (qx * s1 + px * s2), Y1 = c.Y + r * (qy * s1 + py * s2),
+                X2 = c.X - r * (qx * s1 + px * s2), Y2 = c.Y - r * (qy * s1 + py * s2),
+                Stroke = brush, StrokeThickness = 1.6,
+            });
+            Seg(1, 1); Seg(1, -1);
+            return;
+        }
+
+        double a1 = angle + Math.PI - arrowAngle;
+        double a2 = angle + Math.PI + arrowAngle;
         var p1 = new Point(tip.X + arrowLen * Math.Cos(a1), tip.Y + arrowLen * Math.Sin(a1));
         var p2 = new Point(tip.X + arrowLen * Math.Cos(a2), tip.Y + arrowLen * Math.Sin(a2));
 

@@ -106,8 +106,16 @@ public sealed class MermaidParser : IGraphParser
             // Other directives — skip
             if (line.StartsWith("style ", StringComparison.OrdinalIgnoreCase) ||
                 line.StartsWith("click ", StringComparison.OrdinalIgnoreCase) ||
-                line.StartsWith("linkStyle ", StringComparison.OrdinalIgnoreCase))
+                line.StartsWith("linkStyle ", StringComparison.OrdinalIgnoreCase) ||
+                line.StartsWith("direction ", StringComparison.OrdinalIgnoreCase))   // per-subgraph direction — not laid out
                 continue;
+
+            // Standalone node metadata:  id@{ shape: …, label: "…" }
+            if (RxNodeMeta.IsMatch(line))
+            {
+                if (TryParseNodeMeta(line, graph)) continue;   // false → edge metadata (e.g. e1@{ curve: … }) → skip
+                continue;
+            }
 
             // Try to parse as edge line, fall back to bare node declaration
             if (!TryParseEdgeLine(line, graph))
@@ -193,10 +201,11 @@ public sealed class MermaidParser : IGraphParser
             int idx = 0;
             while ((idx = line.IndexOf(n.Id, idx, StringComparison.Ordinal)) >= 0)
             {
+                // '-' is a boundary (it begins an arrow), so "a1" in "a1-->a2" is a whole word.
                 bool preOk  = idx == 0 ||
-                    !(char.IsLetterOrDigit(line[idx - 1]) || line[idx - 1] is '_' or '-' or '.');
+                    !(char.IsLetterOrDigit(line[idx - 1]) || line[idx - 1] is '_' or '.');
                 bool postOk = idx + n.Id.Length >= line.Length ||
-                    !(char.IsLetterOrDigit(line[idx + n.Id.Length]) || line[idx + n.Id.Length] is '_' or '-' or '.');
+                    !(char.IsLetterOrDigit(line[idx + n.Id.Length]) || line[idx + n.Id.Length] is '_' or '.');
                 if (preOk && postOk) { sg.NodeIds.Add(n.Id); break; }
                 idx++;
             }
@@ -223,11 +232,16 @@ public sealed class MermaidParser : IGraphParser
         while (pos < line.Length && line[pos] == ' ') pos++;
         if (pos >= line.Length) return false;
 
-        // Step 2: edge marker
-        string? label    = null;
-        string  arrowStr = "";
+        // Optional inline edge id:  A e1@--> B
+        pos = SkipEdgeId(line, pos);
 
-        // Space-label form: "-- label --> dst" (exactly two dashes then a space)
+        // Step 2: edge marker
+        string?   label      = null;
+        EdgeStyle style      = EdgeStyle.Solid;
+        EdgeArrow startArrow = EdgeArrow.None;
+        EdgeArrow endArrow   = EdgeArrow.Normal;
+
+        // Space-label form: "-- label --> dst" (two dashes then a space)
         if (pos + 2 < line.Length && line[pos] == '-' && line[pos + 1] == '-' && line[pos + 2] == ' ')
         {
             int labelStart = pos + 3;
@@ -235,32 +249,19 @@ public sealed class MermaidParser : IGraphParser
             for (int i = labelStart; i < line.Length && !found; i++)
             {
                 if (line[i] != ' ') continue;
-                foreach (var t in ArrowTerminals)
-                {
-                    if (i + 1 + t.Length <= line.Length && line.AsSpan(i + 1).StartsWith(t))
-                    {
-                        label    = ProcessLabel(line[labelStart..i]);
-                        arrowStr = t;
-                        pos      = i + 1 + t.Length;
-                        found    = true;
-                        break;
-                    }
-                }
+                if (MatchArrow(line, i + 1) is not { } am) continue;
+                label = ProcessLabel(line[labelStart..i]);
+                style = am.style; startArrow = am.start; endArrow = am.end;
+                pos   = i + 1 + am.len;
+                found = true;
             }
             if (!found) return false;
         }
         else
         {
-            // Direct arrow
-            string? matched = null;
-            foreach (var a in ArrowTerminals)
-            {
-                if (pos + a.Length <= line.Length && line.AsSpan(pos).StartsWith(a))
-                { matched = a; break; }
-            }
-            if (matched is null) return false;
-            arrowStr = matched;
-            pos += arrowStr.Length;
+            if (MatchArrow(line, pos) is not { } am) return false;
+            style = am.style; startArrow = am.start; endArrow = am.end;
+            pos += am.len;
 
             // Inline label: -->|label|
             if (pos < line.Length && line[pos] == '|')
@@ -274,7 +275,6 @@ public sealed class MermaidParser : IGraphParser
         while (pos < line.Length && line[pos] == ' ') pos++;
         string dstStr = line[pos..];
 
-        var (style, arrow) = ParseArrowStyle(arrowStr);
         string? srcId = ParseNodeExpr(srcExpr, graph);
         if (srcId is null) return false;
 
@@ -284,14 +284,80 @@ public sealed class MermaidParser : IGraphParser
             if (tgtExpr.Length == 0) continue;
             string? dstId = ParseNodeExpr(tgtExpr, graph);
             if (dstId is null) continue;
-            graph.AddEdge(srcId, dstId, label ?? "", style, arrow);
+            var e = graph.AddEdge(srcId, dstId, label ?? "", style, endArrow);
+            e.StartArrow = startArrow;
         }
         return true;
     }
 
-    // Arrow tokens ordered longest-first to avoid prefix ambiguity
-    private static readonly string[] ArrowTerminals =
-        ["==>", "-.->", "-.-", "-->", "---", "--o", "--x"];
+    /// <summary>Skips an inline edge id (<c>e1@</c>) that precedes an arrow operator; returns the new position.</summary>
+    private static int SkipEdgeId(string line, int pos)
+    {
+        int q = pos;
+        while (q < line.Length && (char.IsLetterOrDigit(line[q]) || line[q] == '_')) q++;
+        if (q > pos && q < line.Length && line[q] == '@'
+            && q + 1 < line.Length && line[q + 1] is '-' or '=' or '<' or 'o' or 'x')
+            return q + 1;
+        return pos;
+    }
+
+    /// <summary>
+    /// Matches a flowchart link operator at <paramref name="pos"/>, tolerating arbitrary link length
+    /// (<c>--&gt;</c> … <c>-----&gt;</c>), dotted (<c>-.-&gt;</c>) and thick (<c>==&gt;</c>) lines, plus head
+    /// markers at either end: <c>&gt;</c>/<c>&lt;</c> (arrow), <c>o</c> (circle), <c>x</c> (cross).
+    /// Returns the token length and resolved style/heads, or null when no operator starts here.
+    /// </summary>
+    private static (int len, EdgeStyle style, EdgeArrow start, EdgeArrow end)? MatchArrow(string s, int pos)
+    {
+        int i = pos, len = s.Length;
+
+        EdgeArrow start = EdgeArrow.None;
+        if (i < len && s[i] == '<') { start = EdgeArrow.Normal; i++; }
+        else if (i + 1 < len && (s[i] == 'o' || s[i] == 'x') && s[i + 1] is '-' or '=' or '.')
+        { start = s[i] == 'o' ? EdgeArrow.Circle : EdgeArrow.Cross; i++; }
+
+        int lineStart = i;
+        EdgeStyle style;
+        if (i < len && s[i] == '=')
+        {
+            while (i < len && s[i] == '=') i++;
+            style = EdgeStyle.Thick;
+        }
+        else if (i < len && s[i] == '-')
+        {
+            i++;
+            if (i < len && s[i] == '.')                       // dotted:  -.- / -..-
+            {
+                while (i < len && s[i] == '.') i++;
+                if (i >= len || s[i] != '-') return null;
+                while (i < len && s[i] == '-') i++;
+                style = EdgeStyle.Dotted;
+            }
+            else
+            {
+                while (i < len && s[i] == '-') i++;
+                style = EdgeStyle.Solid;
+            }
+        }
+        else return null;
+
+        int lineLen = i - lineStart;
+        if (style != EdgeStyle.Dotted && lineLen < 2) return null;
+
+        EdgeArrow end = EdgeArrow.None;
+        if (i < len)
+        {
+            if (s[i] == '>') { end = EdgeArrow.Normal; i++; }
+            else if (s[i] == 'o') { end = EdgeArrow.Circle; i++; }
+            else if (s[i] == 'x') { end = EdgeArrow.Cross; i++; }
+        }
+
+        // Reject a bare "--" with no heads (not a complete link); "---" open links are fine.
+        if (start == EdgeArrow.None && end == EdgeArrow.None && style == EdgeStyle.Solid && lineLen < 3)
+            return null;
+
+        return (i - pos, style, start, end);
+    }
 
     /// <summary>
     /// Reads one Mermaid node expression from <paramref name="s"/> at <paramref name="start"/>.
@@ -305,8 +371,11 @@ public sealed class MermaidParser : IGraphParser
         while (i < s.Length && char.IsWhiteSpace(s[i])) i++;
         int exprStart = i;
 
-        // Node id: letters, digits, underscore, hyphen, dot
-        while (i < s.Length && (char.IsLetterOrDigit(s[i]) || s[i] is '_' or '-' or '.'))
+        // Node id: letters, digits, underscore, dot, and hyphen — but a hyphen counts only when
+        // it continues the id (next char is an id char), so "c1-->a2" splits at the arrow.
+        while (i < s.Length &&
+               (char.IsLetterOrDigit(s[i]) || s[i] is '_' or '.'
+                || (s[i] == '-' && i + 1 < s.Length && (char.IsLetterOrDigit(s[i + 1]) || s[i + 1] is '_' or '.'))))
             i++;
 
         if (i == exprStart) return (-1, "");
@@ -377,13 +446,13 @@ public sealed class MermaidParser : IGraphParser
         if (od == "((" && rawLbl.StartsWith('(') && rawLbl.EndsWith(')'))
             return (NodeShape.DoubleCircle, rawLbl[1..^1]);
 
-        // ([label]) → Stadium: RxNode sees od='(', lbl='[…]'
-        if (od == "(" && rawLbl.StartsWith('[') && rawLbl.EndsWith(']'))
-            return (NodeShape.Stadium, rawLbl[1..^1]);
+        // ([label]) → Stadium: RxNode sees od='(', lbl='[…]' (its close ']' may be consumed as cd).
+        if (od == "(" && rawLbl.StartsWith('['))
+            return (NodeShape.Stadium, rawLbl.TrimStart('[').TrimEnd(']'));
 
-        // [(label)] → Cylinder: od='[', lbl='(…)'
-        if (od == "[" && rawLbl.StartsWith('(') && rawLbl.EndsWith(')'))
-            return (NodeShape.Cylinder, rawLbl[1..^1]);
+        // [(label)] → Cylinder: od='[', lbl='(…)' (its close ')' may be consumed as cd).
+        if (od == "[" && rawLbl.StartsWith('('))
+            return (NodeShape.Cylinder, rawLbl.TrimStart('(').TrimEnd(')'));
 
         // [/label/] → Parallelogram; [/label\] → Trapezoid
         if (od == "[" && rawLbl.StartsWith('/'))
@@ -434,21 +503,83 @@ public sealed class MermaidParser : IGraphParser
             _            => NodeShape.Rectangle,
         };
 
-    // ── Arrow style ────────────────────────────────────────────────────────
+    // ── Node metadata:  id@{ shape: …, label: "…" } ─────────────────────────
 
-    private static (EdgeStyle style, EdgeArrow arrow) ParseArrowStyle(string raw)
+    private static readonly Regex RxNodeMeta =
+        new(@"^(?<id>[A-Za-z0-9_.\-]+)@\{(?<body>.*)\}\s*$",
+            RegexOptions.Compiled | RegexOptions.Singleline);
+
+    /// <summary>
+    /// Parses an <c>id@{ … }</c> metadata line into a node (shape/label).  Returns false when the body
+    /// carries no node keys (e.g. edge metadata like <c>e1@{ curve: linear }</c>), so the caller can skip it.
+    /// </summary>
+    private static bool TryParseNodeMeta(string line, Graph graph)
     {
-        EdgeStyle style = raw.Contains("==")              ? EdgeStyle.Thick
-                        : raw.Contains(".-") || raw.Contains("-.") ? EdgeStyle.Dashed
-                        : EdgeStyle.Solid;
+        var m = RxNodeMeta.Match(line);
+        if (!m.Success) return false;
 
-        EdgeArrow arrow = raw.EndsWith("o") ? EdgeArrow.Circle
-                        : raw.EndsWith("x") ? EdgeArrow.Cross
-                        : raw.EndsWith(">") ? EdgeArrow.Normal
-                        : EdgeArrow.None;
+        string? shape = null, label = null;
+        bool isNode = false;
+        foreach (var part in SplitTopLevel(m.Groups["body"].Value))
+        {
+            int colon = part.IndexOf(':');
+            if (colon < 0) continue;
+            string key = part[..colon].Trim().Trim('"').ToLowerInvariant();
+            string val = part[(colon + 1)..].Trim().Trim('"').Trim();
+            switch (key)
+            {
+                case "shape":          shape = val; isNode = true; break;
+                case "label":
+                case "title":          label = val; isNode = true; break;
+                case "icon":
+                case "img":
+                case "form":           isNode = true; break;
+            }
+        }
+        if (!isNode) return false;   // edge metadata — let the caller skip the line
 
-        return (style, arrow);
+        var node = graph.GetOrAdd(m.Groups["id"].Value, label is { Length: > 0 } ? ProcessLabel(label) : null);
+        if (shape is not null) node.Shape = MapShape(shape);
+        return true;
     }
+
+    /// <summary>Splits a comma-separated metadata body, ignoring commas inside double quotes.</summary>
+    private static IEnumerable<string> SplitTopLevel(string body)
+    {
+        var parts = new List<string>();
+        bool inQuote = false;
+        int start = 0;
+        for (int i = 0; i < body.Length; i++)
+        {
+            if (body[i] == '"') inQuote = !inQuote;
+            else if (body[i] == ',' && !inQuote) { parts.Add(body[start..i]); start = i + 1; }
+        }
+        parts.Add(body[start..]);
+        return parts;
+    }
+
+    /// <summary>Maps a Mermaid <c>@{ shape }</c> name (and its many aliases) to the nearest <see cref="NodeShape"/>.</summary>
+    private static NodeShape MapShape(string name) => name.Trim().ToLowerInvariant() switch
+    {
+        "rect" or "rectangle" or "proc" or "process" or "rectangular" or "notch-rect" => NodeShape.Rectangle,
+        "rounded" or "round-rect" or "event"                                          => NodeShape.RoundedRect,
+        "stadium" or "pill" or "terminal"                                             => NodeShape.Stadium,
+        "subroutine" or "subprocess" or "framed-rectangle" or "procs" or "processes"  => NodeShape.Subroutine,
+        "cyl" or "cylinder" or "database" or "db" or "disk"                           => NodeShape.Cylinder,
+        "circle" or "circ"                                                            => NodeShape.Circle,
+        "dbl-circ" or "double-circle"                                                 => NodeShape.DoubleCircle,
+        "diam" or "diamond" or "decision" or "question"                              => NodeShape.Diamond,
+        "hex" or "hexagon" or "prepare"                                               => NodeShape.Hexagon,
+        "lean-r" or "lean-right" or "in-out" or "manual-input"                        => NodeShape.Parallelogram,
+        "lean-l" or "lean-left" or "out-in"                                           => NodeShape.ParallelogramAlt,
+        "trap-b" or "trapezoid-bottom" or "trapezoid" or "priority"                   => NodeShape.Trapezoid,
+        "trap-t" or "trapezoid-top" or "manual" or "manual-file"                      => NodeShape.TrapezoidAlt,
+        "doc" or "document" or "docs" or "documents" or "paper-tape"
+            or "tag-doc" or "tagged-document" or "lined-document"                     => NodeShape.Document,
+        "card" or "notch-rect" or "notched-rectangle"                                 => NodeShape.Card,
+        "flag" or "tag-rect" or "tagged-process"                                      => NodeShape.Asymmetric,
+        _                                                                             => NodeShape.Rectangle,
+    };
 
     // ── Direction ──────────────────────────────────────────────────────────
 
