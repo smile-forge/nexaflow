@@ -3,7 +3,7 @@ using Nexaflow.Features.Common;
 
 namespace Nexaflow.Core;
 
-public enum ThemeOption    { Dark, Light, Sunny, Ocean, Nature, Sandstone }
+public enum ThemeOption    { Dark, Light, Sunny, Ocean, Nature, Sandstone, Gothic }
 public enum LanguageOption { English }
 
 /// <summary>
