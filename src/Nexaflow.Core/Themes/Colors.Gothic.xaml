@@ -1,0 +1,52 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ── Palette: midnight cathedral GLASS ──
+         A broody gothic night (Scene.Window): black + dark grey-purple panels under a moonlit sky,
+         a silhouetted tower and circling bats. Surfaces are near-black aubergine so the scene glows
+         behind/around content while pale-lavender #ECE4F7 text stays readable; the page root is
+         translucent so the night sky reads straight through feature pages. The accent is a bright
+         arcane violet — the only loud colour in an otherwise sombre palette, so selections pop. -->
+    <Color x:Key="BgColor">#59140A24</Color>      <!-- page root: mostly transparent to the night -->
+    <Color x:Key="SurfaceColor">#1A1226</Color>    <!-- panels / cards: dark grey-purple -->
+    <Color x:Key="Surface2Color">#251A38</Color>   <!-- raised panels / inputs -->
+    <Color x:Key="BorderColor">#3A2A50</Color>
+    <Color x:Key="BorderLightColor">#5B4480</Color>
+    <Color x:Key="AccentColor">#B061FF</Color>
+    <!-- Bright arcane violet (selection / highlight) -->
+    <Color x:Key="Accent2Color">#8A5CFF</Color>
+    <!-- Indigo-violet (the colder second purple) -->
+    <Color x:Key="TextColor">#ECE4F7</Color>
+    <Color x:Key="TextMutedColor">#ADA0C4</Color>
+    <Color x:Key="TextDimColor">#6E6188</Color>
+    <Color x:Key="DeepBgColor">#0A0612</Color>
+
+    <!-- ── Brushes ── -->
+    <SolidColorBrush x:Key="BgBrush"         Color="{StaticResource BgColor}"/>
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="{StaticResource SurfaceColor}"/>
+    <SolidColorBrush x:Key="Surface2Brush"   Color="{StaticResource Surface2Color}"/>
+    <SolidColorBrush x:Key="BorderBrush"     Color="{StaticResource BorderColor}"/>
+    <SolidColorBrush x:Key="BorderLightBrush" Color="{StaticResource BorderLightColor}"/>
+    <SolidColorBrush x:Key="AccentBrush"     Color="{StaticResource AccentColor}"/>
+    <SolidColorBrush x:Key="Accent2Brush"    Color="{StaticResource Accent2Color}"/>
+    <SolidColorBrush x:Key="TextBrush"       Color="{StaticResource TextColor}"/>
+    <SolidColorBrush x:Key="TextMutedBrush"  Color="{StaticResource TextMutedColor}"/>
+    <SolidColorBrush x:Key="TextDimBrush"    Color="{StaticResource TextDimColor}"/>
+    <SolidColorBrush x:Key="DeepBgBrush"     Color="{StaticResource DeepBgColor}"/>
+
+    <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#C77BFF" Offset="0"/>
+        <GradientStop Color="#7A3DE0" Offset="1"/>
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="BarGradientBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="{StaticResource AccentColor}" Offset="0"/>
+        <GradientStop Color="{StaticResource Accent2Color}" Offset="1"/>
+    </LinearGradientBrush>
+
+    <!-- Dimensions -->
+    <GridLength x:Key="TopBarHeight">72</GridLength>
+    <GridLength x:Key="TabBarHeight">38</GridLength>
+    <GridLength x:Key="InteractionHeight">90</GridLength>
+
+</ResourceDictionary>
