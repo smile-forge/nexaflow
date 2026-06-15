@@ -41,6 +41,7 @@
                         PinFromHandlerCommand="{Binding ViewModel.PinFromHandlerCommand, ElementName=Root}"
                         OpenInNewWindowCommand="{Binding InternalOpenInNewWindowCommand, ElementName=Root}"
                         DeleteItemCommand="{Binding InternalDeleteCommand, ElementName=Root}"
+                        Shell="{Binding Shell, ElementName=Root}"
                         Workspace="{Binding Workspace, ElementName=Root}"/>
     </Grid>
 </UserControl>

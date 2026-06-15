@@ -89,6 +89,8 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="16"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="16"/>
                                 <ColumnDefinition Width="Auto"/>
@@ -96,8 +98,18 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- Size toggle -->
+                            <!-- Name -->
                             <StackPanel Grid.Column="0" VerticalAlignment="Top">
+                                <TextBlock Text="NAME" FontSize="9" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,6"/>
+                                <TextBox x:Name="NameInput"
+                                         Style="{StaticResource DarkTextBox}"
+                                         Width="150" Padding="6,4" FontSize="12"
+                                         TextChanged="NameInput_TextChanged"/>
+                            </StackPanel>
+
+                            <!-- Size toggle -->
+                            <StackPanel Grid.Column="2" VerticalAlignment="Top">
                                 <TextBlock Text="SIZE" FontSize="9" FontWeight="SemiBold"
                                            Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,6"/>
                                 <Button x:Name="SizeToggleBtn"
@@ -107,7 +119,7 @@
                             </StackPanel>
 
                             <!-- Icon picker: 6-column scrolling grid -->
-                            <StackPanel Grid.Column="2" VerticalAlignment="Top">
+                            <StackPanel Grid.Column="4" VerticalAlignment="Top">
                                 <TextBlock Text="ICON" FontSize="9" FontWeight="SemiBold"
                                            Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,6"/>
                                 <Border Background="{StaticResource Surface2Brush}"
@@ -124,7 +136,7 @@
                             </StackPanel>
 
                             <!-- Colour swatches + hex input -->
-                            <StackPanel Grid.Column="4" VerticalAlignment="Top">
+                            <StackPanel Grid.Column="6" VerticalAlignment="Top">
                                 <TextBlock Text="COLOUR" FontSize="9" FontWeight="SemiBold"
                                            Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,6"/>
                                 <WrapPanel x:Name="ColorSwatches" Width="160" Margin="0,0,0,6"/>
@@ -136,7 +148,7 @@
                             </StackPanel>
 
                             <!-- Delete -->
-                            <StackPanel Grid.Column="6" VerticalAlignment="Top">
+                            <StackPanel Grid.Column="8" VerticalAlignment="Top">
                                 <TextBlock Text="REMOVE" FontSize="9" FontWeight="SemiBold"
                                            Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,6"/>
                                 <Button Style="{StaticResource RibbonHalfButton}"

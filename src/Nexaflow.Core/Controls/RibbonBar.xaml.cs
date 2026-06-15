@@ -52,6 +52,10 @@ public partial class RibbonBar : UserControl
         DependencyProperty.Register(nameof(Workspace),
             typeof(Workspace), typeof(RibbonBar));
 
+    public static readonly DependencyProperty ShellProperty =
+        DependencyProperty.Register(nameof(Shell),
+            typeof(IShellServices), typeof(RibbonBar));
+
     public ObservableCollection<RibbonItem>? ItemsSource
     {
         get => (ObservableCollection<RibbonItem>?)GetValue(ItemsSourceProperty);
@@ -92,6 +96,12 @@ public partial class RibbonBar : UserControl
         get => (ICommand?)GetValue(PinFromHandlerCommandProperty);
         set => SetValue(PinFromHandlerCommandProperty, value);
     }
+    /// <summary>Shell services — used to route the Rename input through the window-level overlay.</summary>
+    public IShellServices? Shell
+    {
+        get => (IShellServices?)GetValue(ShellProperty);
+        set => SetValue(ShellProperty, value);
+    }
 
     // Single live flyout for the pop-out colour/icon pickers, anchored to the right-clicked button.
     private Popup? _styleFlyout;
@@ -112,6 +122,20 @@ public partial class RibbonBar : UserControl
         if (item.Kind != RibbonItemKind.Separator)
         {
             menu.Items.Add(new Separator());
+
+            var rename = new MenuItem { Header = "Rename" };
+            rename.Click += (_, _) =>
+                Shell?.ShowPrompt(
+                    "Rename button", "New name:", item.Label,
+                    onConfirm: name =>
+                    {
+                        name = name.Trim();
+                        if (string.IsNullOrEmpty(name) || name == item.Label) return;
+                        item.Label = name;   // PropertyChanged -> VM Save() -> ribbon.json + live-sync
+                        RebuildItems();      // button text is a literal, so re-render
+                    },
+                    onCancel: () => { });
+            menu.Items.Add(rename);
 
             var recolour = new MenuItem { Header = "Recolour" };
             recolour.Click += (_, _) => ShowColourFlyout(item, anchor);

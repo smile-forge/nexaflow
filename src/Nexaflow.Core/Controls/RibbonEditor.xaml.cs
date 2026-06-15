@@ -451,6 +451,10 @@ public partial class RibbonEditor : UserControl
         SepProps.Visibility       = Visibility.Collapsed;
         BtnProps.Visibility       = Visibility.Visible;
 
+        NameInput.Tag  = "loading";
+        NameInput.Text = _selected.Label;
+        NameInput.Tag  = null;
+
         SizeToggleBtn.Content = new TextBlock
         {
             Text       = _selected.IsHalf ? "⬆  Full height" : "⬇  Compact",
@@ -464,6 +468,14 @@ public partial class RibbonEditor : UserControl
 
         RefreshIconHighlight(_selected.Icon);
         RefreshSwatchHighlight(_selected.AccentColor);
+    }
+
+    private void NameInput_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (NameInput.Tag as string == "loading") return;
+        if (_selected is null || _selected.Kind == RibbonItemKind.Separator) return;
+        _selected.Label = NameInput.Text;
+        RebuildCards();   // refresh the preview strip; props panel keeps focus (matches HexInput)
     }
 
     private void SizeToggle_Click(object sender, RoutedEventArgs e)
