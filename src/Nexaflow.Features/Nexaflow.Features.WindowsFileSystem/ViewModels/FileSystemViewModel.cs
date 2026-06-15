@@ -7,6 +7,7 @@ using Nexaflow.Features.WindowsFileSystem.ClientTools;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
 using Nexaflow.Features.WindowsFileSystem.Services;
+using Nexaflow.Visuals.Common.Collections;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -14,6 +15,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using System.Windows.Data;
 using System.Windows.Threading;
@@ -308,7 +311,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
             {
                 foreach (var root in TreeRoots)
                     RefreshExpandedNode(root);
-                RefreshEntries();
+                _ = RefreshEntriesAsync();
                 SelectAndExpandPath(CurrentPath);
             }
             // Clear selection after a refresh so the action strip re-evaluates
@@ -538,15 +541,35 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     private bool   _navigating;
     private bool   _refreshing;
 
+    // ── Background folder load ─────────────────────────────────────────────────
+    // The current directory's contents are loaded off the UI thread. Each load runs
+    // under its own token; starting a new one cancels the previous so rapid folder
+    // clicks always settle on the last-clicked folder and stale enumerations are
+    // abandoned. Folders at or below StreamThreshold are sorted and shown in one shot;
+    // larger folders stream in ChunkSize-sized batches (unsorted, filesystem order) so
+    // the first page appears immediately and scrolling stays smooth.
+    [ObservableProperty] private bool _isLoadingEntries;
+
+    private CancellationTokenSource? _loadCts;
+    private bool _resortPending;
+    private const int StreamThreshold = 1000;
+    private const int ChunkSize       = 512;
+
     // ── Entry count ──────────────────────────────────────────────────────────
 
     private int _selectedCount;
 
+    /// <summary>Recomputes folder/file counts from the current <see cref="Entries"/>.</summary>
     private void UpdateEntryCountLabel(int selectedCount = 0)
+        => UpdateEntryCountLabel(Entries.Count(e => e.IsDirectory),
+                                 Entries.Count(e => !e.IsDirectory),
+                                 selectedCount);
+
+    /// <summary>Sets the footer labels from already-known counts (avoids re-scanning
+    /// <see cref="Entries"/> on every streamed chunk).</summary>
+    private void UpdateEntryCountLabel(int folders, int files, int selectedCount)
     {
         _selectedCount = selectedCount;
-        var folders = Entries.Count(e => e.IsDirectory);
-        var files   = Entries.Count(e => !e.IsDirectory);
 
         HasFolders         = folders > 0;
         HasFiles           = files   > 0;
@@ -558,8 +581,8 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
         SelectionSummary = selectedCount > 0 ? $"{selectedCount} selected  ·  " : string.Empty;
     }
 
-    public ObservableCollection<FileSystemTreeNode> TreeRoots { get; } = [];
-    public ObservableCollection<FileSystemEntry>    Entries   { get; } = [];
+    public ObservableCollection<FileSystemTreeNode>    TreeRoots { get; } = [];
+    public RangeObservableCollection<FileSystemEntry>  Entries   { get; } = [];
 
     /// <summary>
     /// Raised whenever the current directory changes.
@@ -774,6 +797,10 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
         _navigating = true;
         try
         {
+            // Abandon any in-flight folder load — we're replacing the list with drives.
+            _loadCts?.Cancel();
+            IsLoadingEntries = false;
+
             _isThisPcMode = true;
             CurrentPath   = string.Empty;
             ResetSortAndFilter();
@@ -855,7 +882,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
             _isThisPcMode = false;
                 CurrentPath   = path;
                 ResetSortAndFilter();
-                RefreshEntries();
+                _ = RefreshEntriesAsync();
                 SelectAndExpandPath(path);  // sync tree
                 FireNavigationChanged(path); // sync breadcrumb
         }
@@ -1197,40 +1224,168 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     }
 
 
-    private void RefreshEntries()
+    /// <summary>One unit of work handed from the background enumerator to the UI consumer.
+    /// <paramref name="Replace"/> = commit the whole sorted set at once (single Reset);
+    /// otherwise the items are appended (streaming a large folder).</summary>
+    private readonly record struct LoadBatch(
+        IReadOnlyList<FileSystemEntry> Items, bool Replace, int Folders, int Files);
+
+    /// <summary>
+    /// Loads the current directory's contents, cancelling any load already in flight.
+    /// The background enumerator (<see cref="ProduceEntriesAsync"/>) runs off the UI thread
+    /// and hands batches through a bounded channel; this method consumes them and is the
+    /// only place that touches <see cref="Entries"/>. Because it was invoked on the UI
+    /// thread, every <c>await</c> here resumes on this VM's own UI context — no Dispatcher
+    /// or Application reference needed, and the consumer naturally runs at Normal priority.
+    /// The bounded channel gives backpressure so the producer can't outrun the UI.
+    /// </summary>
+    private async Task RefreshEntriesAsync()
     {
+        var path = CurrentPath;
+
+        // Cancel (don't dispose) the previous load: a background thread may still hold its
+        // token, so disposing here could throw instead of cancelling cleanly.
+        _loadCts?.Cancel();
+        _loadCts = new CancellationTokenSource();
+        var ct = _loadCts.Token;
+
         Entries.Clear();
+        _resortPending = false;
+        UpdateEntryCountLabel(0, 0, 0);
+        IsLoadingEntries = true;
+
+        var channel = Channel.CreateBounded<LoadBatch>(new BoundedChannelOptions(1)
+        {
+            FullMode     = BoundedChannelFullMode.Wait,
+            SingleReader = true,
+            SingleWriter = true,
+        });
+
+        // Linked scope so we can always unblock the producer when the consumer stops.
+        using var scope = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var producer = Task.Run(() => ProduceEntriesAsync(path, channel.Writer, scope.Token), scope.Token);
+
         try
         {
-            var dirs = Directory.GetDirectories(CurrentPath)
-                .Select(d => new FileSystemEntry
-                {
-                    Name        = Path.GetFileName(d),
-                    FullPath    = d,
-                    IsDirectory = true,
-                    Modified    = Directory.GetLastWriteTime(d)
-                });
-
-            var files = Directory.GetFiles(CurrentPath)
-                .Select(f =>
-                {
-                    var info = new FileInfo(f);
-                    return new FileSystemEntry
-                    {
-                        Name        = info.Name,
-                        FullPath    = f,
-                        IsDirectory = false,
-                        SizeBytes   = info.Length,
-                        Modified    = info.LastWriteTime
-                    };
-                });
-
-                var sorted = ApplySort(dirs.Concat(files));
-                    foreach (var e in sorted) Entries.Add(e);
-                }
-                catch { /* access denied */ }
-                UpdateEntryCountLabel();
+            await foreach (var batch in channel.Reader.ReadAllAsync(ct))
+            {
+                if (CurrentPath != path) break; // superseded mid-stream
+                if (batch.Replace)
+                    Entries.ReplaceAll(batch.Items);
+                else
+                    foreach (var e in batch.Items) Entries.Add(e);
+                UpdateEntryCountLabel(batch.Folders, batch.Files, 0);
             }
+        }
+        catch (OperationCanceledException) { /* superseded by a newer navigation */ }
+        catch (Exception ex) { Debug.WriteLine($"Folder load failed: {ex.Message}"); }
+        finally
+        {
+            scope.Cancel();                       // unblock the producer if still writing
+            try { await producer; } catch { /* observe */ }
+
+            // Only finish if we're still the current load; a newer load owns the UI now.
+            if (!ct.IsCancellationRequested && CurrentPath == path)
+            {
+                IsLoadingEntries = false;
+                if (_resortPending)
+                {
+                    _resortPending = false;
+                    ResortEntries();
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Background enumeration. Buffers entries; if the buffer crosses
+    /// <see cref="StreamThreshold"/> it streams chunks (filesystem order, unsorted) so the
+    /// first page shows while the rest loads. Smaller folders are sorted and sent as a
+    /// single replace batch. Uses <see cref="DirectoryInfo.EnumerateFileSystemInfos()"/> so
+    /// name, size, timestamps and attributes come from one enumeration pass — no second
+    /// stat per entry.
+    /// </summary>
+    private async Task ProduceEntriesAsync(string path, ChannelWriter<LoadBatch> writer, CancellationToken ct)
+    {
+        Exception? error = null;
+        try
+        {
+            var buffer    = new List<FileSystemEntry>(StreamThreshold + 1);
+            bool streaming = false;
+            int folders = 0, files = 0;
+
+            IEnumerator<FileSystemInfo> iterator;
+            try { iterator = new DirectoryInfo(path).EnumerateFileSystemInfos().GetEnumerator(); }
+            catch { return; } // path gone / access denied → empty list (finally completes writer)
+
+            try
+            {
+                while (true)
+                {
+                    ct.ThrowIfCancellationRequested();
+
+                    bool moved;
+                    try { moved = iterator.MoveNext(); }
+                    catch (OperationCanceledException) { throw; }
+                    catch { break; } // mid-enumeration failure — keep what we have
+                    if (!moved) break;
+
+                    FileSystemEntry entry;
+                    try { entry = ToEntry(iterator.Current); }
+                    catch { continue; } // skip an entry we can't read
+
+                    if (entry.IsDirectory) folders++; else files++;
+                    buffer.Add(entry);
+
+                    if (!streaming)
+                    {
+                        if (buffer.Count > StreamThreshold)
+                        {
+                            streaming = true;
+                            await writer.WriteAsync(new(buffer.ToArray(), false, folders, files), ct);
+                            buffer.Clear();
+                        }
+                    }
+                    else if (buffer.Count >= ChunkSize)
+                    {
+                        await writer.WriteAsync(new(buffer.ToArray(), false, folders, files), ct);
+                        buffer.Clear();
+                    }
+                }
+            }
+            finally { iterator.Dispose(); }
+
+            ct.ThrowIfCancellationRequested();
+
+            if (!streaming)
+            {
+                // Small/medium folder: sort the whole set (off the UI thread), one Reset.
+                var sorted = ApplySort(buffer).ToList();
+                await writer.WriteAsync(new(sorted, true, folders, files), ct);
+            }
+            else if (buffer.Count > 0)
+            {
+                await writer.WriteAsync(new(buffer.ToArray(), false, folders, files), ct);
+            }
+        }
+        catch (Exception ex) { error = ex; }
+        finally { writer.TryComplete(error); }
+    }
+
+    /// <summary>Builds an entry from an already-populated <see cref="FileSystemInfo"/>;
+    /// reads cached metadata only (no extra syscall).</summary>
+    private static FileSystemEntry ToEntry(FileSystemInfo fsi)
+    {
+        bool isDir = (fsi.Attributes & FileAttributes.Directory) != 0;
+        return new FileSystemEntry
+        {
+            Name        = fsi.Name,
+            FullPath    = fsi.FullName,
+            IsDirectory = isDir,
+            SizeBytes   = isDir ? 0 : ((FileInfo)fsi).Length,
+            Modified    = fsi.LastWriteTime
+        };
+    }
 
     private IEnumerable<FileSystemEntry> ApplySort(IEnumerable<FileSystemEntry> source)
     {
@@ -1249,13 +1404,22 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
             : source.OrderBy(e => !e.IsDirectory).ThenByDescending(key);
     }
 
-    /// <summary>Reorders the current <see cref="Entries"/> in place using the active sort —
-    /// without re-reading the directory, so it works in "This PC" (drive list) mode too.</summary>
-    private void ResortEntries()
+    /// <summary>Reorders the current <see cref="Entries"/> using the active sort — without
+    /// re-reading the directory, so it works in "This PC" (drive list) mode too. A global
+    /// sort needs the whole set, so it commits with one Reset (single fast fill). Large
+    /// sets are sorted off the UI thread.</summary>
+    private async void ResortEntries()
     {
-        var sorted = ApplySort(Entries.ToList()).ToList();
-        Entries.Clear();
-        foreach (var e in sorted) Entries.Add(e);
+        var path     = CurrentPath;
+        var snapshot = Entries.ToList();
+
+        var sorted = snapshot.Count > StreamThreshold
+            ? await Task.Run(() => ApplySort(snapshot).ToList())
+            : ApplySort(snapshot).ToList();
+
+        // A navigation may have replaced the contents while we were sorting.
+        if (CurrentPath != path) return;
+        Entries.ReplaceAll(sorted);
     }
 
     /// <summary>Resets sort to Name-ascending and clears the footer filter — called on navigation
@@ -1277,6 +1441,10 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
             SortColumn    = column;
             SortAscending = true;
         }
+
+        // If a load is still streaming, defer the sort until it completes (RefreshEntriesAsync
+        // applies the pending sort once the full set is in memory).
+        if (IsLoadingEntries) { _resortPending = true; return; }
         ResortEntries();
     }
 

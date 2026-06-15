@@ -757,6 +757,26 @@
                 </ListView.View>
             </ListView>
 
+            <!-- ── Loading indicator (background folder load) ──────────── -->
+            <!-- Centred card while a folder loads off the UI thread; stays up during
+                 streaming so large folders show "still loading more". -->
+            <Border Grid.Row="1" Grid.Column="0"
+                    Panel.ZIndex="4"
+                    IsHitTestVisible="False"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{StaticResource Surface2Brush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8" Padding="18,12"
+                    Visibility="{Binding IsLoadingEntries, Converter={StaticResource BoolToVis}}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="⏳" FontSize="15" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="Loading…"
+                               Foreground="{StaticResource TextBrush}"
+                               FontSize="13" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
             <!-- ── Footer bar ────────────────────────────────────────── -->
             <!-- Folder / file counts double as a quick-filter: click to show only that
                  kind, click again to clear. Active filter is shown in the accent colour. -->
