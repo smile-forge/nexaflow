@@ -2,33 +2,64 @@ using Microsoft.Web.WebView2.Core;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Web.ViewModels;
 using System;
+using System.Diagnostics;
+using System.Windows;
 using System.Windows.Controls;
 
 namespace Nexaflow.Features.Web.Views;
 
 public partial class HtmlView : UserControl, IPageView
 {
+    private readonly IShellServices _shell;
+    private bool _initStarted;   // Loaded can fire more than once (e.g. when a tab is torn off to a new window)
+
     public HtmlViewModel ViewModel { get; }
 
     /// <summary>Raised when the URL or page title changes, so the tab title + breadcrumb can refresh.</summary>
     public event Action? PageChanged;
 
-    public HtmlView(HtmlViewModel viewModel)
+    public HtmlView(HtmlViewModel viewModel, IShellServices shell)
     {
         InitializeComponent();
         ViewModel   = viewModel;
+        _shell      = shell;
         DataContext = viewModel;
 
-        Loaded += async (_, _) =>
+        Loaded += OnLoaded;
+    }
+
+    private async void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        // Loaded fires again whenever the view is re-parented (tab moved to another window). Skip if an
+        // init is already running, the browser is already live (preserve the user's browsing state instead
+        // of re-navigating), or we've already fallen back (don't re-prompt).
+        if (_initStarted || WebView.CoreWebView2 is not null || !ViewModel.WebViewAvailable) return;
+        _initStarted = true;
+
+        try
         {
             await WebView.EnsureCoreWebView2Async();
-            WebView.CoreWebView2.DocumentTitleChanged += (_, _) =>
+            var core = WebView.CoreWebView2
+                ?? throw new InvalidOperationException("WebView2 initialised without a CoreWebView2.");
+
+            core.DocumentTitleChanged += (_, _) =>
             {
-                ViewModel.PageTitle = WebView.CoreWebView2.DocumentTitle;
+                ViewModel.PageTitle = core.DocumentTitle;
                 PageChanged?.Invoke();
             };
-            WebView.CoreWebView2.Navigate(viewModel.NavigationUri.ToString());
-        };
+            core.Navigate(ViewModel.NavigationUri.ToString());
+        }
+        catch (Exception ex)
+        {
+            // The embedded Edge WebView2 control can't be created on this machine — most often because
+            // the Evergreen WebView2 runtime isn't installed. Don't let the async-void handler crash the
+            // app; fall back to the in-tab panel and offer to open the page in the default browser.
+            HandleWebViewUnavailable(ex);
+        }
+        finally
+        {
+            _initStarted = false;   // allow a future re-parent to re-init if CoreWebView2 was torn down
+        }
     }
 
     /// <summary>Navigates the embedded browser to <paramref name="url"/> (used by breadcrumb crumbs).</summary>
@@ -54,19 +85,76 @@ public partial class HtmlView : UserControl, IPageView
         PageChanged?.Invoke();
     }
 
-    private void Back_Click(object sender, System.Windows.RoutedEventArgs e)
+    private void Back_Click(object sender, RoutedEventArgs e)
     {
         if (WebView.CanGoBack) WebView.GoBack();
     }
 
-    private void Forward_Click(object sender, System.Windows.RoutedEventArgs e)
+    private void Forward_Click(object sender, RoutedEventArgs e)
     {
         if (WebView.CanGoForward) WebView.GoForward();
     }
 
-    private void Reload_Click(object sender, System.Windows.RoutedEventArgs e)
+    private void Reload_Click(object sender, RoutedEventArgs e)
     {
         WebView.Reload();
+    }
+
+    // ── WebView2-unavailable fallback ─────────────────────────────────────
+
+    private void HandleWebViewUnavailable(Exception ex)
+    {
+        ViewModel.IsLoading        = false;
+        ViewModel.WebViewAvailable = false;
+        ViewModel.RuntimeMissing   = ex is WebView2RuntimeNotFoundException;
+        ViewModel.FailureMessage   = ViewModel.RuntimeMissing
+            ? "The Microsoft Edge WebView2 runtime isn't installed on this PC, so the page can't be shown here."
+            : "The embedded browser couldn't be started on this PC.";
+        PageChanged?.Invoke();
+
+        // Proactively offer to open it externally; the in-tab panel stays as a fallback if they decline.
+        if (CanOpenExternally())
+            _shell.ShowConfirmation(
+                "Browser unavailable",
+                $"{ViewModel.FailureMessage} Open this page in your default web browser instead?",
+                onConfirm: OpenInDefaultBrowser,
+                onCancel: static () => { });
+    }
+
+    private void OpenExternal_Click(object sender, RoutedEventArgs e) => OpenInDefaultBrowser();
+
+    private void InstallRuntime_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
+    {
+        e.Handled = true;
+        try { Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true }); }
+        catch (Exception ex) { _shell.ShowError($"Couldn't open the download page: {ex.Message}"); }
+    }
+
+    private void OpenInDefaultBrowser()
+    {
+        if (!CanOpenExternally())
+        {
+            _shell.ShowError("This page can't be opened in an external browser.");
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(ViewModel.NavigationUri.ToString()) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            _shell.ShowError($"Couldn't open your default browser: {ex.Message}");
+        }
+    }
+
+    /// <summary>Only hand http(s)/file URLs to the OS shell — never arbitrary schemes from a .url file.</summary>
+    private bool CanOpenExternally()
+    {
+        var scheme = ViewModel.NavigationUri.Scheme;
+        return scheme == Uri.UriSchemeHttp
+            || scheme == Uri.UriSchemeHttps
+            || scheme == Uri.UriSchemeFile;
     }
 
     // ── IPageView ─────────────────────────────────────────────────────────
