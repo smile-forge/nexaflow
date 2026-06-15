@@ -10,7 +10,7 @@ namespace Nexaflow.Features.Web;
 /// Accepts a "path" page parameter containing the file path or URL to display.
 /// The tab title and breadcrumb track the current page (see <see cref="WebPageChrome"/>).
 /// </summary>
-public sealed class HtmlTabRegistration : IPageRegistration
+public sealed class HtmlTabRegistration(IShellServices shell) : IPageRegistration
 {
     public static string StaticPageKind => "Html";
     public string PageKind => StaticPageKind;
@@ -30,7 +30,7 @@ public sealed class HtmlTabRegistration : IPageRegistration
 
         page.ContentFactory = () =>
         {
-            var view = new HtmlView(new HtmlViewModel(url));
+            var view = new HtmlView(new HtmlViewModel(url), shell);
             view.PageChanged += () => UpdateChrome(page, view);
             return view;
         };

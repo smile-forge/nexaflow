@@ -24,6 +24,18 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel
     /// Drives the tab title when present; otherwise the URL-derived form is used.</summary>
     [ObservableProperty] private string _pageTitle = string.Empty;
 
+    /// <summary>False when the embedded WebView2 control couldn't be started on this machine
+    /// (e.g. the Edge WebView2 runtime is missing). The view swaps to a fallback panel that offers
+    /// to open the page in the user's default browser instead.</summary>
+    [ObservableProperty] private bool _webViewAvailable = true;
+
+    /// <summary>Human-readable reason the embedded browser is unavailable; shown on the fallback panel.</summary>
+    [ObservableProperty] private string _failureMessage = string.Empty;
+
+    /// <summary>True when the failure is specifically a missing Edge WebView2 runtime — drives the
+    /// "install the runtime" link on the fallback panel.</summary>
+    [ObservableProperty] private bool _runtimeMissing;
+
     public HtmlViewModel(string filePath)
     {
         FileName = Path.GetFileName(filePath);
