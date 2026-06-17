@@ -1,5 +1,5 @@
 using Markdig.Syntax;
-using Nexaflow.Tests.Core.Infrastructure;
+using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using System.IO;
 using MdMarkdown = Markdig.Markdown;

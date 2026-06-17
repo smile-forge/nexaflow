@@ -4,6 +4,7 @@
              xmlns:avalon="http://icsharpcode.net/sharpdevelop/avalonedit"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:local="clr-namespace:Nexaflow.Features.Text.Views"
+             AutomationProperties.AutomationId="TextView"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>

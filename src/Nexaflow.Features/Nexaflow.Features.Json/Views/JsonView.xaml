@@ -5,6 +5,7 @@
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:local="clr-namespace:Nexaflow.Features.Json.Views"
              xmlns:m="clr-namespace:Nexaflow.Features.Json.Models"
+             AutomationProperties.AutomationId="JsonView"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>

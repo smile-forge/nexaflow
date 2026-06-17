@@ -26,13 +26,14 @@ public sealed class FileMapManager
 
     // ── Persistence paths ────────────────────────────────────────────────────
 
-    private static string FilemapDir =>
-        Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Smile", "nexaflow", "filemap");
+    // Set in Initialize from the app config base dir (ConfigManager.BaseDir) so the file map
+    // lives under the active config root — identical to the old %AppData%\Smile\nexaflow\filemap
+    // for a normal run, but correctly isolated for a NEXAFLOW_CONFIG_DIR run (e.g. UI tests).
+    private string _filemapDir = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "Smile", "nexaflow", "filemap");
 
-    private static string IndexPath  => Path.Combine(FilemapDir, "_index.bin");
-    private static string MetaPath   => Path.Combine(FilemapDir, "_index.meta");
+    private string IndexPath => Path.Combine(_filemapDir, "_index.bin");
 
     // ── In-memory state ──────────────────────────────────────────────────────
 
@@ -49,11 +50,12 @@ public sealed class FileMapManager
 
     // ── Public API ───────────────────────────────────────────────────────────
 
-    public void Initialize(bool useRegistryMapping)
+    public void Initialize(bool useRegistryMapping, string baseDir)
     {
         _useRegistryMapping = useRegistryMapping;
+        _filemapDir = Path.Combine(baseDir, "filemap");
 
-        Directory.CreateDirectory(FilemapDir);
+        Directory.CreateDirectory(_filemapDir);
 
         // Seed default mappings on first use
         SeedDefaultsIfEmpty();
@@ -226,7 +228,7 @@ public sealed class FileMapManager
 
     private void SeedDefaultsIfEmpty()
     {
-        if (Directory.GetFiles(FilemapDir, "*.json").Length > 0) return;
+        if (Directory.GetFiles(_filemapDir, "*.json").Length > 0) return;
 
         string bundled = Path.Combine(
             AppContext.BaseDirectory, "FileActions", "default-filemap.json");
@@ -245,7 +247,7 @@ public sealed class FileMapManager
         lock (_mappings)
         {
             _mappings.Clear();
-            foreach (var file in Directory.GetFiles(FilemapDir, "*.json"))
+            foreach (var file in Directory.GetFiles(_filemapDir, "*.json"))
             {
                 if (Path.GetFileName(file).StartsWith('_')) continue;
                 try
@@ -266,11 +268,11 @@ public sealed class FileMapManager
         File.WriteAllText(path, JsonSerializer.Serialize(mapping, _jsonOpts));
     }
 
-    private static string MappingFilePath(string experienceId)
+    private string MappingFilePath(string experienceId)
     {
         string safe = experienceId.TrimStart('/').Replace('/', '_');
         if (string.IsNullOrEmpty(safe)) safe = "root";
-        return Path.Combine(FilemapDir, safe + ".json");
+        return Path.Combine(_filemapDir, safe + ".json");
     }
 
     // ── Index ─────────────────────────────────────────────────────────────────
@@ -349,7 +351,7 @@ public sealed class FileMapManager
         public Dictionary<string, List<string>>     ByMagicNumber    { get; set; } = [];
     }
 
-    private static void WriteIndex(ReverseIndex idx)
+    private void WriteIndex(ReverseIndex idx)
     {
         try
         {

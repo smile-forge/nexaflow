@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:ctrl="clr-namespace:Nexaflow.Features.Hex.Controls"
+             AutomationProperties.AutomationId="HexView"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>

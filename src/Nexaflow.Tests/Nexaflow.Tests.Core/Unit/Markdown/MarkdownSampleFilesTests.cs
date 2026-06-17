@@ -1,4 +1,4 @@
-using Nexaflow.Tests.Core.Infrastructure;
+using Nexaflow.Tests.Fixtures;
 using System.IO;
 
 namespace Nexaflow.Tests.Core.Unit.Markdown;

@@ -77,7 +77,8 @@ public class TemplatedCreateOptionsTests : FileSystemUiTestBase
         var newBtn = WaitForId("New", 10);
         Assert.IsNotNull(newBtn, "New button not found after saving the template.");
         newBtn!.AsButton().Invoke();
-        Assert.IsNotNull(WaitForId("CreateOverlay", 6), "Create overlay did not open.");
+        // CreateOverlay is a Border (no UI Automation peer) — gate on its filename box instead.
+        Assert.IsNotNull(WaitForId("CreateFileNameBox", 6), "Create overlay did not open.");
 
         var myType = WaitForId("My Note", 6);
         Assert.IsNotNull(myType, "The template type was not shown in the create overlay.");

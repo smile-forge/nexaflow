@@ -101,6 +101,15 @@ Mnemonic: **feature settings = global; persona, ability grid, provider configs, 
 
 ## Tests
 
+Three test projects under `src/Nexaflow.Tests/`, plus a shared fixtures library. Full guide: [docs/testing.md](docs/testing.md).
+
+| Project | Covers |
+|---------|--------|
+| `Nexaflow.Tests.Core` | Core shell + `Nexaflow.Visuals.*` (unit + UI). References Core. |
+| `Nexaflow.Tests.Features` | Every `Nexaflow.Features.*` (unit + UI). References the feature projects, **not** Core. |
+| `Nexaflow.Tests.Providers` | Provider clients. |
+| `Nexaflow.Tests.Fixtures` | **Not a test project** — a dependency-free `net10.0` library that generates the shared sample-file dataset. Referenced by both Core and Features test projects. |
+
 After any change touching `Nexaflow.Core`, run the unit tests before committing:
 
 ```powershell
@@ -108,7 +117,9 @@ dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Core/Nexaflow.Tests.Core.csproj
 src/Nexaflow.Tests/Nexaflow.Tests.Core/bin/Debug/net10.0-windows/Nexaflow.Tests.Core.exe --filter "FullyQualifiedName~Unit"
 ```
 
-UI tests (`--filter "TestCategory=UI"`) require an interactive desktop session — skip in headless/CI. Run them manually when changes touch shell chrome, tab strip, ribbon, or the AI bar.
+UI tests (`--filter "TestCategory=UI"`) require an interactive desktop session — skip in headless/CI. Run them manually when changes touch shell chrome, tab strip, ribbon, the AI bar, or any viewer.
+
+**Sample files.** `TestSampleData` (in `Nexaflow.Tests.Fixtures`) lazily materialises a git-ignored, cached dataset under `<repoRoot>/test-samples/` — markdown, tabular (csv/tsv), text (varied BOMs + line endings), json, logs, and binary fixtures. Generation is idempotent: a file is rewritten only when missing or drifted, so deleting `test-samples/` forces a clean rebuild. Use these instead of hand-curated machine-local sample folders. Add a new family by implementing `ISampleSet` and registering it in `TestSampleData.Sets`. Every sample file has a per-file UI test (`SampleFileViewerTests`) asserting it opens in the expected viewer. Details + the file→viewer map in [docs/testing.md](docs/testing.md).
 
 ## Potential WPF Gotchas
 

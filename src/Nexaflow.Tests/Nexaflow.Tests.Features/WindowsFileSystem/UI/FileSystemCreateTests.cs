@@ -87,7 +87,9 @@ public class FileSystemCreateTests : FileSystemUiTestBase
         Assert.IsNotNull(newBtn, "The 'New' button did not appear in the action strip.");
         newBtn!.AsButton().Invoke();
 
-        Assert.IsNotNull(WaitForId("CreateOverlay", 6), "Create overlay did not open.");
+        // The CreateOverlay element is a Border, which WPF doesn't surface as a UI Automation
+        // peer — so we gate on its filename box (a real Edit element) to confirm the overlay opened.
+        Assert.IsNotNull(WaitForId("CreateFileNameBox", 6), "Create overlay did not open.");
 
         var typeBtn = WaitForId(typeName, 6);
         Assert.IsNotNull(typeBtn, $"Create type '{typeName}' not found.");

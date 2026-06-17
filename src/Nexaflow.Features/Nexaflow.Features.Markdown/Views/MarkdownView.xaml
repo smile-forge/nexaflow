@@ -1,6 +1,7 @@
 <UserControl x:Class="Nexaflow.Features.Markdown.Views.MarkdownView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             AutomationProperties.AutomationId="MarkdownView"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources/>

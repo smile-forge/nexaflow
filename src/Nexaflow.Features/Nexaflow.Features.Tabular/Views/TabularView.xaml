@@ -4,6 +4,7 @@
              xmlns:local="clr-namespace:Nexaflow.Features.Tabular.Views"
              xmlns:vm="clr-namespace:Nexaflow.Features.Tabular.ViewModels"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             AutomationProperties.AutomationId="TabularView"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>

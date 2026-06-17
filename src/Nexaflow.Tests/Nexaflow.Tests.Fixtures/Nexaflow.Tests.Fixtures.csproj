@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Shared test-fixture data generator. Deliberately has NO feature/Core dependency: it only
+       materialises the git-ignored sample dataset under <repoRoot>/test-samples, so both the Core
+       and Features test projects can reference it without dragging Core (and its x64 RID) along. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+</Project>

@@ -23,6 +23,14 @@
     ]
   },
   {
+    "ExperienceId": "/binary",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.bin" },
+      { "Type": "Extension", "Value": "*.dat" }
+    ]
+  },
+  {
     "ExperienceId": "/text",
     "Source": "User",
     "Criteria": [

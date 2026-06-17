@@ -1,4 +1,4 @@
-namespace Nexaflow.Tests.Core.Infrastructure;
+namespace Nexaflow.Tests.Fixtures;
 
 /// <summary>
 /// Catalog of sample markdown documents — one per Mermaid diagram type the renderer supports
@@ -9,16 +9,16 @@ internal sealed class MarkdownSamples : ISampleSet
 {
     public string SubDirectory => "markdown";
 
-    public IReadOnlyDictionary<string, string> Files { get; } = new Dictionary<string, string>
-    {
-        ["mermaid-pie.md"]       = Pie,
-        ["mermaid-flowchart.md"] = Flowchart,
-        ["mermaid-quadrant.md"]  = Quadrant,
-        ["mermaid-sequence.md"]  = Sequence,
-        ["mermaid-gantt.md"]     = Gantt,
-        ["mermaid-gitgraph.md"]  = GitGraph,
-        ["mermaid-mindmap.md"]   = Mindmap,
-    };
+    public IReadOnlyList<SampleFile> Files { get; } =
+    [
+        SampleFile.Text("mermaid-pie.md",       Pie),
+        SampleFile.Text("mermaid-flowchart.md", Flowchart),
+        SampleFile.Text("mermaid-quadrant.md",  Quadrant),
+        SampleFile.Text("mermaid-sequence.md",  Sequence),
+        SampleFile.Text("mermaid-gantt.md",     Gantt),
+        SampleFile.Text("mermaid-gitgraph.md",  GitGraph),
+        SampleFile.Text("mermaid-mindmap.md",   Mindmap),
+    ];
 
     private const string Mindmap =
         """

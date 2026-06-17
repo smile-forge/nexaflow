@@ -168,7 +168,7 @@ public partial class App : Application
         ConfigManager.Instance.Register(externalAppsConfig, externalAppsConfig.ConfigName);
         ExternalAppRegistry.Instance.Initialize(externalAppsConfig);
 
-        FileMapManager.Instance.Initialize(externalAppsConfig.UseRegistryMapping);
+        FileMapManager.Instance.Initialize(externalAppsConfig.UseRegistryMapping, ConfigManager.Instance.BaseDir);
 
         // ShellNew create-file entries from HKCR — gated on the same registry-mapping option.
         ShellNewRegistry.Instance.Initialize(externalAppsConfig.UseRegistryMapping);
