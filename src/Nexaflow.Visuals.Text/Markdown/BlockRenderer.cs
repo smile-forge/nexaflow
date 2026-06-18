@@ -284,22 +284,35 @@ public static class BlockRenderer
                     ? table.ColumnDefinitions[colIdx].Alignment ?? TableColumnAlign.Left
                     : TableColumnAlign.Left;
 
-                var tb = MakeTextBlock(p);
-                tb.FontWeight     = row.IsHeader ? FontWeights.SemiBold : FontWeights.Normal;
-                tb.Foreground     = row.IsHeader ? p.Heading : p.Text;
-                tb.FontSize       = row.IsHeader ? 13 : BaseFontSize;
-                tb.Padding        = new Thickness(8, 5, 8, 5);
-                tb.TextAlignment  = align switch
+                // A single-paragraph cell (every pipe-table cell, most grid cells) keeps the styled,
+                // aligned text fast-path. Cells with block content (grid tables: lists, multiple
+                // paragraphs) render every child block so nothing is silently dropped.
+                FrameworkElement content;
+                if (cell.Count == 1 && cell[0] is ParagraphBlock pb)
                 {
-                    TableColumnAlign.Right  => TextAlignment.Right,
-                    TableColumnAlign.Center => TextAlignment.Center,
-                    _                       => TextAlignment.Left
-                };
-
-                // Cells contain ParagraphBlock children; extract inlines from the first
-                if (cell.Count > 0 && cell[0] is ParagraphBlock pb && pb.Inline is not null)
-                    foreach (var inl in pb.Inline)
-                        AddInlines(tb.Inlines, inl, ctx);
+                    var tb = MakeTextBlock(p);
+                    tb.FontWeight    = row.IsHeader ? FontWeights.SemiBold : FontWeights.Normal;
+                    tb.Foreground    = row.IsHeader ? p.Heading : p.Text;
+                    tb.FontSize      = row.IsHeader ? 13 : BaseFontSize;
+                    tb.Padding       = new Thickness(8, 5, 8, 5);
+                    tb.TextAlignment = align switch
+                    {
+                        TableColumnAlign.Right  => TextAlignment.Right,
+                        TableColumnAlign.Center => TextAlignment.Center,
+                        _                       => TextAlignment.Left
+                    };
+                    if (pb.Inline is not null)
+                        foreach (var inl in pb.Inline)
+                            AddInlines(tb.Inlines, inl, ctx);
+                    content = tb;
+                }
+                else
+                {
+                    var sp = new StackPanel { Margin = new Thickness(8, 5, 8, 5) };
+                    foreach (var child in cell)
+                        sp.Children.Add(Render(child, "", ctx));
+                    content = sp;
+                }
 
                 var bg = row.IsHeader
                     ? p.TableHeaderBg
@@ -310,7 +323,7 @@ public static class BlockRenderer
                     Background      = bg,
                     BorderBrush     = p.TableBorder,
                     BorderThickness = new Thickness(1),
-                    Child           = tb
+                    Child           = content
                 };
 
                 int colspan = Math.Max(1, cell.ColumnSpan);
@@ -537,8 +550,13 @@ public static class BlockRenderer
                 target.Add(new Run(li.Content.ToString()) { Tag = li.Span });
                 break;
 
-            case EmphasisInline ei when ei.DelimiterChar == '^':
-                // Citation (^^text^^) — rendered as smaller raised text in a distinct colour
+            case HtmlEntityInline he:
+                // &amp; / &#9731; — Markdig keeps these as a distinct inline carrying the decoded text.
+                target.Add(new Run(he.Transcoded.ToString()) { Tag = he.Span });
+                break;
+
+            case EmphasisInline ei when ei.DelimiterChar == '"':
+                // Citation (""text"") — Markdig's UseCitations delimiter; rendered as smaller raised text in a distinct colour
                 var citeSpan = new Span
                 {
                     Foreground = p.Citation,
@@ -580,25 +598,16 @@ public static class BlockRenderer
                 break;
 
             case LinkInline link when !link.IsImage:
-                var hyper = new Hyperlink
-                {
-                    Foreground      = p.Accent,
-                    TextDecorations = TextDecorations.Underline,
-                    Cursor          = System.Windows.Input.Cursors.Hand,   // signal the link is clickable
-                    NavigateUri     = Uri.TryCreate(link.Url, UriKind.Absolute, out var uri) ? uri : null
-                };
-                var onNavigate = ctx.OnNavigate;
-                hyper.RequestNavigate += (_, e) =>
-                {
-                    var url = e.Uri.ToString();
-                    e.Handled = true;
-                    // In-app handler wins; otherwise fall back to the OS browser.
-                    if (onNavigate is not null && onNavigate(url)) return;
-                    try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
-                    catch { }
-                };
+                var hyper = NewHyperlink(link.Url, ctx);
                 foreach (var child in link) AddInlines(hyper.Inlines, child, ctx);
                 target.Add(hyper);
+                break;
+
+            case AutolinkInline auto:
+                // CommonMark <https://…> / <user@host> — a distinct inline from LinkInline; the URL is also the label.
+                var autoLink = NewHyperlink(auto.IsEmail ? $"mailto:{auto.Url}" : auto.Url, ctx);
+                autoLink.Inlines.Add(new Run(auto.Url) { Tag = auto.Span });
+                target.Add(autoLink);
                 break;
 
             case LineBreakInline lbr:
@@ -637,6 +646,32 @@ public static class BlockRenderer
                 target.Add(new Run(inline.ToString() ?? string.Empty));
                 break;
         }
+    }
+
+    /// <summary>
+    /// Builds a navigable <see cref="Hyperlink"/> (shared by inline links and autolinks): the in-app
+    /// <see cref="MarkdownRenderContext.OnNavigate"/> hook wins, otherwise the OS browser opens the URL.
+    /// </summary>
+    private static Hyperlink NewHyperlink(string? url, MarkdownRenderContext ctx)
+    {
+        var hyper = new Hyperlink
+        {
+            Foreground      = ctx.Palette.Accent,
+            TextDecorations = TextDecorations.Underline,
+            Cursor          = System.Windows.Input.Cursors.Hand,   // signal the link is clickable
+            NavigateUri     = Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri : null
+        };
+        var onNavigate = ctx.OnNavigate;
+        hyper.RequestNavigate += (_, e) =>
+        {
+            var nav = e.Uri.ToString();
+            e.Handled = true;
+            // In-app handler wins; otherwise fall back to the OS browser.
+            if (onNavigate is not null && onNavigate(nav)) return;
+            try { Process.Start(new ProcessStartInfo(nav) { UseShellExecute = true }); }
+            catch { }
+        };
+        return hyper;
     }
 
     // ── Image rendering (local files only) ────────────────────────────────

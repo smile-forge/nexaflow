@@ -255,34 +255,47 @@ public static class MarkdownFlowDocument
                     ? table.ColumnDefinitions[colIdx].Alignment ?? TableColumnAlign.Left
                     : TableColumnAlign.Left;
 
-                var para = new Paragraph
+                // Single-paragraph cells (every pipe-table cell, most grid cells) stay selectable text
+                // with header/alignment styling. Block-content cells (grid tables: lists, multiple
+                // paragraphs) render every child block so nothing is silently dropped.
+                TableCell tc;
+                if (cell.Count == 1 && cell[0] is ParagraphBlock cpb)
                 {
-                    Margin        = new Thickness(0),
-                    FontWeight    = row.IsHeader ? FontWeights.SemiBold : FontWeights.Normal,
-                    Foreground    = row.IsHeader ? p.Heading : p.Text,
-                    FontSize      = row.IsHeader ? 13 : BlockRenderer.BaseFontSize,
-                    TextAlignment = align switch
+                    var para = new Paragraph
                     {
-                        TableColumnAlign.Right  => TextAlignment.Right,
-                        TableColumnAlign.Center => TextAlignment.Center,
-                        _                       => TextAlignment.Left,
-                    },
-                };
-                if (cell.Count > 0 && cell[0] is ParagraphBlock cpb && cpb.Inline is not null)
-                    foreach (var inl in cpb.Inline)
-                        BlockRenderer.AddInlines(para.Inlines, inl, ctx);
-
-                var tc = new TableCell(para)
+                        Margin        = new Thickness(0),
+                        FontWeight    = row.IsHeader ? FontWeights.SemiBold : FontWeights.Normal,
+                        Foreground    = row.IsHeader ? p.Heading : p.Text,
+                        FontSize      = row.IsHeader ? 13 : BlockRenderer.BaseFontSize,
+                        TextAlignment = align switch
+                        {
+                            TableColumnAlign.Right  => TextAlignment.Right,
+                            TableColumnAlign.Center => TextAlignment.Center,
+                            _                       => TextAlignment.Left,
+                        },
+                    };
+                    if (cpb.Inline is not null)
+                        foreach (var inl in cpb.Inline)
+                            BlockRenderer.AddInlines(para.Inlines, inl, ctx);
+                    tc = new TableCell(para);
+                }
+                else
                 {
-                    BorderBrush     = p.TableBorder,
-                    BorderThickness = new Thickness(1),
-                    Padding         = new Thickness(8, 5, 8, 5),
-                    Background      = row.IsHeader
-                        ? p.TableHeaderBg
-                        : (rowIdx % 2 == 1 ? p.TableAltRowBg : Brushes.Transparent),
-                    ColumnSpan      = Math.Max(1, cell.ColumnSpan),
-                    RowSpan         = Math.Max(1, cell.RowSpan),
-                };
+                    tc = new TableCell();
+                    foreach (var child in cell)
+                        foreach (var b in RenderBlock(child, string.Empty, ctx))
+                            tc.Blocks.Add(b);
+                    if (tc.Blocks.Count == 0) tc.Blocks.Add(new Paragraph());
+                }
+
+                tc.BorderBrush     = p.TableBorder;
+                tc.BorderThickness = new Thickness(1);
+                tc.Padding         = new Thickness(8, 5, 8, 5);
+                tc.Background      = row.IsHeader
+                    ? p.TableHeaderBg
+                    : (rowIdx % 2 == 1 ? p.TableAltRowBg : Brushes.Transparent);
+                tc.ColumnSpan      = Math.Max(1, cell.ColumnSpan);
+                tc.RowSpan         = Math.Max(1, cell.RowSpan);
 
                 trow.Cells.Add(tc);
                 colIdx += Math.Max(1, cell.ColumnSpan);
