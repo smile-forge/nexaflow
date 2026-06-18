@@ -31,6 +31,9 @@ public sealed class LayoutEdge
     /// <summary>The original graph edge (null for intermediate dummy segments — these are merged away before the result is returned).</summary>
     public Edge? Source { get; init; }
     public List<Point> Waypoints { get; } = [];
+    /// <summary>Where to anchor the edge's label. Set by parallel-edge separation to stagger the
+    /// labels of grouped edges so they don't collide; null → the renderer uses the path midpoint.</summary>
+    public Point? LabelAnchor { get; set; }
 }
 
 /// <summary>
@@ -84,9 +87,118 @@ public static class SugiyamaLayout
         if (graph.Nodes.Count == 0)
             return new LayoutedGraph { Source = graph };
 
-        return graph.Subgraphs.Count > 0
+        var result = graph.Subgraphs.Count > 0
             ? ComputeClustered(graph, preferredMaxWidth)
             : ComputeFlat(graph, preferredMaxWidth, null);
+
+        bool horizontal = result.Source.Direction is GraphDirection.LeftRight or GraphDirection.RightLeft;
+        SeparateParallelEdges(result.Edges, horizontal);
+        return result;
+    }
+
+    /// <summary>
+    /// Cleans up edge endpoints so overlapping lines read clearly: first fans every edge sharing a
+    /// node face out across distinct ports (so a lone edge never overlaps a coupled pair leaving the
+    /// same node), then for parallel/antiparallel groups (a state-diagram <c>A --&gt; B</c> /
+    /// <c>B --&gt; A</c> couple) adds an outward bow + staggered labels so the pair draws as a clean
+    /// lens with non-colliding labels.
+    /// </summary>
+    private static void SeparateParallelEdges(List<LayoutEdge> edges, bool horizontal)
+    {
+        DistributePorts(edges, horizontal);
+
+        const double Bow = 12.0;   // outward bulge at the middle of each coupled edge
+        double px = horizontal ? 0 : 1, py = horizontal ? 1 : 0;   // lateral axis
+        double Lat(Point p) => horizontal ? p.Y : p.X;
+
+        var groups = new Dictionary<(LayoutNode, LayoutNode), List<LayoutEdge>>();
+        foreach (var e in edges)
+        {
+            var key = e.From.GetHashCode() <= e.To.GetHashCode() ? (e.From, e.To) : (e.To, e.From);
+            if (!groups.TryGetValue(key, out var list)) groups[key] = list = [];
+            list.Add(e);
+        }
+
+        foreach (var group in groups.Values)
+        {
+            if (group.Count < 2) continue;
+            int n = group.Count;
+            for (int i = 0; i < n; i++)
+            {
+                var e = group[i];
+                if (e.Waypoints.Count < 2) continue;
+
+                // The edge already leaves its ports on one side of centre (port distribution); bow the
+                // middle further out on that same side so the couple opens into a lens.
+                double off  = ((Lat(e.Waypoints[0]) - (horizontal ? e.From.Y : e.From.X))
+                             + (Lat(e.Waypoints[^1]) - (horizontal ? e.To.Y : e.To.X))) / 2.0;
+                double sign = off >= 0 ? 1 : -1;
+
+                if (e.Waypoints.Count == 2)
+                {
+                    Point a = e.Waypoints[0], b = e.Waypoints[1];
+                    e.Waypoints.Insert(1, new Point((a.X + b.X) / 2.0 + px * Bow * sign,
+                                                    (a.Y + b.Y) / 2.0 + py * Bow * sign));
+                }
+
+                if (e.Source is { Label.Length: > 0 })
+                {
+                    Point a = e.Waypoints[0], b = e.Waypoints[^1];
+                    double t = 0.30 + 0.40 * (i / (n - 1.0));
+                    e.LabelAnchor = new Point(a.X + (b.X - a.X) * t + px * Bow * sign,
+                                              a.Y + (b.Y - a.Y) * t + py * Bow * sign);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Fans the edges attached to each node face out across distinct ports instead of all meeting at
+    /// the face centre, so lines leaving/entering the same node don't overlap. Stubs are ordered by
+    /// the direction they head (left-bound edges take left ports) and spread within the node's width
+    /// (or height, for left-right graphs).
+    /// </summary>
+    private static void DistributePorts(List<LayoutEdge> edges, bool horizontal)
+    {
+        const double Pad = 8.0, MaxStep = 26.0;
+
+        var atStart = new Dictionary<LayoutNode, List<LayoutEdge>>();
+        var atEnd   = new Dictionary<LayoutNode, List<LayoutEdge>>();
+        foreach (var e in edges)
+        {
+            if (e.Waypoints.Count < 2) continue;
+            (atStart.TryGetValue(e.From, out var sl) ? sl : atStart[e.From] = []).Add(e);
+            (atEnd.TryGetValue(e.To,    out var el) ? el : atEnd[e.To]      = []).Add(e);
+        }
+
+        void Spread(LayoutNode node, List<LayoutEdge> stubs, bool isStart)
+        {
+            if (stubs.Count < 2) return;
+
+            double Key(LayoutEdge e)
+            {
+                var adj = isStart ? e.Waypoints[1] : e.Waypoints[^2];
+                return horizontal ? adj.Y : adj.X;
+            }
+            stubs.Sort((a, b) => Key(a).CompareTo(Key(b)));
+
+            double span   = Math.Max(0, (horizontal ? node.Height : node.Width) - 2 * Pad);
+            double step    = Math.Min(MaxStep, span / (stubs.Count - 1));
+            double center = horizontal ? node.Y : node.X;
+            double from    = center - step * (stubs.Count - 1) / 2.0;
+
+            for (int i = 0; i < stubs.Count; i++)
+            {
+                double pos = from + i * step;
+                var e = stubs[i];
+                int idx = isStart ? 0 : e.Waypoints.Count - 1;
+                var p = e.Waypoints[idx];
+                e.Waypoints[idx] = horizontal ? new Point(p.X, pos) : new Point(pos, p.Y);
+            }
+        }
+
+        foreach (var (node, stubs) in atStart) Spread(node, stubs, isStart: true);
+        foreach (var (node, stubs) in atEnd)   Spread(node, stubs, isStart: false);
     }
 
     /// <summary>The core Sugiyama pipeline with no cluster handling. <paramref name="sizes"/> overrides
@@ -114,123 +226,164 @@ public static class SugiyamaLayout
 
     // ── Clustered layout (subgraphs) ──────────────────────────────────────
 
+    private const double ClusterPad = 14, ClusterLabelH = 26;
+
     /// <summary>
-    /// Lays out a graph that has subgraphs by collapsing each subgraph to a single sized
-    /// super-node, laying out the condensed graph, then expanding each super-node back into
-    /// its internally-laid-out members and drawing a box around them.  Edges to a subgraph id,
-    /// or to a node inside one, attach to the cluster boundary.
+    /// Lays out a graph with subgraphs by recursively collapsing each subgraph (and its nested
+    /// children) to a sized super-node, laying out one level at a time, then expanding each
+    /// super-node back into its internally-laid-out members + box. Nesting is driven by
+    /// <see cref="Subgraph.ParentId"/>: flowchart subgraphs (no parent) form a single level,
+    /// state composites nest arbitrarily deep. Edges attach to whichever entity owns each endpoint
+    /// at the level being laid out.
     /// </summary>
     private static LayoutedGraph ComputeClustered(Graph graph, double preferredMaxWidth)
     {
-        const double Pad = 14, LabelH = 24;
-
-        // Each node → the (innermost = first-listed) subgraph that contains it.
-        var nodeToSg = new Dictionary<string, Subgraph>(StringComparer.Ordinal);
+        // Each node → the subgraph that directly owns it (the parser lists innermost first; first wins).
+        var ownerOf = new Dictionary<string, Subgraph>(StringComparer.Ordinal);
         foreach (var sg in graph.Subgraphs)
             foreach (var id in sg.NodeIds)
-                nodeToSg.TryAdd(id, sg);
+                ownerOf.TryAdd(id, sg);
 
-        var superIdOf = new Dictionary<Subgraph, string>();
-        var sgById    = new Dictionary<string, Subgraph>(StringComparer.Ordinal);
-        int gen = 0;
+        var sgById = new Dictionary<string, Subgraph>(StringComparer.Ordinal);
         foreach (var sg in graph.Subgraphs)
-        {
-            superIdOf[sg] = sg.Id.Length > 0 ? sg.Id : "__sg" + gen++;
             if (sg.Id.Length > 0) sgById[sg.Id] = sg;
-        }
 
-        // 1 ── Lay out each subgraph internally; size its super-node to the content block.
-        var inner = new Dictionary<Subgraph, LayoutedGraph>();
-        var sizes = new Dictionary<string, (double w, double h)>(StringComparer.Ordinal);
+        var childrenOf = new Dictionary<string, List<Subgraph>>(StringComparer.Ordinal);
+        var topLevel   = new List<Subgraph>();
         foreach (var sg in graph.Subgraphs)
         {
-            var members = graph.Nodes.Where(n => nodeToSg.TryGetValue(n.Id, out var s) && s == sg).ToList();
-            if (members.Count == 0) continue;
-            var memberIds = members.Select(n => n.Id).ToHashSet();
-
-            var ig = new Graph { Direction = graph.Direction };
-            ig.Nodes.AddRange(members);
-            foreach (var e in graph.Edges.Where(e => memberIds.Contains(e.SourceId) && memberIds.Contains(e.TargetId)))
-                ig.Edges.Add(e);
-
-            var lg = ComputeFlat(ig, 0, null);
-            inner[sg] = lg;
-            sizes[superIdOf[sg]] = (ContentW(lg) + 2 * Pad, ContentH(lg) + LabelH + Pad);
+            // Treat a parent that doesn't resolve (e.g. flowchart) as top level.
+            if (sg.ParentId is string pid && sgById.ContainsKey(pid))
+            {
+                if (!childrenOf.TryGetValue(pid, out var list)) childrenOf[pid] = list = [];
+                list.Add(sg);
+            }
+            else topLevel.Add(sg);
         }
 
-        // 2 ── Build the condensed graph: members/subgraph-ids → super-nodes, others stay.
-        string Map(string id)
+        // The entity that owns `id` at the level identified by `levelId` (null = top level), or null
+        // when `id` is outside that level's subtree.
+        string? LevelEntity(string id, string? levelId)
         {
-            if (sgById.TryGetValue(id, out var byId) && inner.ContainsKey(byId)) return superIdOf[byId];
-            if (nodeToSg.TryGetValue(id, out var byMember) && inner.ContainsKey(byMember)) return superIdOf[byMember];
-            return id;
+            Subgraph? home = sgById.TryGetValue(id, out var asSg) ? asSg
+                           : ownerOf.GetValueOrDefault(id);
+            if (home is null) return levelId is null ? id : null;   // free node → only at the top level
+
+            for (var cur = home; cur is not null; cur = ResolveParent(cur, sgById))
+            {
+                if (string.Equals(cur.Id, levelId, StringComparison.Ordinal)) return id;       // direct member
+                if (string.Equals(cur.ParentId, levelId, StringComparison.Ordinal)
+                    || (cur.ParentId is null && levelId is null)) return cur.Id;                 // child box at this level
+            }
+            return null;
         }
 
-        var condensed = new Graph { Direction = graph.Direction };
-        foreach (var sg in graph.Subgraphs)
-            if (inner.ContainsKey(sg)) condensed.Nodes.Add(new Node { Id = superIdOf[sg], Label = sg.Label });
-        foreach (var n in graph.Nodes)
-            if (!nodeToSg.ContainsKey(n.Id) && !sgById.ContainsKey(n.Id)) condensed.Nodes.Add(n);
-        foreach (var e in graph.Edges)
+        // Recursively lay out one level (its direct member nodes + child boxes as super-nodes).
+        LayoutedGraph LayoutLevel(string? levelId)
         {
-            string s = Map(e.SourceId), t = Map(e.TargetId);
-            if (s == t) continue;   // internal edge (drawn by the inner layout) or self-loop
-            condensed.AddEdge(s, t, e.Label, e.Style, e.Arrow).StartArrow = e.StartArrow;
+            var children = levelId is null ? topLevel : childrenOf.GetValueOrDefault(levelId, []);
+
+            var inner = new Dictionary<string, LayoutedGraph>(StringComparer.Ordinal);
+            var sizes = new Dictionary<string, (double w, double h)>(StringComparer.Ordinal);
+            foreach (var child in children)
+            {
+                var cl = LayoutLevel(child.Id);
+                inner[child.Id] = cl;
+                var cb = ContentBounds(cl);
+                sizes[child.Id] = (cb.Width + 2 * ClusterPad, cb.Height + ClusterLabelH + ClusterPad);
+            }
+
+            var level = new Graph { Direction = graph.Direction, Title = levelId is null ? graph.Title : string.Empty };
+            foreach (var n in graph.Nodes)
+                if (!sgById.ContainsKey(n.Id) &&
+                    string.Equals(ownerOf.GetValueOrDefault(n.Id)?.Id, levelId, StringComparison.Ordinal))
+                    level.Nodes.Add(n);
+            foreach (var child in children)
+                level.Nodes.Add(new Node { Id = child.Id, Label = child.Label });
+
+            foreach (var e in graph.Edges)
+            {
+                string? s = LevelEntity(e.SourceId, levelId);
+                string? t = LevelEntity(e.TargetId, levelId);
+                if (s is null || t is null || s == t) continue;
+                level.AddEdge(s, t, e.Label, e.Style, e.Arrow).StartArrow = e.StartArrow;
+            }
+
+            var lg = level.Nodes.Count > 0
+                ? ComputeFlat(level, levelId is null ? preferredMaxWidth : 0, sizes)
+                : new LayoutedGraph { Source = level };
+
+            // Expand each child super-node back into its members + nested boxes.
+            var supers = new HashSet<LayoutNode>();
+            var extra  = new List<LayoutNode>();
+            foreach (var child in children)
+            {
+                if (!inner.TryGetValue(child.Id, out var cl)) continue;
+                var superLn = lg.AllNodes.FirstOrDefault(n => !n.IsDummy && n.Source?.Id == child.Id);
+                if (superLn is null) continue;
+                supers.Add(superLn);
+
+                double boxLeft = superLn.X - superLn.Width  / 2.0;
+                double boxTop  = superLn.Y - superLn.Height / 2.0;
+                var ms = cl.AllNodes.ToList();
+                if (ms.Count == 0) continue;
+                // Align the whole content block (nodes + nested boxes) so it gets a Pad gap on the
+                // left/right/bottom and the header band on top.
+                var cb = ContentBounds(cl);
+                double dx = boxLeft + ClusterPad    - cb.Left;
+                double dy = boxTop  + ClusterLabelH - cb.Top;
+
+                foreach (var n in ms) { n.X += dx; n.Y += dy; }
+                foreach (var e in cl.Edges)
+                    for (int i = 0; i < e.Waypoints.Count; i++)
+                        e.Waypoints[i] = new Point(e.Waypoints[i].X + dx, e.Waypoints[i].Y + dy);
+                for (int i = 0; i < cl.SubgraphBoxes.Count; i++)
+                {
+                    var (lbl, b) = cl.SubgraphBoxes[i];
+                    cl.SubgraphBoxes[i] = (lbl, new Rect(b.Left + dx, b.Top + dy, b.Width, b.Height));
+                }
+
+                extra.AddRange(ms.Where(n => !n.IsDummy));
+                lg.Edges.AddRange(cl.Edges);
+                lg.SubgraphBoxes.AddRange(cl.SubgraphBoxes);
+                lg.SubgraphBoxes.Add((child.Label, new Rect(boxLeft, boxTop, superLn.Width, superLn.Height)));
+            }
+
+            foreach (var layer in lg.Layers) layer.RemoveAll(supers.Contains);
+            if (extra.Count > 0) lg.Layers.Add(extra);
+
+            if (lg.AllNodes.Any() || lg.SubgraphBoxes.Count > 0)
+            {
+                var cb = ContentBounds(lg);
+                lg.Width  = Math.Max(lg.Width,  cb.Right  + MarginX);
+                lg.Height = Math.Max(lg.Height, cb.Bottom + MarginY);
+            }
+            return lg;
         }
 
-        // 3 ── Lay out the condensed graph.
-        var result = condensed.Nodes.Count > 0
-            ? ComputeFlat(condensed, preferredMaxWidth, sizes)
-            : new LayoutedGraph { Source = graph };
-
-        // 4 ── Expand each super-node back into its members + box.
-        var supers   = new HashSet<LayoutNode>();
-        var expanded = new List<LayoutNode>();
-        foreach (var sg in graph.Subgraphs)
-        {
-            if (!inner.TryGetValue(sg, out var lg)) continue;
-            var superLn = result.AllNodes.FirstOrDefault(n => !n.IsDummy && n.Source?.Id == superIdOf[sg]);
-            if (superLn is null) continue;
-            supers.Add(superLn);
-
-            double boxLeft = superLn.X - superLn.Width / 2.0;
-            double boxTop  = superLn.Y - superLn.Height / 2.0;
-            var ms = lg.AllNodes.ToList();
-            double dx = boxLeft + Pad - ms.Min(n => n.X - n.Width / 2.0);
-            double dy = boxTop + LabelH - ms.Min(n => n.Y - n.Height / 2.0);
-
-            foreach (var n in ms) { n.X += dx; n.Y += dy; }
-            foreach (var e in lg.Edges)
-                for (int i = 0; i < e.Waypoints.Count; i++)
-                    e.Waypoints[i] = new Point(e.Waypoints[i].X + dx, e.Waypoints[i].Y + dy);
-
-            expanded.AddRange(ms.Where(n => !n.IsDummy));
-            result.Edges.AddRange(lg.Edges);
-            result.SubgraphBoxes.Add((sg.Label, new Rect(boxLeft, boxTop, superLn.Width, superLn.Height)));
-        }
-
-        foreach (var layer in result.Layers) layer.RemoveAll(supers.Contains);
-        if (expanded.Count > 0) result.Layers.Add(expanded);
-
-        var all = result.AllNodes.ToList();
-        if (all.Count > 0)
-        {
-            result.Width  = Math.Max(result.Width,  all.Max(n => n.X + n.Width / 2.0) + MarginX);
-            result.Height = Math.Max(result.Height, all.Max(n => n.Y + n.Height / 2.0) + MarginY);
-        }
-        return result;
+        return LayoutLevel(null);
     }
 
-    private static double ContentW(LayoutedGraph lg)
-    {
-        var ns = lg.AllNodes.ToList();
-        return ns.Count == 0 ? 0 : ns.Max(n => n.X + n.Width / 2.0) - ns.Min(n => n.X - n.Width / 2.0);
-    }
+    private static Subgraph? ResolveParent(Subgraph sg, Dictionary<string, Subgraph> sgById) =>
+        sg.ParentId is string pid ? sgById.GetValueOrDefault(pid) : null;
 
-    private static double ContentH(LayoutedGraph lg)
+    /// <summary>The bounding rectangle of a laid-out level — the union of every node bound AND every
+    /// nested subgraph box. Including the boxes is what reserves padding around a child composite so it
+    /// doesn't sit flush against its parent's edge.</summary>
+    private static Rect ContentBounds(LayoutedGraph lg)
     {
-        var ns = lg.AllNodes.ToList();
-        return ns.Count == 0 ? 0 : ns.Max(n => n.Y + n.Height / 2.0) - ns.Min(n => n.Y - n.Height / 2.0);
+        double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
+        foreach (var n in lg.AllNodes)
+        {
+            minX = Math.Min(minX, n.X - n.Width  / 2.0); maxX = Math.Max(maxX, n.X + n.Width  / 2.0);
+            minY = Math.Min(minY, n.Y - n.Height / 2.0); maxY = Math.Max(maxY, n.Y + n.Height / 2.0);
+        }
+        foreach (var (_, b) in lg.SubgraphBoxes)
+        {
+            minX = Math.Min(minX, b.Left); maxX = Math.Max(maxX, b.Right);
+            minY = Math.Min(minY, b.Top);  maxY = Math.Max(maxY, b.Bottom);
+        }
+        return minX > maxX ? new Rect(0, 0, 0, 0) : new Rect(minX, minY, maxX - minX, maxY - minY);
     }
 
     // ── Connected-component detection ─────────────────────────────────────
@@ -433,7 +586,8 @@ public static class SugiyamaLayout
 
             if (n.Shape == NodeShape.Diamond)
             {
-                double d = Math.Max(NodeH * 2.2, labelW * 0.8);
+                // An empty-label diamond is a state-diagram choice — keep it compact.
+                double d = n.Label.Length == 0 ? NodeH : Math.Max(NodeH * 2.2, labelW * 0.8);
                 w = d * 1.4; h = d;
             }
             if (n.Shape == NodeShape.Circle)
@@ -442,6 +596,11 @@ public static class SugiyamaLayout
                 w = d; h = d;
             }
             if (n.Shape == NodeShape.Hexagon)  { w = Math.Max(NodeW * 1.1, labelW + 24); }
+
+            // State-diagram pseudostates have no label and a fixed footprint.
+            if (n.Shape is NodeShape.StateStart or NodeShape.StateEnd) { w = h = 20; }
+            // A fork/join bar runs across the flow: short on the primary axis, long on the secondary.
+            if (n.Shape == NodeShape.ForkJoin) { if (horizontal) { w = 12; h = 70; } else { w = 70; h = 12; } }
 
             // Explicit size override (collapsed subgraph super-nodes).
             if (sizes is not null && sizes.TryGetValue(n.Id, out var sz)) { w = sz.w; h = sz.h; }

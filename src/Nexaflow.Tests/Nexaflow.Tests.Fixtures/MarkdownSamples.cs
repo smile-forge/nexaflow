@@ -2,8 +2,10 @@ namespace Nexaflow.Tests.Fixtures;
 
 /// <summary>
 /// Catalog of sample markdown documents — one per Mermaid diagram type the renderer supports
-/// (pie, flowchart, quadrant chart, sequence diagram, gantt, git graph). Each document showcases
-/// several variations of its diagram, so the fixtures double as a human-readable reference.
+/// (pie, flowchart, quadrant chart, sequence diagram, gantt, git graph, mindmap, state diagram),
+/// plus an <c>extensions.md</c> exercising the non-diagram Markdig extensions (emphasis extras,
+/// abbreviations, alert blocks). Each document showcases several variations, so the fixtures
+/// double as a human-readable reference. The <c>mermaid-*</c> naming marks the diagram docs.
 /// </summary>
 internal sealed class MarkdownSamples : ISampleSet
 {
@@ -18,7 +20,355 @@ internal sealed class MarkdownSamples : ISampleSet
         SampleFile.Text("mermaid-gantt.md",     Gantt),
         SampleFile.Text("mermaid-gitgraph.md",  GitGraph),
         SampleFile.Text("mermaid-mindmap.md",   Mindmap),
+        SampleFile.Text("mermaid-state.md",     State),
+        SampleFile.Text("extensions.md",        Extensions),
     ];
+
+    private const string State =
+        """
+        # Mermaid — State diagram
+
+        A `stateDiagram-v2` models states and the transitions between them. `[*]` is the
+        start/end pseudostate; `state X { … }` nests a composite state; `<<choice>>`,
+        `<<fork>>`/`<<join>>` and notes are supported.
+
+        Simple sample
+
+        ```mermaid
+        ---
+        title: Simple sample
+        ---
+        stateDiagram-v2
+            [*] --> Still
+            Still --> [*]
+
+            Still --> Moving
+            Moving --> Still
+            Moving --> Crash
+            Crash --> [*]
+        ```
+
+        Older renderer keyword
+
+        ```mermaid
+        stateDiagram
+            [*] --> Still
+            Still --> [*]
+
+            Still --> Moving
+            Moving --> Still
+            Moving --> Crash
+            Crash --> [*]
+        ```
+
+        States and descriptions
+
+        ```mermaid
+        stateDiagram-v2
+            stateId
+        ```
+
+        ```mermaid
+        stateDiagram-v2
+            state "This is a state description" as s2
+        ```
+
+        ```mermaid
+        stateDiagram-v2
+            s2 : This is a state description
+        ```
+
+        Transitions
+
+        ```mermaid
+        stateDiagram-v2
+            s1 --> s2
+        ```
+
+        ```mermaid
+        stateDiagram-v2
+            s1 --> s2: A transition
+        ```
+
+        Start and end
+
+        ```mermaid
+        stateDiagram-v2
+            [*] --> s1
+            s1 --> [*]
+        ```
+
+        Composite states
+
+        ```mermaid
+        stateDiagram-v2
+            [*] --> First
+            state First {
+                [*] --> second
+                second --> [*]
+            }
+
+            [*] --> NamedComposite
+            NamedComposite: Another Composite
+            state NamedComposite {
+                [*] --> namedSimple
+                namedSimple --> [*]
+                namedSimple: Another simple
+            }
+        ```
+
+        Nested composite states
+
+        ```mermaid
+        stateDiagram-v2
+            [*] --> First
+
+            state First {
+                [*] --> Second
+
+                state Second {
+                    [*] --> second
+                    second --> Third
+
+                    state Third {
+                        [*] --> third
+                        third --> [*]
+                    }
+                }
+            }
+        ```
+
+        Sibling composites
+
+        ```mermaid
+        stateDiagram-v2
+            [*] --> First
+            First --> Second
+            First --> Third
+
+            state First {
+                [*] --> fir
+                fir --> [*]
+            }
+            state Second {
+                [*] --> sec
+                sec --> [*]
+            }
+            state Third {
+                [*] --> thi
+                thi --> [*]
+            }
+        ```
+
+        Choice
+
+        ```mermaid
+        stateDiagram-v2
+            state if_state <<choice>>
+            [*] --> IsPositive
+            IsPositive --> if_state
+            if_state --> False: if n < 0
+            if_state --> True : if n >= 0
+        ```
+
+        Forks and joins
+
+        ```mermaid
+        stateDiagram-v2
+            state fork_state <<fork>>
+            [*] --> fork_state
+            fork_state --> State2
+            fork_state --> State3
+
+            state join_state <<join>>
+            State2 --> join_state
+            State3 --> join_state
+            join_state --> State4
+            State4 --> [*]
+        ```
+
+        Notes
+
+        ```mermaid
+        stateDiagram-v2
+            State1: The state with a note
+            note right of State1
+                Important information! You can write
+                notes.
+            end note
+            State1 --> State2
+            note left of State2 : This is the note to the left.
+        ```
+
+        Concurrency
+
+        ```mermaid
+        stateDiagram-v2
+            [*] --> Active
+
+            state Active {
+                [*] --> NumLockOff
+                NumLockOff --> NumLockOn : EvNumLockPressed
+                NumLockOn --> NumLockOff : EvNumLockPressed
+                --
+                [*] --> CapsLockOff
+                CapsLockOff --> CapsLockOn : EvCapsLockPressed
+                CapsLockOn --> CapsLockOff : EvCapsLockPressed
+                --
+                [*] --> ScrollLockOff
+                ScrollLockOff --> ScrollLockOn : EvScrollLockPressed
+                ScrollLockOn --> ScrollLockOff : EvScrollLockPressed
+            }
+        ```
+
+        Direction
+
+        ```mermaid
+        stateDiagram
+            direction LR
+            [*] --> A
+            A --> B
+            B --> C
+            state B {
+              direction LR
+              a --> b
+            }
+            B --> D
+        ```
+
+        Comments
+
+        ```mermaid
+        stateDiagram-v2
+            [*] --> Still
+            Still --> [*]
+        %% this is a comment
+            Still --> Moving
+            Moving --> Still %% another comment
+            Moving --> Crash
+            Crash --> [*]
+        ```
+
+        Styling with classDefs
+
+        ```mermaid
+        stateDiagram
+            direction TB
+
+            accTitle: This is the accessible title
+            accDescr: This is an accessible description
+
+            classDef notMoving fill:white
+            classDef movement font-style:italic
+            classDef badBadEvent fill:#f00,color:white,font-weight:bold,stroke-width:2px,stroke:yellow
+
+            [*]--> Still
+            Still --> [*]
+            Still --> Moving
+            Moving --> Still
+            Moving --> Crash
+            Crash --> [*]
+
+            class Still notMoving
+            class Moving, Crash movement
+            class Crash badBadEvent
+        ```
+
+        Inline class operator
+
+        ```mermaid
+        stateDiagram
+            direction TB
+
+            classDef notMoving fill:white
+            classDef movement font-style:italic
+            classDef badBadEvent fill:#f00,color:white,font-weight:bold,stroke-width:2px,stroke:yellow
+
+            [*] --> Still:::notMoving
+            Still --> [*]
+            Still --> Moving:::movement
+            Moving --> Still
+            Moving --> Crash:::movement
+            Crash:::badBadEvent --> [*]
+        ```
+
+        Spaces in state names
+
+        ```mermaid
+        stateDiagram
+            classDef yourState font-style:italic,font-weight:bold,fill:white
+
+            yswsii: Your state with spaces in it
+            [*] --> yswsii:::yourState
+            [*] --> SomeOtherState
+            SomeOtherState --> YetAnotherState
+            yswsii --> YetAnotherState
+            YetAnotherState --> [*]
+        ```
+        """;
+
+    private const string Extensions =
+        """
+        ---
+        title: Markdig extensions
+        author: Nexaflow
+        tags: [emphasis, abbreviations, alerts]
+        ---
+
+        # Markdig extensions
+
+        The `--- … ---` block above is YAML front matter — document metadata that is
+        parsed but **not rendered** (same as Markdig's HTML output).
+
+        Showcases the non-diagram extensions Nexaflow renders: **emphasis extras**,
+        **abbreviations**, and GitHub **alert blocks**.
+
+        ## Emphasis extras
+
+        Plain `*emphasis*` and `**strong**` still work, alongside the extras:
+
+        - Strikethrough: ~~deleted text~~
+        - Subscript: H~2~O and CO~2~
+        - Superscript: E = mc^2^ and the 1^st^ / 2^nd^ place
+        - Marked / highlight: ==important phrase== in a sentence
+        - Inserted: ++added text++
+
+        They compose too: ~~**struck bold**~~ and ==marked `code`==.
+
+        ## Abbreviations
+
+        The first standard for the web was HTML, served over HTTP by the W3C.
+        Hover any of those to see the expansion.
+
+        *[HTML]: HyperText Markup Language
+        *[HTTP]: HyperText Transfer Protocol
+        *[W3C]: World Wide Web Consortium
+
+        ## Alert blocks
+
+        > [!NOTE]
+        > Useful information that users should know, even when skimming content.
+
+        > [!TIP]
+        > Helpful advice for doing things better or more easily.
+
+        > [!IMPORTANT]
+        > Key information users need to know to achieve their goal.
+
+        > [!WARNING]
+        > Urgent info that needs immediate user attention to avoid problems.
+
+        > [!CAUTION]
+        > Advises about risks or negative outcomes of certain actions.
+
+        Alerts hold normal markdown — lists, `code`, **emphasis**:
+
+        > [!TIP]
+        > You can nest content:
+        >
+        > 1. First step
+        > 2. Second step with ==marked== text and an abbreviation: HTML.
+        """;
 
     private const string Mindmap =
         """

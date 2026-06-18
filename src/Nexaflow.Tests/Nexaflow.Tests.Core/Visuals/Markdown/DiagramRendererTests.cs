@@ -85,4 +85,54 @@ public class DiagramRendererTests
         Assert.IsInstanceOfType(fe, typeof(Border));
         Assert.IsInstanceOfType(((Border)fe).Child, typeof(Canvas));   // pie chart, not the source-text fallback
     });
+
+    // ── State diagram ──────────────────────────────────────────────────────
+
+    private const string StateSrc =
+        """
+        stateDiagram-v2
+            [*] --> First
+            state First {
+                [*] --> second
+                second --> [*]
+            }
+            First --> Choice
+            state Choice <<choice>>
+            Choice --> Done: ok
+            Done --> [*]
+            note right of Done
+                All finished
+            end note
+        """;
+
+    [TestMethod]
+    public void State_RendersGraphNotSourceText() => UiThread.Run(() =>
+    {
+        // A state diagram routes to the graph renderer: Border → ScrollViewer → Canvas.
+        var fe = DiagramRenderer.Render("mermaid", StateSrc, MarkdownPalette.Dark);
+        Assert.IsInstanceOfType(fe, typeof(Border));
+        var sv = ((Border)fe).Child as ScrollViewer;
+        Assert.IsNotNull(sv, "state diagram should route to the graph renderer (ScrollViewer/Canvas)");
+        Assert.IsInstanceOfType(sv!.Content, typeof(Canvas));
+    });
+
+    [TestMethod]
+    public void State_ConcurrencyAndForks_RenderWithoutThrowing() => UiThread.Run(() =>
+    {
+        const string src =
+            """
+            stateDiagram-v2
+                state fork_state <<fork>>
+                [*] --> fork_state
+                fork_state --> A
+                fork_state --> B
+                state join_state <<join>>
+                A --> join_state
+                B --> join_state
+                join_state --> [*]
+            """;
+        var fe = DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark);
+        Assert.IsInstanceOfType(fe, typeof(Border));
+        Assert.IsInstanceOfType(((Border)fe).Child, typeof(ScrollViewer));
+    });
 }

@@ -68,6 +68,10 @@ public static class MarkdownFlowDocument
                 HeadingBlock    hb => Heading(hb, ctx),
                 ParagraphBlock  pb => [Para(pb, ctx)],
                 ThematicBreakBlock => [Hr(ctx)],
+                // YAML front matter is metadata, not content — emit nothing (matches Markdig's HTML output).
+                Markdig.Extensions.Yaml.YamlFrontMatterBlock => [],
+                // AlertBlock extends QuoteBlock — match first; styled callout falls back to BlockRenderer.
+                Markdig.Extensions.Alerts.AlertBlock => [UiFallback(block, raw, ctx)],
                 QuoteBlock      qb => [Quote(qb, ctx)],
                 ListBlock       lb => [ListOf(lb, ctx)],
                 // MathBlock extends FencedCodeBlock — match first

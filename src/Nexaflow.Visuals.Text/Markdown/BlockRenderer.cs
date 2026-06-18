@@ -1,3 +1,5 @@
+using Markdig.Extensions.Abbreviations;
+using Markdig.Extensions.Alerts;
 using Markdig.Extensions.DefinitionLists;
 using Markdig.Extensions.Footers;
 using Markdig.Extensions.Mathematics;
@@ -58,6 +60,11 @@ public static class BlockRenderer
                 HeadingBlock       hb  => RenderHeading(hb, ctx),
                 ParagraphBlock     pb  => RenderParagraph(pb, ctx),
                 ThematicBreakBlock     => RenderHr(ctx),
+                // YAML front matter (--- … ---) — document metadata, not content; not rendered
+                // (matches how Markdig's HTML renderer ignores it). Extends CodeBlock, so match first.
+                Markdig.Extensions.Yaml.YamlFrontMatterBlock => RenderNothing(),
+                // AlertBlock extends QuoteBlock — must match first
+                AlertBlock         ab  => RenderAlert(ab, ctx),
                 QuoteBlock         qb  => RenderBlockQuote(qb, ctx),
                 ListBlock          lb  => RenderList(lb, ctx),
                 // MathBlock extends FencedCodeBlock — must match first
@@ -137,6 +144,13 @@ public static class BlockRenderer
     private static FrameworkElement RenderHr(MarkdownRenderContext ctx) =>
         new Border { Height = 1, Background = ctx.Palette.Hr, Margin = new Thickness(0, 10, 0, 10) };
 
+    // ── Nothing (suppressed blocks: YAML front matter) ────────────────────
+
+    /// <summary>A zero-size, collapsed placeholder for blocks that are parsed but deliberately not
+    /// drawn (e.g. YAML front matter). Keeps the single-element render contract without taking layout space.</summary>
+    private static FrameworkElement RenderNothing() =>
+        new Grid { Visibility = Visibility.Collapsed, Height = 0, Margin = new Thickness(0) };
+
     // ── Block-quote ───────────────────────────────────────────────────────
 
     private static FrameworkElement RenderBlockQuote(QuoteBlock qb, MarkdownRenderContext ctx)
@@ -155,6 +169,53 @@ public static class BlockRenderer
             Child           = inner
         };
     }
+
+    // ── Alert blocks (> [!NOTE] / [!TIP] / [!IMPORTANT] / [!WARNING] / [!CAUTION]) ──
+
+    private static FrameworkElement RenderAlert(AlertBlock ab, MarkdownRenderContext ctx)
+    {
+        var p = ctx.Palette;
+        var (accent, label) = AlertStyle(ab.Kind.ToString(), p);
+
+        var inner = new StackPanel { Margin = new Thickness(12, 6, 12, 8) };
+        inner.Children.Add(new TextBlock
+        {
+            Text       = label,
+            FontFamily = BodyFont,
+            FontSize   = BaseFontSize,
+            FontWeight = FontWeights.Bold,
+            Foreground = accent,
+            Margin     = new Thickness(0, 0, 0, 4),
+        });
+
+        foreach (var child in ab)
+            inner.Children.Add(Render(child, "", ctx));
+
+        return new Border
+        {
+            Background      = p.QuoteBg,
+            BorderBrush     = accent,
+            BorderThickness = new Thickness(4, 0, 0, 0),
+            Margin          = new Thickness(0, 4, 0, 8),
+            Child           = inner,
+        };
+    }
+
+    /// <summary>Maps an alert kind to its accent brush + title-cased label. The five GitHub kinds
+    /// get distinct semantic colours; any other kind falls back to the accent colour.</summary>
+    private static (Brush accent, string label) AlertStyle(string kind, MarkdownPalette p) =>
+        kind.Trim().ToUpperInvariant() switch
+        {
+            "NOTE"      => (p.Accent,   "Note"),
+            "TIP"       => (p.Success,  "Tip"),
+            "IMPORTANT" => (p.Important, "Important"),
+            "WARNING"   => (p.Warning,  "Warning"),
+            "CAUTION"   => (p.Danger,   "Caution"),
+            _           => (p.Accent,   TitleCase(kind.Trim())),
+        };
+
+    private static string TitleCase(string s) =>
+        string.IsNullOrEmpty(s) ? s : char.ToUpperInvariant(s[0]) + s[1..].ToLowerInvariant();
 
     // ── Lists (including list-extras: alpha, roman) ───────────────────────
 
@@ -567,6 +628,21 @@ public static class BlockRenderer
                 target.Add(citeSpan);
                 break;
 
+            case EmphasisInline ei when ei.DelimiterChar is '~' or '^' or '=' or '+':
+                // Emphasis-extras (UseEmphasisExtras): strikethrough ~~x~~, subscript ~x~,
+                // superscript ^x^, marked ==x==, inserted ++x++.
+                Span extraSpan = ei.DelimiterChar switch
+                {
+                    '~' when ei.DelimiterCount >= 2 => new Span { TextDecorations = TextDecorations.Strikethrough },
+                    '~'                             => new Span { BaselineAlignment = BaselineAlignment.Subscript,   FontSize = BaseFontSize * 0.75 },
+                    '^'                             => new Span { BaselineAlignment = BaselineAlignment.Superscript, FontSize = BaseFontSize * 0.75 },
+                    '='                             => new Span { Background = p.Marked },
+                    _                               => new Span { TextDecorations = TextDecorations.Underline }, // ++inserted++
+                };
+                foreach (var child in ei) AddInlines(extraSpan.Inlines, child, ctx);
+                target.Add(extraSpan);
+                break;
+
             case EmphasisInline ei:
                 // Bold / italic (and strong)
                 Span emphSpan;
@@ -608,6 +684,12 @@ public static class BlockRenderer
                 var autoLink = NewHyperlink(auto.IsEmail ? $"mailto:{auto.Url}" : auto.Url, ctx);
                 autoLink.Inlines.Add(new Run(auto.Url) { Tag = auto.Span });
                 target.Add(autoLink);
+                break;
+
+            case AbbreviationInline abbr:
+                // *[HTML]: HyperText… — an occurrence of a defined abbreviation; the label shows
+                // with a dotted underline and the definition appears as a hover tooltip.
+                target.Add(MakeAbbreviation(abbr, p));
                 break;
 
             case LineBreakInline lbr:
@@ -672,6 +754,34 @@ public static class BlockRenderer
             catch { }
         };
         return hyper;
+    }
+
+    /// <summary>
+    /// Builds the inline for an <see cref="AbbreviationInline"/>: the abbreviation label drawn with a
+    /// dotted underline + help cursor, carrying the definition as a hover tooltip. The tooltip is an
+    /// explicit <see cref="TextBlock"/> (a bare string would inherit the host's text alignment).
+    /// </summary>
+    private static WpfInline MakeAbbreviation(AbbreviationInline abbr, MarkdownPalette p)
+    {
+        var title = abbr.Abbreviation.Text.ToString().Trim();
+
+        var pen = new Pen(p.TextMuted, 1) { DashStyle = new DashStyle([1, 2], 0) };
+        pen.Freeze();
+        var decorations = new TextDecorationCollection
+        {
+            new TextDecoration { Location = TextDecorationLocation.Underline, Pen = pen, PenOffset = 2 }
+        };
+        decorations.Freeze();
+
+        return new Run(abbr.Abbreviation.Label)
+        {
+            TextDecorations = decorations,
+            Cursor          = System.Windows.Input.Cursors.Help,
+            Tag             = abbr.Span,
+            ToolTip         = string.IsNullOrEmpty(title)
+                ? null
+                : new TextBlock { Text = title, TextAlignment = TextAlignment.Left }
+        };
     }
 
     // ── Image rendering (local files only) ────────────────────────────────

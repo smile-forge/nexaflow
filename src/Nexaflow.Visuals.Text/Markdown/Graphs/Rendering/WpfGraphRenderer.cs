@@ -31,6 +31,10 @@ public static class WpfGraphRenderer
     private static Brush LabelText      = Frozen(Color.FromRgb(0x78, 0x80, 0xA0));
     private static Brush TitleBrush     = Frozen(Color.FromRgb(0xA8, 0xD4, 0xFF));
     private static Color AccentColor    = Color.FromRgb(0x4F, 0x8E, 0xF7);
+    // State-diagram extras: solid pseudostate fill (start/end/fork) + dashed note callout.
+    private static Brush StateFill      = Frozen(Color.FromRgb(0xE8, 0xEA, 0xF2));
+    private static Brush NoteBg         = Frozen(Color.FromArgb(0x33, 0xF5, 0x9E, 0x0B));
+    private static Brush NoteBorder     = Frozen(Color.FromRgb(0xF5, 0x9E, 0x0B));
 
     private static readonly FontFamily BodyFont = new("Segoe UI");
     private const double FontSize = 12.0;
@@ -52,6 +56,11 @@ public static class WpfGraphRenderer
         LabelText       = p.TextMuted;
         TitleBrush      = p.Heading;
         AccentColor     = (p.Accent as SolidColorBrush)?.Color ?? Color.FromRgb(0x4F, 0x8E, 0xF7);
+
+        StateFill   = p.Text;
+        NoteBorder  = p.Warning;
+        var nc      = (p.Warning as SolidColorBrush)?.Color ?? Color.FromRgb(0xF5, 0x9E, 0x0B);
+        NoteBg      = Frozen(Color.FromArgb(0x33, nc.R, nc.G, nc.B));
     }
 
     // ── Public API ─────────────────────────────────────────────────────────
@@ -137,25 +146,31 @@ public static class WpfGraphRenderer
             NodeShape.TrapezoidAlt     => DrawTrapezoid(ln, ln.Source!.Shape == NodeShape.TrapezoidAlt),
             NodeShape.Document         => DrawDocument(ln),
             NodeShape.Card             => DrawCard(ln),
+            NodeShape.StateStart       => DrawStateStart(ln),
+            NodeShape.StateEnd         => DrawStateEnd(ln),
+            NodeShape.ForkJoin         => DrawForkJoin(ln),
+            NodeShape.Note             => DrawNote(ln),
             _                          => DrawRectShape(ln),
         };
         canvas.Children.Add(shape);
 
-        if (ln.Source is not null)
+        if (ln.Source is not null && ln.Source.Label.Length > 0)
         {
             string label = ln.Source.Label;
+            bool   isNote = ln.Source.Shape == NodeShape.Note;
             int lines = label.Count(c => c == '\n') + 1;
-            double maxW = ln.Source.Shape == NodeShape.Diamond ? ln.Width * 0.7 : ln.Width - 12;
+            double maxW = ln.Source.Shape == NodeShape.Diamond ? ln.Width * 0.7
+                        : isNote ? ln.Width - 16 : ln.Width - 12;
 
             var lbl = new TextBlock
             {
                 Text          = label,
-                Foreground    = GetTextBrush(ln),
+                Foreground    = isNote ? NodeText : GetTextBrush(ln),
                 FontFamily    = BodyFont,
-                FontSize      = FontSize,
+                FontSize      = isNote ? 11 : FontSize,
                 Width         = maxW,   // fixed width so TextAlignment.Center works
                 TextWrapping  = TextWrapping.Wrap,
-                TextAlignment = TextAlignment.Center,
+                TextAlignment = isNote ? TextAlignment.Left : TextAlignment.Center,
             };
 
             double approxH = lines * (FontSize * 1.35);
@@ -471,14 +486,76 @@ public static class WpfGraphRenderer
         };
     }
 
+    // ── State-diagram shapes ─────────────────────────────────────────────────
+
+    private static UIElement DrawStateStart(LayoutNode ln)
+    {
+        // Initial pseudostate — a solid filled dot.
+        double d = Math.Min(ln.Width, ln.Height);
+        var e = new Ellipse { Width = d, Height = d, Fill = StateFill, Stroke = StateFill, StrokeThickness = 1 };
+        Canvas.SetLeft(e, ln.X - d / 2.0);
+        Canvas.SetTop(e,  ln.Y - d / 2.0);
+        return e;
+    }
+
+    private static UIElement DrawStateEnd(LayoutNode ln)
+    {
+        // Final pseudostate — a ringed dot: outer hollow ring + inner filled dot.
+        double d = Math.Min(ln.Width, ln.Height);
+        var grid = new Grid { Width = d, Height = d };
+        grid.Children.Add(new Ellipse { Width = d, Height = d, Fill = BgBrush, Stroke = StateFill, StrokeThickness = 1.5 });
+        double inner = d * 0.55;
+        grid.Children.Add(new Ellipse
+        {
+            Width = inner, Height = inner, Fill = StateFill,
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+        });
+        Canvas.SetLeft(grid, ln.X - d / 2.0);
+        Canvas.SetTop(grid,  ln.Y - d / 2.0);
+        return grid;
+    }
+
+    private static UIElement DrawForkJoin(LayoutNode ln)
+    {
+        // Fork / join — a solid synchronisation bar.
+        var r = new Rectangle
+        {
+            Width = ln.Width, Height = ln.Height,
+            Fill = StateFill, Stroke = StateFill, StrokeThickness = 1,
+            RadiusX = 2, RadiusY = 2,
+        };
+        Canvas.SetLeft(r, ln.X - ln.Width  / 2.0);
+        Canvas.SetTop(r,  ln.Y - ln.Height / 2.0);
+        return r;
+    }
+
+    private static UIElement DrawNote(LayoutNode ln)
+    {
+        // Note callout — a dashed rectangle with a tinted fill.
+        var r = new Rectangle
+        {
+            Width = ln.Width, Height = ln.Height,
+            Fill = NoteBg, Stroke = NoteBorder, StrokeThickness = 1,
+            StrokeDashArray = new DoubleCollection([4, 2]),
+            RadiusX = 2, RadiusY = 2,
+        };
+        Canvas.SetLeft(r, ln.X - ln.Width  / 2.0);
+        Canvas.SetTop(r,  ln.Y - ln.Height / 2.0);
+        return r;
+    }
+
     // ── Subgraph box ──────────────────────────────────────────────────────
+
+    private const double SubgraphHeaderH = 22;
 
     private static void DrawSubgraphBox(Canvas canvas, string label, Rect bounds)
     {
         var fillBrush   = new SolidColorBrush(Color.FromArgb(0x22, AccentColor.R, AccentColor.G, AccentColor.B));
         var strokeBrush = new SolidColorBrush(Color.FromArgb(0x55, AccentColor.R, AccentColor.G, AccentColor.B));
+        var headerBrush = new SolidColorBrush(Color.FromArgb(0x3C, AccentColor.R, AccentColor.G, AccentColor.B));
         fillBrush.Freeze();
         strokeBrush.Freeze();
+        headerBrush.Freeze();
 
         var rect = new Rectangle
         {
@@ -495,21 +572,35 @@ public static class WpfGraphRenderer
         Canvas.SetTop(rect,  bounds.Top);
         canvas.Children.Add(rect);
 
-        if (!string.IsNullOrWhiteSpace(label))
+        if (string.IsNullOrWhiteSpace(label)) return;
+
+        // A distinct header band (a tinted strip + a divider under it), Mermaid-style.
+        double headerH = Math.Min(SubgraphHeaderH, bounds.Height);
+        var header = new Border
         {
-            var tb = new TextBlock
-            {
-                Text       = label,
-                Foreground = LabelText,
-                FontFamily = BodyFont,
-                FontSize   = 11,
-                FontWeight = FontWeights.SemiBold,
-            };
-            double w = MeasureText(label, 11);
-            Canvas.SetLeft(tb, bounds.Left + (bounds.Width - w) / 2.0);   // centred along the top
-            Canvas.SetTop(tb,  bounds.Top  + 4);
-            canvas.Children.Add(tb);
-        }
+            Width        = Math.Max(0, bounds.Width - 2),
+            Height       = headerH,
+            Background   = headerBrush,
+            BorderBrush  = strokeBrush,
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            CornerRadius = new CornerRadius(6, 6, 0, 0),
+        };
+        Canvas.SetLeft(header, bounds.Left + 1);
+        Canvas.SetTop(header,  bounds.Top  + 1);
+        canvas.Children.Add(header);
+
+        var tb = new TextBlock
+        {
+            Text       = label,
+            Foreground = NodeText,
+            FontFamily = BodyFont,
+            FontSize   = 11,
+            FontWeight = FontWeights.SemiBold,
+        };
+        double w = MeasureText(label, 11);
+        Canvas.SetLeft(tb, bounds.Left + (bounds.Width - w) / 2.0);   // centred on the header
+        Canvas.SetTop(tb,  bounds.Top  + (headerH - 14) / 2.0);
+        canvas.Children.Add(tb);
     }
 
     // ── Edge drawing ───────────────────────────────────────────────────────
@@ -543,20 +634,29 @@ public static class WpfGraphRenderer
 
         canvas.Children.Add(path);
 
-        // Arrowhead — direction from last bezier control point to tip
+        // A cycle-reversed edge is routed backwards (its waypoints run target → source), so its
+        // arrowhead belongs at the START of the path, not the end.
+        bool rev = edge?.IsReversed == true;
+        Point endTip   = rev ? pts[0]     : pts[^1];
+        Point endFrom  = rev ? pts[1]     : arrowFrom;
+        Point startTip = rev ? pts[^1]    : pts[0];
+        Point startFrom = rev ? arrowFrom : pts[1];
+
         if (edge?.Arrow != EdgeArrow.None)
-            DrawArrowhead(canvas, arrowFrom, pts[^1], brush, edge?.Arrow ?? EdgeArrow.Normal);
+            DrawArrowhead(canvas, endFrom, endTip, brush, edge?.Arrow ?? EdgeArrow.Normal);
 
-        // Start head — for multidirectional links (o--o, x--x, <-->); points back from the second waypoint.
+        // Start head — for multidirectional links (o--o, x--x, <-->).
         if (edge is { StartArrow: not EdgeArrow.None })
-            DrawArrowhead(canvas, pts[1], pts[0], brush, edge.StartArrow);
+            DrawArrowhead(canvas, startFrom, startTip, brush, edge.StartArrow);
 
-        // Edge label as a floating styled box
+        // Edge label as a floating styled box. A staggered anchor (set for parallel/antiparallel
+        // groups) wins; otherwise centre on the path midpoint.
         if (!string.IsNullOrWhiteSpace(edge?.Label))
         {
-            var mid = pts.Count == 2
-                ? new Point((pts[0].X + pts[1].X) / 2.0, (pts[0].Y + pts[1].Y) / 2.0)
-                : pts[pts.Count / 2];
+            var mid = le.LabelAnchor
+                ?? (pts.Count == 2
+                    ? new Point((pts[0].X + pts[1].X) / 2.0, (pts[0].Y + pts[1].Y) / 2.0)
+                    : pts[pts.Count / 2]);
             DrawEdgeLabel(canvas, edge!.Label, mid);
         }
     }
@@ -603,6 +703,7 @@ public static class WpfGraphRenderer
 
     private static void DrawEdgeLabel(Canvas canvas, string text, Point mid)
     {
+        const double labelFont = 10.5;
         var border = new Border
         {
             Background      = LabelBg,
@@ -615,13 +716,14 @@ public static class WpfGraphRenderer
                 Text       = text,
                 Foreground = LabelText,
                 FontFamily = BodyFont,
-                FontSize   = 10.5,
+                FontSize   = labelFont,
             },
         };
-        // Measure approximate size for centering
-        double approxW = text.Length * 6.5 + 10;
-        Canvas.SetLeft(border, mid.X - approxW / 2.0);
-        Canvas.SetTop(border,  mid.Y - 9);
+        // Centre the box on the midpoint using the measured text size (padding 4+4, border 1+1).
+        double w = MeasureText(text, labelFont) + 10;
+        double h = labelFont * 1.35 + 4;
+        Canvas.SetLeft(border, mid.X - w / 2.0);
+        Canvas.SetTop(border,  mid.Y - h / 2.0);
         canvas.Children.Add(border);
     }
 

@@ -20,6 +20,12 @@ public enum NodeShape
     TrapezoidAlt,      // [\label/]  — wide bottom
     Document,          // @{ shape: doc }  — rectangle with a wavy bottom
     Card,              // @{ shape: card } — rectangle with a folded top-left corner
+
+    // ── State-diagram pseudostates ───────────────────────────────────────────
+    StateStart,        // [*] as a transition source — small filled "initial" dot
+    StateEnd,          // [*] as a transition target — ringed "final" dot
+    ForkJoin,          // <<fork>> / <<join>> — a solid synchronisation bar
+    Note,              // state-diagram note — dashed callout attached to a state
 }
 
 public enum EdgeStyle { Solid, Dashed, Dotted, Thick }
@@ -28,12 +34,16 @@ public enum GraphDirection { TopDown, LeftRight, BottomUp, RightLeft }
 
 // ── Core domain types ─────────────────────────────────────────────────────────
 
-/// <summary>A named group of nodes declared by a <c>subgraph … end</c> block.</summary>
+/// <summary>A named group of nodes declared by a <c>subgraph … end</c> block (flowchart) or a
+/// <c>state X { … }</c> composite (state diagram).</summary>
 public sealed class Subgraph
 {
     public string       Id      { get; init; } = string.Empty;
     public string       Label   { get; set; } = string.Empty;
     public List<string> NodeIds { get; } = [];
+    /// <summary>Id of the enclosing subgraph for true nesting (state composites), or null at the top
+    /// level. Flowchart subgraphs leave this null and are laid out as a single level.</summary>
+    public string?      ParentId { get; set; }
 }
 
 /// <summary>A node in the graph.  All rendering properties are optional hints.</summary>
