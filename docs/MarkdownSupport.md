@@ -131,7 +131,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 
 | Sub-type | Status | Tests |
 |---|---|---|
-| `graph` / `flowchart` | ✅ (Sugiyama layout) | ✅ parser (`DiagramParsersTests` — shapes, arrows, subgraphs, edge ids) + sample render |
+| `graph` / `flowchart` | ✅ (Sugiyama layout) | ✅ parser (`DiagramParsersTests` — shapes, arrows, edge ids, chains `A-->B-->C`, fan-out `A-->B & C`, nested subgraphs) + sample render |
 | `pie` | ✅ | ✅ render + routing (`DiagramRendererTests`) + sample render |
 | `quadrantChart` | ✅ | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample |
 | `sequenceDiagram` | ✅ | ✅ parser (`DiagramParsersTests`, extensive) + render (`DiagramRendererTests`) + sample |
