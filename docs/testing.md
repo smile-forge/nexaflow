@@ -53,7 +53,8 @@ from the catalog.
 
 ```
 test-samples/
-  markdown/   one document per supported Mermaid diagram type
+  markdown/   one mermaid-* document per supported Mermaid diagram type, plus extensions.md
+              (YAML front matter, emphasis extras, abbreviations, alert blocks)
   tabular/    csv/tsv variations: separators (, ; tab, ", "), quoting, headers, single column,
               mixed column types, and one long file for the windowed streaming readers
   text/       short + long plain text; UTF-8 (BOM/no-BOM), UTF-16 LE/BE, UTF-32 LE; LF and CRLF

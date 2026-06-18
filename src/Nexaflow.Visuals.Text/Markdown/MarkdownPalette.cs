@@ -21,6 +21,16 @@ public sealed class MarkdownPalette
     public required Brush Heading       { get; init; }
     public required Brush DefTerm       { get; init; }
     public required Brush Citation      { get; init; }
+    /// <summary>Highlighter wash behind <c>==marked==</c> text (emphasis-extras). Translucent so it
+    /// tints the surface and keeps the body text legible on either a light or dark background.</summary>
+    public required Brush Marked        { get; init; }
+    /// <summary>Semantic accents (green / amber / red / purple). Used for alert-block callouts
+    /// (<c>&gt; [!TIP]</c> / <c>[!WARNING]</c> / <c>[!CAUTION]</c> / <c>[!IMPORTANT]</c>); reusable
+    /// for any status colour.</summary>
+    public required Brush Success       { get; init; }
+    public required Brush Warning       { get; init; }
+    public required Brush Danger        { get; init; }
+    public required Brush Important      { get; init; }
     public required Brush CodeBg        { get; init; }
     public required Brush CodeBorder    { get; init; }
     public required Brush QuoteBg       { get; init; }
@@ -75,6 +85,11 @@ public sealed class MarkdownPalette
         Heading       = Frozen(0xA8, 0xD4, 0xFF),
         DefTerm       = Frozen(0xD0, 0xE8, 0xFF),
         Citation      = Frozen(0xC8, 0xA8, 0xFF),
+        Marked        = Frozen(0x55, 0xFF, 0xD0, 0x60),
+        Success       = Frozen(0x4E, 0xCB, 0x71),
+        Warning       = Frozen(0xF5, 0x9E, 0x0B),
+        Danger        = Frozen(0xFF, 0x6B, 0x6B),
+        Important     = Frozen(0xC8, 0xA8, 0xFF),
         CodeBg        = Frozen(0x08, 0x0C, 0x16),
         CodeBorder    = Frozen(0x2A, 0x30, 0x47),
         QuoteBg       = Frozen(0x2A, 0x30, 0x47),
@@ -96,6 +111,11 @@ public sealed class MarkdownPalette
         Heading       = Frozen(0x16, 0x33, 0x5E),
         DefTerm       = Frozen(0x16, 0x33, 0x5E),
         Citation      = Frozen(0x6A, 0x1B, 0x9A),
+        Marked        = Frozen(0x66, 0xFF, 0xE0, 0x60),
+        Success       = Frozen(0x1E, 0x7E, 0x4A),
+        Warning       = Frozen(0xB4, 0x6A, 0x00),
+        Danger        = Frozen(0xC0, 0x2A, 0x2A),
+        Important     = Frozen(0x6A, 0x1B, 0x9A),
         CodeBg        = Frozen(0x18, 0x00, 0x00, 0x00),
         CodeBorder    = Frozen(0x33, 0x00, 0x00, 0x00),
         QuoteBg       = Frozen(0x12, 0x00, 0x00, 0x00),
@@ -128,6 +148,11 @@ public sealed class MarkdownPalette
             Heading       = R("AccentBrush",      d.Heading),
             DefTerm       = R("TextBrush",        d.DefTerm),
             Citation      = R("Accent2Brush",     d.Citation),
+            Marked        = R("MarkedBrush",      d.Marked),
+            Success       = R("SuccessBrush",     d.Success),
+            Warning       = R("WarningBrush",     d.Warning),
+            Danger        = R("DangerBrush",      d.Danger),
+            Important     = R("Accent2Brush",     d.Important),
             CodeBg        = R("DeepBgBrush",      d.CodeBg),
             CodeBorder    = R("BorderBrush",      d.CodeBorder),
             QuoteBg       = R("Surface2Brush",    d.QuoteBg),

@@ -14,12 +14,14 @@ public class MarkdownSampleFilesTests
     public void Dataset_MaterialisesAllMarkdownSamples()
     {
         var files = TestSampleData.Files("markdown");
-        Assert.AreEqual(7, files.Count);
+        Assert.AreEqual(9, files.Count);
 
         foreach (var path in files)
         {
             Assert.IsTrue(File.Exists(path), $"missing sample: {path}");
-            Assert.IsTrue(File.ReadAllText(path).Contains("```mermaid"), $"no mermaid fence in {path}");
+            // Diagram docs are named mermaid-*; only those must carry a mermaid fence.
+            if (Path.GetFileName(path).StartsWith("mermaid-", StringComparison.Ordinal))
+                Assert.IsTrue(File.ReadAllText(path).Contains("```mermaid"), $"no mermaid fence in {path}");
         }
     }
 

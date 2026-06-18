@@ -84,9 +84,13 @@ unless noted otherwise.
 | Pipe tables | `UsePipeTables()` | ✅ | ✅ | `MarkdownExtensionsTests` (minimal, no-outer-pipes, alignment, inline formatting, CRLF, empty/escaped cells, ragged rows, in-blockquote, paragraph-interrupt) + `BlockRendererTests`. |
 | Grid tables | `UseGridTables()` | ✅ | ✅ | `MarkdownExtensionsTests` (columns, `colspan`, **block-content cells**). |
 | Task lists | `UseTaskLists()` | ✅ | ✅ | `[ ]` / `[x]` → ☐ / ☑ glyphs (display only, not interactive). |
+| Emphasis extras | `UseEmphasisExtras()` | ✅ | ✅ | `MarkdownExtensionsTests`. `~~strike~~` (strikethrough), `~sub~`, `^super^`, `==mark==` (highlight wash, `Marked` palette token), `++ins++` (underline). All map to `EmphasisInline` distinguished by `DelimiterChar`/`DelimiterCount` in `BlockRenderer.AddInlines`. |
 | Auto links | `UseAutoLinks()` | ✅ | ✅ | Bare `https://…` / `www.` URLs become links. |
 | Definition lists | `UseDefinitionLists()` | ✅ | ✅ | Term + definition styling. |
 | List extras | `UseListExtras()` | ✅ | ✅ | `a.`/`A.` alphabetic and `i.`/`I.` roman ordered markers. |
+| Abbreviations | `UseAbbreviations()` | ✅ | ✅ | `MarkdownExtensionsTests`. `*[HTML]: HyperText…` defines an abbreviation; each occurrence renders dotted-underlined with the definition as a hover tooltip. The definition line itself is consumed (not shown). |
+| Alert blocks | `UseAlertBlocks()` | ✅ | ✅ | `MarkdownExtensionsTests` + `extensions.md` sample render. GitHub callouts `> [!NOTE]` / `[!TIP]` / `[!IMPORTANT]` / `[!WARNING]` / `[!CAUTION]` → coloured left-border callout with a bold kind label. Each kind maps to a semantic accent (`Accent`/`Success`/`Important`/`Warning`/`Danger` palette tokens). `AlertBlock` extends `QuoteBlock`, so it's matched before the generic quote case. Selectable path falls back to `BlockRenderer`. |
+| YAML front matter | `UseYamlFrontMatter()` | ✅ (stripped) | ✅ | `MarkdownExtensionsTests`. A leading `--- … ---` metadata block is parsed as a `YamlFrontMatterBlock` and **not rendered** (matches Markdig's HTML renderer). Both paths suppress it — block renderer returns a collapsed placeholder, the selectable path emits nothing. |
 | Figures | `UseFigures()` | ✅ | ✅ | `^^^` figure block + caption. |
 | Footers | `UseFooters()` | ✅ | ✅ | `^^ footer`. |
 | Citations | `UseCitations()` | ✅ | ✅ | `""text""` → raised, coloured citation text. **Delimiter is a doubled double-quote, not `^^`** (see note below). |
@@ -104,8 +108,8 @@ unless noted otherwise.
 > fast-path), covered by tests in both `BlockRenderer` and `MarkdownFlowDocument`.
 
 > Note: in `MarkdownFlowDocument` (the selectable path), definition lists, figures, footers,
-> math and diagrams are rendered via the `BlockRenderer` UIElement fallback, so they display
-> correctly but are **not text-selectable**. Headings, paragraphs, lists, code, quotes and
+> alert blocks, math and diagrams are rendered via the `BlockRenderer` UIElement fallback, so they
+> display correctly but are **not text-selectable**. Headings, paragraphs, lists, code, quotes and
 > tables are fully selectable. The selectable path now has table tests (`MarkdownExtensionsTests`)
 > but its non-table block rendering is otherwise still untested.
 
@@ -134,9 +138,9 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `gantt` | ✅ | ✅ parser (`DiagramParsersTests`) + sample render |
 | `gitGraph` | ✅ | ✅ parser (`DiagramParsersTests`) + sample render |
 | `mindmap` | ✅ | ✅ parser (`DiagramParsersTests`) + sample render |
+| `stateDiagram` / `stateDiagram-v2` | ✅ (Sugiyama layout) | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `classDiagram` | ❌ raw source | ❌ |
 | `erDiagram` | ❌ raw source | ❌ |
-| `stateDiagram` | ❌ raw source | ❌ |
 | `timeline` | ❌ raw source | ❌ |
 | `journey` | ❌ raw source | ❌ |
 | `requirementDiagram` | ❌ raw source | ❌ |
@@ -144,10 +148,23 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `block-beta` | ❌ raw source | ❌ |
 | `architecture-beta` | ❌ raw source | ❌ |
 
+**State-diagram sub-features** ([`MermaidStateParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidStateParser.cs)).
+State diagrams reuse the shared graph model, the Sugiyama layout and `WpfGraphRenderer` (new pseudostate
+shapes: a filled **start** dot, a ringed **end** dot, a fork/join **bar**; a choice is a diamond; a note
+is a dashed amber callout; composite boxes get a tinted **header band**). Supported: states + descriptions
+(`state "d" as id`, `id : d`), transitions with labels, `[*]` start/end, **arbitrarily-nested** composite
+states (`state X { … }`, laid out as boxes-within-boxes via `Subgraph.ParentId`), choice/fork/join, notes
+(single- and multi-line), `direction`, comments, and styling (`classDef` / `class` / inline `:::`).
+Antiparallel transition pairs (`A --> B` / `B --> A`) are bowed apart so both arrows show. **Limitations:**
+concurrency `--` dividers are not drawn (regions just stack), and `[*]` is one shared start + one shared
+end per scope.
+
 Mermaid `--- … ---` front-matter (title/config) is stripped and a title applied
 (`MermaidFrontmatter`); this is tested directly (`DiagramParsersTests` →
 `Frontmatter_*`, and `DiagramRendererTests.Frontmatter_PieRoutesToChartNotSourceText`).
-A document-level YAML front-matter block is **not** handled (see below).
+A document-level YAML front-matter block is handled separately (`UseYamlFrontMatter`, parsed but
+not rendered — see the extensions table above); this Mermaid front-matter is a different, fence-local
+mechanism.
 
 ---
 
@@ -157,14 +174,11 @@ Available in Markdig but not in the pipeline. None are supported, so none are te
 
 | Extension | Pipeline call | What you lose |
 |---|---|---|
-| Emphasis extras | `UseEmphasisExtras()` | Strikethrough `~~x~~`, subscript `~x~`, superscript `^x^`, marked `==x==`, inserted `++x++`. |
 | Generic attributes | `UseGenericAttributes()` | `{#id .class key=val}` on headings/blocks/inlines. |
 | Auto identifiers | `UseAutoIdentifiers()` | Auto heading anchors / `#slug` links. |
-| Abbreviations | `UseAbbreviations()` | `*[HTML]: HyperText…` tooltips. |
 | Emoji & smiley | `UseEmojiAndSmiley()` | `:smile:` / `:)` → emoji. |
 | SmartyPants | `UseSmartyPants()` | Smart quotes, en/em dashes, ellipsis. |
 | Custom containers | `UseCustomContainers()` | `::: warning … :::` fenced/inline containers. |
-| YAML front matter | `UseYamlFrontMatter()` | Document-level `--- … ---` metadata block (currently rendered as a thematic break + text). |
 | Media links | `UseMediaLinks()` | YouTube/Vimeo/audio/video embeds. |
 | Bootstrap | `UseBootstrap()` | Bootstrap CSS classes on output (HTML-only; N/A for WPF). |
 | JIRA links | `UseJiraLinks()` | `ABC-123` → issue links. |
@@ -187,16 +201,17 @@ covered by the Core test project):
 | [`Visuals/Markdown/MarkdownPipelineFactoryTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownPipelineFactoryTests.cs) | Pipeline parses pipe tables, math blocks, diagram fences; singleton reuse. |
 | [`Visuals/Markdown/BlockRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/BlockRendererTests.cs) | Per-block render (headings incl. setext, paragraph, HR, quote, lists incl. nested/loose, indented + fenced code, table, diagram dispatch, math block) **and the full CommonMark inline layer** (inline code, emphasis, strong, links, reference links, autolinks, images local + remote, line breaks, escapes, entities, raw-HTML drop). (UI category.) |
 | [`Visuals/Markdown/MarkdownViewTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownViewTests.cs) | `MarkdownView` populates its block panel. (UI category.) |
-| [`Visuals/Markdown/MarkdownExtensionsTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownExtensionsTests.cs) | Enabled extensions (grid tables, task lists, auto links, definition lists, list extras, figures, footers, citations, inline math) + expanded pipe-table edge cases + selectable `MarkdownFlowDocument` tables. (UI category.) |
+| [`Visuals/Markdown/MarkdownExtensionsTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownExtensionsTests.cs) | Enabled extensions (grid tables, task lists, emphasis extras, auto links, definition lists, list extras, abbreviations, alert blocks, figures, footers, citations, inline math) + expanded pipe-table edge cases + selectable `MarkdownFlowDocument` tables. (UI category.) |
 | [`Visuals/Markdown/DiagramRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/DiagramRendererTests.cs) | WPF render smoke tests for quadrant + sequence; front-matter pie routing. (UI category.) |
 | [`Unit/Markdown/DiagramParsersTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/DiagramParsersTests.cs) | WPF-free parser tests: quadrant, sequence (extensive), flowchart, gantt, git graph, mindmap, front-matter. |
-| [`Visuals/Markdown/MarkdownSampleRenderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownSampleRenderTests.cs) | End-to-end: every diagram in the sample dataset parses + renders. (UI category.) |
+| [`Visuals/Markdown/MarkdownSampleRenderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownSampleRenderTests.cs) | End-to-end: every diagram in the sample dataset parses + renders, plus the `extensions.md` sample (emphasis extras, abbreviations, alert blocks) renders every block. (UI category.) |
 | [`Unit/Markdown/MarkdownBlocksTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/MarkdownBlocksTests.cs) | **Editor** block model (split/join/compact) — *not* renderer coverage. |
 | [`Unit/Markdown/HtmlToMarkdownTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/HtmlToMarkdownTests.cs) | **HTML→markdown paste** conversion — *not* renderer coverage. |
 
-Sample diagram fixtures (driving `MarkdownSampleRenderTests`) live in
+Sample fixtures (driving `MarkdownSampleRenderTests`) live in
 [`Nexaflow.Tests.Fixtures/MarkdownSamples.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Fixtures/MarkdownSamples.cs):
-pie, flowchart, quadrant, sequence, gantt, git graph, mindmap.
+the `mermaid-*` diagram docs (pie, flowchart, quadrant, sequence, gantt, git graph, mindmap, state) and
+`extensions.md` (YAML front matter, emphasis extras, abbreviations, alert blocks).
 
 **Where coverage is thin:**
 
@@ -214,12 +229,9 @@ pie, flowchart, quadrant, sequence, gantt, git graph, mindmap.
 - **No syntax highlighting** in code blocks — monospace only.
 - **No remote images** — only local files load; remote URLs degrade to alt text.
 - **Raw HTML is not rendered** — inline HTML is dropped, HTML blocks show as raw text.
-- **No strikethrough / sub / super / highlight** — `UseEmphasisExtras()` is off (common
-  in GitHub-flavoured markdown; note `~~strike~~` will *not* render).
 - **No emoji shortcodes** (`:tada:`).
-- **No document YAML front matter** — a leading `---` block renders oddly (as an HR + text).
 - **Task list checkboxes are display-only** — not clickable to toggle.
-- **Several Mermaid families fall back to raw text** (class, ER, state, timeline, journey,
+- **Several Mermaid families fall back to raw text** (class, ER, timeline, journey,
   C4, block, architecture).
 
 If any of the disabled extensions are wanted, the change is usually a one-line

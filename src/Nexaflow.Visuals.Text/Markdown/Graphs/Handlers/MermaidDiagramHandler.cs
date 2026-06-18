@@ -30,6 +30,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
     private static readonly MermaidGanttParser    GanttParser    = new();
     private static readonly MermaidGitGraphParser GitParser      = new();
     private static readonly MermaidMindmapParser  MindmapParser  = new();
+    private static readonly MermaidStateParser    StateParser    = new();
 
     public bool CanHandle(string language) =>
         language.Equals("mermaid", StringComparison.OrdinalIgnoreCase);
@@ -48,6 +49,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             MermaidSubtype.Gantt    => RenderGantt(body, title, palette),
             MermaidSubtype.Git      => RenderGit(body, title, palette),
             MermaidSubtype.Mindmap  => RenderMindmap(body, title, palette),
+            MermaidSubtype.State    => RenderState(body, title, palette),
             MermaidSubtype.Graph    => RenderGraph(body, title, palette),
             _                       => RenderSourceText(body),
         };
@@ -59,7 +61,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 
     // ── Subtype detection ──────────────────────────────────────────────────
 
-    private enum MermaidSubtype { Graph, Pie, Quadrant, Sequence, Gantt, Git, Mindmap, Unknown }
+    private enum MermaidSubtype { Graph, Pie, Quadrant, Sequence, Gantt, Git, Mindmap, State, Unknown }
 
     /// <summary>
     /// Reads the first non-blank, non-comment keyword to identify the diagram
@@ -77,6 +79,8 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 
             // gitGraph may carry an orientation/colon ("gitGraph TB:", "gitGraph:").
             if (keyword.StartsWith("gitgraph")) return MermaidSubtype.Git;
+            // stateDiagram / stateDiagram-v2.
+            if (keyword.StartsWith("statediagram")) return MermaidSubtype.State;
 
             return keyword switch
             {
@@ -166,6 +170,14 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
     private static FrameworkElement RenderGraph(string source, string? title, MarkdownPalette palette)
     {
         var graph  = FlowParser.Parse(source);
+        graph.Title = Titled(graph.Title, title);
+        var layout = SugiyamaLayout.Compute(graph, preferredMaxWidth: 900);
+        return WpfGraphRenderer.Render(layout, palette);
+    }
+
+    private static FrameworkElement RenderState(string source, string? title, MarkdownPalette palette)
+    {
+        var graph  = StateParser.Parse(source);
         graph.Title = Titled(graph.Title, title);
         var layout = SugiyamaLayout.Compute(graph, preferredMaxWidth: 900);
         return WpfGraphRenderer.Render(layout, palette);

@@ -801,4 +801,224 @@ public class DiagramParsersTests
         Assert.AreEqual(MindmapShape.Cloud,   byText["Cloud"]);
         Assert.AreEqual(MindmapShape.Bang,    byText["Bang"]);
     }
+
+    // ── State diagram ──────────────────────────────────────────────────────
+
+    private static Graph State(string src) => new MermaidStateParser().Parse(src);
+
+    [TestMethod]
+    public void State_SimpleSample_StatesEdgesAndPseudostates()
+    {
+        var g = State(
+            """
+            stateDiagram-v2
+                [*] --> Still
+                Still --> [*]
+                Still --> Moving
+                Moving --> Still
+                Moving --> Crash
+                Crash --> [*]
+            """);
+
+        // Still, Moving, Crash + one shared start + one shared end.
+        Assert.AreEqual(1, g.Nodes.Count(n => n.Shape == NodeShape.StateStart));
+        Assert.AreEqual(1, g.Nodes.Count(n => n.Shape == NodeShape.StateEnd));
+        foreach (var id in new[] { "Still", "Moving", "Crash" })
+            Assert.IsNotNull(g.FindNode(id), $"missing state {id}");
+        Assert.AreEqual(6, g.Edges.Count);
+    }
+
+    [TestMethod]
+    public void State_Descriptions_BothForms()
+    {
+        var g1 = State("stateDiagram-v2\n    state \"This is a state description\" as s2");
+        Assert.AreEqual("This is a state description", g1.FindNode("s2")!.Label);
+
+        var g2 = State("stateDiagram-v2\n    s2 : This is a state description");
+        Assert.AreEqual("This is a state description", g2.FindNode("s2")!.Label);
+    }
+
+    [TestMethod]
+    public void State_TransitionLabel()
+    {
+        var g = State("stateDiagram-v2\n    s1 --> s2: A transition");
+        var e = g.Edges.Single();
+        Assert.AreEqual("s1", e.SourceId);
+        Assert.AreEqual("s2", e.TargetId);
+        Assert.AreEqual("A transition", e.Label);
+    }
+
+    [TestMethod]
+    public void State_Choice_IsDiamond_WithLabelledBranches()
+    {
+        var g = State(
+            """
+            stateDiagram-v2
+                state if_state <<choice>>
+                [*] --> IsPositive
+                IsPositive --> if_state
+                if_state --> False: if n < 0
+                if_state --> True : if n >= 0
+            """);
+
+        Assert.AreEqual(NodeShape.Diamond, g.FindNode("if_state")!.Shape);
+        Assert.IsTrue(g.Edges.Any(e => e is { TargetId: "False", Label: "if n < 0" }));
+        Assert.IsTrue(g.Edges.Any(e => e is { TargetId: "True",  Label: "if n >= 0" }));
+    }
+
+    [TestMethod]
+    public void State_ForkAndJoin_AreBars()
+    {
+        var g = State(
+            """
+            stateDiagram-v2
+                state fork_state <<fork>>
+                state join_state <<join>>
+                [*] --> fork_state
+                fork_state --> State2
+                State2 --> join_state
+            """);
+
+        Assert.AreEqual(NodeShape.ForkJoin, g.FindNode("fork_state")!.Shape);
+        Assert.AreEqual(NodeShape.ForkJoin, g.FindNode("join_state")!.Shape);
+    }
+
+    [TestMethod]
+    public void State_CompositeBecomesSubgraphWithMembers()
+    {
+        var g = State(
+            """
+            stateDiagram-v2
+                [*] --> First
+                state First {
+                    [*] --> second
+                    second --> [*]
+                }
+            """);
+
+        var sg = g.Subgraphs.SingleOrDefault(s => s.Id == "First");
+        Assert.IsNotNull(sg, "composite First should become a subgraph");
+        Assert.IsTrue(sg!.NodeIds.Contains("second"), "second should be a member of First");
+        // An edge connects the root start to the composite box.
+        Assert.IsTrue(g.Edges.Any(e => e.TargetId == "First"));
+    }
+
+    [TestMethod]
+    public void State_NestedComposites_CarryParentLinks()
+    {
+        var g = State(
+            """
+            stateDiagram-v2
+                [*] --> First
+                state First {
+                    [*] --> Second
+                    state Second {
+                        [*] --> second
+                        second --> Third
+                        state Third {
+                            [*] --> third
+                            third --> [*]
+                        }
+                    }
+                }
+            """);
+
+        Subgraph Sg(string id) => g.Subgraphs.Single(s => s.Id == id);
+        Assert.IsNull(Sg("First").ParentId, "First is top level");
+        Assert.AreEqual("First",  Sg("Second").ParentId);
+        Assert.AreEqual("Second", Sg("Third").ParentId);
+        // The deepest state lives in the innermost composite only.
+        Assert.IsTrue(Sg("Third").NodeIds.Contains("third"));
+        Assert.IsFalse(Sg("First").NodeIds.Contains("third"), "membership is innermost-only");
+    }
+
+    [TestMethod]
+    public void State_NamedComposite_TakesItsDescriptionAsLabel()
+    {
+        var g = State(
+            """
+            stateDiagram-v2
+                [*] --> NamedComposite
+                NamedComposite: Another Composite
+                state NamedComposite {
+                    [*] --> namedSimple
+                    namedSimple --> [*]
+                }
+            """);
+
+        Assert.AreEqual("Another Composite", g.Subgraphs.Single(s => s.Id == "NamedComposite").Label);
+    }
+
+    [TestMethod]
+    public void State_Note_AddsDottedArrowlessEdgeToNoteNode()
+    {
+        var g = State(
+            """
+            stateDiagram-v2
+                State1: The state with a note
+                note right of State1
+                    Important information! You can write
+                    notes.
+                end note
+                State1 --> State2
+                note left of State2 : This is the note to the left.
+            """);
+
+        var notes = g.Nodes.Where(n => n.Shape == NodeShape.Note).ToList();
+        Assert.AreEqual(2, notes.Count, "two notes expected");
+        StringAssert.Contains(notes[0].Label, "Important information");
+        var noteEdge = g.Edges.Single(e => e.TargetId == notes[0].Id);
+        Assert.AreEqual(EdgeArrow.None, noteEdge.Arrow);
+        Assert.AreEqual(EdgeStyle.Dotted, noteEdge.Style);
+    }
+
+    [TestMethod]
+    public void State_Styling_ClassDefAndInlineOperatorApplyFill()
+    {
+        var classed = State(
+            """
+            stateDiagram
+                classDef notMoving fill:white
+                classDef badBadEvent fill:#f00,color:white,stroke:yellow
+                [*] --> Still
+                Still --> Moving
+                Moving --> Crash
+                class Still notMoving
+                class Crash badBadEvent
+            """);
+        Assert.AreEqual("white", classed.FindNode("Still")!.FillColor);
+        Assert.AreEqual("#f00",  classed.FindNode("Crash")!.FillColor);
+        Assert.AreEqual("yellow", classed.FindNode("Crash")!.StrokeColor);
+
+        var inline = State(
+            """
+            stateDiagram
+                classDef notMoving fill:white
+                [*] --> Still:::notMoving
+            """);
+        Assert.AreEqual("white", inline.FindNode("Still")!.FillColor);
+    }
+
+    [TestMethod]
+    public void State_Direction_IsParsed()
+    {
+        var g = State("stateDiagram\n    direction LR\n    [*] --> A\n    A --> B");
+        Assert.AreEqual(GraphDirection.LeftRight, g.Direction);
+    }
+
+    [TestMethod]
+    public void State_CommentsAreStripped()
+    {
+        var g = State(
+            """
+            stateDiagram-v2
+                [*] --> Still
+            %% this is a comment
+                Moving --> Still %% another comment
+            """);
+        // The trailing comment must not leak into the target id.
+        Assert.IsNotNull(g.FindNode("Still"));
+        Assert.IsNotNull(g.FindNode("Moving"));
+        Assert.IsFalse(g.Nodes.Any(n => n.Id.Contains('%')), "comment markers must be stripped");
+    }
 }

@@ -297,7 +297,140 @@ public class MarkdownExtensionsTests
         Assert.IsTrue(hasFormula || hasFallback, "inline math should render a formula or a LaTeX fallback");
     });
 
+    // ── Emphasis extras (UseEmphasisExtras) ────────────────────────────────
+
+    [TestMethod]
+    public void EmphasisExtras_Strikethrough_RendersStruckSpan() => UiThread.Run(() =>
+    {
+        var span = ParaSpan("a ~~gone~~ b\n");
+        Assert.IsTrue(HasDecoration(span, TextDecorationLocation.Strikethrough), "expected strikethrough");
+        StringAssert.Contains(InlineText(span.Inlines), "gone");
+    });
+
+    [TestMethod]
+    public void EmphasisExtras_Subscript_RendersSubscriptSpan() => UiThread.Run(() =>
+    {
+        var span = ParaSpan("H~2~O\n");
+        Assert.AreEqual(BaselineAlignment.Subscript, span.BaselineAlignment);
+        StringAssert.Contains(InlineText(span.Inlines), "2");
+    });
+
+    [TestMethod]
+    public void EmphasisExtras_Superscript_RendersSuperscriptSpan() => UiThread.Run(() =>
+    {
+        var span = ParaSpan("e=mc^2^\n");
+        Assert.AreEqual(BaselineAlignment.Superscript, span.BaselineAlignment);
+        StringAssert.Contains(InlineText(span.Inlines), "2");
+    });
+
+    [TestMethod]
+    public void EmphasisExtras_Marked_RendersHighlightedSpan() => UiThread.Run(() =>
+    {
+        var span = ParaSpan("a ==lit== b\n");
+        Assert.IsNotNull(span.Background, "marked text should carry a highlight background");
+        StringAssert.Contains(InlineText(span.Inlines), "lit");
+    });
+
+    [TestMethod]
+    public void EmphasisExtras_Inserted_RendersUnderlinedSpan() => UiThread.Run(() =>
+    {
+        var span = ParaSpan("a ++new++ b\n");
+        Assert.IsTrue(HasDecoration(span, TextDecorationLocation.Underline), "expected underline");
+        StringAssert.Contains(InlineText(span.Inlines), "new");
+    });
+
+    // ── Abbreviations (UseAbbreviations) ────────────────────────────────────
+
+    [TestMethod]
+    public void Abbreviation_RendersLabelWithTitleTooltip() => UiThread.Run(() =>
+    {
+        var para = Parse("HTML is great.\n\n*[HTML]: HyperText Markup Language\n")
+                   .OfType<ParagraphBlock>().First();
+        var tb  = (TextBlock)BlockRenderer.Render(para);
+        var run = tb.Inlines.OfType<Run>().Single(r => r.Text == "HTML");
+
+        var tip = run.ToolTip as TextBlock;
+        Assert.IsNotNull(tip, "abbreviation should carry a TextBlock tooltip");
+        StringAssert.Contains(tip.Text, "HyperText Markup Language");
+        Assert.IsTrue(run.TextDecorations?.Count > 0, "abbreviation should be underlined");
+    });
+
+    [TestMethod]
+    public void Abbreviation_DefinitionLineIsNotRenderedAsBody() => UiThread.Run(() =>
+    {
+        // The *[…]: … definition is consumed by the parser; it must not appear as visible text.
+        var doc  = Parse("HTML is great.\n\n*[HTML]: HyperText Markup Language\n");
+        var body = string.Concat(doc.Select(b => AllText(BlockRenderer.Render(b))));
+        Assert.IsFalse(body.Contains("HyperText Markup Language"),
+            "the abbreviation definition should only surface in the tooltip, not the body");
+    });
+
+    // ── Alert blocks (UseAlertBlocks) ───────────────────────────────────────
+
+    [TestMethod]
+    public void Alert_Warning_RendersColouredCalloutWithLabelAndBody() => UiThread.Run(() =>
+    {
+        var border = (Border)BlockRenderer.Render(Parse("> [!WARNING]\n> Be careful here.\n")[0]);
+        Assert.AreSame(MarkdownPalette.Dark.Warning, border.BorderBrush, "warning accent expected");
+        var text = AllText(border);
+        StringAssert.Contains(text, "Warning");
+        StringAssert.Contains(text, "Be careful here.");
+    });
+
+    [TestMethod]
+    public void Alert_ParsesAsAlertNotPlainQuote_AndUsesKindColour() => UiThread.Run(() =>
+    {
+        var block = Parse("> [!NOTE]\n> Heads up.\n")[0];
+        Assert.IsInstanceOfType(block, typeof(Markdig.Extensions.Alerts.AlertBlock),
+            "[!NOTE] should parse as an alert, not a generic blockquote");
+        var border = (Border)BlockRenderer.Render(block);
+        Assert.AreSame(MarkdownPalette.Dark.Accent, border.BorderBrush);
+        StringAssert.Contains(AllText(border), "Note");
+    });
+
+    [TestMethod]
+    public void Alert_Important_UsesDedicatedToken() => UiThread.Run(() =>
+    {
+        var border = (Border)BlockRenderer.Render(Parse("> [!IMPORTANT]\n> Read this.\n")[0]);
+        Assert.AreSame(MarkdownPalette.Dark.Important, border.BorderBrush, "important should use its own token");
+        StringAssert.Contains(AllText(border), "Important");
+    });
+
+    // ── YAML front matter (UseYamlFrontMatter) ──────────────────────────────
+
+    [TestMethod]
+    public void YamlFrontMatter_ParsesAsFrontMatterBlock_AndRendersNothing() => UiThread.Run(() =>
+    {
+        var doc = Parse("---\ntitle: Hello\ntags: [a, b]\n---\n\n# Body\n");
+
+        var fm = doc[0];
+        Assert.IsInstanceOfType(fm, typeof(Markdig.Extensions.Yaml.YamlFrontMatterBlock),
+            "a leading --- block should parse as YAML front matter, not a thematic break");
+
+        // The block renders to a zero-size, collapsed placeholder — nothing visible, no metadata text.
+        var rendered = BlockRenderer.Render(fm);
+        Assert.AreEqual(Visibility.Collapsed, rendered.Visibility);
+        Assert.AreEqual(string.Empty, AllText(rendered));
+    });
+
+    [TestMethod]
+    public void YamlFrontMatter_FlowDocument_OmitsTheBlock() => UiThread.Run(() =>
+    {
+        // Selectable path: the front matter must not appear as a block or leak its text.
+        var doc = MarkdownFlowDocument.Build("---\ntitle: Hello\n---\n\n# Body\n");
+        var text = new System.Windows.Documents.TextRange(doc.ContentStart, doc.ContentEnd).Text;
+        Assert.IsFalse(text.Contains("title: Hello"), "front matter text must not render");
+        StringAssert.Contains(text, "Body");
+    });
+
     // ── Helpers ───────────────────────────────────────────────────────────
+
+    /// <summary>Renders a single-paragraph source and returns its one styled inline span.</summary>
+    private static Span ParaSpan(string src) =>
+        ((TextBlock)BlockRenderer.Render(Parse(src)[0])).Inlines.OfType<Span>().Single();
+
+    private static bool HasDecoration(Span span, TextDecorationLocation location) =>
+        span.TextDecorations?.Any(d => d.Location == location) == true;
 
     /// <summary>Body/header cell TextBlock at a grid position (via the wrapping Border).</summary>
     private static TextBlock Cell(Grid g, int row, int col) =>
