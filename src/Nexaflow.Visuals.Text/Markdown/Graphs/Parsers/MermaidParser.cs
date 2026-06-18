@@ -12,7 +12,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
 ///   • Edge labels: --&gt;|label|  and  -- label --&gt;
 ///   • &lt;br&gt; / &lt;br/&gt; in labels → rendered as newlines
 ///   • Multiple targets: A --&gt; B &amp; C
-///   • Subgraph blocks (nodes and edges parsed; the subgraph box is not rendered)
+///   • Chains: A --&gt; B --&gt; C (each hop becomes its own edge)
+///   • Subgraph blocks, including nested subgraphs (drawn as nested boxes via Subgraph.ParentId)
 ///   • classDef / class styling (fill and stroke colours)
 ///   • %% line comments, trailing semicolons
 /// </summary>
@@ -76,7 +77,11 @@ public sealed class MermaidParser : IGraphParser
             // Subgraph / end
             if (line.StartsWith("subgraph", StringComparison.OrdinalIgnoreCase))
             {
-                subgraphStack.Push(ParseSubgraphHeader(line));
+                var sg = ParseSubgraphHeader(line);
+                // A subgraph opened inside another nests under it (the clustered layout draws the parent
+                // box around its children via Subgraph.ParentId); top-level subgraphs leave it null.
+                if (subgraphStack.Count > 0) sg.ParentId = subgraphStack.Peek().Id;
+                subgraphStack.Push(sg);
                 continue;
             }
             if (line.Equals("end", StringComparison.OrdinalIgnoreCase))
@@ -217,77 +222,92 @@ public sealed class MermaidParser : IGraphParser
     /// <summary>
     /// Tokenises one line as a Mermaid edge definition.
     /// Handles:
-    ///   • src --&gt; dst           (direct arrow)
-    ///   • src --&gt;|label| dst    (inline label)
-    ///   • src -- label --&gt; dst  (space-label form)
+    ///   • src --&gt; dst              (direct arrow)
+    ///   • src --&gt;|label| dst       (inline label)
+    ///   • src -- label --&gt; dst     (space-label form)
+    ///   • src --&gt; B &amp; C           (fan-out to several targets)
+    ///   • src --&gt; mid --&gt; dst     (chains — each hop becomes its own edge)
     ///   • src expression may contain any shape including &gt;..] (asymmetric)
     /// </summary>
     private static bool TryParseEdgeLine(string line, Graph graph)
     {
-        // Step 1: source node expression (bracket-balanced)
-        (int srcEnd, string srcExpr) = ReadNodeExpr(line, 0);
-        if (srcEnd < 0 || srcExpr.Length == 0) return false;
+        (int pos, string srcExpr) = ReadNodeExpr(line, 0);
+        if (pos < 0 || srcExpr.Length == 0) return false;
 
-        int pos = srcEnd;
-        while (pos < line.Length && line[pos] == ' ') pos++;
-        if (pos >= line.Length) return false;
+        List<string>? sources = null;   // realised only once the first arrow confirms this is an edge line
+        bool madeEdge = false;
 
-        // Optional inline edge id:  A e1@--> B
-        pos = SkipEdgeId(line, pos);
+        while (true)
+        {
+            while (pos < line.Length && line[pos] == ' ') pos++;
+            if (pos >= line.Length) break;
 
-        // Step 2: edge marker
-        string?   label      = null;
-        EdgeStyle style      = EdgeStyle.Solid;
-        EdgeArrow startArrow = EdgeArrow.None;
-        EdgeArrow endArrow   = EdgeArrow.Normal;
+            pos = SkipEdgeId(line, pos);                       // optional inline edge id: A e1@--> B
+            if (TryReadArrow(line, ref pos) is not { } arrow) break;
 
-        // Space-label form: "-- label --> dst" (two dashes then a space)
+            if (sources is null)
+            {
+                if (ParseNodeExpr(srcExpr, graph) is not { } sid) return false;
+                sources = [sid];
+            }
+
+            // Target list: one or more node expressions separated by '&'.
+            var targets = new List<string>();
+            while (true)
+            {
+                while (pos < line.Length && line[pos] == ' ') pos++;
+                (int tend, string texpr) = ReadNodeExpr(line, pos);
+                if (tend < 0 || texpr.Length == 0) break;
+                if (ParseNodeExpr(texpr, graph) is { } tid) targets.Add(tid);
+                pos = tend;
+                while (pos < line.Length && line[pos] == ' ') pos++;
+                if (pos < line.Length && line[pos] == '&') { pos++; continue; }
+                break;
+            }
+            if (targets.Count == 0) break;
+
+            foreach (var s in sources)
+                foreach (var t in targets)
+                {
+                    graph.AddEdge(s, t, arrow.label ?? "", arrow.style, arrow.end).StartArrow = arrow.start;
+                    madeEdge = true;
+                }
+
+            sources = targets;   // a chain (A --> B --> C) continues from the targets just read
+        }
+
+        return madeEdge;
+    }
+
+    /// <summary>Reads a link operator at <paramref name="pos"/> in either the inline-label
+    /// (<c>--&gt;|label|</c>) or space-label (<c>-- label --&gt;</c>) form, advancing <paramref name="pos"/>
+    /// past it (and any label). Returns null when no operator starts here.</summary>
+    private static (string? label, EdgeStyle style, EdgeArrow start, EdgeArrow end)? TryReadArrow(string line, ref int pos)
+    {
+        // Space-label form: "-- label --> dst" (two dashes then a space).
         if (pos + 2 < line.Length && line[pos] == '-' && line[pos + 1] == '-' && line[pos + 2] == ' ')
         {
             int labelStart = pos + 3;
-            bool found = false;
-            for (int i = labelStart; i < line.Length && !found; i++)
+            for (int i = labelStart; i < line.Length; i++)
             {
                 if (line[i] != ' ') continue;
                 if (MatchArrow(line, i + 1) is not { } am) continue;
-                label = ProcessLabel(line[labelStart..i]);
-                style = am.style; startArrow = am.start; endArrow = am.end;
-                pos   = i + 1 + am.len;
-                found = true;
+                pos = i + 1 + am.len;
+                return (ProcessLabel(line[labelStart..i]), am.style, am.start, am.end);
             }
-            if (!found) return false;
+            return null;
         }
-        else
+
+        if (MatchArrow(line, pos) is not { } a) return null;
+        pos += a.len;
+
+        string? label = null;
+        if (pos < line.Length && line[pos] == '|')   // inline label: -->|label|
         {
-            if (MatchArrow(line, pos) is not { } am) return false;
-            style = am.style; startArrow = am.start; endArrow = am.end;
-            pos += am.len;
-
-            // Inline label: -->|label|
-            if (pos < line.Length && line[pos] == '|')
-            {
-                int closeBar = line.IndexOf('|', pos + 1);
-                if (closeBar > pos) { label = ProcessLabel(line[(pos + 1)..closeBar]); pos = closeBar + 1; }
-            }
+            int closeBar = line.IndexOf('|', pos + 1);
+            if (closeBar > pos) { label = ProcessLabel(line[(pos + 1)..closeBar]); pos = closeBar + 1; }
         }
-
-        // Step 3: target node(s)
-        while (pos < line.Length && line[pos] == ' ') pos++;
-        string dstStr = line[pos..];
-
-        string? srcId = ParseNodeExpr(srcExpr, graph);
-        if (srcId is null) return false;
-
-        foreach (var tgtRaw in dstStr.Split('&'))
-        {
-            (_, string tgtExpr) = ReadNodeExpr(tgtRaw.Trim(), 0);
-            if (tgtExpr.Length == 0) continue;
-            string? dstId = ParseNodeExpr(tgtExpr, graph);
-            if (dstId is null) continue;
-            var e = graph.AddEdge(srcId, dstId, label ?? "", style, endArrow);
-            e.StartArrow = startArrow;
-        }
-        return true;
+        return (label, a.style, a.start, a.end);
     }
 
     /// <summary>Skips an inline edge id (<c>e1@</c>) that precedes an arrow operator; returns the new position.</summary>

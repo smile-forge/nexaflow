@@ -25,11 +25,18 @@ public enum NodeShape
     StateStart,        // [*] as a transition source — small filled "initial" dot
     StateEnd,          // [*] as a transition target — ringed "final" dot
     ForkJoin,          // <<fork>> / <<join>> — a solid synchronisation bar
-    Note,              // state-diagram note — dashed callout attached to a state
+    Note,              // state-diagram / class-diagram note — dashed callout
+
+    // ── Class-diagram ─────────────────────────────────────────────────────────
+    ClassBox,          // a UML class: «stereotype» + name + attribute/method compartments (see Node.Class)
 }
 
 public enum EdgeStyle { Solid, Dashed, Dotted, Thick }
-public enum EdgeArrow { Normal, Open, None, Circle, Cross }
+
+/// <summary>The marker drawn at an edge end. <c>TriangleHollow</c>/<c>DiamondFilled</c>/<c>DiamondHollow</c>
+/// are UML class-diagram heads (inheritance / composition / aggregation); <c>CrossCircle</c> is the
+/// SysML composite-containment crosshair (requirement diagrams).</summary>
+public enum EdgeArrow { Normal, Open, None, Circle, Cross, TriangleHollow, DiamondFilled, DiamondHollow, CrossCircle }
 public enum GraphDirection { TopDown, LeftRight, BottomUp, RightLeft }
 
 // ── Core domain types ─────────────────────────────────────────────────────────
@@ -56,6 +63,9 @@ public sealed class Node
     public string? StrokeColor { get; set; }
     public string? TextColor   { get; set; }
     public string? Classifier  { get; set; }  // nomnoml: abstract, note, etc.
+    /// <summary>Set only on <see cref="NodeShape.ClassBox"/> nodes — the UML class body
+    /// (stereotype + attribute/method compartments). Null for every other shape.</summary>
+    public ClassInfo? Class    { get; set; }
 }
 
 /// <summary>A directed edge between two nodes.</summary>
@@ -66,8 +76,13 @@ public sealed class Edge
     public string Label    { get; set; } = string.Empty;
     public EdgeStyle Style  { get; set; } = EdgeStyle.Solid;
     public EdgeArrow Arrow  { get; set; } = EdgeArrow.Normal;
-    /// <summary>Head at the source end — set for multidirectional links (<c>o--o</c>, <c>x--x</c>, <c>&lt;--&gt;</c>).</summary>
+    /// <summary>Head at the source end — set for multidirectional links (<c>o--o</c>, <c>x--x</c>, <c>&lt;--&gt;</c>)
+    /// and for the UML head of a class relationship that points at the source (e.g. <c>A &lt;|-- B</c>).</summary>
     public EdgeArrow StartArrow { get; set; } = EdgeArrow.None;
+    /// <summary>Multiplicity / cardinality text shown at the source end (class diagrams, e.g. <c>"1"</c>).</summary>
+    public string StartLabel { get; set; } = string.Empty;
+    /// <summary>Multiplicity / cardinality text shown at the target end (class diagrams, e.g. <c>"*"</c>).</summary>
+    public string EndLabel   { get; set; } = string.Empty;
     /// <summary>Set true when cycle removal reverses this edge; renderers should draw the arrowhead reversed.</summary>
     public bool IsReversed  { get; set; }
 }

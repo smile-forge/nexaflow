@@ -16,6 +16,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 ///   • <c>quadrantChart</c>    → <see cref="MermaidQuadrantParser"/> + <see cref="WpfQuadrantChartRenderer"/>
 ///   • <c>sequenceDiagram</c>  → <see cref="MermaidSequenceParser"/> + <see cref="WpfSequenceDiagramRenderer"/>
 ///   • <c>gantt</c>            → <see cref="MermaidGanttParser"/>    + <see cref="WpfGanttRenderer"/>
+///   • <c>classDiagram</c>     → <see cref="MermaidClassParser"/>   + Sugiyama + <see cref="WpfGraphRenderer"/>
+///   • <c>requirementDiagram</c> → <see cref="MermaidRequirementParser"/> + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///   • <c>graph / flowchart</c> → <see cref="MermaidParser"/>        + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///
 /// Adding a new Mermaid diagram type means adding a branch in <see cref="SubtypeOf"/>
@@ -31,6 +33,8 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
     private static readonly MermaidGitGraphParser GitParser      = new();
     private static readonly MermaidMindmapParser  MindmapParser  = new();
     private static readonly MermaidStateParser    StateParser    = new();
+    private static readonly MermaidClassParser    ClassParser    = new();
+    private static readonly MermaidRequirementParser RequirementParser = new();
 
     public bool CanHandle(string language) =>
         language.Equals("mermaid", StringComparison.OrdinalIgnoreCase);
@@ -49,8 +53,10 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             MermaidSubtype.Gantt    => RenderGantt(body, title, palette),
             MermaidSubtype.Git      => RenderGit(body, title, palette),
             MermaidSubtype.Mindmap  => RenderMindmap(body, title, palette),
-            MermaidSubtype.State    => RenderState(body, title, palette),
-            MermaidSubtype.Graph    => RenderGraph(body, title, palette),
+            MermaidSubtype.State       => RenderState(body, title, palette),
+            MermaidSubtype.Class       => RenderClass(body, title, palette),
+            MermaidSubtype.Requirement => RenderRequirement(body, title, palette),
+            MermaidSubtype.Graph       => RenderGraph(body, title, palette),
             _                       => RenderSourceText(body),
         };
     }
@@ -61,7 +67,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 
     // ── Subtype detection ──────────────────────────────────────────────────
 
-    private enum MermaidSubtype { Graph, Pie, Quadrant, Sequence, Gantt, Git, Mindmap, State, Unknown }
+    private enum MermaidSubtype { Graph, Pie, Quadrant, Sequence, Gantt, Git, Mindmap, State, Class, Requirement, Unknown }
 
     /// <summary>
     /// Reads the first non-blank, non-comment keyword to identify the diagram
@@ -81,6 +87,10 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             if (keyword.StartsWith("gitgraph")) return MermaidSubtype.Git;
             // stateDiagram / stateDiagram-v2.
             if (keyword.StartsWith("statediagram")) return MermaidSubtype.State;
+            // classDiagram / classDiagram-v2.
+            if (keyword.StartsWith("classdiagram")) return MermaidSubtype.Class;
+            // requirementDiagram.
+            if (keyword.StartsWith("requirementdiagram")) return MermaidSubtype.Requirement;
 
             return keyword switch
             {
@@ -90,11 +100,9 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
                 "gantt"                            => MermaidSubtype.Gantt,
                 "mindmap"                          => MermaidSubtype.Mindmap,
                 "graph" or "flowchart"             => MermaidSubtype.Graph,
-                "classdiagram"
-                    or "erdiagram"
+                "erdiagram"
                     or "timeline"
                     or "journey"
-                    or "requirementdiagram"
                     or "c4context"
                     or "block-beta"
                     or "architecture-beta" => MermaidSubtype.Unknown,
@@ -180,6 +188,23 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         var graph  = StateParser.Parse(source);
         graph.Title = Titled(graph.Title, title);
         var layout = SugiyamaLayout.Compute(graph, preferredMaxWidth: 900);
+        return WpfGraphRenderer.Render(layout, palette);
+    }
+
+    private static FrameworkElement RenderClass(string source, string? title, MarkdownPalette palette)
+    {
+        var graph  = ClassParser.Parse(source);
+        graph.Title = Titled(graph.Title, title);
+        // Class boxes are wide; allow more width before the layout starts compacting horizontal gaps.
+        var layout = SugiyamaLayout.Compute(graph, preferredMaxWidth: 1100);
+        return WpfGraphRenderer.Render(layout, palette);
+    }
+
+    private static FrameworkElement RenderRequirement(string source, string? title, MarkdownPalette palette)
+    {
+        var graph  = RequirementParser.Parse(source);
+        graph.Title = Titled(graph.Title, title);
+        var layout = SugiyamaLayout.Compute(graph, preferredMaxWidth: 1100);
         return WpfGraphRenderer.Render(layout, palette);
     }
 }
