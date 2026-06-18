@@ -139,11 +139,11 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `gitGraph` | ✅ | ✅ parser (`DiagramParsersTests`) + sample render |
 | `mindmap` | ✅ | ✅ parser (`DiagramParsersTests`) + sample render |
 | `stateDiagram` / `stateDiagram-v2` | ✅ (Sugiyama layout) | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
-| `classDiagram` | ❌ raw source | ❌ |
+| `classDiagram` | ✅ (Sugiyama layout) | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
+| `requirementDiagram` | ✅ (Sugiyama layout) | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `erDiagram` | ❌ raw source | ❌ |
 | `timeline` | ❌ raw source | ❌ |
 | `journey` | ❌ raw source | ❌ |
-| `requirementDiagram` | ❌ raw source | ❌ |
 | `C4Context` | ❌ raw source | ❌ |
 | `block-beta` | ❌ raw source | ❌ |
 | `architecture-beta` | ❌ raw source | ❌ |
@@ -158,6 +158,41 @@ states (`state X { … }`, laid out as boxes-within-boxes via `Subgraph.ParentId
 Antiparallel transition pairs (`A --> B` / `B --> A`) are bowed apart so both arrows show. **Limitations:**
 concurrency `--` dividers are not drawn (regions just stack), and `[*]` is one shared start + one shared
 end per scope.
+
+**Class-diagram sub-features** ([`MermaidClassParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidClassParser.cs)).
+Class diagrams reuse the shared graph model, the Sugiyama layout and `WpfGraphRenderer`. Each class is a
+new **`ClassBox`** node ([`ClassBox.cs`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/ClassBox.cs)) drawn as a
+UML box with name / attribute / method compartments; relationships are edges whose new
+`EdgeArrow` heads (`TriangleHollow`/`DiamondFilled`/`DiamondHollow`) and `Edge.StartLabel`/`EndLabel`
+multiplicities draw the UML markers. Supported: classes (`class A`, block `class A { … }`, label override
+`class A["Pretty"]`, generics `A~T~` → `A<T>` incl. nested `List~List~int~~` → `List<List<int>>`, implicit
+declaration from a member/relationship); members via block lines or the `A : +member` shorthand, with
+visibility (`+ - # ~`), attribute-vs-method by `()`, a method return type shown after a colon
+(`getId() int` → `getId() : int`), classifiers `*` (abstract → *italic*) / `$` (static → underline);
+annotations `<<interface>>`/`<<enumeration>>`/… → «stereotype»; the full relationship set (`<|--` inheritance,
+`*--` composition, `o--` aggregation, `-->` association, `--`/`..` links, `..>` dependency, `..|>` realization)
+in either direction **including two-way forms** (`<|--|>`, `<-->`), with multiplicity (`A "1" --> "*" B`) and a
+`: label`; lollipop interfaces (`A --() iface`, `iface ()-- A`) drawn as a small circle on a short straight stub
+off the class box with the name beside it (a decoration on the class, reserved by the layout — not a routed node);
+`namespace N { … }`
+with **hierarchical (dotted) nesting** (`namespace A.B.C` nests `C` inside `B` inside `A`); notes (`note "…"`,
+`note for A "…"`, with `<br>` / `\n` line breaks); `direction`; comments; and styling (`classDef`, `cssClass`,
+`style A fill:…`, inline `A:::name`). A front-matter / `title:` is centred over the diagram. **Limitations:**
+`hideEmptyMembersBox` and interactive `callback`/`link` directives are ignored.
+
+**Requirement-diagram sub-features** ([`MermaidRequirementParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidRequirementParser.cs)).
+A requirement / element is structurally a UML box, so it reuses the **`ClassBox`** node, the Sugiyama layout and
+`WpfGraphRenderer` — a «type» stereotype + name header over a *single* field compartment (the new
+`ClassInfo.SingleCompartment` flag suppresses the class box's second/methods compartment). Supported: every
+requirement type (`requirement`, `functionalRequirement`, `interfaceRequirement`, `performanceRequirement`,
+`physicalRequirement`, `designConstraint`) and `element`, each with `id` / `text` / `risk` / `verifymethod` /
+`type` / `docref` fields (keys shown as `Id`/`Text`/`Risk`/`Verification`/`Type`/`Doc Ref`, enum values
+title-cased, `functionalRequirement` → «Functional Requirement»); relationships `src - type -> dst` and the
+reverse `dst <- type - src` labelled «type» — `contains` draws as a solid line with the SysML composite
+crosshair (⊕) at the container end, the others (`copies`, `derives`, `satisfies`, `verifies`, `refines`,
+`traces`) as dashed open arrows; `direction`; comments; and styling (`style`, `classDef`, `class a,b name`,
+inline `:::name`). **Limitation:** single-line `req name { … }` blocks aren't parsed — the opening brace must
+end the line (the standard multi-line form).
 
 Mermaid `--- … ---` front-matter (title/config) is stripped and a title applied
 (`MermaidFrontmatter`); this is tested directly (`DiagramParsersTests` →
@@ -210,8 +245,8 @@ covered by the Core test project):
 
 Sample fixtures (driving `MarkdownSampleRenderTests`) live in
 [`Nexaflow.Tests.Fixtures/MarkdownSamples.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Fixtures/MarkdownSamples.cs):
-the `mermaid-*` diagram docs (pie, flowchart, quadrant, sequence, gantt, git graph, mindmap, state) and
-`extensions.md` (YAML front matter, emphasis extras, abbreviations, alert blocks).
+the `mermaid-*` diagram docs (pie, flowchart, quadrant, sequence, gantt, git graph, mindmap, state, class,
+requirement) and `extensions.md` (YAML front matter, emphasis extras, abbreviations, alert blocks).
 
 **Where coverage is thin:**
 
@@ -231,7 +266,7 @@ the `mermaid-*` diagram docs (pie, flowchart, quadrant, sequence, gantt, git gra
 - **Raw HTML is not rendered** — inline HTML is dropped, HTML blocks show as raw text.
 - **No emoji shortcodes** (`:tada:`).
 - **Task list checkboxes are display-only** — not clickable to toggle.
-- **Several Mermaid families fall back to raw text** (class, ER, timeline, journey,
+- **Several Mermaid families fall back to raw text** (ER, timeline, journey,
   C4, block, architecture).
 
 If any of the disabled extensions are wanted, the change is usually a one-line

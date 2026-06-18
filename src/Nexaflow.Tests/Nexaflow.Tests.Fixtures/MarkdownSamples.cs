@@ -2,8 +2,8 @@ namespace Nexaflow.Tests.Fixtures;
 
 /// <summary>
 /// Catalog of sample markdown documents — one per Mermaid diagram type the renderer supports
-/// (pie, flowchart, quadrant chart, sequence diagram, gantt, git graph, mindmap, state diagram),
-/// plus an <c>extensions.md</c> exercising the non-diagram Markdig extensions (emphasis extras,
+/// (pie, flowchart, quadrant chart, sequence diagram, gantt, git graph, mindmap, state diagram,
+/// class diagram, requirement diagram), plus an <c>extensions.md</c> exercising the non-diagram Markdig extensions (emphasis extras,
 /// abbreviations, alert blocks). Each document showcases several variations, so the fixtures
 /// double as a human-readable reference. The <c>mermaid-*</c> naming marks the diagram docs.
 /// </summary>
@@ -20,9 +20,304 @@ internal sealed class MarkdownSamples : ISampleSet
         SampleFile.Text("mermaid-gantt.md",     Gantt),
         SampleFile.Text("mermaid-gitgraph.md",  GitGraph),
         SampleFile.Text("mermaid-mindmap.md",   Mindmap),
-        SampleFile.Text("mermaid-state.md",     State),
-        SampleFile.Text("extensions.md",        Extensions),
+        SampleFile.Text("mermaid-state.md",       State),
+        SampleFile.Text("mermaid-class.md",       Class),
+        SampleFile.Text("mermaid-requirement.md", Requirement),
+        SampleFile.Text("extensions.md",          Extensions),
     ];
+
+    private const string Requirement =
+        """
+        # Mermaid — Requirement diagram
+
+        A `requirementDiagram` (SysML-style) draws requirements and elements as boxes — a
+        «type» + name header over a list of fields (`id`, `text`, `risk`, `verifymethod` /
+        `type`, `docref`) — joined by labelled relationships: `contains` is a solid line with a
+        crosshair (⊕) at the container, the rest (`copies`, `derives`, `satisfies`, `verifies`,
+        `refines`, `traces`) are dashed arrows. It reuses the same box + Sugiyama layout as the
+        class diagram.
+
+        Full example
+
+        ```mermaid
+        requirementDiagram
+
+        requirement test_req {
+            id: 1
+            text: the test text.
+            risk: high
+            verifymethod: test
+        }
+
+        functionalRequirement test_req2 {
+            id: 1.1
+            text: the second test text.
+            risk: low
+            verifymethod: inspection
+        }
+
+        performanceRequirement test_req3 {
+            id: 1.2
+            text: the third test text.
+            risk: medium
+            verifymethod: demonstration
+        }
+
+        interfaceRequirement test_req4 {
+            id: 1.2.1
+            text: the fourth test text.
+            risk: medium
+            verifymethod: analysis
+        }
+
+        physicalRequirement test_req5 {
+            id: 1.2.2
+            text: the fifth test text.
+            risk: medium
+            verifymethod: analysis
+        }
+
+        designConstraint test_req6 {
+            id: 1.2.3
+            text: the sixth test text.
+            risk: medium
+            verifymethod: analysis
+        }
+
+        element test_entity {
+            type: simulation
+        }
+
+        element test_entity2 {
+            type: word doc
+            docref: reqs/test_entity
+        }
+
+        element test_entity3 {
+            type: "test suite"
+            docref: github.com/all_the_tests
+        }
+
+        test_entity - satisfies -> test_req2
+        test_req - traces -> test_req2
+        test_req - contains -> test_req3
+        test_req3 - contains -> test_req4
+        test_req4 - derives -> test_req5
+        test_req5 - refines -> test_req6
+        test_entity3 - verifies -> test_req5
+        test_entity - copies -> test_entity2
+        ```
+
+        Reverse-arrow form, direction and styling
+
+        ```mermaid
+        requirementDiagram
+            direction LR
+
+            requirement db_req {
+                id: 2
+                text: store the records durably.
+                risk: high
+                verifymethod: test
+            }
+            element database {
+                type: postgres
+                docref: infra/db
+            }
+
+            database <- satisfies - db_req
+            classDef important fill:#f9f,stroke:#333,color:#000
+            class db_req important
+            style database fill:#bbf,stroke:#338
+        ```
+        """;
+
+    private const string Class =
+        """
+        # Mermaid — Class diagram
+
+        A `classDiagram` draws UML classes as boxes with name / attribute / method
+        compartments, connected by relationships. Each class is laid out by the shared
+        Sugiyama engine; relationship operators set the arrowhead (hollow triangle for
+        inheritance, filled/hollow diamond for composition/aggregation, …).
+
+        Inheritance with members, a title, and notes (with `<br>`)
+
+        ```mermaid
+        ---
+        title: Animal example
+        ---
+        classDiagram
+            note "From Duck till Zebra"
+            Animal <|-- Duck
+            note for Duck "can fly<br>can swim<br>can dive<br>can help in debugging"
+            Animal <|-- Fish
+            Animal <|-- Zebra
+            Animal : +int age
+            Animal : +String gender
+            Animal: +isMammal()
+            Animal: +mate()
+            class Duck{
+                +String beakColor
+                +swim()
+                +quack()
+            }
+            class Fish{
+                -int sizeInFeet
+                -canEat()
+            }
+            class Zebra{
+                +bool is_wild
+                +run()
+            }
+        ```
+
+        Class body block
+
+        ```mermaid
+        classDiagram
+            class BankAccount {
+                +String owner
+                +BigDecimal balance
+                +deposit(amount)
+                +withdrawal(amount)
+            }
+        ```
+
+        Members, return types and generics (incl. nested generics)
+
+        ```mermaid
+        classDiagram
+            class Square~Shape~{
+                int id
+                List~int~ position
+                setPoints(List~int~ points)
+                getPoints() List~int~
+            }
+            Square : -List~string~ messages
+            Square : +setMessages(List~string~ messages)
+            Square : +getMessages() List~string~
+            Square : +getDistanceMatrix() List~List~int~~
+        ```
+
+        Visibility, static and abstract classifiers
+
+        ```mermaid
+        classDiagram
+            class ClassWithMembers {
+                +String id
+                +int count$
+                +publicMethod()
+                -privateMethod()
+                #protectedMethod()
+                ~packagePrivateMethod()
+                +staticMethod()$
+                +abstractMethod()*
+            }
+        ```
+
+        Every relationship type
+
+        ```mermaid
+        classDiagram
+            classA <|-- classB
+            classC *-- classD
+            classE o-- classF
+            classG <-- classH
+            classI -- classJ
+            classK <.. classL
+            classM <|.. classN
+            classO .. classP
+        ```
+
+        Annotations (stereotypes)
+
+        ```mermaid
+        classDiagram
+            class Shape {
+                <<interface>>
+                noOfVertices
+                draw()
+            }
+            class Color {
+                <<enumeration>>
+                RED
+                GREEN
+                BLUE
+            }
+        ```
+
+        Cardinality / multiplicity / two-way relations and labels
+
+        ```mermaid
+        classDiagram
+            Customer "1" --> "*" Ticket
+            Student "1" --o "1..*" Course
+            Galaxy --> "many" Star : Contains
+            Planets "0..12" --> "*" Star
+            Animal <|--|> Zebra
+        ```
+
+        Nested (hierarchical) namespaces
+
+        ```mermaid
+        classDiagram
+            namespace Company.Engineering.Backend {
+                class Developer {
+                    +writeCode()
+                }
+            }
+            namespace Company.Engineering.Frontend {
+                class Designer {
+                    +createMockup()
+                }
+            }
+            namespace Company.Engineering {
+                class TechLead {
+                    +planSprint()
+                }
+            }
+            TechLead --> Developer : leads
+            TechLead --> Designer : leads
+        ```
+
+        Lollipop interfaces
+
+        ```mermaid
+        classDiagram
+            class Class01 {
+                int amount
+                draw()
+            }
+            Class01 --() bar
+            Class02 --() bar
+            foo ()-- Class01
+        ```
+
+        Notes
+
+        ```mermaid
+        classDiagram
+            class Duck
+            note "A general note about this diagram"
+            note for Duck "Can fly\nCan swim\nCan dive"
+        ```
+
+        Direction and styling
+
+        ```mermaid
+        classDiagram
+            direction LR
+            class Student {
+                +String name
+            }
+            class Course
+            Student "1" --> "*" Course : enrolled
+            classDef highlight fill:#f9f,stroke:#333,color:#000
+            class Student:::highlight
+            style Course fill:#bbf,stroke:#338
+        ```
+        """;
 
     private const string State =
         """

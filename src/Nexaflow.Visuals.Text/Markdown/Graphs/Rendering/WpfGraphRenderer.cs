@@ -101,7 +101,8 @@ public static class WpfGraphRenderer
                 FontSize   = 14,
                 FontWeight = FontWeights.SemiBold,
             };
-            Canvas.SetLeft(tb, SugiyamaLayout.MarginX);
+            double titleW = MeasureText(lg.Source.Title, 14);
+            Canvas.SetLeft(tb, Math.Max(SugiyamaLayout.MarginX, (lg.Width - titleW) / 2.0));   // centred across the image
             Canvas.SetTop(tb, 6);
             canvas.Children.Add(tb);
         }
@@ -150,11 +151,13 @@ public static class WpfGraphRenderer
             NodeShape.StateEnd         => DrawStateEnd(ln),
             NodeShape.ForkJoin         => DrawForkJoin(ln),
             NodeShape.Note             => DrawNote(ln),
+            NodeShape.ClassBox         => DrawClassBox(ln),
             _                          => DrawRectShape(ln),
         };
         canvas.Children.Add(shape);
 
-        if (ln.Source is not null && ln.Source.Label.Length > 0)
+        // A class box draws its own multi-compartment text; everything else gets the centred label.
+        if (ln.Source is { Shape: not NodeShape.ClassBox } && ln.Source.Label.Length > 0)
         {
             string label = ln.Source.Label;
             bool   isNote = ln.Source.Shape == NodeShape.Note;
@@ -544,6 +547,155 @@ public static class WpfGraphRenderer
         return r;
     }
 
+    // ── Class-diagram box ─────────────────────────────────────────────────
+
+    private static UIElement DrawClassBox(LayoutNode ln)
+    {
+        var info   = ln.Source!.Class!;
+        var stroke = NodeStroke(ln, NodeBorder);
+
+        var (bw, bh) = ClassBoxMetrics.MeasureBox(ln.Source.Label, info);
+        bool hasAbove = info.Lollipops.Any(l => !l.Below);
+        double band   = ClassBoxMetrics.LollipopBand;
+
+        // A cell the size of the reserved footprint; the box sits inside it, offset past any top band.
+        var cell = new Canvas { Width = ln.Width, Height = ln.Height };
+        double boxLeft = (ln.Width - bw) / 2.0;
+        double boxTop  = hasAbove ? band : 0;
+
+        var border = BuildClassBorder(ln, info, bw, bh);
+        Canvas.SetLeft(border, boxLeft);
+        Canvas.SetTop(border,  boxTop);
+        cell.Children.Add(border);
+
+        // Lollipop interfaces — straight stubs off the top / bottom edge.
+        DrawLollipops(cell, info.Lollipops.Where(l => !l.Below).ToList(), boxLeft, bw, boxTop,      above: true,  stroke);
+        DrawLollipops(cell, info.Lollipops.Where(l =>  l.Below).ToList(), boxLeft, bw, boxTop + bh, above: false, stroke);
+
+        Canvas.SetLeft(cell, ln.X - ln.Width  / 2.0);
+        Canvas.SetTop(cell,  ln.Y - ln.Height / 2.0);
+        return cell;
+    }
+
+    private static Border BuildClassBorder(LayoutNode ln, ClassInfo info, double bw, double bh)
+    {
+        var fill   = NodeFill(ln, NodeBg);
+        var stroke = NodeStroke(ln, NodeBorder);
+        var text   = GetTextBrush(ln);
+
+        const double rowH = ClassBoxMetrics.RowH;
+        const double padV = ClassBoxMetrics.PadV;
+        const double padX = ClassBoxMetrics.PadX;
+
+        var panel = new StackPanel { Width = bw };
+
+        // Header compartment: «stereotype» (optional) over the bold class name.
+        var header = new StackPanel { Margin = new Thickness(0, padV, 0, padV) };
+        if (info.Stereotype is { Length: > 0 } st)
+            header.Children.Add(ClassRow($"«{st}»", text, rowH, padX, center: true, italic: true, size: 10.5));
+        header.Children.Add(ClassRow(ln.Source!.Label, text, rowH, padX, center: true, bold: true));
+        panel.Children.Add(header);
+
+        // The member compartments are drawn only when the box has members. Requirement boxes
+        // (SingleCompartment) show one list of fields; class boxes show attributes then methods.
+        if (info.HasMembers)
+        {
+            panel.Children.Add(ClassDivider(stroke));
+            panel.Children.Add(ClassCompartment(info.Attributes, text, rowH, padX, padV));
+            if (!info.SingleCompartment)
+            {
+                panel.Children.Add(ClassDivider(stroke));
+                panel.Children.Add(ClassCompartment(info.Methods, text, rowH, padX, padV));
+            }
+        }
+
+        return new Border
+        {
+            Width           = bw,
+            Height          = bh,
+            Background      = fill,
+            BorderBrush     = stroke,
+            BorderThickness = new Thickness(1.5),
+            CornerRadius    = new CornerRadius(3),
+            ClipToBounds    = true,
+            Child           = panel,
+        };
+    }
+
+    /// <summary>Draws lollipop interfaces hanging off one edge of a class box: a short straight stub, a
+    /// small hollow circle at its end, and the interface name just beyond the circle. Coordinates are local
+    /// to the node's cell canvas. <paramref name="edgeY"/> is the box edge the stubs attach to.</summary>
+    private static void DrawLollipops(Canvas cell, IReadOnlyList<Lollipop> lollipops,
+        double boxLeft, double bw, double edgeY, bool above, Brush stroke)
+    {
+        if (lollipops.Count == 0) return;
+
+        double stub = ClassBoxMetrics.LollipopStub, r = ClassBoxMetrics.LollipopR, gap = ClassBoxMetrics.LollipopGapX;
+        int    n   = lollipops.Count;
+        double cx0 = boxLeft + bw / 2.0;
+        double dir = above ? -1 : 1;
+
+        for (int i = 0; i < n; i++)
+        {
+            double cx     = cx0 + (i - (n - 1) / 2.0) * gap;
+            double stubEnd = edgeY + dir * stub;
+            double cy      = stubEnd + dir * r;           // circle centre just past the stub end
+
+            cell.Children.Add(new Line
+            {
+                X1 = cx, Y1 = edgeY, X2 = cx, Y2 = stubEnd,
+                Stroke = stroke, StrokeThickness = 1.5,
+            });
+
+            var circle = new Ellipse { Width = 2 * r, Height = 2 * r, Stroke = stroke, StrokeThickness = 1.5, Fill = BgBrush };
+            Canvas.SetLeft(circle, cx - r);
+            Canvas.SetTop(circle,  cy - r);
+            cell.Children.Add(circle);
+
+            var lbl = new TextBlock
+            {
+                Text = lollipops[i].Name, Foreground = NodeText, FontFamily = BodyFont, FontSize = 11,
+                TextAlignment = TextAlignment.Center,
+            };
+            double lw = MeasureText(lollipops[i].Name, 11);
+            Canvas.SetLeft(lbl, cx - lw / 2.0);
+            Canvas.SetTop(lbl, above ? cy - r - 2 - 14 : cy + r + 2);
+            cell.Children.Add(lbl);
+        }
+    }
+
+    private static UIElement ClassCompartment(IReadOnlyList<ClassMember> members, Brush text, double rowH, double padX, double padV)
+    {
+        var sp = new StackPanel { Margin = new Thickness(0, padV, 0, padV) };
+        foreach (var m in members)
+        {
+            var tb = ClassRow(m.Text, text, rowH, padX);
+            if (m.IsAbstract) tb.FontStyle        = FontStyles.Italic;       // UML: abstract member
+            if (m.IsStatic)   tb.TextDecorations  = TextDecorations.Underline; // UML: static member
+            sp.Children.Add(tb);
+        }
+        return sp;
+    }
+
+    private static TextBlock ClassRow(string s, Brush brush, double rowH, double padX,
+        bool center = false, bool bold = false, bool italic = false, double size = FontSize) =>
+        new()
+        {
+            Text          = s,
+            Foreground    = brush,
+            FontFamily    = BodyFont,
+            FontSize      = size,
+            Height        = rowH,
+            Padding       = new Thickness(padX, 1, padX, 0),
+            FontWeight    = bold   ? FontWeights.SemiBold : FontWeights.Normal,
+            FontStyle     = italic ? FontStyles.Italic    : FontStyles.Normal,
+            TextAlignment = center ? TextAlignment.Center : TextAlignment.Left,
+            TextTrimming  = TextTrimming.CharacterEllipsis,
+        };
+
+    private static UIElement ClassDivider(Brush stroke) =>
+        new Rectangle { Height = 1, Fill = stroke, HorizontalAlignment = HorizontalAlignment.Stretch };
+
     // ── Subgraph box ──────────────────────────────────────────────────────
 
     private const double SubgraphHeaderH = 22;
@@ -605,10 +757,35 @@ public static class WpfGraphRenderer
 
     // ── Edge drawing ───────────────────────────────────────────────────────
 
+    /// <summary>Pulls a bounding-box port back onto the node's actual outline for shapes whose surface is
+    /// inset from the box (diamond, circle / double-circle). Returns <paramref name="port"/> unchanged for
+    /// rectangular shapes and for a port already on the boundary (e.g. a single edge hitting a vertex).</summary>
+    private static Point ClipToShape(LayoutNode node, Point port)
+    {
+        double hw = node.Width / 2.0, hh = node.Height / 2.0;
+        if (hw <= 0 || hh <= 0) return port;
+        double dx = port.X - node.X, dy = port.Y - node.Y;
+
+        double denom = node.Source?.Shape switch
+        {
+            NodeShape.Diamond                          => Math.Abs(dx) / hw + Math.Abs(dy) / hh,
+            NodeShape.Circle or NodeShape.DoubleCircle => Math.Sqrt(dx * dx / (hw * hw) + dy * dy / (hh * hh)),
+            _                                          => 0,
+        };
+        if (denom <= 1.0 + 1e-6) return port;                          // rect (denom 0) or already on the edge
+        return new Point(node.X + dx / denom, node.Y + dy / denom);    // project onto the boundary
+    }
+
     private static void DrawEdge(Canvas canvas, LayoutEdge le, bool horizontal)
     {
         var pts = le.Waypoints;
         if (pts.Count < 2) return;
+
+        // Ports are computed on the node's bounding box, but a diamond / ellipse surface slants inward —
+        // an off-centre port (fanned out when several edges share a face) would otherwise float in the
+        // empty corner. Pull each endpoint back onto the actual shape boundary.
+        pts[0]  = ClipToShape(le.From, pts[0]);
+        pts[^1] = ClipToShape(le.To,   pts[^1]);
 
         var edge      = le.Source;
         var brush     = edge?.Style switch
@@ -620,7 +797,7 @@ public static class WpfGraphRenderer
         };
         double thickness = edge?.Style == EdgeStyle.Thick ? 2.5 : 1.5;
 
-        var (path, arrowFrom) = BuildBezierPath(pts, horizontal);
+        var (path, startTan, endTan) = BuildBezierPath(pts, horizontal);
         path.Stroke               = brush;
         path.StrokeThickness      = thickness;
         path.StrokeLineJoin       = PenLineJoin.Round;
@@ -635,19 +812,24 @@ public static class WpfGraphRenderer
         canvas.Children.Add(path);
 
         // A cycle-reversed edge is routed backwards (its waypoints run target → source), so its
-        // arrowhead belongs at the START of the path, not the end.
+        // arrowhead belongs at the START of the path, not the end. Both heads take the bezier tangent
+        // (the control point nearest the tip) as their direction so they stay aligned with a curved edge.
         bool rev = edge?.IsReversed == true;
-        Point endTip   = rev ? pts[0]     : pts[^1];
-        Point endFrom  = rev ? pts[1]     : arrowFrom;
-        Point startTip = rev ? pts[^1]    : pts[0];
-        Point startFrom = rev ? arrowFrom : pts[1];
+        Point endTip   = rev ? pts[0]   : pts[^1];
+        Point endFrom  = rev ? startTan : endTan;
+        Point startTip = rev ? pts[^1]  : pts[0];
+        Point startFrom = rev ? endTan  : startTan;
 
         if (edge?.Arrow != EdgeArrow.None)
             DrawArrowhead(canvas, endFrom, endTip, brush, edge?.Arrow ?? EdgeArrow.Normal);
 
-        // Start head — for multidirectional links (o--o, x--x, <-->).
+        // Start head — for multidirectional links (o--o, x--x, <-->) and UML relationship heads.
         if (edge is { StartArrow: not EdgeArrow.None })
             DrawArrowhead(canvas, startFrom, startTip, brush, edge.StartArrow);
+
+        // Multiplicity / cardinality text near each end (class diagrams).
+        if (edge is { StartLabel.Length: > 0 }) DrawMultiplicity(canvas, startTip, startFrom, edge.StartLabel);
+        if (edge is { EndLabel.Length:   > 0 }) DrawMultiplicity(canvas, endTip,   endFrom,   edge.EndLabel);
 
         // Edge label as a floating styled box. A staggered anchor (set for parallel/antiparallel
         // groups) wins; otherwise centre on the path midpoint.
@@ -662,13 +844,15 @@ public static class WpfGraphRenderer
     }
 
     /// <summary>
-    /// Builds a smooth cubic-bezier path through <paramref name="pts"/>.
-    /// Returns the path and the last bezier control point (for arrowhead direction).
+    /// Builds a smooth cubic-bezier path through <paramref name="pts"/>. Returns the path plus the
+    /// bezier control points nearest the start and end tips — the tangents used to orient arrowheads
+    /// so a head stays aligned with a curved edge rather than its straight chord.
     /// </summary>
-    private static (Path path, Point arrowFrom) BuildBezierPath(IList<Point> pts, bool horizontal)
+    private static (Path path, Point startTangent, Point endTangent) BuildBezierPath(IList<Point> pts, bool horizontal)
     {
         var figure  = new PathFigure { StartPoint = pts[0], IsFilled = false };
-        Point lastCp2 = pts[^2]; // fallback
+        Point firstCp1 = pts[1];   // fallback
+        Point lastCp2  = pts[^2];  // fallback
 
         if (pts.Count == 2)
         {
@@ -677,7 +861,8 @@ public static class WpfGraphRenderer
             double dx = p1.X - p0.X, dy = p1.Y - p0.Y;
             var cp1 = horizontal ? new Point(p0.X + dx * 0.5, p0.Y) : new Point(p0.X,           p0.Y + dy * 0.5);
             var cp2 = horizontal ? new Point(p1.X - dx * 0.5, p1.Y) : new Point(p1.X,           p1.Y - dy * 0.5);
-            lastCp2 = cp2;
+            firstCp1 = cp1;
+            lastCp2  = cp2;
             figure.Segments.Add(new BezierSegment(cp1, cp2, p1, isStroked: true));
         }
         else
@@ -693,12 +878,13 @@ public static class WpfGraphRenderer
                 var pm = ext[i - 1]; var p0 = ext[i]; var p1 = ext[i + 1]; var p2 = ext[i + 2];
                 var cp1 = new Point(p0.X + (p1.X - pm.X) / 6.0, p0.Y + (p1.Y - pm.Y) / 6.0);
                 var cp2 = new Point(p1.X - (p2.X - p0.X) / 6.0, p1.Y - (p2.Y - p0.Y) / 6.0);
-                if (i == ext.Count - 3) lastCp2 = cp2;
+                if (i == 1)              firstCp1 = cp1;
+                if (i == ext.Count - 3) lastCp2  = cp2;
                 figure.Segments.Add(new BezierSegment(cp1, cp2, p1, isStroked: true));
             }
         }
 
-        return (new Path { Data = new PathGeometry([figure]) }, lastCp2);
+        return (new Path { Data = new PathGeometry([figure]) }, firstCp1, lastCp2);
     }
 
     private static void DrawEdgeLabel(Canvas canvas, string text, Point mid)
@@ -727,12 +913,84 @@ public static class WpfGraphRenderer
         canvas.Children.Add(border);
     }
 
+    private static void DrawMultiplicity(Canvas canvas, Point tip, Point along, string text)
+    {
+        const double f = 10;
+        // Sit the label in the gap just inside the edge (toward `along`) plus a perpendicular nudge, so
+        // it clears the line/arrowhead and isn't painted over by the node box that follows.
+        double dx = along.X - tip.X, dy = along.Y - tip.Y;
+        double len = Math.Sqrt(dx * dx + dy * dy);
+        if (len < 0.001) { dx = 0; dy = 1; len = 1; }
+        double ux = dx / len, uy = dy / len, px = -uy, py = ux;
+
+        var tb = new TextBlock { Text = text, Foreground = LabelText, FontFamily = BodyFont, FontSize = f };
+        double w = MeasureText(text, f), h = f * 1.35;
+        double cx = tip.X + ux * 13 + px * 8;
+        double cy = tip.Y + uy * 13 + py * 8;
+        Canvas.SetLeft(tb, cx - w / 2.0);
+        Canvas.SetTop(tb,  cy - h / 2.0);
+        canvas.Children.Add(tb);
+    }
+
     private static void DrawArrowhead(Canvas canvas, Point from, Point tip, Brush brush, EdgeArrow arrowType)
     {
         const double arrowLen   = 10;
         const double arrowAngle = 25 * Math.PI / 180;
 
         double angle = Math.Atan2(tip.Y - from.Y, tip.X - from.X);
+
+        // UML class-diagram heads: hollow triangle (inheritance/realization), filled / hollow diamond
+        // (composition / aggregation). Drawn back along the line from the tip.
+        if (arrowType is EdgeArrow.TriangleHollow or EdgeArrow.DiamondFilled or EdgeArrow.DiamondHollow)
+        {
+            double ux = Math.Cos(angle), uy = Math.Sin(angle);   // from → tip
+            double px = -uy, py = ux;                            // perpendicular
+
+            if (arrowType == EdgeArrow.TriangleHollow)
+            {
+                const double len = 13, hw = 7;
+                var baseC = new Point(tip.X - len * ux, tip.Y - len * uy);
+                var a = new Point(baseC.X + hw * px, baseC.Y + hw * py);
+                var b = new Point(baseC.X - hw * px, baseC.Y - hw * py);
+                canvas.Children.Add(new Polygon
+                {
+                    Points = new PointCollection([tip, a, b]),
+                    Fill = BgBrush, Stroke = brush, StrokeThickness = 1.5, StrokeLineJoin = PenLineJoin.Round,
+                });
+            }
+            else
+            {
+                const double len = 16, hw = 6;
+                var back = new Point(tip.X - len       * ux, tip.Y - len       * uy);
+                var mid  = new Point(tip.X - len / 2.0 * ux, tip.Y - len / 2.0 * uy);
+                var a = new Point(mid.X + hw * px, mid.Y + hw * py);
+                var b = new Point(mid.X - hw * px, mid.Y - hw * py);
+                canvas.Children.Add(new Polygon
+                {
+                    Points = new PointCollection([tip, a, back, b]),
+                    Fill = arrowType == EdgeArrow.DiamondFilled ? brush : BgBrush,
+                    Stroke = brush, StrokeThickness = 1.5, StrokeLineJoin = PenLineJoin.Round,
+                });
+            }
+            return;
+        }
+
+        // Crosshair-circle terminal (SysML containment): a hollow circle with a plus, sitting in the
+        // gap just off the container box, the plus aligned to the line.
+        if (arrowType == EdgeArrow.CrossCircle)
+        {
+            const double r = 7;
+            double ux = Math.Cos(angle), uy = Math.Sin(angle);   // from → tip (toward the box)
+            double px = -uy, py = ux;
+            double cx = tip.X - ux * r, cy = tip.Y - uy * r;     // one radius back into the gap
+            var ring = new Ellipse { Width = r * 2, Height = r * 2, Fill = BgBrush, Stroke = brush, StrokeThickness = 1.5 };
+            Canvas.SetLeft(ring, cx - r);
+            Canvas.SetTop(ring, cy - r);
+            canvas.Children.Add(ring);
+            canvas.Children.Add(new Line { X1 = cx - ux * r, Y1 = cy - uy * r, X2 = cx + ux * r, Y2 = cy + uy * r, Stroke = brush, StrokeThickness = 1.5 });
+            canvas.Children.Add(new Line { X1 = cx - px * r, Y1 = cy - py * r, X2 = cx + px * r, Y2 = cy + py * r, Stroke = brush, StrokeThickness = 1.5 });
+            return;
+        }
 
         // Circle terminal (--o): a hollow bulb on the line end.
         if (arrowType == EdgeArrow.Circle)

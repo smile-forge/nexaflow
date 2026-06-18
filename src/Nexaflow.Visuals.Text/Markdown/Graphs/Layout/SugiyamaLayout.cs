@@ -563,7 +563,40 @@ public static class SugiyamaLayout
                 if (--inDeg[e.Dst] == 0) queue.Enqueue(e.Dst);
             }
         }
+
+        TightenSources(nodeIds, edges, layer);
         return layer;
+    }
+
+    /// <summary>
+    /// Pulls each source (no incoming edge) down to sit just above its nearest successor. Longest-path
+    /// layering pins every source at layer 0, so a source whose only target is deep in the graph
+    /// otherwise stretches a long edge clear across the diagram (e.g. an element that only
+    /// <c>verifies</c> a leaf requirement). A source has no in-edges, so moving it down can only shorten
+    /// its out-edges — never reorders the rest. Empty layers it leaves behind are compacted away.
+    /// </summary>
+    private static void TightenSources(List<string> nodeIds, List<WorkEdge> edges, Dictionary<string, int> layer)
+    {
+        var succ        = new Dictionary<string, List<string>>();
+        var hasIncoming = new HashSet<string>();
+        foreach (var e in edges)
+        {
+            (succ.TryGetValue(e.Src, out var l) ? l : succ[e.Src] = []).Add(e.Dst);
+            hasIncoming.Add(e.Dst);
+        }
+
+        bool moved = false;
+        foreach (var id in nodeIds)
+        {
+            if (hasIncoming.Contains(id) || !succ.TryGetValue(id, out var outs) || outs.Count == 0) continue;
+            int nearest = outs.Where(layer.ContainsKey).Select(d => layer[d]).DefaultIfEmpty(layer[id] + 1).Min();
+            if (nearest - 1 > layer[id]) { layer[id] = nearest - 1; moved = true; }
+        }
+
+        if (!moved) return;
+        // Compact: remap the (possibly now-gappy) layer numbers to a contiguous 0..k.
+        var remap = layer.Values.Distinct().OrderBy(v => v).Select((v, i) => (v, i)).ToDictionary(t => t.v, t => t.i);
+        foreach (var id in layer.Keys.ToList()) layer[id] = remap[layer[id]];
     }
 
     // ── 3a: Build layout nodes ────────────────────────────────────────────
@@ -596,6 +629,11 @@ public static class SugiyamaLayout
                 w = d; h = d;
             }
             if (n.Shape == NodeShape.Hexagon)  { w = Math.Max(NodeW * 1.1, labelW + 24); }
+
+            // A class box is sized from its name + compartments (shared with the renderer so the
+            // reserved footprint matches what gets drawn).
+            if (n.Shape == NodeShape.ClassBox && n.Class is not null)
+                (w, h) = ClassBoxMetrics.Measure(n.Label, n.Class);
 
             // State-diagram pseudostates have no label and a fixed footprint.
             if (n.Shape is NodeShape.StateStart or NodeShape.StateEnd) { w = h = 20; }

@@ -543,6 +543,57 @@ public class DiagramParsersTests
         CollectionAssert.Contains(sg.NodeIds, "a2");
     }
 
+    [TestMethod]
+    public void Flowchart_ChainedEdges_BecomeSeparateHops()
+    {
+        var g = new MermaidParser().Parse("flowchart LR\n    A --> TOP --> B\n");
+        Assert.AreEqual(2, g.Edges.Count);
+        Assert.IsTrue(g.Edges.Any(e => e is { SourceId: "A",   TargetId: "TOP" }));
+        Assert.IsTrue(g.Edges.Any(e => e is { SourceId: "TOP", TargetId: "B" }));
+        Assert.IsNotNull(g.FindNode("B"));   // the chain's tail node used to be dropped
+    }
+
+    [TestMethod]
+    public void Flowchart_ChainCarriesArrowStyleAndLabel()
+    {
+        var g = new MermaidParser().Parse("flowchart TD\n    A -- yes --> B -.-> C\n");
+        var ab = g.Edges.Single(e => e.SourceId == "A");
+        Assert.AreEqual("yes", ab.Label);
+        Assert.AreEqual(EdgeStyle.Solid, ab.Style);
+        Assert.AreEqual(EdgeStyle.Dotted, g.Edges.Single(e => e.SourceId == "B").Style);
+    }
+
+    [TestMethod]
+    public void Flowchart_FanOut_AndChainCompose()
+    {
+        var g = new MermaidParser().Parse("flowchart TD\n    A --> B & C --> D\n");
+        foreach (var (s, t) in new[] { ("A", "B"), ("A", "C"), ("B", "D"), ("C", "D") })
+            Assert.IsTrue(g.Edges.Any(e => e.SourceId == s && e.TargetId == t), $"missing {s}->{t}");
+        Assert.AreEqual(4, g.Edges.Count);
+    }
+
+    [TestMethod]
+    public void Flowchart_NestedSubgraphs_CarryParentLinks()
+    {
+        var g = new MermaidParser().Parse(
+            """
+            flowchart LR
+              subgraph TOP
+                subgraph B1
+                    i1 --> f1
+                end
+                subgraph B2
+                    i2 --> f2
+                end
+              end
+            """);
+
+        Subgraph Sg(string id) => g.Subgraphs.Single(s => s.Id == id);
+        Assert.IsNull(Sg("TOP").ParentId);                 // outer subgraph is top level
+        Assert.AreEqual("TOP", Sg("B1").ParentId);         // inner subgraphs nest under it
+        Assert.AreEqual("TOP", Sg("B2").ParentId);
+    }
+
     // ── Gantt ─────────────────────────────────────────────────────────────
 
     private const string GanttSrc =
@@ -1020,5 +1071,414 @@ public class DiagramParsersTests
         Assert.IsNotNull(g.FindNode("Still"));
         Assert.IsNotNull(g.FindNode("Moving"));
         Assert.IsFalse(g.Nodes.Any(n => n.Id.Contains('%')), "comment markers must be stripped");
+    }
+
+    // ── Class diagram ──────────────────────────────────────────────────────
+
+    private static Graph Class(string src) => new MermaidClassParser().Parse(src);
+
+    [TestMethod]
+    public void Class_BlockMembers_SplitIntoAttributesAndMethods()
+    {
+        var g = Class(
+            """
+            classDiagram
+            class BankAccount {
+                +String owner
+                +BigDecimal balance
+                +deposit(amount)
+                +withdrawal(amount)
+            }
+            """);
+
+        var n = g.FindNode("BankAccount")!;
+        Assert.AreEqual(NodeShape.ClassBox, n.Shape);
+        Assert.AreEqual(2, n.Class!.Attributes.Count);
+        Assert.AreEqual(2, n.Class!.Methods.Count);
+        Assert.AreEqual("+String owner", n.Class.Attributes[0].Text);
+        Assert.IsTrue(n.Class.Methods.Any(m => m.Text == "+deposit(amount)"));
+    }
+
+    [TestMethod]
+    public void Class_ShorthandMembers_AccumulateOnClass()
+    {
+        var g = Class(
+            """
+            classDiagram
+            class Animal
+            Animal : +int age
+            Animal: +isMammal()
+            """);
+
+        var n = g.FindNode("Animal")!;
+        Assert.AreEqual("+int age", n.Class!.Attributes.Single().Text);
+        Assert.AreEqual("+isMammal()", n.Class.Methods.Single().Text);
+    }
+
+    [TestMethod]
+    public void Class_Generics_RenderAsAngleBrackets()
+    {
+        var g = Class(
+            """
+            classDiagram
+            class Square~Shape~
+            Square : List~int~ position
+            """);
+
+        Assert.AreEqual("Square<Shape>", g.FindNode("Square")!.Label);
+        Assert.AreEqual("List<int> position", g.FindNode("Square")!.Class!.Attributes.Single().Text);
+    }
+
+    [TestMethod]
+    public void Class_Classifiers_FlagStaticAndAbstract()
+    {
+        var g = Class(
+            """
+            classDiagram
+            class C {
+                +int count$
+                +staticMethod()$
+                +abstractMethod()*
+            }
+            """);
+
+        var c = g.FindNode("C")!.Class!;
+        Assert.IsTrue(c.Attributes.Single(a => a.Text == "+int count").IsStatic);
+        Assert.IsTrue(c.Methods.Single(m => m.Text == "+staticMethod()").IsStatic);
+        Assert.IsTrue(c.Methods.Single(m => m.Text == "+abstractMethod()").IsAbstract);
+    }
+
+    [TestMethod]
+    public void Class_Inheritance_HollowTriangleAtParentSource()
+    {
+        var g = Class("classDiagram\n    Animal <|-- Duck");
+        var e = g.Edges.Single();
+        // Left operand is the parent (layout source / top); the hollow triangle sits at that end.
+        Assert.AreEqual("Animal", e.SourceId);
+        Assert.AreEqual("Duck",   e.TargetId);
+        Assert.AreEqual(EdgeArrow.TriangleHollow, e.StartArrow);
+        Assert.AreEqual(EdgeArrow.None,           e.Arrow);
+    }
+
+    [TestMethod]
+    public void Class_RelationshipOperators_MapToHeadsAndStyle()
+    {
+        var g = Class(
+            """
+            classDiagram
+            classC *-- classD
+            classE o-- classF
+            classG <-- classH
+            classI -- classJ
+            classK <.. classL
+            classM <|.. classN
+            classO .. classP
+            """);
+
+        Edge E(string s, string t) => g.Edges.Single(e => e.SourceId == s && e.TargetId == t);
+
+        Assert.AreEqual(EdgeArrow.DiamondFilled, E("classC", "classD").StartArrow);   // composition
+        Assert.AreEqual(EdgeArrow.DiamondHollow, E("classE", "classF").StartArrow);   // aggregation
+        Assert.AreEqual(EdgeArrow.Open,          E("classG", "classH").StartArrow);   // directed association
+        Assert.AreEqual(EdgeArrow.None,          E("classI", "classJ").Arrow);        // plain solid link
+        Assert.AreEqual(EdgeStyle.Solid,         E("classI", "classJ").Style);
+        Assert.AreEqual(EdgeStyle.Dashed,        E("classK", "classL").Style);        // dependency line
+        Assert.AreEqual(EdgeArrow.TriangleHollow, E("classM", "classN").StartArrow);  // realization head
+        Assert.AreEqual(EdgeStyle.Dashed,         E("classM", "classN").Style);
+        Assert.AreEqual(EdgeStyle.Dashed,         E("classO", "classP").Style);       // dashed link
+    }
+
+    [TestMethod]
+    public void Class_DirectedAssociation_ArrowAtTarget()
+    {
+        var g = Class("classDiagram\n    Teacher --> Course");
+        var e = g.Edges.Single();
+        Assert.AreEqual(EdgeArrow.Open, e.Arrow);
+        Assert.AreEqual(EdgeArrow.None, e.StartArrow);
+    }
+
+    [TestMethod]
+    public void Class_Multiplicity_AndLabel_AttachToEnds()
+    {
+        var g = Class("classDiagram\n    Customer \"1\" --> \"*\" Ticket : owns");
+        var e = g.Edges.Single();
+        Assert.AreEqual("Customer", e.SourceId);
+        Assert.AreEqual("Ticket",   e.TargetId);
+        Assert.AreEqual("1",    e.StartLabel);
+        Assert.AreEqual("*",    e.EndLabel);
+        Assert.AreEqual("owns", e.Label);
+        // The "0..*" form must not be mistaken for a dashed-link operator inside the quotes.
+        var g2 = Class("classDiagram\n    Student \"1\" --o \"1..*\" Course");
+        var e2 = g2.Edges.Single();
+        Assert.AreEqual("1",    e2.StartLabel);
+        Assert.AreEqual("1..*", e2.EndLabel);
+        Assert.AreEqual(EdgeArrow.DiamondHollow, e2.Arrow);   // --o head at the target end
+        Assert.AreEqual(EdgeStyle.Solid, e2.Style);            // the ".." is inside quotes, not an operator
+    }
+
+    [TestMethod]
+    public void Class_Annotation_SetsStereotype_BlockAndStandalone()
+    {
+        var block = Class("classDiagram\n    class Shape {\n        <<interface>>\n        draw()\n    }");
+        Assert.AreEqual("interface", block.FindNode("Shape")!.Class!.Stereotype);
+
+        var standalone = Class("classDiagram\n    class Shape\n    <<interface>> Shape");
+        Assert.AreEqual("interface", standalone.FindNode("Shape")!.Class!.Stereotype);
+    }
+
+    [TestMethod]
+    public void Class_Namespace_BecomesSubgraphWithMembers()
+    {
+        var g = Class(
+            """
+            classDiagram
+            namespace BaseShapes {
+                class Triangle
+                class Rectangle {
+                    +double width
+                }
+            }
+            """);
+
+        var sg = g.Subgraphs.SingleOrDefault(s => s.Id == "BaseShapes");
+        Assert.IsNotNull(sg);
+        CollectionAssert.AreEquivalent(new[] { "Triangle", "Rectangle" }, sg!.NodeIds);
+        Assert.AreEqual("+double width", g.FindNode("Rectangle")!.Class!.Attributes.Single().Text);
+    }
+
+    [TestMethod]
+    public void Class_Note_GeneralAndForTarget()
+    {
+        var g = Class(
+            """
+            classDiagram
+            class Duck
+            note "A general note"
+            note for Duck "Can fly\nCan swim"
+            """);
+
+        Assert.AreEqual(2, g.Nodes.Count(n => n.Shape == NodeShape.Note));
+        // "note for Duck" attaches a dotted, head-less edge from the class to its note.
+        var note = g.Nodes.First(n => n.Shape == NodeShape.Note && n.Label.Contains("Can fly"));
+        Assert.IsTrue(note.Label.Contains('\n'), "\\n should become a real newline");
+        Assert.IsTrue(g.Edges.Any(e => e.SourceId == "Duck" && e.TargetId == note.Id && e.Style == EdgeStyle.Dotted));
+    }
+
+    [TestMethod]
+    public void Class_Styling_ClassDefInlineAndStyleApply()
+    {
+        var g = Class(
+            """
+            classDiagram
+            class Student
+            class Course
+            classDef highlight fill:#f9f,stroke:#333,color:#000
+            class Student:::highlight
+            style Course fill:#bbf,stroke:#338
+            """);
+
+        var s = g.FindNode("Student")!;
+        Assert.AreEqual("#f9f", s.FillColor);
+        Assert.AreEqual("#000", s.TextColor);
+        var c = g.FindNode("Course")!;
+        Assert.AreEqual("#bbf", c.FillColor);
+        Assert.AreEqual("#338", c.StrokeColor);
+    }
+
+    [TestMethod]
+    public void Class_Direction_IsParsed()
+    {
+        var g = Class("classDiagram\n    direction LR\n    class A\n    A --> B");
+        Assert.AreEqual(GraphDirection.LeftRight, g.Direction);
+    }
+
+    [TestMethod]
+    public void Class_NestedGenerics_CloseProperly()
+    {
+        var g = Class("classDiagram\n    Square : +getDistanceMatrix() List~List~int~~");
+        Assert.AreEqual("+getDistanceMatrix() : List<List<int>>",
+            g.FindNode("Square")!.Class!.Methods.Single().Text);
+    }
+
+    [TestMethod]
+    public void Class_MethodReturnType_FormattedWithColon()
+    {
+        var g = Class("classDiagram\n    Square : getId() int\n    Square : setId(int id)");
+        var c = g.FindNode("Square")!.Class!;
+        Assert.AreEqual("getId() : int", c.Methods.Single(m => m.Text.StartsWith("getId")).Text);
+        Assert.AreEqual("setId(int id)", c.Methods.Single(m => m.Text.StartsWith("setId")).Text);  // no return → no colon
+    }
+
+    [TestMethod]
+    public void Class_PackageVisibilityTilde_IsNotAGeneric()
+    {
+        var g = Class("classDiagram\n    class C {\n        ~packagePrivateMethod()\n    }");
+        Assert.AreEqual("~packagePrivateMethod()", g.FindNode("C")!.Class!.Methods.Single().Text);
+    }
+
+    [TestMethod]
+    public void Class_TwoWayRelation_HeadsAtBothEnds()
+    {
+        var g = Class("classDiagram\n    Animal <|--|> Zebra");
+        var e = g.Edges.Single();
+        Assert.AreEqual("Animal", e.SourceId);
+        Assert.AreEqual("Zebra",  e.TargetId);
+        Assert.AreEqual(EdgeArrow.TriangleHollow, e.StartArrow);
+        Assert.AreEqual(EdgeArrow.TriangleHollow, e.Arrow);
+    }
+
+    [TestMethod]
+    public void Class_Lollipop_AttachesAsDecorationNotNodeOrEdge()
+    {
+        var g = Class("classDiagram\n    Class01 --() bar\n    foo ()-- Class01");
+        // Interface names are decorations on the class — neither graph nodes nor routed edges.
+        Assert.IsNull(g.FindNode("bar"));
+        Assert.IsNull(g.FindNode("foo"));
+        Assert.AreEqual(0, g.Edges.Count);
+
+        var lollipops = g.FindNode("Class01")!.Class!.Lollipops;
+        Assert.AreEqual(2, lollipops.Count);
+        Assert.IsTrue(lollipops.Any(l => l is { Name: "bar", Below: true  }));  // A --() bar : hangs below
+        Assert.IsTrue(lollipops.Any(l => l is { Name: "foo", Below: false }));  // foo ()-- A : sits above
+    }
+
+    [TestMethod]
+    public void Class_HierarchicalNamespaces_NestByDottedName()
+    {
+        var g = Class(
+            """
+            classDiagram
+            namespace Company.Engineering.Backend {
+                class Developer
+            }
+            namespace Company.Engineering {
+                class TechLead
+            }
+            """);
+
+        Subgraph Sg(string id) => g.Subgraphs.Single(s => s.Id == id);
+        Assert.IsNull(Sg("Company").ParentId);                                              // implicit root ancestor
+        Assert.AreEqual("Company",             Sg("Company.Engineering").ParentId);
+        Assert.AreEqual("Company.Engineering", Sg("Company.Engineering.Backend").ParentId);
+        Assert.AreEqual("Backend", Sg("Company.Engineering.Backend").Label);                // label is the leaf segment
+        Assert.IsTrue(Sg("Company.Engineering.Backend").NodeIds.Contains("Developer"));     // class lands in its leaf only
+        Assert.IsTrue(Sg("Company.Engineering").NodeIds.Contains("TechLead"));
+        Assert.AreEqual(1, g.Subgraphs.Count(s => s.Id == "Company"));                       // shared ancestor created once
+    }
+
+    [TestMethod]
+    public void Class_NoteBr_BecomesNewline()
+    {
+        var g = Class("classDiagram\n    note for Duck \"can fly<br>can swim\"");
+        var note = g.Nodes.Single(n => n.Shape == NodeShape.Note);
+        Assert.AreEqual("can fly\ncan swim", note.Label);
+    }
+
+    // ── Requirement diagram ────────────────────────────────────────────────
+
+    private static Graph Requirement(string src) => new MermaidRequirementParser().Parse(src);
+
+    [TestMethod]
+    public void Requirement_Block_BecomesSingleCompartmentBoxWithFields()
+    {
+        var g = Requirement(
+            """
+            requirementDiagram
+            functionalRequirement test_req {
+                id: 1.1
+                text: the test text.
+                risk: high
+                verifymethod: test
+            }
+            """);
+
+        var n = g.FindNode("test_req")!;
+        Assert.AreEqual(NodeShape.ClassBox, n.Shape);
+        Assert.IsTrue(n.Class!.SingleCompartment);
+        Assert.AreEqual("Functional Requirement", n.Class.Stereotype);   // camelCase → spaced title case
+        Assert.AreEqual(0, n.Class.Methods.Count);
+        CollectionAssert.AreEqual(
+            new[] { "Id: 1.1", "Text: the test text.", "Risk: High", "Verification: Test" },
+            n.Class.Attributes.Select(a => a.Text).ToArray());                 // risk/method values title-cased
+    }
+
+    [TestMethod]
+    public void Requirement_Element_HasElementStereotype()
+    {
+        var g = Requirement(
+            """
+            requirementDiagram
+            element test_entity {
+                type: "test suite"
+                docref: github.com/all_the_tests
+            }
+            """);
+
+        var n = g.FindNode("test_entity")!;
+        Assert.AreEqual("Element", n.Class!.Stereotype);
+        CollectionAssert.AreEqual(
+            new[] { "Type: test suite", "Doc Ref: github.com/all_the_tests" },
+            n.Class.Attributes.Select(a => a.Text).ToArray());
+    }
+
+    [TestMethod]
+    public void Requirement_Relationship_IsDashedOpenArrowLabelledWithType()
+    {
+        var g = Requirement("requirementDiagram\n    test_entity - satisfies -> test_req2");
+        var e = g.Edges.Single();
+        Assert.AreEqual("test_entity", e.SourceId);
+        Assert.AreEqual("test_req2",   e.TargetId);
+        Assert.AreEqual(EdgeStyle.Dashed, e.Style);
+        Assert.AreEqual(EdgeArrow.Open,   e.Arrow);
+        Assert.AreEqual("«satisfies»",    e.Label);
+        // Endpoints referenced by a relationship still materialise as boxes.
+        Assert.AreEqual(NodeShape.ClassBox, g.FindNode("test_req2")!.Shape);
+    }
+
+    [TestMethod]
+    public void Requirement_Contains_IsSolidCrosshairAtContainer()
+    {
+        var g = Requirement("requirementDiagram\n    test_req - contains -> test_req3");
+        var e = g.Edges.Single();
+        Assert.AreEqual("test_req",  e.SourceId);
+        Assert.AreEqual("test_req3", e.TargetId);
+        Assert.AreEqual(EdgeStyle.Solid,       e.Style);          // contains is a solid composite link…
+        Assert.AreEqual(EdgeArrow.CrossCircle, e.StartArrow);     // …with the crosshair at the container
+        Assert.AreEqual(EdgeArrow.None,        e.Arrow);          // …and no head at the contained end
+        Assert.AreEqual("«contains»",          e.Label);
+    }
+
+    [TestMethod]
+    public void Requirement_ReverseArrowForm_KeepsSourceToTargetDirection()
+    {
+        var g = Requirement("requirementDiagram\n    database <- satisfies - db_req");
+        var e = g.Edges.Single();
+        Assert.AreEqual("db_req",   e.SourceId);   // "{dst} <- type - {src}" still flows src → dst
+        Assert.AreEqual("database", e.TargetId);
+        Assert.AreEqual("«satisfies»", e.Label);
+    }
+
+    [TestMethod]
+    public void Requirement_DirectionAndStyling_Apply()
+    {
+        var g = Requirement(
+            """
+            requirementDiagram
+                direction LR
+                requirement r {
+                    id: 1
+                }
+                element e {
+                    type: x
+                }
+                classDef important fill:#f9f,color:#000
+                class r important
+                style e fill:#bbf,stroke:#338
+            """);
+
+        Assert.AreEqual(GraphDirection.LeftRight, g.Direction);
+        Assert.AreEqual("#f9f", g.FindNode("r")!.FillColor);
+        Assert.AreEqual("#bbf", g.FindNode("e")!.FillColor);
+        Assert.AreEqual("#338", g.FindNode("e")!.StrokeColor);
     }
 }

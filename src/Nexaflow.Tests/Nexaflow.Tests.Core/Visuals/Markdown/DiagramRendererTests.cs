@@ -135,4 +135,75 @@ public class DiagramRendererTests
         Assert.IsInstanceOfType(fe, typeof(Border));
         Assert.IsInstanceOfType(((Border)fe).Child, typeof(ScrollViewer));
     });
+
+    // ── Class diagram ──────────────────────────────────────────────────────
+
+    private const string ClassSrc =
+        """
+        classDiagram
+            class Animal {
+                +int age
+                +isMammal() bool
+            }
+            class Duck {
+                +String beakColor
+                +quack()
+            }
+            Animal <|-- Duck
+            Customer "1" --> "*" Ticket : owns
+            class Shape {
+                <<interface>>
+                +draw()
+            }
+            namespace Geometry {
+                class Circle
+                class Square
+            }
+        """;
+
+    [TestMethod]
+    public void Class_RendersGraphNotSourceText() => UiThread.Run(() =>
+    {
+        // A class diagram routes to the graph renderer: Border → ScrollViewer → Canvas.
+        var fe = DiagramRenderer.Render("mermaid", ClassSrc, MarkdownPalette.Dark);
+        Assert.IsInstanceOfType(fe, typeof(Border));
+        var sv = ((Border)fe).Child as ScrollViewer;
+        Assert.IsNotNull(sv, "class diagram should route to the graph renderer (ScrollViewer/Canvas)");
+        Assert.IsInstanceOfType(sv!.Content, typeof(Canvas));
+    });
+
+    [TestMethod]
+    public void Class_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
+    {
+        var graph  = new MermaidClassParser().Parse("classDiagram\n");
+        var layout = Nexaflow.Visuals.Text.Markdown.Graphs.Layout.SugiyamaLayout.Compute(graph);
+        Assert.IsNotNull(WpfGraphRenderer.Render(layout, MarkdownPalette.Dark));
+    });
+
+    // ── Requirement diagram ────────────────────────────────────────────────
+
+    private const string RequirementSrc =
+        """
+        requirementDiagram
+            requirement test_req {
+                id: 1
+                text: the test text.
+                risk: high
+                verifymethod: test
+            }
+            element test_entity {
+                type: simulation
+            }
+            test_entity - satisfies -> test_req
+        """;
+
+    [TestMethod]
+    public void Requirement_RendersGraphNotSourceText() => UiThread.Run(() =>
+    {
+        var fe = DiagramRenderer.Render("mermaid", RequirementSrc, MarkdownPalette.Dark);
+        Assert.IsInstanceOfType(fe, typeof(Border));
+        var sv = ((Border)fe).Child as ScrollViewer;
+        Assert.IsNotNull(sv, "requirement diagram should route to the graph renderer (ScrollViewer/Canvas)");
+        Assert.IsInstanceOfType(sv!.Content, typeof(Canvas));
+    });
 }
