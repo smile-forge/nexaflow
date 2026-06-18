@@ -18,6 +18,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 ///   • <c>gantt</c>            → <see cref="MermaidGanttParser"/>    + <see cref="WpfGanttRenderer"/>
 ///   • <c>classDiagram</c>     → <see cref="MermaidClassParser"/>   + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///   • <c>requirementDiagram</c> → <see cref="MermaidRequirementParser"/> + Sugiyama + <see cref="WpfGraphRenderer"/>
+///   • <c>kanban</c>           → <see cref="MermaidKanbanParser"/>  + <see cref="WpfKanbanRenderer"/>
 ///   • <c>graph / flowchart</c> → <see cref="MermaidParser"/>        + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///
 /// Adding a new Mermaid diagram type means adding a branch in <see cref="SubtypeOf"/>
@@ -35,6 +36,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
     private static readonly MermaidStateParser    StateParser    = new();
     private static readonly MermaidClassParser    ClassParser    = new();
     private static readonly MermaidRequirementParser RequirementParser = new();
+    private static readonly MermaidKanbanParser   KanbanParser   = new();
 
     public bool CanHandle(string language) =>
         language.Equals("mermaid", StringComparison.OrdinalIgnoreCase);
@@ -56,6 +58,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             MermaidSubtype.State       => RenderState(body, title, palette),
             MermaidSubtype.Class       => RenderClass(body, title, palette),
             MermaidSubtype.Requirement => RenderRequirement(body, title, palette),
+            MermaidSubtype.Kanban      => RenderKanban(body, title, palette),
             MermaidSubtype.Graph       => RenderGraph(body, title, palette),
             _                       => RenderSourceText(body),
         };
@@ -67,7 +70,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 
     // ── Subtype detection ──────────────────────────────────────────────────
 
-    private enum MermaidSubtype { Graph, Pie, Quadrant, Sequence, Gantt, Git, Mindmap, State, Class, Requirement, Unknown }
+    private enum MermaidSubtype { Graph, Pie, Quadrant, Sequence, Gantt, Git, Mindmap, State, Class, Requirement, Kanban, Unknown }
 
     /// <summary>
     /// Reads the first non-blank, non-comment keyword to identify the diagram
@@ -99,6 +102,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
                 "sequencediagram"                  => MermaidSubtype.Sequence,
                 "gantt"                            => MermaidSubtype.Gantt,
                 "mindmap"                          => MermaidSubtype.Mindmap,
+                "kanban"                           => MermaidSubtype.Kanban,
                 "graph" or "flowchart"             => MermaidSubtype.Graph,
                 "erdiagram"
                     or "timeline"
@@ -154,6 +158,13 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         var map = MindmapParser.Parse(source);
         map.Title = Titled(map.Title, title);
         return WpfMindmapRenderer.Render(map, palette);
+    }
+
+    private static FrameworkElement RenderKanban(string source, string? title, MarkdownPalette palette)
+    {
+        var board = KanbanParser.Parse(source);
+        board.Title = Titled(board.Title, title);
+        return WpfKanbanRenderer.Render(board, palette);
     }
 
     private static FrameworkElement RenderSourceText(string source) =>

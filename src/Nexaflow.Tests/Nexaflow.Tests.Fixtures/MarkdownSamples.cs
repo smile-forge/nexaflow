@@ -3,7 +3,7 @@ namespace Nexaflow.Tests.Fixtures;
 /// <summary>
 /// Catalog of sample markdown documents — one per Mermaid diagram type the renderer supports
 /// (pie, flowchart, quadrant chart, sequence diagram, gantt, git graph, mindmap, state diagram,
-/// class diagram, requirement diagram), plus an <c>extensions.md</c> exercising the non-diagram Markdig extensions (emphasis extras,
+/// class diagram, requirement diagram, kanban board), plus an <c>extensions.md</c> exercising the non-diagram Markdig extensions (emphasis extras,
 /// abbreviations, alert blocks). Each document showcases several variations, so the fixtures
 /// double as a human-readable reference. The <c>mermaid-*</c> naming marks the diagram docs.
 /// </summary>
@@ -23,8 +23,57 @@ internal sealed class MarkdownSamples : ISampleSet
         SampleFile.Text("mermaid-state.md",       State),
         SampleFile.Text("mermaid-class.md",       Class),
         SampleFile.Text("mermaid-requirement.md", Requirement),
+        SampleFile.Text("mermaid-kanban.md",      Kanban),
         SampleFile.Text("extensions.md",          Extensions),
     ];
+
+    private const string Kanban =
+        """
+        # Mermaid — Kanban board
+
+        A `kanban` board lays out columns (workflow stages) left-to-right, each holding a stack of
+        cards. Hierarchy comes from indentation — columns at the shallowest indent, cards beneath.
+        A node is `id[Title]`, `[Title]` or bare `Title`; cards may carry a `@{ … }` metadata block
+        with `ticket`, `assigned` and `priority` (`Very High` / `High` / `Low` / `Very Low`).
+
+        ```mermaid
+        ---
+        config:
+          kanban:
+            ticketBaseUrl: 'https://mermaidchart.atlassian.net/browse/#TICKET#'
+        ---
+        kanban
+          Todo
+            [Create Documentation]
+            docs[Create Blog about the new diagram]
+          [In progress]
+            id6[Create renderer so that it works in all cases. We also add some extra text here for testing purposes. And some more just for the extra flare.]
+          id9[Ready for deploy]
+            id8[Design grammar]@{ assigned: 'knsv' }
+          id10[Ready for test]
+            id4[Create parsing tests]@{ ticket: MC-2038, assigned: 'K.Sveidqvist', priority: 'High' }
+            id66[last item]@{ priority: 'Very Low', assigned: 'knsv' }
+          id11[Done]
+            id5[define getData]
+            id2[Title of diagram is more than 100 chars when user duplicates diagram with 100 char]@{ ticket: MC-2036, priority: 'Very High'}
+            id3[Update DB function]@{ ticket: MC-2037, assigned: knsv, priority: 'High' }
+
+          id12[Can't reproduce]
+            id3[Weird flickering in Firefox]
+        ```
+
+        Minimal board
+
+        ```mermaid
+        kanban
+          column1[Backlog]
+            task1[Investigate flaky test]
+            task2[Write design doc]
+          column2[Doing]
+            task3[Implement parser]
+          column3[Done]
+        ```
+        """;
 
     private const string Requirement =
         """
