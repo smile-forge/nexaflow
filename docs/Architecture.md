@@ -4,11 +4,6 @@
 > (runtime) split and the ref-counted provider pool — see [Ownership & Lifetime](#ownership--lifetime)
 > for what is central vs profile-scoped vs workspace-scoped.
 > Architectural cleanup opportunities are tracked in [arch_improvements.md](arch_improvements.md).
->
-> **Renamed since earlier drafts** (old → new): `ITabRegistration` → `IPageRegistration`
-> (`CreateTab` → `CreatePage`), `TabEntry` → `Page` (`PageFactory` → `ContentFactory`,
-> cached `Page` → `Content`). Removed: `IInputPromptService` (use `IShellServices.ShowPrompt`/
-> `ShowConfirmation`), `IShellServices.UpdateTabMeta`. `FeatureManager` lives in **Core**, not Common.
 
 ## Table of Contents
 
@@ -87,13 +82,13 @@ The model has two halves: a **`Profile`** is the saved, shared configuration sho
 | `FeatureManager` | Reflection discovery of feature **types** once at startup; builds feature instances **per (Type, Workspace)** on demand; `EvictWorkspace` drops them on reconfigure/dispose | File-system contracts (those go to `FileSystemFeatureRegistry`) |
 | `FileMapManager`, `ExternalAppRegistry`, `WhisperModelManager`, `HostCapabilityService`, `MessageCenter`, `JumpListService` | Misc app-wide services | — |
 
-**Global configs** (registered app-level, shared by every profile): `ShellConfig` (theme), **`AiPersonaConfig` (assistant name + system prompt)**, `WorkspacesConfig` (the profile-list metadata; `ConfigName` is still `"workcontexts"` on disk), `FileMapConfig`, `ExternalAppsConfig`, `VoiceConfig`.
+**Global configs** (registered app-level, shared by every profile): `ShellConfig` (theme), **`AiPersonaConfig` (assistant name + system prompt)**, `WorkspacesConfig` (the profile-list metadata; `ConfigName` is `"workcontexts"` on disk), `FileMapConfig`, `ExternalAppsConfig`, `VoiceConfig`.
 
 > ⚠️ The **AI persona** (name + system prompt) is **global**, but **which provider/model answers each ability** is **per-profile**. Don't conflate them.
 
 ### Per-`Profile` — shared, saved (one instance per named profile)
 
-A `Profile` (`Core/Models/Profile.cs`) is a named, themed, saved workspace configuration. `Name`/`Color`/`Icon` persist (in `WorkspacesConfig`); the shared services below are runtime-only (`[JsonIgnore]`), loaded once by `Profile.EnsureSharedServicesLoaded`, with on-disk state under `…\Smile\nexaflow\Contexts\<Name>\` (folder kept for compat):
+A `Profile` (`Core/Models/Profile.cs`) is a named, themed, saved workspace configuration. `Name`/`Color`/`Icon` persist (in `WorkspacesConfig`); the shared services below are runtime-only (`[JsonIgnore]`), loaded once by `Profile.EnsureSharedServicesLoaded`, with on-disk state under `…\Smile\nexaflow\Contexts\<Name>\` (the on-disk folder is named `Contexts`):
 
 | Member on `Profile` | What it scopes | On disk |
 |---------------------|----------------|---------|
@@ -143,7 +138,7 @@ The shell host. Owns the window chrome, tab strip, ribbon bar, breadcrumb bar, a
 | `AI/AiConfig.cs` | Per-profile AI ability config (`Columns` + ability→column `Assignments`); rendered by `AiAbilityGridControl` |
 | `MainWindow.xaml.cs` | Wires shell commands; creates `ShellViewModel`; handles ESC/breadcrumb clicks |
 | `ViewModels/ShellViewModel.cs` | Tab lifecycle, ribbon lifecycle, notifications, AI routing, background tasks; `SelectProfile` (in-place switch, blocked while a modal overlay is open) |
-| `Services/ShellServices.cs` | `IShellServices` impl — **per-Workspace** (not an app-level singleton, despite the older class comment). Owns that workspace's window + tab registry |
+| `Services/ShellServices.cs` | `IShellServices` impl — **per-Workspace** (not an app-level singleton). Owns that workspace's window + tab registry |
 | `FeatureManager.cs` | Singleton (`FeatureManager.Instance`). Reflection-loads every `Nexaflow.Features.*.dll` at startup, records `IPageRegistration`/config/handler **types** without instantiating, then builds instances per `Workspace` with scoped `IShellServices` + `IAIService` (`EvictWorkspace` drops them on reconfigure). File-system contracts are **not** here (see below) |
 | `Services/FileSystemFeatureRegistry.cs` | Discovery + matching for `IFileAction`/`IFolderAction`/`IFileCreateAction`/`IFolderViewlet` (deliberately split out of `FeatureManager`) |
 | `Services/RibbonLayoutService.cs` | Serialize/deserialize ribbon items — **per-profile** (constructed with the profile's own folder, shared by its workspaces), not a single global `ribbon.json` |
@@ -187,7 +182,7 @@ The contract layer. Every feature depends on this; nothing else does.
 
 Each feature assembly follows the same internal structure:
 
-- One or more `*PageRegistration : IPageRegistration` (some older ones still named `*TabRegistration`) — factory entry points, injected with `IShellServices` and any `IFeatureConfig` the assembly declares
+- One or more `*PageRegistration : IPageRegistration` (a few are named `*TabRegistration` but implement the same interface) — factory entry points, injected with `IShellServices` and any `IFeatureConfig` the assembly declares
 - `ViewModels/` — MVVM Toolkit `ObservableObject` view models; never reference Core
 - `Views/` — WPF `UserControl`s; implement `IPageView` to expose context to the AI pipeline
 - Optional: `IQueryHandler` implementations registered globally or resolved from the active ViewModel
@@ -257,7 +252,7 @@ ConversationRecord
 
 ### `IPageRegistration` — Adding a new page kind
 
-Implement in your feature assembly. `FeatureManager.RegisterFeatures()` discovers it **automatically by reflection** at startup — there is no manual `Register(typeof(...))` call. It injects constructor dependencies per `Workspace`: any `IFeatureConfig` declared in the same assembly, the scoped `IShellServices`, and `IAIService`. Expose a `static string StaticPageKind` so discovery can read the page kind without instantiating.
+Implement in your feature assembly. `FeatureManager.RegisterFeatures()` discovers it **automatically by reflection** at startup. It injects constructor dependencies per `Workspace`: any `IFeatureConfig` declared in the same assembly, the scoped `IShellServices`, and `IAIService`. Expose a `static string StaticPageKind` so discovery can read the page kind without instantiating.
 
 ```csharp
 public sealed class MyPageRegistration(MyConfig config, IShellServices shellServices) : IPageRegistration
@@ -280,7 +275,7 @@ public sealed class MyPageRegistration(MyConfig config, IShellServices shellServ
 }
 ```
 
-The page kind string is then available in the ribbon editor automatically. (Registration classes are conventionally named `*PageRegistration`; some older ones are still named `*TabRegistration` but implement the same `IPageRegistration` interface.)
+The page kind string is then available in the ribbon editor automatically. (Registration classes are conventionally named `*PageRegistration`; a few are named `*TabRegistration` but implement the same `IPageRegistration` interface.)
 
 ---
 
@@ -362,7 +357,7 @@ FeatureManager.Instance.RegisterQueryHandler(new MyQueryHandler());
 
 Implement in the assembly that owns the concern. `FileSystemFeatureRegistry` (in Core — **not** `FeatureManager`) discovers these across Core and the feature assemblies. Actions that open a viewer tab belong in the feature that owns the viewer; system-level actions (copy, rename…) belong in `Nexaflow.Core.FileActions`.
 
-Actions are matched to files via `ExperienceId` — a hierarchical path (e.g. `"/image"`, `"/binary/installer"`) that `FileMapManager` resolves against the selected file. Constructor dependencies (e.g. `IShellServices`) are injected on resolution; show modal prompts via `IShellServices.ShowPrompt` / `ShowConfirmation` (the old `IInputPromptService` is gone).
+Actions are matched to files via `ExperienceId` — a hierarchical path (e.g. `"/image"`, `"/binary/installer"`) that `FileMapManager` resolves against the selected file. Constructor dependencies (e.g. `IShellServices`) are injected on resolution; show modal prompts via `IShellServices.ShowPrompt` / `ShowConfirmation`.
 
 Key `IFileAction` members:
 
@@ -381,7 +376,7 @@ Key `IFileAction` members:
 
 ### `IShellServices` — Calling back to the shell
 
-Injected into `IPageRegistration` and `IFileAction` constructors. Provides the only approved path for features to interact with the shell. To update a page's own title/breadcrumbs, mutate the `Page` object directly (its properties are observable) — there is no `UpdateTabMeta`.
+Injected into `IPageRegistration` and `IFileAction` constructors. Provides the only approved path for features to interact with the shell. To update a page's own title/breadcrumbs, mutate the `Page` object directly (its properties are observable).
 
 ```csharp
 shellServices.OpenTab("ProjectDetail", new() { ["folder"] = folder }, callerPage);

@@ -1,10 +1,5 @@
 # Building a Feature
 
-> **Freshness:** contract names current as of 2026-06-20 — `IPageRegistration` / `Page` /
-> `ContentFactory` / `CreatePage`, reflection-based discovery (no manual register call), and direct
-> mutation of the observable `Page` (there is no `UpdateTabMeta`). See
-> [Architecture.md](Architecture.md) for the authoritative model.
-
 A feature is a class library (`Nexaflow.Features.MyFeature`) that references only `Nexaflow.Features.Common` and WPF. Core never imports your types directly — everything goes through the contracts in `Features.Common`.
 
 ---
@@ -54,7 +49,7 @@ src/Nexaflow.Features/Nexaflow.Features.MyFeature/
 </Project>
 ```
 
-Add a `<ProjectReference>` to `Nexaflow.Core.csproj` so the feature DLL ships; `FeatureManager` discovers the registration by reflection at startup (there is no manual `Register` call).
+Add a `<ProjectReference>` to `Nexaflow.Core.csproj` so the feature DLL ships; `FeatureManager` discovers the registration by reflection at startup.
 
 ---
 
@@ -206,7 +201,7 @@ shellServices.OpenTab("ProjectDetail", new() { ["folder"] = folder }, callerPage
 shellServices.CloseTab(page);
 
 // Update the tab's own title/breadcrumbs/params after in-tab navigation by mutating the
-// observable Page directly — there is no UpdateTabMeta.
+// observable Page directly.
 page.Title = "New Title";
 page.Breadcrumbs.Clear();
 page.Breadcrumbs.Add(new BreadcrumbSegment { Label = "New Title" });
@@ -215,7 +210,7 @@ page.PageParams = new() { ["id"] = newId };
 // Check if a tab is already open before opening a duplicate
 var existing = shellServices.FindTab("Search", new() { ["root"] = root });
 
-// User-visible feedback + modal prompts (IInputPromptService is gone)
+// User-visible feedback + modal prompts
 shellServices.ShowError("Could not load file.");
 shellServices.ShowNotification("Export complete.");
 shellServices.ShowConfirmation("Delete?", "This cannot be undone.", onConfirm: () => { /* … */ });
@@ -262,7 +257,7 @@ Config attributes:
 
 Implement in your feature assembly (viewer-opener actions) or in `Nexaflow.Core.FileActions` (system-level). `FileSystemFeatureRegistry` (in Core, **not** `FeatureManager`) discovers all implementations automatically across Core and the feature assemblies.
 
-Constructor receives `IShellServices` via injection; show modal prompts via `IShellServices.ShowPrompt` / `ShowConfirmation` (the old `IInputPromptService` is gone).
+Constructor receives `IShellServices` via injection; show modal prompts via `IShellServices.ShowPrompt` / `ShowConfirmation`.
 
 ```csharp
 public sealed class OpenInMyViewerAction(IShellServices shellServices) : IFileAction

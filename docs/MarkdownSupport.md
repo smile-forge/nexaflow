@@ -64,11 +64,8 @@ paragraph and assert on the resulting WPF inline tree).
 | Raw inline HTML (`<b>`, `<br>`, …) | ❌ | ✅ | Silently **dropped** (drop behaviour is asserted). |
 | Raw HTML blocks (`<div>…`) | ❌ | ❌ | Not interpreted; shown as muted raw source text. |
 
-> Two of these were silently broken until a test caught them: `<autolinks>` and
-> `&entity;`/`&#nn;` references are distinct Markdig inline types (`AutolinkInline`,
-> `HtmlEntityInline`) that `BlockRenderer.AddInlines` had no case for, so they hit the
-> `default` branch and rendered the *type name* instead of the link/character. Both now
-> have explicit cases and tests.
+> `<autolinks>` and `&entity;`/`&#nn;` references are distinct Markdig inline types
+> (`AutolinkInline`, `HtmlEntityInline`), each with its own case in `BlockRenderer.AddInlines`.
 
 ---
 
@@ -97,21 +94,18 @@ unless noted otherwise.
 | Mathematics | `UseMathematics()` | ✅ | ✅ | Block `$$…$$` (`MarkdownPipelineFactoryTests` + `BlockRendererTests`) and inline `$…$` (`MarkdownExtensionsTests`). Rendered with **WpfMath** (LaTeX); falls back to the LaTeX source if unparseable. |
 | Diagrams | `UseDiagrams()` | ✅ (custom) | ✅ | `MarkdownPipelineFactoryTests`, `BlockRendererTests`, `MarkdownSampleRenderTests`. Rendering is **fully custom** (see below). |
 
-> **Citation delimiter fix.** The renderer's citation case checked `DelimiterChar == '^'`, but
-> Markdig's `UseCitations()` emits `""text""` with `DelimiterChar == '"'`. So `^^text^^` was
-> literal text and real `""…""` citations rendered as plain **bold**. Now corrected to `'"'`
-> and tested.
+> **Citation delimiter.** `UseCitations()` emits `""text""` with `DelimiterChar == '"'`, so the
+> citation delimiter the renderer matches is a doubled double-quote (`""…""`), not `^^`.
 
-> **Grid-table block-cell fix.** Both renderers previously read only `cell[0] as ParagraphBlock`,
-> so a grid-table cell containing a list or multiple paragraphs rendered **blank**. Both paths
-> now render every child block of a cell (single-paragraph cells keep the styled/aligned
-> fast-path), covered by tests in both `BlockRenderer` and `MarkdownFlowDocument`.
+> **Grid-table block cells.** Both renderers render every child block of a cell, so a cell holding a
+> list or multiple paragraphs renders fully; a single-paragraph cell takes a styled/aligned fast-path.
+> Covered by tests in both `BlockRenderer` and `MarkdownFlowDocument`.
 
 > Note: in `MarkdownFlowDocument` (the selectable path), definition lists, figures, footers,
 > alert blocks, math and diagrams are rendered via the `BlockRenderer` UIElement fallback, so they
 > display correctly but are **not text-selectable**. Headings, paragraphs, lists, code, quotes and
-> tables are fully selectable. The selectable path now has table tests (`MarkdownExtensionsTests`)
-> but its non-table block rendering is otherwise still untested.
+> tables are fully selectable. The selectable path has table tests (`MarkdownExtensionsTests`);
+> its non-table block rendering is otherwise untested.
 
 ---
 
@@ -150,7 +144,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `architecture-beta` | ❌ raw source | ❌ |
 
 **State-diagram sub-features** ([`MermaidStateParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidStateParser.cs)).
-State diagrams reuse the shared graph model, the Sugiyama layout and `WpfGraphRenderer` (new pseudostate
+State diagrams reuse the shared graph model, the Sugiyama layout and `WpfGraphRenderer` (pseudostate
 shapes: a filled **start** dot, a ringed **end** dot, a fork/join **bar**; a choice is a diamond; a note
 is a dashed amber callout; composite boxes get a tinted **header band**). Supported: states + descriptions
 (`state "d" as id`, `id : d`), transitions with labels, `[*]` start/end, **arbitrarily-nested** composite
@@ -162,8 +156,8 @@ end per scope.
 
 **Class-diagram sub-features** ([`MermaidClassParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidClassParser.cs)).
 Class diagrams reuse the shared graph model, the Sugiyama layout and `WpfGraphRenderer`. Each class is a
-new **`ClassBox`** node ([`ClassBox.cs`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/ClassBox.cs)) drawn as a
-UML box with name / attribute / method compartments; relationships are edges whose new
+**`ClassBox`** node ([`ClassBox.cs`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/ClassBox.cs)) drawn as a
+UML box with name / attribute / method compartments; relationships are edges whose
 `EdgeArrow` heads (`TriangleHollow`/`DiamondFilled`/`DiamondHollow`) and `Edge.StartLabel`/`EndLabel`
 multiplicities draw the UML markers. Supported: classes (`class A`, block `class A { … }`, label override
 `class A["Pretty"]`, generics `A~T~` → `A<T>` incl. nested `List~List~int~~` → `List<List<int>>`, implicit
@@ -183,7 +177,7 @@ with **hierarchical (dotted) nesting** (`namespace A.B.C` nests `C` inside `B` i
 
 **Requirement-diagram sub-features** ([`MermaidRequirementParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidRequirementParser.cs)).
 A requirement / element is structurally a UML box, so it reuses the **`ClassBox`** node, the Sugiyama layout and
-`WpfGraphRenderer` — a «type» stereotype + name header over a *single* field compartment (the new
+`WpfGraphRenderer` — a «type» stereotype + name header over a *single* field compartment (the
 `ClassInfo.SingleCompartment` flag suppresses the class box's second/methods compartment). Supported: every
 requirement type (`requirement`, `functionalRequirement`, `interfaceRequirement`, `performanceRequirement`,
 `physicalRequirement`, `designConstraint`) and `element`, each with `id` / `text` / `risk` / `verifymethod` /
@@ -272,7 +266,7 @@ requirement, kanban) and `extensions.md` (YAML front matter, emphasis extras, ab
   no FlowDocument-specific assertions.
 - **`nomnoml`** has neither a test nor a sample fixture.
 - The base CommonMark renderer, the enabled extensions, and the Mermaid parser family are
-  now all well covered.
+  all well covered.
 
 ---
 

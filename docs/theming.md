@@ -5,26 +5,26 @@
 
 ## What this solves
 
-The old model was one `Colors.<Theme>.xaml` per theme: a flat list of `SolidColorBrush`es named by
-*tone* (`AccentBrush`, `Surface2Brush`, `DeepBgBrush`). Two problems:
+Theming carries two concerns beyond a flat colour list:
 
-1. **Tone names don't say where a colour is used.** The AI bar and the file list both resolved to
-   `Surface2Brush`, so you couldn't restyle one without the other.
-2. **A theme could only be flat colours.** No way to express an immersive backdrop (the Ocean reef:
-   drifting fish, rising bubbles, swaying coral, god rays).
+1. **Say *where* a colour is used, not just its tone.** A tone name like `Surface2Brush` is shared by
+   the AI bar and the file list, so it can't restyle one without the other. **Region tokens**
+   (`{Region}.{Role}`) give each shell region its own namespaced colour handle.
+2. **Allow more than flat colours.** A theme can drop an immersive backdrop behind a region — the Ocean
+   reef (drifting fish, rising bubbles, swaying coral, god rays) — via **scenes**: theme-supplied
+   animated backdrops behind a named region.
 
-The model below keeps the flat palette underneath (so Dark/Light stay simple and pixel-identical) and
-layers two new concerns on top: **region tokens** (semantic, namespaced colour handles) and **scenes**
-(theme-supplied animated backdrops behind a named region).
+A flat palette sits underneath (so Dark/Light stay simple and pixel-identical); region tokens and
+scenes layer on top.
 
 ## The layered model
 
-A theme is no longer one file. `ThemeManager.Apply` assembles the application's merged dictionaries in a
-fixed order; **merge order = precedence, earliest is lowest** (WPF resolves a key from the last
-dictionary that contains it):
+A theme is assembled from several layered dictionaries. `ThemeManager.Apply` merges them in a fixed
+order; **merge order = precedence, earliest is lowest** (WPF resolves a key from the last dictionary
+that contains it):
 
 ```
-1. Colors.<Theme>.xaml   the raw palette (BgColor, AccentBrush, … — unchanged from before)
+1. Colors.<Theme>.xaml   the raw palette (BgColor, AccentBrush, …)
 2. Tokens.xaml           region tokens ({Region}.{Role}) that default-alias the palette
 3. <feature contributions>   optional IThemeContribution dictionaries (fallbacks; usually none)
 4. Theme.<Theme>.xaml    per-theme region overrides + Scene.* templates (optional; absent = Pro look)
@@ -58,7 +58,7 @@ Every `Colors.<Theme>.xaml` supplies the same key set — both a `Color` and a m
 feature views still bind these directly, and that's fine (see *Feature participation*).
 
 > **No tone-named colour keys.** The palette is deliberately structural/neutral — there is **no**
-> `GreenBrush`/`OrangeBrush` (removed). A "green" or "amber" need is a *purpose*: use the semantic
+> `GreenBrush`/`OrangeBrush`. A "green" or "amber" need is a *purpose*: use the semantic
 > tokens `SuccessBrush` / `WarningBrush` / `DangerBrush` (Tokens.xaml), or the categorical `Swatch.*`
 > bank for syntax/series colours. This keeps callers from reaching for a tone when they mean a meaning.
 
@@ -79,7 +79,7 @@ a palette colour in `Tokens.xaml`; a theme overrides only the ones it wants to a
 | `Window` | *(scene only — `Window.Bg` intentionally absent)* | `MainWindow.xaml` back layer |
 
 `Ribbon.ButtonBg`, `AiBar.ClusterBg` and `FileList.PanelBg` show the pattern for keeping Dark identical
-while restyling Ocean: each defaults (in `Tokens.xaml`) to the value that reproduces the old look
+while restyling Ocean: each defaults (in `Tokens.xaml`) to the palette value its region uses
 (`Transparent`, `Transparent`, `Surface`) and is overridden only in `Theme.Ocean.xaml`.
 
 **Rule:** a region binds its own region tokens, never the palette directly. In Dark every token aliases

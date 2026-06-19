@@ -58,7 +58,7 @@ Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI) and `Nexaflow.IO.Co
 - Providers depend only on 'Providers.Common' - never on Core, never on each other.
 - Core never instantiates feature view or ViewModel types directly. All view (tabs) and viewlet creation goes through `FeatureManager`.
 - Features communicate back to the shell only via `IShellServices` (injected into `IPageRegistration` constructors by `FeatureManager`).
-- A feature advertises a page via `IPageRegistration` (`PageKind` + `CreatePage`); `FeatureManager` discovers it by reflection (each registration exposes a `static string StaticPageKind`) — there is no manual `Register(typeof(...))` call.
+- A feature advertises a page via `IPageRegistration` (`PageKind` + `CreatePage`); `FeatureManager` discovers it by reflection at startup (each registration exposes a `static string StaticPageKind`).
 - **Features never hard-code colours.** Every colour — even one a feature "owns" (status pip, chart/pie series, selection/search wash, post-it paper) — resolves from a theme resource so a theme can retune it: reuse a palette/semantic token (`TextBrush`/`AccentBrush`/`SuccessBrush`/`WarningBrush`/`DangerBrush`/`OnAccentBrush`), the categorical `Swatch.*` bank (for N distinct colours), or a feature-owned token shipped via `IThemeContribution` (like the scratchpad's `PostIt.*`). Code-drawn surfaces read the resource at paint time with a literal only as a last-resort fallback. Full rule + patterns in [docs/theming.md](docs/theming.md) → *Rule: a feature never hard-codes a colour*.
 
 ## Key Files
@@ -71,7 +71,7 @@ Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI) and `Nexaflow.IO.Co
 | `src/Nexaflow.Core/Services/WorkspaceManager.cs` | The `Profiles` list (dropdown) + live `Workspace`s; create/switch/reconfigure/dispose lifecycle |
 | `src/Nexaflow.Core/Services/FileSystemFeatureRegistry.cs` | Discovery for the file-system contracts (`IFileAction`/`IFolderAction`/`IFileCreateAction`/`IFolderViewlet`) — NOT FeatureManager |
 | `src/Nexaflow.Features/Nexaflow.Features.Common/*.cs` | Contracts — changes here affect everything |
-| `src/Nexaflow.Features/Nexaflow.Features.Common/IPageRegistration.cs`, `Page.cs` | The tab/page factory contract (`CreatePage`) and the `Page` model (`Title`/`Icon`/`Breadcrumbs`/`ContentFactory`). NB: the older names `ITabRegistration`/`TabEntry`/`PageFactory` are gone |
+| `src/Nexaflow.Features/Nexaflow.Features.Common/IPageRegistration.cs`, `Page.cs` | The tab/page factory contract (`CreatePage`) and the `Page` model (`Title`/`Icon`/`Breadcrumbs`/`ContentFactory`) |
 | `src/Nexaflow.Core/Themes/Styles.xaml` | App-merged shared control styles. Feature XAML references theme keys by `{StaticResource …}` — no assembly ref needed. A theme is layered (palette → region tokens → per-theme overrides + scenes → styles); see [docs/theming.md](docs/theming.md) |
 
 ## Config & Data Paths
@@ -80,7 +80,7 @@ Base: `%APPDATA%\Smile\nexaflow\`
 
 ```
 {ConfigName}\                 GLOBAL app/feature config (IFeatureConfig.ConfigName) — shared by all profiles
-Contexts\<name>\              PER-PROFILE data (folder name kept as "Contexts" for compat):
+Contexts\<name>\              PER-PROFILE data (the on-disk folder is named "Contexts"):
   ai-abilities\               AI ability grid (which provider/model per ability)
   <provider configs>\         provider API keys / subscriptions for THIS profile
   Conversations\              AI chat history for THIS profile
