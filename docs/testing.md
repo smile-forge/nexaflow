@@ -55,15 +55,15 @@ The file-viewer features additionally get a per-file open-smoke UI case from the
 | Git | ✅ `GitService` | — |
 | Hex | ✅ `HexBuffer`, `HexViewModel` | ✅ *via SampleFileViewer* (`binary` → `HexView`) |
 | Images | — | — |
-| Json | — | ✅ *via SampleFileViewer* (`json` → `JsonView`) |
-| Logs | — | ✅ *via SampleFileViewer* (`logs` → `LogView`) |
+| Json | ✅ `JsonFileLoader` (small + large streaming, virtual-chunk windowing, BOM, estimation) | ✅ *via SampleFileViewer* (`json` → `JsonView`) |
+| Logs | ✅ `LogViewModel` (small load, tail-first read, encoding detection) | ✅ *via SampleFileViewer* (`logs` → `LogView`) |
 | Markdown | ✅ `MarkdownViewModelEditing` (editor model; rendering is covered in `Tests.Core`) | ✅ *via SampleFileViewer* (`markdown` → `MarkdownView`) |
 | Processes | ✅ `CpuSampling`, `Handles`, `ProcessTools`, `ProcessTreeBuilder`, `Reconciliation` | ✅ `ProcessesViewTests` |
 | Projects | — | — |
 | Scratchpad | ✅ `DroppedMedia`, `PostItStore`, `PostItViewModel`, `ScratchpadConfig`, `ScratchpadViewModel`, `UrlPreviewTask` | — |
 | SystemInfo | ✅ `EnvironmentVariablesViewModel`, `EnvVarModel`, `EnvVarsCollector`, `ServicesCollector`, `ServicesViewModel`, `SystemInfoViewModel` | — |
 | Tabular | ✅ 13 classes (CSV tokeniser, shape + column-type detection, column transforms, windowed `RowWindowReader`/`LineSamplingReader`, encoding detection, sample detection, …) | ✅ *via SampleFileViewer* (`tabular` → `TabularView`) |
-| Text | — | ✅ *via SampleFileViewer* (`text` → `TextView`) |
+| Text | ✅ `TextViewModel` (small + large windowed load, window advance) | ✅ *via SampleFileViewer* (`text` → `TextView`) |
 | Web | ✅ `WebPageChrome` | — |
 | WindowsApps | ✅ `WindowsAppsViewModel` | — |
 | WindowsFileSystem | ✅ 15 classes (file-type map, create actions + templates, glob matcher, external apps, tree node, view model, …) | ✅ `FileSystemViewTests`, `FileSystemCreateTests`, `TemplatedCreateOptionsTests` |
@@ -73,9 +73,12 @@ The file-viewer features additionally get a per-file open-smoke UI case from the
 `Features.Common` (contracts) has no test folder of its own; its client-tool wire-protocol parser
 (`ClientBlockParser`) and the agent loop are tested in `Tests.Core` (`Unit/ClientTools/`).
 
-**No coverage yet:** Console, Images, Projects and WindowsRegistry have no tests. Json, Logs and Text
-have only the open-smoke UI case — their windowed readers (`JsonFileLoader`, `LogViewModel`,
-`TextViewModel`) have no unit tests.
+The windowed-reader view-models load into a thread-affine AvalonEdit `TextDocument` across `await`
+points, so `LogViewModel`/`TextViewModel` tests run under `Infrastructure/AsyncPump.cs` (a
+single-threaded synchronization context). `LogViewModel`'s background head-reassembly needs a live UI
+`Dispatcher`, so that one path is left to the UI smoke rather than a unit test.
+
+**No coverage yet:** Console, Images, Projects and WindowsRegistry have no tests.
 
 ### Core & shared libraries (`Nexaflow.Tests.Core`)
 
