@@ -78,6 +78,7 @@ public partial class OceanReefScene : UserControl
             AddFloorCaustics(w, h);
             AddCoral(w, h, coral);
             AddFish(w, h, fish);
+            AddTurtle(w, h);
             AddBubbles(w, h, bubbles);
         }
         else
@@ -301,6 +302,146 @@ public partial class OceanReefScene : UserControl
         fish.Children.Add(body);
         fish.Children.Add(eye);
         return fish;
+    }
+
+    // ── Turtle: a single, rare visitor that cruises across, then waits off-screen ──
+    // Unlike the fish (which loop back-to-back), the turtle crosses once per long cycle and is
+    // parked off-screen for the rest — so a sighting feels like an occasional treat, not décor.
+    private void AddTurtle(double w, double h)
+    {
+        Color[] shells =
+        [
+            Color.FromArgb(235, 0x5C, 0x8A, 0x57), // olive green
+            Color.FromArgb(235, 0x47, 0x7A, 0x63), // teal green
+            Color.FromArgb(235, 0x6E, 0x8B, 0x49), // moss
+        ];
+
+        bool   toRight = _rng.Next(2) == 0;
+        double scale   = 0.9 + _rng.NextDouble() * 0.5;          // a touch larger than the reef fish
+        // Weighted toward the lower water column (sqrt skews the fraction high) — turtles hug the reef.
+        double baseY   = h * (0.28 + 0.50 * Math.Sqrt(_rng.NextDouble()));
+
+        var turtle = MakeTurtle(shells[_rng.Next(shells.Length)]);
+        Canvas.SetTop(turtle, baseY);
+
+        var move = new TranslateTransform();
+        turtle.RenderTransform = new TransformGroup
+        {
+            Children =
+            {
+                new ScaleTransform(toRight ? scale : -scale, scale, 28, 17),  // flip to face travel direction
+                move,
+            },
+        };
+        Layer.Children.Add(turtle);
+
+        double startX = toRight ? -160 : w + 160;
+        double endX   = toRight ?  w + 160 : -160;
+        Canvas.SetLeft(turtle, startX);                          // parked off-screen until a crossing begins
+
+        double crossDur = 50 + _rng.Next(28);                    // a slow, deliberate cruise (fish: 16–32s)
+        double gap      = 34 + _rng.Next(30);                    // long off-screen wait between crossings
+        double total    = crossDur + gap;
+        double crossFr   = crossDur / total;
+
+        // Cross during the first slice of the cycle, then hold off-screen at the far edge for the rest.
+        // The wrap from far-edge back to start happens off-screen, so it's never seen.
+        var cross = new DoubleAnimationUsingKeyFrames
+        {
+            RepeatBehavior = RepeatBehavior.Forever,
+            BeginTime      = TimeSpan.FromSeconds(_rng.NextDouble() * total),
+            Duration       = new Duration(TimeSpan.FromSeconds(total)),
+        };
+        cross.KeyFrames.Add(new LinearDoubleKeyFrame(0,             KeyTime.FromPercent(0)));
+        cross.KeyFrames.Add(new LinearDoubleKeyFrame(endX - startX, KeyTime.FromPercent(crossFr)));
+        cross.KeyFrames.Add(new LinearDoubleKeyFrame(endX - startX, KeyTime.FromPercent(1)));
+        move.BeginAnimation(TranslateTransform.XProperty, cross);
+
+        Loop(move, TranslateTransform.YProperty, -8, 8, 3.6 + _rng.NextDouble() * 2, _rng.NextDouble());
+    }
+
+    private FrameworkElement MakeTurtle(Color shell)
+    {
+        var shellBrush = new SolidColorBrush(shell);
+        // Head & near flippers a shade lighter/greyer so they read against the carapace…
+        var limbC      = Color.FromArgb(shell.A,
+            (byte)Math.Min(255, shell.R + 28), (byte)Math.Min(255, shell.G + 26), (byte)Math.Min(255, shell.B + 22));
+        var limbBrush  = new SolidColorBrush(limbC);
+        // …and the far-side pair darker, so they sit visually behind the body.
+        var limbFar    = new SolidColorBrush(Color.FromArgb(shell.A,
+            (byte)(limbC.R * 0.72), (byte)(limbC.G * 0.72), (byte)(limbC.B * 0.72)));
+        var stroke     = new SolidColorBrush(Color.FromArgb(90, 0x05, 0x24, 0x2C));
+        var scute      = new SolidColorBrush(Color.FromArgb(120,
+            (byte)(shell.R * 0.6), (byte)(shell.G * 0.6), (byte)(shell.B * 0.6)));
+
+        var turtle = new Canvas { Width = 56, Height = 34 };   // built facing right
+
+        // A flipper centred at (cx,cy) with radii (rx,ry), tilted about its own centre.
+        Ellipse Flipper(double cx, double cy, double rx, double ry, double angle, Brush fill)
+        {
+            var f = new Ellipse
+            {
+                Width = rx * 2, Height = ry * 2, Fill = fill, Stroke = stroke, StrokeThickness = 0.9,
+                RenderTransform = new RotateTransform(angle, rx, ry),
+            };
+            Canvas.SetLeft(f, cx - rx); Canvas.SetTop(f, cy - ry);
+            return f;
+        }
+
+        // Far-side pair — drawn first (behind the shell), darker, peeking out so the turtle reads
+        // as four-limbed rather than one front-left + one back-right leg.
+        turtle.Children.Add(Flipper(13, 20, 7,  3, -12, limbFar));  // far rear
+        turtle.Children.Add(Flipper(41, 19, 11, 4,  12, limbFar));  // far front
+
+        // Head + eye — drawn before the shell so the neck emerges from under the carapace's front edge.
+        var head = new Ellipse { Width = 13, Height = 10, Fill = limbBrush, Stroke = stroke, StrokeThickness = 0.9 };
+        Canvas.SetLeft(head, 39.5); Canvas.SetTop(head, 12);
+        turtle.Children.Add(head);
+
+        var eye = new Ellipse { Width = 2.4, Height = 2.4, Fill = Brushes.Black, Opacity = 0.6 };
+        Canvas.SetLeft(eye, 47.8); Canvas.SetTop(eye, 13.8);
+        turtle.Children.Add(eye);
+
+        // Underbody — the connecting mass the flippers attach to.
+        var body = new Ellipse { Width = 30, Height = 16, Fill = limbBrush };
+        Canvas.SetLeft(body, 10); Canvas.SetTop(body, 13);
+        turtle.Children.Add(body);
+
+        // Carapace.
+        var carapace = new Ellipse { Width = 34, Height = 24, Fill = shellBrush, Stroke = stroke, StrokeThickness = 1.2 };
+        Canvas.SetLeft(carapace, 8); Canvas.SetTop(carapace, 4);
+        turtle.Children.Add(carapace);
+
+        // Scute ridges across the shell.
+        turtle.Children.Add(new Path
+        {
+            Data               = Geometry.Parse("M25,5 L25,27 M17,7 L18,26 M33,7 L32,26"),
+            Stroke             = scute,
+            StrokeThickness    = 1,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap   = PenLineCap.Round,
+        });
+
+        // Soft top highlight.
+        var hi = new Ellipse { Width = 14, Height = 6, Fill = new SolidColorBrush(Color.FromArgb(56, 0xFF, 0xFF, 0xFF)) };
+        Canvas.SetLeft(hi, 12); Canvas.SetTop(hi, 8);
+        turtle.Children.Add(hi);
+
+        // Near rear flipper (in front of the shell, pairs with the far rear).
+        turtle.Children.Add(Flipper(12, 25, 8.5, 3.5, -24, limbBrush));
+
+        // Near front flipper — the big one; paddles slowly to sell the swim, rocking about its centre.
+        var paddleRot = new RotateTransform(24, 12.5, 4.5);
+        var front = new Ellipse
+        {
+            Width = 25, Height = 9, Fill = limbBrush, Stroke = stroke, StrokeThickness = 0.9,
+            RenderTransform = paddleRot,
+        };
+        Canvas.SetLeft(front, 29.5); Canvas.SetTop(front, 20.5);
+        turtle.Children.Add(front);
+        Loop(paddleRot, RotateTransform.AngleProperty, 14, 32, 2.2 + _rng.NextDouble() * 1.2, _rng.NextDouble());
+
+        return turtle;
     }
 
     // ── Bubbles: bright highlighted spheres rising, wobbling, fading, recycling ─
