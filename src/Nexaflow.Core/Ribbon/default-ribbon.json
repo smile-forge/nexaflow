@@ -4,6 +4,7 @@
   { "Kind": "Button",    "Label": "This PC",   "Icon": "🖥",  "PageKind": "FileSystem",  "PageParams": { "mode": "thispc" }                           },
   { "Kind": "Button",    "Label": "AI Chat",   "Icon": "💬",  "PageKind": "AIChat"      },
   { "Kind": "Button",    "Label": "Scratchpad","Icon": "📌",  "PageKind": "Scratchpad"  },
+  { "Kind": "Button",    "Label": "Processes", "Icon": "⚙",   "PageKind": "Processes"   },
   { "Kind": "Separator"                                                                   },
   { "Kind": "Button",    "Label": "Documents", "Icon": "📄",  "PageKind": "FileSystem",  "PageParams": { "mode": "path", "path": "{Documents}" }      },
   { "Kind": "Button",    "Label": "Pictures",  "Icon": "🖼",  "PageKind": "FileSystem",  "PageParams": { "mode": "path", "path": "{Pictures}"  }      },
