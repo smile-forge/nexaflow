@@ -9,21 +9,21 @@ public static class SizeFormatter
     private static readonly string[] Units = ["B", "KB", "MB", "GB", "TB", "PB"];
 
     /// <summary>
-    /// Formats <paramref name="bytes"/>; a non-positive value renders as <c>0 B</c>.
-    /// <paramref name="decimals"/> caps the fraction digits used at KB and above (trailing zeros dropped).
+    /// Formats <paramref name="bytes"/>; a non-positive value renders as <c>0 B</c>. Bytes show as a
+    /// whole number; KB and above use a fixed <paramref name="decimals"/> fraction digits (e.g. <c>2.0 KB</c>).
     /// </summary>
     public static string FormatBytes(long bytes, int decimals = 1)
         => Format(bytes <= 0 ? 0d : bytes, decimals);
 
-    /// <summary>Unsigned overload; defaults to two fraction digits to match the system dashboard's look.</summary>
-    public static string FormatBytes(ulong bytes, int decimals = 2)
+    /// <summary>Unsigned overload (for the WMI <c>ulong</c> sizes the system dashboard reports).</summary>
+    public static string FormatBytes(ulong bytes, int decimals = 1)
         => Format(bytes, decimals);
 
     private static string Format(double value, int decimals)
     {
         var u = 0;
         while (value >= 1024 && u < Units.Length - 1) { value /= 1024; u++; }
-        var fmt = u == 0 ? "0" : "0." + new string('#', System.Math.Max(1, decimals));
+        var fmt = u == 0 ? "0" : "0." + new string('0', System.Math.Max(1, decimals));
         return $"{value.ToString(fmt)} {Units[u]}";
     }
 }
