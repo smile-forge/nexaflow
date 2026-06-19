@@ -48,6 +48,35 @@ public class MarkdownBlocksTests
     public void Split_NormalisesCrLf()
         => CollectionAssert.AreEqual(new[] { "a", "b" }, MarkdownBlocks.Split("a\r\n\r\nb"));
 
+    // ── Fenced code / diagrams (blank lines inside must NOT split) ─────────
+
+    [TestMethod]
+    public void Split_FenceWithInnerBlankLine_StaysOneBlock()
+    {
+        const string fence = "```mermaid\ngraph TD\nA --> B\n\nB --> C\n```";
+        CollectionAssert.AreEqual(new[] { fence }, MarkdownBlocks.Split(fence));
+    }
+
+    [TestMethod]
+    public void Split_TextThenFenceWithBlankLine_KeepsFenceWhole()
+    {
+        var blocks = MarkdownBlocks.Split("intro\n\n```mermaid\nA\n\nB\n```\n\nouttro");
+        CollectionAssert.AreEqual(new[] { "intro", "```mermaid\nA\n\nB\n```", "outtro" }, blocks);
+    }
+
+    [TestMethod]
+    public void Split_UnclosedFence_IsOneBlock()
+        => CollectionAssert.AreEqual(new[] { "```mermaid\nA\n\nB" }, MarkdownBlocks.Split("```mermaid\nA\n\nB"));
+
+    [TestMethod]
+    public void IsFenced_DetectsFenceOpener()
+    {
+        Assert.IsTrue(MarkdownBlocks.IsFenced("```mermaid\ngraph TD"));
+        Assert.IsTrue(MarkdownBlocks.IsFenced("~~~\ncode"));
+        Assert.IsFalse(MarkdownBlocks.IsFenced("just a paragraph"));
+        Assert.IsFalse(MarkdownBlocks.IsFenced("- a list\n- with ``` inside an item"));
+    }
+
     // ── Join ──────────────────────────────────────────────────────────────
 
     [TestMethod]

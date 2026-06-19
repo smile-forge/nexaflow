@@ -32,10 +32,12 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// (<see cref="TextPointer.GetTextRunLength"/>), NOT via <c>TextRange.Text</c>, because
 /// the latter trims trailing whitespace and would drop spaces (e.g. "## " → "##").
 /// </summary>
-public class InlineMarkdownEditor : UserControl
+public partial class InlineMarkdownEditor : UserControl
 {
     private readonly RichTextBox _rtb;
     private readonly TextBlock   _placeholder;
+    private readonly MarkdownEditToolbar _editBar;
+    private readonly Popup       _editBarPopup;
 
     private List<string> _blocks = [""];
     private int        _active = -1;          // block shown as source, or -1 when fully rendered
@@ -44,6 +46,7 @@ public class InlineMarkdownEditor : UserControl
     private bool       _navQueued;
     private bool       _menuOpen;             // a context menu is open → don't treat the focus loss as leaving edit mode
     private Point?     _pendingClickPoint;    // where the last left-click landed, consumed by the deferred activation
+    private bool       _renderPending;        // a RenderAll was requested while hidden → run it once the editor is shown
 
     // Block-model undo: a snapshot of (blocks, active block, caret-in-block) taken at the start of each
     // editing session. Edits within one block coalesce into a single undo step (block-level, not per key).
@@ -70,7 +73,9 @@ public class InlineMarkdownEditor : UserControl
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             Document                      = new FlowDocument(),
         };
-        SpellCheck.SetIsEnabled(_rtb, true);
+        // Spell-check is enabled only while a block is being edited (see Activate/RenderAll) so the
+        // rendered text doesn't show squiggles.
+        SpellCheck.SetIsEnabled(_rtb, false);
 
         _rtb.PreviewTextInput  += OnPreviewTextInput;
         _rtb.PreviewKeyDown    += OnPreviewKeyDown;
@@ -99,6 +104,35 @@ public class InlineMarkdownEditor : UserControl
         Content    = new Grid { Children = { _rtb, _placeholder } };
         Background = Brushes.Transparent;
         Focusable  = false;
+
+        // Caret + text brushes. With no explicit Palette the editor is theme-aware, so track the live
+        // theme brushes (the caret was otherwise the default black — invisible on a dark theme).
+        ApplyEditorBrushes();
+
+        // While hidden (e.g. the markdown viewer's source-only mode swaps this editor out), a bound
+        // Markdown change still fires RenderAll per keystroke — wasted work for a doc with diagrams.
+        // Defer the render and run it once when the editor is shown again with the latest content.
+        IsVisibleChanged += (_, _) => { if (IsVisible && _renderPending) RenderAll(); };
+
+        // Right-click formatting toolbar (shown while editing). It takes focus while open, so guard the
+        // focus loss like the context menu does (_menuOpen) and hand focus back to the editor on close.
+        _editBar = new MarkdownEditToolbar();
+        _editBar.ActionInvoked += OnEditAction;
+        _editBarPopup = new Popup
+        {
+            Child              = _editBar,
+            StaysOpen          = false,
+            AllowsTransparency = true,
+            Placement          = PlacementMode.MousePoint,
+            PlacementTarget    = _rtb,
+            PopupAnimation     = PopupAnimation.Fade,
+        };
+        _editBarPopup.Opened += (_, _) => _menuOpen = true;
+        _editBarPopup.Closed += (_, _) =>
+        {
+            _menuOpen = false;
+            if (_active >= 0) { _rtb.Focus(); Keyboard.Focus(_rtb); }
+        };
     }
 
     // ── Dependency properties ─────────────────────────────────────────────
@@ -162,14 +196,52 @@ public class InlineMarkdownEditor : UserControl
         set => SetValue(BaseDirectoryProperty, value);
     }
 
-    private MarkdownRenderContext Context => new() { Palette = Pal, OnNavigate = LinkNavigate, BaseDirectory = BaseDirectory };
+    /// <summary>When true, a single click only selects/places the caret (everywhere — text and diagrams
+    /// alike) and a <em>double</em>-click enters edit mode for the block under the cursor. When false
+    /// (the default, used by the scratchpad), a single click enters edit mode. The markdown viewer sets
+    /// this so you can select a diagram without it dropping into source.</summary>
+    public static readonly DependencyProperty EditOnDoubleClickProperty =
+        DependencyProperty.Register(nameof(EditOnDoubleClick), typeof(bool), typeof(InlineMarkdownEditor),
+            new PropertyMetadata(false));
+
+    public bool EditOnDoubleClick
+    {
+        get => (bool)GetValue(EditOnDoubleClickProperty);
+        set => SetValue(EditOnDoubleClickProperty, value);
+    }
+
+    private MarkdownRenderContext Context => new()
+    {
+        Palette           = Pal,
+        OnNavigate        = LinkNavigate,
+        BaseDirectory     = BaseDirectory,
+        FitContentToWidth = true,   // diagrams scale to the column rather than getting un-grabbable scrollbars
+    };
 
     private void OnPaletteChanged()
     {
-        _rtb.Foreground = Pal.Text;
-        _rtb.CaretBrush = Pal.Text;
-        _placeholder.Foreground = Pal.TextMuted;
+        ApplyEditorBrushes();
         if (!_rtb.IsKeyboardFocusWithin) RenderAll();
+    }
+
+    /// <summary>Sets the caret/text/placeholder brushes. With an explicit <see cref="Palette"/> they are
+    /// the palette's (frozen) brushes; with none, the editor is theme-aware and tracks the live theme
+    /// brushes via resource references — so the caret stays visible on dark themes and follows theme
+    /// switches.</summary>
+    private void ApplyEditorBrushes()
+    {
+        if (Palette is not null)
+        {
+            _rtb.Foreground = Pal.Text;
+            _rtb.CaretBrush = Pal.Text;
+            _placeholder.Foreground = Pal.TextMuted;
+        }
+        else
+        {
+            _rtb.SetResourceReference(ForegroundProperty, "TextBrush");
+            _rtb.SetResourceReference(TextBoxBase.CaretBrushProperty, "TextBrush");
+            _placeholder.SetResourceReference(TextBlock.ForegroundProperty, "TextMutedBrush");
+        }
     }
 
     private void OnPlaceholderChanged(string? text)
@@ -279,31 +351,99 @@ public class InlineMarkdownEditor : UserControl
     }
 
     /// <summary>
-    /// A click strictly inside a rendered link follows it. Any other click is left to WPF's native
-    /// handling (focus + caret); the block under the caret is then activated by the deferred
-    /// <see cref="ScheduleNavigate"/> — which runs after the mouse is released, so it never disturbs the
-    /// RichTextBox's mouse capture, and it skips activation when a drag produced a selection.
+    /// A click strictly inside a rendered link follows it. Otherwise behaviour depends on
+    /// <see cref="EditOnDoubleClick"/>:
+    /// <list type="bullet">
+    /// <item>Default (single-click-to-edit): the click is left to WPF (focus + caret) and the block under
+    /// the caret is activated by the deferred <see cref="ScheduleNavigate"/> — after the mouse is released
+    /// so it never disturbs the RichTextBox's mouse capture, skipping activation when a drag selected text.</item>
+    /// <item><see cref="EditOnDoubleClick"/>: a single click only selects/places the caret (and commits any
+    /// in-progress edit when it lands outside the active block); a double click enters edit on the block
+    /// under the cursor.</item>
+    /// </list>
     /// </summary>
     private void OnPreviewMouseLeftButtonDown(object? sender, MouseButtonEventArgs e)
     {
         _pendingClickPoint = null;
-        if (e.ClickCount != 1) return;   // let double-click select a word for editing
 
-        var glyph = _rtb.GetPositionFromPoint(e.GetPosition(_rtb), snapToText: false);
-        if (glyph is not null && FindHyperlink(glyph) is { NavigateUri: { } uri } link
-            && glyph.CompareTo(link.ContentStart) > 0 && glyph.CompareTo(link.ContentEnd) < 0)
+        if (EditOnDoubleClick)
         {
-            e.Handled = true;
-            var url = uri.ToString();
-            if (LinkNavigate?.Invoke(url) == true) return;
-            try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
-            catch { }
+            if (e.ClickCount == 2)
+            {
+                var p = _rtb.GetPositionFromPoint(e.GetPosition(_rtb), snapToText: true);
+                // Already editing this block → let WPF select the word; otherwise enter edit at the click.
+                bool inActive = _activePara is not null && p is not null
+                    && p.CompareTo(_activePara.ContentStart) >= 0 && p.CompareTo(_activePara.ContentEnd) <= 0;
+                if (inActive) return;
+                e.Handled = true;          // suppress word-select; we enter edit instead
+                ActivateAtPoint(e.GetPosition(_rtb));
+                return;
+            }
+
+            if (TryNavigateLink(e)) return;
+
+            // A single click outside the block being edited leaves edit mode (so typing can't target a
+            // block the caret has left); a click within it just repositions the caret natively.
+            if (_active >= 0)
+            {
+                var p = _rtb.GetPositionFromPoint(e.GetPosition(_rtb), snapToText: true);
+                bool inActive = _activePara is not null && p is not null
+                    && p.CompareTo(_activePara.ContentStart) >= 0 && p.CompareTo(_activePara.ContentEnd) <= 0;
+                if (!inActive) Dispatcher.BeginInvoke(CommitEdit, DispatcherPriority.Background);
+            }
             return;
         }
+
+        if (e.ClickCount != 1) return;   // let double-click select a word for editing
+        if (TryNavigateLink(e)) return;
 
         // Remember where the click landed so the deferred activation can start a fresh trailing block
         // when the click is below the text (rather than editing the last line).
         _pendingClickPoint = e.GetPosition(_rtb);
+    }
+
+    /// <summary>Follows a link when the click landed strictly inside a rendered hyperlink. Returns true
+    /// (and marks the event handled) when it navigated.</summary>
+    private bool TryNavigateLink(MouseButtonEventArgs e)
+    {
+        var glyph = _rtb.GetPositionFromPoint(e.GetPosition(_rtb), snapToText: false);
+        if (glyph is null || FindHyperlink(glyph) is not { NavigateUri: { } uri } link
+            || glyph.CompareTo(link.ContentStart) <= 0 || glyph.CompareTo(link.ContentEnd) >= 0)
+            return false;
+
+        e.Handled = true;
+        var url = uri.ToString();
+        if (LinkNavigate?.Invoke(url) == true) return true;
+        try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
+        catch { }
+        return true;
+    }
+
+    /// <summary>Enters edit mode for the block under <paramref name="pointInEditor"/>, placing the caret
+    /// at the click. Deferred to Background priority so it runs after the mouse is released and never
+    /// disturbs the RichTextBox's capture (the same reason as <see cref="ScheduleNavigate"/>).</summary>
+    private void ActivateAtPoint(Point pointInEditor)
+    {
+        var pos = _rtb.GetPositionFromPoint(pointInEditor, snapToText: true);
+        Dispatcher.BeginInvoke(() =>
+        {
+            _rtb.Focus();
+            Keyboard.Focus(_rtb);
+
+            int block = -1, off = 0;
+            if (pos is not null) (block, off) = PointerToModel(pos, preferEnd: false);
+            if (block < 0)
+            {
+                if (IsBelowContent(pointInEditor))
+                {
+                    if (_blocks[^1].Trim().Length != 0) { _blocks.Add(string.Empty); PushMarkdown(); }
+                    block = _blocks.Count - 1; off = _blocks[^1].Length;
+                }
+                else { block = _active >= 0 ? _active : 0; off = 0; }
+            }
+            // Place the top of the edit area at the click position (the mouse Y), not the top of the page.
+            Activate(Math.Clamp(block, 0, _blocks.Count - 1), off, pointInEditor.Y);
+        }, DispatcherPriority.Background);
     }
 
     /// <summary>True when <paramref name="pt"/> (in RichTextBox coordinates) is below the last line of text.</summary>
@@ -406,13 +546,17 @@ public class InlineMarkdownEditor : UserControl
 
     private void OnPreviewMouseRightButtonUp(object? sender, MouseButtonEventArgs e)
     {
+        e.Handled = true;
+
+        // While editing a block, offer the formatting mini-toolbar; otherwise the plain Cut/Copy menu.
+        if (_active >= 0) { OpenEditBar(); return; }
+
         UpdateMenuState();
         _menuOpen = true;
         var menu = _rtb.ContextMenu!;
         menu.PlacementTarget = _rtb;
         menu.Placement       = PlacementMode.MousePoint;
         menu.IsOpen          = true;
-        e.Handled = true;
     }
 
     private void UpdateMenuState()
@@ -540,7 +684,7 @@ public class InlineMarkdownEditor : UserControl
 
     private void OnPreviewTextInput(object? sender, TextCompositionEventArgs e)
     {
-        if (_active < 0) return;
+        if (_active < 0) { MirrorRenderInput(e.Text); return; }   // typing in a rendered block — shadow into the model
         var text = e.Text;
         if (string.IsNullOrEmpty(text) || text is "\r" or "\n") return;  // Enter handled in keydown
         var (from, to) = SelectionInActiveBlock();
@@ -548,9 +692,39 @@ public class InlineMarkdownEditor : UserControl
         e.Handled = true;
     }
 
+    // ── Typing in a rendered block (single click in EditOnDoubleClick mode, then type) ──
+    // A single click leaves the document editable but does NOT activate a block, so WPF edits the rendered
+    // text natively — convenient for quick fixes. That native edit bypasses the block model and so wouldn't
+    // save. We shadow it into the model and mark the document dirty WITHOUT intercepting the keystroke or
+    // re-rendering, so the smooth native feel is untouched. Exact for plain text (rendered == source); inside
+    // formatted runs the mapped offset can drift until the next full render.
+
+    private void MirrorRenderInput(string text)
+    {
+        if (string.IsNullOrEmpty(text) || text is "\r" or "\n") return;
+        if (!_rtb.Selection.IsEmpty) return;            // selection-replace stays native, reconciled on next render
+        var (b, off) = CaretLocation();
+        if (b < 0 || b >= _blocks.Count) return;
+        off = Math.Clamp(off, 0, _blocks[b].Length);
+        _blocks[b] = _blocks[b][..off] + text + _blocks[b][off..];
+        PushMarkdown();
+    }
+
+    private void MirrorRenderKey(KeyEventArgs e)
+    {
+        if (e.Key is not (Key.Back or Key.Delete) || !_rtb.Selection.IsEmpty) return;
+        var (b, off) = CaretLocation();
+        if (b < 0 || b >= _blocks.Count) return;
+        var block = _blocks[b];
+        if (e.Key == Key.Back && off > 0)                   _blocks[b] = block[..(off - 1)] + block[off..];
+        else if (e.Key == Key.Delete && off < block.Length) _blocks[b] = block[..off] + block[(off + 1)..];
+        else return;
+        PushMarkdown();
+    }
+
     private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_active < 0) return;
+        if (_active < 0) { MirrorRenderKey(e); return; }
         bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
         var block  = _blocks[_active];
 
@@ -567,6 +741,15 @@ public class InlineMarkdownEditor : UserControl
                 Undo();
                 e.Handled = true;
                 break;
+            case Key.Enter when MarkdownBlocks.IsFenced(block):
+            {
+                // A fenced code/diagram block is one block — Enter is a literal newline inside it,
+                // not a block split (splitting would break the fence, e.g. a mermaid diagram).
+                var (from, to) = SelectionInActiveBlock();
+                EditActive(from, to, "\n");
+                e.Handled = true;
+                break;
+            }
             case Key.Enter:
             {
                 // Split the block at the caret → a new block (the one you leave renders).
@@ -749,6 +932,7 @@ public class InlineMarkdownEditor : UserControl
     private void ScheduleNavigate()
     {
         if (_navQueued || _menuOpen) return;
+        if (EditOnDoubleClick) return;   // activation is driven only by a double-click in this mode
         _navQueued = true;
         Dispatcher.BeginInvoke(() =>
         {
@@ -860,6 +1044,14 @@ public class InlineMarkdownEditor : UserControl
 
     private void RenderAll()
     {
+        // Hidden → don't build the document now (it would re-run diagram layout per keystroke);
+        // remember to render when the editor is next shown.
+        if (!IsVisible) { _renderPending = true; return; }
+        _renderPending = false;
+
+        int focal     = _active;                            // the block being left — keep it pinned across the rebuild
+        double offset = _rtb.VerticalOffset;
+        double? focalY = focal >= 0 ? BlockTopY(focal) : null;
         _suppress = true;
         try
         {
@@ -871,14 +1063,20 @@ public class InlineMarkdownEditor : UserControl
             _rtb.Document = doc;
         }
         finally { _suppress = false; }
+        SpellCheck.SetIsEnabled(_rtb, false);   // no squiggles in the fully-rendered view
+        AnchorScroll(offset, focal, focalY, keepCaretVisible: false);
         UpdatePlaceholder();
     }
 
-    private void Activate(int index, int caretOffset)
+    /// <param name="anchorTopY">When set (a double-click entering edit), the screen-Y the activated block's
+    /// top should land at — i.e. the mouse position. Otherwise the block is pinned to where it already was.</param>
+    private void Activate(int index, int caretOffset, double? anchorTopY = null)
     {
         if (_blocks.Count == 0) _blocks.Add(string.Empty);
         index = Math.Clamp(index, 0, _blocks.Count - 1);
 
+        double offset  = _rtb.VerticalOffset;
+        double? targetY = anchorTopY ?? BlockTopY(index);   // pin the focal block to the mouse, else to where it is now
         _suppress = true;
         try
         {
@@ -901,7 +1099,52 @@ public class InlineMarkdownEditor : UserControl
             _rtb.CaretPosition = OffsetToPointer(caretOffset);
         }
         finally { _suppress = false; }
+        SpellCheck.SetIsEnabled(_rtb, true);    // squiggles only while editing
+        AnchorScroll(offset, index, targetY, keepCaretVisible: true);
         UpdatePlaceholder();
+    }
+
+    /// <summary>The viewport-relative Y of block <paramref name="index"/>'s top in the current document —
+    /// the active source paragraph if it is that block, else the rendered block tagged with the index.</summary>
+    private double? BlockTopY(int index)
+    {
+        try
+        {
+            if (index == _active && _activePara is not null)
+                return _activePara.ContentStart.GetCharacterRect(LogicalDirection.Forward).Top;
+            foreach (var blk in _rtb.Document.Blocks)
+                if (blk.Tag is int i && i == index)
+                    return blk.ContentStart.GetCharacterRect(LogicalDirection.Forward).Top;
+        }
+        catch { }
+        return null;
+    }
+
+    /// <summary>Keeps the focal block visually fixed across a document rebuild (which otherwise jumps to the
+    /// top): restores the scroll offset, then scrolls block <paramref name="focalIndex"/> back to
+    /// <paramref name="targetY"/> — so content added/removed elsewhere doesn't bounce the reader, and an
+    /// entered block lands at the mouse. Optionally keeps the caret on screen while typing.</summary>
+    private void AnchorScroll(double offset, int focalIndex, double? targetY, bool keepCaretVisible)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            _rtb.ScrollToVerticalOffset(offset);
+            try
+            {
+                if (targetY is double y && BlockTopY(focalIndex) is double now)
+                    _rtb.ScrollToVerticalOffset(_rtb.VerticalOffset + (now - y));
+
+                if (keepCaretVisible && _active >= 0)
+                {
+                    var rect = _rtb.CaretPosition.GetCharacterRect(LogicalDirection.Forward);
+                    if (rect.Bottom > _rtb.ViewportHeight)
+                        _rtb.ScrollToVerticalOffset(_rtb.VerticalOffset + (rect.Bottom - _rtb.ViewportHeight) + 6);
+                    else if (rect.Top < 0)
+                        _rtb.ScrollToVerticalOffset(_rtb.VerticalOffset + rect.Top - 6);
+                }
+            }
+            catch { /* rect not available yet — leave the restored offset */ }
+        }, DispatcherPriority.Loaded);
     }
 
     private FlowDocument NewDocument() => new()
