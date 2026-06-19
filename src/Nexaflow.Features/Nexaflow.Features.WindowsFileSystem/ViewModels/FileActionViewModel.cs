@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.WindowsFileSystem.FileActions;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -32,6 +33,16 @@ public partial class FileActionViewModel : ObservableObject
     public bool   IsDestructive => _action.IsDestructive;
     public bool   IsRibbonPinnable => _action.IsRibbonPinnable;
     public ImageSource? IconImage => _action.IconImage;
+
+    /// <summary>True for registry-derived shell-verb entries — the view gives these a distinct
+    /// border to signal they come from the Windows registry (and can be turned off in Options
+    /// via "Use registry-based file type mapping").</summary>
+    public bool IsShellHandler => _action is ShellVerbAction;
+
+    /// <summary>True when this action maps to an editable Options entry: a user-defined external
+    /// app (→ External Apps) or an internal viewer (→ File Type Actions). Shell verbs and utility
+    /// actions aren't user-editable, so they don't offer "Modify".</summary>
+    public bool CanModify => _action is CustomAction || _action.OpensViewer;
     /// <summary>
     /// Returns <see cref="IFileAction.Tooltip"/> when set, otherwise <see cref="DisplayName"/>.
     /// Bound to the button's ToolTip in the view.
@@ -65,10 +76,14 @@ public partial class FileActionViewModel : ObservableObject
 
     private async void PerformAction(bool force)
     {
-        if (_paths.Count == 1)
-            _action.PerformAction(_paths[0], force);
-        else
-            _action.PerformAction(_paths, force);
+        bool ok = _paths.Count == 1
+            ? _action.PerformAction(_paths[0], force)
+            : _action.PerformAction(_paths, force);
+
+        // Only flash the success tick when the action actually did something now (deferred
+        // actions that confirm first return false) and when the action opts into the tick
+        // (chooser/gateway actions like Open With suppress it).
+        if (!ok || !_action.ShowsSuccessTick) return;
 
         // Show success state and dim all sibling buttons
         IsFlashing = true;

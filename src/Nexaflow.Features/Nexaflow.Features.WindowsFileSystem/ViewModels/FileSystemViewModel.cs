@@ -4,6 +4,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem.ClientTools;
+using Nexaflow.Features.WindowsFileSystem.Controls;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
 using Nexaflow.Features.WindowsFileSystem.Services;
@@ -71,6 +72,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     // ── File action strip ─────────────────────────────────────────────────────
     private readonly FileActionManager _actionRegistry;
     private readonly DefaultFileOpener _opener;
+    private readonly ExternalAppsConfig _externalAppsConfig;
     public ObservableCollection<FileActionViewModel> FileActions { get; } = [];
 
     // ── Ribbon pinning ────────────────────────────────────────────────────────
@@ -293,6 +295,58 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     [RelayCommand]
     private void CancelCreate() => CreateOverlayVisible = false;
 
+    // ── "Define New" association wizard ─────────────────────────────────────────
+    [ObservableProperty] private bool _wizardOverlayVisible;
+    [ObservableProperty] private DefineNewWizardViewModel? _wizard;
+
+    /// <summary>
+    /// Opens the wizard that associates a file/extension/glob with an internal viewer or an
+    /// external app. Only available for a single selected file — folders, drives, "This PC" and
+    /// empty selections have no viewer/association concept.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanOpenDefineNewWizard))]
+    private void OpenDefineNewWizard()
+    {
+        if (CurrentSelection is not [{ IsDirectory: false, IsDrive: false } file]) return;
+
+        Wizard = new DefineNewWizardViewModel(
+            _shell, _externalAppsConfig, Registry.FileActions,
+            CurrentPath, file.FullPath,
+            onClose: () =>
+            {
+                WizardOverlayVisible = false;
+                Wizard = null;
+                // Rebuild the action strip so the just-defined action is usable immediately,
+                // without re-enumerating the folder (which would clear the list selection).
+                OnSelectionChanged(CurrentSelection);
+            });
+        WizardOverlayVisible = true;
+    }
+
+    private bool CanOpenDefineNewWizard()
+        => !_isThisPcMode && CurrentSelection is [{ IsDirectory: false, IsDrive: false }];
+
+    /// <summary>
+    /// Opens the relevant Options editor for an existing action so the user can tweak it: a
+    /// user-defined external app jumps to "External Apps" with that app selected; an internal
+    /// viewer jumps to "File Type Actions" with its experience selected.
+    /// </summary>
+    [RelayCommand]
+    private void ModifyAction(FileActionViewModel? vm)
+    {
+        switch (vm?.Action)
+        {
+            case CustomAction ca:
+                ExternalAppsEditorControl.PendingSelect = ca.Definition;
+                _shell.OpenOptions(_externalAppsConfig.ConfigName);   // "externalapps"
+                break;
+            case { OpensViewer: true } viewer:
+                FileMapEditorControl.PendingExperienceId = viewer.ExperienceId;
+                _shell.OpenOptions("filemap");                        // FileMapConfig.ConfigName
+                break;
+        }
+    }
+
     // ── Refresh ───────────────────────────────────────────────────────────────
     /// <summary>
     /// Refreshes the file list and tree at the current path, keeping the
@@ -361,7 +415,8 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
             : (!string.IsNullOrEmpty(CurrentPath) ? [CurrentPath] : new List<string>());
 
         var result = new List<FileActionViewModel>();
-        foreach (var action in applicable)
+        // "Open With" sorts to the end of the menu, matching the action strip.
+        foreach (var action in applicable.OrderBy(a => a is OpenWithAction ? 1 : 0))
         {
             var vm = new FileActionViewModel(action);
             vm.ShiftHeld = ShiftHeld;
@@ -383,6 +438,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     {
         CurrentSelection  = selected;
         _pendingSelection = selected;
+        OpenDefineNewWizardCommand.NotifyCanExecuteChanged();
 
         // Update the visible count immediately — this is a cheap label update.
         SelectedEntry = selected.Count == 1 ? selected[0] : null;
@@ -509,7 +565,11 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
 
         void AddAction(IFileAction action) => FileActions.Add(BuildActionVm(action));
 
-        foreach (var action in applicable)
+        // Built-in actions first, but keep "Open With" as the last built-in — it sits just
+        // above the shell-handler list as the gateway to "any other app".
+        foreach (var action in applicable.Where(a => a is not OpenWithAction))
+            AddAction(action);
+        foreach (var action in applicable.Where(a => a is OpenWithAction))
             AddAction(action);
 
         foreach (var verb in shellVerbs)
@@ -734,6 +794,8 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
         Registry        = FileSystemFeatureRegistry.For(shell, ai, configs);
         _actionRegistry = new FileActionManager(Registry);
         _opener         = new DefaultFileOpener(Registry);
+        _externalAppsConfig = configs.TryGetValue(typeof(ExternalAppsConfig), out var ec)
+                              && ec is ExternalAppsConfig eac ? eac : new ExternalAppsConfig();
         FileMapManager.Instance.RegisterKnownExperiences(_actionRegistry.AllExperiences);
     }
 

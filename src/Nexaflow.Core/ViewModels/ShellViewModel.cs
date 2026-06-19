@@ -326,6 +326,17 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     [NotifyPropertyChangedFor(nameof(CanSwitchProfile))]
     private bool _optionsOpen;
 
+    /// <summary>Section (config name) the Options panel should land on next time it (re)builds.
+    /// Set via <see cref="OpenOptionsAt"/>; consumed and cleared by the window.</summary>
+    public string? RequestedOptionsSection { get; set; }
+
+    /// <summary>Opens Options on the section for <paramref name="configName"/>.</summary>
+    public void OpenOptionsAt(string configName)
+    {
+        RequestedOptionsSection = configName;
+        OptionsOpen = true;
+    }
+
     // ── Manage AI / Configure overlay ─────────────────────────────────────
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSwitchProfile))]

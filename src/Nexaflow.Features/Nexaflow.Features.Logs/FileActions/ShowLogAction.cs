@@ -21,6 +21,7 @@ public sealed class ShowLogAction : IFileAction, ICacheable
     public bool   SupportsMultipleFiles => false;
     public bool   RequiresRefresh       => false;
     public bool   CanPerformAction      => true;
+    public bool   OpensViewer           => true;
 
     public bool PerformAction(string filePath)
     {

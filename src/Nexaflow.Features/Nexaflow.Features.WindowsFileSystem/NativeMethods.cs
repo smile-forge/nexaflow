@@ -139,6 +139,38 @@ namespace Nexaflow.Features.WindowsFileSystem
             return ShellExecuteEx(ref info);
         }
 
+        // ── "Open with…" picker (SHOpenWithDialog) ───────────────────────────
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct OPENASINFO
+        {
+            [MarshalAs(UnmanagedType.LPWStr)] public string  pcszFile;
+            [MarshalAs(UnmanagedType.LPWStr)] public string? pcszClass;
+            public int oaifInFlags;
+        }
+
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = true)]
+        private static extern int SHOpenWithDialog(IntPtr hwndParent, ref OPENASINFO oainfo);
+
+        private const int OAIF_ALLOW_REGISTRATION = 0x0001;
+        private const int OAIF_EXEC               = 0x0004;
+
+        /// <summary>
+        /// Shows the Windows "Open with" picker for <paramref name="path"/> and launches the chosen
+        /// app. Modal — call on the STA UI thread. Returns true when the user picked an app.
+        /// </summary>
+        public static bool ShowOpenWithDialog(string path)
+        {
+            var info = new OPENASINFO
+            {
+                pcszFile    = path,
+                pcszClass   = null,
+                oaifInFlags = OAIF_ALLOW_REGISTRATION | OAIF_EXEC,
+            };
+            try { return SHOpenWithDialog(IntPtr.Zero, ref info) == 0; }
+            catch { return false; }
+        }
+
         // ── Clipboard file operations ─────────────────────────────────────────
         // Windows uses CF_HDROP + "Preferred DropEffect" to distinguish cut vs copy.
         // DragDropEffects.Move (2) = cut, DragDropEffects.Copy (1) = copy.

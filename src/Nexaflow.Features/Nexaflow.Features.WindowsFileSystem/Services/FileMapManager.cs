@@ -472,8 +472,10 @@ public sealed class FileMapManager
     /// <summary>
     /// Returns the highest-specificity match level for <paramref name="experienceId"/>
     /// against <paramref name="file"/>:
-    /// 4 = Extension-specific, 3 = MagicNumber, 2 = PerceivedType, 1 = ContentType,
-    /// 0 = Universal (*.*), -1 = not matched.
+    /// 5 = PathPattern-specific, 4 = Extension-specific, 3 = MagicNumber,
+    /// 2 = PerceivedType, 1 = ContentType, 0 = Universal (*.*), -1 = not matched.
+    /// A PathPattern scope (an explicit file/folder/glob target) is the most specific
+    /// user intent, so it outranks an extension match and wins the default-open decision.
     /// An experience ID is considered matched at level N when it is equal to, or an
     /// ancestor of, any ID directly indexed at that level for this file.
     /// The "/" root ID is always Universal (0) — never elevated by more specific criteria.
@@ -490,6 +492,10 @@ public sealed class FileMapManager
 
         if (!isRootId)
         {
+            // PathPattern-specific (level 5) — an explicit path/glob scope beats everything.
+            foreach (var (pattern, id) in idx.PathPatternRules)
+                if (GlobMatch(file.FullName, pattern) && IsAncestorOrSelf([id], experienceId)) return 5;
+
             // Extension-specific (level 4)
             if (idx.ByExtension.TryGetValue(ext, out var byExt) &&
                 IsAncestorOrSelf(byExt, experienceId)) return 4;
@@ -613,10 +619,6 @@ public sealed class FileMapManager
     private static bool GlobMatch(string path, string pattern)
     {
         if (pattern is "*" or "*.*") return true;
-        if (pattern.StartsWith("*") && pattern.Length > 1)
-            return path.EndsWith(pattern[1..], StringComparison.OrdinalIgnoreCase);
-        if (pattern.EndsWith("*") && pattern.Length > 1)
-            return path.StartsWith(pattern[..^1], StringComparison.OrdinalIgnoreCase);
-        return string.Equals(path, pattern, StringComparison.OrdinalIgnoreCase);
+        return GlobMatcher.IsMatch(path, pattern);
     }
 }

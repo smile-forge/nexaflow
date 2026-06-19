@@ -118,3 +118,14 @@ public interface IConfigChangeTracker
     bool HasChanges { get; }
     event EventHandler? HasChangesChanged;
 }
+
+/// <summary>
+/// Optionally implemented by a custom config control to report whether its current state is
+/// valid. The Options panel blocks Save while any section reports invalid. Controls that don't
+/// implement this are always considered valid.
+/// </summary>
+public interface IConfigValidation
+{
+    bool IsValid { get; }
+    event EventHandler? IsValidChanged;
+}

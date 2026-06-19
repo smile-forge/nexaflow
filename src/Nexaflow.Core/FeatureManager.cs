@@ -120,9 +120,13 @@ public sealed class FeatureManager
             }
 
             var cfg = (IFeatureConfig)Activator.CreateInstance(t)!;
-            ConfigManager.Instance.Register(cfg, cfg.ConfigName);
-            localConfigs[t]  = cfg;
-            _configs[t]      = cfg;
+            // Use the canonical instance ConfigManager holds — startup (App.xaml.cs) pre-registers
+            // some global configs (ExternalAppsConfig/FileMapConfig/TemplatedCreateConfig) to wire
+            // their runtime registries; Register then returns that original, not our throwaway, so
+            // feature ctors and the Options panel mutate/read the same object.
+            var canonical = (IFeatureConfig)ConfigManager.Instance.Register(cfg, cfg.ConfigName);
+            localConfigs[t]  = canonical;
+            _configs[t]      = canonical;
         }
 
         // 2. Discover IPageRegistration types and build config → reg-type mapping.

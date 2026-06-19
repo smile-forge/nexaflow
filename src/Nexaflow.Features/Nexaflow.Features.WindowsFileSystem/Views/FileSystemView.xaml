@@ -9,6 +9,69 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
 
+        <!-- ── Define-New wizard local styles ──────────────────────────── -->
+        <Style x:Key="WzInput" TargetType="TextBox">
+            <Setter Property="Background"      Value="{StaticResource Surface2Brush}"/>
+            <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
+            <Setter Property="CaretBrush"      Value="{StaticResource TextBrush}"/>
+            <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding"         Value="8,6"/>
+            <Setter Property="FontSize"        Value="12"/>
+        </Style>
+
+        <Style x:Key="WzLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontSize"   Value="11"/>
+            <Setter Property="Margin"     Value="0,10,0,3"/>
+        </Style>
+
+        <Style x:Key="WzOption" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="FontSize"   Value="12"/>
+            <Setter Property="Margin"     Value="0,5,0,0"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+        </Style>
+
+        <Style x:Key="WzPrimaryBtn" TargetType="Button">
+            <Setter Property="Background"      Value="{StaticResource AccentBrush}"/>
+            <Setter Property="Foreground"      Value="{StaticResource OnAccentBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="18,7"/>
+            <Setter Property="FontSize"        Value="12"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Opacity" Value="0.85"/></Trigger>
+                            <Trigger Property="IsEnabled"   Value="False"><Setter TargetName="Bd" Property="Opacity" Value="0.4"/></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="WzSecondaryBtn" TargetType="Button" BasedOn="{StaticResource WzPrimaryBtn}">
+            <Setter Property="Background" Value="{StaticResource Surface2Brush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+        </Style>
+
+        <!-- Right-click token-insert menu for the wizard's Arguments / Working-directory fields.
+             x:Shared="False" so each field gets its own instance (a ContextMenu can't be shared). -->
+        <ContextMenu x:Key="WzTokenMenu" x:Shared="False">
+            <MenuItem Header="#file — file name (with extension)"    Tag="#file"      Click="WzInsertToken_Click"/>
+            <MenuItem Header="#filenoext — file name (no extension)" Tag="#filenoext" Click="WzInsertToken_Click"/>
+            <MenuItem Header="#filepath — full path"                 Tag="#filepath"  Click="WzInsertToken_Click"/>
+            <MenuItem Header="#pathonly — containing folder"         Tag="#pathonly"  Click="WzInsertToken_Click"/>
+        </ContextMenu>
+
         <!-- ── GridView column header style ────────────────────────────── -->
         <ControlTemplate x:Key="GvColHeaderPaddingTemplate" TargetType="GridViewColumnHeader">
             <Border Background="{StaticResource SurfaceBrush}"
@@ -826,7 +889,8 @@
                     BorderThickness="1,0,0,0"
                     Width="120"
                     MinWidth="120"
-                    MaxWidth="120">
+                    MaxWidth="120"
+                    PreviewMouseRightButtonDown="ActionStrip_PreviewMouseRightButtonDown">
                 <Grid>
                     <!-- Scrollable button area -->
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
@@ -851,6 +915,14 @@
                                             Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                         <Button.ContextMenu>
                                             <ContextMenu>
+                                                <MenuItem Header="Modify"
+                                                          Visibility="{Binding PlacementTarget.DataContext.CanModify,
+                                                                               RelativeSource={RelativeSource AncestorType=ContextMenu},
+                                                                               Converter={StaticResource BoolToVis}}"
+                                                          Command="{Binding PlacementTarget.Tag.ModifyActionCommand,
+                                                                            RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          CommandParameter="{Binding PlacementTarget.DataContext,
+                                                                                     RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                                 <MenuItem Header="Add to Ribbon"
                                                           Command="{Binding PlacementTarget.Tag.PinFileActionToRibbonCommand,
                                                                             RelativeSource={RelativeSource AncestorType=ContextMenu}}"
@@ -936,6 +1008,12 @@
                                                                 </Border>
                                                             </Grid>
                                                             <ControlTemplate.Triggers>
+                                                                <!-- Registry-derived shell verbs: distinct border so users can tell
+                                                                     them apart from built-ins (and disable them in Options). Themeable. -->
+                                                                <DataTrigger Binding="{Binding IsShellHandler}" Value="True">
+                                                                    <Setter TargetName="Bd" Property="BorderBrush"
+                                                                            Value="{DynamicResource ExternalApp.Border}"/>
+                                                                </DataTrigger>
                                                                 <Trigger Property="IsMouseOver" Value="True">
                                                                     <Setter TargetName="Bd" Property="Background"
                                                                             Value="{StaticResource Surface2Brush}"/>
@@ -1413,6 +1491,228 @@
                             </Button.Style>
                         </Button>
                     </StackPanel>
+                </Border>
+            </Border>
+
+            <!-- ── Define-New association wizard overlay ────────────────────── -->
+            <Border Grid.Row="0" Grid.Column="0" Grid.RowSpan="3" Grid.ColumnSpan="3"
+                    Visibility="{Binding WizardOverlayVisible, Converter={StaticResource BoolToVis}}"
+                    Background="#CC000000"
+                    Panel.ZIndex="23">
+                <Border Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource AccentBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Width="560"
+                        MaxHeight="600"
+                        Padding="18"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        DataContext="{Binding Wizard}">
+                    <DockPanel>
+                        <!-- Header -->
+                        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                            <TextBlock Text="Define new file association"
+                                       Foreground="{StaticResource TextBrush}"
+                                       FontSize="14" FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding StepIndicator}"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       FontSize="11" Margin="0,2,0,0"/>
+                        </StackPanel>
+
+                        <!-- Footer -->
+                        <DockPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
+                            <Button DockPanel.Dock="Left" Content="Cancel"
+                                    Style="{StaticResource WzSecondaryBtn}"
+                                    Command="{Binding CancelCommand}"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button Content="Back"
+                                        Style="{StaticResource WzSecondaryBtn}"
+                                        Command="{Binding BackCommand}"
+                                        Visibility="{Binding ShowBack, Converter={StaticResource BoolToVis}}"
+                                        Margin="0,0,8,0"/>
+                                <Button Content="{Binding AdvanceButtonText}"
+                                        Style="{StaticResource WzPrimaryBtn}"
+                                        Command="{Binding AdvanceCommand}"/>
+                            </StackPanel>
+                        </DockPanel>
+
+                        <!-- Body -->
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <Grid>
+                                <!-- Page 1: what to open with -->
+                                <StackPanel Visibility="{Binding ShowModePage, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="What should these files open with?"
+                                               Foreground="{StaticResource TextBrush}" FontSize="12"/>
+                                    <RadioButton GroupName="WzTarget" Style="{StaticResource WzOption}"
+                                                 Content="An internal viewer"
+                                                 IsChecked="{Binding IsInternalSelected, Mode=TwoWay}"/>
+                                    <RadioButton GroupName="WzTarget" Style="{StaticResource WzOption}"
+                                                 Content="An existing external app"
+                                                 IsEnabled="{Binding HasExistingApps}"
+                                                 IsChecked="{Binding IsExistingSelected, Mode=TwoWay}"/>
+                                    <RadioButton GroupName="WzTarget" Style="{StaticResource WzOption}"
+                                                 Content="A new external app"
+                                                 IsChecked="{Binding IsNewSelected, Mode=TwoWay}"/>
+                                </StackPanel>
+
+                                <!-- Page 2 (internal): pick the viewer -->
+                                <StackPanel Visibility="{Binding ShowInternalPicker, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="Choose an internal viewer"
+                                               Foreground="{StaticResource TextBrush}" FontSize="12"/>
+                                    <ListBox ItemsSource="{Binding Experiences}"
+                                             SelectedItem="{Binding SelectedExperience, Mode=TwoWay}"
+                                             Background="{StaticResource Surface2Brush}"
+                                             BorderBrush="{StaticResource BorderBrush}"
+                                             BorderThickness="1"
+                                             MaxHeight="300" Margin="0,8,0,0">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal" Margin="2,3">
+                                                    <TextBlock Text="{Binding Icon}" FontSize="18"
+                                                               Width="26" TextAlignment="Center"
+                                                               VerticalAlignment="Center"/>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding DisplayName}"
+                                                                   Foreground="{StaticResource TextBrush}"
+                                                                   FontSize="12" FontWeight="SemiBold"/>
+                                                        <TextBlock Text="{Binding Description}"
+                                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                                   FontSize="11" TextWrapping="Wrap"
+                                                                   MaxWidth="440"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </StackPanel>
+
+                                <!-- Page 2a: existing external app (user-defined + system handlers) -->
+                                <StackPanel Visibility="{Binding ShowAppPickPage, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="Choose an app"
+                                               Foreground="{StaticResource TextBrush}" FontSize="12"/>
+                                    <ListBox ItemsSource="{Binding ExistingApps}"
+                                             SelectedItem="{Binding SelectedApp, Mode=TwoWay}"
+                                             Background="{StaticResource Surface2Brush}"
+                                             BorderBrush="{StaticResource BorderBrush}"
+                                             BorderThickness="1"
+                                             MaxHeight="300" Margin="0,8,0,0">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="2,3">
+                                                    <TextBlock Text="{Binding DisplayName}"
+                                                               Foreground="{StaticResource TextBrush}"
+                                                               FontSize="12" FontWeight="SemiBold"/>
+                                                    <TextBlock Text="{Binding SubText}"
+                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                               FontSize="11" TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </StackPanel>
+
+                                <!-- Page 2b: new external app fields -->
+                                <StackPanel Visibility="{Binding ShowAppFieldsPage, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="Application path" Style="{StaticResource WzLabel}" Margin="0,0,0,3"/>
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Right" Content="Browse…"
+                                                Style="{StaticResource WzSecondaryBtn}"
+                                                Command="{Binding BrowseAppPathCommand}" Margin="8,0,0,0"/>
+                                        <TextBox Style="{StaticResource WzInput}"
+                                                 Text="{Binding NewAppPath, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </DockPanel>
+
+                                    <TextBlock Text="Display name" Style="{StaticResource WzLabel}"/>
+                                    <TextBox Style="{StaticResource WzInput}"
+                                             Text="{Binding NewAppDisplayName, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                    <!-- Advanced (collapsed by default) -->
+                                    <Button Content="{Binding AdvancedHeader}"
+                                            Command="{Binding ToggleAdvancedCommand}"
+                                            HorizontalAlignment="Left" Cursor="Hand"
+                                            Background="Transparent" BorderThickness="0" Padding="0,4"
+                                            Foreground="{StaticResource AccentBrush}" FontSize="12" Margin="0,12,0,0"/>
+
+                                    <StackPanel Visibility="{Binding AdvancedExpanded, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="Arguments" Style="{StaticResource WzLabel}"/>
+                                        <TextBox Style="{StaticResource WzInput}"
+                                                 ContextMenu="{StaticResource WzTokenMenu}"
+                                                 Text="{Binding NewAppArguments, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Style="{StaticResource WzLabel}" Margin="0,3,0,0" TextWrapping="Wrap"
+                                                   Text="Tokens: #file, #filenoext, #filepath, #pathonly (append [n] for the nth selected file). %VAR% expands environment variables. Right-click to insert."/>
+                                        <TextBlock Text="Working directory" Style="{StaticResource WzLabel}"/>
+                                        <TextBox Style="{StaticResource WzInput}"
+                                                 ContextMenu="{StaticResource WzTokenMenu}"
+                                                 Text="{Binding NewAppWorkingDir, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Style="{StaticResource WzLabel}" Margin="0,3,0,0" TextWrapping="Wrap"
+                                                   Text="Leave blank to run in the file's own folder."/>
+                                        <TextBlock Text="Icon path" Style="{StaticResource WzLabel}"/>
+                                        <DockPanel>
+                                            <Button DockPanel.Dock="Right" Content="Browse…"
+                                                    Style="{StaticResource WzSecondaryBtn}"
+                                                    Command="{Binding BrowseIconPathCommand}" Margin="8,0,0,0"/>
+                                            <TextBox Style="{StaticResource WzInput}"
+                                                     Text="{Binding NewAppIconPath, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </DockPanel>
+                                        <TextBlock Text="Multi-file behaviour" Style="{StaticResource WzLabel}"/>
+                                        <ComboBox ItemsSource="{Binding MultiFileOptions}"
+                                                  SelectedItem="{Binding NewAppMultiFileName, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <!-- Final page: scope -->
+                                <StackPanel Visibility="{Binding ShowScopePage, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="Where does this apply?"
+                                               Foreground="{StaticResource TextBrush}" FontSize="12"/>
+                                    <DockPanel Margin="0,10,0,2">
+                                        <TextBlock Text="Extension:" Foreground="{StaticResource TextMutedBrush}"
+                                                   FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <TextBox Style="{StaticResource WzInput}" Width="140" HorizontalAlignment="Left"
+                                                 Text="{Binding Extension, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </DockPanel>
+
+                                    <RadioButton GroupName="WzScope" Style="{StaticResource WzOption}"
+                                                 IsEnabled="{Binding HasSelectedFile}"
+                                                 IsChecked="{Binding IsScopeThisFile, Mode=TwoWay}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="Only this file ("/>
+                                            <TextBlock Text="{Binding SelectedFileName}"/>
+                                            <TextBlock Text=")"/>
+                                        </StackPanel>
+                                    </RadioButton>
+                                    <RadioButton GroupName="WzScope" Style="{StaticResource WzOption}"
+                                                 IsChecked="{Binding IsScopeExtFolder, Mode=TwoWay}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="All "/>
+                                            <TextBlock Text="{Binding ExtGlob}" FontWeight="SemiBold"/>
+                                            <TextBlock Text=" in this folder + subfolders"/>
+                                        </StackPanel>
+                                    </RadioButton>
+                                    <RadioButton GroupName="WzScope" Style="{StaticResource WzOption}"
+                                                 IsChecked="{Binding IsScopeExtAnywhere, Mode=TwoWay}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="All "/>
+                                            <TextBlock Text="{Binding ExtGlob}" FontWeight="SemiBold"/>
+                                            <TextBlock Text=" anywhere on this PC"/>
+                                        </StackPanel>
+                                    </RadioButton>
+                                    <RadioButton GroupName="WzScope" Style="{StaticResource WzOption}"
+                                                 Content="Custom globs (; separated, full-path)"
+                                                 IsChecked="{Binding IsScopeCustom, Mode=TwoWay}"/>
+                                    <TextBox Style="{StaticResource WzInput}" Margin="0,4,0,0"
+                                             IsEnabled="{Binding IsScopeCustom}"
+                                             Text="{Binding CustomGlobs, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                    <TextBlock Text="{Binding FolderPath}"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="10" TextTrimming="CharacterEllipsis"
+                                               Margin="0,10,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </ScrollViewer>
+                    </DockPanel>
                 </Border>
             </Border>
 

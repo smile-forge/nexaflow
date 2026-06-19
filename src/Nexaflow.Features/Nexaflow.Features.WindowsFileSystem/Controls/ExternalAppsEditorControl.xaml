@@ -7,6 +7,78 @@
     <UserControl.Resources>
         <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
         <cv:InverseBoolToVisibilityConverter x:Key="InverseBoolVis"/>
+
+        <!-- Field label above each input -->
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontSize"   Value="11"/>
+            <Setter Property="Margin"     Value="0,8,0,3"/>
+        </Style>
+
+        <!-- Collapsible-section header (chevron flips with IsChecked) -->
+        <Style x:Key="SectionToggle" TargetType="ToggleButton">
+            <Setter Property="Background"          Value="Transparent"/>
+            <Setter Property="BorderThickness"     Value="0"/>
+            <Setter Property="Cursor"              Value="Hand"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Setter Property="Margin"              Value="0,12,0,2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <StackPanel Orientation="Horizontal" Background="Transparent">
+                            <TextBlock x:Name="Chev" Text="▸" Margin="0,0,6,0"
+                                       Foreground="{StaticResource AccentBrush}" FontSize="12"/>
+                            <ContentPresenter VerticalAlignment="Center"
+                                              TextBlock.Foreground="{StaticResource AccentBrush}"
+                                              TextBlock.FontSize="12" TextBlock.FontWeight="SemiBold"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Chev" Property="Text" Value="▾"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Match-rule rows: an ItemsControl (no selection/hover) whose template is a 3-column grid
+             with a stretching Pattern field that rings red when the value is invalid for its type. -->
+        <Style x:Key="RuleRows" TargetType="ItemsControl">
+            <Setter Property="ItemTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <Grid Margin="0,1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="120"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="36"/>
+                            </Grid.ColumnDefinitions>
+                            <ComboBox Grid.Column="0" ItemsSource="{Binding TypeOptions}" SelectedItem="{Binding TypeName}"
+                                      Style="{StaticResource DarkComboBox}" FontSize="11" Margin="0,0,4,0"/>
+                            <Border Grid.Column="1" BorderThickness="1.5" CornerRadius="8" Margin="0,0,4,0">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="BorderBrush" Value="Transparent"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsValid}" Value="False">
+                                                <Setter Property="BorderBrush" Value="{StaticResource DangerBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource DarkTextBox}" FontSize="11"/>
+                            </Border>
+                            <Button Grid.Column="2" Style="{StaticResource IconButton}" ToolTip="Remove rule"
+                                    Tag="{Binding}" Click="RemoveCriterion_Click">
+                                <TextBlock Text="✕" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                            </Button>
+                        </Grid>
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <DockPanel Margin="12">
@@ -93,9 +165,10 @@
                                     <TextBlock Text="{Binding DisplayName}"
                                                Foreground="{StaticResource TextBrush}"
                                                FontSize="12"/>
-                                    <TextBlock Text="{Binding Extension}"
+                                    <TextBlock Text="{Binding ListLabel}"
                                                Foreground="{StaticResource TextMutedBrush}"
-                                               FontSize="10"/>
+                                               FontSize="10"
+                                               TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -117,90 +190,89 @@
                            Visibility="{Binding HasSelectedApp, RelativeSource={RelativeSource AncestorType=UserControl},
                                                 Converter={StaticResource InverseBoolVis}}"/>
 
-                <Grid Visibility="{Binding HasSelectedApp, RelativeSource={RelativeSource AncestorType=UserControl},
-                                          Converter={StaticResource BoolVis}}"
-                      DataContext="{Binding SelectedApp, RelativeSource={RelativeSource AncestorType=UserControl}}">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="100"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              Visibility="{Binding HasSelectedApp, RelativeSource={RelativeSource AncestorType=UserControl},
+                                                   Converter={StaticResource BoolVis}}"
+                              DataContext="{Binding SelectedApp, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                    <StackPanel Margin="0,0,4,0">
 
-                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Extension"
-                               Foreground="{StaticResource TextBrush}" FontSize="12"
-                               VerticalAlignment="Center" Margin="0,3,4,3"/>
-                    <TextBox  Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
-                              Text="{Binding Extension, UpdateSourceTrigger=PropertyChanged}"
-                              Style="{StaticResource DarkTextBox}" FontSize="11" Margin="0,3"/>
+                        <!-- Essentials -->
+                        <TextBlock Text="Display name" Style="{StaticResource FieldLabel}" Margin="0,0,0,3"/>
+                        <TextBox Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource DarkTextBox}" FontSize="11"/>
 
-                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Display name"
-                               Foreground="{StaticResource TextBrush}" FontSize="12"
-                               VerticalAlignment="Center" Margin="0,3,4,3"/>
-                    <TextBox  Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
-                              Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}"
-                              Style="{StaticResource DarkTextBox}" FontSize="11" Margin="0,3"/>
+                        <TextBlock Text="Application path" Style="{StaticResource FieldLabel}"/>
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="…" MinWidth="28" Margin="4,0,0,0"
+                                    Style="{StaticResource IconButton}" Click="BrowseAppPath_Click"/>
+                            <TextBox Text="{Binding ApplicationPath, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource DarkTextBox}" FontSize="11"
+                                     local:TokenAutocomplete.IsEnabled="True"/>
+                        </DockPanel>
 
-                    <TextBlock Grid.Row="2" Grid.Column="0" Text="App path"
-                               Foreground="{StaticResource TextBrush}" FontSize="12"
-                               VerticalAlignment="Center" Margin="0,3,4,3"/>
-                    <TextBox  Grid.Row="2" Grid.Column="1"
-                              Text="{Binding ApplicationPath, UpdateSourceTrigger=PropertyChanged}"
-                              Style="{StaticResource DarkTextBox}" FontSize="11" Margin="0,3"
-                              local:TokenAutocomplete.IsEnabled="True"/>
-                    <Button   Grid.Row="2" Grid.Column="2" Content="…"
-                              MinWidth="28" Margin="4,3,0,3"
-                              Style="{StaticResource IconButton}"
-                              Click="BrowseAppPath_Click"/>
+                        <!-- Advanced (collapsed by default) -->
+                        <ToggleButton Style="{StaticResource SectionToggle}" Content="Advanced options"
+                                      IsChecked="{Binding AdvancedExpanded, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                        <StackPanel Visibility="{Binding AdvancedExpanded, RelativeSource={RelativeSource AncestorType=UserControl},
+                                                          Converter={StaticResource BoolVis}}">
+                            <TextBlock Text="Arguments" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding Arguments, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource DarkTextBox}" FontSize="11"
+                                     AcceptsReturn="True" TextWrapping="Wrap" MinHeight="46"
+                                     local:TokenAutocomplete.IsEnabled="True"/>
+                            <TextBlock Text="Working directory" Style="{StaticResource FieldLabel}"/>
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Content="…" MinWidth="28" Margin="4,0,0,0"
+                                        Style="{StaticResource IconButton}" Click="BrowseWorkingDir_Click"/>
+                                <TextBox Text="{Binding WorkingDirectory, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource DarkTextBox}" FontSize="11"
+                                         local:TokenAutocomplete.IsEnabled="True"/>
+                            </DockPanel>
+                            <TextBlock Text="Icon path" Style="{StaticResource FieldLabel}"/>
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Content="…" MinWidth="28" Margin="4,0,0,0"
+                                        Style="{StaticResource IconButton}" Click="BrowseIconPath_Click"/>
+                                <TextBox Text="{Binding IconPath, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource DarkTextBox}" FontSize="11"/>
+                            </DockPanel>
+                            <TextBlock Text="Multi-file behaviour" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox ItemsSource="{Binding MultiFileOptions}"
+                                      SelectedItem="{Binding MultiFileName, UpdateSourceTrigger=PropertyChanged}"
+                                      Style="{StaticResource DarkComboBox}" FontSize="11"/>
+                        </StackPanel>
 
-                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Arguments"
-                               Foreground="{StaticResource TextBrush}" FontSize="12"
-                               VerticalAlignment="Top" Margin="0,6,4,3"/>
-                    <TextBox  Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2"
-                              Text="{Binding Arguments, UpdateSourceTrigger=PropertyChanged}"
-                              Style="{StaticResource DarkTextBox}" FontSize="11" Margin="0,3"
-                              AcceptsReturn="True" TextWrapping="Wrap" MinHeight="46"
-                              local:TokenAutocomplete.IsEnabled="True"/>
-
-                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Working dir"
-                               Foreground="{StaticResource TextBrush}" FontSize="12"
-                               VerticalAlignment="Center" Margin="0,3,4,3"/>
-                    <TextBox  Grid.Row="4" Grid.Column="1"
-                              Text="{Binding WorkingDirectory, UpdateSourceTrigger=PropertyChanged}"
-                              Style="{StaticResource DarkTextBox}" FontSize="11" Margin="0,3"
-                              local:TokenAutocomplete.IsEnabled="True"/>
-                    <Button   Grid.Row="4" Grid.Column="2" Content="…"
-                              MinWidth="28" Margin="4,3,0,3"
-                              Style="{StaticResource IconButton}"
-                              Click="BrowseWorkingDir_Click"/>
-
-                    <TextBlock Grid.Row="5" Grid.Column="0" Text="Icon path"
-                               Foreground="{StaticResource TextBrush}" FontSize="12"
-                               VerticalAlignment="Center" Margin="0,3,4,3"/>
-                    <TextBox  Grid.Row="5" Grid.Column="1"
-                              Text="{Binding IconPath, UpdateSourceTrigger=PropertyChanged}"
-                              Style="{StaticResource DarkTextBox}" FontSize="11" Margin="0,3"/>
-                    <Button   Grid.Row="5" Grid.Column="2" Content="…"
-                              MinWidth="28" Margin="4,3,0,3"
-                              Style="{StaticResource IconButton}"
-                              Click="BrowseIconPath_Click"/>
-
-                    <TextBlock Grid.Row="6" Grid.Column="0" Text="Multi-file"
-                               Foreground="{StaticResource TextBrush}" FontSize="12"
-                               VerticalAlignment="Center" Margin="0,3,4,3"/>
-                    <ComboBox Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2"
-                              ItemsSource="{Binding MultiFileOptions}"
-                              SelectedItem="{Binding MultiFileName, UpdateSourceTrigger=PropertyChanged}"
-                              Style="{StaticResource DarkComboBox}" FontSize="11" Margin="0,3"/>
-                </Grid>
+                        <!-- File matching rules (expanded by default) -->
+                        <ToggleButton Style="{StaticResource SectionToggle}" Content="File matching rules"
+                                      IsChecked="{Binding RulesExpanded, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                        <StackPanel Visibility="{Binding RulesExpanded, RelativeSource={RelativeSource AncestorType=UserControl},
+                                                          Converter={StaticResource BoolVis}}">
+                            <TextBlock Text="Opens files matching any of these rules — extension glob (e.g. *.slnx) or full-path glob (e.g. C:\src\**\*.cs)."
+                                       Foreground="{StaticResource TextMutedBrush}" FontSize="10"
+                                       TextWrapping="Wrap" Margin="0,2,0,4"/>
+                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                    CornerRadius="4" Padding="4" MinHeight="120">
+                                <DockPanel>
+                                    <Grid DockPanel.Dock="Top" Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="120"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="36"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Match by" Margin="2,0"
+                                                   Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
+                                        <TextBlock Grid.Column="1" Text="Pattern" Margin="2,0"
+                                                   Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
+                                    </Grid>
+                                    <ItemsControl ItemsSource="{Binding CriteriaRows}" Style="{StaticResource RuleRows}"/>
+                                </DockPanel>
+                            </Border>
+                            <Button Content="+ Add rule"
+                                    HorizontalAlignment="Left" MinWidth="100" Margin="0,6,0,0"
+                                    Style="{StaticResource IconButton}"
+                                    Click="AddCriterion_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
             </Grid>
         </Grid>
     </DockPanel>

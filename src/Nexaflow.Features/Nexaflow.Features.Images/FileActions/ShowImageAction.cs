@@ -29,6 +29,7 @@ namespace Nexaflow.Features.Images.FileActions
         public string ExperienceDescription  => "Image Viewer";
         public bool   RequiresRefresh        => false;
         public bool   CanPerformAction       => true;
+        public bool   OpensViewer            => true;
 
         public bool PerformAction(string filePath)
         {

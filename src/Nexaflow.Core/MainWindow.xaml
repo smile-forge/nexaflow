@@ -666,10 +666,25 @@
                 Visibility="{Binding OptionsOpen, Converter={StaticResource BoolVis}}"
                 HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                 Background="#CC0F1117" Panel.ZIndex="100">
-            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Width="960" Height="600" Style="{StaticResource PopupBorder}">
-                <ctrl:OptionsPanel x:Name="OptionsPanelControl"/>
-            </Border>
+            <!-- Proportional to the window (~80%), clamped so it stays usable on small windows
+                 and doesn't sprawl on large ones. Star-sized spacers avoid a multiply converter. -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="8*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="8*"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Border Grid.Row="1" Grid.Column="1"
+                        MinWidth="720" MinHeight="460" MaxWidth="1400" MaxHeight="1000"
+                        Style="{StaticResource PopupBorder}">
+                    <ctrl:OptionsPanel x:Name="OptionsPanelControl"/>
+                </Border>
+            </Grid>
         </Border>
 
         <!-- ═══════════════════════════════════════════════════════════
