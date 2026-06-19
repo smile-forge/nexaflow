@@ -232,7 +232,9 @@ public partial class ConfigEditViewModel : ObservableObject
 
     private void RecheckValidity()
     {
-        IsValid    = Properties.All(p => p.IsValid);
+        IsValid = HasCustomControl
+            ? (CustomControlInstance is not Nexaflow.Features.Common.IConfigValidation v || v.IsValid)
+            : Properties.All(p => p.IsValid);
         HasChanges = HasCustomControl
             ? (CustomControlInstance is not Nexaflow.Features.Common.IConfigChangeTracker t || t.HasChanges)
             : Properties.Any(p => p.HasChanged);
@@ -300,6 +302,9 @@ public partial class ConfigEditViewModel : ObservableObject
 
                 if (ctrl is Nexaflow.Features.Common.IConfigChangeTracker tracker)
                     tracker.HasChangesChanged += (_, _) => RecheckValidity();
+
+                if (ctrl is Nexaflow.Features.Common.IConfigValidation validator)
+                    validator.IsValidChanged += (_, _) => RecheckValidity();
             }
             catch { /* fall back to property grid if control can't be instantiated */ }
 

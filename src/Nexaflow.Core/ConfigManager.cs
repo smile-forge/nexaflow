@@ -15,6 +15,7 @@ public sealed class ConfigManager
 
     private readonly List<object>    _configs         = [];
     private readonly HashSet<string> _seen            = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, object> _byName = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _defaultedConfigs = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly JsonSerializerOptions _opts = new()
@@ -53,15 +54,19 @@ public sealed class ConfigManager
         Path.Combine(GetConfigDir(configName), $"config_{version}.json");
 
     /// <summary>
-    /// Registers a config POCO and populates its properties from disk.
-    /// Duplicate <paramref name="configName"/> values are silently ignored (first wins).
+    /// Registers a config POCO and populates its properties from disk, returning the
+    /// <em>canonical</em> instance for <paramref name="configName"/>. Duplicate names keep the
+    /// first registration (first wins); a later caller gets that original instance back rather than
+    /// its own — so every consumer of a given config shares one object. Callers that may register a
+    /// config already wired by startup (e.g. <see cref="FeatureManager"/> vs App.xaml.cs) must use
+    /// the returned value, not the instance they passed in.
     /// If a config file exists for a different assembly version it is deleted and the config
     /// defaults. Throws <see cref="IOException"/> or <see cref="JsonException"/> if the
     /// matching file exists but is unreadable.
     /// </summary>
-    public void Register(object config, string configName)
+    public object Register(object config, string configName)
     {
-        if (!_seen.Add(configName)) return;
+        if (!_seen.Add(configName)) return _byName[configName];
 
         var version      = config.GetType().Assembly.GetName().Version ?? new Version(0, 0, 0, 0);
         var expectedPath = GetPath(configName, version);
@@ -84,6 +89,8 @@ public sealed class ConfigManager
         }
 
         _configs.Add(config);
+        _byName[configName] = config;
+        return config;
     }
 
     /// <summary>All registered config POCOs in registration order.</summary>

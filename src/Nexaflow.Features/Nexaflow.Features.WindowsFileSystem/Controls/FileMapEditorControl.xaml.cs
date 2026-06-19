@@ -3,6 +3,7 @@ using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
 using System;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows;
@@ -10,7 +11,7 @@ using System.Windows.Controls;
 
 namespace Nexaflow.Features.WindowsFileSystem.Controls;
 
-public partial class FileMapEditorControl : UserControl, ICustomConfigApply
+public partial class FileMapEditorControl : UserControl, ICustomConfigApply, IConfigValidation
 {
     // ── Dependency properties ────────────────────────────────────────────────
 
@@ -33,6 +34,10 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply
         get => (bool)GetValue(HasSelectedMappingProperty);
         private set => SetValue(HasSelectedMappingProperty, value);
     }
+
+    /// <summary>When set before the Options panel opens (via the file browser's "Modify" command),
+    /// the editor selects this experience on load, then clears it.</summary>
+    public static string? PendingExperienceId { get; set; }
 
     // ── Tree node model ──────────────────────────────────────────────────────
 
@@ -62,14 +67,17 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply
         public string TypeName
         {
             get => _typeName;
-            set { _typeName = value; PropertyChanged?.Invoke(this, new(nameof(TypeName))); }
+            set { _typeName = value; PropertyChanged?.Invoke(this, new(nameof(TypeName))); PropertyChanged?.Invoke(this, new(nameof(IsValid))); }
         }
 
         public string Value
         {
             get => _value;
-            set { _value = value; PropertyChanged?.Invoke(this, new(nameof(Value))); }
+            set { _value = value; PropertyChanged?.Invoke(this, new(nameof(Value))); PropertyChanged?.Invoke(this, new(nameof(IsValid))); }
         }
+
+        /// <summary>False when the value can't work for the chosen type (rings the field red).</summary>
+        public bool IsValid => CriterionValidity.IsValid(_typeName, _value);
 
         public FileSelectionCriteria ToCriteria() => new()
         {
@@ -82,13 +90,67 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply
 
     // ── Constructor ──────────────────────────────────────────────────────────
 
+    // Rows for the currently-selected experience. Bound to the criteria ItemsControl.
+    private readonly ObservableCollection<CriterionRow> _criteria = [];
+
     public FileMapEditorControl()
     {
         InitializeComponent();
+        _criteria.CollectionChanged += OnCriteriaChanged;
+        CriteriaItems.ItemsSource = _criteria;
         Loaded += OnLoaded;
     }
 
-    private void OnLoaded(object sender, RoutedEventArgs e) => PopulateTree();
+    // ── IConfigValidation ──────────────────────────────────────────────────────
+
+    public bool IsValid => _criteria.All(c => c.IsValid);
+    public event EventHandler? IsValidChanged;
+    private void RaiseValidity() => IsValidChanged?.Invoke(this, EventArgs.Empty);
+
+    private void OnCriteriaChanged(object? s, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.NewItems is not null) foreach (CriterionRow r in e.NewItems) r.PropertyChanged += OnCriterionChanged;
+        if (e.OldItems is not null) foreach (CriterionRow r in e.OldItems) r.PropertyChanged -= OnCriterionChanged;
+        RaiseValidity();
+    }
+    private void OnCriterionChanged(object? s, PropertyChangedEventArgs e) => RaiseValidity();
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        PopulateTree();
+
+        // Deep-link from "Modify": show the requested experience's criteria, then highlight its
+        // tree node once the containers exist.
+        if (PendingExperienceId is { Length: > 0 } expId)
+        {
+            PendingExperienceId = null;
+            SelectedMapping = FileMapManager.Instance.GetMapping(expId)
+                ?? new ExperienceMapping { ExperienceId = expId, Source = MappingSource.User };
+            Dispatcher.BeginInvoke(
+                new Action(() => { try { SelectTreeNode(ExperienceTree, expId); } catch { } }),
+                System.Windows.Threading.DispatcherPriority.Background);
+        }
+    }
+
+    /// <summary>Best-effort: finds and selects the <see cref="TreeViewItem"/> for <paramref name="fullId"/>.</summary>
+    private static bool SelectTreeNode(ItemsControl parent, string fullId)
+    {
+        foreach (var item in parent.Items)
+        {
+            if (parent.ItemContainerGenerator.ContainerFromItem(item) is not TreeViewItem tvi) continue;
+            if (item is ExperienceNode node &&
+                string.Equals(node.FullId, fullId, StringComparison.OrdinalIgnoreCase))
+            {
+                tvi.IsSelected = true;
+                tvi.BringIntoView();
+                return true;
+            }
+            tvi.IsExpanded = true;
+            tvi.UpdateLayout();
+            if (SelectTreeNode(tvi, fullId)) return true;
+        }
+        return false;
+    }
 
     private void PopulateTree()
     {
@@ -144,7 +206,7 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply
 
     private void RefreshCriteriaList()
     {
-        CriteriaList.Items.Clear();
+        _criteria.Clear();
         if (SelectedMapping is null) return;
 
         ExperienceIdLabel.Text   = SelectedMapping.ExperienceId;
@@ -153,13 +215,7 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply
             : string.Empty;
 
         foreach (var c in SelectedMapping.Criteria)
-        {
-            CriteriaList.Items.Add(new CriterionRow
-            {
-                TypeName = c.Type.ToString(),
-                Value    = c.Value,
-            });
-        }
+            _criteria.Add(new CriterionRow { TypeName = c.Type.ToString(), Value = c.Value });
     }
 
     // ── Save ─────────────────────────────────────────────────────────────────
@@ -168,7 +224,7 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply
     {
         if (SelectedMapping is null) return;
         SelectedMapping.Criteria.Clear();
-        foreach (var row in CriteriaList.Items.OfType<CriterionRow>())
+        foreach (var row in _criteria)
             SelectedMapping.Criteria.Add(row.ToCriteria());
         SelectedMapping.Source = MappingSource.User;
         FileMapManager.Instance.SaveMapping(SelectedMapping);
@@ -180,13 +236,11 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply
     // ── Criterion buttons ────────────────────────────────────────────────────
 
     private void AddCriterion_Click(object sender, RoutedEventArgs e)
-    {
-        CriteriaList.Items.Add(new CriterionRow());
-    }
+        => _criteria.Add(new CriterionRow());
 
     private void RemoveCriterion_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button btn && btn.Tag is CriterionRow row)
-            CriteriaList.Items.Remove(row);
+        if (sender is Button { Tag: CriterionRow row })
+            _criteria.Remove(row);
     }
 }

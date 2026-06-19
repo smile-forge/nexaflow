@@ -50,6 +50,22 @@ namespace Nexaflow.Features.Common
         /// </summary>
         bool IsRibbonPinnable => true;
 
+        /// <summary>
+        /// True when this action opens the file in an internal Nexaflow viewer tab (Text, Image,
+        /// JSON, …) — as opposed to a utility action (delete/rename/properties) or an external
+        /// launch (open-with, shell verb, custom app). The "Define New" wizard lists only
+        /// viewer actions when mapping a file type to an internal viewer. Defaults to <c>false</c>.
+        /// </summary>
+        bool OpensViewer => false;
+
+        /// <summary>
+        /// Whether the action strip shows its success-tick flash after this action runs. Defaults
+        /// to <c>true</c>. Chooser/gateway actions whose completion can't be detected reliably set
+        /// this <c>false</c> — e.g. the "Open With" dialog, which doesn't report cancellation
+        /// consistently across Windows versions, so a tick would be misleading.
+        /// </summary>
+        bool ShowsSuccessTick => true;
+
         bool PerformAction(string filePath);
         bool PerformAction(IEnumerable<string> filePaths);
 

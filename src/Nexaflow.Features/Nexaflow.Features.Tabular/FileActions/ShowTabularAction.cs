@@ -18,6 +18,7 @@ public sealed class ShowTabularAction : IFileAction, ICacheable
     public string ExperienceDescription  => "Tabular viewer for CSV / TSV files";
     public bool   RequiresRefresh        => false;
     public bool   CanPerformAction       => true;
+    public bool   OpensViewer            => true;
 
     public bool PerformAction(string filePath)
     {

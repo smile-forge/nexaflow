@@ -6,6 +6,119 @@
     <UserControl.Resources>
         <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
         <cv:InverseBoolToVisibilityConverter x:Key="InverseBoolVis"/>
+
+        <!-- Themed tree item: selection/hover use theme brushes (the default WPF highlight is a
+             fixed system colour that's unreadable in some themes). -->
+        <Style x:Key="MapTreeItem" TargetType="TreeViewItem">
+            <Setter Property="IsExpanded" Value="True"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="FontSize"   Value="12"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TreeViewItem">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition/>
+                            </Grid.RowDefinitions>
+                            <Border x:Name="RowBorder" Grid.Row="0" CornerRadius="4" Margin="0,1"
+                                    BorderThickness="1" BorderBrush="Transparent" Background="Transparent">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="16"/>
+                                        <ColumnDefinition/>
+                                    </Grid.ColumnDefinitions>
+                                    <ToggleButton x:Name="Expander" Grid.Column="0" Width="16" Height="16"
+                                                  Focusable="False"
+                                                  IsChecked="{Binding IsExpanded, Mode=TwoWay,
+                                                      RelativeSource={RelativeSource AncestorType=TreeViewItem}}">
+                                        <ToggleButton.Template>
+                                            <ControlTemplate TargetType="ToggleButton">
+                                                <Grid Width="16" Height="16" Background="Transparent">
+                                                    <Path x:Name="AR" Data="M 6 4 L 10 8 L 6 12"
+                                                          Stroke="{StaticResource TextDimBrush}" StrokeThickness="1.5"
+                                                          StrokeLineJoin="Round" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    <Path x:Name="AD" Data="M 4 6 L 8 10 L 12 6"
+                                                          Stroke="{StaticResource TextDimBrush}" StrokeThickness="1.5"
+                                                          StrokeLineJoin="Round" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                          Visibility="Collapsed"/>
+                                                </Grid>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsChecked" Value="True">
+                                                        <Setter TargetName="AR" Property="Visibility" Value="Collapsed"/>
+                                                        <Setter TargetName="AD" Property="Visibility" Value="Visible"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </ToggleButton.Template>
+                                    </ToggleButton>
+                                    <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" Margin="2"/>
+                                </Grid>
+                            </Border>
+                            <ItemsPresenter Grid.Row="1" x:Name="ItemsHost" Margin="14,0,0,0"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsExpanded" Value="False">
+                                <Setter TargetName="ItemsHost" Property="Visibility" Value="Collapsed"/>
+                            </Trigger>
+                            <Trigger Property="HasItems" Value="False">
+                                <Setter TargetName="Expander" Property="Visibility" Value="Hidden"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsSelected"   Value="False"/>
+                                    <Condition Property="IsMouseOver"   Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="RowBorder" Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                            </MultiTrigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="RowBorder" Property="Background"  Value="{StaticResource Surface2Brush}"/>
+                                <Setter TargetName="RowBorder" Property="BorderBrush"  Value="{StaticResource AccentBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Match-criterion rows: ItemsControl (no selection/hover) with a stretching, red-on-invalid
+             Value field and a delete button sized to fit. -->
+        <Style x:Key="RuleRows" TargetType="ItemsControl">
+            <Setter Property="ItemTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <Grid Margin="0,1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="120"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="36"/>
+                            </Grid.ColumnDefinitions>
+                            <ComboBox Grid.Column="0" ItemsSource="{Binding TypeOptions}" SelectedItem="{Binding TypeName}"
+                                      Style="{StaticResource DarkComboBox}" FontSize="11" Margin="0,0,4,0"/>
+                            <Border Grid.Column="1" BorderThickness="1.5" CornerRadius="8" Margin="0,0,4,0">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="BorderBrush" Value="Transparent"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsValid}" Value="False">
+                                                <Setter Property="BorderBrush" Value="{StaticResource DangerBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource DarkTextBox}" FontSize="11"/>
+                            </Border>
+                            <Button Grid.Column="2" Style="{StaticResource IconButton}" ToolTip="Remove criterion"
+                                    Tag="{Binding}" Click="RemoveCriterion_Click">
+                                <TextBlock Text="✕" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                            </Button>
+                        </Grid>
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <DockPanel Margin="12">
@@ -25,13 +138,8 @@
                 <TreeView x:Name="ExperienceTree"
                           Background="Transparent"
                           BorderThickness="0"
+                          ItemContainerStyle="{StaticResource MapTreeItem}"
                           SelectedItemChanged="ExperienceTree_SelectedItemChanged">
-                    <TreeView.ItemContainerStyle>
-                        <Style TargetType="TreeViewItem">
-                            <Setter Property="IsExpanded" Value="True"/>
-                            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-                        </Style>
-                    </TreeView.ItemContainerStyle>
                     <TreeView.ItemTemplate>
                         <HierarchicalDataTemplate ItemsSource="{Binding Children}">
                             <TextBlock Text="{Binding Segment}"
@@ -78,50 +186,25 @@
                             Click="AddCriterion_Click"/>
 
                     <!-- Criteria list -->
-                    <ListView x:Name="CriteriaList"
-                              Background="Transparent"
-                              BorderBrush="{StaticResource BorderBrush}"
-                              BorderThickness="1"
-                              SelectionMode="Single">
-                        <ListView.View>
-                            <GridView>
-                                <GridViewColumn Header="Type" Width="120">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <ComboBox ItemsSource="{Binding TypeOptions}"
-                                                      SelectedItem="{Binding TypeName}"
-                                                      Style="{StaticResource DarkComboBox}"
-                                                      FontSize="11"
-                                                      MinWidth="100"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                                <GridViewColumn Header="Value" Width="240">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
-                                                     Style="{StaticResource DarkTextBox}"
-                                                     FontSize="11"
-                                                     MinWidth="200"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                                <GridViewColumn Header="" Width="32">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <Button Style="{StaticResource IconButton}"
-                                                    ToolTip="Remove criterion"
-                                                    Tag="{Binding}"
-                                                    Click="RemoveCriterion_Click">
-                                                <TextBlock Text="✕" FontSize="10"
-                                                           Foreground="{StaticResource TextMutedBrush}"/>
-                                            </Button>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                            </GridView>
-                        </ListView.View>
-                    </ListView>
+                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                            CornerRadius="4" Padding="4">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <DockPanel>
+                                <Grid DockPanel.Dock="Top" Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="36"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Type" Margin="2,0"
+                                               Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
+                                    <TextBlock Grid.Column="1" Text="Value" Margin="2,0"
+                                               Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
+                                </Grid>
+                                <ItemsControl x:Name="CriteriaItems" Style="{StaticResource RuleRows}"/>
+                            </DockPanel>
+                        </ScrollViewer>
+                    </Border>
                 </DockPanel>
             </Grid>
         </Grid>

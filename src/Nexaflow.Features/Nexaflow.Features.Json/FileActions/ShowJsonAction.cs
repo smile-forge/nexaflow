@@ -17,6 +17,7 @@ public sealed class ShowJsonAction : IFileAction, ICacheable
     public string ExperienceDescription => "JSON file viewer and editor";
     public bool   RequiresRefresh       => false;
     public bool   CanPerformAction      => true;
+    public bool   OpensViewer           => true;
 
     public bool PerformAction(string filePath)
     {

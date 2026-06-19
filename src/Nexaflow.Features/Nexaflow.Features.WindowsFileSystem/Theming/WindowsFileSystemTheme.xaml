@@ -1,0 +1,12 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ════ File-system feature colour tokens ════
+         Shipped as an IThemeContribution so they merge BELOW the active theme (a fallback every
+         theme inherits and may retune by key). The action strip draws registry-derived shell-verb
+         entries with this border so users can tell them apart from built-in actions (and know they
+         can be disabled via "Use registry-based file type mapping"). Default: a slightly darker yellow. -->
+
+    <SolidColorBrush x:Key="ExternalApp.Border" Color="#C9A227"/>
+
+</ResourceDictionary>

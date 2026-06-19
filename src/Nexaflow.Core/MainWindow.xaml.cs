@@ -78,10 +78,14 @@ public partial class MainWindow : Window
                 _shellServices.RestartWindowForTheme(_vm, shell.Theme);
         };
 
-        if (_returnToOptionsSection is not null)
+        // Section requested either by an internal return-trip (Configure → Options) or by a
+        // feature deep-link via IShellServices.OpenOptions.
+        var section = _returnToOptionsSection ?? _vm.RequestedOptionsSection;
+        if (section is not null)
         {
-            optionsVm.SelectSection(_returnToOptionsSection);
-            _returnToOptionsSection = null;
+            optionsVm.SelectSection(section);
+            _returnToOptionsSection   = null;
+            _vm.RequestedOptionsSection = null;
         }
 
         OptionsPanelControl.DataContext = optionsVm;

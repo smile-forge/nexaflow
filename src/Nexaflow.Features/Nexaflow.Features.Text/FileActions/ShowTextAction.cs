@@ -21,6 +21,7 @@ public sealed class ShowTextAction : IFileAction, ICacheable
     public string ExperienceDescription  => "Lightweight Text editor";
     public bool   RequiresRefresh        => false;
     public bool   CanPerformAction       => true;
+    public bool   OpensViewer            => true;
 
     public bool PerformAction(string filePath)
     {

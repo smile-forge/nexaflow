@@ -24,6 +24,10 @@ public sealed class CustomAction : IFileAction
         _iconImage = iconImage;
     }
 
+    /// <summary>The backing definition (same instance held in <see cref="ExternalAppsConfig.Apps"/>)
+    /// — lets the "Modify" command deep-link the Options editor to this app.</summary>
+    internal ExternalAppDefinition Definition => _def;
+
     // ── IFileAction ───────────────────────────────────────────────────────────
 
     public bool   IsDestructive         => false;
@@ -66,6 +70,10 @@ public sealed class CustomAction : IFileAction
         {
             var args = ActionTemplateExpander.Expand(_def.Arguments,        paths);
             var wd   = ActionTemplateExpander.Expand(_def.WorkingDirectory, paths);
+            // Unspecified working directory → the launched app runs in the file's own folder,
+            // not Nexaflow's binary directory (the process default).
+            if (string.IsNullOrWhiteSpace(wd) && paths.Count > 0)
+                wd = System.IO.Path.GetDirectoryName(paths[0]) ?? string.Empty;
             var psi  = new ProcessStartInfo
             {
                 FileName         = Environment.ExpandEnvironmentVariables(_def.ApplicationPath),

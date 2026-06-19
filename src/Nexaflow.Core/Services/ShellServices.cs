@@ -1,5 +1,6 @@
 using Nexaflow.Core.Controls;
 using Nexaflow.Core.Models;
+using Nexaflow.Core.ViewModels;
 using Nexaflow.Core.Views;
 using Nexaflow.Elevation.Contracts;
 using Nexaflow.Features.Common;
@@ -505,6 +506,18 @@ public sealed class ShellServices : IShellServices
                 view.Reinitialize(active.PageParams ?? []);
         });
     }
+
+    void IShellServices.SaveFeatureConfig(IFeatureConfig config)
+        => ConfigManager.Instance.Save(config, config.ConfigName);
+
+    void IShellServices.OpenOptions(string configName)
+        => Application.Current?.Dispatcher.Invoke(() =>
+        {
+            // IWindowHost is implemented only by ShellViewModel; the feature reaches this via
+            // IShellServices, never IWindowHost itself.
+            if ((_focused ?? _windows.FirstOrDefault()) is ShellViewModel vm)
+                vm.OpenOptionsAt(configName);
+        });
 
     void IShellServices.PinToRibbon(string contentKind, object payload)
         => (_focused ?? _windows.FirstOrDefault())

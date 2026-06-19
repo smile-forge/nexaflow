@@ -52,7 +52,11 @@ public sealed class ExternalAppRegistry
         foreach (var def in apps)
         {
             if (multi && def.MultiFile == MultiFileMode.SingleFileOnly) continue;
-            if (!MatchesAll(def.Extension, exts)) continue;
+
+            bool matches = def.Criteria is { Count: > 0 }
+                ? MatchesCriteria(def.Criteria, selected)
+                : MatchesAll(def.Extension, exts);
+            if (!matches) continue;
 
             results.Add(new CustomAction(def, ResolveIcon(def)));
         }
@@ -95,5 +99,39 @@ public sealed class ExternalAppRegistry
         foreach (var e in selectedExts)
             if (!string.Equals(e, want, StringComparison.OrdinalIgnoreCase)) return false;
         return true;
+    }
+
+    /// <summary>
+    /// True when every selected file satisfies at least one criterion. Only
+    /// <see cref="CriteriaType.Extension"/> and <see cref="CriteriaType.PathPattern"/>
+    /// are honored — the wizard never emits the others for an external app.
+    /// </summary>
+    private static bool MatchesCriteria(IReadOnlyList<FileSelectionCriteria> criteria, IReadOnlyList<FileSystemEntry> selected)
+    {
+        foreach (var entry in selected)
+        {
+            bool any = false;
+            foreach (var c in criteria)
+                if (CriterionMatches(c, entry)) { any = true; break; }
+            if (!any) return false;
+        }
+        return true;
+    }
+
+    private static bool CriterionMatches(FileSelectionCriteria c, FileSystemEntry entry) => c.Type switch
+    {
+        CriteriaType.Extension   => ExtensionMatches(c.Value,
+                                        Path.GetExtension(entry.Name).TrimStart('.').ToLowerInvariant()),
+        CriteriaType.PathPattern => c.Value is "*" or "*.*" || GlobMatcher.IsMatch(entry.FullPath, c.Value),
+        _                        => false,
+    };
+
+    private static bool ExtensionMatches(string value, string ext)
+    {
+        if (string.IsNullOrEmpty(value) || value == "*" || value == "*.*") return true;
+        var want = value.StartsWith("*.") ? value[2..].ToLowerInvariant()
+                 : value.TrimStart('.').ToLowerInvariant();
+        if (string.IsNullOrEmpty(want) || want == "*") return true;
+        return string.Equals(ext, want, StringComparison.OrdinalIgnoreCase);
     }
 }

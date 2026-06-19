@@ -539,6 +539,45 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         e.Handled = true;
     }
 
+    private void ActionStrip_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Border strip) return;
+
+        // Right-clicking an action button keeps that button's own menu (Modify / Add to Ribbon);
+        // only the empty strip space offers "Define New…". Walk up to the strip, returning if a
+        // Button is in the ancestry (the button template's own Border must not count as "empty").
+        var element = e.OriginalSource as DependencyObject;
+        while (element is not null && element != strip)
+        {
+            if (element is Button) return;
+            element = VisualTreeHelper.GetParent(element);
+        }
+
+        var cmd = ViewModel.OpenDefineNewWizardCommand;
+        if (!cmd.CanExecute(null)) return;
+
+        // Plain ContextMenu + MenuItem so this matches the action-button menu (and the rest of the
+        // app), which use the global MenuItem style rather than the file-list's custom template.
+        var menu = new ContextMenu();
+        menu.Items.Add(new MenuItem { Header = "Define New…", Command = cmd });
+        strip.ContextMenu = menu;
+        menu.IsOpen = true;
+        e.Handled = true;
+    }
+
+    /// <summary>Inserts a template token (e.g. <c>#filepath</c>) into the wizard field the
+    /// token menu was opened on, at the caret.</summary>
+    private void WzInsertToken_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string token } mi) return;
+        if (mi.Parent is not ContextMenu { PlacementTarget: TextBox tb }) return;
+
+        int at = tb.SelectionStart;
+        tb.SelectedText = token;          // replaces any selection, else inserts at the caret
+        tb.CaretIndex   = at + token.Length;
+        tb.Focus();
+    }
+
     /// <summary>Builds a styled <see cref="ContextMenu"/> from a list of action view-models.</summary>
     private static ContextMenu BuildContextMenu(IReadOnlyList<FileActionViewModel> actions)
     {

@@ -105,6 +105,22 @@ public interface IShellServices
     void RequestRefresh();
 
     /// <summary>
+    /// Persists a global feature config (an <see cref="IFeatureConfig"/>) to its on-disk store —
+    /// the same versioned-JSON location the Options panel writes. Lets a feature commit a config
+    /// change made outside the Options flow (e.g. a wizard adding an external-app mapping) without
+    /// referencing the Core <c>ConfigManager</c>.
+    /// </summary>
+    void SaveFeatureConfig(IFeatureConfig config);
+
+    /// <summary>
+    /// Opens the focused window's Options panel, landing on the section whose
+    /// <see cref="IFeatureConfig.ConfigName"/> matches <paramref name="configName"/> (e.g.
+    /// <c>"externalapps"</c>). Lets a feature deep-link the user to a config editor — the
+    /// editor itself decides whether to pre-select a specific item.
+    /// </summary>
+    void OpenOptions(string configName);
+
+    /// <summary>
     /// Pins <paramref name="payload"/> to the focused window's ribbon using the
     /// <see cref="Nexaflow.Features.Common.Ribbon.IRibbonPinHandler"/> registered for
     /// <paramref name="contentKind"/>.

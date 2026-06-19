@@ -28,6 +28,7 @@ namespace Nexaflow.Features.Web.FileActions
         public string ExperienceDescription  => "Open A browser tab to display HTML content";
         public bool   RequiresRefresh        => false;
         public bool   CanPerformAction       => true;
+        public bool   OpensViewer            => true;
 
         public bool PerformAction(string filePath)
         {
