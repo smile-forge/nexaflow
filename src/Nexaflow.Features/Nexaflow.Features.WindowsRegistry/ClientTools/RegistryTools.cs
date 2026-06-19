@@ -10,9 +10,6 @@ namespace Nexaflow.Features.WindowsRegistry.ClientTools;
 
 internal static class RegArgs
 {
-    public static string? Str(JsonObject o, string key)
-        => o.TryGetPropertyValue(key, out var v) && v is not null ? v.GetValue<string>() : null;
-
     /// <summary>Runs <paramref name="f"/> on the UI thread (registry views mutate bound collections).</summary>
     public static Task<T> OnUi<T>(Func<Task<T>> f)
     {
@@ -37,7 +34,7 @@ internal sealed class RegistryListSubkeysTool(RegistryViewModel vm) : IClientToo
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        if (!vm.TryResolveDown(RegArgs.Str(arguments, "path"), out var subPath, out var error))
+        if (!vm.TryResolveDown(ToolArgs.Str(arguments, "path"), out var subPath, out var error))
             return Task.FromResult(ToolResult.Error(error));
 
         var names = vm.ReadSubKeys(subPath);
@@ -66,7 +63,7 @@ internal sealed class RegistryGetValuesTool(RegistryViewModel vm) : IClientTool
 
     public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        if (!vm.TryResolveDown(RegArgs.Str(arguments, "path"), out var subPath, out var error))
+        if (!vm.TryResolveDown(ToolArgs.Str(arguments, "path"), out var subPath, out var error))
             return ToolResult.Error(error);
 
         var label = subPath.Length == 0 ? vm.CurrentRoot.Token : $"{vm.CurrentRoot.Token}\\{subPath}";
@@ -124,9 +121,9 @@ internal static class RegistryWriteHelper
 {
     public static async Task<ToolResult> WriteAsync(RegistryViewModel vm, JsonObject arguments, bool mustExist)
     {
-        var name = RegArgs.Str(arguments, "name") ?? "";
-        var typeToken = RegArgs.Str(arguments, "type");
-        var rawValue = RegArgs.Str(arguments, "value") ?? "";
+        var name = ToolArgs.Str(arguments, "name") ?? "";
+        var typeToken = ToolArgs.Str(arguments, "type");
+        var rawValue = ToolArgs.Str(arguments, "value") ?? "";
 
         RegistryValueKind kind;
         if (!string.IsNullOrWhiteSpace(typeToken))

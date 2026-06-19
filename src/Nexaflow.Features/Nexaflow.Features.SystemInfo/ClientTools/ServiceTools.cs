@@ -36,7 +36,7 @@ public static class ServiceTools
 
         public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
         {
-            var state = ToolArg.Str(arguments, "state", "status");
+            var state = ToolArgs.Str(arguments, "state", "status");
             var rows = vm.Snapshot();
             if (!string.IsNullOrWhiteSpace(state))
                 rows = rows.Where(r => r.Status.Equals(state, StringComparison.OrdinalIgnoreCase)).ToList();
@@ -63,7 +63,7 @@ public static class ServiceTools
 
         public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
         {
-            var q = ToolArg.Str(arguments, "query", "name", "service");
+            var q = ToolArgs.Str(arguments, "query", "name", "service");
             if (string.IsNullOrWhiteSpace(q))
                 return Task.FromResult(ToolResult.Error("No query provided."));
 
@@ -94,7 +94,7 @@ public static class ServiceTools
 
         public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
         {
-            var name = ToolArg.Str(arguments, "name", "service", "query");
+            var name = ToolArgs.Str(arguments, "name", "service", "query");
             if (string.IsNullOrWhiteSpace(name))
                 return Task.FromResult(ToolResult.Error("No service name provided."));
             if (vm.Find(name) is not { } r)
@@ -118,7 +118,7 @@ public static class ServiceTools
 
         public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
         {
-            var name = ToolArg.Str(arguments, "name", "service");
+            var name = ToolArgs.Str(arguments, "name", "service");
             if (string.IsNullOrWhiteSpace(name))
                 return ToolResult.Error("No service name provided.");
             if (Vm.Find(name) is not { } row)
@@ -159,8 +159,8 @@ public static class ServiceTools
 
         public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
         {
-            var name = ToolArg.Str(arguments, "name", "service");
-            var mode = ToolArg.Str(arguments, "start_mode", "startMode", "mode");
+            var name = ToolArgs.Str(arguments, "name", "service");
+            var mode = ToolArgs.Str(arguments, "start_mode", "startMode", "mode");
             if (string.IsNullOrWhiteSpace(name)) return ToolResult.Error("No service name provided.");
             if (string.IsNullOrWhiteSpace(mode)) return ToolResult.Error("No start mode provided.");
             if (vm.Find(name) is not { } row) return ToolResult.Error($"Service '{name}' not found.");

@@ -88,11 +88,11 @@ internal static class ProcessTools
     private static ToolResult ListProcesses(ProcessesViewModel vm, JsonObject args)
     {
         var rows = vm.RowsSnapshot();
-        var filter = Str(args, "filter");
+        var filter = ToolArgs.Str(args, "filter");
         if (!string.IsNullOrWhiteSpace(filter))
             rows = rows.Where(r => r.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToList();
 
-        rows = SortRows(rows, Str(args, "sort_by")).ToList();
+        rows = SortRows(rows, ToolArgs.Str(args, "sort_by")).ToList();
         var top = Int(args, "top");
         if (top is > 0) rows = rows.Take(top.Value).ToList();
 
@@ -105,7 +105,7 @@ internal static class ProcessTools
 
     private static ToolResult TopConsumers(ProcessesViewModel vm, JsonObject args)
     {
-        var metric = (Str(args, "metric") ?? "cpu").ToLowerInvariant();
+        var metric = (ToolArgs.Str(args, "metric") ?? "cpu").ToLowerInvariant();
         int count = Int(args, "count") is > 0 and var c ? c : 5;
         var rows = vm.RowsSnapshot();
         rows = (metric.StartsWith("mem")
@@ -163,7 +163,7 @@ internal static class ProcessTools
     {
         var rows = vm.RowsSnapshot();
         var sb = new StringBuilder();
-        var process = Str(args, "process");
+        var process = ToolArgs.Str(args, "process");
         if (!string.IsNullOrWhiteSpace(process))
         {
             if (Resolve(vm, args) is not { } root) return NotFound(args);
@@ -188,7 +188,7 @@ internal static class ProcessTools
     private static async Task<ToolResult> Kill(ProcessesViewModel vm, JsonObject args)
     {
         if (Resolve(vm, args) is not { } row) return NotFound(args);
-        bool tree = Bool(args, "tree");
+        bool tree = ToolArgs.Bool(args, "tree");
         var msg = await vm.KillByToolAsync(row.Pid, tree);
         return ToolResult.Ok(msg);
     }
@@ -196,7 +196,7 @@ internal static class ProcessTools
     private static async Task<ToolResult> SetPriority(ProcessesViewModel vm, JsonObject args)
     {
         if (Resolve(vm, args) is not { } row) return NotFound(args);
-        var priority = Str(args, "priority");
+        var priority = ToolArgs.Str(args, "priority");
         if (string.IsNullOrWhiteSpace(priority))
             return ToolResult.Error("No priority", "The 'priority' argument is required.");
         var msg = await vm.SetPriorityByToolAsync(row.Pid, priority);
@@ -206,12 +206,12 @@ internal static class ProcessTools
     // ── Helpers ─────────────────────────────────────────────────────────────────
     private static ProcessRowViewModel? Resolve(ProcessesViewModel vm, JsonObject args)
     {
-        var q = Str(args, "process");
+        var q = ToolArgs.Str(args, "process");
         return string.IsNullOrWhiteSpace(q) ? null : vm.FindByNameOrPid(q);
     }
 
     private static ToolResult NotFound(JsonObject args) =>
-        ToolResult.Error("Not found", $"No running process matches '{Str(args, "process")}'.");
+        ToolResult.Error("Not found", $"No running process matches '{ToolArgs.Str(args, "process")}'.");
 
     private static IEnumerable<ProcessRowViewModel> SortRows(IReadOnlyList<ProcessRowViewModel> rows, string? by) =>
         (by?.ToLowerInvariant()) switch
@@ -228,20 +228,10 @@ internal static class ProcessTools
 
     private static string Dash(string? s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
 
-    private static string? Str(JsonObject args, string key) =>
-        args.TryGetPropertyValue(key, out var v) ? v?.GetValue<string>() : null;
-
     private static int? Int(JsonObject args, string key)
     {
         if (!args.TryGetPropertyValue(key, out var v) || v is null) return null;
         try { return v.GetValue<int>(); }
         catch { return int.TryParse(v.ToString(), out var i) ? i : null; }
-    }
-
-    private static bool Bool(JsonObject args, string key)
-    {
-        if (!args.TryGetPropertyValue(key, out var v) || v is null) return false;
-        try { return v.GetValue<bool>(); }
-        catch { return bool.TryParse(v.ToString(), out var b) && b; }
     }
 }

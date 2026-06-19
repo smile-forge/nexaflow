@@ -25,12 +25,12 @@ public sealed class CreateTextFileTool(FileSystemViewModel vm) : IClientTool
 
     public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        var name = FsTool.Str(arguments, "name", "path", "filename");
+        var name = ToolArgs.Str(arguments, "name", "path", "filename");
         if (!FsTool.TryResolve(vm, name, out var full, out var error))
             return ToolResult.Error(error);
 
-        var content   = FsTool.Str(arguments, "content", "text") ?? string.Empty;
-        var overwrite = FsTool.Bool(arguments, "overwrite");
+        var content   = ToolArgs.Str(arguments, "content", "text") ?? string.Empty;
+        var overwrite = ToolArgs.Bool(arguments, "overwrite");
 
         if (File.Exists(full) && !overwrite)
             return ToolResult.Error($"'{name}' already exists. Pass overwrite:true to replace it.");
@@ -63,7 +63,7 @@ public sealed class CreateDirectoryTool(FileSystemViewModel vm) : IClientTool
 
     public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        var name = FsTool.Str(arguments, "name", "path", "folder");
+        var name = ToolArgs.Str(arguments, "name", "path", "folder");
         if (!FsTool.TryResolve(vm, name, out var full, out var error))
             return ToolResult.Error(error);
 
@@ -94,12 +94,12 @@ public sealed class CopyTool(FileSystemViewModel vm) : IClientTool
 
     public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        if (!FsTool.TryResolve(vm, FsTool.Str(arguments, "source", "from"), out var src, out var e1))
+        if (!FsTool.TryResolve(vm, ToolArgs.Str(arguments, "source", "from"), out var src, out var e1))
             return ToolResult.Error(e1);
-        if (!FsTool.TryResolve(vm, FsTool.Str(arguments, "destination", "to", "dest"), out var dst, out var e2))
+        if (!FsTool.TryResolve(vm, ToolArgs.Str(arguments, "destination", "to", "dest"), out var dst, out var e2))
             return ToolResult.Error(e2);
 
-        var overwrite = FsTool.Bool(arguments, "overwrite");
+        var overwrite = ToolArgs.Bool(arguments, "overwrite");
         var isDir     = Directory.Exists(src);
         if (!isDir && !File.Exists(src)) return ToolResult.Error($"Source not found: {src}");
 
@@ -137,9 +137,9 @@ public sealed class MoveTool(FileSystemViewModel vm) : IClientTool
 
     public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        if (!FsTool.TryResolve(vm, FsTool.Str(arguments, "source", "from"), out var src, out var e1))
+        if (!FsTool.TryResolve(vm, ToolArgs.Str(arguments, "source", "from"), out var src, out var e1))
             return ToolResult.Error(e1);
-        if (!FsTool.TryResolve(vm, FsTool.Str(arguments, "destination", "to", "dest"), out var dst, out var e2))
+        if (!FsTool.TryResolve(vm, ToolArgs.Str(arguments, "destination", "to", "dest"), out var dst, out var e2))
             return ToolResult.Error(e2);
 
         var isDir = Directory.Exists(src);
@@ -177,10 +177,10 @@ public sealed class RenameTool(FileSystemViewModel vm) : IClientTool
 
     public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        if (!FsTool.TryResolve(vm, FsTool.Str(arguments, "name", "source", "from"), out var src, out var error))
+        if (!FsTool.TryResolve(vm, ToolArgs.Str(arguments, "name", "source", "from"), out var src, out var error))
             return ToolResult.Error(error);
 
-        var newName = FsTool.Str(arguments, "new_name", "newName", "to");
+        var newName = ToolArgs.Str(arguments, "new_name", "newName", "to");
         if (string.IsNullOrWhiteSpace(newName))
             return ToolResult.Error("No new name was provided.");
         if (newName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
@@ -223,7 +223,7 @@ public sealed class DeleteTool(FileSystemViewModel vm) : IClientTool
 
     public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        if (!FsTool.TryResolve(vm, FsTool.Str(arguments, "name", "path", "file"), out var full, out var error))
+        if (!FsTool.TryResolve(vm, ToolArgs.Str(arguments, "name", "path", "file"), out var full, out var error))
             return ToolResult.Error(error);
         if (!File.Exists(full) && !Directory.Exists(full))
             return ToolResult.Error($"Not found: {full}");

@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Text.Json.Nodes;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Visuals.Common.Formatting;
 
@@ -12,31 +11,6 @@ namespace Nexaflow.Features.WindowsFileSystem.ClientTools;
 /// </summary>
 internal static class FsTool
 {
-    /// <summary>First present argument among <paramref name="keys"/>, read as a string.</summary>
-    public static string? Str(JsonObject args, params string[] keys)
-    {
-        foreach (var k in keys)
-            if (args.TryGetPropertyValue(k, out var n) && n is not null)
-                return n is JsonValue v && v.TryGetValue<string>(out var s) ? s : n.ToString();
-        return null;
-    }
-
-    /// <summary>Reads a boolean argument; false when absent or non-boolean.</summary>
-    public static bool Bool(JsonObject args, string key)
-        => args.TryGetPropertyValue(key, out var n) && n is JsonValue v && v.TryGetValue<bool>(out var b) && b;
-
-    /// <summary>Reads an integer argument (number or numeric string); <paramref name="fallback"/> if absent/invalid.</summary>
-    public static int Int(JsonObject args, string key, int fallback)
-    {
-        if (args.TryGetPropertyValue(key, out var n) && n is JsonValue v)
-        {
-            if (v.TryGetValue<int>(out var i)) return i;
-            if (v.TryGetValue<double>(out var d)) return (int)d;
-            if (v.TryGetValue<string>(out var s) && int.TryParse(s, out var p)) return p;
-        }
-        return fallback;
-    }
-
     /// <summary>Cheap heuristic: a NUL byte in the first 8 KB means the file is binary, not text.</summary>
     public static bool LooksBinary(string path)
     {
