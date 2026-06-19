@@ -1,5 +1,13 @@
 # Building a Feature
 
+> **⚠️ Stale contract names.** This guide still uses the pre-rename API in places —
+> `ITabRegistration`/`TabEntry`/`PageFactory`/`CreateTab`, the manual `fm.Register(typeof(...))` call,
+> and `IShellServices.UpdateTabMeta`. These are gone. The current contracts are
+> `IPageRegistration`/`Page`/`ContentFactory`/`CreatePage` (discovered by reflection — no manual
+> register call), and page metadata is mutated directly on the observable `Page`. See
+> [Architecture.md](Architecture.md) for the authoritative names and extensibility points until this
+> guide is rewritten.
+
 A feature is a class library (`Nexaflow.Features.MyFeature`) that references only `Nexaflow.Features.Common` and WPF. Core never imports your types directly — everything goes through the contracts in `Features.Common`.
 
 ---

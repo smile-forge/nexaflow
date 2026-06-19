@@ -20,6 +20,21 @@ The layering itself is healthy: `Features.Common` references only `CommunityTool
 
 ---
 
+## Update — 2026-06-20 (actioned)
+
+A follow-up rationalisation pass picked up the outstanding visual/leaf items plus duplication that re-grew across the newer features (Processes, SystemInfo, WindowsApps, WindowsRegistry, Git, Dotnet):
+
+- ✅ **Item 3 — file-reading leaves.** New `Nexaflow.IO.Common` (net10.0, no WPF) now owns `EncodingDetector` (Tabular's detector promoted as canonical; Tabular repointed) and a debounced `FileChangeWatcher` (Logs + Text migrated off their per-event `Task.Delay(300)` copies). The umbrella reader and placeholder-scrollbar machinery remain deferred, as recommended. Json's BOM-skip and Logs/Text encoding heuristics were left bespoke — they're interwoven with each reader's strategy, not verbatim duplicates of `EncodingDetector`.
+- ✅ **4c — list/grid styles.** Shared `GridColumnHeaderStyle` / `GridColumnHeaderPaddingTemplate` / `FileListRowStyle` now live in the app-merged `Styles.xaml`; FileSystemView and SearchView reference them by key (their `SortHeaderTemplate` data templates stay local).
+- ⏸️ **4d — TreeView chrome.** Left as-is by decision: the three trees (FileSystemView, FileMapEditor, the Core browser windows) have diverged in expansion/selection/event wiring (e.g. FileMapEditor is always-expanded; the Core windows use `EventSetter` double-click/expand handlers), so a single shared `TreeViewItem` style would be a lowest-common-denominator that changes behaviour. Per this doc's own "node models differ" caution.
+- ✅ **New: size/duration formatting → `Visuals.Common`.** ~8 copies of the 1024-scaling byte formatter (Processes, SystemInfo, WindowsApps, WindowsFileSystem, Hex, Json, Logs, Text, AIChat, WindowsSearch) collapsed into `SizeFormatter` + `DurationFormatter`; `BytesToTextConverter` moved there too.
+- ✅ **New: client-tool arg reader → `Features.Common/ClientTools`.** 6 features each re-implemented `JsonObject`→`Str/Bool/Int` (some fragile); unified into `ToolArgs`. Feature-specific extras (Git `Cap`, FsTool path/security, RegArgs `OnUi`, Processes nullable `Int`) kept local.
+- ✅ **New: collection dedupe.** Json's `BulkObservableCollection` deleted in favour of the existing `Visuals.Common/RangeObservableCollection`.
+
+Items 1 (`ClientBlockParser`/`ParsedAssistantTurn` → Core), 2 (`OpenPageRequest` → Core), and the FileSystemView inline-overlay flag remain open — out of scope for this pass.
+
+---
+
 ## 1. Client-tool types in `Features.Common`
 
 Your instinct is right, but it splits three ways, not one. The deciding test is **"does a `Features.Common` contract name this type in its signature?"** — not "who happens to call it today."

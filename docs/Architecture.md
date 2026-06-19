@@ -32,31 +32,39 @@ nexaflow/src/
 │   ├── Nexaflow.Features.Common/              ← Shared contracts (interfaces + small DTOs). FeatureManager is NOT here — it's in Core.
 │   ├── Nexaflow.Features.AIChat/              ← AI conversation tab (browser over saved conversations)
 │   ├── Nexaflow.Features.Console/             ← PTY terminal tab
-│   ├── Nexaflow.Features.Git/                 ← Git interface tab
+│   ├── Nexaflow.Features.Dotnet/             ← .NET folder viewlet — AI context + dotnet client tools
+│   ├── Nexaflow.Features.Git/                 ← Git folder viewlet — AI context + git client tools
 │   ├── Nexaflow.Features.Hex/                 ← Binary / hex viewer tab
 │   ├── Nexaflow.Features.Images/              ← Image viewer tab
 │   ├── Nexaflow.Features.Json/                ← JSON viewer tab (seek-by-item windowing)
 │   ├── Nexaflow.Features.Logs/                ← Log viewer tab (tail-first streaming)
 │   ├── Nexaflow.Features.Markdown/            ← Markdown editor/preview tab
+│   ├── Nexaflow.Features.Processes/           ← Process Explorer (live tree + per-process detail tabs; elevated kill/priority)
 │   ├── Nexaflow.Features.Projects/            ← Project management tabs
 │   ├── Nexaflow.Features.Scratchpad/          ← Virtual corkboard tab
+│   ├── Nexaflow.Features.SystemInfo/          ← System info dashboard (WMI; Services/EnvVars via privilege bridge)
 │   ├── Nexaflow.Features.Tabular/             ← CSV/TSV/fixed-width viewer tab (shape detection + transforms)
 │   ├── Nexaflow.Features.Text/                ← Text editor tab (head-first windowing)
 │   ├── Nexaflow.Features.Web/                 ← HTML/URL viewer tab
+│   ├── Nexaflow.Features.WindowsApps/         ← Installed-apps manager + AI query handler
 │   ├── Nexaflow.Features.WindowsFileSystem/   ← File explorer tab (DirectoryTree + file list)
+│   ├── Nexaflow.Features.WindowsRegistry/     ← Registry browser/editor tab + AI tools
 │   └── Nexaflow.Features.WindowsSearch/       ← Windows Search integration tab
 │
-├── Nexaflow.Visuals.Common/                    ← Shared WPF controls + value converters (PieChart, BoolToVisibility, …)
+├── Nexaflow.Visuals.Common/                    ← Shared WPF controls + converters + formatters (PieChart, BoolToVisibility, SizeFormatter, BytesToTextConverter, …)
 ├── Nexaflow.Visuals.Text/                      ← Shared markdown rendering (MarkdownView / SelectableMarkdownView / MarkdownFlowDocument)
+├── Nexaflow.IO.Common/                         ← Shared file-reading leaves: EncodingDetector + debounced FileChangeWatcher (net10.0, no WPF)
 │
 └── Nexaflow.Providers/
     ├── Nexaflow.Providers.Common/             ← LlmProviderRegistry, shared message types
     ├── Nexaflow.Providers.Aria/               ← Named-pipe client for Aria AI service
     ├── Nexaflow.Providers.Claude/             ← Claude API provider
-    └── Nexaflow.Providers.Ollama/             ← Ollama local model provider
+    ├── Nexaflow.Providers.Gemini/             ← Google Gemini API provider
+    ├── Nexaflow.Providers.Ollama/             ← Ollama local model provider
+    └── Nexaflow.Providers.OpenAI/             ← OpenAI API provider
 ```
 
-**Dependency rule:** Features depend on `Features.Common` (and the `Nexaflow.Visuals.*` UI libs) only — never on Core or each other. `Nexaflow.Core` depends on all features and providers (for registration in `App.xaml.cs`) but never instantiates feature view or view-model types in its hot paths — all tab creation goes through `FeatureManager` (which lives in Core). Features communicate back to the shell exclusively through `IShellServices`. Shared non-contract code goes in `Nexaflow.Visuals.*`, not `Features.Common`.
+**Dependency rule:** Features depend on `Features.Common` (and the shared `Nexaflow.Visuals.*` UI libs / `Nexaflow.IO.Common` utility lib) only — never on Core or each other. `Nexaflow.Core` depends on all features and providers (for registration in `App.xaml.cs`) but never instantiates feature view or view-model types in its hot paths — all tab creation goes through `FeatureManager` (which lives in Core). Features communicate back to the shell exclusively through `IShellServices`. Shared non-contract code goes in `Nexaflow.Visuals.*` (UI) or `Nexaflow.IO.Common` (file-reading utilities), not `Features.Common`.
 
 ---
 

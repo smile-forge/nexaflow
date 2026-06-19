@@ -36,9 +36,11 @@ src/
     Nexaflow.Features.Web/          WebView2 browser tab
     Nexaflow.Features.WindowsApps/  installed-apps manager + AI query handler
     Nexaflow.Features.WindowsFileSystem/ file explorer tab (the DirectoryTree + file list)
+    Nexaflow.Features.WindowsRegistry/ registry browser/editor tab + AI tools (approval-gated writes)
     Nexaflow.Features.WindowsSearch/ Windows Search integration
-  Nexaflow.Visuals.Common/          shared WPF controls + value converters (PieChart, BoolToVisibility, …)
+  Nexaflow.Visuals.Common/          shared WPF controls + converters + formatters (PieChart, BoolToVisibility, SizeFormatter/DurationFormatter, BytesToTextConverter, …)
   Nexaflow.Visuals.Text/            shared markdown rendering (MarkdownView / SelectableMarkdownView / MarkdownFlowDocument)
+  Nexaflow.IO.Common/               shared file-reading leaves: EncodingDetector (BOM/UTF-8 sniff) + debounced FileChangeWatcher (net10.0, no WPF)
   Nexaflow.Providers/
     Nexaflow.Providers.Common/      LlmProviderRegistry, shared message types
     Nexaflow.Providers.Aria/        named-pipe Aria client
@@ -48,7 +50,7 @@ src/
     Nexaflow.Providers.OpenAI/      OpenAI API
 ```
 
-Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI) — mirror that pattern for any future shared-but-not-a-contract code rather than dumping it in `Features.Common`.
+Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI) and `Nexaflow.IO.Common` (file-reading utilities) — mirror that pattern for any future shared-but-not-a-contract code rather than dumping it in `Features.Common`.
 
 ## Hard Rules
 
@@ -133,7 +135,7 @@ A bare string assigned to ToolTip inherits the parent's TextAlignment when WPF w
 
 ## Other design considerations
 
-**Large-file reading** — there are four established strategies; pick the one whose access pattern matches your data shape before inventing a fifth. Each reader's *strategy* is deliberately feature-specific (the data structure differs); only mechanical leaves (encoding/BOM sniffing, the debounced `FileSystemWatcher` wrapper) are duplication worth sharing — see [docs/arch_improvements.md](docs/arch_improvements.md).
+**Large-file reading** — there are four established strategies; pick the one whose access pattern matches your data shape before inventing a fifth. Each reader's *strategy* is deliberately feature-specific (the data structure differs). The mechanical leaves now live in `Nexaflow.IO.Common`: `EncodingDetector` (BOM/UTF-8 sniff — Tabular's detector, the canonical one) and `FileChangeWatcher` (the debounced `FileSystemWatcher` wrapper used by Logs and Text). Reuse those rather than re-rolling them — see [docs/arch_improvements.md](docs/arch_improvements.md).
 
 | Strategy | Canonical reader | When |
 |----------|------------------|------|

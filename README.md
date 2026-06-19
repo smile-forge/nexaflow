@@ -66,6 +66,14 @@ Browse and manage installed Windows applications, surfaced as a tab and queryabl
 
 A system-information dashboard at a glance — hardware, services, and environment variables (the latter two via an elevated privilege bridge).
 
+### Process Explorer
+
+A live process tree with per-process details (threads, modules, handles, performance) in vertical tabs. Kill or re-prioritise a process — escalating through the elevated privilege bridge when the action needs it — and query it all through the AI bar.
+
+### Windows Registry Editor
+
+Browse and edit the Windows registry as a tab, with AI tools for reading and (approval-gated) writing keys and values.
+
 ### Scratchpad
 
 A virtual corkboard for temporary notes. Post-its auto-expire, can be pinned, and support multiple shapes and colours on an infinite canvas.
@@ -125,6 +133,7 @@ Nexaflow is split into three layers with strict dependency rules:
 - **Shell** (`Nexaflow.Core`) — window chrome, tab strip, ribbon bar, breadcrumb navigation, AI input bar. Hosts tabs but never renders them directly.
 - **Features** (`Nexaflow.Features.*`) — individual tab implementations. Each feature depends only on the shared contracts in `Nexaflow.Features.Common` and never on Core or other features.
 - **Providers** (`Nexaflow.Providers.*`) — LLM provider adapters (Aria, Claude, Gemini, Ollama, OpenAI). Independent of features; wired into the shell at startup.
+- **Shared libraries** — non-contract code features reuse: `Nexaflow.Visuals.*` (WPF controls, converters, size/duration formatters, markdown rendering) and `Nexaflow.IO.Common` (encoding/BOM detection, file-change watching).
 
 For a deep dive into the architecture and how to add new features see [docs/Architecture.md](docs/Architecture.md) and [docs/features.md](docs/features.md).
 
