@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using ICSharpCode.AvalonEdit.Document;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Logs.Parsing;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
 using System.IO;
 using System.Text;
@@ -59,7 +60,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
     [ObservableProperty] private bool _isPaused;
     [ObservableProperty] private bool _isAutoScrolling = true;
     private string              _pendingAppendContent  = string.Empty;
-    private FileSystemWatcher?  _watcher;
+    private FileChangeWatcher?  _watcher;
 
     // ── Level highlighting ────────────────────────────────────────────────────
 
@@ -349,18 +350,13 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
         _watcher?.Dispose();
         if (!File.Exists(FilePath)) return;
 
-        _watcher = new FileSystemWatcher(Path.GetDirectoryName(FilePath)!, Path.GetFileName(FilePath))
-        {
-            NotifyFilter        = NotifyFilters.LastWrite | NotifyFilters.Size,
-            EnableRaisingEvents = true,
-        };
+        _watcher = new FileChangeWatcher(FilePath);
         _watcher.Changed += OnFileChanged;
     }
 
-    private async void OnFileChanged(object sender, FileSystemEventArgs e)
+    private async void OnFileChanged()
     {
         if (!IsMonitoring) return;
-        await Task.Delay(300); // debounce double-fire
 
         await Application.Current.Dispatcher.InvokeAsync(async () =>
         {

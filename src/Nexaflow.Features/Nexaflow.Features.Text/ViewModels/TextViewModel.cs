@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using ICSharpCode.AvalonEdit.Document;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
 using System.IO;
 using System.Text;
@@ -100,7 +101,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     // ── Monitoring ────────────────────────────────────────────────────────────
 
-    private FileSystemWatcher? _watcher;
+    private FileChangeWatcher? _watcher;
 
     // ── Search cancellation ───────────────────────────────────────────────────
 
@@ -316,19 +317,12 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         _watcher?.Dispose();
         if (!File.Exists(FilePath)) return;
 
-        var dir      = Path.GetDirectoryName(FilePath)!;
-        var fileName = Path.GetFileName(FilePath);
-        _watcher = new FileSystemWatcher(dir, fileName)
-        {
-            NotifyFilter         = NotifyFilters.LastWrite | NotifyFilters.Size,
-            EnableRaisingEvents  = true,
-        };
+        _watcher = new FileChangeWatcher(FilePath);
         _watcher.Changed += OnFileChanged;
     }
 
-    private async void OnFileChanged(object sender, FileSystemEventArgs e)
+    private async void OnFileChanged()
     {
-        await Task.Delay(300); // debounce double-fire
         await Application.Current.Dispatcher.InvokeAsync(async () =>
         {
             FileChangedMessage         = "File changed on disk — reloading…";
