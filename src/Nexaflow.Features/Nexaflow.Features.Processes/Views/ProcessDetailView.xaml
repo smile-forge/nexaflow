@@ -4,10 +4,12 @@
              xmlns:vm="clr-namespace:Nexaflow.Features.Processes.ViewModels"
              xmlns:conv="clr-namespace:Nexaflow.Features.Processes.Converters"
              xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <vcc:InverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
 
         <!-- Vertical nav-tab item -->
         <Style x:Key="VTabItem" TargetType="TabItem">
@@ -441,8 +443,12 @@
                         </Grid.RowDefinitions>
                         <Border Grid.Row="0" Style="{StaticResource DeniedBanner}"
                                 Visibility="{Binding ModulesDenied, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="Module details require administrator rights to read."
-                                       Foreground="{StaticResource TextBrush}" FontSize="12"/>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Module details require administrator rights to read."
+                                           Foreground="{StaticResource TextBrush}" FontSize="12" VerticalAlignment="Center"/>
+                                <Button Content="Load with admin" Command="{Binding LoadHandlesCommand}"
+                                        Style="{StaticResource TbBtn}" FontSize="11" Margin="12,0,0,0"/>
+                            </StackPanel>
                         </Border>
                         <ListView Grid.Row="1" x:Name="ModulesList" ItemsSource="{Binding ModulesView}"
                                   Style="{StaticResource GridListView}"
@@ -485,6 +491,72 @@
                                 </GridView>
                             </ListView.View>
                         </ListView>
+                    </Grid>
+                </TabItem>
+
+                <!-- Handles (loaded on demand via one elevated process.inspect) -->
+                <TabItem Header="Handles">
+                    <Grid Margin="14,12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Loaded: count + reload, then the list -->
+                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8"
+                                    Visibility="{Binding HandlesLoaded, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="{Binding Handles.Count, StringFormat='{}{0} open handles'}"
+                                       Foreground="{StaticResource TextMutedBrush}" FontSize="12" VerticalAlignment="Center"/>
+                            <Button Content="↻ Reload (admin)" Command="{Binding LoadHandlesCommand}"
+                                    Style="{StaticResource TbBtn}" FontSize="11" Margin="10,0,0,0"/>
+                        </StackPanel>
+                        <ListView Grid.Row="1" ItemsSource="{Binding Handles}" Style="{StaticResource GridListView}"
+                                  Visibility="{Binding HandlesLoaded, Converter={StaticResource BoolToVis}}"
+                                  Background="Transparent" BorderThickness="0"
+                                  VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                            <ListView.Resources>
+                                <ContextMenu x:Key="HandleMenu" x:Shared="False">
+                                    <MenuItem Header="Copy"
+                                              Command="{Binding PlacementTarget.Tag.CopyTextCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                              CommandParameter="{Binding PlacementTarget.DataContext.RowText, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                    <MenuItem Header="Copy name"
+                                              Command="{Binding PlacementTarget.Tag.CopyTextCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                              CommandParameter="{Binding PlacementTarget.DataContext.Name, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                </ContextMenu>
+                            </ListView.Resources>
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem" BasedOn="{StaticResource ListRow}">
+                                    <Setter Property="Tag" Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ListView}}"/>
+                                    <Setter Property="ContextMenu" Value="{StaticResource HandleMenu}"/>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                            <ListView.View>
+                                <GridView ColumnHeaderContainerStyle="{StaticResource PlainHeader}">
+                                    <GridViewColumn Header="Type"   Width="120" DisplayMemberBinding="{Binding Type}"/>
+                                    <GridViewColumn Header="Handle" Width="90"  DisplayMemberBinding="{Binding HandleValue}"/>
+                                    <GridViewColumn Header="Access" Width="100" DisplayMemberBinding="{Binding Access}"/>
+                                    <GridViewColumn Header="Name"   Width="420" DisplayMemberBinding="{Binding Name}"/>
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
+
+                        <!-- Not loaded: call-to-action / progress / error -->
+                        <StackPanel Grid.Row="0" Grid.RowSpan="2" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                    Visibility="{Binding HandlesLoaded, Converter={StaticResource InvBoolToVis}}">
+                            <TextBlock Text="Open handles require administrator rights to read."
+                                       Foreground="{StaticResource TextMutedBrush}" FontSize="13"
+                                       HorizontalAlignment="Center" TextAlignment="Center" Margin="0,0,0,12"/>
+                            <Button Content="Load handles (admin)" Command="{Binding LoadHandlesCommand}"
+                                    Style="{StaticResource TbBtn}" HorizontalAlignment="Center"
+                                    Visibility="{Binding HandlesLoading, Converter={StaticResource InvBoolToVis}}"/>
+                            <TextBlock Text="Enumerating handles…" Foreground="{StaticResource TextMutedBrush}" FontSize="12"
+                                       HorizontalAlignment="Center"
+                                       Visibility="{Binding HandlesLoading, Converter={StaticResource BoolToVis}}"/>
+                            <TextBlock Text="{Binding HandlesError}" Foreground="{StaticResource DangerBrush}" FontSize="12"
+                                       HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                                       MaxWidth="360" Margin="0,12,0,0"
+                                       Visibility="{Binding HandlesError, Converter={x:Static conv:NonEmptyToVisibleConverter.Instance}}"/>
+                        </StackPanel>
                     </Grid>
                 </TabItem>
             </TabControl>

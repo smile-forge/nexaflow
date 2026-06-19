@@ -31,6 +31,10 @@ public sealed partial class ProcessDetailViewModel : ObservableObject, IPageView
     public ObservableCollection<ThreadInfo> Threads { get; } = [];
     public ObservableCollection<ModuleInfo> Modules { get; } = [];
 
+    /// <summary>Open handles — populated on demand via an elevated <c>process.inspect</c>, not the refresh
+    /// tick (no managed API, and one UAC per load).</summary>
+    public ObservableCollection<HandleInfo> Handles { get; } = [];
+
     /// <summary>Sortable view over <see cref="Modules"/> (header-click sorting + resizable columns).</summary>
     public ICollectionView ModulesView { get; }
 
@@ -44,6 +48,9 @@ public sealed partial class ProcessDetailViewModel : ObservableObject, IPageView
     [ObservableProperty] private ProcessDetail? _detail;
     [ObservableProperty] private bool _threadsDenied;
     [ObservableProperty] private bool _modulesDenied;
+    [ObservableProperty] private bool _handlesLoaded;
+    [ObservableProperty] private bool _handlesLoading;
+    [ObservableProperty] private string? _handlesError;
     [ObservableProperty] private bool _isGone;
     [ObservableProperty] private bool _autoRefreshEnabled = true;
     [ObservableProperty] private string? _selectedPriority;
@@ -116,6 +123,9 @@ public sealed partial class ProcessDetailViewModel : ObservableObject, IPageView
         _cpuBuf.Clear();
         Threads.Clear();
         Modules.Clear();
+        Handles.Clear();
+        HandlesLoaded = false;
+        HandlesError = null;
         HasData = false;
         if (AutoRefreshEnabled) _timer.Start();
         TriggerRefresh();
@@ -188,6 +198,39 @@ public sealed partial class ProcessDetailViewModel : ObservableObject, IPageView
             return;
         await ProcessActions.KillAsync(_shell, _pid, name, tree: false);
         TriggerRefresh();
+    }
+
+    /// <summary>Loads the process's open handles (and, for a protected process, its modules + command line)
+    /// via one elevated <c>process.inspect</c>. Driven by the Handles tab button, never the refresh tick.</summary>
+    [RelayCommand]
+    private async Task LoadHandles()
+    {
+        if (HandlesLoading) return;
+        HandlesLoading = true;
+        HandlesError = null;
+        try
+        {
+            var r = await ProcessInspect.InspectAsync(_shell, _pid, "all");
+            ApplyInspect(r);
+        }
+        finally { HandlesLoading = false; }
+    }
+
+    internal void ApplyInspect(ProcessInspect.InspectResult r)
+    {
+        if (r.Declined) { HandlesError = "Administrator approval was declined."; return; }
+        if (!r.Success) { HandlesError = r.Message; _shell.ShowError(r.Message); return; }
+
+        Reconcile(Handles, r.Handles, h => $"{h.HandleValue}|{h.Type}");
+        HandlesLoaded = true;
+
+        if (r.Modules is { } mods)
+        {
+            Reconcile(Modules, mods, m => $"{m.Name}|{m.Path}");
+            ModulesDenied = false;
+        }
+        if (r.CommandLine is { Length: > 0 } cl && Detail is not null)
+            Detail = Detail with { CommandLine = cl };
     }
 
     [RelayCommand]
