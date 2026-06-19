@@ -172,6 +172,7 @@
                                     CanSwitchProfile="{Binding CanSwitchProfile}"
                                     SelectProfileCommand="{Binding SelectProfileCommand}"
                                     ConfigureProfileCommand="{Binding ConfigureCurrentWorkspaceCommand}"
+                                    NewWorkspaceCommand="{Binding NewWorkspaceCommand}"
                                     OpenPageCommand="{Binding OpenRibbonItemCommand}"
                                     OpenPageInNewWindowCommand="{Binding OpenRibbonItemInNewWindowCommand}"
                                     Shell="{Binding ShellServices}"/>

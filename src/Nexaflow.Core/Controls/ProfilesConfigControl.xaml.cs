@@ -12,9 +12,6 @@ using System.Windows.Media;
 
 namespace Nexaflow.Core.Controls;
 
-/// <summary>A pickable colour from the shared swatch bank: the brush to show + the hex to store.</summary>
-public sealed record SwatchOption(string Hex, Brush Brush);
-
 public partial class ProfilesConfigControl : UserControl, ICustomConfigApply
 {
     private ObservableCollection<Profile>? _editProfiles;
@@ -24,27 +21,7 @@ public partial class ProfilesConfigControl : UserControl, ICustomConfigApply
 
     // The shared categorical bank (Tokens.xaml / per-theme overrides), resolved to brushes + hex for
     // the per-profile colour picker. Same source the ribbon picker and project pie draw from.
-    private static readonly string[] SwatchKeys =
-    [
-        "Swatch.Blue",  "Swatch.Cyan",   "Swatch.Teal",  "Swatch.Green",
-        "Swatch.Lime",  "Swatch.Yellow", "Swatch.Amber", "Swatch.Orange",
-        "Swatch.Red",   "Swatch.Pink",   "Swatch.Purple","Swatch.Slate",
-    ];
-
-    public IReadOnlyList<SwatchOption> Swatches { get; } = BuildSwatches();
-
-    private static IReadOnlyList<SwatchOption> BuildSwatches()
-    {
-        var list = new List<SwatchOption>();
-        foreach (var key in SwatchKeys)
-        {
-            // Throw (not silently skip) if a bank key is missing, so a typo surfaces instead of a gap.
-            if (Application.Current?.Resources[key] is not SolidColorBrush b)
-                throw new InvalidOperationException($"Swatch brush '{key}' not found.");
-            list.Add(new SwatchOption(b.Color.ToString(), b));
-        }
-        return list;
-    }
+    public IReadOnlyList<SwatchOption> Swatches { get; } = WorkspaceSwatches.Build();
 
     /// <summary>Random colour from the swatch bank (falls back to the legacy palette if unresolved).</summary>
     private string RandomSwatchColor()
@@ -163,7 +140,8 @@ public partial class ProfilesConfigControl : UserControl, ICustomConfigApply
         var (icon, _) = ProfileStyle.Random();
         // Unique name => a fresh, empty config folder (avoids a re-used "New Workspace" dir picking up
         // a previous workspace's saved provider/model).
-        var profile = WorkspaceManager.Instance.AddProfile(UniqueProfileName("New Workspace"));
+        var profile = WorkspaceManager.Instance.AddProfile(
+            WorkspaceManager.Instance.UniqueProfileName("New Workspace"));
         profile.Icon  = icon;
         profile.Color = RandomSwatchColor();
         WorkspaceManager.Instance.Profiles.Move(WorkspaceManager.Instance.Profiles.Count - 1, 0);
@@ -178,19 +156,6 @@ public partial class ProfilesConfigControl : UserControl, ICustomConfigApply
     // Click a swatch → set the colour of the profile that owns this row. Profile is observable, so the
     // hex box and colour preview update live. The owning profile is the nearest DataContext up the tree
     // (the swatch button's own DataContext is the SwatchOption).
-    /// <summary>A workspace name not already in use (appends " 2", " 3", … on collision).</summary>
-    private static string UniqueProfileName(string baseName)
-    {
-        var taken = WorkspaceManager.Instance.Profiles
-            .Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        if (!taken.Contains(baseName)) return baseName;
-        for (int i = 2; ; i++)
-        {
-            var candidate = $"{baseName} {i}";
-            if (!taken.Contains(candidate)) return candidate;
-        }
-    }
-
     private void OnSwatchClick(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { Tag: string hex } fe) return;

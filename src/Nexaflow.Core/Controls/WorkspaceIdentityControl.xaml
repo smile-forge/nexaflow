@@ -1,0 +1,173 @@
+<UserControl x:Class="Nexaflow.Core.Controls.WorkspaceIdentityControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             x:Name="Root">
+    <UserControl.Resources>
+        <cv:ColorStringToBrushConverter x:Key="ColorBrush"/>
+
+        <!-- Neutral (surface) action button -->
+        <Style x:Key="NeutralButton" TargetType="Button">
+            <Setter Property="Height"     Value="32"/>
+            <Setter Property="MinWidth"   Value="160"/>
+            <Setter Property="FontSize"   Value="12"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="Background" Value="{StaticResource Surface2Brush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="root" Background="{TemplateBinding Background}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                CornerRadius="7" Padding="12,6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="root" Property="Background" Value="{StaticResource BorderBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Danger (destructive) action button -->
+        <Style x:Key="DangerButton" TargetType="Button">
+            <Setter Property="Height"     Value="32"/>
+            <Setter Property="MinWidth"   Value="160"/>
+            <Setter Property="FontSize"   Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+            <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
+            <Setter Property="Background" Value="{StaticResource DangerBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="root" Background="{TemplateBinding Background}"
+                                CornerRadius="7" Padding="12,6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="root" Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="root" Property="Opacity" Value="0.4"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <!-- DataContext of this panel is set in code-behind to an editing copy of the profile; the swatch
+         list pulls from the control itself (ElementName=Root). -->
+    <StackPanel x:Name="EditPanel" MaxWidth="540" HorizontalAlignment="Left">
+
+        <TextBlock Text="Identity" FontSize="14" FontWeight="SemiBold"
+                   Foreground="{StaticResource TextBrush}" Margin="0,0,0,4"/>
+        <TextBlock Text="Name, symbol and colour shown in the workspace selector and the ribbon accent."
+                   Foreground="{StaticResource TextMutedBrush}" FontSize="11"
+                   TextWrapping="Wrap" Margin="0,0,0,16"/>
+
+        <!-- Live preview tile + Name + Symbol -->
+        <Grid Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Width="56" Height="56" CornerRadius="8"
+                    Margin="0,0,16,0" VerticalAlignment="Center"
+                    Background="{Binding Color, Converter={StaticResource ColorBrush}}">
+                <TextBlock Text="{Binding Icon}" FontSize="28"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                <TextBlock Text="Name" Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="11" Margin="0,0,0,4"/>
+                <TextBox Style="{StaticResource DarkTextBox}" FontSize="13"
+                         AutomationProperties.AutomationId="identity_Name"
+                         Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="12,0,0,0" Width="64">
+                <TextBlock Text="Symbol" Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="11" Margin="0,0,0,4"/>
+                <TextBox Style="{StaticResource DarkTextBox}" FontSize="13" MaxLength="3"
+                         AutomationProperties.AutomationId="identity_Icon"
+                         Text="{Binding Icon, UpdateSourceTrigger=PropertyChanged}"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Colour: swatch bank + hex value -->
+        <TextBlock Text="Colour" Foreground="{StaticResource TextMutedBrush}"
+                   FontSize="11" Margin="0,0,0,6"/>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <ItemsControl Grid.Column="0" VerticalAlignment="Top"
+                          ItemsSource="{Binding Swatches, ElementName=Root}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Button Width="22" Height="22" Margin="0,0,6,6"
+                                Cursor="Hand"
+                                Background="{Binding Brush}"
+                                Tag="{Binding Hex}"
+                                ToolTip="{Binding Hex}"
+                                Click="OnSwatchClick">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}"
+                                            CornerRadius="11"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1"/>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBox Grid.Column="1" Width="100" Margin="8,0,0,0" Padding="4"
+                     VerticalAlignment="Top"
+                     Style="{StaticResource DarkTextBox}" FontSize="12"
+                     AutomationProperties.AutomationId="identity_Color"
+                     Text="{Binding Color, UpdateSourceTrigger=PropertyChanged}"
+                     ToolTip="Hex colour (e.g. #5B8CFF)"/>
+        </Grid>
+
+        <!-- Conversations: export to markdown -->
+        <Border Height="1" Background="{StaticResource BorderBrush}" Margin="0,22,0,16"/>
+        <TextBlock Text="Conversations" FontSize="13" FontWeight="SemiBold"
+                   Foreground="{StaticResource TextBrush}" Margin="0,0,0,4"/>
+        <TextBlock Text="Save every conversation in this workspace as markdown files (one per conversation) to a folder you choose."
+                   Foreground="{StaticResource TextMutedBrush}" FontSize="11"
+                   TextWrapping="Wrap" Margin="0,0,0,8"/>
+        <Button Content="Export conversations…" Style="{StaticResource NeutralButton}"
+                HorizontalAlignment="Left" Click="OnExportClick"
+                AutomationProperties.AutomationId="identity_Export"/>
+
+        <!-- Danger zone: delete workspace -->
+        <Border Height="1" Background="{StaticResource BorderBrush}" Margin="0,22,0,16"/>
+        <TextBlock Text="Delete workspace" FontSize="13" FontWeight="SemiBold"
+                   Foreground="{StaticResource DangerBrush}" Margin="0,0,0,4"/>
+        <TextBlock Text="Permanently removes this workspace along with every conversation held in it, and closes all of its open windows. This action is irreversible."
+                   Foreground="{StaticResource TextMutedBrush}" FontSize="11"
+                   TextWrapping="Wrap" Margin="0,0,0,8"/>
+        <Button x:Name="DeleteButton" Content="Delete Workspace" Style="{StaticResource DangerButton}"
+                HorizontalAlignment="Left" Click="OnDeleteClick"
+                AutomationProperties.AutomationId="identity_Delete"/>
+    </StackPanel>
+</UserControl>

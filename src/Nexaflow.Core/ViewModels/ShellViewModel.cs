@@ -187,6 +187,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     public void ShowErrorToast(string message) => ShowError("Settings", message);
 
+    /// <summary>Posts a transient informational toast (e.g. "Exported N conversations").</summary>
+    public void ShowInfoToast(string title, string message)
+        => MessageCenter.Instance.Post(new NotificationItem
+        {
+            Title = title, Body = message, Severity = MessageSeverity.Info, ShowToast = true,
+        });
+
     // ── Shell-level confirmation overlay ──────────────────────────────────
     // A modal yes/no overlay that lives at the window level (not inside any page).
     // Used by the ribbon's right-click Delete, and any other shell-side action that
@@ -638,6 +645,75 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     /// <summary>Right-click entry point: configure the currently active workspace.</summary>
     [RelayCommand]
     private void ConfigureCurrentWorkspace() => ConfigureProfile(CurrentWorkspace?.Profile);
+
+    /// <summary>
+    /// Right-click entry point: create a new workspace by cloning the current one (settings copied,
+    /// fresh symbol/colour) and open the Configure panel on it. Mirrors the Options "Clone" action but
+    /// routes straight into Configure so the new workspace can be named/recoloured and tuned at once.
+    /// </summary>
+    [RelayCommand]
+    private void NewWorkspace()
+    {
+        if (CurrentWorkspace?.Profile is not { } source) return;
+
+        var mgr   = WorkspaceManager.Instance;
+        var clone = mgr.CloneProfile(source, mgr.UniqueProfileName($"{source.Name} copy"));
+        mgr.SaveProfiles();        // persist the new profile in the dropdown list immediately
+
+        ConfigureProfile(clone);   // open Configure on its identity page
+    }
+
+    /// <summary>
+    /// Configure panel's "Delete Workspace": confirms, then permanently deletes the profile (config +
+    /// every conversation). Refuses the last remaining workspace (the button is also disabled then).
+    /// A deletable workspace may be the active one or one open elsewhere: its windows are closed first
+    /// (collapsing the current one to a single instance), the data is deleted, then the remaining
+    /// window closes — removing the workspace from active memory.
+    /// </summary>
+    public void RequestDeleteWorkspace(Profile profile)
+    {
+        var mgr = WorkspaceManager.Instance;
+        if (mgr.Profiles.Count <= 1) { ShowErrorToast("The last workspace can't be deleted."); return; }
+
+        var liveWs = mgr.FindLiveWorkspace(profile);
+
+        var message = liveWs is not null
+            ? $"Delete “{profile.Name}”?\n\nThis is irreversible: it permanently deletes the workspace and every "
+              + "conversation in it, and closes all of its open windows."
+            : $"Delete “{profile.Name}”?\n\nThis is irreversible: it permanently deletes the workspace and every "
+              + "conversation in it.";
+
+        ShowConfirmation("Delete workspace", message, onConfirm: () => DeleteWorkspace(profile, liveWs));
+    }
+
+    private void DeleteWorkspace(Profile profile, Workspace? liveWs)
+    {
+        var mgr = WorkspaceManager.Instance;
+
+        if (ReferenceEquals(liveWs, CurrentWorkspace))
+        {
+            // The current workspace: collapse to this window, delete the data while a window is still
+            // alive, then close this last window — its close removes the workspace from active memory
+            // (and quits the app if no other window remains).
+            _shellServices.CloseOtherWindows(this);
+            mgr.DeleteProfile(profile, force: true);
+            _shellServices.CloseAllWindows();
+            return;
+        }
+
+        if (liveWs is not null)
+        {
+            // A different live workspace: tear down its windows (last close disposes it), then delete.
+            liveWs.ShellServices?.CloseAllWindows();
+            mgr.DeleteProfile(profile, force: true);
+            ManageAiOpen = false;
+            return;
+        }
+
+        // An inactive profile: straightforward delete; close the Configure overlay.
+        mgr.DeleteProfile(profile);
+        ManageAiOpen = false;
+    }
 
     // ── AI ────────────────────────────────────────────────────────────────
 

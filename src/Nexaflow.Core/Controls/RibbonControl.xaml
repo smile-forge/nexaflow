@@ -29,7 +29,8 @@
                 Profiles="{Binding Profiles, ElementName=Root}"
                 CanSwitch="{Binding CanSwitchProfile, ElementName=Root}"
                 SelectProfileCommand="{Binding SelectProfileCommand, ElementName=Root}"
-                ConfigureCommand="{Binding ConfigureProfileCommand, ElementName=Root}"/>
+                ConfigureCommand="{Binding ConfigureProfileCommand, ElementName=Root}"
+                NewWorkspaceCommand="{Binding NewWorkspaceCommand, ElementName=Root}"/>
 
         <!-- Ribbon strip, shifted right to clear the selector -->
         <ctrl:RibbonBar x:Name="RibbonBarControl"

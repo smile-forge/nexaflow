@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.AI;
+using Nexaflow.Core.Controls;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
@@ -23,10 +24,14 @@ public partial class ManageAiViewModel : ObservableObject
 
     [ObservableProperty] private ConfigEditViewModel? _selectedSection;
 
-    /// <summary>Header text — names the workspace being configured (it may not be the active one).</summary>
-    public string Title { get; }
+    /// <summary>Header text — names the workspace being configured (it may not be the active one).
+    /// Observable so it follows a rename made on the identity page.</summary>
+    [ObservableProperty] private string _title;
 
     private ConfigEditViewModel? _listeningSection;
+
+    /// <summary>The identity (name/symbol/colour) page — persists itself, so it's special-cased in Apply.</summary>
+    private ConfigEditViewModel? _identitySection;
 
     private readonly Profile _profile;
 
@@ -47,7 +52,7 @@ public partial class ManageAiViewModel : ObservableObject
     public ManageAiViewModel(Profile profile)
     {
         _profile = profile;
-        Title    = $"Configure Workspace — {profile.Name}";
+        _title   = $"Configure Workspace — {profile.Name}";
 
         // Discover provider plugins, then make sure the profile's folder + scoped-type list exist.
         ProviderManager.Instance.DiscoverAll();
@@ -74,6 +79,12 @@ public partial class ManageAiViewModel : ObservableObject
 
     private void BuildSections()
     {
+        // First page: the workspace identity (name/symbol/colour). The control edits the live profile
+        // directly on Apply, so it carries no per-folder config (special-cased in Apply below).
+        var identityControl = new WorkspaceIdentityControl { DataContext = _profile };
+        _identitySection = ConfigEditViewModel.ForCustomControl(identityControl, "workspace-identity", "Workspace");
+        Sections.Add(_identitySection);
+
         Sections.Add(new ConfigEditViewModel(_aiConfig, _aiConfig.ConfigName, _aiConfig.FriendlyName));
         Sections.Add(new ConfigEditViewModel(_persona, _persona.ConfigName, _persona.FriendlyName));
         foreach (var config in _providerConfigs)
@@ -134,12 +145,14 @@ public partial class ManageAiViewModel : ObservableObject
     private void OnSectionPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(ConfigEditViewModel.HasChanges)
+                           or nameof(ConfigEditViewModel.IsValid)
                            or nameof(ConfigEditViewModel.IsRequiredSatisfied))
             ApplyCommand.NotifyCanExecuteChanged();
     }
 
     private bool CanApply() =>
         (SelectedSection?.HasChanges ?? false) &&
+        (SelectedSection?.IsValid ?? true) &&
         (SelectedSection?.IsRequiredSatisfied ?? true);
 
     [RelayCommand(CanExecute = nameof(CanApply))]
@@ -148,7 +161,23 @@ public partial class ManageAiViewModel : ObservableObject
         if (SelectedSection is null) return;
         var section = SelectedSection;
 
+        // The identity page edits the live profile directly (name/symbol/colour) and persists itself
+        // (profile list + on-disk folder move), so it skips the per-folder disk-save the config sections
+        // take. A rename moved the data folder, so a live workspace must rebuild (its AIService captured
+        // the old conversations path) — flag it dirty so Close() rebuilds; colour/symbol update live.
+        if (ReferenceEquals(section, _identitySection))
+        {
+            var oldName = _profile.Name;
+            section.ApplyToReal();
+            section.ResetChanges();
+            Title = $"Configure Workspace — {_profile.Name}";
+            if (!string.Equals(oldName, _profile.Name, StringComparison.Ordinal))
+                _dirty = true;
+            return;
+        }
+
         section.ApplyToReal();   // clone -> editing instance (NOT the live profile instance)
+
         try
         {
             ConfigManager.Instance.SaveTo(_profile.Dir, section.RealConfig, section.ConfigName);
