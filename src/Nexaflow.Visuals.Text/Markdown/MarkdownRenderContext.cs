@@ -25,6 +25,13 @@ public sealed class MarkdownRenderContext
     /// </summary>
     public string? BaseDirectory { get; init; }
 
+    /// <summary>
+    /// When true, a diagram wider/taller than the available width is scaled down (uniformly) to fit
+    /// rather than getting its own scrollbars. Set by the inline editor: scrollbars inside an editable
+    /// surface fight text selection (you can't grab the thumb), so the diagram fits the column instead.
+    /// </summary>
+    public bool FitContentToWidth { get; init; }
+
     public static readonly MarkdownRenderContext Dark = MarkdownPalette.Dark;
 
     public static implicit operator MarkdownRenderContext(MarkdownPalette palette)

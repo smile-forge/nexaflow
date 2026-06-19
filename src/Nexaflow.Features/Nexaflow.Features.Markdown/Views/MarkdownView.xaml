@@ -1,10 +1,15 @@
 <UserControl x:Class="Nexaflow.Features.Markdown.Views.MarkdownView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="MarkdownView"
              Background="{StaticResource BgBrush}">
 
-    <UserControl.Resources/>
+    <UserControl.Resources>
+        <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
+        <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
+    </UserControl.Resources>
 
 
     <Grid>
@@ -24,6 +29,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <!-- File name -->
@@ -35,8 +41,16 @@
                            VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis"/>
 
+                <!-- Source-only toggle (default off → rendered + inline editing) -->
+                <ToggleButton Grid.Column="1"
+                              Style="{StaticResource TbToggle}"
+                              Margin="0,0,6,0"
+                              Content="&lt;/&gt; Source"
+                              ToolTip="Edit raw markdown source"
+                              IsChecked="{Binding SourceOnly, Mode=TwoWay}"/>
+
                 <!-- Save button (greyed out when clean) -->
-                <Button Grid.Column="1"
+                <Button Grid.Column="2"
                         Style="{StaticResource TbBtn}"
                         ToolTip="Save (Ctrl+S)"
                         Command="{Binding SaveCommand}">
@@ -50,18 +64,35 @@
         </Border>
 
         <!-- ══════════════════════════════════════════════════════════
-             DOCUMENT — single scrollable block list
+             DOCUMENT — two surfaces over the same text, toggled by SourceOnly
              ══════════════════════════════════════════════════════════ -->
-        <ScrollViewer Grid.Row="1"
-                      x:Name="ContentScroll"
-                      Background="{StaticResource BgBrush}"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled"
-                      Focusable="False">
-            <StackPanel x:Name="BlocksPanel"
-                        Margin="40,24,40,48"
-                        HorizontalAlignment="Stretch"/>
-        </ScrollViewer>
+        <Grid Grid.Row="1" Background="{StaticResource BgBrush}">
+
+            <!-- Default: rendered markdown with inline editing -->
+            <md:InlineMarkdownEditor x:Name="Editor"
+                                     Margin="40,24,40,48"
+                                     EditOnDoubleClick="True"
+                                     Visibility="{Binding SourceOnly, Converter={StaticResource InvBoolVis}}"
+                                     Markdown="{Binding Markdown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+            <!-- Source-only: the whole document as raw markdown -->
+            <TextBox x:Name="SourceBox"
+                     Visibility="{Binding SourceOnly, Converter={StaticResource BoolVis}}"
+                     Text="{Binding Markdown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     AcceptsReturn="True"
+                     AcceptsTab="True"
+                     TextWrapping="Wrap"
+                     SpellCheck.IsEnabled="False"
+                     FontFamily="Consolas, Courier New"
+                     FontSize="13"
+                     Foreground="{StaticResource TextBrush}"
+                     Background="{StaticResource DeepBgBrush}"
+                     CaretBrush="{StaticResource AccentBrush}"
+                     BorderThickness="0"
+                     Padding="40,24,40,48"
+                     VerticalScrollBarVisibility="Auto"
+                     HorizontalScrollBarVisibility="Auto"/>
+        </Grid>
 
     </Grid>
 </UserControl>

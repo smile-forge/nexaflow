@@ -11,8 +11,10 @@ public static class MarkdownBlocks
 {
     /// <summary>
     /// Splits <paramref name="source"/> into block contents on blank lines. Multi-line
-    /// constructs without blank lines (lists, tables, fenced code, hard breaks) stay one
-    /// block. Blank-line separators are dropped (they are re-added by <see cref="Join"/>).
+    /// constructs without blank lines (lists, tables, hard breaks) stay one block, and a
+    /// fenced code/diagram block (<c>```</c> / <c>~~~</c>) stays whole even when it contains
+    /// blank lines — a blank line inside a fence is part of the block, not a separator.
+    /// Blank-line separators are dropped (they are re-added by <see cref="Join"/>).
     /// Always returns at least one block; empty/whitespace input → <c>[""]</c>.
     /// </summary>
     public static List<string> Split(string? source)
@@ -23,9 +25,18 @@ public static class MarkdownBlocks
         var blocks    = new List<string>();
         var current   = new List<string>();
         bool prevBlank = false;
+        bool inFence   = false;
 
         foreach (var line in s.Split('\n'))
         {
+            if (inFence)
+            {
+                current.Add(line);                       // everything (incl. blank lines) up to the close
+                if (IsFenceMarker(line)) inFence = false;
+                prevBlank = false;
+                continue;
+            }
+
             if (line.Trim().Length == 0) { prevBlank = true; continue; }   // blank line = separator
             if (prevBlank && current.Count > 0)
             {
@@ -34,10 +45,30 @@ public static class MarkdownBlocks
             }
             current.Add(line);
             prevBlank = false;
+            if (IsFenceMarker(line)) inFence = true;      // opening fence — hold blank lines until it closes
         }
         if (current.Count > 0) blocks.Add(string.Join("\n", current));
         if (blocks.Count == 0) blocks.Add(string.Empty);
         return blocks;
+    }
+
+    private static bool IsFenceMarker(string line)
+    {
+        var t = line.TrimStart();
+        return t.StartsWith("```") || t.StartsWith("~~~");
+    }
+
+    /// <summary>True when a block is a fenced code/diagram block (its first non-blank line opens a
+    /// <c>```</c> / <c>~~~</c> fence) — such a block treats Enter as a literal newline rather than a
+    /// block split.</summary>
+    public static bool IsFenced(string block)
+    {
+        foreach (var line in block.Split('\n'))
+        {
+            if (line.Trim().Length == 0) continue;
+            return IsFenceMarker(line);
+        }
+        return false;
     }
 
     /// <summary>Joins block contents back into a markdown string with one blank line between them.</summary>

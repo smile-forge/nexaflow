@@ -77,7 +77,7 @@ public static class MarkdownFlowDocument
                 // MathBlock extends FencedCodeBlock — match first
                 MathBlock          => [UiFallback(block, raw, ctx)],
                 FencedCodeBlock fc when DiagramRenderer.IsDiagramLanguage(fc.Info)
-                                   => [UiFallback(block, raw, ctx)],
+                                   => [DiagramFallback(block, raw, ctx)],
                 FencedCodeBlock fc => [Code(fc.Lines.ToString(), fc.Span, ctx)],
                 CodeBlock       cb => [Code(cb.Lines.ToString(), cb.Span, ctx)],
                 MdTable         t  => [TableOf(t, ctx)],
@@ -314,6 +314,45 @@ public static class MarkdownFlowDocument
 
     private static WpfBlock UiFallback(MdBlock block, string raw, MarkdownRenderContext ctx) =>
         new BlockUIContainer(BlockRenderer.Render(block, raw, ctx)) { Margin = new Thickness(0) };
+
+    /// <summary>A diagram block. With <see cref="MarkdownRenderContext.FitContentToWidth"/> the diagram's
+    /// own height cap + scrollbars are dropped (so a long flowchart renders full height and the page
+    /// scrolls — scrollbars can't be grabbed inside an editable surface anyway) and it is wrapped in a
+    /// down-only <see cref="System.Windows.Controls.Viewbox"/> so an over-wide diagram scales to the
+    /// column instead of overflowing.</summary>
+    private static WpfBlock DiagramFallback(MdBlock block, string raw, MarkdownRenderContext ctx)
+    {
+        var element = BlockRenderer.Render(block, raw, ctx);
+        if (ctx.FitContentToWidth)
+        {
+            UnboundDiagramHeight(element);
+            element = new System.Windows.Controls.Viewbox
+            {
+                Child               = element,
+                Stretch             = Stretch.Uniform,
+                StretchDirection    = System.Windows.Controls.StretchDirection.DownOnly,
+                HorizontalAlignment = HorizontalAlignment.Left,
+            };
+        }
+        return new BlockUIContainer(element) { Margin = new Thickness(0) };
+    }
+
+    /// <summary>Removes the fixed height + scrollbars from a diagram's inner
+    /// <see cref="System.Windows.Controls.ScrollViewer"/> (the renderers cap it at a few hundred px) so it
+    /// lays out at full natural height. Walks the logical tree, stopping at the first ScrollViewer on each
+    /// branch.</summary>
+    private static void UnboundDiagramHeight(DependencyObject root)
+    {
+        if (root is System.Windows.Controls.ScrollViewer sv)
+        {
+            sv.MaxHeight = double.PositiveInfinity;
+            sv.VerticalScrollBarVisibility   = System.Windows.Controls.ScrollBarVisibility.Hidden;
+            sv.HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Hidden;
+            return;
+        }
+        foreach (var child in LogicalTreeHelper.GetChildren(root))
+            if (child is DependencyObject d) UnboundDiagramHeight(d);
+    }
 
     // ── Raw-source extraction (mirrors MarkdownView) ────────────────────────
 
