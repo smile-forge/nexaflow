@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using ICSharpCode.AvalonEdit.Document;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Visuals.Common.Formatting;
 using System.IO;
 using System.Text;
 using System.Text.Json.Nodes;
@@ -650,15 +651,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         return count;
     }
 
-    private static string FormatSize(long bytes)
-    {
-        return bytes switch
-        {
-            < 1024        => $"{bytes} B",
-            < 1024 * 1024 => $"{bytes / 1024.0:F1} KB",
-            _             => $"{bytes / (1024.0 * 1024):F1} MB",
-        };
-    }
+    private static string FormatSize(long bytes) => SizeFormatter.FormatBytes(bytes);
 
     // ── IPageViewModel ────────────────────────────────────────────────────────
 

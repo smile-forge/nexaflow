@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
+using Nexaflow.Visuals.Common.Formatting;
 
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 
@@ -88,14 +89,7 @@ public class FileSystemEntry : INotifyPropertyChanged
         ? string.Empty
         : Modified.ToString("yyyy-MM-dd HH:mm");
 
-    private static string FormatSize(long bytes) => bytes switch
-    {
-        < 1024                            => $"{bytes} B",
-        < 1024 * 1024                     => $"{bytes / 1024.0:F1} KB",
-        < 1024L * 1024 * 1024             => $"{bytes / (1024.0 * 1024):F1} MB",
-        < 1024L * 1024 * 1024 * 1024      => $"{bytes / (1024.0 * 1024 * 1024):F2} GB",
-        _                                 => $"{bytes / (1024.0 * 1024 * 1024 * 1024):F2} TB"
-    };
+    private static string FormatSize(long bytes) => SizeFormatter.FormatBytes(bytes);
 
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? n = null)

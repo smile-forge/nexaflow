@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.AIChat.ViewModels.Timeline;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Visuals.Common.Formatting;
 
 namespace Nexaflow.Features.AIChat.ViewModels;
 
@@ -577,14 +578,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         catch { return string.Empty; }
     }
 
-    private static string FormatSize(long bytes)
-    {
-        string[] units = ["B", "KB", "MB", "GB", "TB"];
-        double size = bytes;
-        int u = 0;
-        while (size >= 1024 && u < units.Length - 1) { size /= 1024; u++; }
-        return u == 0 ? $"{bytes} B" : $"{size:0.#} {units[u]}";
-    }
+    private static string FormatSize(long bytes) => SizeFormatter.FormatBytes(bytes);
 
     private void UpdateBreadcrumb()
     {

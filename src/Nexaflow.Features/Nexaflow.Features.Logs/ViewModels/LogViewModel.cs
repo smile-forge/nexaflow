@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using ICSharpCode.AvalonEdit.Document;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Logs.Parsing;
+using Nexaflow.Visuals.Common.Formatting;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -600,12 +601,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static string FormatSize(long bytes) => bytes switch
-    {
-        < 1024        => $"{bytes} B",
-        < 1024 * 1024 => $"{bytes / 1024.0:F1} KB",
-        _             => $"{bytes / (1024.0 * 1024):F1} MB",
-    };
+    private static string FormatSize(long bytes) => SizeFormatter.FormatBytes(bytes);
 
     // ── IPageViewModel ────────────────────────────────────────────────────────
 
