@@ -583,6 +583,13 @@ public partial class RibbonBar : UserControl
 
     // ── Element builders ───────────────────────────────────────────────────
 
+    private const int MaxLabelChars = 14;
+
+    /// <summary>Visible button caption: truncated with an ellipsis past <see cref="MaxLabelChars"/>;
+    /// the full label still lives on the button's tooltip.</summary>
+    private static string DisplayLabel(string label)
+        => label.Length > MaxLabelChars ? label[..(MaxLabelChars - 1)] + "…" : label;
+
     private UIElement BuildElement(RibbonItem item, bool compact)
     {
         return item.Kind switch
@@ -627,7 +634,7 @@ public partial class RibbonBar : UserControl
         });
         sp.Children.Add(new TextBlock
         {
-            Text                = item.Label,
+            Text                = DisplayLabel(item.Label),
             FontSize            = 11,
             HorizontalAlignment = HorizontalAlignment.Center,
             Foreground          = fg,
@@ -663,7 +670,7 @@ public partial class RibbonBar : UserControl
         });
         content.Children.Add(new TextBlock
         {
-            Text              = item.Label,
+            Text              = DisplayLabel(item.Label),
             FontSize          = 11,
             Foreground        = fg,
             VerticalAlignment = VerticalAlignment.Center,
