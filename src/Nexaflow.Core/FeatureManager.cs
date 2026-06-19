@@ -51,10 +51,12 @@ public sealed class FeatureManager
     /// </summary>
     public IReadOnlyList<Type> WorkspaceScopedConfigTypes => _workspaceScopedConfigTypes;
 
-    private readonly List<Type> _keyboardHandlerTypes  = [];
-    private readonly List<Type> _dropTargetTypes       = [];
-    private readonly List<Type> _queryHandlerTypes     = [];
-    private readonly List<Type> _ribbonPinHandlerTypes = [];
+    private readonly List<Type> _keyboardHandlerTypes   = [];
+    private readonly List<Type> _dropTargetTypes        = [];
+    private readonly List<Type> _queryHandlerTypes      = [];
+    private readonly List<Type> _ribbonPinHandlerTypes  = [];
+    private readonly List<Type> _tabPinHandlerTypes      = [];
+    private readonly List<Type> _ribbonItemExecutorTypes = [];
 
     // Theme resource dictionaries contributed by features (see IThemeContribution) — pack URIs only,
     // gathered during RegisterFeatures so ThemeManager can merge them without Core referencing any feature.
@@ -176,7 +178,9 @@ public sealed class FeatureManager
             if (typeof(IKeyboardHandler).IsAssignableFrom(t)) _keyboardHandlerTypes.Add(t);
             if (typeof(IDropTarget).IsAssignableFrom(t))      _dropTargetTypes.Add(t);
             if (typeof(IQueryHandler).IsAssignableFrom(t))    _queryHandlerTypes.Add(t);
-            if (typeof(IRibbonPinHandler).IsAssignableFrom(t)) _ribbonPinHandlerTypes.Add(t);
+            if (typeof(IRibbonPinHandler).IsAssignableFrom(t))  _ribbonPinHandlerTypes.Add(t);
+            if (typeof(ITabPinHandler).IsAssignableFrom(t))      _tabPinHandlerTypes.Add(t);
+            if (typeof(IRibbonItemExecutor).IsAssignableFrom(t)) _ribbonItemExecutorTypes.Add(t);
 
             // Theme contributions are read once, up front (no Workspace needed) — a feature opts in
             // by advertising pack URIs of dictionaries to merge below the active theme.
@@ -302,8 +306,20 @@ public sealed class FeatureManager
     public IReadOnlyList<IRibbonPinHandler> GetRibbonPinHandlers(Workspace ctx)
         => Instantiate<IRibbonPinHandler>(_ribbonPinHandlerTypes, ctx);
 
-    public IRibbonPinHandler? GetRibbonPinHandler(string contentKind, Workspace ctx)
-        => GetRibbonPinHandlers(ctx).FirstOrDefault(h => h.ContentKind == contentKind);
+    /// <summary>The foreign-drop handler that accepts <paramref name="format"/> (a WPF drag-data key), or null.</summary>
+    public IRibbonPinHandler? GetRibbonPinHandlerForFormat(string format, Workspace ctx)
+        => GetRibbonPinHandlers(ctx).FirstOrDefault(h => h.AcceptedFormats.Contains(format));
+
+    /// <summary>The tab-pin handler that snapshots tabs of <paramref name="tabPageKind"/>, or null.</summary>
+    public ITabPinHandler? GetTabPinHandler(string tabPageKind, Workspace ctx)
+        => Instantiate<ITabPinHandler>(_tabPinHandlerTypes, ctx)
+            .FirstOrDefault(h => h.TabPageKind == tabPageKind);
+
+    /// <summary>The click-time executor for ribbon buttons of <paramref name="pageKind"/>, or null
+    /// (in which case the button simply opens that page kind as a tab).</summary>
+    public IRibbonItemExecutor? GetRibbonItemExecutor(string pageKind, Workspace ctx)
+        => Instantiate<IRibbonItemExecutor>(_ribbonItemExecutorTypes, ctx)
+            .FirstOrDefault(e => e.PageKind == pageKind);
 
     /// <summary>
     /// Lightweight <see cref="Page"/> definitions for the page kinds that can be created without

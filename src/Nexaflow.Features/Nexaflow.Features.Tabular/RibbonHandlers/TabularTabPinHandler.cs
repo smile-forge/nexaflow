@@ -12,14 +12,12 @@ namespace Nexaflow.Features.Tabular.RibbonHandlers;
 /// transform chain so re-opening from the ribbon restores every merge, split,
 /// evaluate-as and rename the user had applied — not just the file.
 /// </summary>
-public sealed class TabularTabPinHandler(IShellServices _shell) : IRibbonPinHandler
+public sealed class TabularTabPinHandler : ITabPinHandler
 {
-    public string ContentKind => TabularPageRegistration.StaticPageKind;
+    public string TabPageKind => TabularPageRegistration.StaticPageKind;
 
-    public RibbonPinResult? Pin(object payload, int insertIndex = -1)
+    public RibbonPinResult? Pin(Page tab, int insertIndex = -1)
     {
-        if (payload is not Page tab) return null;
-
         var pageParams = tab.PageParams is null
             ? new Dictionary<string, string>()
             : new Dictionary<string, string>(tab.PageParams);
@@ -41,12 +39,10 @@ public sealed class TabularTabPinHandler(IShellServices _shell) : IRibbonPinHand
 
         return new RibbonPinResult
         {
+            PageKind   = TabularPageRegistration.StaticPageKind,
             Label      = label,
             Icon       = tab.Icon,
             PageParams = pageParams,
         };
     }
-
-    public void Execute(Dictionary<string, string>? pageParams, IRibbonExecutionContext context)
-        => _shell.OpenTab(TabularPageRegistration.StaticPageKind, pageParams);
 }

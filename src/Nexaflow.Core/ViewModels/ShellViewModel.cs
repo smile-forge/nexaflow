@@ -537,8 +537,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     {
         if (item.PageKind is not null)
         {
-            var handler = FeatureManager.Instance.GetRibbonPinHandler(item.PageKind, CurrentWorkspace);
-            if (handler is not null)
+            var executor = FeatureManager.Instance.GetRibbonItemExecutor(item.PageKind, CurrentWorkspace);
+            if (executor is not null)
             {
                 var paths = (CurrentPage as ISelectionProvider)?.SelectedFilePaths
                             ?? (IReadOnlyList<string>)[];
@@ -547,7 +547,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
                     msg           => ShowError("Ribbon Action", msg),
                     (t, m, ok, c) => ShowConfirmation(t, m, ok, c),
                     ()            => Ribbon?.Items.Remove(item));
-                handler.Execute(item.PageParams, ctx);
+                executor.Execute(item.PageParams, ctx);
                 return;
             }
             _shellServices.OpenTab(item.PageKind, item.PageParams);
@@ -563,10 +563,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     {
         if (item.PageKind is null) return;
 
-        var handler = FeatureManager.Instance.GetRibbonPinHandler(item.PageKind, CurrentWorkspace);
-        if (handler is not null)
+        var executor = FeatureManager.Instance.GetRibbonItemExecutor(item.PageKind, CurrentWorkspace);
+        if (executor is not null)
         {
-            // Create the new window first so any OpenTab calls inside the handler land there.
+            // Create the new window first so any OpenTab calls inside the executor land there.
             var newHost = _shellServices.CreateAndShowNewWindow();
             if (newHost is null) return;
 
@@ -577,7 +577,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
                 msg           => ShowError("Ribbon Action", msg),
                 (t, m, ok, c) => ShowConfirmation(t, m, ok, c),
                 ()            => Ribbon?.Items.Remove(item));
-            handler.Execute(item.PageParams, ctx);
+            executor.Execute(item.PageParams, ctx);
 
             // If the action didn't open a tab, the new window serves no purpose.
             if (newHost.Tabs.Count == 0)

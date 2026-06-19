@@ -5,17 +5,15 @@ using Nexaflow.Features.WindowsRegistry.Views;
 namespace Nexaflow.Features.WindowsRegistry.RibbonHandlers;
 
 /// <summary>
-/// Handles drag-pin and execution of registry tabs on the ribbon. Pin bakes the current key into the
-/// ribbon button (re-rooting the tree there) so it always re-opens rooted at that exact key.
+/// Pins a registry tab to the ribbon, baking the current key into the button (re-rooting the tree
+/// there) so it always re-opens rooted at that exact key. Clicking just re-opens the page kind.
 /// </summary>
-public sealed class RegistryTabPinHandler(IShellServices _shell) : IRibbonPinHandler
+public sealed class RegistryTabPinHandler : ITabPinHandler
 {
-    public string ContentKind => RegistryPageRegistration.PageKind;
+    public string TabPageKind => RegistryPageRegistration.PageKind;
 
-    public RibbonPinResult? Pin(object payload, int insertIndex = -1)
+    public RibbonPinResult? Pin(Page tab, int insertIndex = -1)
     {
-        if (payload is not Page tab) return null;
-
         if (tab.Content is RegistryView view)
         {
             var vm = view.ViewModel;
@@ -25,6 +23,7 @@ public sealed class RegistryTabPinHandler(IShellServices _shell) : IRibbonPinHan
 
             return new RibbonPinResult
             {
+                PageKind   = RegistryPageRegistration.PageKind,
                 Label      = leaf,
                 Icon       = "🗝",
                 PageParams = sub.Length == 0
@@ -36,14 +35,12 @@ public sealed class RegistryTabPinHandler(IShellServices _shell) : IRibbonPinHan
         // Content not yet loaded — snapshot whatever the tab already knows.
         return new RibbonPinResult
         {
+            PageKind   = RegistryPageRegistration.PageKind,
             Label      = tab.Title,
             Icon       = tab.Icon,
             PageParams = tab.PageParams is not null ? new(tab.PageParams) : null
         };
     }
-
-    public void Execute(Dictionary<string, string>? pageParams, IRibbonExecutionContext context)
-        => _shell.OpenTab(RegistryPageRegistration.PageKind, pageParams);
 
     private static (string Hive, string Sub) Split(string full)
     {

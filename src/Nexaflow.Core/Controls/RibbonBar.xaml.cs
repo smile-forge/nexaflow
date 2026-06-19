@@ -328,14 +328,13 @@ public partial class RibbonBar : UserControl
         if (Workspace is { } ctx)
         {
             foreach (var h in FeatureManager.Instance.GetRibbonPinHandlers(ctx))
-            {
-                if (e.Data.GetDataPresent(h.ContentKind))
-                {
-                    e.Effects = DragDropEffects.Copy;
-                    e.Handled = true;
-                    return;
-                }
-            }
+                foreach (var fmt in h.AcceptedFormats)
+                    if (e.Data.GetDataPresent(fmt))
+                    {
+                        e.Effects = DragDropEffects.Copy;
+                        e.Handled = true;
+                        return;
+                    }
         }
 
         e.Effects = DragDropEffects.None;
@@ -356,14 +355,13 @@ public partial class RibbonBar : UserControl
         if (Workspace is { } dropCtx)
         {
             foreach (var h in FeatureManager.Instance.GetRibbonPinHandlers(dropCtx))
-            {
-                if (e.Data.GetData(h.ContentKind) is { } payload)
-                {
-                    PinFromHandlerCommand?.Execute(new RibbonPinRequest(h.ContentKind, payload, insertAt));
-                    e.Handled = true;
-                    return;
-                }
-            }
+                foreach (var fmt in h.AcceptedFormats)
+                    if (e.Data.GetData(fmt) is { } payload)
+                    {
+                        PinFromHandlerCommand?.Execute(new RibbonPinRequest(fmt, payload, insertAt));
+                        e.Handled = true;
+                        return;
+                    }
         }
     }
 

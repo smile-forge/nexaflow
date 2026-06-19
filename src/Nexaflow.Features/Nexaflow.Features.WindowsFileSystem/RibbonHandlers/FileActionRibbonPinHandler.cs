@@ -8,18 +8,21 @@ using Nexaflow.Features.WindowsFileSystem.Services;
 namespace Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
 
 /// <summary>
-/// Allows non-destructive <see cref="IFileAction"/> instances to be pinned to the ribbon.
-/// Looks up actions through <see cref="FileSystemFeatureRegistry"/>, which owns the
-/// singleton instance set.
+/// Allows non-destructive <see cref="IFileAction"/> instances to be pinned to the ribbon, and runs them
+/// when clicked. Looks up actions through <see cref="FileSystemFeatureRegistry"/>, which owns the
+/// singleton instance set. The two halves — building the button (<see cref="IRibbonPinHandler"/>) and
+/// running it (<see cref="IRibbonItemExecutor"/>) — share this instance's registry.
 /// </summary>
-public sealed class FileActionRibbonPinHandler : IRibbonPinHandler
+public sealed class FileActionRibbonPinHandler : IRibbonPinHandler, IRibbonItemExecutor
 {
     private readonly FileSystemFeatureRegistry _registry;
 
     public FileActionRibbonPinHandler(IShellServices shell, IAIService ai, IReadOnlyDictionary<Type, IFeatureConfig> configs)
         => _registry = FileSystemFeatureRegistry.For(shell, ai, configs);
 
-    public string ContentKind => FileSystemPageRegistration.FileActionKind;
+    public IReadOnlyList<string> AcceptedFormats { get; } = [FileSystemPageRegistration.FileActionKind];
+
+    public string PageKind => FileSystemPageRegistration.FileActionKind;
 
     // PageParam keys reserved by this handler. Reinit params from the action are
     // stored flat under the "r." prefix to keep them distinct from these.
@@ -48,7 +51,7 @@ public sealed class FileActionRibbonPinHandler : IRibbonPinHandler
             foreach (var kv in reinit)
                 pageParams[ReinitPrefix + kv.Key] = kv.Value;
 
-        return new RibbonPinResult { Label = label, Icon = action.Icon, PageParams = pageParams };
+        return new RibbonPinResult { PageKind = PageKind, Label = label, Icon = action.Icon, PageParams = pageParams };
     }
 
     public void Execute(Dictionary<string, string>? pageParams, IRibbonExecutionContext context)

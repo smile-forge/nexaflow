@@ -11,10 +11,11 @@ public enum RibbonItemKind { Button, HalfGroup, Separator }
 public record TabPinRequest(Page Tab, int InsertIndex = -1);
 
 /// <summary>
-/// Carries a handler-based pin request: a typed payload identified by ContentKind.
-/// Used for drag-drop of non-tab content (e.g. file actions) onto the ribbon.
+/// Carries a handler-based pin request: a payload tagged with the drag-data <c>Format</c> it arrived as.
+/// Used for drag-drop of non-tab content (e.g. file actions, a browser URL) onto the ribbon; the
+/// matching <see cref="Nexaflow.Features.Common.IRibbonPinHandler"/> is resolved by that format.
 /// </summary>
-public record RibbonPinRequest(string ContentKind, object Payload, int InsertIndex = -1);
+public record RibbonPinRequest(string Format, object Payload, int InsertIndex = -1);
 
 /// <summary>
 /// Represents one item in the customisable ribbon.

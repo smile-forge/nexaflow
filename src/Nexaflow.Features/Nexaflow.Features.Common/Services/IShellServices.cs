@@ -122,10 +122,10 @@ public interface IShellServices
 
     /// <summary>
     /// Pins <paramref name="payload"/> to the focused window's ribbon using the
-    /// <see cref="Nexaflow.Features.Common.Ribbon.IRibbonPinHandler"/> registered for
-    /// <paramref name="contentKind"/>.
+    /// <see cref="Nexaflow.Features.Common.IRibbonPinHandler"/> that accepts the drag-data
+    /// <paramref name="format"/>.
     /// </summary>
-    void PinToRibbon(string contentKind, object payload);
+    void PinToRibbon(string format, object payload);
 
     /// <summary>
     /// Dispatches <paramref name="obj"/> to the first registered

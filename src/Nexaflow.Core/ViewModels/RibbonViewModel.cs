@@ -227,7 +227,7 @@ public partial class RibbonViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Handle a tab drag-drop pin. Delegates to the registered <see cref="IRibbonPinHandler"/>
+    /// Handle a tab drag-drop pin. Delegates to the registered <see cref="ITabPinHandler"/>
     /// for the tab's page kind when one exists; otherwise snapshots the tab's current metadata.
     /// </summary>
     [RelayCommand]
@@ -236,59 +236,46 @@ public partial class RibbonViewModel : ObservableObject
         var (tab, insertIndex) = request;
         if (string.IsNullOrEmpty(tab.PageKind)) return;
 
-        RibbonPinResult result;
-        if (_workspace is not null)
-        {
-            var handler = FeatureManager.Instance.GetRibbonPinHandler(tab.PageKind, _workspace);
-            if (handler is not null)
-            {
-                var handlerResult = handler.Pin(tab, insertIndex);
-                if (handlerResult is null) return;
-                result = handlerResult;
-            }
-            else
-            {
-                result = TabMetadataResult(tab);
-            }
-        }
-        else
-        {
-            result = TabMetadataResult(tab);
-        }
+        var handler = _workspace is not null
+            ? FeatureManager.Instance.GetTabPinHandler(tab.PageKind, _workspace)
+            : null;
 
-        InsertPin(tab.PageKind, result, insertIndex);
+        var result = handler is not null ? handler.Pin(tab, insertIndex) : TabMetadataResult(tab);
+        if (result is null) return;
+
+        InsertPin(result, insertIndex);
     }
 
     /// <summary>
-    /// Handle a handler-based pin: looks up the registered <see cref="IRibbonPinHandler"/>
-    /// for the request's <see cref="RibbonPinRequest.ContentKind"/>, builds the button,
-    /// deduplicates, and inserts.
+    /// Handle a handler-based pin: looks up the <see cref="IRibbonPinHandler"/> that accepts the
+    /// request's <see cref="RibbonPinRequest.Format"/>, builds the button, deduplicates, and inserts.
     /// </summary>
     [RelayCommand]
     public void PinFromHandler(RibbonPinRequest request)
     {
         if (_workspace is null) return;
-        var handler = FeatureManager.Instance.GetRibbonPinHandler(request.ContentKind, _workspace);
+        var handler = FeatureManager.Instance.GetRibbonPinHandlerForFormat(request.Format, _workspace);
         if (handler is null) return;
 
         var result = handler.Pin(request.Payload, request.InsertIndex);
         if (result is null) return;
 
-        InsertPin(request.ContentKind, result, request.InsertIndex);
+        InsertPin(result, request.InsertIndex);
     }
 
     private static RibbonPinResult TabMetadataResult(Page tab) => new()
     {
+        PageKind   = tab.PageKind!,   // caller guarantees non-empty
         Label      = tab.Title,
         Icon       = tab.Icon,
         PageParams = tab.PageParams is not null ? new(tab.PageParams) : null
     };
 
-    private void InsertPin(string pageKind, RibbonPinResult result, int insertIndex)
+    private void InsertPin(RibbonPinResult result, int insertIndex)
     {
         var duplicate = Items.FirstOrDefault(r =>
             r.Kind == RibbonItemKind.Button &&
-            r.PageKind == pageKind &&
+            r.PageKind == result.PageKind &&
             ParamsEqual(r.PageParams, result.PageParams));
         if (duplicate is not null)
         {
@@ -302,7 +289,7 @@ public partial class RibbonViewModel : ObservableObject
             Label       = result.Label,
             Icon        = result.Icon,
             AccentColor = result.AccentColor,
-            PageKind    = pageKind,
+            PageKind    = result.PageKind,
             PageParams  = result.PageParams
         }, insertIndex);
     }

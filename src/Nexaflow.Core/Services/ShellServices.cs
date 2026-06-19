@@ -519,9 +519,9 @@ public sealed class ShellServices : IShellServices
                 vm.OpenOptionsAt(configName);
         });
 
-    void IShellServices.PinToRibbon(string contentKind, object payload)
+    void IShellServices.PinToRibbon(string format, object payload)
         => (_focused ?? _windows.FirstOrDefault())
-            ?.AddRibbonPin(new RibbonPinRequest(contentKind, payload));
+            ?.AddRibbonPin(new RibbonPinRequest(format, payload));
 
     public bool HandleObject(object obj)
     {

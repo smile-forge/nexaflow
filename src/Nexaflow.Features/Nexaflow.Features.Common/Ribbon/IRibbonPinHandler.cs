@@ -4,25 +4,23 @@ using System.Collections.Generic;
 namespace Nexaflow.Features.Common;
 
 /// <summary>
-/// Allows any feature to extend what can be dragged or pinned to the ribbon.
-/// Implementations are auto-discovered from feature assemblies by <see cref="FeatureManager"/>
-/// and can also be registered manually (e.g. for Core-owned handlers).
+/// Turns a foreign drag payload (a file action, a URL dropped from a browser, …) into a ribbon button.
+/// Implementations are auto-discovered from feature assemblies by <see cref="FeatureManager"/>.
+/// Tab drag-pinning is a separate concern — see <see cref="ITabPinHandler"/>; click-time behaviour that
+/// isn't simply "open a tab" is another — see <see cref="IRibbonItemExecutor"/>.
 /// </summary>
 public interface IRibbonPinHandler
 {
     /// <summary>
-    /// Identifies this handler's content type. Used as the WPF drag-data format key
-    /// and stored as the ribbon item's <c>PageKind</c> in ribbon.json.
+    /// WPF drag-data format keys this handler consumes — an internal kind (e.g. "FileAction") or native
+    /// OS formats (e.g. "UniformResourceLocator"). A drag matches when it carries any of these formats.
+    /// The resulting button's identity comes from <see cref="RibbonPinResult.PageKind"/>, not from here,
+    /// so a handler can accept a foreign format yet produce a clean internal page kind.
     /// </summary>
-    string ContentKind { get; }
+    IReadOnlyList<string> AcceptedFormats { get; }
 
     /// <summary>
     /// Creates ribbon item metadata from a dropped payload, or returns <c>null</c> to reject.
     /// </summary>
     RibbonPinResult? Pin(object payload, int insertIndex = -1);
-
-    /// <summary>
-    /// Executes the pinned action using the provided shell context.
-    /// </summary>
-    void Execute(Dictionary<string, string>? pageParams, IRibbonExecutionContext context);
 }

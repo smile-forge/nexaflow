@@ -1,23 +1,20 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Ribbon;
 using Nexaflow.Features.WindowsFileSystem.Views;
-using System.Collections.Generic;
 
 namespace Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
 
 /// <summary>
-/// Handles drag-pin and execution of FileSystem tabs on the ribbon.
-/// Pin receives a <see cref="Page"/> and bakes the current navigation path into
-/// the ribbon button so it always re-opens the exact location the user was viewing.
+/// Pins a FileSystem tab to the ribbon, baking the current navigation path into the button so it
+/// always re-opens the exact location the user was viewing. Clicking just re-opens the page kind —
+/// no executor needed.
 /// </summary>
-public sealed class FileSystemTabPinHandler(IShellServices _shell) : IRibbonPinHandler
+public sealed class FileSystemTabPinHandler : ITabPinHandler
 {
-    public string ContentKind => FileSystemPageRegistration.PageKind;
+    public string TabPageKind => FileSystemPageRegistration.PageKind;
 
-    public RibbonPinResult? Pin(object payload, int insertIndex = -1)
+    public RibbonPinResult? Pin(Page tab, int insertIndex = -1)
     {
-        if (payload is not Page tab) return null;
-
         if (tab.Content is FileSystemView fsPage)
         {
             var vm       = fsPage.ViewModel;
@@ -28,6 +25,7 @@ public sealed class FileSystemTabPinHandler(IShellServices _shell) : IRibbonPinH
 
             return new RibbonPinResult
             {
+                PageKind   = FileSystemPageRegistration.PageKind,
                 Label      = isThisPc ? "This PC" : System.IO.Path.GetFileName(path) is { Length: > 0 } n ? n : path,
                 Icon       = isThisPc ? "🖥" : "📁",
                 PageParams = isThisPc
@@ -39,12 +37,10 @@ public sealed class FileSystemTabPinHandler(IShellServices _shell) : IRibbonPinH
         // Content not yet loaded — snapshot whatever the tab already knows.
         return new RibbonPinResult
         {
+            PageKind   = FileSystemPageRegistration.PageKind,
             Label      = tab.Title,
             Icon       = tab.Icon,
             PageParams = tab.PageParams is not null ? new(tab.PageParams) : null
         };
     }
-
-    public void Execute(Dictionary<string, string>? pageParams, IRibbonExecutionContext context)
-        => _shell.OpenTab(FileSystemPageRegistration.PageKind, pageParams);
 }
