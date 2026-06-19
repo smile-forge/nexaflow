@@ -21,6 +21,8 @@ public static class ElevatedOps
     public const string RegDeleteKey        = "reg.deleteKey";
     public const string RegRenameKey        = "reg.renameKey";
     public const string RegImport           = "reg.import";
+    public const string ProcessKill         = "process.kill";
+    public const string ProcessSetPriority  = "process.setPriority";
 }
 
 /// <summary>Well-known argument keys carried in <see cref="ElevatedOperation.Args"/>.</summary>
@@ -49,6 +51,14 @@ public static class ElevatedArgs
     public const string RegFile     = "regFile";
     /// <summary>New leaf name for a key rename.</summary>
     public const string RegNewName  = "regNewName";
+
+    // ── Process control ──────────────────────────────────────────────────────
+    /// <summary>Target process id (decimal string).</summary>
+    public const string ProcessId      = "processId";
+    /// <summary>"true" to also terminate the target's child process tree.</summary>
+    public const string ProcessKillTree = "killTree";
+    /// <summary><c>System.Diagnostics.ProcessPriorityClass</c> name: Idle|BelowNormal|Normal|AboveNormal|High|RealTime.</summary>
+    public const string ProcessPriority = "priority";
 }
 
 /// <summary>Canonical startup-mode values exchanged over the wire (plural to avoid colliding with the

@@ -1,0 +1,500 @@
+<UserControl x:Class="Nexaflow.Features.Processes.Views.ProcessDetailView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Nexaflow.Features.Processes.ViewModels"
+             xmlns:conv="clr-namespace:Nexaflow.Features.Processes.Converters"
+             xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             Background="{StaticResource BgBrush}">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
+        <!-- Vertical nav-tab item -->
+        <Style x:Key="VTabItem" TargetType="TabItem">
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontSize"   Value="13"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="bd" Background="Transparent" CornerRadius="6" Margin="0,2">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="3"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Border x:Name="bar" Grid.Column="0" Background="Transparent" CornerRadius="2" Margin="0,5"/>
+                                <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" Margin="12,9"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="bd"  Property="Background" Value="{StaticResource Surface2Brush}"/>
+                                <Setter TargetName="bar" Property="Background" Value="{StaticResource AccentBrush}"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Vertical TabControl: left nav column + bordered content surface -->
+        <Style x:Key="VTabControl" TargetType="TabControl">
+            <Setter Property="ItemContainerStyle" Value="{StaticResource VTabItem}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel x:Name="HeaderPanel" Grid.Column="0" IsItemsHost="True"
+                                        Margin="0,0,12,0" VerticalAlignment="Top"/>
+                            <Border Grid.Column="1" Background="{StaticResource SurfaceBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                    CornerRadius="6" ClipToBounds="True">
+                                <ContentPresenter x:Name="PART_SelectedContentHost" ContentSource="SelectedContent"/>
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Themed, resizable list header for threads/modules (drag the right edge to resize; click to sort
+             where the column carries a SortableHeader). -->
+        <Style x:Key="PlainHeader" TargetType="GridViewColumnHeader">
+            <Setter Property="Background"      Value="{StaticResource DeepBgBrush}"/>
+            <Setter Property="Foreground"      Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
+            <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+            <Setter Property="Padding"         Value="8,6"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="GridViewColumnHeader">
+                        <Grid>
+                            <Border Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                            </Border>
+                            <Thumb x:Name="PART_HeaderGripper" HorizontalAlignment="Right"
+                                   Width="8" Margin="0,0,-4,0" Cursor="SizeWE">
+                                <Thumb.Template>
+                                    <ControlTemplate TargetType="Thumb"><Border Background="Transparent"/></ControlTemplate>
+                                </Thumb.Template>
+                            </Thumb>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Sortable header content for the Modules list (glyph bound to the VM's module sort state). -->
+        <DataTemplate x:Key="ModuleSortHeader" DataType="{x:Type vm:SortableHeader}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding Label}" Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" FontSize="9" Margin="6,0,0,0" VerticalAlignment="Center">
+                    <TextBlock.Foreground>
+                        <MultiBinding Converter="{x:Static conv:SortBrushConverter.Instance}">
+                            <Binding Path="DataContext.ModuleSortColumn" RelativeSource="{RelativeSource AncestorType=ListView}"/>
+                            <Binding Path="Key"/>
+                        </MultiBinding>
+                    </TextBlock.Foreground>
+                    <TextBlock.Text>
+                        <MultiBinding Converter="{x:Static conv:SortGlyphConverter.Instance}">
+                            <Binding Path="DataContext.ModuleSortColumn"    RelativeSource="{RelativeSource AncestorType=ListView}"/>
+                            <Binding Path="DataContext.ModuleSortAscending" RelativeSource="{RelativeSource AncestorType=ListView}"/>
+                            <Binding Path="Key"/>
+                        </MultiBinding>
+                    </TextBlock.Text>
+                </TextBlock>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ListView template with a pinned header (scrollbar spans items only, not the header row). -->
+        <Style x:Key="GridListView" TargetType="ListView">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListView">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" SnapsToDevicePixels="True">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <GridViewHeaderRowPresenter Grid.Row="0"
+                                    Columns="{Binding View.Columns, RelativeSource={RelativeSource TemplatedParent}}"
+                                    ColumnHeaderContainerStyle="{Binding View.ColumnHeaderContainerStyle, RelativeSource={RelativeSource TemplatedParent}}"
+                                    AllowsColumnReorder="{Binding View.AllowsColumnReorder, RelativeSource={RelativeSource TemplatedParent}}"
+                                    SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                                <ScrollViewer Grid.Row="1" Focusable="False" CanContentScroll="True"
+                                              Padding="{TemplateBinding Padding}">
+                                    <ItemsPresenter/>
+                                </ScrollViewer>
+                            </Grid>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Themed list row for threads/modules -->
+        <Style x:Key="ListRow" TargetType="ListViewItem">
+            <Setter Property="Foreground"                 Value="{StaticResource TextBrush}"/>
+            <Setter Property="FontSize"                   Value="12"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Padding"                    Value="0,2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                        <Border x:Name="bg" Background="Transparent">
+                            <GridViewRowPresenter VerticalAlignment="Center"
+                                Columns="{Binding View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                Content="{TemplateBinding Content}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="bg" Property="Background" Value="{StaticResource Surface2Brush}"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsSelected"  Value="False"/>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="bg" Property="Background" Value="{StaticResource DeepBgBrush}"/>
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="Foreground"        Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontSize"          Value="12"/>
+            <Setter Property="VerticalAlignment" Value="Top"/>
+            <Setter Property="Margin"            Value="0,5,12,5"/>
+        </Style>
+        <Style x:Key="FieldValue" TargetType="TextBox" BasedOn="{StaticResource SelectableText}">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin"   Value="0,5"/>
+        </Style>
+        <Style x:Key="MetricLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontSize"   Value="11"/>
+            <Setter Property="Margin"     Value="0,0,0,2"/>
+        </Style>
+        <Style x:Key="MetricValue" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="FontSize"   Value="15"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style x:Key="DeniedBanner" TargetType="Border">
+            <Setter Property="Background"      Value="{StaticResource AccentSubtleBrush}"/>
+            <Setter Property="BorderBrush"     Value="{StaticResource WarningBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius"    Value="4"/>
+            <Setter Property="Padding"         Value="10,6"/>
+            <Setter Property="Margin"          Value="0,0,0,8"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- ── Header bar ── -->
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Title}" Foreground="{StaticResource TextBrush}"
+                           FontSize="18" FontWeight="SemiBold"/>
+                <TextBox Style="{StaticResource SelectableText}" Text="{Binding Detail.Path}"
+                         Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,2,0,0"
+                         TextWrapping="NoWrap"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <ToggleButton Content="● Live" IsChecked="{Binding AutoRefreshEnabled}" Style="{StaticResource TbToggle}"
+                              ToolTip="Auto-refresh once per second while this tab is active"/>
+                <Button Content="↻" Command="{Binding RefreshNowCommand}" Style="{StaticResource TbBtn}"
+                        FontSize="14" ToolTip="Refresh now"/>
+                <Separator Style="{StaticResource TbSep}"/>
+                <Button Content="Kill" Command="{Binding KillCommand}" Style="{StaticResource TbBtn}"
+                        Foreground="{StaticResource DangerBrush}"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- ── Body ── -->
+        <Grid Grid.Row="1">
+            <TabControl TabStripPlacement="Left">
+                <TabControl.Style>
+                    <Style TargetType="TabControl" BasedOn="{StaticResource VTabControl}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsGone}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TabControl.Style>
+
+                <!-- General -->
+                <TabItem Header="General">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,14">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="120"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Image"       Style="{StaticResource FieldLabel}"/>
+                            <TextBox   Grid.Row="0" Grid.Column="1" Text="{Binding Detail.Name}" Style="{StaticResource FieldValue}"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Description" Style="{StaticResource FieldLabel}"/>
+                            <TextBox   Grid.Row="1" Grid.Column="1" Text="{Binding Detail.Description}" Style="{StaticResource FieldValue}"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Company"     Style="{StaticResource FieldLabel}"/>
+                            <TextBox   Grid.Row="2" Grid.Column="1" Text="{Binding Detail.Company}" Style="{StaticResource FieldValue}"/>
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Version"     Style="{StaticResource FieldLabel}"/>
+                            <TextBox   Grid.Row="3" Grid.Column="1" Text="{Binding Detail.FileVersion}" Style="{StaticResource FieldValue}"/>
+
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Path"        Style="{StaticResource FieldLabel}"/>
+                            <TextBox   Grid.Row="4" Grid.Column="1" Text="{Binding Detail.Path}" Style="{StaticResource FieldValue}"/>
+                            <Button    Grid.Row="4" Grid.Column="2" Content="Copy" Style="{StaticResource TbBtn}" FontSize="11"
+                                       Command="{Binding CopyTextCommand}" CommandParameter="{Binding Detail.Path}"/>
+
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Command line" Style="{StaticResource FieldLabel}"/>
+                            <TextBox   Grid.Row="5" Grid.Column="1" Text="{Binding Detail.CommandLine}" Style="{StaticResource FieldValue}"/>
+                            <Button    Grid.Row="5" Grid.Column="2" Content="Copy" Style="{StaticResource TbBtn}" FontSize="11"
+                                       Command="{Binding CopyTextCommand}" CommandParameter="{Binding Detail.CommandLine}"/>
+
+                            <TextBlock Grid.Row="6" Grid.Column="0" Text="User"        Style="{StaticResource FieldLabel}"/>
+                            <TextBox   Grid.Row="6" Grid.Column="1" Text="{Binding Detail.User}" Style="{StaticResource FieldValue}"/>
+
+                            <TextBlock Grid.Row="7" Grid.Column="0" Text="Parent"      Style="{StaticResource FieldLabel}"/>
+                            <TextBox   Grid.Row="7" Grid.Column="1" Style="{StaticResource FieldValue}">
+                                <TextBox.Text>
+                                    <MultiBinding StringFormat="{}{0} (PID {1})">
+                                        <Binding Path="Detail.ParentName"/>
+                                        <Binding Path="Detail.ParentPid"/>
+                                    </MultiBinding>
+                                </TextBox.Text>
+                            </TextBox>
+
+                            <TextBlock Grid.Row="8" Grid.Column="0" Text="Architecture / started" Style="{StaticResource FieldLabel}" TextWrapping="Wrap"/>
+                            <TextBox   Grid.Row="8" Grid.Column="1" Style="{StaticResource FieldValue}">
+                                <TextBox.Text>
+                                    <MultiBinding StringFormat="{}{0}  ·  {1:g}">
+                                        <Binding Path="Detail.Architecture"/>
+                                        <Binding Path="Detail.StartTime"/>
+                                    </MultiBinding>
+                                </TextBox.Text>
+                            </TextBox>
+
+                            <TextBlock Grid.Row="9" Grid.Column="0" Text="Priority"    Style="{StaticResource FieldLabel}"/>
+                            <ComboBox  Grid.Row="9" Grid.Column="1" Width="160" HorizontalAlignment="Left" Margin="0,4"
+                                       Style="{StaticResource DarkComboBox}"
+                                       ItemsSource="{Binding PriorityClasses}"
+                                       SelectedItem="{Binding SelectedPriority, Mode=TwoWay}"/>
+                        </Grid>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Performance -->
+                <TabItem Header="Performance">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,14">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="CPU usage" Style="{StaticResource MetricLabel}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" Style="{StaticResource MetricLabel}" VerticalAlignment="Center"
+                                           Text="{Binding CpuHistoryMax, StringFormat=scale 0–{0:0}%}"/>
+                            </Grid>
+                            <Border Background="{StaticResource DeepBgBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1" CornerRadius="4" Height="74" Margin="0,0,0,4">
+                                <vc:SparklineChart Values="{Binding CpuHistory}" Maximum="{Binding CpuHistoryMax}"
+                                                   Stroke="{StaticResource AccentBrush}"
+                                                   Fill="{StaticResource AccentSubtleBrush}" Margin="3"/>
+                            </Border>
+                            <TextBlock Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,0,14"
+                                       Text="{Binding Detail.CpuPercent, StringFormat={}{0:0.0}% now}"/>
+
+                            <UniformGrid Columns="4">
+                                <StackPanel Margin="0,0,0,14">
+                                    <TextBlock Text="Private bytes" Style="{StaticResource MetricLabel}"/>
+                                    <TextBlock Text="{Binding Detail.PrivateBytes, Converter={x:Static conv:BytesToTextConverter.Instance}}" Style="{StaticResource MetricValue}"/>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,14">
+                                    <TextBlock Text="Working set" Style="{StaticResource MetricLabel}"/>
+                                    <TextBlock Text="{Binding Detail.WorkingSet, Converter={x:Static conv:BytesToTextConverter.Instance}}" Style="{StaticResource MetricValue}"/>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,14">
+                                    <TextBlock Text="Peak working set" Style="{StaticResource MetricLabel}"/>
+                                    <TextBlock Text="{Binding Detail.PeakWorkingSet, Converter={x:Static conv:BytesToTextConverter.Instance}}" Style="{StaticResource MetricValue}"/>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,14">
+                                    <TextBlock Text="Threads" Style="{StaticResource MetricLabel}"/>
+                                    <TextBlock Text="{Binding Detail.ThreadCount}" Style="{StaticResource MetricValue}"/>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,14">
+                                    <TextBlock Text="Handles" Style="{StaticResource MetricLabel}"/>
+                                    <TextBlock Text="{Binding Detail.HandleCount}" Style="{StaticResource MetricValue}"/>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,14">
+                                    <TextBlock Text="GDI objects" Style="{StaticResource MetricLabel}"/>
+                                    <TextBlock Text="{Binding Detail.GdiObjects}" Style="{StaticResource MetricValue}"/>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,14">
+                                    <TextBlock Text="USER objects" Style="{StaticResource MetricLabel}"/>
+                                    <TextBlock Text="{Binding Detail.UserObjects}" Style="{StaticResource MetricValue}"/>
+                                </StackPanel>
+                            </UniformGrid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Threads -->
+                <TabItem Header="Threads">
+                    <Grid Margin="14,12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="0" Style="{StaticResource DeniedBanner}"
+                                Visibility="{Binding ThreadsDenied, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="Thread details require administrator rights to read."
+                                       Foreground="{StaticResource TextBrush}" FontSize="12"/>
+                        </Border>
+                        <ListView Grid.Row="1" ItemsSource="{Binding Threads}" Style="{StaticResource GridListView}"
+                                  Background="Transparent" BorderThickness="0"
+                                  VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                            <ListView.Resources>
+                                <ContextMenu x:Key="ThreadMenu" x:Shared="False">
+                                    <MenuItem Header="Copy"
+                                              Command="{Binding PlacementTarget.Tag.CopyTextCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                              CommandParameter="{Binding PlacementTarget.DataContext.RowText, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                </ContextMenu>
+                            </ListView.Resources>
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem" BasedOn="{StaticResource ListRow}">
+                                    <Setter Property="Tag" Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ListView}}"/>
+                                    <Setter Property="ContextMenu" Value="{StaticResource ThreadMenu}"/>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                            <ListView.View>
+                                <GridView ColumnHeaderContainerStyle="{StaticResource PlainHeader}">
+                                    <GridViewColumn Header="TID"      Width="80"  DisplayMemberBinding="{Binding Tid}"/>
+                                    <GridViewColumn Header="State"    Width="120" DisplayMemberBinding="{Binding State}"/>
+                                    <GridViewColumn Header="Priority" Width="120" DisplayMemberBinding="{Binding Priority}"/>
+                                    <GridViewColumn Header="CPU time" Width="100" DisplayMemberBinding="{Binding CpuTimeText}"/>
+                                    <GridViewColumn Header="Started"  Width="150" DisplayMemberBinding="{Binding StartedText}"/>
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
+                    </Grid>
+                </TabItem>
+
+                <!-- Modules -->
+                <TabItem Header="Modules">
+                    <Grid Margin="14,12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="0" Style="{StaticResource DeniedBanner}"
+                                Visibility="{Binding ModulesDenied, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="Module details require administrator rights to read."
+                                       Foreground="{StaticResource TextBrush}" FontSize="12"/>
+                        </Border>
+                        <ListView Grid.Row="1" x:Name="ModulesList" ItemsSource="{Binding ModulesView}"
+                                  Style="{StaticResource GridListView}"
+                                  Background="Transparent" BorderThickness="0"
+                                  VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                            <ListView.Resources>
+                                <ContextMenu x:Key="ModuleMenu" x:Shared="False">
+                                    <MenuItem Header="Open file location"
+                                              Command="{Binding PlacementTarget.Tag.OpenModuleLocationCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                    <MenuItem Header="Copy path"
+                                              Command="{Binding PlacementTarget.Tag.CopyTextCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                              CommandParameter="{Binding PlacementTarget.DataContext.Path, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                </ContextMenu>
+                            </ListView.Resources>
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem" BasedOn="{StaticResource ListRow}">
+                                    <Setter Property="Tag" Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ListView}}"/>
+                                    <Setter Property="ContextMenu" Value="{StaticResource ModuleMenu}"/>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                            <ListView.View>
+                                <GridView ColumnHeaderContainerStyle="{StaticResource PlainHeader}">
+                                    <GridViewColumn Width="200" HeaderTemplate="{StaticResource ModuleSortHeader}"
+                                                    DisplayMemberBinding="{Binding Name}">
+                                        <GridViewColumn.Header><vm:SortableHeader Label="Module" Key="Name"/></GridViewColumn.Header>
+                                    </GridViewColumn>
+                                    <GridViewColumn Width="120" HeaderTemplate="{StaticResource ModuleSortHeader}"
+                                                    DisplayMemberBinding="{Binding Version}">
+                                        <GridViewColumn.Header><vm:SortableHeader Label="Version" Key="Version"/></GridViewColumn.Header>
+                                    </GridViewColumn>
+                                    <GridViewColumn Width="90" HeaderTemplate="{StaticResource ModuleSortHeader}"
+                                                    DisplayMemberBinding="{Binding Size, Converter={x:Static conv:BytesToTextConverter.Instance}}">
+                                        <GridViewColumn.Header><vm:SortableHeader Label="Size" Key="Size"/></GridViewColumn.Header>
+                                    </GridViewColumn>
+                                    <GridViewColumn Width="420" HeaderTemplate="{StaticResource ModuleSortHeader}"
+                                                    DisplayMemberBinding="{Binding Path}">
+                                        <GridViewColumn.Header><vm:SortableHeader Label="Path" Key="Path"/></GridViewColumn.Header>
+                                    </GridViewColumn>
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
+                    </Grid>
+                </TabItem>
+            </TabControl>
+
+            <!-- Process-exited overlay -->
+            <Border Background="{StaticResource BgBrush}"
+                    Visibility="{Binding IsGone, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="This process has exited." Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

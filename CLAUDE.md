@@ -27,7 +27,7 @@ src/
     Nexaflow.Features.Json/         JSON viewer (seek-by-item windowing)
     Nexaflow.Features.Logs/         log viewer (tail-first streaming)
     Nexaflow.Features.Markdown/     markdown editor + preview
-    Nexaflow.Features.Processes/    (stub) process feature placeholder
+    Nexaflow.Features.Processes/    Process Explorer — live process tree + per-process details (vertical tabs), AI tools, elevated kill/priority
     Nexaflow.Features.Projects/     project + backlog management
     Nexaflow.Features.Scratchpad/   virtual corkboard
     Nexaflow.Features.SystemInfo/   system info dashboard (WMI; Services/EnvVars pages via privilege bridge)
