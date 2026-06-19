@@ -189,16 +189,80 @@ public sealed class WorkspaceManager
         return profile;
     }
 
+    /// <summary>A profile name not already in use (appends " 2", " 3", … on collision, case-insensitive).</summary>
+    public string UniqueProfileName(string baseName)
+    {
+        var taken = Profiles.Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (!taken.Contains(baseName)) return baseName;
+        for (int i = 2; ; i++)
+        {
+            var candidate = $"{baseName} {i}";
+            if (!taken.Contains(candidate)) return candidate;
+        }
+    }
+
     /// <summary>
-    /// Removes <paramref name="profile"/> from <see cref="Profiles"/>. At least one profile always
-    /// remains. The caller (Options editor) prevents removing the active profile. Returns true if removed.
+    /// Renames <paramref name="profile"/> to <paramref name="newName"/>, moving its on-disk data folder
+    /// so its AI / provider / conversation config follows the new name (otherwise the profile would
+    /// silently start from an empty folder). Always re-persists the profile list, so an unchanged name
+    /// with edited colour/icon is saved too. The caller must ensure the name is non-empty and not
+    /// already used by another profile (which would collide on the folder move).
+    /// </summary>
+    public void RenameProfile(Profile profile, string newName)
+    {
+        if (!string.Equals(profile.Name, newName, StringComparison.Ordinal))
+        {
+            var oldDir = ProfileDir(profile.Name);
+            var newDir = ProfileDir(newName);
+            // Skip the move on a case-only rename (same path on Windows) or when there's nothing to move.
+            if (!string.Equals(oldDir, newDir, StringComparison.OrdinalIgnoreCase)
+                && Directory.Exists(oldDir) && !Directory.Exists(newDir))
+                Directory.Move(oldDir, newDir);
+            profile.Name = newName;   // observable → selector/ribbon update; Dir now resolves to newDir
+        }
+        SaveProfiles();
+    }
+
+    /// <summary>
+    /// Removes <paramref name="profile"/> from <see cref="Profiles"/> and deletes its on-disk data
+    /// folder (config + conversations). At least one profile always remains. The caller (Options editor)
+    /// prevents removing the active profile and persists the list. Returns true if removed.
     /// </summary>
     public bool RemoveProfile(Profile profile)
     {
         if (Profiles.Count <= 1) return false;
-        var removed = Profiles.Remove(profile);
-        if (removed) ProfilesRefreshed?.Invoke(this, EventArgs.Empty);
-        return removed;
+        if (!Profiles.Remove(profile)) return false;
+        DeleteProfileFolder(profile.Name);
+        ProfilesRefreshed?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
+
+    /// <summary>
+    /// Permanently deletes <paramref name="profile"/>: removes it from the list, deletes its on-disk
+    /// data folder (config + every conversation), and persists the list. Refuses to delete the last
+    /// remaining profile. By default also refuses one a live workspace is using; pass
+    /// <paramref name="force"/> when the caller has already (or is about to) tear down that workspace's
+    /// windows — used by the Configure panel's "Delete Workspace" action, which has no separate Save step.
+    /// Returns true when deleted.
+    /// </summary>
+    public bool DeleteProfile(Profile profile, bool force = false)
+    {
+        if (!force && IsProfileInUse(profile)) return false;
+        if (!RemoveProfile(profile)) return false;   // removes + deletes the folder
+        SaveProfiles();
+        return true;
+    }
+
+    /// <summary>Deletes a profile's data folder, swallowing IO failures (a locked file orphans the
+    /// folder rather than crashing the delete).</summary>
+    private static void DeleteProfileFolder(string name)
+    {
+        try
+        {
+            var dir = ProfileDir(name);
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+        catch { /* leave an orphaned folder rather than fail the removal */ }
     }
 
     /// <summary>True if any live workspace is currently running <paramref name="profile"/>.</summary>

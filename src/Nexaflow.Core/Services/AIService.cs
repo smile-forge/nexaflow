@@ -5,7 +5,6 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Providers.Common;
 using System.IO;
 using System.Text;
-using System.Text.Json;
 
 namespace Nexaflow.Core.Services;
 
@@ -68,12 +67,6 @@ public sealed class AIService : IAIService
     private readonly Workspace _workspace;
     private readonly string _baseDir;
 
-    private static readonly JsonSerializerOptions JsonOpts = new()
-    {
-        WriteIndented               = true,
-        PropertyNameCaseInsensitive = true
-    };
-
     private List<ConversationRecord> _conversations = [];
 
     public ConversationRecord? ActiveConversation { get; }
@@ -111,40 +104,17 @@ public sealed class AIService : IAIService
             .ToList();
     }
 
-    public async Task<IEnumerable<ConversationRecord>> LoadConversationsAsync()
+    public Task<IEnumerable<ConversationRecord>> LoadConversationsAsync()
     {
-        var result = new List<ConversationRecord>();
-        if (!Directory.Exists(_baseDir)) return result;
-
-        foreach (var dir in Directory.EnumerateDirectories(_baseDir))
-        {
-            var file = Path.Combine(dir, "conversation.json");
-            if (!File.Exists(file)) continue;
-            try
-            {
-                await using var fs  = File.OpenRead(file);
-                var rec = await JsonSerializer.DeserializeAsync<ConversationRecord>(fs, JsonOpts);
-                if (rec is not null) result.Add(rec);
-            }
-            catch { /* skip corrupt files */ }
-        }
-
-        result.Sort((a, b) => b.StartedAt.CompareTo(a.StartedAt));
-        _conversations = result;
-        return result;
+        _conversations = ConversationStore.Load(_baseDir);
+        return Task.FromResult<IEnumerable<ConversationRecord>>(_conversations);
     }
 
-    public async Task SaveConversationAsync(ConversationRecord activeConversation)
+    public Task SaveConversationAsync(ConversationRecord activeConversation)
     {
-        try
-        {
-            var dir  = Path.Combine(_baseDir, activeConversation.Id);
-            Directory.CreateDirectory(dir);
-            var file = Path.Combine(dir, "conversation.json");
-            await using var fs = File.Open(file, FileMode.Create, FileAccess.Write, FileShare.None);
-            await JsonSerializer.SerializeAsync(fs, activeConversation, JsonOpts);
-        }
+        try { ConversationStore.Save(_baseDir, activeConversation); }
         catch { /* never crash on persistence failures */ }
+        return Task.CompletedTask;
     }
 
     public event Action<string>? ConversationArtifactSaved;
@@ -153,8 +123,7 @@ public sealed class AIService : IAIService
     {
         try
         {
-            var dir = Path.Combine(_baseDir, conversationId);
-            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+            ConversationStore.Delete(_baseDir, conversationId);
             _conversations.RemoveAll(c => c.Id == conversationId);
         }
         catch { /* never crash on delete failures */ }

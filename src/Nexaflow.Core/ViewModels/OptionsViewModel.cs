@@ -281,6 +281,31 @@ public partial class ConfigEditViewModel : ObservableObject
             pi.SetValue(RealConfig, pi.GetValue(EditingClone));
     }
 
+    // Explicit-control section: an already-instantiated custom control (not discovered from a
+    // [CustomControl] attribute). The control owns its own editing state + persistence (its
+    // ICustomConfigApply.Apply), so there's no reflected property grid. Used for the workspace-identity
+    // page, whose editor targets a Profile that can't carry a Core control reference.
+    private ConfigEditViewModel(System.Windows.FrameworkElement control, string configName, string friendlyName)
+    {
+        RealConfig   = control;
+        EditingClone = control;
+        ConfigName   = configName;
+        FriendlyName = friendlyName;
+        CustomControlInstance = control;
+
+        if (control is Nexaflow.Features.Common.IConfigChangeTracker tracker)
+            tracker.HasChangesChanged += (_, _) => RecheckValidity();
+        if (control is Nexaflow.Features.Common.IConfigValidation validator)
+            validator.IsValidChanged += (_, _) => RecheckValidity();
+
+        RecheckValidity();
+    }
+
+    /// <summary>Builds a section backed by an explicit custom control (see the private constructor).</summary>
+    public static ConfigEditViewModel ForCustomControl(
+        System.Windows.FrameworkElement control, string configName, string friendlyName)
+        => new(control, configName, friendlyName);
+
     public ConfigEditViewModel(object realConfig, string configName, string friendlyName)
     {
         RealConfig   = realConfig;

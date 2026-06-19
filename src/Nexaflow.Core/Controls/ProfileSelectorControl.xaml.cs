@@ -30,6 +30,11 @@ public partial class ProfileSelectorControl : UserControl
         DependencyProperty.Register(nameof(ConfigureCommand), typeof(ICommand),
             typeof(ProfileSelectorControl), new PropertyMetadata(null));
 
+    /// <summary>Right-click action: clone the current workspace into a new one and configure it.</summary>
+    public static readonly DependencyProperty NewWorkspaceCommandProperty =
+        DependencyProperty.Register(nameof(NewWorkspaceCommand), typeof(ICommand),
+            typeof(ProfileSelectorControl), new PropertyMetadata(null));
+
     public Profile? CurrentProfile
     {
         get => (Profile?)GetValue(CurrentProfileProperty);
@@ -60,6 +65,12 @@ public partial class ProfileSelectorControl : UserControl
         set => SetValue(ConfigureCommandProperty, value);
     }
 
+    public ICommand? NewWorkspaceCommand
+    {
+        get => (ICommand?)GetValue(NewWorkspaceCommandProperty);
+        set => SetValue(NewWorkspaceCommandProperty, value);
+    }
+
     public ProfileSelectorControl()
     {
         InitializeComponent();
@@ -72,22 +83,33 @@ public partial class ProfileSelectorControl : UserControl
         ContextPopup.IsOpen = true;
     }
 
-    // Right-click opens a one-item menu to configure the current workspace. A bare ContextMenu in
-    // XAML can't bind ElementName=Root (it's outside the namescope), so build it here.
+    // Right-click opens a menu to configure the current workspace or create a new one (cloned from it).
+    // Configure leads (the more common action), separated from New. A bare ContextMenu in XAML can't bind
+    // ElementName=Root (it's outside the namescope), so build it here.
     private void OnTriggerRightClick(object sender, MouseButtonEventArgs e)
     {
-        if (!CanSwitch || ConfigureCommand is null) return;
+        if (!CanSwitch) return;
 
         var menu = new ContextMenu { PlacementTarget = (UIElement)sender };
-        var item = new MenuItem { Header = "Configure workspace…" };
-        item.Click += (_, _) =>
-        {
-            if (ConfigureCommand?.CanExecute(null) == true)
-                ConfigureCommand.Execute(null);
-        };
-        menu.Items.Add(item);
+        AddMenuItem(menu, "Configure workspace…", ConfigureCommand);
+        if (menu.Items.Count > 0 && NewWorkspaceCommand is not null)
+            menu.Items.Add(new Separator());
+        AddMenuItem(menu, "New workspace…", NewWorkspaceCommand);
+        if (menu.Items.Count == 0) return;
+
         menu.IsOpen = true;
         e.Handled = true;
+    }
+
+    private static void AddMenuItem(ContextMenu menu, string header, ICommand? command)
+    {
+        if (command is null) return;
+        var item = new MenuItem { Header = header };
+        item.Click += (_, _) =>
+        {
+            if (command.CanExecute(null)) command.Execute(null);
+        };
+        menu.Items.Add(item);
     }
 
     private void OnContextItemClick(object sender, RoutedEventArgs e)

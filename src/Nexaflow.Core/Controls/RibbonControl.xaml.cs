@@ -40,6 +40,10 @@ public partial class RibbonControl : UserControl
     public static readonly DependencyProperty ConfigureProfileCommandProperty =
         DependencyProperty.Register(nameof(ConfigureProfileCommand), typeof(ICommand), typeof(RibbonControl));
 
+    /// <summary>Right-click "New workspace" on the profile selector — clones the current workspace + configures it.</summary>
+    public static readonly DependencyProperty NewWorkspaceCommandProperty =
+        DependencyProperty.Register(nameof(NewWorkspaceCommand), typeof(ICommand), typeof(RibbonControl));
+
     public static readonly DependencyProperty CanSwitchProfileProperty =
         DependencyProperty.Register(nameof(CanSwitchProfile), typeof(bool), typeof(RibbonControl),
             new PropertyMetadata(true));
@@ -84,6 +88,12 @@ public partial class RibbonControl : UserControl
     {
         get => (ICommand?)GetValue(ConfigureProfileCommandProperty);
         set => SetValue(ConfigureProfileCommandProperty, value);
+    }
+
+    public ICommand? NewWorkspaceCommand
+    {
+        get => (ICommand?)GetValue(NewWorkspaceCommandProperty);
+        set => SetValue(NewWorkspaceCommandProperty, value);
     }
 
     public bool CanSwitchProfile
