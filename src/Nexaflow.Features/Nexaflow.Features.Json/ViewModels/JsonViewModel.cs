@@ -4,6 +4,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Json.Models;
 using Nexaflow.Features.Json.Services;
+using Nexaflow.Visuals.Common.Collections;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text;
@@ -27,7 +28,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
     // ── Streaming / window state (large files only) ──────────────────────────
     // The display list is pre-populated with N_estimated virtual placeholders.
     // A sliding window of ≤ MaxWindowSize real model nodes is kept in memory.
-    // BulkObservableCollection lets us add thousands of placeholders in one shot.
+    // RangeObservableCollection lets us add thousands of placeholders in one shot.
 
     private const int MaxWindowSize    = 300;   // max real depth-1 nodes in memory at once
     private const int LoadBatchSize    = 50;    // items per load batch
@@ -92,7 +93,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
 
     // ── Display list ─────────────────────────────────────────────────────────
 
-    public BulkObservableCollection<JsonDisplayItem> DisplayItems            { get; } = [];
+    public RangeObservableCollection<JsonDisplayItem> DisplayItems           { get; } = [];
     public ObservableCollection<JsonBreadcrumbItem>  SelectedNodeBreadcrumbs { get; } = [];
 
     [ObservableProperty] private JsonDisplayItem? _selectedDisplayItem;
