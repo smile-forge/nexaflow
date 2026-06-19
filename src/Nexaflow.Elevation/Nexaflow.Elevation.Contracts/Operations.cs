@@ -23,6 +23,7 @@ public static class ElevatedOps
     public const string RegImport           = "reg.import";
     public const string ProcessKill         = "process.kill";
     public const string ProcessSetPriority  = "process.setPriority";
+    public const string ProcessInspect      = "process.inspect";
 }
 
 /// <summary>Well-known argument keys carried in <see cref="ElevatedOperation.Args"/>.</summary>
@@ -59,6 +60,8 @@ public static class ElevatedArgs
     public const string ProcessKillTree = "killTree";
     /// <summary><c>System.Diagnostics.ProcessPriorityClass</c> name: Idle|BelowNormal|Normal|AboveNormal|High|RealTime.</summary>
     public const string ProcessPriority = "priority";
+    /// <summary>What <c>process.inspect</c> should gather: "all" (default — handles + modules + command line) or "handles".</summary>
+    public const string InspectWhat     = "inspectWhat";
 }
 
 /// <summary>Canonical startup-mode values exchanged over the wire (plural to avoid colliding with the
