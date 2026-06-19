@@ -225,7 +225,10 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TreeViewItem">
-                        <Grid>
+                        <!-- Transparent (not null) bg makes the whole container hit-testable, including
+                             the 1px inter-row margin below — otherwise the mouse crosses a hit-test hole
+                             between rows and every ancestor's IsMouseOver (the path highlight) flickers off. -->
+                        <Grid Background="Transparent">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition/>
