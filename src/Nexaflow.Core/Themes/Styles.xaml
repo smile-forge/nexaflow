@@ -734,4 +734,113 @@
         </Setter>
     </Style>
 
+    <!-- ══ Shared file-list chrome ══
+         GridView column header (sortable-hover + drag-resize gripper) and ListView row
+         (hover / selection wash + double-click open). Used by the file browser and the
+         Windows Search results list — keep these in sync from here, not per-view. -->
+    <ControlTemplate x:Key="GridColumnHeaderPaddingTemplate" TargetType="GridViewColumnHeader">
+        <Border Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"/>
+    </ControlTemplate>
+
+    <Style x:Key="GridColumnHeaderStyle" TargetType="GridViewColumnHeader">
+        <Setter Property="Background"          Value="{StaticResource SurfaceBrush}"/>
+        <Setter Property="Foreground"          Value="{StaticResource TextMutedBrush}"/>
+        <Setter Property="FontSize"            Value="11"/>
+        <Setter Property="FontWeight"          Value="SemiBold"/>
+        <Setter Property="BorderBrush"         Value="{StaticResource BorderBrush}"/>
+        <Setter Property="BorderThickness"     Value="0,0,1,1"/>
+        <Setter Property="Padding"             Value="8,6"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="Cursor"              Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="GridViewColumnHeader">
+                    <Grid>
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <!-- Resize gripper — WPF wires PART_HeaderGripper for column drag-resize.
+                             Transparent (the 1px column divider is drawn by the header border). -->
+                        <Thumb x:Name="PART_HeaderGripper"
+                               HorizontalAlignment="Right"
+                               Width="8" Margin="0,0,-4,0"
+                               Cursor="SizeWE">
+                            <Thumb.Template>
+                                <ControlTemplate TargetType="Thumb">
+                                    <Border Background="Transparent"/>
+                                </ControlTemplate>
+                            </Thumb.Template>
+                        </Thumb>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="{StaticResource Surface2Brush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter Property="Background" Value="{StaticResource BorderBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <!-- Padding role — the filler header at the right edge; swap Template at Style level -->
+            <Trigger Property="Role" Value="Padding">
+                <Setter Property="Template" Value="{StaticResource GridColumnHeaderPaddingTemplate}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="FileListRowStyle" TargetType="ListViewItem">
+        <Setter Property="Background"              Value="Transparent"/>
+        <Setter Property="Foreground"              Value="{StaticResource TextBrush}"/>
+        <Setter Property="FontSize"                Value="13"/>
+        <Setter Property="BorderThickness"         Value="0"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="Padding"                 Value="0,2"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListViewItem">
+                    <Border x:Name="RowBg"
+                            Background="Transparent"
+                            CornerRadius="4"
+                            Margin="2,1">
+                        <Border.InputBindings>
+                            <!-- Double-click open. Bound to the list's DataContext; lists without an
+                                 OpenEntryCommand (e.g. search) simply get a no-op. -->
+                            <MouseBinding MouseAction="LeftDoubleClick"
+                                          Command="{Binding DataContext.OpenEntryCommand,
+                                                    RelativeSource={RelativeSource AncestorType=ListView}}"
+                                          CommandParameter="{Binding}"/>
+                        </Border.InputBindings>
+                        <GridViewRowPresenter
+                            Columns="{Binding View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"
+                            Content="{TemplateBinding Content}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource Self}}" Value="True">
+                            <Setter TargetName="RowBg" Property="Background" Value="{StaticResource Surface2Brush}"/>
+                            <Setter TargetName="RowBg" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                            <Setter TargetName="RowBg" Property="BorderThickness" Value="1"/>
+                        </DataTrigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsSelected" Value="False"/>
+                                <Condition Property="IsMouseOver" Value="True"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="RowBg" Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                        </MultiTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </ResourceDictionary>
