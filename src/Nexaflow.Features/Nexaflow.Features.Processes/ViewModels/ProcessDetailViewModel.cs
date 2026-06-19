@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Processes.Models;
 using Nexaflow.Features.Processes.Services;
+using Nexaflow.Visuals.Common.Converters;
 
 namespace Nexaflow.Features.Processes.ViewModels;
 
@@ -317,8 +318,8 @@ public sealed partial class ProcessDetailViewModel : ObservableObject, IPageView
         if (IsGone) return $"Process {_pid} has exited.";
         if (Detail is not { } d) return $"Process {_pid}: still gathering…";
         return $"Process {d.Name} (PID {d.Pid}) — {d.Description}. " +
-               $"CPU {d.CpuPercent:0.0}%, private bytes {Converters.BytesToTextConverter.Format(d.PrivateBytes)}, " +
-               $"working set {Converters.BytesToTextConverter.Format(d.WorkingSet)}, {d.ThreadCount} threads, " +
+               $"CPU {d.CpuPercent:0.0}%, private bytes {BytesToTextConverter.Format(d.PrivateBytes)}, " +
+               $"working set {BytesToTextConverter.Format(d.WorkingSet)}, {d.ThreadCount} threads, " +
                $"{d.HandleCount} handles. Path: {(d.Path.Length > 0 ? d.Path : "—")}. " +
                $"Started {(d.StartTime?.ToString("g") ?? "—")} as {(d.User.Length > 0 ? d.User : "—")}.";
     }

@@ -5,6 +5,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Json.Models;
 using Nexaflow.Features.Json.Services;
 using Nexaflow.Visuals.Common.Collections;
+using Nexaflow.Visuals.Common.Formatting;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text;
@@ -1422,13 +1423,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
         InsertNodeItem(0, Root, depth: 0);
     }
 
-    private static string FormatSize(long bytes)
-    {
-        if (bytes < 1024)                 return $"{bytes} B";
-        if (bytes < 1024 * 1024)          return $"{bytes / 1024.0:F1} KB";
-        if (bytes < 1024L * 1024 * 1024)  return $"{bytes / (1024.0 * 1024):F1} MB";
-        return $"{bytes / (1024.0 * 1024 * 1024):F1} GB";
-    }
+    private static string FormatSize(long bytes) => SizeFormatter.FormatBytes(bytes);
 
     public void Dispose()
     {

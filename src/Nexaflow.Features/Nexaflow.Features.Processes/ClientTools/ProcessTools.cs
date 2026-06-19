@@ -1,8 +1,8 @@
 using System.Text;
 using System.Text.Json.Nodes;
 using Nexaflow.Features.Common.ClientTools;
-using Nexaflow.Features.Processes.Converters;
 using Nexaflow.Features.Processes.Models;
+using Nexaflow.Visuals.Common.Converters;
 using Nexaflow.Features.Processes.ViewModels;
 
 namespace Nexaflow.Features.Processes.ClientTools;

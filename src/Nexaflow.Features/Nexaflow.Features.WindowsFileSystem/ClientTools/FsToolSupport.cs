@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Text.Json.Nodes;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.Visuals.Common.Formatting;
 
 namespace Nexaflow.Features.WindowsFileSystem.ClientTools;
 
@@ -51,13 +52,7 @@ internal static class FsTool
     }
 
     /// <summary>Formats a byte count as a human-readable size (e.g. 1.4 MB).</summary>
-    public static string FormatSize(long bytes)
-    {
-        string[] units = ["B", "KB", "MB", "GB", "TB"];
-        double size = bytes; var u = 0;
-        while (size >= 1024 && u < units.Length - 1) { size /= 1024; u++; }
-        return u == 0 ? $"{bytes} B" : $"{size:0.#} {units[u]}";
-    }
+    public static string FormatSize(long bytes) => SizeFormatter.FormatBytes(bytes);
 
     /// <summary>
     /// Resolves <paramref name="nameOrPath"/> within the page's current folder — the tab's security

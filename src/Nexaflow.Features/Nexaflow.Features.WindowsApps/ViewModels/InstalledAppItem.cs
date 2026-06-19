@@ -1,6 +1,7 @@
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Features.WindowsApps.Models;
+using Nexaflow.Visuals.Common.Formatting;
 
 namespace Nexaflow.Features.WindowsApps.ViewModels;
 
@@ -63,12 +64,5 @@ public sealed partial class InstalledAppItem(InstalledApp app) : ObservableObjec
     }
 
     private static string FormatSize(long? bytes)
-    {
-        if (bytes is not { } b || b <= 0) return "—";
-        string[] units = ["B", "KB", "MB", "GB", "TB"];
-        double size = b;
-        int unit = 0;
-        while (size >= 1024 && unit < units.Length - 1) { size /= 1024; unit++; }
-        return unit == 0 ? $"{size:0} {units[unit]}" : $"{size:0.#} {units[unit]}";
-    }
+        => bytes is { } b && b > 0 ? SizeFormatter.FormatBytes(b) : "—";
 }

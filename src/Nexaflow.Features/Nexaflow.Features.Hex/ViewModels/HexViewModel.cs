@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Hex.Buffer;
+using Nexaflow.Visuals.Common.Formatting;
 using System.Globalization;
 using System.IO;
 
@@ -344,13 +345,7 @@ public sealed partial class HexViewModel : ObservableObject, IPageViewModel, IDi
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static string FormatSize(long bytes)
-    {
-        if (bytes < 1024)           return $"{bytes} B";
-        if (bytes < 1024 * 1024)   return $"{bytes / 1024.0:F1} KB";
-        if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} MB";
-        return $"{bytes / (1024.0 * 1024 * 1024):F2} GB";
-    }
+    private static string FormatSize(long bytes) => SizeFormatter.FormatBytes(bytes);
 
     public void Dispose() => Buffer.Dispose();
 }

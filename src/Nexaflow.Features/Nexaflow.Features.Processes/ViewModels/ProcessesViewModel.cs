@@ -6,8 +6,8 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Processes.ClientTools;
-using Nexaflow.Features.Processes.Converters;
 using Nexaflow.Features.Processes.Models;
+using Nexaflow.Visuals.Common.Converters;
 using Nexaflow.Features.Processes.Services;
 
 namespace Nexaflow.Features.Processes.ViewModels;

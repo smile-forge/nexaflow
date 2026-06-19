@@ -2,6 +2,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using Nexaflow.Features.SystemInfo.Models;
+using Nexaflow.Visuals.Common.Formatting;
 
 namespace Nexaflow.Features.SystemInfo.Services;
 
@@ -51,7 +52,7 @@ public sealed class SystemInfoCollector
         if (os?.CimDate("LastBootUpTime") is { } boot)
         {
             s.Add("Last Boot", boot.ToString("yyyy-MM-dd HH:mm"));
-            s.Add("Uptime", FormatUptime(DateTime.Now - boot));
+            s.Add("Uptime", DurationFormatter.FormatUptime(DateTime.Now - boot));
         }
 
         s.Add("Time Zone", TimeZoneInfo.Local.DisplayName);
@@ -99,8 +100,8 @@ public sealed class SystemInfoCollector
         var freeKb = Wmi.First("Win32_OperatingSystem")?.Val<ulong>("FreePhysicalMemory");
         if (total is { } t)
         {
-            var used = freeKb is { } f ? $" ({FormatBytes(t - f * 1024)} in use)" : "";
-            s.Add("Memory", $"{FormatBytes(t)}{used}");
+            var used = freeKb is { } f ? $" ({SizeFormatter.FormatBytes(t - f * 1024)} in use)" : "";
+            s.Add("Memory", $"{SizeFormatter.FormatBytes(t)}{used}");
         }
 
         // Per-DIMM detail: speed + module count (common on the original psinfo-style report).
@@ -192,7 +193,7 @@ public sealed class SystemInfoCollector
             var media = NormaliseMedia(disk.Str("MediaType"));
             var detail = string.Join(", ", new[]
             {
-                size is { } sz ? FormatBytes(sz) : null,
+                size is { } sz ? SizeFormatter.FormatBytes(sz) : null,
                 media,
                 disk.Str("InterfaceType"),
             }.Where(x => x is not null));
@@ -207,7 +208,7 @@ public sealed class SystemInfoCollector
             {
                 var label = string.IsNullOrWhiteSpace(d.VolumeLabel) ? d.DriveType.ToString() : d.VolumeLabel;
                 var freePct = d.TotalSize > 0 ? d.AvailableFreeSpace * 100.0 / d.TotalSize : 0;
-                detail = $"{label} — {FormatBytes((ulong)d.AvailableFreeSpace)} free of {FormatBytes((ulong)d.TotalSize)} "
+                detail = $"{label} — {SizeFormatter.FormatBytes((ulong)d.AvailableFreeSpace)} free of {SizeFormatter.FormatBytes((ulong)d.TotalSize)} "
                        + $"({freePct:0}% free, {d.DriveFormat})";
                 var status = freePct < 10 ? SystemInfoStatus.Warning : SystemInfoStatus.Neutral;
                 s.Add($"Volume {d.Name.TrimEnd('\\')}", detail, status);
@@ -237,7 +238,7 @@ public sealed class SystemInfoCollector
 
             var detail = string.Join(", ", new[]
             {
-                vram is { } v and > 0 ? FormatBytes(v) : null,
+                vram is { } v and > 0 ? SizeFormatter.FormatBytes(v) : null,
                 hres is { } w && vres is { } h && w > 0 ? $"{w}×{h}{(hz is { } r and > 0 ? $" @ {r} Hz" : "")}" : null,
                 driver is not null ? $"driver {driver}" : null,
             }.Where(x => x is not null));
@@ -346,23 +347,6 @@ public sealed class SystemInfoCollector
         }
         catch { /* ignore */ }
         return "Unknown";
-    }
-
-    // ── Formatting helpers ─────────────────────────────────────────────────────
-    private static string FormatBytes(ulong bytes)
-    {
-        string[] units = ["B", "KB", "MB", "GB", "TB", "PB"];
-        double value = bytes;
-        int unit = 0;
-        while (value >= 1024 && unit < units.Length - 1) { value /= 1024; unit++; }
-        return $"{value:0.##} {units[unit]}";
-    }
-
-    private static string FormatUptime(TimeSpan up)
-    {
-        if (up.TotalDays >= 1) return $"{(int)up.TotalDays}d {up.Hours}h {up.Minutes}m";
-        if (up.TotalHours >= 1) return $"{up.Hours}h {up.Minutes}m";
-        return $"{up.Minutes}m";
     }
 
     private static string? NormaliseMedia(string? media)
