@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Tabular.Detection;
 

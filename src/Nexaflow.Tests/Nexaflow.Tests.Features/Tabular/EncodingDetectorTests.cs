@@ -1,6 +1,6 @@
 using System.IO;
 using System.Text;
-using Nexaflow.Features.Tabular.Detection;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Tests.Features.Tabular;
 
