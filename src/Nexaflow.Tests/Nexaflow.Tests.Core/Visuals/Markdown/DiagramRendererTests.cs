@@ -206,4 +206,34 @@ public class DiagramRendererTests
         Assert.IsNotNull(sv, "requirement diagram should route to the graph renderer (ScrollViewer/Canvas)");
         Assert.IsInstanceOfType(sv!.Content, typeof(Canvas));
     });
+
+    // ── Kanban board ───────────────────────────────────────────────────────
+
+    private const string KanbanSrc =
+        """
+        kanban
+          Todo
+            [Create Documentation]
+            docs[Create Blog]@{ ticket: MC-2038, assigned: 'knsv', priority: 'High' }
+          id11[Done]
+            id5[define getData]
+        """;
+
+    [TestMethod]
+    public void Kanban_RendersBoardNotSourceText() => UiThread.Run(() =>
+    {
+        // A kanban board routes to the kanban renderer: Border → ScrollViewer → (column panels).
+        var fe = DiagramRenderer.Render("mermaid", KanbanSrc, MarkdownPalette.Dark);
+        Assert.IsInstanceOfType(fe, typeof(Border));
+        var sv = ((Border)fe).Child as ScrollViewer;
+        Assert.IsNotNull(sv, "kanban should route to the kanban renderer (ScrollViewer content)");
+        Assert.IsInstanceOfType(sv!.Content, typeof(StackPanel));
+    });
+
+    [TestMethod]
+    public void Kanban_EmptyBoard_RendersWithoutThrowing() => UiThread.Run(() =>
+    {
+        var board = new MermaidKanbanParser().Parse("kanban\n");
+        Assert.IsNotNull(WpfKanbanRenderer.Render(board, MarkdownPalette.Dark));
+    });
 }

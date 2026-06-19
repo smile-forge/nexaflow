@@ -1481,4 +1481,115 @@ public class DiagramParsersTests
         Assert.AreEqual("#bbf", g.FindNode("e")!.FillColor);
         Assert.AreEqual("#338", g.FindNode("e")!.StrokeColor);
     }
+
+    // ── Kanban board ───────────────────────────────────────────────────────
+
+    private const string KanbanSrc =
+        """
+        kanban
+          Todo
+            [Create Documentation]
+            docs[Create Blog about the new diagram]
+          id9[Ready for deploy]
+            id8[Design grammar]@{ assigned: 'knsv' }
+          id10[Ready for test]
+            id4[Create parsing tests]@{ ticket: MC-2038, assigned: 'K.Sveidqvist', priority: 'High' }
+            id66[last item]@{ priority: 'Very Low', assigned: 'knsv' }
+          id11[Done]
+            id3[Update DB function]@{ ticket: MC-2037, assigned: knsv, priority: 'Very High' }
+
+          id12[Can't reproduce]
+            id5[Weird flickering in Firefox]
+        """;
+
+    private static KanbanBoard Kanban(string src) => new MermaidKanbanParser().Parse(src);
+
+    [TestMethod]
+    public void Kanban_IndentationGroupsCardsUnderColumns()
+    {
+        var b = Kanban(KanbanSrc);
+        CollectionAssert.AreEqual(
+            new[] { "Todo", "Ready for deploy", "Ready for test", "Done", "Can't reproduce" },
+            b.Columns.Select(c => c.Title).ToArray());
+        Assert.AreEqual(2, b.Columns[0].Items.Count);                 // Todo
+        Assert.AreEqual(2, b.Columns[2].Items.Count);                 // Ready for test
+        Assert.AreEqual(1, b.Columns[4].Items.Count);                 // Can't reproduce (after a blank line)
+    }
+
+    [TestMethod]
+    public void Kanban_NodeForms_BareBracketedAndWithId()
+    {
+        var b = Kanban(KanbanSrc);
+        // Bare column → id and title are the same.
+        Assert.AreEqual("Todo", b.Columns[0].Id);
+        Assert.AreEqual("Todo", b.Columns[0].Title);
+        // id[Title] column.
+        Assert.AreEqual("id9", b.Columns[1].Id);
+        Assert.AreEqual("Ready for deploy", b.Columns[1].Title);
+        // [Title] card (no id) → id falls back to the title; title is the bracket text.
+        var bareCard = b.Columns[0].Items[0];
+        Assert.AreEqual("Create Documentation", bareCard.Text);
+        // id[Title] card.
+        var idCard = b.Columns[0].Items[1];
+        Assert.AreEqual("docs", idCard.Id);
+        Assert.AreEqual("Create Blog about the new diagram", idCard.Text);
+    }
+
+    [TestMethod]
+    public void Kanban_Metadata_TicketAssignedPriority()
+    {
+        var b = Kanban(KanbanSrc);
+        var card = b.Columns[2].Items.Single(i => i.Text == "Create parsing tests");
+        Assert.AreEqual("MC-2038", card.Ticket);
+        Assert.AreEqual("K.Sveidqvist", card.Assigned);
+        Assert.AreEqual(KanbanPriority.High, card.Priority);
+    }
+
+    [TestMethod]
+    public void Kanban_Metadata_AttachedDirectlyToBracket()
+    {
+        // "id8[Design grammar]@{ assigned: 'knsv' }" — no space before @{.
+        var card = Kanban(KanbanSrc).Columns[1].Items.Single();
+        Assert.AreEqual("Design grammar", card.Text);
+        Assert.AreEqual("knsv", card.Assigned);
+        Assert.IsNull(card.Ticket);
+        Assert.AreEqual(KanbanPriority.None, card.Priority);
+    }
+
+    [TestMethod]
+    public void Kanban_Priority_AllForms()
+    {
+        var b = Kanban(KanbanSrc);
+        Assert.AreEqual(KanbanPriority.VeryLow,  b.Columns[2].Items.Single(i => i.Text == "last item").Priority);
+        Assert.AreEqual(KanbanPriority.VeryHigh, b.Columns[3].Items.Single().Priority);
+        // Unquoted metadata value parses too (assigned: knsv).
+        Assert.AreEqual("knsv", b.Columns[3].Items.Single().Assigned);
+    }
+
+    [TestMethod]
+    public void Kanban_BareCard_HasNoMetadata()
+    {
+        var card = Kanban(KanbanSrc).Columns[0].Items[0];
+        Assert.IsNull(card.Assigned);
+        Assert.IsNull(card.Ticket);
+        Assert.AreEqual(KanbanPriority.None, card.Priority);
+    }
+
+    [TestMethod]
+    public void Kanban_EmptyColumn_KeepsZeroCards()
+    {
+        var b = Kanban("kanban\n  Backlog\n    a[one]\n  Doing\n  Done\n");
+        Assert.AreEqual(3, b.Columns.Count);
+        Assert.AreEqual(1, b.Columns[0].Items.Count);
+        Assert.AreEqual(0, b.Columns[1].Items.Count);   // Doing — no cards
+        Assert.AreEqual(0, b.Columns[2].Items.Count);   // Done — last, no cards
+    }
+
+    [TestMethod]
+    public void Kanban_CommentsAreStripped()
+    {
+        var b = Kanban("kanban\n  Todo\n    a[task] %% trailing comment\n  %% whole-line comment\n  Done\n");
+        CollectionAssert.AreEqual(new[] { "Todo", "Done" }, b.Columns.Select(c => c.Title).ToArray());
+        Assert.AreEqual("task", b.Columns[0].Items.Single().Text);
+    }
 }
