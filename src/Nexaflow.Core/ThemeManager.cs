@@ -43,10 +43,46 @@ internal static class ThemeManager
 
         dicts.Add(Load($"{PackBase}Styles.xaml")!);     // 5. styles
 
-        var merged = Application.Current.Resources.MergedDictionaries;
+        var app = Application.Current.Resources;
+        var merged = app.MergedDictionaries;
         merged.Clear();
         foreach (var d in dicts)
             merged.Add(d);
+
+        FreezeResources(app);
+    }
+
+    /// <summary>
+    /// Freezes every <see cref="Freezable"/> resource (brushes, gradients, effects) once all theme
+    /// layers are merged. Frozen resources are immutable, so they are safe to read from any UI thread
+    /// (a prerequisite for per-window UI threads) and let WPF skip per-use change tracking — a small
+    /// render win. A theme switch rebuilds the window rather than mutating these, so freezing has no
+    /// downside. Each resource is resolved through the top-level dictionary so cross-layer
+    /// <c>{StaticResource}</c> colours (e.g. a <c>Tokens.xaml</c> brush over a palette colour) bind
+    /// before freezing; styles/templates aren't <see cref="Freezable"/> and are skipped. Best-effort
+    /// per key — one failure never blocks the apply.
+    /// </summary>
+    internal static void FreezeResources(ResourceDictionary root)
+    {
+        foreach (var key in CollectKeys(root, []))
+        {
+            try
+            {
+                if (root[key] is Freezable { CanFreeze: true, IsFrozen: false } f)
+                    f.Freeze();
+            }
+            catch { /* leave this one unfrozen rather than fail startup / theme switch */ }
+        }
+    }
+
+    /// <summary>Every resource key across <paramref name="dict"/> and its merged layers (deduped).</summary>
+    private static HashSet<object> CollectKeys(ResourceDictionary dict, HashSet<object> keys)
+    {
+        foreach (var key in dict.Keys)
+            keys.Add(key);
+        foreach (var child in dict.MergedDictionaries)
+            CollectKeys(child, keys);
+        return keys;
     }
 
     private static ResourceDictionary? Load(string uri) => Load(new Uri(uri));
