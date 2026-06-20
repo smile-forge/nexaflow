@@ -3,7 +3,6 @@ using CommunityToolkit.Mvvm.Input;
 using ICSharpCode.AvalonEdit.Document;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
-using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
 using System.IO;
 using System.Text;
@@ -101,7 +100,8 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     // ── Monitoring ────────────────────────────────────────────────────────────
 
-    private FileChangeWatcher? _watcher;
+    private IFileWatch?             _watch;
+    private readonly IShellServices _shell;
 
     // ── Search cancellation ───────────────────────────────────────────────────
 
@@ -122,8 +122,9 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     // ─────────────────────────────────────────────────────────────────────────
 
-    public TextViewModel(string filePath)
+    public TextViewModel(string filePath, IShellServices shell)
     {
+        _shell = shell;
         _selectedEncoding = AvailableEncodings[0]; // UTF-8
         FilePath = filePath;
         FileName = Path.GetFileName(filePath);
@@ -314,28 +315,25 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     private void StartMonitoring()
     {
-        _watcher?.Dispose();
+        _watch?.Dispose();
         if (!File.Exists(FilePath)) return;
 
-        _watcher = new FileChangeWatcher(FilePath);
-        _watcher.Changed += OnFileChanged;
+        _watch = _shell.WatchFile(FilePath, OnFileChanged);
     }
 
+    // Invoked by the shell on this workspace's UI thread when the watched file changes.
     private async void OnFileChanged()
     {
-        await Application.Current.Dispatcher.InvokeAsync(async () =>
-        {
-            FileChangedMessage         = "File changed on disk — reloading…";
-            FileChangedBannerVisible   = true;
-            _fileStream?.Dispose();
-            _fileStream   = null;
-            _loadedText   = string.Empty;
-            Document.Text = string.Empty;
-            await LoadAsync(CancellationToken.None);
-            if (IsSearchActive) await ReRunSearchAsync();
-            await Task.Delay(3000);
-            FileChangedBannerVisible = false;
-        });
+        FileChangedMessage         = "File changed on disk — reloading…";
+        FileChangedBannerVisible   = true;
+        _fileStream?.Dispose();
+        _fileStream   = null;
+        _loadedText   = string.Empty;
+        Document.Text = string.Empty;
+        await LoadAsync(CancellationToken.None);
+        if (IsSearchActive) await ReRunSearchAsync();
+        await Task.Delay(3000);
+        FileChangedBannerVisible = false;
     }
 
     [RelayCommand]
@@ -346,8 +344,8 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
             StartMonitoring();
         else
         {
-            _watcher?.Dispose();
-            _watcher = null;
+            _watch?.Dispose();
+            _watch = null;
         }
     }
 
@@ -708,7 +706,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     public void Dispose()
     {
-        _watcher?.Dispose();
+        _watch?.Dispose();
         _searchCts?.Cancel();
         _fileStream?.Dispose();
     }

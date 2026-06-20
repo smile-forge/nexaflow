@@ -3,8 +3,10 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Logs.ViewModels;
 using Nexaflow.Tests.Features.Infrastructure;
+using NSubstitute;
 
 namespace Nexaflow.Tests.Features.Logs;
 
@@ -32,7 +34,7 @@ public class LogViewModelTests
             new UTF8Encoding(false));
         try
         {
-            using var vm = new LogViewModel(path) { IsMonitoring = false };
+            using var vm = new LogViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             StringAssert.Contains(vm.Document.Text, "INFO first line");
@@ -50,7 +52,7 @@ public class LogViewModelTests
         var path = WriteTemp("INFO Grüße\nWARN café\n", new UnicodeEncoding(bigEndian: false, byteOrderMark: true));
         try
         {
-            using var vm = new LogViewModel(path) { IsMonitoring = false };
+            using var vm = new LogViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             StringAssert.Contains(vm.Document.Text, "Grüße");
@@ -60,7 +62,7 @@ public class LogViewModelTests
     });
 
     [TestMethod]
-    public void LoadAsync_LargeFile_LoadsTailFirst() => AsyncPump.Run(async () =>
+    public void LoadAsync_LargeFile_LoadsTailThenHead() => AsyncPump.Run(async () =>
     {
         var sb = new StringBuilder();
         for (var i = 0; i < 2_000; i++)                 // ~72 KB, well past the 4 KB small-file cutoff
@@ -68,15 +70,16 @@ public class LogViewModelTests
         var path = WriteTemp(sb.ToString(), new UTF8Encoding(false));
         try
         {
-            using var vm = new LogViewModel(path) { IsMonitoring = false };
+            using var vm = new LogViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
-            // The head-load is fire-and-forget and no-ops headless (no Dispatcher); let it settle.
+            // The tail loads synchronously; the head streams in on a background read and is applied on
+            // the UI thread (the pump thread here). Let it settle, then the whole file should be present.
             for (var i = 0; i < 200 && vm.IsLoadingHead; i++) await Task.Delay(10);
 
-            StringAssert.Contains(vm.Document.Text, "line 01999");     // last line — the tail is loaded
-            Assert.IsFalse(vm.Document.Text.Contains("line 00000"),
-                "the head requires a UI Dispatcher to load; only the tail should be present headless");
+            Assert.IsFalse(vm.IsLoadingHead, "head load should have completed");
+            StringAssert.Contains(vm.Document.Text, "line 00000");     // head
+            StringAssert.Contains(vm.Document.Text, "line 01999");     // tail
         }
         finally { File.Delete(path); }
     });

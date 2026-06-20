@@ -5,7 +5,7 @@ using System.IO;
 
 namespace Nexaflow.Features.Logs;
 
-public sealed class LogTabRegistration : IPageRegistration
+public sealed class LogTabRegistration(IShellServices shell) : IPageRegistration
 {
     public static string StaticPageKind => "Logs";
     public string PageKind => StaticPageKind;
@@ -20,7 +20,7 @@ public sealed class LogTabRegistration : IPageRegistration
             Title       = title,
             Icon        = "📋",
             Breadcrumbs = {new BreadcrumbSegment { Label = title }},
-            ContentFactory = () => new LogView(new LogViewModel(path)),
+            ContentFactory = () => new LogView(new LogViewModel(path, shell)),
         };
     }
 }

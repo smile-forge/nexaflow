@@ -210,7 +210,7 @@ public partial class ConsoleViewModel : ObservableObject, IDisposable, IPageView
     {
         // Feed is thread-safe for single-producer; always called on pump thread.
         // Marshal to UI thread to modify observable collections.
-        Application.Current.Dispatcher.Invoke(() => ProcessScreenOutput(rawChunk));
+        _ = _shellServices?.RunOnUiAsync(() => ProcessScreenOutput(rawChunk));
     }
 
     private void ProcessScreenOutput(string rawChunk)
@@ -273,7 +273,7 @@ public partial class ConsoleViewModel : ObservableObject, IDisposable, IPageView
 
     private void OnTerminalError(string message)
     {
-        Application.Current.Dispatcher.Invoke(() =>
+        _ = _shellServices?.RunOnUiAsync(() =>
         {
             if (_activeEntry is null)
             {
@@ -289,7 +289,7 @@ public partial class ConsoleViewModel : ObservableObject, IDisposable, IPageView
 
     private void OnProcessExited(int exitCode)
     {
-        Application.Current.Dispatcher.Invoke(() =>
+        _ = _shellServices?.RunOnUiAsync(() =>
         {
             if (_activeEntry is { IsRunning: true })
                 _activeEntry.IsRunning = false;

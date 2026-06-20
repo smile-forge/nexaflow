@@ -5,7 +5,7 @@ using System.IO;
 
 namespace Nexaflow.Features.Text;
 
-public sealed class TextTabRegistration : IPageRegistration
+public sealed class TextTabRegistration(IShellServices shell) : IPageRegistration
 {
     public static string StaticPageKind => "Text";
     public string PageKind => StaticPageKind;
@@ -20,7 +20,7 @@ public sealed class TextTabRegistration : IPageRegistration
             Title       = title,
             Icon        = "📄",
             Breadcrumbs = {new BreadcrumbSegment { Label = title }},
-            ContentFactory = () => new TextView(new TextViewModel(path)),
+            ContentFactory = () => new TextView(new TextViewModel(path, shell)),
         };
     }
 }

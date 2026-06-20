@@ -3,8 +3,10 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Text.ViewModels;
 using Nexaflow.Tests.Features.Infrastructure;
+using NSubstitute;
 
 namespace Nexaflow.Tests.Features.Text;
 
@@ -30,7 +32,7 @@ public class TextViewModelTests
         var path = WriteTemp("line one\nline two\nline three");
         try
         {
-            using var vm = new TextViewModel(path) { IsMonitoring = false };
+            using var vm = new TextViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             Assert.IsFalse(vm.IsLargeFile);
@@ -49,7 +51,7 @@ public class TextViewModelTests
         var path = WriteTemp(string.Join("\n", lines));         // no trailing newline → exactly 10,000 lines
         try
         {
-            using var vm = new TextViewModel(path) { IsMonitoring = false };
+            using var vm = new TextViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             Assert.IsTrue(vm.IsLargeFile);
@@ -72,7 +74,7 @@ public class TextViewModelTests
         var path = WriteTemp(string.Join("\n", lines));
         try
         {
-            using var vm = new TextViewModel(path) { IsMonitoring = false };
+            using var vm = new TextViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
             var loadedAfterFirstChunk = vm.LoadedLineCount;
 

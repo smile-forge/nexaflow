@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.Models;
@@ -21,6 +22,9 @@ public partial class RibbonViewModel : ObservableObject
 {
     private Workspace? _workspace;
     private Profile?   _profile;
+
+    // The UI dispatcher this view-model was created on; marshal background callbacks through it.
+    private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
 
     // Guards: _reloading suppresses save while we repopulate Items; _isSaving lets the window that
     // originated a change skip its own RibbonChanged reload (and prevents save/reload feedback loops).
@@ -97,7 +101,7 @@ public partial class RibbonViewModel : ObservableObject
     private void OnProfileRibbonChanged(object? sender, EventArgs e)
     {
         if (_isSaving) return;
-        Application.Current?.Dispatcher.Invoke(ReloadFromDisk);
+        _ui.Invoke(ReloadFromDisk);
     }
 
     private void ReloadFromDisk()
@@ -140,7 +144,7 @@ public partial class RibbonViewModel : ObservableObject
             // Empty ribbon — re-seed defaults asynchronously (skip during edit mode
             // where the user may be mid-clear).
             if (!IsEditOpen)
-                Application.Current.Dispatcher.BeginInvoke(BuildDefaults);
+                _ui.BeginInvoke(BuildDefaults);
         }
         else
         {

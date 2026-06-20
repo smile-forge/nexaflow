@@ -47,6 +47,22 @@ public interface IShellServices
                              CancellationToken ct = default);
 
     /// <summary>
+    /// Watches <paramref name="path"/> for content changes, invoking <paramref name="onChanged"/> on this
+    /// workspace's UI thread (debounced). One underlying watcher is shared across all callers of the same
+    /// path, and watchers are torn down with the workspace. Disable the returned handle while your view is
+    /// unloaded to hold and coalesce notifications; dispose it to stop watching. Features call this instead
+    /// of creating their own watcher, so they never touch the UI dispatcher.
+    /// </summary>
+    IFileWatch WatchFile(string path, Action onChanged);
+
+    /// <summary>
+    /// Runs <paramref name="action"/> on this workspace's UI thread, completing when it has run. For
+    /// feature code that produces work on a background thread the shell does not own (e.g. a PTY read
+    /// loop) and needs to touch UI state — features should never reach for <c>Application.Current</c>.
+    /// </summary>
+    Task RunOnUiAsync(Action action);
+
+    /// <summary>
     /// Returns the first globally-open tab whose <see cref="Page.PageKind"/>
     /// matches and whose params are compatible (see param-matching rules), or null.
     /// </summary>

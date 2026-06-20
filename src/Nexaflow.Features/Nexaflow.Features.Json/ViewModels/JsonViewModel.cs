@@ -206,7 +206,8 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
             _avgItemBytes   = estimate.AvgItemBytes;
             _estimatedCount = estimate.EstimatedCount;
 
-            await Application.Current.Dispatcher.InvokeAsync(() =>
+            // Already on the UI thread (the await above resumed here); update the display directly.
+            if (ct.IsCancellationRequested) return;
             {
                 // How many depth-1 display items are already in the list?
                 var alreadyInDisplay = CountDepth1InDisplay();
@@ -240,7 +241,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
 
                 // Kick off loading so the initial viewport fills without a scroll
                 ScheduleNextLoadIfNeeded();
-            }, System.Windows.Threading.DispatcherPriority.Background, ct);
+            }
         }
         catch (OperationCanceledException) { }
         catch { /* best-effort */ }
@@ -381,13 +382,9 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
         return false;
     }
 
+    // Defer to the UI thread so the load chain unwinds the current call stack instead of recursing.
     private void ScheduleNextLoadIfNeeded()
-    {
-        if (Application.Current?.Dispatcher is { } dispatcher)
-            dispatcher.BeginInvoke(
-                new Action(TriggerVirtualLoads),
-                System.Windows.Threading.DispatcherPriority.Background);
-    }
+        => _ = _shellServices.RunOnUiAsync(TriggerVirtualLoads);
 
     // Loads the next sequential batch (triggered by VirtualJsonNodeModel sentinel).
     private async Task LoadVirtualItemAsync(JsonVirtualDisplayItem item)
@@ -417,8 +414,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
                 return;
             }
 
-            await Application.Current.Dispatcher.InvokeAsync(
-                () => AbsorbBatchIntoWindow(virtualNode, batch, item, nextOffset));
+            AbsorbBatchIntoWindow(virtualNode, batch, item, nextOffset);
             loadSucceeded = true;
         }
         catch (Exception ex)
@@ -464,8 +460,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
                 return;
             }
 
-            await Application.Current.Dispatcher.InvokeAsync(
-                () => AbsorbBatchFromIndex(actualIdx, batch, nextOffset));
+            AbsorbBatchFromIndex(actualIdx, batch, nextOffset);
             loadSucceeded = true;
         }
         catch (Exception ex)
