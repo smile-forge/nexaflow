@@ -1,3 +1,4 @@
+using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.Controls;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.ViewModels;
@@ -412,6 +413,22 @@ public sealed class ShellServices : IShellServices
         {
             Title = "Info", Body = message, Severity = MessageSeverity.Info, ShowToast = false,
         });
+
+    public void ShowNotification(string message, Page tab) =>
+        MessageCenter.Instance.Post(new NotificationItem
+        {
+            Title = "Info", Body = message, Severity = MessageSeverity.Info, ShowToast = true,
+            Actions = [new MessageAction("Open", new RelayCommand(() => ActivateTab(tab)), IsPrimary: true)],
+        });
+
+    /// <summary>Brings the window owning <paramref name="tab"/> to the front and selects it.</summary>
+    private void ActivateTab(Page tab)
+    {
+        var host = _windows.FirstOrDefault(w => w.Tabs.Contains(tab)) ?? _focused ?? _windows.FirstOrDefault();
+        if (host is null) return;
+        host.SetActiveTab(tab);
+        try { host.Window.Activate(); } catch { /* window closing / not realised */ }
+    }
 
     public void InsertChatInput(string text)
         => (_focused ?? _windows.FirstOrDefault())?.InsertChatInput(text);

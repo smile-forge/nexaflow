@@ -15,6 +15,13 @@ public sealed record ToolResult(bool Success, string Summary, string ModelText, 
     /// </summary>
     public IReadOnlyList<string>? Attachments { get; init; }
 
+    /// <summary>
+    /// When true the agent run ends immediately and silently after this result: the harness feeds NO
+    /// tool-results text back to the model and shows no final message — it just dismisses the response
+    /// UI. Used when a tool has handed work off to a background process and there is nothing to report yet.
+    /// </summary>
+    public bool EndsRun { get; init; }
+
     /// <summary>A successful result. <paramref name="modelText"/> defaults to the summary.</summary>
     public static ToolResult Ok(string summary, string? modelText = null) =>
         new(true, summary, modelText ?? summary);
@@ -22,4 +29,10 @@ public sealed record ToolResult(bool Success, string Summary, string ModelText, 
     /// <summary>A failed result the model should see and react to.</summary>
     public static ToolResult Error(string summary, string? modelText = null) =>
         new(false, summary, modelText ?? summary, IsError: true);
+
+    /// <summary>
+    /// Ends the run immediately with nothing said to the user or the model (see <see cref="EndsRun"/>).
+    /// </summary>
+    public static ToolResult EndSilently(string summary) =>
+        new(true, summary, summary) { EndsRun = true };
 }

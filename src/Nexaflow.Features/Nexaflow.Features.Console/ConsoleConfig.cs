@@ -16,6 +16,13 @@ public sealed class ConsoleConfig : IFeatureConfig
     /// <summary>Per-folder "always use this environment here" memory, set from the launch picker.</summary>
     public List<TerminalEnvBinding>  FolderBindings { get; set; } = [];
 
+    /// <summary>First interval (seconds) the background watcher waits before re-checking a command that
+    /// didn't return to a prompt; it then backs off (doubling) up to <see cref="WatcherMaxSeconds"/>.</summary>
+    public int WatcherInitialSeconds { get; set; } = 5;
+
+    /// <summary>Cap (seconds) on the background watcher's back-off interval.</summary>
+    public int WatcherMaxSeconds { get; set; } = 300;
+
     public ConsoleConfig() => EnsureSeeded();
 
     public TerminalEnvironment? GetDefaultEnv()

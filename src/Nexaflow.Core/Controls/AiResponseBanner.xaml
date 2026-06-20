@@ -1,0 +1,140 @@
+<UserControl x:Class="Nexaflow.Core.Controls.AiResponseBanner"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text">
+
+    <UserControl.Resources>
+        <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
+        <ControlTemplate x:Key="BannerPill" TargetType="Button">
+            <Border x:Name="root" Background="{TemplateBinding Background}" CornerRadius="6" Padding="9,5">
+                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="root" Property="Opacity" Value="0.85"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+    </UserControl.Resources>
+
+    <!-- Docked, dissolvable banner: lives at the bottom of an IChatEngagement page's content. It slides up
+         to open (pushing the console up) and dissolves to close (console re-expands) — driven from the
+         code-behind by animating this border's Height; Visibility starts Collapsed. -->
+    <Border x:Name="Root"
+            Background="{StaticResource Surface2Brush}"
+            BorderBrush="{StaticResource AccentBrush}"
+            BorderThickness="1" CornerRadius="10"
+            Margin="8,6" MaxHeight="260"
+            Visibility="Collapsed">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="20" ShadowDepth="0" Opacity="0.5" Color="Black"/>
+        </Border.Effect>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>  <!-- header -->
+                <RowDefinition Height="*"/>     <!-- body -->
+                <RowDefinition Height="Auto"/>  <!-- footer -->
+            </Grid.RowDefinitions>
+
+            <!-- Header: slim accent bar so the AI surface is unmistakable -->
+            <Border Grid.Row="0"
+                    Background="{StaticResource AccentBrush}"
+                    CornerRadius="9,9,0,0"
+                    Padding="12,5">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="✦" FontSize="13" Margin="0,0,7,0"
+                               Foreground="{StaticResource OnAccentBrush}" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" Text="{Binding AiResponseAiName}"
+                               FontSize="13" FontWeight="SemiBold"
+                               Foreground="{StaticResource OnAccentBrush}" VerticalAlignment="Center"/>
+                    <Button Grid.Column="2"
+                            Command="{Binding CloseAiResponseOverlayCommand}"
+                            Background="Transparent" BorderThickness="0" Cursor="Hand"
+                            ToolTip="Dismiss">
+                        <TextBlock Text="✕" FontSize="12" Foreground="{StaticResource OnAccentBrush}"/>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- Body: selectable markdown (Message/Approval), or a status line while Running -->
+            <Grid Grid.Row="1">
+                <ScrollViewer x:Name="BodyScroller"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              ScrollChanged="BodyScroller_ScrollChanged"
+                              Visibility="{Binding AiOverlayShowsMarkdown, Converter={StaticResource BoolVis}}">
+                    <md:SelectableMarkdownView Markdown="{Binding AiResponseText}"
+                                               VerticalScrollBarVisibility="Disabled"
+                                               Margin="12,8"/>
+                </ScrollViewer>
+
+                <StackPanel Orientation="Horizontal" Margin="12,8"
+                            VerticalAlignment="Center"
+                            Visibility="{Binding AiOverlayIsRunning, Converter={StaticResource BoolVis}}">
+                    <TextBlock Text="{Binding AiProgressText}"
+                               FontSize="13" FontStyle="Italic"
+                               Foreground="{StaticResource TextMutedBrush}"/>
+                    <TextBlock Text="…" FontSize="13" FontStyle="Italic" Margin="2,0,0,0"
+                               Foreground="{StaticResource TextMutedBrush}"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- Footer: hidden while running -->
+            <Border Grid.Row="2"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,1,0,0"
+                    Padding="12,7"
+                    Visibility="{Binding AiOverlayShowsMarkdown, Converter={StaticResource BoolVis}}">
+                <Grid>
+                    <!-- Message / final state: link out to a full conversation -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                                Visibility="{Binding AiOverlayIsMessage, Converter={StaticResource BoolVis}}">
+                        <Button Content="Open in conversation"
+                                Command="{Binding ContinueAsConversationCommand}"
+                                FontSize="12"
+                                Background="Transparent"
+                                Foreground="{StaticResource AccentBrush}"
+                                BorderThickness="0" Cursor="Hand"
+                                Template="{StaticResource BannerPill}"/>
+                    </StackPanel>
+
+                    <!-- Approval state: summary + Deny / Accept -->
+                    <Grid Visibility="{Binding AiOverlayIsApproval, Converter={StaticResource BoolVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Text="{Binding AiToolApprovalSummary}"
+                                   FontSize="12" FontWeight="SemiBold"
+                                   TextWrapping="Wrap" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextBrush}"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Button Content="Deny"
+                                    Command="{Binding DenyToolBatchCommand}"
+                                    FontSize="12" Margin="0,0,8,0"
+                                    Background="{StaticResource BorderBrush}"
+                                    Foreground="{StaticResource TextBrush}"
+                                    BorderThickness="0"
+                                    Template="{StaticResource BannerPill}"/>
+                            <Button Content="Accept"
+                                    Command="{Binding AcceptToolBatchCommand}"
+                                    FontSize="12"
+                                    Background="{StaticResource AccentBrush}"
+                                    Foreground="{StaticResource OnAccentBrush}"
+                                    BorderThickness="0"
+                                    Template="{StaticResource BannerPill}"/>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>

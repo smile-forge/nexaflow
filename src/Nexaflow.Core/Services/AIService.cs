@@ -331,7 +331,7 @@ public sealed class AIService : IAIService
 
         var messages = new List<LlmMessage>
         {
-            new(LlmRole.System, BuildSystemPrompt(context, exposed)),
+            new(LlmRole.System, BuildSystemPrompt(page, context, exposed)),
             new(LlmRole.User,   input)
         };
 
@@ -430,6 +430,15 @@ public sealed class AIService : IAIService
 
                 approval.OnToolBatchStarting(turn.ToolCalls);
                 var results = await ExecuteBatchAsync(calls, approval, ct);
+
+                // A tool asked to end the run silently (e.g. a command handed off to a background
+                // watcher): feed the model nothing and show no final answer — just dismiss the UI.
+                if (results.Any(x => x.Result.EndsRun))
+                {
+                    approval.Abort();
+                    return null;
+                }
+
                 approval.OnToolBatchFinished([.. results.Select(r => new ToolRunResult(r.Tool, r.Result))]);
                 foreach (var (_, r) in results)
                     if (r.Attachments is { } att)
@@ -585,7 +594,7 @@ public sealed class AIService : IAIService
                 $"{pageTools.Count} tool(s) available", DescribeCatalog(pageTools))),
             parallelizable: true);
 
-    private string BuildSystemPrompt(string context, IReadOnlyList<IClientTool> tools)
+    private string BuildSystemPrompt(IPageViewModel? page, string context, IReadOnlyList<IClientTool> tools)
     {
         var persona = _workspace.Profile.Persona;
         var aiName  = string.IsNullOrWhiteSpace(persona?.Name) ? "Aria" : persona!.Name!.Trim();
@@ -599,6 +608,18 @@ public sealed class AIService : IAIService
           .Append("including GitHub-flavored tables, LaTeX math (inline $…$ and block $$…$$), and Mermaid and ")
           .Append("Nomnoml diagrams in fenced code blocks. Use them freely to make answers clear.\n\n")
           .Append($"The user is currently looking at: {context}.\n\n");
+
+        // Page-specific guidance (what the model can usefully do on this page), injected up front.
+        var guidance = page?.GetAiSystemPromptGuidance();
+        if (!string.IsNullOrWhiteSpace(guidance))
+            sb.Append(guidance!.Trim()).Append("\n\n");
+
+        // Pages that host AI responses inline ask for short answers; longer ones escalate to the overlay.
+        if (page is IChatEngagement eng)
+            sb.Append($"Your reply is shown in a compact inline panel beneath this page, about ")
+              .Append(eng.MaxResponseRows ?? 8).Append(" lines tall. Keep answers short and action-oriented ")
+              .Append("so they fit; if you must say more it opens in a larger overlay automatically, and you ")
+              .Append("can offer to continue as a full conversation for anything involved.\n\n");
 
         sb.Append("# Client-side tools\n")
           .Append("You can act inside the application by calling CLIENT-SIDE tools. These run locally in the app ")
