@@ -56,11 +56,19 @@ public interface IShellServices
     IFileWatch WatchFile(string path, Action onChanged);
 
     /// <summary>
-    /// Runs <paramref name="action"/> on this workspace's UI thread, completing when it has run. For
-    /// feature code that produces work on a background thread the shell does not own (e.g. a PTY read
-    /// loop) and needs to touch UI state — features should never reach for <c>Application.Current</c>.
+    /// Runs <paramref name="action"/> on this workspace's UI thread — inline if the caller is already on
+    /// it, otherwise marshalled — completing when it has run. For feature code that produces work on a
+    /// background thread the shell does not own (e.g. a PTY read loop) and needs to touch UI state;
+    /// features should never reach for <c>Application.Current</c>.
     /// </summary>
     Task RunOnUiAsync(Action action);
+
+    /// <summary>
+    /// Async, result-returning form of <see cref="RunOnUiAsync(Action)"/>: runs <paramref name="action"/>
+    /// on this workspace's UI thread (inline if already there) and returns its result. Use when the UI
+    /// work itself awaits — e.g. showing an approval and awaiting the user's decision.
+    /// </summary>
+    Task<T> RunOnUiAsync<T>(Func<Task<T>> action);
 
     /// <summary>
     /// Returns the first globally-open tab whose <see cref="Page.PageKind"/>

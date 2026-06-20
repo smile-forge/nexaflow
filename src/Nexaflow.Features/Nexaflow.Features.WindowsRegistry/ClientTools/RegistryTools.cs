@@ -1,22 +1,11 @@
 using System.Text;
 using System.Text.Json.Nodes;
-using System.Windows;
 using Microsoft.Win32;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.WindowsRegistry.Services;
 using Nexaflow.Features.WindowsRegistry.ViewModels;
 
 namespace Nexaflow.Features.WindowsRegistry.ClientTools;
-
-internal static class RegArgs
-{
-    /// <summary>Runs <paramref name="f"/> on the UI thread (registry views mutate bound collections).</summary>
-    public static Task<T> OnUi<T>(Func<Task<T>> f)
-    {
-        var d = Application.Current?.Dispatcher;
-        return d is null || d.CheckAccess() ? f() : d.InvokeAsync(f).Task.Unwrap();
-    }
-}
 
 /// <summary>Read-only: lists the subkeys of the current key, or of a downward relative path.</summary>
 internal sealed class RegistryListSubkeysTool(RegistryViewModel vm) : IClientTool
@@ -70,7 +59,7 @@ internal sealed class RegistryGetValuesTool(RegistryViewModel vm) : IClientTool
         var values = vm.ReadValues(subPath);
 
         // Move the view to the inspected key so the user sees what the model is reading.
-        await RegArgs.OnUi(() => { vm.NavigateTo(label); return Task.FromResult(true); });
+        await vm.Shell.RunOnUiAsync(() => { vm.NavigateTo(label); return Task.FromResult(true); });
 
         var sb = new StringBuilder($"Values of '{label}':\n");
         foreach (var v in values)
@@ -143,7 +132,7 @@ internal static class RegistryWriteHelper
         try { wire = RegistryValueCodec.ParseUserInput(rawValue, kind); }
         catch (Exception ex) { return ToolResult.Error($"Invalid {RegistryValueCodec.TypeLabel(kind)} data: {ex.Message}"); }
 
-        var ok = await RegArgs.OnUi(async () =>
+        var ok = await vm.Shell.RunOnUiAsync(async () =>
         {
             var written = await vm.WriteValueAsync(name, kind, wire);
             if (written) vm.Refresh();

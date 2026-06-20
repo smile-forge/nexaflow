@@ -298,7 +298,14 @@ public sealed class ShellServices : IShellServices
         return handle;
     }
 
-    public Task RunOnUiAsync(Action action) => _ui.InvokeAsync(action).Task;
+    public Task RunOnUiAsync(Action action)
+    {
+        if (_ui.CheckAccess()) { action(); return Task.CompletedTask; }
+        return _ui.InvokeAsync(action).Task;
+    }
+
+    public Task<T> RunOnUiAsync<T>(Func<Task<T>> action)
+        => _ui.CheckAccess() ? action() : _ui.InvokeAsync(action).Task.Unwrap();
 
     // The raw watcher event arrives on a thread-pool thread; hop to the UI thread, then fan out.
     private void OnWatchChanged(string key) => _ui.InvokeAsync(() =>

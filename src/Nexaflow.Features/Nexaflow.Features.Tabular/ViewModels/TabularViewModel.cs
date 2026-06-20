@@ -252,13 +252,13 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
                 _countCts = new CancellationTokenSource();
                 _ = RowCounter.CountAsync(
                     FilePath, _sample.BomByteCount, _data.RawShape,
-                    rows => Application.Current?.Dispatcher.Invoke(() => GrowKnownRowCount(rows)),
+                    rows => _shell.RunOnUiAsync(() => GrowKnownRowCount(rows)),
                     _countCts.Token,
                     leadingCommentLines: _data.LeadingCommentCount,
                     encoding: _sample.Encoding)
                   .ContinueWith(t =>
                   {
-                      Application.Current?.Dispatcher.Invoke(() =>
+                      _ = _shell.RunOnUiAsync(() =>
                       {
                           IsCountingRows = false;
                           if (_source is RowWindowReader rw && t.Status == TaskStatus.RanToCompletion)
