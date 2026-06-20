@@ -82,6 +82,13 @@ public interface IShellServices
     /// <summary>Adds a persistent notification in the focused window.</summary>
     void ShowNotification(string message);
 
+    /// <summary>
+    /// Inserts <paramref name="text"/> into the AI input bar at the caret (focusing it). The single route
+    /// behind drag-to-insert, paste-into-bar, and any feature that wants to seed the bar — so insertion
+    /// behaviour lives in one place rather than each feature poking the bar.
+    /// </summary>
+    void InsertChatInput(string text);
+
     // ── Shell-level overlays (window-modal, routed to the focused window) ────
 
     /// <summary>
@@ -110,6 +117,12 @@ public interface IShellServices
     /// selectable files; null/empty offers any. Marshals to the UI thread.
     /// </summary>
     Task<string?> PickOpenFileAsync(IReadOnlyList<string>? extensions = null, string? initialPath = null);
+
+    /// <summary>
+    /// Shows the shell's themed folder picker and returns the chosen folder path, or null if cancelled.
+    /// Use this rather than a <c>Microsoft.Win32</c> dialog. Marshals to the UI thread.
+    /// </summary>
+    Task<string?> PickFolderAsync(string? initialPath = null);
 
     /// <summary>
     /// Shows the shell's save-target picker and returns the chosen full destination path (folder +

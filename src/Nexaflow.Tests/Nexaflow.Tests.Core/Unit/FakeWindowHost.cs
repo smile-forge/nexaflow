@@ -27,4 +27,5 @@ internal sealed class FakeWindowHost : IWindowHost
     public void ShowConfirmation(string title, string prompt, Action onConfirm, Action? onCancel = null) { }
     public void ShowPrompt(string title, string label, string initialValue, Action<string> onConfirm, Action? onCancel = null) { }
     public void AddRibbonPin(RibbonPinRequest request) { }
+    public void InsertChatInput(string text) { }
 }

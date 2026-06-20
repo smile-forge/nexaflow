@@ -110,4 +110,32 @@ public class ShellServicesTests
         // Should not throw
         svc.CloseTab(new Page { PageKind = "Files" });
     }
+
+    [TestMethod]
+    public void CloseWindowTabs_RaisesClosedForEachTab_AndClearsRegistry()
+    {
+        var svc = CreateSvc();
+        var host = new FakeWindowHost();
+        svc.RegisterWindow(host);
+
+        var a = new Page { PageKind = "Console" };
+        var b = new Page { PageKind = "Html" };
+        host.AddTab(a);
+        host.AddTab(b);
+        SeedTab(svc, a, host);
+        SeedTab(svc, b, host);
+
+        int closedA = 0, closedB = 0;
+        a.Closed += (_, _) => closedA++;
+        b.Closed += (_, _) => closedB++;
+
+        // Simulates a window closing for good (OS close / app shutdown). This is the path that
+        // previously dropped tabs without firing Closed, orphaning their view-models' processes.
+        svc.CloseWindowTabs(host);
+
+        Assert.AreEqual(1, closedA, "tab A should have Closed raised exactly once");
+        Assert.AreEqual(1, closedB, "tab B should have Closed raised exactly once");
+        Assert.IsNull(svc.FindTab("Console"), "tab A should be gone from the registry");
+        Assert.IsNull(svc.FindTab("Html"),    "tab B should be gone from the registry");
+    }
 }

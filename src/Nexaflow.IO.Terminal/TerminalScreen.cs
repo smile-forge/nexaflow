@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace Nexaflow.Features.Console;
+namespace Nexaflow.IO.Terminal;
 
 /// <summary>
 /// A minimal but correct VT100/ANSI screen buffer.
@@ -120,6 +120,24 @@ public sealed class TerminalScreen
 
     /// <summary>Blanks the current cursor row (called after processing a prompt).</summary>
     public void ClearCurrentRow() => ClearRow(_curRow);
+
+    /// <summary>
+    /// Returns and clears every non-empty grid row above the cursor. ConPTY positions command output with
+    /// cursor moves (e.g. <c>CSI row;col H</c>) rather than line feeds, so those rows are never
+    /// LF-committed by <see cref="TakeLines"/>; this flushes them when a shell prompt appears on the
+    /// cursor row, so short output isn't stranded in the grid until the screen happens to scroll.
+    /// </summary>
+    public IReadOnlyList<string> DrainAboveCursor()
+    {
+        var result = new List<string>();
+        for (int r = 0; r < _curRow; r++)
+        {
+            var text = ReadRow(r);
+            if (text.Length > 0) result.Add(text);
+            ClearRow(r);
+        }
+        return result;
+    }
 
     /// <summary>Current number of uncommitted lines waiting in <see cref="TakeLines"/>.</summary>
     public int PendingLineCount => _completedLines.Count;

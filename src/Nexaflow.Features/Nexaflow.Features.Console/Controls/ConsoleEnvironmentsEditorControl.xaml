@@ -22,6 +22,41 @@
             <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
 
+        <!-- Always-on dark textbox used inside template cells -->
+        <Style x:Key="GridCellTextBox" TargetType="TextBox">
+            <Setter Property="Background"               Value="Transparent"/>
+            <Setter Property="Foreground"               Value="{StaticResource TextBrush}"/>
+            <Setter Property="CaretBrush"               Value="{StaticResource TextBrush}"/>
+            <Setter Property="BorderThickness"          Value="0"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Padding"                  Value="6,0"/>
+        </Style>
+
+        <!-- Small "…" browse button for path cells -->
+        <Style x:Key="BrowseButton" TargetType="Button">
+            <Setter Property="Width"            Value="22"/>
+            <Setter Property="Foreground"       Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="Background"       Value="{StaticResource Surface2Brush}"/>
+            <Setter Property="BorderThickness"  Value="0"/>
+            <Setter Property="Cursor"           Value="Hand"/>
+            <Setter Property="ToolTip"          Value="Browse…"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="3">
+                            <TextBlock Text="…" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource BorderBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="GridButton" TargetType="Button">
             <Setter Property="Padding"         Value="12,4"/>
             <Setter Property="Margin"          Value="0,0,6,0"/>
@@ -57,7 +92,7 @@
         <!-- Toolbar: Add / Remove buttons -->
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
             <Button Content="Add"    Click="AddEnv_Click"    Style="{StaticResource GridButton}"/>
-            <Button Content="Remove" Click="RemoveEnv_Click" Style="{StaticResource GridButton}"/>
+            <Button x:Name="RemoveButton" Content="Remove" Click="RemoveEnv_Click" Style="{StaticResource GridButton}"/>
         </StackPanel>
 
         <!-- Environments grid -->
@@ -125,25 +160,76 @@
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Name"
                                         Binding="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
-                                        Width="140"
+                                        Width="120"
                                         ElementStyle="{StaticResource CellText}"
                                         EditingElementStyle="{StaticResource CellEditor}"/>
                     <DataGridTextColumn Header="Tab Title"
                                         Binding="{Binding TabTitle, UpdateSourceTrigger=PropertyChanged}"
-                                        Width="120"
+                                        Width="100"
                                         ElementStyle="{StaticResource CellText}"
                                         EditingElementStyle="{StaticResource CellEditor}"/>
-                    <DataGridTextColumn Header="Location Filter"
-                                        Binding="{Binding LocationFilter, UpdateSourceTrigger=PropertyChanged}"
-                                        Width="150"
+
+                    <!-- Location filter: type a glob, or pick a folder (sets "<folder>\*"). -->
+                    <DataGridTemplateColumn Header="Location Filter" Width="150">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0" Style="{StaticResource GridCellTextBox}"
+                                             Text="{Binding LocationFilter, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <Button Grid.Column="1" Style="{StaticResource BrowseButton}"
+                                            Click="LocationBrowse_Click"/>
+                                </Grid>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Start directory: where the shell opens (pick a folder). -->
+                    <DataGridTemplateColumn Header="Start Dir" Width="140">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0" Style="{StaticResource GridCellTextBox}"
+                                             Text="{Binding StartDirectory, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <Button Grid.Column="1" Style="{StaticResource BrowseButton}"
+                                            Click="StartDirBrowse_Click"/>
+                                </Grid>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Initial command: typed, or pick an executable/script file. -->
+                    <DataGridTemplateColumn Header="Initial Command" Width="*">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0" Style="{StaticResource GridCellTextBox}"
+                                             Text="{Binding InitialCommand, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <Button Grid.Column="1" Style="{StaticResource BrowseButton}"
+                                            Click="InitialCmdBrowse_Click"/>
+                                </Grid>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTextColumn Header="Env Vars (KEY=VALUE; …)"
+                                        Binding="{Binding OverridesText, UpdateSourceTrigger=LostFocus}"
+                                        Width="160"
                                         ElementStyle="{StaticResource CellText}"
                                         EditingElementStyle="{StaticResource CellEditor}"/>
-                    <DataGridTextColumn Header="Initial Command"
-                                        Binding="{Binding InitialCommand, UpdateSourceTrigger=PropertyChanged}"
-                                        Width="*"
-                                        ElementStyle="{StaticResource CellText}"
-                                        EditingElementStyle="{StaticResource CellEditor}"/>
-                    <DataGridTemplateColumn Header="Default" Width="64" CanUserSort="False">
+
+                    <DataGridTemplateColumn Header="Default" Width="60" CanUserSort="False">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <CheckBox IsChecked="{Binding IsDefault, UpdateSourceTrigger=PropertyChanged}"

@@ -61,6 +61,12 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     void IWindowHost.AddRibbonPin(RibbonPinRequest request)
         => Ribbon?.PinFromHandlerCommand.Execute(request);
 
+    /// <summary>Raised when something asks to insert text into this window's AI bar; the window
+    /// (which owns the actual input control) inserts at the caret.</summary>
+    public event Action<string>? ChatInputInsertRequested;
+
+    void IWindowHost.InsertChatInput(string text) => ChatInputInsertRequested?.Invoke(text);
+
     // ── Pane (the strip of pages + active page) ───────────────────────────
     // The shell hosts a single root pane today. In future this becomes a
     // tree (SplitPaneNode = left + right Panes) — bind UI to RootPaneNode.
@@ -723,6 +729,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     partial void OnAiInputTextChanged(string value)
     {
+        // Mirror what's being typed to the active page (e.g. the terminal's faux-prompt echo). Always
+        // pushed — including an empty value — so the preview clears on send/clear.
+        PushInputPreview(value);
+
         _handlerEvalCts?.Cancel();
 
         // While listening, voice owns the display — don't score handlers or
@@ -790,6 +800,57 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         if (!string.Equals(AiInputText, text, StringComparison.Ordinal)) return;
 
         AiCompletionSuggestion = string.IsNullOrEmpty(suggestion) ? null : suggestion;
+    }
+
+    // ── Chat-bar feature handlers (keys / drop / live preview) ────────────
+    //
+    // The AI input bar is shell chrome, but the active page's feature may want to participate: claim a
+    // key (terminal history / completion), turn a drop into inserted text, or mirror typing. Each is a
+    // contract discovered + instantiated per workspace by FeatureManager, consulted against the active
+    // page's view-model — mirroring how IQueryHandler is scored against it.
+
+    /// <summary>Consulted by the AI input control before its own key handling. Returns the first handled
+    /// result (optionally rewriting the bar text), or <see cref="ChatKeyResult.NotHandled"/>.</summary>
+    public ChatKeyResult HandleChatKey(System.Windows.Input.Key key,
+                                       System.Windows.Input.ModifierKeys modifiers,
+                                       string text, int caretIndex)
+    {
+        var pageVm = (CurrentPage as IPageView)?.ViewModel;
+        foreach (var h in FeatureManager.Instance.GetChatKeyHandlers(CurrentWorkspace))
+        {
+            if (!h.CanHandle(pageVm)) continue;
+            var result = h.HandleKey(key, modifiers, text, caretIndex, pageVm);
+            if (result.Handled) return result;
+        }
+        return ChatKeyResult.NotHandled;
+    }
+
+    /// <summary>True if any feature can turn this drag payload into bar text (cheap format check).</summary>
+    public bool CanHandleChatDrop(IDataObject data)
+    {
+        var pageVm = (CurrentPage as IPageView)?.ViewModel;
+        return FeatureManager.Instance.GetChatDropHandlers(CurrentWorkspace)
+            .Any(h => h.CanHandle(pageVm) && h.AcceptedFormats.Any(data.GetDataPresent));
+    }
+
+    /// <summary>The text the first matching feature wants to insert for this drop, or null.</summary>
+    public string? BuildChatDropText(IDataObject data)
+    {
+        var pageVm = (CurrentPage as IPageView)?.ViewModel;
+        foreach (var h in FeatureManager.Instance.GetChatDropHandlers(CurrentWorkspace))
+        {
+            if (!h.CanHandle(pageVm) || !h.AcceptedFormats.Any(data.GetDataPresent)) continue;
+            var text = h.BuildInsertText(data, pageVm);
+            if (!string.IsNullOrEmpty(text)) return text;
+        }
+        return null;
+    }
+
+    private void PushInputPreview(string text)
+    {
+        var pageVm = (CurrentPage as IPageView)?.ViewModel;
+        foreach (var p in FeatureManager.Instance.GetChatInputPreviews(CurrentWorkspace))
+            if (p.CanPreview(pageVm)) p.OnInputChanged(text, pageVm);
     }
 
     /// <summary>Block until the active page's context is ready (or the send is cancelled), showing a

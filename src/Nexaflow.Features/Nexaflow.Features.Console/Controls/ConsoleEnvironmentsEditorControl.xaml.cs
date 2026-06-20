@@ -1,5 +1,5 @@
 using Nexaflow.Features.Common;
-using Nexaflow.Features.Console.Models;
+using Nexaflow.Visuals.Terminal.Models;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -9,17 +9,22 @@ using System.Windows.Controls;
 
 namespace Nexaflow.Features.Console.Controls;
 
-public partial class ConsoleEnvironmentsEditorControl : UserControl, ICustomConfigApply, IConfigChangeTracker
+public partial class ConsoleEnvironmentsEditorControl
+    : UserControl, ICustomConfigApply, IConfigChangeTracker, IShellAware
 {
     private ObservableCollection<EnvRow> _rows = [];
     private ConsoleConfig? _config;
     private bool _hasChanges;
+    private IShellServices? _shell;
 
     public ConsoleEnvironmentsEditorControl()
     {
         InitializeComponent();
         Loaded += OnLoaded;
     }
+
+    // The Configure host injects the shell so the browse buttons use the themed file/folder pickers.
+    public void AttachShell(IShellServices shell) => _shell = shell;
 
     // IConfigChangeTracker — lets the Configure panel disable Apply until the user edits something.
     public bool HasChanges => _hasChanges;
@@ -42,7 +47,7 @@ public partial class ConsoleEnvironmentsEditorControl : UserControl, ICustomConf
 
         // Invariant: always at least one environment, and exactly one flagged default.
         if (_rows.Count == 0)
-            _rows.Add(new EnvRow(new ConsoleEnvironment
+            _rows.Add(new EnvRow(new TerminalEnvironment
             {
                 Name = "Default", TabTitle = "Console", IsDefault = true
             }));
@@ -53,6 +58,7 @@ public partial class ConsoleEnvironmentsEditorControl : UserControl, ICustomConf
         // Track edits only AFTER the initial (load-time) state is established.
         _rows.CollectionChanged += OnRowsChanged;
         foreach (var row in _rows) row.PropertyChanged += OnRowChanged;
+        UpdateRemoveEnabled();
     }
 
     private void OnRowsChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -61,8 +67,12 @@ public partial class ConsoleEnvironmentsEditorControl : UserControl, ICustomConf
             foreach (EnvRow r in e.OldItems) r.PropertyChanged -= OnRowChanged;
         if (e.NewItems is not null)
             foreach (EnvRow r in e.NewItems) r.PropertyChanged += OnRowChanged;
+        UpdateRemoveEnabled();
         MarkDirty();
     }
+
+    // At least one environment must remain — disable Remove rather than popping a dialog.
+    private void UpdateRemoveEnabled() => RemoveButton.IsEnabled = _rows.Count > 1;
 
     private void OnRowChanged(object? sender, PropertyChangedEventArgs e) => MarkDirty();
 
@@ -96,7 +106,7 @@ public partial class ConsoleEnvironmentsEditorControl : UserControl, ICustomConf
 
     private void AddEnv_Click(object sender, RoutedEventArgs e)
     {
-        var row = new EnvRow(new ConsoleEnvironment
+        var row = new EnvRow(new TerminalEnvironment
         {
             Name      = "New Environment",
             TabTitle  = "Console",
@@ -109,22 +119,37 @@ public partial class ConsoleEnvironmentsEditorControl : UserControl, ICustomConf
 
     private void RemoveEnv_Click(object sender, RoutedEventArgs e)
     {
-        if (EnvGrid.SelectedItem is not EnvRow row) return;
-
-        if (_rows.Count <= 1)
-        {
-            MessageBox.Show(
-                "At least one environment is required.",
-                "Cannot Remove",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
+        if (EnvGrid.SelectedItem is not EnvRow row || _rows.Count <= 1) return;
 
         _rows.Remove(row);
 
         // Removing the default promotes the new first row so one default always remains.
         if (row.IsDefault)
             _rows[0].IsDefault = true;
+    }
+
+    // ── Themed browse buttons (DataContext of each button is its EnvRow) ──
+
+    private async void LocationBrowse_Click(object sender, RoutedEventArgs e)
+    {
+        if (_shell is null || (sender as FrameworkElement)?.DataContext is not EnvRow row) return;
+        var seed   = row.LocationFilter is { Length: > 0 } lf && !lf.Contains('*') ? lf : null;
+        var folder = await _shell.PickFolderAsync(seed);
+        if (folder is not null) row.LocationFilter = folder.TrimEnd('\\') + "\\*";
+    }
+
+    private async void StartDirBrowse_Click(object sender, RoutedEventArgs e)
+    {
+        if (_shell is null || (sender as FrameworkElement)?.DataContext is not EnvRow row) return;
+        var folder = await _shell.PickFolderAsync(row.StartDirectory);
+        if (folder is not null) row.StartDirectory = folder;
+    }
+
+    private async void InitialCmdBrowse_Click(object sender, RoutedEventArgs e)
+    {
+        if (_shell is null || (sender as FrameworkElement)?.DataContext is not EnvRow row) return;
+        var file = await _shell.PickOpenFileAsync();
+        if (file is not null) row.InitialCommand = file.Contains(' ') ? $"\"{file}\"" : file;
     }
 
     private void IsDefault_Checked(object sender, RoutedEventArgs e)
@@ -151,30 +176,57 @@ public partial class ConsoleEnvironmentsEditorControl : UserControl, ICustomConf
         private string  _tabTitle       = string.Empty;
         private string  _locationFilter = "*";
         private string? _initialCommand;
+        private string? _startDirectory;
+        private Dictionary<string, string> _envOverrides;
         private bool    _isDefault;
 
         public string  Name           { get => _name;           set { _name = value;           PC(); } }
         public string  TabTitle       { get => _tabTitle;       set { _tabTitle = value;       PC(); } }
         public string  LocationFilter { get => _locationFilter; set { _locationFilter = value; PC(); } }
         public string? InitialCommand { get => _initialCommand; set { _initialCommand = value; PC(); } }
+        public string? StartDirectory { get => _startDirectory; set { _startDirectory = value; PC(); } }
         public bool    IsDefault      { get => _isDefault;      set { _isDefault = value;      PC(); } }
 
-        public EnvRow(ConsoleEnvironment src)
+        /// <summary>Env-var overrides as editable <c>KEY=VALUE</c> entries separated by ';' or newlines.</summary>
+        public string OverridesText
+        {
+            get => string.Join("; ", _envOverrides.Select(kv => $"{kv.Key}={kv.Value}"));
+            set { _envOverrides = ParseOverrides(value); PC(); }
+        }
+
+        private static Dictionary<string, string> ParseOverrides(string? text)
+        {
+            var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var part in (text ?? string.Empty).Split([';', '\n', '\r'],
+                         StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                var eq = part.IndexOf('=');
+                if (eq <= 0) continue;
+                d[part[..eq].Trim()] = part[(eq + 1)..].Trim();
+            }
+            return d;
+        }
+
+        public EnvRow(TerminalEnvironment src)
         {
             _name           = src.Name;
             _tabTitle       = src.TabTitle;
             _locationFilter = src.LocationFilter;
             _initialCommand = src.InitialCommand;
             _isDefault      = src.IsDefault;
+            _startDirectory = src.StartDirectory;
+            _envOverrides   = new Dictionary<string, string>(src.EnvOverrides, StringComparer.OrdinalIgnoreCase);
         }
 
-        public ConsoleEnvironment ToModel() => new()
+        public TerminalEnvironment ToModel() => new()
         {
             Name           = _name,
             TabTitle       = _tabTitle,
             LocationFilter = _locationFilter,
             InitialCommand = string.IsNullOrWhiteSpace(_initialCommand) ? null : _initialCommand,
-            IsDefault      = _isDefault
+            IsDefault      = _isDefault,
+            StartDirectory = string.IsNullOrWhiteSpace(_startDirectory) ? null : _startDirectory,
+            EnvOverrides   = _envOverrides
         };
 
         private void PC([CallerMemberName] string? p = null)

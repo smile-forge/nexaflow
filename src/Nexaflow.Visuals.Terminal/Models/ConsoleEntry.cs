@@ -3,7 +3,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Text;
 
-namespace Nexaflow.Features.Console.Models;
+namespace Nexaflow.Visuals.Terminal.Models;
 
 /// <summary>
 /// Represents a single command entered in the ConsoleView, together with

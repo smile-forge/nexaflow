@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using Nexaflow.Features.Common;
 
 namespace Nexaflow.Core.Controls;
 
@@ -44,6 +45,14 @@ public class PlaceholderTextBox : TextBox
         get => (string?)GetValue(CompletionTextProperty);
         set => SetValue(CompletionTextProperty, value);
     }
+
+    /// <summary>
+    /// Optional hook consulted on each key press before the built-in handling, so the active page's
+    /// feature can claim a key (e.g. the terminal's Up/Down history, Tab path completion). Wired by the
+    /// shell window; receives (key, modifiers, current text, caret) and returns whether it handled the
+    /// key and any replacement text. A non-empty <see cref="CompletionText"/> still wins Tab first.
+    /// </summary>
+    public Func<Key, ModifierKeys, string, int, ChatKeyResult>? KeyInterceptor { get; set; }
 
     // ── Constructor ───────────────────────────────────────────────────────
 
@@ -175,6 +184,25 @@ public class PlaceholderTextBox : TextBox
             CaretIndex = Text.Length;
             e.Handled = true;
             return;
+        }
+
+        // The active page's feature gets first crack at the remaining keys (terminal Up/Down history,
+        // Tab path completion when there's no ghost to accept).
+        if (KeyInterceptor is not null)
+        {
+            var result = KeyInterceptor(e.Key, Keyboard.Modifiers, Text, CaretIndex);
+            if (result.Handled)
+            {
+                if (result.NewText is not null)
+                {
+                    Text       = result.NewText;
+                    CaretIndex = result.NewCaretIndex < 0
+                        ? Text.Length
+                        : Math.Min(result.NewCaretIndex, Text.Length);
+                }
+                e.Handled = true;
+                return;
+            }
         }
 
         if (e.Key == Key.Enter
