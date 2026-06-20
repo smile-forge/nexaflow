@@ -4,6 +4,7 @@
              xmlns:vm="clr-namespace:Nexaflow.Features.Processes.ViewModels"
              xmlns:conv="clr-namespace:Nexaflow.Features.Processes.Converters"
              xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
@@ -378,7 +379,7 @@
                             <GridViewColumn.Header><vm:SortableHeader Label="Private" Key="PrivateBytes"/></GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:ProcessRowViewModel}">
-                                    <TextBlock Text="{Binding PrivateBytes, Converter={x:Static conv:BytesToTextConverter.Instance}}"
+                                    <TextBlock Text="{Binding PrivateBytes, Converter={x:Static vcc:BytesToTextConverter.Instance}}"
                                                Style="{StaticResource NumCell}"/>
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
@@ -388,7 +389,7 @@
                             <GridViewColumn.Header><vm:SortableHeader Label="Memory" Key="WorkingSet"/></GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:ProcessRowViewModel}">
-                                    <TextBlock Text="{Binding WorkingSet, Converter={x:Static conv:BytesToTextConverter.Instance}}"
+                                    <TextBlock Text="{Binding WorkingSet, Converter={x:Static vcc:BytesToTextConverter.Instance}}"
                                                Style="{StaticResource NumCell}"/>
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>

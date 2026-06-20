@@ -8,12 +8,6 @@ using Nexaflow.Features.Dotnet.ViewModels;
 
 namespace Nexaflow.Features.Dotnet.ClientTools;
 
-internal static class DotnetToolArgs
-{
-    public static string? Str(JsonObject o, string key)
-        => o.TryGetPropertyValue(key, out var v) && v is not null ? v.GetValue<string>() : null;
-}
-
 /// <summary>
 /// Runs one dotnet verb (build/test/restore/clean) against the viewlet's selected target and feeds the
 /// captured output back to the model. Mutating (writes build artefacts / runs code) → requires approval.
@@ -32,7 +26,7 @@ public sealed class DotnetVerbTool(
 
     public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        var targetName = DotnetToolArgs.Str(arguments, "target");
+        var targetName = ToolArgs.Str(arguments, "target");
         if (!string.IsNullOrWhiteSpace(targetName))
             vm.SelectedTarget = vm.ResolveTarget(targetName);
 

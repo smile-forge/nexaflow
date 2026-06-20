@@ -11,6 +11,7 @@ using System.ComponentModel;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 
 namespace Nexaflow.Core.ViewModels;
 
@@ -32,6 +33,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         }
     }
     private bool _isFocused;
+
+    // This window's UI dispatcher (captured on its constructing thread); marshal background work through it.
+    private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
 
     IReadOnlyList<Page> IWindowHost.Tabs => RootPane.Pages;
 
@@ -175,7 +179,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         _ = Task.Delay(duration, token).ContinueWith(t =>
         {
             if (!t.IsCanceled)
-                Application.Current.Dispatcher.Invoke(() => { if (ActiveToast == message) DisplayNextToast(); });
+                _ui.Invoke(() => { if (ActiveToast == message) DisplayNextToast(); });
         }, TaskScheduler.Default);
     }
 
@@ -411,7 +415,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
             {
                 var fallback = WorkspaceManager.Instance.Profiles.FirstOrDefault();
                 if (fallback is not null)
-                    Application.Current.Dispatcher.Invoke(() =>
+                    _ui.Invoke(() =>
                     {
                         WorkspaceManager.Instance.SwitchProfile(CurrentWorkspace!, fallback);
                         OnPropertyChanged(nameof(CurrentWorkspace));
@@ -424,13 +428,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         WhisperModelManager.Instance.ModelReadyChanged   += (_, _) => RecomputeVoiceAvailable();
 
         VoiceManager.Instance.RecordingChanged += (_, rec) =>
-            Application.Current.Dispatcher.Invoke(() => { IsRecording = rec; VoiceActive = rec; });
+            _ui.Invoke(() => { IsRecording = rec; VoiceActive = rec; });
         // Voice owns the input display while listening — set, don't append; it
         // self-corrects each pass and a final pass lands when listening stops.
         VoiceManager.Instance.TranscriptionUpdated += (_, text) =>
-            Application.Current.Dispatcher.Invoke(() => AiInputText = text);
+            _ui.Invoke(() => AiInputText = text);
         VoiceManager.Instance.Error += (_, msg) =>
-            Application.Current.Dispatcher.Invoke(() => ShowError("Voice", msg));
+            _ui.Invoke(() => ShowError("Voice", msg));
 
         RecomputeVoiceAvailable();
 
@@ -747,7 +751,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         _ = Task.Delay(150, cts.Token).ContinueWith(t =>
         {
             if (t.IsCanceled) return;
-            Application.Current.Dispatcher.Invoke(() => EvaluateHandlers(value, cts.Token));
+            _ui.Invoke(() => EvaluateHandlers(value, cts.Token));
         }, TaskScheduler.Default);
     }
 

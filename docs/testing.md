@@ -11,7 +11,7 @@ All under `src/Nexaflow.Tests/`:
 |---------|--------|--------|------------|
 | `Nexaflow.Tests.Core` | `net10.0-windows10.0.19041.0`, MSTest exe | Core shell chrome, services, `Nexaflow.Visuals.*` | `Nexaflow.Core`, `Nexaflow.Visuals.Text`, `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Features` | `net10.0-windows10.0.19041.0`, MSTest exe | Every `Nexaflow.Features.*` | the feature projects + `Nexaflow.Tests.Fixtures` — **never Core** |
-| `Nexaflow.Tests.Providers` | MSTest exe | Provider clients (Claude/OpenAI/Gemini/Ollama/…) | the provider projects |
+| `Nexaflow.Tests.Providers` | MSTest exe | Provider clients — **no test classes yet** (placeholder project) | the provider projects |
 | `Nexaflow.Tests.Fixtures` | `net10.0` class library | **Generates the sample dataset.** Not a test project — no MSTest, no `[TestClass]` | nothing (deliberately dependency-free) |
 
 `Nexaflow.Tests.Features` deliberately does **not** reference Core (it mirrors the architectural rule
@@ -39,6 +39,62 @@ $exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/Debug/net10.0-windows10.0
   launches a fresh app against an **isolated config root** (`NEXAFLOW_CONFIG_DIR` → a throwaway temp
   dir), so it neither depends on nor pollutes the developer's real `%APPDATA%` config. See
   `UITestBase`.
+
+## Coverage by feature
+
+Feature assemblies (`Nexaflow.Features.*`) are tested in `Nexaflow.Tests.Features`. **Unit** = the
+headless `TestCategory!=UI` tests; **UI** = `[TestCategory("UI")]` (drives the real shell via FlaUI).
+The file-viewer features additionally get a per-file open-smoke UI case from the shared, data-driven
+`SampleFileViewerTests` (each fixture → its viewer), shown below as *via SampleFileViewer*.
+
+| Feature | Unit tests | UI tests |
+|---------|-----------|----------|
+| AIChat | ✅ `ConversationContextReadiness` | — |
+| Console | — | — |
+| Dotnet | ✅ `DotnetTargetScanner`, `DotnetViewletViewModel` | — |
+| Git | ✅ `GitService` | — |
+| Hex | ✅ `HexBuffer`, `HexViewModel` | ✅ *via SampleFileViewer* (`binary` → `HexView`) |
+| Images | — | — |
+| Json | ✅ `JsonFileLoader` (small + large streaming, virtual-chunk windowing, BOM, estimation) | ✅ *via SampleFileViewer* (`json` → `JsonView`) |
+| Logs | ✅ `LogViewModel` (small load, tail-first read, encoding detection) | ✅ *via SampleFileViewer* (`logs` → `LogView`) |
+| Markdown | ✅ `MarkdownViewModelEditing` (editor model; rendering is covered in `Tests.Core`) | ✅ *via SampleFileViewer* (`markdown` → `MarkdownView`) |
+| Processes | ✅ `CpuSampling`, `Handles`, `ProcessTools`, `ProcessTreeBuilder`, `Reconciliation` | ✅ `ProcessesViewTests` |
+| Projects | — | — |
+| Scratchpad | ✅ `DroppedMedia`, `PostItStore`, `PostItViewModel`, `ScratchpadConfig`, `ScratchpadViewModel`, `UrlPreviewTask` | — |
+| SystemInfo | ✅ `EnvironmentVariablesViewModel`, `EnvVarModel`, `EnvVarsCollector`, `ServicesCollector`, `ServicesViewModel`, `SystemInfoViewModel` | — |
+| Tabular | ✅ 13 classes (CSV tokeniser, shape + column-type detection, column transforms, windowed `RowWindowReader`/`LineSamplingReader`, encoding detection, sample detection, …) | ✅ *via SampleFileViewer* (`tabular` → `TabularView`) |
+| Text | ✅ `TextViewModel` (small + large windowed load, window advance) | ✅ *via SampleFileViewer* (`text` → `TextView`) |
+| Web | ✅ `WebPageChrome` | — |
+| WindowsApps | ✅ `WindowsAppsViewModel` | — |
+| WindowsFileSystem | ✅ 15 classes (file-type map, create actions + templates, glob matcher, external apps, tree node, view model, …) | ✅ `FileSystemViewTests`, `FileSystemCreateTests`, `TemplatedCreateOptionsTests` |
+| WindowsRegistry | — | — |
+| WindowsSearch | ✅ `SearchQueryParser`, `SearchQueryScorer`, `SearchResultEntry`, `SearchViewModel` | ✅ `SearchViewTests` |
+
+`Features.Common` (contracts) has no test folder of its own; its client-tool wire-protocol parser
+(`ClientBlockParser`) and the agent loop are tested in `Tests.Core` (`Unit/ClientTools/`).
+
+The windowed-reader view-models load into a thread-affine AvalonEdit `TextDocument` across `await`
+points, so `LogViewModel`/`TextViewModel` tests run under `Infrastructure/AsyncPump.cs` (a
+single-threaded synchronization context). `LogViewModel`'s background head-reassembly needs a live UI
+`Dispatcher`, so that one path is left to the UI smoke rather than a unit test.
+
+**No coverage yet:** Console, Images, Projects and WindowsRegistry have no tests.
+
+### Core & shared libraries (`Nexaflow.Tests.Core`)
+
+Covers `Nexaflow.Core` and the `Nexaflow.Visuals.*` libraries.
+
+- **Unit** — background activity, config manager, conversation store, message center, panes, shell
+  services, workspace manager + config scoping, elevation contracts + bridge launcher, the client-tool
+  parser + agent loop, and the WPF-free Markdown/diagram parsers, pipeline factory and Sugiyama layout.
+- **UI** — app launch, notifications, setup wizard and the tab strip (Core shell); plus the
+  `Visuals.Text` Markdown renderer (`BlockRenderer`, `MarkdownView`, extensions, diagram renderer,
+  sample render).
+
+### Providers (`Nexaflow.Tests.Providers`)
+
+The project exists (MSTest exe) but currently ships **no test classes** — the provider clients
+(Claude, OpenAI, Gemini, Ollama, Aria) are untested.
 
 ## Sample files (`test-samples/`)
 

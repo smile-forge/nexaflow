@@ -1,6 +1,6 @@
 using System.IO;
 using System.IO.Pipes;
-using System.Windows;
+using System.Windows.Threading;
 
 namespace Nexaflow.Core.Services;
 
@@ -52,6 +52,7 @@ public sealed class SingleInstanceService : IDisposable
     /// </summary>
     public void StartListening(Action<string?> onNewWindow)
     {
+        var ui = Dispatcher.CurrentDispatcher; // this method runs on the UI thread; marshal IPC requests back to it
         Task.Run(ListenLoop);
 
         async Task ListenLoop()
@@ -74,7 +75,7 @@ public sealed class SingleInstanceService : IDisposable
                     if (cmd == "new-window")
                     {
                         var ctxName = await reader.ReadLineAsync();
-                        Application.Current.Dispatcher.Invoke(
+                        ui.Invoke(
                             () => onNewWindow(string.IsNullOrEmpty(ctxName) ? null : ctxName));
                     }
                 }

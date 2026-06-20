@@ -36,9 +36,11 @@ src/
     Nexaflow.Features.Web/          WebView2 browser tab
     Nexaflow.Features.WindowsApps/  installed-apps manager + AI query handler
     Nexaflow.Features.WindowsFileSystem/ file explorer tab (the DirectoryTree + file list)
+    Nexaflow.Features.WindowsRegistry/ registry browser/editor tab + AI tools (approval-gated writes)
     Nexaflow.Features.WindowsSearch/ Windows Search integration
-  Nexaflow.Visuals.Common/          shared WPF controls + value converters (PieChart, BoolToVisibility, …)
+  Nexaflow.Visuals.Common/          shared WPF controls + converters + formatters (PieChart, BoolToVisibility, SizeFormatter/DurationFormatter, BytesToTextConverter, …)
   Nexaflow.Visuals.Text/            shared markdown rendering (MarkdownView / SelectableMarkdownView / MarkdownFlowDocument)
+  Nexaflow.IO.Common/               shared file-reading leaves: EncodingDetector (BOM/UTF-8 sniff) + debounced FileChangeWatcher (net10.0, no WPF)
   Nexaflow.Providers/
     Nexaflow.Providers.Common/      LlmProviderRegistry, shared message types
     Nexaflow.Providers.Aria/        named-pipe Aria client
@@ -48,7 +50,7 @@ src/
     Nexaflow.Providers.OpenAI/      OpenAI API
 ```
 
-Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI) — mirror that pattern for any future shared-but-not-a-contract code rather than dumping it in `Features.Common`.
+Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI) and `Nexaflow.IO.Common` (file-reading utilities) — mirror that pattern for any future shared-but-not-a-contract code rather than dumping it in `Features.Common`.
 
 ## Hard Rules
 
@@ -56,7 +58,8 @@ Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI) — mirror that pat
 - Providers depend only on 'Providers.Common' - never on Core, never on each other.
 - Core never instantiates feature view or ViewModel types directly. All view (tabs) and viewlet creation goes through `FeatureManager`.
 - Features communicate back to the shell only via `IShellServices` (injected into `IPageRegistration` constructors by `FeatureManager`).
-- A feature advertises a page via `IPageRegistration` (`PageKind` + `CreatePage`); `FeatureManager` discovers it by reflection (each registration exposes a `static string StaticPageKind`) — there is no manual `Register(typeof(...))` call.
+- **Features never touch the UI dispatcher.** No `Application.Current.Dispatcher` / `Dispatcher.CurrentDispatcher` in a feature. Marshal background work to the UI thread with `IShellServices.RunOnUiAsync(...)`, and watch files with `IShellServices.WatchFile(path, onChanged)` (the shell owns the watcher, dedups by path, marshals the callback, and tears it down). UI-thread ownership lives in Core (ShellServices captures its own `_ui`).
+- A feature advertises a page via `IPageRegistration` (`PageKind` + `CreatePage`); `FeatureManager` discovers it by reflection at startup (each registration exposes a `static string StaticPageKind`).
 - **Features never hard-code colours.** Every colour — even one a feature "owns" (status pip, chart/pie series, selection/search wash, post-it paper) — resolves from a theme resource so a theme can retune it: reuse a palette/semantic token (`TextBrush`/`AccentBrush`/`SuccessBrush`/`WarningBrush`/`DangerBrush`/`OnAccentBrush`), the categorical `Swatch.*` bank (for N distinct colours), or a feature-owned token shipped via `IThemeContribution` (like the scratchpad's `PostIt.*`). Code-drawn surfaces read the resource at paint time with a literal only as a last-resort fallback. Full rule + patterns in [docs/theming.md](docs/theming.md) → *Rule: a feature never hard-codes a colour*.
 
 ## Key Files
@@ -69,7 +72,7 @@ Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI) — mirror that pat
 | `src/Nexaflow.Core/Services/WorkspaceManager.cs` | The `Profiles` list (dropdown) + live `Workspace`s; create/switch/reconfigure/dispose lifecycle |
 | `src/Nexaflow.Core/Services/FileSystemFeatureRegistry.cs` | Discovery for the file-system contracts (`IFileAction`/`IFolderAction`/`IFileCreateAction`/`IFolderViewlet`) — NOT FeatureManager |
 | `src/Nexaflow.Features/Nexaflow.Features.Common/*.cs` | Contracts — changes here affect everything |
-| `src/Nexaflow.Features/Nexaflow.Features.Common/IPageRegistration.cs`, `Page.cs` | The tab/page factory contract (`CreatePage`) and the `Page` model (`Title`/`Icon`/`Breadcrumbs`/`ContentFactory`). NB: the older names `ITabRegistration`/`TabEntry`/`PageFactory` are gone |
+| `src/Nexaflow.Features/Nexaflow.Features.Common/IPageRegistration.cs`, `Page.cs` | The tab/page factory contract (`CreatePage`) and the `Page` model (`Title`/`Icon`/`Breadcrumbs`/`ContentFactory`) |
 | `src/Nexaflow.Core/Themes/Styles.xaml` | App-merged shared control styles. Feature XAML references theme keys by `{StaticResource …}` — no assembly ref needed. A theme is layered (palette → region tokens → per-theme overrides + scenes → styles); see [docs/theming.md](docs/theming.md) |
 
 ## Config & Data Paths
@@ -78,7 +81,7 @@ Base: `%APPDATA%\Smile\nexaflow\`
 
 ```
 {ConfigName}\                 GLOBAL app/feature config (IFeatureConfig.ConfigName) — shared by all profiles
-Contexts\<name>\              PER-PROFILE data (folder name kept as "Contexts" for compat):
+Contexts\<name>\              PER-PROFILE data (the on-disk folder is named "Contexts"):
   ai-abilities\               AI ability grid (which provider/model per ability)
   <provider configs>\         provider API keys / subscriptions for THIS profile
   Conversations\              AI chat history for THIS profile
@@ -133,7 +136,7 @@ A bare string assigned to ToolTip inherits the parent's TextAlignment when WPF w
 
 ## Other design considerations
 
-**Large-file reading** — there are four established strategies; pick the one whose access pattern matches your data shape before inventing a fifth. Each reader's *strategy* is deliberately feature-specific (the data structure differs); only mechanical leaves (encoding/BOM sniffing, the debounced `FileSystemWatcher` wrapper) are duplication worth sharing — see [docs/arch_improvements.md](docs/arch_improvements.md).
+**Large-file reading** — there are four established strategies; pick the one whose access pattern matches your data shape before inventing a fifth. Each reader's *strategy* is deliberately feature-specific (the data structure differs). The mechanical leaves now live in `Nexaflow.IO.Common`: `EncodingDetector` (BOM/UTF-8 sniff — Tabular's detector, the canonical one) and `FileChangeWatcher` (the debounced `FileSystemWatcher` wrapper used by Logs and Text). Reuse those rather than re-rolling them — see [docs/arch_improvements.md](docs/arch_improvements.md).
 
 | Strategy | Canonical reader | When |
 |----------|------------------|------|

@@ -62,15 +62,12 @@ public partial class AiChatViewModel : ObservableObject, IPageViewModel
 
     /// <summary>A conversation's artifact (analysis) was saved — reload that row so its summary appears.
     /// May arrive on a background thread, so marshal to the UI before touching <see cref="Items"/>.</summary>
-    private void OnArtifactSaved(string conversationId)
+    private void OnArtifactSaved(string conversationId) => _ = _shell.RunOnUiAsync(() =>
     {
-        var d = Application.Current?.Dispatcher;
-        if (d is not null && !d.CheckAccess()) { d.Invoke(() => OnArtifactSaved(conversationId)); return; }
-
         var row = Items.FirstOrDefault(r => r.Record.Id == conversationId);
         if (row is not null) _ = row.LoadAsync();
         else                 _ = RefreshAsync();   // a brand-new conversation not yet in the list
-    }
+    });
 
     /// <summary>Opens a fresh, empty conversation tab (persisted on its first exchange).</summary>
     [RelayCommand]

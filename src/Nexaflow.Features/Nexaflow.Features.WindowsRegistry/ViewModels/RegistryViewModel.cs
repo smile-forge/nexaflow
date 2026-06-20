@@ -22,6 +22,9 @@ public sealed partial class RegistryViewModel : ObservableObject, IPageViewModel
     private readonly IShellServices _shell;
     private readonly CancellationTokenSource _cts = new();
 
+    /// <summary>The workspace shell, for the registry client tools to marshal UI work via RunOnUiAsync.</summary>
+    internal IShellServices Shell => _shell;
+
     // Guards programmatic UI sync (tree selection / hive dropdown) from re-triggering navigation.
     private bool _suppressSync;
 

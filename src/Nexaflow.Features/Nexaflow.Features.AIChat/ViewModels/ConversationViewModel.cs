@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.AIChat.ViewModels.Timeline;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Visuals.Common.Formatting;
 
 namespace Nexaflow.Features.AIChat.ViewModels;
 
@@ -292,17 +293,14 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         => RequestApproval($"Plan: {plan.Title}", $"Approve plan: {plan.Title}", ct);
 
     private Task<bool> RequestApproval(string explanation, string summary, CancellationToken ct)
-    {
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
-            return dispatcher.Invoke(() => RequestApproval(explanation, summary, ct));
-
-        var item = new TimelineApproval(explanation, summary);
-        InsertBeforeActivity(item);
-        _turnItems.Add(item);
-        ct.Register(item.Cancel);
-        return item.Decision;
-    }
+        => _shell.RunOnUiAsync(() =>
+        {
+            var item = new TimelineApproval(explanation, summary);
+            InsertBeforeActivity(item);
+            _turnItems.Add(item);
+            ct.Register(item.Cancel);
+            return item.Decision;
+        });
 
     /// <summary>Render the final answer and persist the exchange (original prompt + any interjections).</summary>
     public void ShowFinal(string finalMarkdown) => OnUi(async () =>
@@ -376,12 +374,8 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         return "Run " + string.Join(", ", grouped) + "?";
     }
 
-    private static void OnUi(Action action)
-    {
-        var d = Application.Current?.Dispatcher;
-        if (d is not null && !d.CheckAccess()) d.Invoke(action);
-        else action();
-    }
+    // Run UI work on the workspace UI thread (inline if already there) via the shell — no dispatcher here.
+    private void OnUi(Action action) => _ = _shell.RunOnUiAsync(action);
 
     /// <summary>
     /// Mirrors the pinned context into the record and persists it (so it repopulates on reopen).
@@ -577,14 +571,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         catch { return string.Empty; }
     }
 
-    private static string FormatSize(long bytes)
-    {
-        string[] units = ["B", "KB", "MB", "GB", "TB"];
-        double size = bytes;
-        int u = 0;
-        while (size >= 1024 && u < units.Length - 1) { size /= 1024; u++; }
-        return u == 0 ? $"{bytes} B" : $"{size:0.#} {units[u]}";
-    }
+    private static string FormatSize(long bytes) => SizeFormatter.FormatBytes(bytes);
 
     private void UpdateBreadcrumb()
     {

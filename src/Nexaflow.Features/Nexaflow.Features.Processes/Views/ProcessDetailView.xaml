@@ -362,15 +362,15 @@
                             <UniformGrid Columns="4">
                                 <StackPanel Margin="0,0,0,14">
                                     <TextBlock Text="Private bytes" Style="{StaticResource MetricLabel}"/>
-                                    <TextBlock Text="{Binding Detail.PrivateBytes, Converter={x:Static conv:BytesToTextConverter.Instance}}" Style="{StaticResource MetricValue}"/>
+                                    <TextBlock Text="{Binding Detail.PrivateBytes, Converter={x:Static vcc:BytesToTextConverter.Instance}}" Style="{StaticResource MetricValue}"/>
                                 </StackPanel>
                                 <StackPanel Margin="0,0,0,14">
                                     <TextBlock Text="Working set" Style="{StaticResource MetricLabel}"/>
-                                    <TextBlock Text="{Binding Detail.WorkingSet, Converter={x:Static conv:BytesToTextConverter.Instance}}" Style="{StaticResource MetricValue}"/>
+                                    <TextBlock Text="{Binding Detail.WorkingSet, Converter={x:Static vcc:BytesToTextConverter.Instance}}" Style="{StaticResource MetricValue}"/>
                                 </StackPanel>
                                 <StackPanel Margin="0,0,0,14">
                                     <TextBlock Text="Peak working set" Style="{StaticResource MetricLabel}"/>
-                                    <TextBlock Text="{Binding Detail.PeakWorkingSet, Converter={x:Static conv:BytesToTextConverter.Instance}}" Style="{StaticResource MetricValue}"/>
+                                    <TextBlock Text="{Binding Detail.PeakWorkingSet, Converter={x:Static vcc:BytesToTextConverter.Instance}}" Style="{StaticResource MetricValue}"/>
                                 </StackPanel>
                                 <StackPanel Margin="0,0,0,14">
                                     <TextBlock Text="Threads" Style="{StaticResource MetricLabel}"/>
@@ -481,7 +481,7 @@
                                         <GridViewColumn.Header><vm:SortableHeader Label="Version" Key="Version"/></GridViewColumn.Header>
                                     </GridViewColumn>
                                     <GridViewColumn Width="90" HeaderTemplate="{StaticResource ModuleSortHeader}"
-                                                    DisplayMemberBinding="{Binding Size, Converter={x:Static conv:BytesToTextConverter.Instance}}">
+                                                    DisplayMemberBinding="{Binding Size, Converter={x:Static vcc:BytesToTextConverter.Instance}}">
                                         <GridViewColumn.Header><vm:SortableHeader Label="Size" Key="Size"/></GridViewColumn.Header>
                                     </GridViewColumn>
                                     <GridViewColumn Width="420" HeaderTemplate="{StaticResource ModuleSortHeader}"

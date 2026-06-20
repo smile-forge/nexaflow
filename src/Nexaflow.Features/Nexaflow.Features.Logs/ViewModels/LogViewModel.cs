@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using ICSharpCode.AvalonEdit.Document;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Logs.Parsing;
+using Nexaflow.Visuals.Common.Formatting;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -57,8 +58,9 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
     [ObservableProperty] private bool _isMonitoring    = true;
     [ObservableProperty] private bool _isPaused;
     [ObservableProperty] private bool _isAutoScrolling = true;
-    private string              _pendingAppendContent  = string.Empty;
-    private FileSystemWatcher?  _watcher;
+    private string                  _pendingAppendContent = string.Empty;
+    private IFileWatch?             _watch;
+    private readonly IShellServices _shell;
 
     // ── Level highlighting ────────────────────────────────────────────────────
 
@@ -114,8 +116,9 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
 
     // ──────────────────────────────────────────────────────────────────────────
 
-    public LogViewModel(string filePath)
+    public LogViewModel(string filePath, IShellServices shell)
     {
+        _shell = shell;
         _selectedEncoding = AvailableEncodings[0];
         FilePath = filePath;
         FileName = Path.GetFileName(filePath);
@@ -214,15 +217,13 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
 
             var headContent = sb.ToString();
 
-            await Application.Current.Dispatcher.InvokeAsync(() =>
-            {
-                Document.Insert(0, headContent);
-                IsLoadingHead = false;
-                LineCount     = Document.LineCount;
-                ScanForCustomHighlights();
-                if (HasTimestamps) ScanForTimeRange(); // refresh with oldest entries now available
-                ScrollToBottomRequested?.Invoke(this, EventArgs.Empty);
-            });
+            // The awaits above resumed on the UI thread (LoadAsync started there), so update directly.
+            Document.Insert(0, headContent);
+            IsLoadingHead = false;
+            LineCount     = Document.LineCount;
+            ScanForCustomHighlights();
+            if (HasTimestamps) ScanForTimeRange(); // refresh with oldest entries now available
+            ScrollToBottomRequested?.Invoke(this, EventArgs.Empty);
         }
         catch (OperationCanceledException) { IsLoadingHead = false; }
         catch                              { IsLoadingHead = false; }
@@ -345,57 +346,49 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
 
     private void StartMonitoring()
     {
-        _watcher?.Dispose();
+        _watch?.Dispose();
         if (!File.Exists(FilePath)) return;
 
-        _watcher = new FileSystemWatcher(Path.GetDirectoryName(FilePath)!, Path.GetFileName(FilePath))
-        {
-            NotifyFilter        = NotifyFilters.LastWrite | NotifyFilters.Size,
-            EnableRaisingEvents = true,
-        };
-        _watcher.Changed += OnFileChanged;
+        _watch = _shell.WatchFile(FilePath, OnFileChanged);
     }
 
-    private async void OnFileChanged(object sender, FileSystemEventArgs e)
+    // Invoked by the shell on this workspace's UI thread when the watched file changes.
+    private async void OnFileChanged()
     {
         if (!IsMonitoring) return;
-        await Task.Delay(300); // debounce double-fire
 
-        await Application.Current.Dispatcher.InvokeAsync(async () =>
+        long newSize;
+        try   { newSize = new FileInfo(FilePath).Length; }
+        catch { return; }
+
+        if (newSize <= _lastKnownFileSize) return;
+
+        // Read only newly appended bytes
+        var newByteCount = (int)(newSize - _lastKnownFileSize);
+        var buf          = new byte[newByteCount];
+        try
         {
-            long newSize;
-            try   { newSize = new FileInfo(FilePath).Length; }
-            catch { return; }
+            using var fs   = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            fs.Seek(_lastKnownFileSize, SeekOrigin.Begin);
+            var read       = await fs.ReadAsync(buf.AsMemory(0, newByteCount));
+            var newContent = _activeEncoding.GetString(buf, 0, read);
+            _lastKnownFileSize = newSize;
+            FileSizeText       = FormatSize(newSize);
 
-            if (newSize <= _lastKnownFileSize) return;
-
-            // Read only newly appended bytes
-            var newByteCount = (int)(newSize - _lastKnownFileSize);
-            var buf          = new byte[newByteCount];
-            try
+            if (!IsPaused)
             {
-                using var fs   = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                fs.Seek(_lastKnownFileSize, SeekOrigin.Begin);
-                var read       = await fs.ReadAsync(buf.AsMemory(0, newByteCount));
-                var newContent = _activeEncoding.GetString(buf, 0, read);
-                _lastKnownFileSize = newSize;
-                FileSizeText       = FormatSize(newSize);
-
-                if (!IsPaused)
-                {
-                    Document.Insert(Document.TextLength, newContent);
-                    LineCount = Document.LineCount;
-                    ScanForCustomHighlights();
-                    if (IsAutoScrolling) ScrollToBottomRequested?.Invoke(this, EventArgs.Empty);
-                }
-                else
-                {
-                    _pendingAppendContent += newContent;
-                    _lastKnownFileSize     = newSize;
-                }
+                Document.Insert(Document.TextLength, newContent);
+                LineCount = Document.LineCount;
+                ScanForCustomHighlights();
+                if (IsAutoScrolling) ScrollToBottomRequested?.Invoke(this, EventArgs.Empty);
             }
-            catch { /* file may be locked briefly */ }
-        });
+            else
+            {
+                _pendingAppendContent += newContent;
+                _lastKnownFileSize     = newSize;
+            }
+        }
+        catch { /* file may be locked briefly */ }
     }
 
     [RelayCommand]
@@ -403,7 +396,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
     {
         IsMonitoring = !IsMonitoring;
         if (IsMonitoring) StartMonitoring();
-        else { _watcher?.Dispose(); _watcher = null; }
+        else { _watch?.Dispose(); _watch = null; }
     }
 
     partial void OnIsPausedChanged(bool value)
@@ -600,12 +593,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static string FormatSize(long bytes) => bytes switch
-    {
-        < 1024        => $"{bytes} B",
-        < 1024 * 1024 => $"{bytes / 1024.0:F1} KB",
-        _             => $"{bytes / (1024.0 * 1024):F1} MB",
-    };
+    private static string FormatSize(long bytes) => SizeFormatter.FormatBytes(bytes);
 
     // ── IPageViewModel ────────────────────────────────────────────────────────
 
@@ -633,6 +621,6 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
     public void Dispose()
     {
         _headLoadCts?.Cancel();
-        _watcher?.Dispose();
+        _watch?.Dispose();
     }
 }

@@ -26,7 +26,7 @@ public sealed class GetFileListTool(FileSystemViewModel vm) : IClientTool
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
         // A subdirectory was requested → enumerate it directly (confined to the current folder).
-        var sub = FsTool.Str(arguments, "path", "subdirectory", "dir");
+        var sub = ToolArgs.Str(arguments, "path", "subdirectory", "dir");
         if (!string.IsNullOrWhiteSpace(sub))
         {
             if (!FsTool.TryResolve(vm, sub, out var dir, out var error))
@@ -79,7 +79,7 @@ public sealed class GetLineCountTool(FileSystemViewModel vm) : IClientTool
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        var name = FsTool.Str(arguments, "name", "path", "file");
+        var name = ToolArgs.Str(arguments, "name", "path", "file");
         if (!FsTool.TryResolve(vm, name, out var full, out var error))
             return Task.FromResult(ToolResult.Error(error));
 
@@ -111,7 +111,7 @@ public sealed class GetFileStatsTool(FileSystemViewModel vm) : IClientTool
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        var name = FsTool.Str(arguments, "name", "path", "file");
+        var name = ToolArgs.Str(arguments, "name", "path", "file");
         if (!FsTool.TryResolve(vm, name, out var full, out var error))
             return Task.FromResult(ToolResult.Error(error));
 
@@ -162,14 +162,14 @@ public sealed class FindFilesByNameTool(FileSystemViewModel vm) : IClientTool
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        var pattern = FsTool.Str(arguments, "pattern", "name", "query");
+        var pattern = ToolArgs.Str(arguments, "pattern", "name", "query");
         if (string.IsNullOrWhiteSpace(pattern))
             return Task.FromResult(ToolResult.Error("No pattern provided."));
         if (string.IsNullOrEmpty(vm.CurrentPath))
             return Task.FromResult(ToolResult.Error("No folder is open to search."));
 
         var basePath  = vm.CurrentPath;
-        var recursive = FsTool.Bool(arguments, "recursive");
+        var recursive = ToolArgs.Bool(arguments, "recursive");
 
         return Task.Run(() =>
         {
@@ -219,12 +219,12 @@ public sealed class GetFileContentsTool(FileSystemViewModel vm) : IClientTool
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        var name = FsTool.Str(arguments, "name", "path", "file");
+        var name = ToolArgs.Str(arguments, "name", "path", "file");
         if (!FsTool.TryResolve(vm, name, out var full, out var error))
             return Task.FromResult(ToolResult.Error(error));
 
-        var start = Math.Max(1, FsTool.Int(arguments, "start_line", 1));
-        var end   = FsTool.Int(arguments, "end_line", start + DefaultWindow - 1);
+        var start = Math.Max(1, ToolArgs.Int(arguments, "start_line", 1));
+        var end   = ToolArgs.Int(arguments, "end_line", start + DefaultWindow - 1);
         if (end < start) end = start + DefaultWindow - 1;
         if (end - start + 1 > MaxWindow) end = start + MaxWindow - 1;   // cap a single read
 

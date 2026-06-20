@@ -89,6 +89,7 @@
 	<ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Gemini\Nexaflow.Providers.Gemini.csproj" />
     <ProjectReference Include="..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
+    <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
 
     <!-- Elevation: the launcher uses the contract DTOs (real ref). The bridge exe is referenced for build
          ordering only (ReferenceOutputAssembly=false) — CopyPrivilegeBridge places its output explicitly. -->

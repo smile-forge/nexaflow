@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using ICSharpCode.AvalonEdit.Document;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Visuals.Common.Formatting;
 using System.IO;
 using System.Text;
 using System.Text.Json.Nodes;
@@ -99,7 +100,8 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     // ── Monitoring ────────────────────────────────────────────────────────────
 
-    private FileSystemWatcher? _watcher;
+    private IFileWatch?             _watch;
+    private readonly IShellServices _shell;
 
     // ── Search cancellation ───────────────────────────────────────────────────
 
@@ -120,8 +122,9 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     // ─────────────────────────────────────────────────────────────────────────
 
-    public TextViewModel(string filePath)
+    public TextViewModel(string filePath, IShellServices shell)
     {
+        _shell = shell;
         _selectedEncoding = AvailableEncodings[0]; // UTF-8
         FilePath = filePath;
         FileName = Path.GetFileName(filePath);
@@ -312,35 +315,25 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     private void StartMonitoring()
     {
-        _watcher?.Dispose();
+        _watch?.Dispose();
         if (!File.Exists(FilePath)) return;
 
-        var dir      = Path.GetDirectoryName(FilePath)!;
-        var fileName = Path.GetFileName(FilePath);
-        _watcher = new FileSystemWatcher(dir, fileName)
-        {
-            NotifyFilter         = NotifyFilters.LastWrite | NotifyFilters.Size,
-            EnableRaisingEvents  = true,
-        };
-        _watcher.Changed += OnFileChanged;
+        _watch = _shell.WatchFile(FilePath, OnFileChanged);
     }
 
-    private async void OnFileChanged(object sender, FileSystemEventArgs e)
+    // Invoked by the shell on this workspace's UI thread when the watched file changes.
+    private async void OnFileChanged()
     {
-        await Task.Delay(300); // debounce double-fire
-        await Application.Current.Dispatcher.InvokeAsync(async () =>
-        {
-            FileChangedMessage         = "File changed on disk — reloading…";
-            FileChangedBannerVisible   = true;
-            _fileStream?.Dispose();
-            _fileStream   = null;
-            _loadedText   = string.Empty;
-            Document.Text = string.Empty;
-            await LoadAsync(CancellationToken.None);
-            if (IsSearchActive) await ReRunSearchAsync();
-            await Task.Delay(3000);
-            FileChangedBannerVisible = false;
-        });
+        FileChangedMessage         = "File changed on disk — reloading…";
+        FileChangedBannerVisible   = true;
+        _fileStream?.Dispose();
+        _fileStream   = null;
+        _loadedText   = string.Empty;
+        Document.Text = string.Empty;
+        await LoadAsync(CancellationToken.None);
+        if (IsSearchActive) await ReRunSearchAsync();
+        await Task.Delay(3000);
+        FileChangedBannerVisible = false;
     }
 
     [RelayCommand]
@@ -351,8 +344,8 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
             StartMonitoring();
         else
         {
-            _watcher?.Dispose();
-            _watcher = null;
+            _watch?.Dispose();
+            _watch = null;
         }
     }
 
@@ -650,15 +643,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         return count;
     }
 
-    private static string FormatSize(long bytes)
-    {
-        return bytes switch
-        {
-            < 1024        => $"{bytes} B",
-            < 1024 * 1024 => $"{bytes / 1024.0:F1} KB",
-            _             => $"{bytes / (1024.0 * 1024):F1} MB",
-        };
-    }
+    private static string FormatSize(long bytes) => SizeFormatter.FormatBytes(bytes);
 
     // ── IPageViewModel ────────────────────────────────────────────────────────
 
@@ -721,7 +706,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     public void Dispose()
     {
-        _watcher?.Dispose();
+        _watch?.Dispose();
         _searchCts?.Cancel();
         _fileStream?.Dispose();
     }

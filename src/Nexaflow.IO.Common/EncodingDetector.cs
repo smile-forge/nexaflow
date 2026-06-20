@@ -1,10 +1,15 @@
 using System.IO;
 using System.Text;
 
-namespace Nexaflow.Features.Tabular.Detection;
+namespace Nexaflow.IO.Common;
 
 public sealed record EncodingProbe(Encoding Encoding, bool HadBom, int BomByteCount);
 
+/// <summary>
+/// Sniffs a file's text encoding from the head of the stream — BOM first, then a UTF-8 validity scan,
+/// with a UTF-16 alternating-NUL heuristic. The shared home for the detection that Logs, Text, Tabular
+/// and JSON each used to re-implement.
+/// </summary>
 public static class EncodingDetector
 {
     /// <summary>

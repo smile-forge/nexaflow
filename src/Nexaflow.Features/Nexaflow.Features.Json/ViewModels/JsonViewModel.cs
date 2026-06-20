@@ -4,6 +4,8 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Json.Models;
 using Nexaflow.Features.Json.Services;
+using Nexaflow.Visuals.Common.Collections;
+using Nexaflow.Visuals.Common.Formatting;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text;
@@ -27,7 +29,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
     // ── Streaming / window state (large files only) ──────────────────────────
     // The display list is pre-populated with N_estimated virtual placeholders.
     // A sliding window of ≤ MaxWindowSize real model nodes is kept in memory.
-    // BulkObservableCollection lets us add thousands of placeholders in one shot.
+    // RangeObservableCollection lets us add thousands of placeholders in one shot.
 
     private const int MaxWindowSize    = 300;   // max real depth-1 nodes in memory at once
     private const int LoadBatchSize    = 50;    // items per load batch
@@ -92,7 +94,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
 
     // ── Display list ─────────────────────────────────────────────────────────
 
-    public BulkObservableCollection<JsonDisplayItem> DisplayItems            { get; } = [];
+    public RangeObservableCollection<JsonDisplayItem> DisplayItems           { get; } = [];
     public ObservableCollection<JsonBreadcrumbItem>  SelectedNodeBreadcrumbs { get; } = [];
 
     [ObservableProperty] private JsonDisplayItem? _selectedDisplayItem;
@@ -204,7 +206,8 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
             _avgItemBytes   = estimate.AvgItemBytes;
             _estimatedCount = estimate.EstimatedCount;
 
-            await Application.Current.Dispatcher.InvokeAsync(() =>
+            // Already on the UI thread (the await above resumed here); update the display directly.
+            if (ct.IsCancellationRequested) return;
             {
                 // How many depth-1 display items are already in the list?
                 var alreadyInDisplay = CountDepth1InDisplay();
@@ -238,7 +241,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
 
                 // Kick off loading so the initial viewport fills without a scroll
                 ScheduleNextLoadIfNeeded();
-            }, System.Windows.Threading.DispatcherPriority.Background, ct);
+            }
         }
         catch (OperationCanceledException) { }
         catch { /* best-effort */ }
@@ -379,13 +382,9 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
         return false;
     }
 
+    // Defer to the UI thread so the load chain unwinds the current call stack instead of recursing.
     private void ScheduleNextLoadIfNeeded()
-    {
-        if (Application.Current?.Dispatcher is { } dispatcher)
-            dispatcher.BeginInvoke(
-                new Action(TriggerVirtualLoads),
-                System.Windows.Threading.DispatcherPriority.Background);
-    }
+        => _ = _shellServices.RunOnUiAsync(TriggerVirtualLoads);
 
     // Loads the next sequential batch (triggered by VirtualJsonNodeModel sentinel).
     private async Task LoadVirtualItemAsync(JsonVirtualDisplayItem item)
@@ -415,8 +414,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
                 return;
             }
 
-            await Application.Current.Dispatcher.InvokeAsync(
-                () => AbsorbBatchIntoWindow(virtualNode, batch, item, nextOffset));
+            AbsorbBatchIntoWindow(virtualNode, batch, item, nextOffset);
             loadSucceeded = true;
         }
         catch (Exception ex)
@@ -462,8 +460,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
                 return;
             }
 
-            await Application.Current.Dispatcher.InvokeAsync(
-                () => AbsorbBatchFromIndex(actualIdx, batch, nextOffset));
+            AbsorbBatchFromIndex(actualIdx, batch, nextOffset);
             loadSucceeded = true;
         }
         catch (Exception ex)
@@ -1421,13 +1418,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
         InsertNodeItem(0, Root, depth: 0);
     }
 
-    private static string FormatSize(long bytes)
-    {
-        if (bytes < 1024)                 return $"{bytes} B";
-        if (bytes < 1024 * 1024)          return $"{bytes / 1024.0:F1} KB";
-        if (bytes < 1024L * 1024 * 1024)  return $"{bytes / (1024.0 * 1024):F1} MB";
-        return $"{bytes / (1024.0 * 1024 * 1024):F1} GB";
-    }
+    private static string FormatSize(long bytes) => SizeFormatter.FormatBytes(bytes);
 
     public void Dispose()
     {

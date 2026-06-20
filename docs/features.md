@@ -9,11 +9,10 @@ A feature is a class library (`Nexaflow.Features.MyFeature`) that references onl
 | Step | Required | What |
 |------|----------|------|
 | Create project | yes | Class library, reference `Features.Common` |
-| `ITabRegistration` | yes | Factory that produces a `TabEntry` |
+| `IPageRegistration` | yes | Factory that produces a `Page` (expose `static string StaticPageKind`) |
 | `IPageView` on your `UserControl` | recommended | Shell lifecycle handle: `ViewModel` property + `Reinitialize` |
 | `IPageViewModel` on your ViewModel | recommended | AI pipeline contract: `GetContext`, `GetClientTools`, `GetContextObject` |
-| Register in `App.xaml.cs` | yes | `fm.Register(typeof(MyTabRegistration))` |
-| Add project reference in `Nexaflow.Core.csproj` | yes | So `App.xaml.cs` can see your type |
+| Add project reference in `Nexaflow.Core.csproj` | yes | So the feature DLL ships and `FeatureManager` reflection-discovers it at startup |
 | Add ribbon entry in `ShellViewModel.BuildDefaultItems()` | optional | Puts a button on the default toolbar |
 | `IFeatureConfig` | optional | Persisted settings, free Options panel UI |
 | `IQueryHandler` | optional | Handle AI input bar text |
@@ -27,7 +26,7 @@ A feature is a class library (`Nexaflow.Features.MyFeature`) that references onl
 
 ```
 src/Nexaflow.Features/Nexaflow.Features.MyFeature/
-  MyTabRegistration.cs
+  MyPageRegistration.cs
   MyConfig.cs             ← optional
   ViewModels/
     MyViewModel.cs
@@ -41,7 +40,7 @@ src/Nexaflow.Features/Nexaflow.Features.MyFeature/
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0-windows10.0.17763.0</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
   </PropertyGroup>
   <ItemGroup>
@@ -50,41 +49,41 @@ src/Nexaflow.Features/Nexaflow.Features.MyFeature/
 </Project>
 ```
 
-Add a `<ProjectReference>` to `Nexaflow.Core.csproj` and one `fm.Register` call in `App.xaml.cs`.
+Add a `<ProjectReference>` to `Nexaflow.Core.csproj` so the feature DLL ships; `FeatureManager` discovers the registration by reflection at startup.
 
 ---
 
-## 2. `ITabRegistration` — Entry Point
+## 2. `IPageRegistration` — Entry Point
 
-`FeatureManager.Register()` discovers this via reflection, resolves constructor dependencies, and instantiates it. Available for injection:
+`FeatureManager.RegisterFeatures()` discovers this via reflection (reading `static StaticPageKind` without instantiating), resolves constructor dependencies, and builds an instance per `Workspace`. Available for injection:
 
 - Any `IFeatureConfig` declared in **the same assembly**
-- `IShellServices` (always available after `App.OnStartup` wires it)
-- Any service registered via `FeatureManager.Instance.RegisterSingletonService()` (currently `IAIService`)
+- `IShellServices` (the active workspace's, always available after `App.OnStartup` wires it)
+- `IAIService` (the active workspace's)
 
 ```csharp
-public sealed class MyTabRegistration(MyConfig config, IShellServices shellServices) : ITabRegistration
+public sealed class MyPageRegistration(MyConfig config, IShellServices shellServices) : IPageRegistration
 {
-    public string PageKind => "MyFeature";   // stable string key; persisted in ribbon.json
+    public static string StaticPageKind => "MyFeature";   // read by FeatureManager via reflection
+    public string PageKind => StaticPageKind;              // stable string key; persisted in ribbon.json
 
-    public TabEntry CreateTab(Dictionary<string, string>? pageParams = null)
+    public Page CreatePage(Dictionary<string, string>? pageParams = null)
     {
         var vm = new MyViewModel(config, shellServices);
 
-        var tab = new TabEntry
+        return new Page
         {
-            Title       = "My Feature",
-            Icon        = "🔧",
-            PageParams  = pageParams,
-            Breadcrumbs = [new BreadcrumbSegment { Label = "My Feature" }]
+            Title          = "My Feature",
+            Icon           = "🔧",
+            PageParams     = pageParams,
+            Breadcrumbs    = { new BreadcrumbSegment { Label = "My Feature" } }, // get-only collection
+            ContentFactory = () => new MyView(vm)
         };
-        tab.PageFactory = () => new MyView(vm);
-        return tab;
     }
 }
 ```
 
-`PageFactory` is invoked lazily — `MyView` is not constructed until the tab is first activated.
+`ContentFactory` is invoked lazily — `MyView` is not constructed until the tab is first activated.
 
 ---
 
@@ -192,26 +191,29 @@ The shell uses `Symbol` for exact-prefix routing (e.g. `>` routes to the console
 
 ## 5. `IShellServices` — Shell Capabilities
 
-Injected into your `ITabRegistration` (and optionally forwarded to your ViewModel). All tab management flows through here.
+Injected into your `IPageRegistration` (and optionally forwarded to your ViewModel). All tab management flows through here.
 
 ```csharp
 // Open or focus a tab (moves it to the caller's window if it exists elsewhere)
 shellServices.OpenTab("ProjectDetail", new() { ["folder"] = folder }, callerPageView);
 
 // Close a tab
-shellServices.CloseTab(tab);
+shellServices.CloseTab(page);
 
-// Keep TabEntry.PageParams and breadcrumbs in sync after in-tab navigation
-shellServices.UpdateTabMeta(tab, title: "New Title",
-    breadcrumbs: [new BreadcrumbSegment { Label = "New Title" }],
-    pageParams:  new() { ["id"] = newId });
+// Update the tab's own title/breadcrumbs/params after in-tab navigation by mutating the
+// observable Page directly.
+page.Title = "New Title";
+page.Breadcrumbs.Clear();
+page.Breadcrumbs.Add(new BreadcrumbSegment { Label = "New Title" });
+page.PageParams = new() { ["id"] = newId };
 
 // Check if a tab is already open before opening a duplicate
 var existing = shellServices.FindTab("Search", new() { ["root"] = root });
 
-// User-visible feedback
+// User-visible feedback + modal prompts
 shellServices.ShowError("Could not load file.");
 shellServices.ShowNotification("Export complete.");
+shellServices.ShowConfirmation("Delete?", "This cannot be undone.", onConfirm: () => { /* … */ });
 ```
 
 **`OpenTab` param-matching:** the shell searches globally for an existing tab whose `PageKind` matches and whose `PageParams` are compatible (all requested keys match). If found, `Reinitialize(pageParams)` is called on it; if not, a new tab is created.
@@ -220,7 +222,7 @@ shellServices.ShowNotification("Export complete.");
 
 ## 6. `IFeatureConfig` — Persisted Settings
 
-Declare a plain POCO in your assembly. `FeatureManager.Register()` discovers it, instantiates it (loading from `%AppData%\Smile\Nexaflow\{ConfigName}\`), and injects it into your `ITabRegistration` constructor. The Options panel generates a property-grid editor for free.
+Declare a plain POCO in your assembly. `FeatureManager.RegisterFeatures()` discovers it, instantiates it (loading from `%AppData%\Smile\Nexaflow\{ConfigName}\`), and injects it into your `IPageRegistration` constructor. The Options panel generates a property-grid editor for free.
 
 ```csharp
 public sealed class MyConfig : IFeatureConfig
@@ -253,9 +255,9 @@ Config attributes:
 
 ## 7. `IFileAction` — File Browser Context Actions
 
-Implement in your feature assembly (viewer-opener actions) or in `Nexaflow.Core.FileActions` (system-level). `FileActionManager.Discover()` finds all implementations automatically.
+Implement in your feature assembly (viewer-opener actions) or in `Nexaflow.Core.FileActions` (system-level). `FileSystemFeatureRegistry` (in Core, **not** `FeatureManager`) discovers all implementations automatically across Core and the feature assemblies.
 
-Constructor receives `IShellServices` and `IInputPromptService` via injection.
+Constructor receives `IShellServices` via injection; show modal prompts via `IShellServices.ShowPrompt` / `ShowConfirmation`.
 
 ```csharp
 public sealed class OpenInMyViewerAction(IShellServices shellServices) : IFileAction
@@ -372,13 +374,13 @@ Parameters are `Dictionary<string, string>`. Keys are lowercase, values are stri
 | Projects | *(none)* |
 | ProjectDetail | `folder` |
 
-`TabEntry.PageParams` should always reflect the tab's current state — call `shellServices.UpdateTabMeta(tab, pageParams: ...)` after in-tab navigation so that `FindTab` and breadcrumb restores work correctly.
+`Page.PageParams` should always reflect the tab's current state — set `page.PageParams = ...` after in-tab navigation so that `FindTab` and breadcrumb restores work correctly.
 
 ---
 
 ## `IAIService` — AI Capabilities
 
-Injected via `FeatureManager.Instance.RegisterSingletonService`. Use it in ViewModels that implement `IQueryHandler` or expose client tools.
+Injected into your `IPageRegistration` constructor by `FeatureManager` (the active workspace's instance, same as `IShellServices`). Use it in ViewModels that implement `IQueryHandler` or expose client tools.
 
 ```csharp
 // Let the LLM pick the best handler from a candidate list

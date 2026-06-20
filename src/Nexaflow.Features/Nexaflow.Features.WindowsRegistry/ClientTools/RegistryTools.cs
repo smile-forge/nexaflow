@@ -1,25 +1,11 @@
 using System.Text;
 using System.Text.Json.Nodes;
-using System.Windows;
 using Microsoft.Win32;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.WindowsRegistry.Services;
 using Nexaflow.Features.WindowsRegistry.ViewModels;
 
 namespace Nexaflow.Features.WindowsRegistry.ClientTools;
-
-internal static class RegArgs
-{
-    public static string? Str(JsonObject o, string key)
-        => o.TryGetPropertyValue(key, out var v) && v is not null ? v.GetValue<string>() : null;
-
-    /// <summary>Runs <paramref name="f"/> on the UI thread (registry views mutate bound collections).</summary>
-    public static Task<T> OnUi<T>(Func<Task<T>> f)
-    {
-        var d = Application.Current?.Dispatcher;
-        return d is null || d.CheckAccess() ? f() : d.InvokeAsync(f).Task.Unwrap();
-    }
-}
 
 /// <summary>Read-only: lists the subkeys of the current key, or of a downward relative path.</summary>
 internal sealed class RegistryListSubkeysTool(RegistryViewModel vm) : IClientTool
@@ -37,7 +23,7 @@ internal sealed class RegistryListSubkeysTool(RegistryViewModel vm) : IClientToo
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        if (!vm.TryResolveDown(RegArgs.Str(arguments, "path"), out var subPath, out var error))
+        if (!vm.TryResolveDown(ToolArgs.Str(arguments, "path"), out var subPath, out var error))
             return Task.FromResult(ToolResult.Error(error));
 
         var names = vm.ReadSubKeys(subPath);
@@ -66,14 +52,14 @@ internal sealed class RegistryGetValuesTool(RegistryViewModel vm) : IClientTool
 
     public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        if (!vm.TryResolveDown(RegArgs.Str(arguments, "path"), out var subPath, out var error))
+        if (!vm.TryResolveDown(ToolArgs.Str(arguments, "path"), out var subPath, out var error))
             return ToolResult.Error(error);
 
         var label = subPath.Length == 0 ? vm.CurrentRoot.Token : $"{vm.CurrentRoot.Token}\\{subPath}";
         var values = vm.ReadValues(subPath);
 
         // Move the view to the inspected key so the user sees what the model is reading.
-        await RegArgs.OnUi(() => { vm.NavigateTo(label); return Task.FromResult(true); });
+        await vm.Shell.RunOnUiAsync(() => { vm.NavigateTo(label); return Task.FromResult(true); });
 
         var sb = new StringBuilder($"Values of '{label}':\n");
         foreach (var v in values)
@@ -124,9 +110,9 @@ internal static class RegistryWriteHelper
 {
     public static async Task<ToolResult> WriteAsync(RegistryViewModel vm, JsonObject arguments, bool mustExist)
     {
-        var name = RegArgs.Str(arguments, "name") ?? "";
-        var typeToken = RegArgs.Str(arguments, "type");
-        var rawValue = RegArgs.Str(arguments, "value") ?? "";
+        var name = ToolArgs.Str(arguments, "name") ?? "";
+        var typeToken = ToolArgs.Str(arguments, "type");
+        var rawValue = ToolArgs.Str(arguments, "value") ?? "";
 
         RegistryValueKind kind;
         if (!string.IsNullOrWhiteSpace(typeToken))
@@ -146,7 +132,7 @@ internal static class RegistryWriteHelper
         try { wire = RegistryValueCodec.ParseUserInput(rawValue, kind); }
         catch (Exception ex) { return ToolResult.Error($"Invalid {RegistryValueCodec.TypeLabel(kind)} data: {ex.Message}"); }
 
-        var ok = await RegArgs.OnUi(async () =>
+        var ok = await vm.Shell.RunOnUiAsync(async () =>
         {
             var written = await vm.WriteValueAsync(name, kind, wire);
             if (written) vm.Refresh();

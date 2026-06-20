@@ -41,7 +41,7 @@ public static class EnvVarTools
 
         public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
         {
-            var scopeArg = ToolArg.Str(arguments, "scope", "target");
+            var scopeArg = ToolArgs.Str(arguments, "scope", "target");
             var sb = new StringBuilder();
             var count = 0;
             foreach (var scope in ScopesFor(scopeArg))
@@ -76,11 +76,11 @@ public static class EnvVarTools
 
         public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
         {
-            var name = ToolArg.Str(arguments, "name", "variable");
+            var name = ToolArgs.Str(arguments, "name", "variable");
             if (string.IsNullOrWhiteSpace(name))
                 return Task.FromResult(ToolResult.Error("No variable name provided."));
 
-            var scopeArg = ToolArg.Str(arguments, "scope", "target");
+            var scopeArg = ToolArgs.Str(arguments, "scope", "target");
             foreach (var scope in ScopesFor(scopeArg))
             {
                 var row = vm.ScopeRows(scope).FirstOrDefault(r => r.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
@@ -111,11 +111,11 @@ public static class EnvVarTools
 
         public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
         {
-            var name  = ToolArg.Str(arguments, "name", "variable");
-            var value = ToolArg.Str(arguments, "value") ?? "";
+            var name  = ToolArgs.Str(arguments, "name", "variable");
+            var value = ToolArgs.Str(arguments, "value") ?? "";
             if (string.IsNullOrWhiteSpace(name)) return ToolResult.Error("No variable name provided.");
 
-            TryScope(ToolArg.Str(arguments, "scope", "target"), out var scope);
+            TryScope(ToolArgs.Str(arguments, "scope", "target"), out var scope);
             var ok = await vm.SetVariableAsync(scope, name, value);
             return ok
                 ? ToolResult.Ok($"Set {scope} variable {name}.")
@@ -137,10 +137,10 @@ public static class EnvVarTools
 
         public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
         {
-            var name = ToolArg.Str(arguments, "name", "variable");
+            var name = ToolArgs.Str(arguments, "name", "variable");
             if (string.IsNullOrWhiteSpace(name)) return ToolResult.Error("No variable name provided.");
 
-            TryScope(ToolArg.Str(arguments, "scope", "target"), out var scope);
+            TryScope(ToolArgs.Str(arguments, "scope", "target"), out var scope);
             var ok = await vm.DeleteVariableAsync(scope, name);
             return ok
                 ? ToolResult.Ok($"Deleted {scope} variable {name}.")

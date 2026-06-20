@@ -7,15 +7,6 @@ namespace Nexaflow.Features.Git.ClientTools;
 
 internal static class GitToolArgs
 {
-    public static string? Str(JsonObject o, string key)
-        => o.TryGetPropertyValue(key, out var v) && v is not null ? v.GetValue<string>() : null;
-
-    public static bool Bool(JsonObject o, string key, bool fallback = false)
-        => o.TryGetPropertyValue(key, out var v) && v is not null && bool.TryParse(v.ToString(), out var b) ? b : fallback;
-
-    public static int Int(JsonObject o, string key, int fallback)
-        => o.TryGetPropertyValue(key, out var v) && v is not null && int.TryParse(v.ToString(), out var i) ? i : fallback;
-
     /// <summary>Caps a potentially huge diff/log so it never floods the model.</summary>
     public static string Cap(string text, int maxLines = 600)
     {
@@ -83,9 +74,9 @@ public sealed class GitLogTool(GitService git) : IClientTool
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) => Task.Run(() =>
     {
-        var count  = Math.Clamp(GitToolArgs.Int(arguments, "count", 20), 1, 200);
-        var branch = GitToolArgs.Str(arguments, "branch");
-        var path   = GitToolArgs.Str(arguments, "path");
+        var count  = Math.Clamp(ToolArgs.Int(arguments, "count", 20), 1, 200);
+        var branch = ToolArgs.Str(arguments, "branch");
+        var path   = ToolArgs.Str(arguments, "path");
 
         var commits = git.GetLog(count, branch, path);
         if (commits.Count == 0)
@@ -114,8 +105,8 @@ public sealed class GitDiffTool(GitService git) : IClientTool
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) => Task.Run(() =>
     {
-        var path   = GitToolArgs.Str(arguments, "path");
-        var staged = GitToolArgs.Bool(arguments, "staged");
+        var path   = ToolArgs.Str(arguments, "path");
+        var staged = ToolArgs.Bool(arguments, "staged");
 
         var diff = git.GetDiff(path, staged);
         if (string.IsNullOrWhiteSpace(diff))
@@ -168,7 +159,7 @@ public sealed class GitShowTool(GitService git) : IClientTool
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) => Task.Run(() =>
     {
-        var hash = GitToolArgs.Str(arguments, "commit");
+        var hash = ToolArgs.Str(arguments, "commit");
         if (string.IsNullOrWhiteSpace(hash))
             return ToolResult.Error("A commit hash is required.");
 

@@ -46,6 +46,8 @@ bld/
 [Oo]ut/
 [Ll]og/
 [Ll]ogs/
+# …but the Logs-feature test folder is source, not build logs.
+!/src/Nexaflow.Tests/Nexaflow.Tests.Features/Logs/
 
 # Build results on 'Bin' directories
 **/[Bb]in/*

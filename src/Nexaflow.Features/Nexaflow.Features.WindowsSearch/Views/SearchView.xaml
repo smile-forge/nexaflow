@@ -8,93 +8,6 @@
         <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
         <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
 
-        <!-- Column header — matches FileSystemView exactly -->
-        <ControlTemplate x:Key="GvColHeaderPaddingTemplate" TargetType="GridViewColumnHeader">
-            <Border Background="{StaticResource SurfaceBrush}"
-                    BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="0,0,0,1"/>
-        </ControlTemplate>
-
-        <Style x:Key="GvColHeaderStyle" TargetType="GridViewColumnHeader">
-            <Setter Property="Background"          Value="{StaticResource SurfaceBrush}"/>
-            <Setter Property="Foreground"          Value="{StaticResource TextMutedBrush}"/>
-            <Setter Property="FontSize"            Value="11"/>
-            <Setter Property="FontWeight"          Value="SemiBold"/>
-            <Setter Property="BorderBrush"         Value="{StaticResource BorderBrush}"/>
-            <Setter Property="BorderThickness"     Value="0,0,1,1"/>
-            <Setter Property="Padding"             Value="8,6"/>
-            <Setter Property="HorizontalContentAlignment" Value="Left"/>
-            <Setter Property="Cursor"              Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="GridViewColumnHeader">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                              VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="{StaticResource Surface2Brush}"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Background" Value="{StaticResource BorderBrush}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="Role" Value="Padding">
-                    <Setter Property="Template" Value="{StaticResource GvColHeaderPaddingTemplate}"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- Result row style — matches FileSystemView FileRowStyle -->
-        <Style x:Key="ResultRowStyle" TargetType="ListViewItem">
-            <Setter Property="Background"              Value="Transparent"/>
-            <Setter Property="Foreground"              Value="{StaticResource TextBrush}"/>
-            <Setter Property="FontSize"                Value="13"/>
-            <Setter Property="BorderThickness"         Value="0"/>
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-            <Setter Property="Padding"                 Value="0,2"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ListViewItem">
-                        <Border x:Name="RowBg"
-                                Background="Transparent"
-                                CornerRadius="4"
-                                Margin="2,1">
-                            <GridViewRowPresenter
-                                Columns="{Binding View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                Content="{TemplateBinding Content}"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource Self}}"
-                                         Value="True">
-                                <Setter TargetName="RowBg" Property="Background"
-                                        Value="{StaticResource Surface2Brush}"/>
-                                <Setter TargetName="RowBg" Property="BorderBrush"
-                                        Value="{StaticResource AccentBrush}"/>
-                                <Setter TargetName="RowBg" Property="BorderThickness" Value="1"/>
-                            </DataTrigger>
-                            <MultiTrigger>
-                                <MultiTrigger.Conditions>
-                                    <Condition Property="IsSelected"  Value="False"/>
-                                    <Condition Property="IsMouseOver" Value="True"/>
-                                </MultiTrigger.Conditions>
-                                <Setter TargetName="RowBg" Property="Background"
-                                        Value="{StaticResource SurfaceBrush}"/>
-                            </MultiTrigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -172,7 +85,7 @@
                 <ListView x:Name="ResultList"
                           ItemsSource="{Binding Results}"
                           SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
-                          ItemContainerStyle="{StaticResource ResultRowStyle}"
+                          ItemContainerStyle="{StaticResource FileListRowStyle}"
                           Background="{StaticResource BgBrush}"
                           BorderThickness="0"
                           SelectionMode="Single"
@@ -181,7 +94,7 @@
                           GridViewColumnHeader.Click="OnColumnHeaderClick"
                           Padding="4,4,4,4">
                     <ListView.View>
-                        <GridView ColumnHeaderContainerStyle="{StaticResource GvColHeaderStyle}">
+                        <GridView ColumnHeaderContainerStyle="{StaticResource GridColumnHeaderStyle}">
 
                             <!-- Name -->
                             <GridViewColumn Header="Name" Width="340">

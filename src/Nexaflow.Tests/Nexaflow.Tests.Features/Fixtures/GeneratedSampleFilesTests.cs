@@ -1,7 +1,7 @@
 using System.IO;
 using System.Linq;
 using System.Text;
-using Nexaflow.Features.Tabular.Detection;
+using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Fixtures;
