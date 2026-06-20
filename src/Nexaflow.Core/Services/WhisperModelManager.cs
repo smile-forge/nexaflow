@@ -1,6 +1,6 @@
 using System.IO;
 using System.Net.Http;
-using System.Windows;
+using System.Windows.Threading;
 using Nexaflow.Providers.Common;
 
 namespace Nexaflow.Core.Services;
@@ -17,6 +17,9 @@ public sealed class WhisperModelManager
     private WhisperModelManager() { }
 
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(30) };
+
+    /// <summary>The app UI dispatcher, captured when the singleton is built on the UI thread (App.InitializeApp).</summary>
+    private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
 
     private IBackgroundActivityManager? _activity;
     private int _downloading;   // interlocked guard against concurrent downloads
@@ -129,10 +132,9 @@ public sealed class WhisperModelManager
         DispatchToUi(() => handler.Invoke(this, EventArgs.Empty));
     }
 
-    private static void DispatchToUi(Action raise)
+    private void DispatchToUi(Action raise)
     {
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is null || dispatcher.CheckAccess()) raise();
-        else dispatcher.Invoke(raise);
+        if (_ui.CheckAccess()) raise();
+        else _ui.Invoke(raise);
     }
 }

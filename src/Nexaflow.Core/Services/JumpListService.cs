@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Shell;
+using System.Windows.Threading;
 
 namespace Nexaflow.Core.Services;
 
@@ -22,8 +23,10 @@ public static class JumpListService
     /// </summary>
     public static void Initialize()
     {
-        WorkspaceManager.Instance.ProfilesRefreshed += (_, _) =>
-            Application.Current?.Dispatcher.Invoke(Refresh);
+        // Captured on the UI thread (this runs during App.InitializeApp); the profile-list change can
+        // arrive on any thread, so marshal the rebuild back onto it.
+        var ui = Dispatcher.CurrentDispatcher;
+        WorkspaceManager.Instance.ProfilesRefreshed += (_, _) => ui.Invoke(Refresh);
         Refresh();
     }
 

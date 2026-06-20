@@ -190,6 +190,11 @@ public partial class App : Application
         ConfigManager.Instance.Register(voiceConfig, voiceConfig.ConfigName);
         WhisperModelManager.Instance.Initialize(activityManager);
 
+        // Force the app-global inbox into existence here, on the UI thread, so it captures the app
+        // dispatcher even in the windowless --prestart daemon (which never builds a ShellViewModel — its
+        // first Post would otherwise come from the background update-check thread).
+        _ = MessageCenter.Instance;
+
         // Surface download outcomes as messages (global, so they survive the windowless daemon).
         WhisperModelManager.Instance.ModelDownloadCompleted += (_, _) =>
             MessageCenter.Instance.Post(new NotificationItem

@@ -1,6 +1,6 @@
 using System.IO;
 using System.Text;
-using System.Windows;
+using System.Windows.Threading;
 using NAudio.Wave;
 using Whisper.net;
 
@@ -21,6 +21,9 @@ public sealed class VoiceManager : IDisposable
     private VoiceManager() { }
 
     private static readonly WaveFormat CaptureFormat = new(16000, 16, 1);
+
+    /// <summary>The app UI dispatcher, captured when the singleton is first built on the UI thread.</summary>
+    private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
 
     // Tuning: re-transcribe cadence, silence to auto-stop, speech amplitude floor.
     private const int    TranscribeIntervalMs = 1000;
@@ -224,10 +227,9 @@ public sealed class VoiceManager : IDisposable
         _factory = null;
     }
 
-    private static void Dispatch(Action action)
+    private void Dispatch(Action action)
     {
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is null || dispatcher.CheckAccess()) action();
-        else dispatcher.Invoke(action);
+        if (_ui.CheckAccess()) action();
+        else _ui.Invoke(action);
     }
 }

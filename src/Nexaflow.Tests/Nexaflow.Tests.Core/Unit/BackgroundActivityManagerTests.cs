@@ -6,8 +6,8 @@ namespace Nexaflow.Tests.Core.Unit;
 [TestClass]
 public class BackgroundActivityManagerTests
 {
-    // Application.Current is null in test context; BackgroundActivityManager.Dispatch
-    // falls through to run the action synchronously, so all mutations happen inline.
+    // The manager captures the constructing thread's dispatcher (the test thread here), so its
+    // Dispatch sees CheckAccess == true and runs every action synchronously — all mutations inline.
 
     [TestMethod]
     public void Constructor_InsertsIdlePlaceholder()

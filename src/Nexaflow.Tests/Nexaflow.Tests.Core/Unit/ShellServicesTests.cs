@@ -13,7 +13,7 @@ public class ShellServicesTests
 
     /// <summary>
     /// Seeds a page directly into ShellServices' private tab registry.
-    /// OpenTab cannot be used in tests because it marshals to Application.Current.Dispatcher.
+    /// OpenTab cannot be used in tests because it marshals through the captured UI dispatcher.
     /// </summary>
     private static void SeedTab(ShellServices svc, Page page, FakeWindowHost host)
     {
