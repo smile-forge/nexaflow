@@ -4,50 +4,54 @@ using Nexaflow.IO.Terminal;
 namespace Nexaflow.Tests.Features.Console;
 
 /// <summary>
-/// The VT screen buffer. The key case: ConPTY positions command output with cursor moves (CSI row;col H)
-/// rather than line feeds, so short output never LF-commits and must be drained from the grid when the
-/// next prompt appears — otherwise it's stranded until the screen scrolls (~one page).
+/// The VT screen buffer behaves like a real terminal screen: on-screen lines stay in the grid (rendered
+/// via <see cref="TerminalScreen.Snapshot"/>) and only lines that scroll off the top become scrollback.
+/// This is what lets short, cursor-positioned ConPTY output (which never line-feed-commits) render at all.
 /// </summary>
 [TestClass]
 public class TerminalScreenTests
 {
     [TestMethod]
-    public void TakeLines_CommitsOnLineFeed()
+    public void OnScreenLines_StayInSnapshot_NotScrollback()
     {
         var screen = new TerminalScreen(80, 25);
         screen.Feed("LINE1\r\nLINE2\r\n");
 
-        CollectionAssert.AreEqual(new[] { "LINE1", "LINE2" }, screen.TakeLines().ToList());
+        Assert.AreEqual(0, screen.TakeScrollback().Count, "nothing scrolled off a 25-row screen");
+        var snap = screen.Snapshot().ToList();
+        CollectionAssert.Contains(snap, "LINE1");
+        CollectionAssert.Contains(snap, "LINE2");
     }
 
     [TestMethod]
-    public void CursorPositionedOutput_IsNotLineFeedCommitted()
+    public void CursorPositionedOutput_AppearsInSnapshot()
     {
         var screen = new TerminalScreen(80, 25);
-        // Write output, then jump the cursor down with CUP (no line feed) — how ConPTY emits short output.
+        // Output positioned with CUP rather than a line feed — how ConPTY emits short output.
         screen.Feed("HELLO\x1b[5;1H");
 
-        Assert.AreEqual(0, screen.TakeLines().Count, "cursor-positioned output has no LF, so nothing commits");
+        CollectionAssert.Contains(screen.Snapshot().ToList(), "HELLO");
     }
 
     [TestMethod]
-    public void DrainAboveCursor_FlushesCursorPositionedOutput()
+    public void Scrolling_EvictsTopLinesToScrollback()
     {
-        var screen = new TerminalScreen(80, 25);
-        screen.Feed("HELLO\x1b[5;1H");   // "HELLO" at row 0, cursor moved to row 5
+        var screen = new TerminalScreen(80, 5);   // small screen forces a scroll
+        for (int i = 1; i <= 7; i++) screen.Feed($"L{i}\r\n");
 
-        var drained = screen.DrainAboveCursor();
+        var scrollback = screen.TakeScrollback().ToList();
+        CollectionAssert.Contains(scrollback, "L1");
+        CollectionAssert.Contains(scrollback, "L3");
 
-        CollectionAssert.Contains(drained.ToList(), "HELLO");
+        CollectionAssert.Contains(screen.Snapshot().ToList(), "L7");
     }
 
     [TestMethod]
-    public void DrainAboveCursor_IsEmptyWhenNothingStranded()
+    public void PeekPromptLine_DetectsPromptOnCursorRow()
     {
         var screen = new TerminalScreen(80, 25);
-        screen.Feed("LINE1\r\n");        // committed via LF, cursor on a fresh empty row
-        screen.TakeLines();
+        screen.Feed("C:\\Windows>");
 
-        Assert.AreEqual(0, screen.DrainAboveCursor().Count);
+        Assert.AreEqual("C:\\Windows>", screen.PeekPromptLine());
     }
 }

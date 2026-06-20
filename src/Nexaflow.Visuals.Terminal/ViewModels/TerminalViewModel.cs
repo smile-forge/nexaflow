@@ -29,16 +29,14 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     protected readonly PseudoConsoleHostService _pty;
 
     // VT screen buffer: raw PTY bytes are rendered into a cols×rows grid;
-    // correct line text is read back from that grid after each chunk.
+    // the visible screen + scrollback are read back from it after each chunk.
     private readonly TerminalScreen _screen;
     private readonly int _cols;
     private readonly int _rows;
 
-    // The entry currently receiving output (null = shell startup / idle)
-    private ConsoleEntry? _activeEntry;
-
-    // The echo of the command we just sent — suppress it from output
-    private string? _pendingEcho;
+    // True while the cursor row is a bare shell prompt (vs. a command running / output flowing). Drives
+    // the init sequence (fire once per prompt) and gates the Enter command/query routing.
+    private bool _atPrompt;
 
     // ── Environment / tab ─────────────────────────────────────────────────
     protected readonly IShellServices _shell;
@@ -55,8 +53,12 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
     // ── Observable state ──────────────────────────────────────────────────
 
-    /// <summary>All entries (commands + their output) shown in the centre panel.</summary>
-    public ObservableCollection<ConsoleEntry> Entries { get; } = [];
+    /// <summary>Lines that have scrolled off the top of the screen — the terminal scrollback.</summary>
+    public ObservableCollection<string> Scrollback { get; } = [];
+
+    /// <summary>The live terminal screen (the visible VT grid), rendered as monospace text and rebuilt
+    /// on each chunk. Together with <see cref="Scrollback"/> this is the full terminal display.</summary>
+    [ObservableProperty] private string _screenText = string.Empty;
 
     /// <summary>Current path shown in the top bar — updated by parsing shell prompts.</summary>
     [ObservableProperty] private string _currentPath =
@@ -90,17 +92,6 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     /// <summary>Most-recent-first command history for the right panel.</summary>
     public ObservableCollection<string> CommandHistory { get; } = [];
 
-    /// <summary>
-    /// Live echo of the command being typed in the AI bar (console mode), shown as a faux prompt row so
-    /// you see what's about to run. Null = nothing being typed. Set via <see cref="SetInputPreview"/>.
-    /// </summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasPreview))]
-    private string? _previewLine;
-
-    /// <summary>True while a typed command is being previewed (drives the faux-prompt row's visibility).</summary>
-    public bool HasPreview => !string.IsNullOrEmpty(PreviewLine);
-
     /// <summary>Cursor into <see cref="CommandHistory"/> while navigating with Up/Down (-1 = not navigating).</summary>
     private int _historyCursor = -1;
 
@@ -123,6 +114,10 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
     /// <summary>How this shell sets a variable for the live session (cmd: <c>set "NAME=value"</c>).</summary>
     protected virtual string FormatSetCommand(string name, string value) => $"set \"{name}={value}\"";
+
+    /// <summary>Human description of the shell, so the AI's run_command tool uses the right syntax.</summary>
+    protected virtual string ShellDescription =>
+        "the Windows cmd.exe command prompt (use cmd / batch syntax such as `dir`, not PowerShell cmdlets)";
 
     // ── Construction / startup ────────────────────────────────────────────
 
@@ -181,48 +176,33 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     // ── Public API called by the shell ────────────────────────────────────
 
     /// <summary>
-    /// Writes <paramref name="command"/> into the live PTY and begins a new
-    /// <see cref="ConsoleEntry"/> to accumulate the response.
+    /// Runs <paramref name="command"/> in the shell as if it had been typed: sends the text plus a carriage
+    /// return and records it in history. Used by the init sequence, the AI bar, history re-run, env switches
+    /// and <c>set</c> writes — the user types directly into the terminal instead (see <see cref="SendText"/>).
     /// </summary>
     public void SendCommand(string command)
     {
         var trimmed = command.Trim();
         if (string.IsNullOrEmpty(trimmed)) return;
 
-        // History — unique, most-recent-first: remove any prior occurrence then prepend
-        CommandHistory.Remove(trimmed);
-        CommandHistory.Insert(0, trimmed);
-        _historyCursor = -1;   // a fresh command resets Up/Down navigation
-
-        // Close off the previous entry
-        if (_activeEntry is { IsRunning: true })
-            _activeEntry.IsRunning = false;
-
-        // Clear any prompt text sitting in the screen's current row so it
-        // doesn't bleed into the next command's output.
-        _screen.ClearCurrentRow();
-
-        // Open a fresh entry for this command
-        var entry = new ConsoleEntry { Command = trimmed, IsRunning = true };
-        Entries.Add(entry);
-        _activeEntry = entry;
-        IsBusy       = true;
-        _pendingEcho = trimmed;   // suppress PTY echo of this line
-
+        RecordHistory(trimmed);
+        IsBusy   = true;
+        _atPrompt = false;
+        _pty.WriteRaw(trimmed + "\r");
         ScrollRequested?.Invoke(this, EventArgs.Empty);
-
-        _pty.WriteInput(trimmed);
     }
 
-    /// <summary>Sends Ctrl-C to the hosted shell.</summary>
+    private void RecordHistory(string command)
+    {
+        CommandHistory.Remove(command);
+        CommandHistory.Insert(0, command);
+        _historyCursor = -1;
+    }
+
+    /// <summary>Sends Ctrl-C to the hosted shell (interrupt the running program / clear the line).</summary>
     public void SendCtrlC()
     {
         _pty.SendCtrlC();
-        if (_activeEntry is { IsRunning: true })
-        {
-            _activeEntry.Lines.Add(new ConsoleOutputLine { Text = "^C", IsError = true });
-            _activeEntry.IsRunning = false;
-        }
         IsBusy = false;
     }
 
@@ -230,11 +210,69 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     [RelayCommand]
     private void Rerun(string command) => SendCommand(command);
 
-    // ── Chat-bar participation (key handling + live preview) ──────────────
+    // ── Terminal input (keystrokes go straight to the shell) ──────────────
 
-    /// <summary>Mirrors the in-progress console command (without the <c>&gt;</c> prefix) at a faux prompt.</summary>
-    public void SetInputPreview(string? draft)
-        => PreviewLine = string.IsNullOrWhiteSpace(draft) ? null : draft;
+    /// <summary>Forwards a printable character (or pasted text) to the shell as typed.</summary>
+    public void SendText(string text)
+    {
+        if (!string.IsNullOrEmpty(text)) _pty.WriteRaw(text);
+    }
+
+    /// <summary>
+    /// Forwards a special key (arrows, Backspace, Tab, Ctrl-combos, …) to the shell. Returns true if the
+    /// key was a forwardable one (so the view suppresses default handling); printable keys return false
+    /// and are delivered via <see cref="SendText"/> from TextInput. Enter is handled by <see cref="HandleEnter"/>.
+    /// </summary>
+    public bool SendKey(Key key, ModifierKeys modifiers)
+    {
+        var seq = TerminalKeys.Encode(key, modifiers);
+        if (seq is null) return false;
+        _pty.WriteRaw(seq);
+        return true;
+    }
+
+    /// <summary>
+    /// Handles Enter. At a shell prompt the typed line is classified: a recognised command runs (and is
+    /// recorded in history); natural language is wiped off the shell line and handed to the LLM. While a
+    /// program is running (the cursor row isn't a prompt) Enter is simply forwarded so interactive input works.
+    /// </summary>
+    public void HandleEnter()
+    {
+        var input = _atPrompt ? CurrentInputLine() : null;
+        if (input is null)
+        {
+            _pty.WriteRaw("\r");                 // interactive program reading input
+            return;
+        }
+
+        if (CommandClassifier.IsCommand(input, ShellBuiltins))
+        {
+            var trimmed = input.Trim();
+            if (trimmed.Length > 0) RecordHistory(trimmed);
+            IsBusy   = true;
+            _atPrompt = false;
+            _pty.WriteRaw("\r");
+            return;
+        }
+
+        // Natural language → clear what was typed off the shell line, then ask the model.
+        if (input.Length > 0) _pty.WriteRaw("\x1b");   // Esc clears cmd's current input line
+        _shell.SubmitAiQuery(input.Trim());
+    }
+
+    /// <summary>The text typed after the prompt on the cursor row, or null if that row isn't a prompt.</summary>
+    private string? CurrentInputLine()
+    {
+        var snap = _screen.Snapshot();
+        var row  = (snap.ElementAtOrDefault(_screen.CursorRow) ?? string.Empty).TrimEnd();
+        var m    = PromptPathRegex.Match(row);
+        return m.Success && m.Index == 0 ? row[m.Length..] : row;
+    }
+
+    /// <summary>The shell's built-in command names, used to classify Enter'd lines (cmd by default).</summary>
+    protected virtual IReadOnlySet<string> ShellBuiltins => CommandClassifier.CmdBuiltins;
+
+    // ── Chat-bar participation (the bar can still drive the terminal) ──────
 
     /// <summary>
     /// Handles AI-bar keys while a <c>&gt;</c>-prefixed command targets this terminal: Up/Down step
@@ -279,94 +317,41 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     {
         _screen.Feed(rawChunk);
 
-        // Drain all fully-committed lines from the screen buffer.
-        foreach (var line in _screen.TakeLines())
-            ProcessLine(line);
+        // Lines that scrolled off the top become scrollback; the visible grid is the live screen.
+        foreach (var line in _screen.TakeScrollback())
+            Scrollback.Add(line.TrimEnd());
+        ScreenText = string.Join("\n", _screen.Snapshot()).TrimEnd('\n');
 
-        // Check whether the cursor row now holds a shell prompt.
-        var prompt = _screen.PeekPromptLine();
-        if (prompt is not null)
+        // A bare shell prompt on the cursor row means the previous command finished. Handle it once per
+        // prompt (not on every chunk, and not while the user is mid-typing — the row then ends with the
+        // typed text, so PeekPromptLine returns null and _atPrompt simply stays set).
+        if (_screen.PeekPromptLine() is { } prompt)
         {
-            // ConPTY positions command output above the next prompt with cursor moves, not line feeds,
-            // so short output never LF-commits. Flush those stranded rows now that the command is done.
-            foreach (var line in _screen.DrainAboveCursor())
-                ProcessLine(line);
+            if (!_atPrompt)
+            {
+                _atPrompt = true;
+                IsBusy    = false;
 
-            var path = ExtractPathFromPrompt(prompt);
-            if (path is not null)
-            {
-                bool pathChanged = !string.Equals(path, CurrentPath, StringComparison.OrdinalIgnoreCase);
-                CurrentPath = path;
-                RefreshEnvVars();
-                // The Files list only needs rebuilding when the directory changes — re-enumerating a large
-                // folder after every command would churn the UI thread.
-                if (pathChanged) RefreshFiles();
-                HandlePromptDetected();
-                SyncTabMeta();
+                if (ExtractPathFromPrompt(prompt) is { } path)
+                {
+                    bool pathChanged = !string.Equals(path, CurrentPath, StringComparison.OrdinalIgnoreCase);
+                    CurrentPath = path;
+                    RefreshEnvVars();
+                    if (pathChanged) RefreshFiles();   // re-enumerate only when the directory changes
+                    HandlePromptDetected();
+                    SyncTabMeta();
+                }
             }
-            if (_activeEntry is { IsRunning: true })
-            {
-                _activeEntry.IsRunning = false;
-                IsBusy = false;
-            }
-            _screen.ClearCurrentRow();
         }
 
         ScrollRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    private void ProcessLine(string line)
-    {
-        // Suppress PTY echo of the command we just sent.
-        // The echo can arrive as just the command ("dir") OR with the prompt
-        // prepended ("D:\path>dir") depending on the shell and conhost mode.
-        if (_pendingEcho is not null)
-        {
-            var trimmed = line.Trim();
-            if (string.Equals(trimmed, _pendingEcho, StringComparison.Ordinal) ||
-                trimmed.EndsWith('>' + _pendingEcho, StringComparison.Ordinal))
-            {
-                _pendingEcho = null;
-                return;
-            }
-        }
-
-        // Skip blank lines before the first command (startup banner noise).
-        if (_activeEntry is null && string.IsNullOrWhiteSpace(line)) return;
-
-        // Skip lines that are themselves prompt-shaped (they may appear as
-        // completed lines during startup before we see a real prompt row).
-        if (ExtractPathFromPrompt(line) is not null) return;
-
-        if (_activeEntry is null) return;
-        _activeEntry.Lines.Add(new ConsoleOutputLine { Text = line, IsError = false });
-    }
-
     private void OnTerminalError(string message)
-    {
-        _ = _shell.RunOnUiAsync(() =>
-        {
-            if (_activeEntry is null)
-            {
-                var errEntry = new ConsoleEntry { Command = "[terminal error]", IsRunning = false };
-                Entries.Add(errEntry);
-                _activeEntry = errEntry;
-            }
-            _activeEntry.Lines.Add(new ConsoleOutputLine { Text = $"[PTY] {message}", IsError = true });
-            if (_activeEntry.IsRunning) _activeEntry.IsRunning = false;
-            IsBusy = false;
-        });
-    }
+        => _ = _shell.RunOnUiAsync(() => { Scrollback.Add($"[PTY] {message}"); IsBusy = false; });
 
     private void OnProcessExited(int exitCode)
-    {
-        _ = _shell.RunOnUiAsync(() =>
-        {
-            if (_activeEntry is { IsRunning: true })
-                _activeEntry.IsRunning = false;
-            IsBusy = false;
-        });
-    }
+        => _ = _shell.RunOnUiAsync(() => IsBusy = false);
 
     // ── Prompt detection ──────────────────────────────────────────────────
     //
@@ -717,15 +702,36 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
     public virtual IReadOnlyList<IClientTool> GetClientTools()
     {
+        var tools = new List<IClientTool>
+        {
+            // Lets the model carry out a natural-language request (routed here when the user's typed line
+            // isn't a recognised command) by running real commands in the live shell. Approval-gated.
+            new DelegateClientTool(
+                "run_command",
+                $"Runs a command line in this terminal's running shell: {ShellDescription}. It is the user's " +
+                $"live session, currently at '{CurrentPath}'; the command executes there and its output " +
+                $"appears in the terminal.",
+                [new ClientToolParameter("command", "The exact command line to run.")],
+                ToolSafety.RequiresApproval,
+                (arguments, ct) =>
+                {
+                    var cmd = arguments["command"]?.GetValue<string>();
+                    if (string.IsNullOrWhiteSpace(cmd))
+                        return Task.FromResult(ToolResult.Error("No command provided."));
+                    SendCommand(cmd);
+                    return Task.FromResult(ToolResult.Ok($"ran: {cmd}", $"Ran `{cmd}` in the terminal."));
+                }),
+        };
+
         var envs = Environments
             .Where(e => GlobMatchPath(CurrentPath, e.LocationFilter))
             .ToList();
-        if (envs.Count == 0) return [];
+        if (envs.Count == 0) return tools;
 
         var envList = string.Join("; ", envs.Select(e =>
             $"'{e.Name}'" + (string.IsNullOrEmpty(e.InitialCommand) ? "" : $" (runs: {e.InitialCommand})")));
 
-        return [new DelegateClientTool(
+        tools.Add(new DelegateClientTool(
             "set_environment",
             $"Switches the terminal to a configured environment. Provide 'name' matching one of: {envList}. " +
             "The environment's initial command is sent and the tab title updates.",
@@ -753,7 +759,9 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
                 }
 
                 return Task.FromResult(ToolResult.Ok($"switched to {env.Name}", $"Switched the terminal to '{env.Name}'."));
-            })];
+            }));
+
+        return tools;
     }
 
     public IContext? GetContextObject()

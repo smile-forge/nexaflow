@@ -416,6 +416,9 @@ public sealed class ShellServices : IShellServices
     public void InsertChatInput(string text)
         => (_focused ?? _windows.FirstOrDefault())?.InsertChatInput(text);
 
+    public void SubmitAiQuery(string query)
+        => (_focused ?? _windows.FirstOrDefault())?.SubmitAiQuery(query);
+
     // ── Cross-window tab operations ───────────────────────────────────────
 
     public void TearOffTab(Page tab)

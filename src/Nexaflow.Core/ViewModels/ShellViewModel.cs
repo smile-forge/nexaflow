@@ -67,6 +67,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     void IWindowHost.InsertChatInput(string text) => ChatInputInsertRequested?.Invoke(text);
 
+    void IWindowHost.SubmitAiQuery(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return;
+        AiInputText = query;
+        if (SendAiMessageCommand.CanExecute(null)) SendAiMessageCommand.Execute(null);
+    }
+
     // ── Pane (the strip of pages + active page) ───────────────────────────
     // The shell hosts a single root pane today. In future this becomes a
     // tree (SplitPaneNode = left + right Panes) — bind UI to RootPaneNode.

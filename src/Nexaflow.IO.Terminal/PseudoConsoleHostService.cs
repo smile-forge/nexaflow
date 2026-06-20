@@ -201,6 +201,18 @@ public class PseudoConsoleHostService : IDisposable
         catch (IOException) { /* shell exited */ }
     }
 
+    /// <summary>
+    /// Writes raw text to the PTY input with no added line ending — for forwarding individual keystrokes
+    /// and VT sequences as they are typed (the caller includes any CR/ESC bytes). This is what makes the
+    /// console a real terminal: keys reach the shell live, so interactive programs and inline echo work.
+    /// </summary>
+    public virtual void WriteRaw(string text)
+    {
+        if (_inputWriter is null || !IsRunning) return;
+        try { _inputWriter.Write(text); }
+        catch (IOException) { /* shell exited */ }
+    }
+
     /// <summary>Sends Ctrl-C into the PTY.</summary>
     public virtual void SendCtrlC()
     {

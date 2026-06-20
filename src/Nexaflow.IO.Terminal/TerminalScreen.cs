@@ -32,9 +32,8 @@ public sealed class TerminalScreen
     private int _curRow;
     private int _curCol;
 
-    // Lines that have been fully scrolled off / LF-committed and not yet
-    // consumed by the caller.
-    private readonly Queue<string> _completedLines = new();
+    // Lines that have scrolled off the top of the screen, awaiting consumption as scrollback.
+    private readonly Queue<string> _scrollback = new();
 
     // Saved cursor position (ESC 7 / ESC 8 / CSI s / CSI u)
     private int _savedRow;
@@ -92,23 +91,39 @@ public sealed class TerminalScreen
     }
 
     /// <summary>
-    /// Remove and return all lines that have been fully committed
-    /// (by a Line Feed or a scroll-up).  Each string is trimmed of
-    /// trailing spaces but preserves internal spacing.
+    /// Removes and returns the lines that have scrolled off the top of the screen — the terminal's
+    /// scrollback. (Unlike a "commit on every line feed" model, on-screen lines stay in the grid so the
+    /// live screen — prompt, in-progress output, full-screen apps — renders correctly via <see cref="Snapshot"/>.)
     /// </summary>
-    public IReadOnlyList<string> TakeLines()
+    public IReadOnlyList<string> TakeScrollback()
     {
-        var result = new List<string>(_completedLines.Count);
-        while (_completedLines.TryDequeue(out var line))
+        var result = new List<string>(_scrollback.Count);
+        while (_scrollback.TryDequeue(out var line))
             result.Add(line);
         return result;
     }
 
+    /// <summary>The visible screen: grid rows 0..(last non-empty or cursor row), trailing blanks trimmed.</summary>
+    public IReadOnlyList<string> Snapshot()
+    {
+        int last = _curRow;
+        for (int r = _rows - 1; r >= 0; r--)
+            if (ReadRow(r).Length > 0) { last = Math.Max(last, r); break; }
+
+        var rows = new List<string>(last + 1);
+        for (int r = 0; r <= last; r++) rows.Add(ReadRow(r));
+        return rows;
+    }
+
+    /// <summary>Cursor row within the visible screen (0-based).</summary>
+    public int CursorRow => _curRow;
+
+    /// <summary>Cursor column within the visible screen (0-based).</summary>
+    public int CursorCol => _curCol;
+
     /// <summary>
-    /// Returns the text of the current cursor row if it looks like a shell
-    /// prompt (ends with '&gt;'), otherwise null.  The row is NOT consumed from
-    /// the grid — the caller should call <see cref="ClearCurrentRow"/> after
-    /// acting on it.
+    /// The current cursor row's text if it looks like a shell prompt (ends with '&gt;'), else null.
+    /// Used to track the working directory; the row is not modified.
     /// </summary>
     public string? PeekPromptLine()
     {
@@ -117,30 +132,6 @@ public sealed class TerminalScreen
             return row;
         return null;
     }
-
-    /// <summary>Blanks the current cursor row (called after processing a prompt).</summary>
-    public void ClearCurrentRow() => ClearRow(_curRow);
-
-    /// <summary>
-    /// Returns and clears every non-empty grid row above the cursor. ConPTY positions command output with
-    /// cursor moves (e.g. <c>CSI row;col H</c>) rather than line feeds, so those rows are never
-    /// LF-committed by <see cref="TakeLines"/>; this flushes them when a shell prompt appears on the
-    /// cursor row, so short output isn't stranded in the grid until the screen happens to scroll.
-    /// </summary>
-    public IReadOnlyList<string> DrainAboveCursor()
-    {
-        var result = new List<string>();
-        for (int r = 0; r < _curRow; r++)
-        {
-            var text = ReadRow(r);
-            if (text.Length > 0) result.Add(text);
-            ClearRow(r);
-        }
-        return result;
-    }
-
-    /// <summary>Current number of uncommitted lines waiting in <see cref="TakeLines"/>.</summary>
-    public int PendingLineCount => _completedLines.Count;
 
     // ── Character processing ──────────────────────────────────────────────
 
@@ -358,20 +349,22 @@ public sealed class TerminalScreen
 
     // ── Grid helpers ─────────────────────────────────────────────────────
 
-    /// <summary>LF / auto-wrap: enqueue current row, then advance cursor within the scroll region.</summary>
+    /// <summary>
+    /// Line feed / auto-wrap: move the cursor down one row, keeping the row's content on screen. Only when
+    /// already at the bottom margin does the screen scroll, evicting the top line to scrollback. This is
+    /// real-terminal behaviour — on-screen lines stay in the grid (so <see cref="Snapshot"/> renders the
+    /// live screen in order) rather than being committed and cleared on every newline.
+    /// </summary>
     private void CommitLine()
     {
-        _completedLines.Enqueue(ReadRow(_curRow));
-        ClearRow(_curRow);   // clear AFTER reading so callers don't see stale data
-
         if (_curRow < _scrollBottom)
         {
             _curRow++;
         }
         else
         {
-            // Cursor is at the bottom margin — shift the scroll region up by one.
-            // The current row is already cleared above; shift [scrollTop .. scrollBottom-1] up.
+            // At the bottom margin: scroll the region up one, evicting the top line to scrollback.
+            if (!_inAltBuffer) _scrollback.Enqueue(ReadRow(_scrollTop));
             for (int r = _scrollTop; r < _scrollBottom; r++)
                 for (int c = 0; c < _cols; c++)
                     _cells[r, c] = _cells[r + 1, c];
@@ -399,7 +392,7 @@ public sealed class TerminalScreen
         n = Math.Min(n, bottom - top + 1);
         for (int i = 0; i < n; i++)
         {
-            if (commit) _completedLines.Enqueue(ReadRow(top));
+            if (commit && !_inAltBuffer) _scrollback.Enqueue(ReadRow(top));
             for (int r = top; r < bottom; r++)
                 for (int c = 0; c < _cols; c++)
                     _cells[r, c] = _cells[r + 1, c];

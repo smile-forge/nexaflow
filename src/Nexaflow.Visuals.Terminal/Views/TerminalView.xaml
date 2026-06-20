@@ -9,72 +9,15 @@
         <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
         <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
 
-        <!-- Read-only selectable transparent TextBox for all console text output. -->
-        <Style x:Key="ConsoleTextBoxStyle" TargetType="TextBox">
-            <Setter Property="FontFamily"      Value="Consolas, Courier New, monospace"/>
-            <Setter Property="FontSize"        Value="12"/>
-            <Setter Property="TextWrapping"    Value="Wrap"/>
-            <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
-            <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="IsReadOnly"      Value="True"/>
-            <Setter Property="IsTabStop"       Value="False"/>
-            <Setter Property="Padding"         Value="0"/>
-            <Setter Property="Cursor"          Value="IBeam"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TextBox">
-                        <ScrollViewer x:Name="PART_ContentHost"
-                                      Background="Transparent"
-                                      Focusable="False"
-                                      HorizontalScrollBarVisibility="Disabled"
-                                      VerticalScrollBarVisibility="Disabled"/>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
+        <!-- One terminal line (scrollback / screen) -->
+        <Style x:Key="TerminalLine" TargetType="TextBlock">
+            <Setter Property="FontFamily"   Value="Consolas, Courier New, monospace"/>
+            <Setter Property="FontSize"     Value="12"/>
+            <Setter Property="Foreground"   Value="{StaticResource TextBrush}"/>
+            <Setter Property="TextWrapping" Value="NoWrap"/>
         </Style>
 
-        <!-- Themed right-click menu for console output: Copy selection, Paste clipboard into the AI bar.
-             An explicit ContextMenu picks up the global themed styles (the default editor menu does not). -->
-        <ContextMenu x:Key="OutputContextMenu">
-            <MenuItem Header="Copy"
-                      Command="ApplicationCommands.Copy"
-                      CommandTarget="{Binding PlacementTarget,
-                                              RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-            <MenuItem Header="Paste to input"
-                      Command="{Binding PlacementTarget.Tag.PasteToBarCommand,
-                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-        </ContextMenu>
-
-        <!-- One command entry: selectable header + single selectable output block -->
-        <DataTemplate x:Key="EntryTemplate" DataType="{x:Type m:ConsoleEntry}">
-            <StackPanel Margin="0,0,0,12">
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
-                    <TextBox Text="&gt; "
-                             Foreground="{StaticResource AccentBrush}"
-                             FontFamily="Consolas, Courier New" FontSize="13" FontWeight="SemiBold"
-                             Style="{StaticResource ConsoleTextBoxStyle}"
-                             IsTabStop="False"/>
-                    <TextBox Text="{Binding Command, Mode=OneWay}"
-                             Foreground="{StaticResource AccentBrush}"
-                             FontFamily="Consolas, Courier New" FontSize="13" FontWeight="SemiBold"
-                             Style="{StaticResource ConsoleTextBoxStyle}"
-                             TextWrapping="Wrap"/>
-                    <TextBlock Text=" running..."
-                               Foreground="{StaticResource WarningBrush}"
-                               FontSize="10" VerticalAlignment="Center"
-                               Visibility="{Binding IsRunning, Converter={StaticResource BoolVis}}"/>
-                </StackPanel>
-                <TextBox Style="{StaticResource ConsoleTextBoxStyle}"
-                         Text="{Binding OutputText, Mode=OneWay}"
-                         Margin="16,0,0,0"
-                         TextWrapping="Wrap"
-                         ContextMenu="{StaticResource OutputContextMenu}"
-                         Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
-            </StackPanel>
-        </DataTemplate>
-
-        <!-- Files panel entry: glyph + name. Folders are navigable; all entries are a drag source. -->
+        <!-- Files panel entry: glyph + name. Folders navigate; entries are a drag source. -->
         <DataTemplate x:Key="FsEntryTemplate" DataType="{x:Type m:TerminalFsEntry}">
             <StackPanel Orientation="Horizontal" Margin="0,1">
                 <TextBlock Text="{Binding Icon}" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
@@ -129,11 +72,10 @@
             </Grid>
         </DataTemplate>
 
-        <!-- Clear selection highlight for the lists (the previous panel made the selected row unclear). -->
         <Style x:Key="TerminalListItem" TargetType="ListBoxItem">
-            <Setter Property="Background"     Value="Transparent"/>
-            <Setter Property="Foreground"     Value="{StaticResource TextBrush}"/>
-            <Setter Property="Padding"        Value="4,2"/>
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
+            <Setter Property="Padding"         Value="4,2"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -155,14 +97,12 @@
             </Setter>
         </Style>
 
-        <!-- Section header label -->
         <Style x:Key="PanelHeaderText" TargetType="TextBlock">
             <Setter Property="FontSize"   Value="11"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
         </Style>
 
-        <!-- Small dark textbox used in overlays / filter -->
         <Style x:Key="OverlayTextBox" TargetType="TextBox">
             <Setter Property="Background"   Value="{StaticResource Surface2Brush}"/>
             <Setter Property="Foreground"   Value="{StaticResource TextBrush}"/>
@@ -293,7 +233,6 @@
                     BorderThickness="0,0,1,0">
                 <TabControl Style="{StaticResource TerminalTabControl}"
                             ItemContainerStyle="{StaticResource TerminalTabItem}">
-                    <!-- ── Files (default) ─────────────────────────────── -->
                     <TabItem Header="Files">
                         <ListBox x:Name="FilesList"
                                  ItemsSource="{Binding Files}"
@@ -306,8 +245,6 @@
                                  PreviewMouseMove="FilesList_PreviewMouseMove"
                                  Padding="6,6"/>
                     </TabItem>
-
-                    <!-- ── Environment ─────────────────────────────────── -->
                     <TabItem Header="Environment">
                         <DockPanel>
                             <Grid DockPanel.Dock="Top" Margin="6,6,6,4">
@@ -336,17 +273,14 @@
                 </TabControl>
             </Border>
 
-            <!-- Splitter -->
             <GridSplitter Grid.Column="1"
                           Width="5" HorizontalAlignment="Stretch"
                           Background="{StaticResource BorderBrush}"
                           ResizeBehavior="PreviousAndNext"/>
 
-            <!-- Center: console output + echo row + overlays -->
+            <!-- Center: the live terminal -->
             <Grid Grid.Column="2">
-                <Border Background="{StaticResource BgBrush}"
-                        AllowDrop="True"
-                        DragOver="Output_DragOver" Drop="Output_Drop">
+                <Border Background="{StaticResource BgBrush}">
                     <DockPanel>
                         <Border DockPanel.Dock="Top"
                                 Background="{StaticResource SurfaceBrush}"
@@ -355,42 +289,35 @@
                             <TextBlock Text="Console" Style="{StaticResource PanelHeaderText}"/>
                         </Border>
 
-                        <!-- Live echo of the command being typed in the AI bar -->
-                        <Border DockPanel.Dock="Bottom"
-                                Background="{StaticResource DeepBgBrush}"
-                                BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="0,1,0,0" Padding="14,6"
-                                Visibility="{Binding HasPreview, Converter={StaticResource BoolVis}}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding CurrentPath}"
-                                           Foreground="{StaticResource TextDimBrush}"
-                                           FontFamily="Consolas, Courier New" FontSize="12"/>
-                                <TextBlock Text="&gt; " Foreground="{StaticResource AccentBrush}"
-                                           FontFamily="Consolas, Courier New" FontSize="12"/>
-                                <TextBlock Text="{Binding PreviewLine}"
-                                           Foreground="{StaticResource TextBrush}"
-                                           FontFamily="Consolas, Courier New" FontSize="12"/>
-                                <TextBlock Text="▏" Foreground="{StaticResource AccentBrush}"
-                                           FontFamily="Consolas, Courier New" FontSize="12"/>
-                            </StackPanel>
+                        <!-- Focusable terminal surface: clicking it focuses; keystrokes go to the shell. -->
+                        <Border x:Name="TerminalSurface" Background="Transparent"
+                                Focusable="True" AllowDrop="True"
+                                PreviewKeyDown="Terminal_PreviewKeyDown"
+                                PreviewTextInput="Terminal_PreviewTextInput"
+                                PreviewMouseDown="Terminal_PreviewMouseDown"
+                                DragOver="Terminal_DragOver" Drop="Terminal_Drop">
+                            <Border.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Copy"  Click="CopyTerminal_Click"/>
+                                    <MenuItem Header="Paste" Click="PasteTerminal_Click"/>
+                                </ContextMenu>
+                            </Border.ContextMenu>
+                            <ScrollViewer x:Name="ConsoleScroller"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Auto"
+                                          Padding="14,10" Background="Transparent" Focusable="False">
+                                <StackPanel>
+                                    <ItemsControl ItemsSource="{Binding Scrollback}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}" Style="{StaticResource TerminalLine}"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Text="{Binding ScreenText}" Style="{StaticResource TerminalLine}"/>
+                                </StackPanel>
+                            </ScrollViewer>
                         </Border>
-
-                        <TextBlock DockPanel.Dock="Top"
-                                   x:Name="EmptyHint"
-                                   Text="Type a command prefixed with &gt; in the input bar below — or drag a file here to insert its path"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                                   TextWrapping="Wrap" TextAlignment="Center"
-                                   Foreground="{StaticResource TextDimBrush}" FontSize="13"
-                                   Margin="20,40"/>
-                        <ScrollViewer x:Name="ConsoleScroller"
-                                      VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Disabled"
-                                      Padding="14,10"
-                                      Background="Transparent">
-                            <ItemsControl x:Name="EntriesList"
-                                          ItemsSource="{Binding Entries}"
-                                          ItemTemplate="{StaticResource EntryTemplate}"/>
-                        </ScrollViewer>
                     </DockPanel>
                 </Border>
 
@@ -403,10 +330,9 @@
                             Width="380" Padding="18"
                             HorizontalAlignment="Center" VerticalAlignment="Center">
                         <StackPanel>
-                            <TextBlock Foreground="{StaticResource TextBrush}"
-                                       FontSize="14" FontWeight="SemiBold" Margin="0,0,0,12">
-                                <Run Text="Environment variable"/>
-                            </TextBlock>
+                            <TextBlock Text="Environment variable"
+                                       Foreground="{StaticResource TextBrush}"
+                                       FontSize="14" FontWeight="SemiBold" Margin="0,0,0,12"/>
                             <TextBlock Text="Name" Style="{StaticResource PanelHeaderText}" Margin="0,0,0,3"/>
                             <TextBox x:Name="EnvEditNameBox"
                                      Style="{StaticResource OverlayTextBox}" Margin="0,0,0,10"
