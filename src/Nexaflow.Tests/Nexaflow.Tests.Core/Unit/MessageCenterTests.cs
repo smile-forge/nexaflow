@@ -7,8 +7,8 @@ namespace Nexaflow.Tests.Core.Unit;
 [DoNotParallelize]   // shares the MessageCenter singleton; methods must not race each other
 public class MessageCenterTests
 {
-    // MessageCenter is a singleton; Application.Current is null in tests so Post/Remove run inline.
-    // Clear the shared store before each test for isolation.
+    // MessageCenter is a singleton; in tests it captures the test thread's dispatcher, so its
+    // CheckAccess is true here and Post/Remove run inline. Clear the shared store before each test.
     [TestInitialize]
     public void Reset() => MessageCenter.Instance.Messages.Clear();
 

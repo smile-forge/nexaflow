@@ -1,5 +1,5 @@
 using System.Text;
-using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.ViewModels;
@@ -19,6 +19,9 @@ public enum AiOverlayState { Message, Approval, Running }
 public partial class ShellAIResponseHandler : ObservableObject, IAIResponseHandler
 {
     private readonly ShellViewModel _shell;
+
+    /// <summary>The app UI dispatcher, captured at construction (one instance per shell, built on the UI thread).</summary>
+    private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
 
     public ShellAIResponseHandler(ShellViewModel shell) => _shell = shell;
 
@@ -72,9 +75,8 @@ public partial class ShellAIResponseHandler : ObservableObject, IAIResponseHandl
     public Task<bool> RequestToolBatchApprovalAsync(
         string explanationMarkdown, IReadOnlyList<ToolCall> batch, CancellationToken ct)
     {
-        var d = Application.Current?.Dispatcher;
-        if (d is not null && !d.CheckAccess())
-            return d.Invoke(() => RequestToolBatchApprovalAsync(explanationMarkdown, batch, ct));
+        if (!_ui.CheckAccess())
+            return _ui.Invoke(() => RequestToolBatchApprovalAsync(explanationMarkdown, batch, ct));
 
         SyncAiName();
         AiResponseText        = string.IsNullOrWhiteSpace(explanationMarkdown)
@@ -86,9 +88,8 @@ public partial class ShellAIResponseHandler : ObservableObject, IAIResponseHandl
 
     public Task<bool> RequestPlanApprovalAsync(ClientPlan plan, CancellationToken ct)
     {
-        var d = Application.Current?.Dispatcher;
-        if (d is not null && !d.CheckAccess())
-            return d.Invoke(() => RequestPlanApprovalAsync(plan, ct));
+        if (!_ui.CheckAccess())
+            return _ui.Invoke(() => RequestPlanApprovalAsync(plan, ct));
 
         SyncAiName();
         AiResponseText        = BuildPlanMarkdown(plan);
@@ -220,10 +221,9 @@ public partial class ShellAIResponseHandler : ObservableObject, IAIResponseHandl
         return sb.ToString();
     }
 
-    private static void Dispatch(Action action)
+    private void Dispatch(Action action)
     {
-        var d = Application.Current?.Dispatcher;
-        if (d is not null && !d.CheckAccess()) d.Invoke(action);
-        else action();
+        if (_ui.CheckAccess()) action();
+        else _ui.Invoke(action);
     }
 }

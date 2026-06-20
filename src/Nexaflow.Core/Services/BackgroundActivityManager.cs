@@ -1,7 +1,7 @@
 using Nexaflow.Core.Models;
 using Nexaflow.Providers.Common;
 using System.Collections.ObjectModel;
-using System.Windows;
+using System.Windows.Threading;
 using TaskStatus = Nexaflow.Core.Models.TaskStatus;
 
 namespace Nexaflow.Core.Services;
@@ -18,6 +18,9 @@ namespace Nexaflow.Core.Services;
 public sealed class BackgroundActivityManager : IBackgroundActivityManager
 {
     public ObservableCollection<BackgroundTask> Tasks { get; } = [];
+
+    /// <summary>The app UI dispatcher, captured at construction (built on the UI thread in App.InitializeApp).</summary>
+    private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
 
     private int _activeCount;
     private BackgroundTask? _idlePlaceholder;
@@ -109,13 +112,12 @@ public sealed class BackgroundActivityManager : IBackgroundActivityManager
         Dispatch(() => IsActiveChanged?.Invoke(this, value));
     }
 
-    private static void Dispatch(Action action)
+    private void Dispatch(Action action)
     {
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is null || dispatcher.CheckAccess())
+        if (_ui.CheckAccess())
             action();
         else
-            dispatcher.Invoke(action);
+            _ui.Invoke(action);
     }
 
     // ── ActivityHandle ─────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.RegularExpressions;
-using System.Windows;
+using System.Windows.Threading;
 using Intrinsics = System.Runtime.Intrinsics.X86;
 
 namespace Nexaflow.Core.Services;
@@ -40,6 +40,9 @@ public sealed class HostCapabilityService
     private const double MinComputeCapability = 7.5;
     /// <summary>Minimum VRAM to even consider the CUDA backend (smallest model).</summary>
     private const int    MinCudaVramMb = 2048;
+
+    /// <summary>The app UI dispatcher, captured when the singleton is built on the UI thread (App.InitializeApp).</summary>
+    private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
 
     private int _started;   // 0 = not started, 1 = started (interlocked guard)
 
@@ -145,10 +148,9 @@ public sealed class HostCapabilityService
         }
     }
 
-    private static void Dispatch(Action action)
+    private void Dispatch(Action action)
     {
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is null || dispatcher.CheckAccess()) action();
-        else dispatcher.Invoke(action);
+        if (_ui.CheckAccess()) action();
+        else _ui.Invoke(action);
     }
 }

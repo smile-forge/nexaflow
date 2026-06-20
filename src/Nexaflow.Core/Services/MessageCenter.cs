@@ -1,5 +1,5 @@
 using System.Collections.ObjectModel;
-using System.Windows;
+using System.Windows.Threading;
 using Nexaflow.Core.Models;
 
 namespace Nexaflow.Core.Services;
@@ -15,6 +15,14 @@ public sealed class MessageCenter
 {
     public static MessageCenter Instance { get; } = new();
     private MessageCenter() { }
+
+    /// <summary>
+    /// The app UI dispatcher. This singleton is forced into existence on the UI thread from
+    /// <c>App.InitializeApp</c> so it captures the app dispatcher even in the windowless
+    /// <c>--prestart</c> daemon — where the first <see cref="Post"/> would otherwise arrive from a
+    /// background update-check thread and bind <c>_ui</c> to the wrong thread.
+    /// </summary>
+    private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
 
     /// <summary>The one shared inbox; newest first.</summary>
     public ObservableCollection<NotificationItem> Messages { get; } = [];
@@ -38,10 +46,9 @@ public sealed class MessageCenter
 
     public void Remove(NotificationItem message) => OnUi(() => Messages.Remove(message));
 
-    private static void OnUi(Action action)
+    private void OnUi(Action action)
     {
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is null || dispatcher.CheckAccess()) action();
-        else dispatcher.Invoke(action);
+        if (_ui.CheckAccess()) action();
+        else _ui.Invoke(action);
     }
 }
