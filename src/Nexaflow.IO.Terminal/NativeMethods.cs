@@ -1,13 +1,20 @@
 using Microsoft.Win32.SafeHandles;
 using System.Runtime.InteropServices;
 
-namespace Nexaflow.Features.Console;
+namespace Nexaflow.IO.Terminal;
 
 internal static class NativeMethods
 {
-    internal const uint EXTENDED_STARTUPINFO_PRESENT       = 0x00080000;
-    internal const uint INFINITE                           = 0xFFFFFFFF;
+    internal const uint EXTENDED_STARTUPINFO_PRESENT        = 0x00080000;
+    internal const uint CREATE_SUSPENDED                    = 0x00000004;
+    internal const uint CREATE_UNICODE_ENVIRONMENT          = 0x00000400;
+    internal const uint INFINITE                            = 0xFFFFFFFF;
+    internal const uint WAIT_OBJECT_0                       = 0x00000000;
     internal const int  PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE = 0x00020016;
+
+    // Job-object limits (winnt.h)
+    internal const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE  = 0x00002000;
+    internal const int  JobObjectExtendedLimitInformation   = 9;
 
     [DllImport("kernel32.dll", SetLastError = true)]
     internal static extern int CreatePseudoConsole(
@@ -69,6 +76,27 @@ internal static class NativeMethods
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool GetExitCodeProcess(IntPtr hProcess, out uint lpExitCode);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool TerminateProcess(IntPtr hProcess, uint uExitCode);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern uint ResumeThread(IntPtr hThread);
+
+    // ── Job objects — used to guarantee child shells die with this process ──
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    internal static extern IntPtr CreateJobObject(IntPtr lpJobAttributes, string? lpName);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SetInformationJobObject(
+        IntPtr hJob, int JobObjectInfoClass, IntPtr lpJobObjectInfo, uint cbJobObjectInfoLength);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool AssignProcessToJobObject(IntPtr hJob, IntPtr hProcess);
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -123,4 +151,40 @@ internal struct STARTUPINFOEX
 {
     public STARTUPINFO StartupInfo;
     public IntPtr      lpAttributeList;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct IO_COUNTERS
+{
+    public ulong ReadOperationCount;
+    public ulong WriteOperationCount;
+    public ulong OtherOperationCount;
+    public ulong ReadTransferCount;
+    public ulong WriteTransferCount;
+    public ulong OtherTransferCount;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct JOBOBJECT_BASIC_LIMIT_INFORMATION
+{
+    public long  PerProcessUserTimeLimit;
+    public long  PerJobUserTimeLimit;
+    public uint  LimitFlags;
+    public nuint MinimumWorkingSetSize;
+    public nuint MaximumWorkingSetSize;
+    public uint  ActiveProcessLimit;
+    public nuint Affinity;
+    public uint  PriorityClass;
+    public uint  SchedulingClass;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct JOBOBJECT_EXTENDED_LIMIT_INFORMATION
+{
+    public JOBOBJECT_BASIC_LIMIT_INFORMATION BasicLimitInformation;
+    public IO_COUNTERS                        IoInfo;
+    public nuint                              ProcessMemoryLimit;
+    public nuint                              JobMemoryLimit;
+    public nuint                              PeakProcessMemoryUsed;
+    public nuint                              PeakJobMemoryUsed;
 }

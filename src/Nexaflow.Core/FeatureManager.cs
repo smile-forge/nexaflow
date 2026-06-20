@@ -57,6 +57,9 @@ public sealed class FeatureManager
     private readonly List<Type> _ribbonPinHandlerTypes  = [];
     private readonly List<Type> _tabPinHandlerTypes      = [];
     private readonly List<Type> _ribbonItemExecutorTypes = [];
+    private readonly List<Type> _chatKeyHandlerTypes     = [];
+    private readonly List<Type> _chatDropHandlerTypes    = [];
+    private readonly List<Type> _chatInputPreviewTypes   = [];
 
     // Theme resource dictionaries contributed by features (see IThemeContribution) — pack URIs only,
     // gathered during RegisterFeatures so ThemeManager can merge them without Core referencing any feature.
@@ -181,6 +184,9 @@ public sealed class FeatureManager
             if (typeof(IRibbonPinHandler).IsAssignableFrom(t))  _ribbonPinHandlerTypes.Add(t);
             if (typeof(ITabPinHandler).IsAssignableFrom(t))      _tabPinHandlerTypes.Add(t);
             if (typeof(IRibbonItemExecutor).IsAssignableFrom(t)) _ribbonItemExecutorTypes.Add(t);
+            if (typeof(IChatKeyHandler).IsAssignableFrom(t))     _chatKeyHandlerTypes.Add(t);
+            if (typeof(IChatDropHandler).IsAssignableFrom(t))    _chatDropHandlerTypes.Add(t);
+            if (typeof(IChatInputPreview).IsAssignableFrom(t))   _chatInputPreviewTypes.Add(t);
 
             // Theme contributions are read once, up front (no Workspace needed) — a feature opts in
             // by advertising pack URIs of dictionaries to merge below the active theme.
@@ -305,6 +311,18 @@ public sealed class FeatureManager
 
     public IReadOnlyList<IRibbonPinHandler> GetRibbonPinHandlers(Workspace ctx)
         => Instantiate<IRibbonPinHandler>(_ribbonPinHandlerTypes, ctx);
+
+    /// <summary>Chat-bar key handlers (Up/Down history, Tab completion) for this workspace.</summary>
+    public IReadOnlyList<IChatKeyHandler> GetChatKeyHandlers(Workspace ctx)
+        => Instantiate<IChatKeyHandler>(_chatKeyHandlerTypes, ctx);
+
+    /// <summary>Chat-bar drop handlers (drag a file → insert its path) for this workspace.</summary>
+    public IReadOnlyList<IChatDropHandler> GetChatDropHandlers(Workspace ctx)
+        => Instantiate<IChatDropHandler>(_chatDropHandlerTypes, ctx);
+
+    /// <summary>Chat-bar input-preview handlers (live echo of what you're typing) for this workspace.</summary>
+    public IReadOnlyList<IChatInputPreview> GetChatInputPreviews(Workspace ctx)
+        => Instantiate<IChatInputPreview>(_chatInputPreviewTypes, ctx);
 
     /// <summary>The foreign-drop handler that accepts <paramref name="format"/> (a WPF drag-data key), or null.</summary>
     public IRibbonPinHandler? GetRibbonPinHandlerForFormat(string format, Workspace ctx)

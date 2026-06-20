@@ -1,11 +1,12 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Console.ViewModels;
-using ConsoleView = Nexaflow.Features.Console.Views.ConsoleView;
+using Nexaflow.Visuals.Terminal.Models;
+using Nexaflow.Visuals.Terminal.Views;
 
 namespace Nexaflow.Features.Console;
 
 /// <summary>
-/// Registers the Console terminal page with the feature manager.
+/// Registers the cmd terminal page with the feature manager.
 /// </summary>
 public sealed class ConsoleTabRegistration : IPageRegistration
 {
@@ -32,12 +33,23 @@ public sealed class ConsoleTabRegistration : IPageRegistration
         var initialPath = pageParams?.GetValueOrDefault("path");
         var envName     = pageParams?.GetValueOrDefault("env");
 
-        var env = envName is not null
-            ? _config.FindEnvByName(envName) ?? _config.GetDefaultEnv()
-            : _config.GetDefaultEnv();
+        // Decide which environment to use, or whether to ask. The launch picker only appears when opened
+        // for a folder (Cmd Here), there's a real choice (>1 environment), no explicit env was named, and
+        // no "always use here" binding has been remembered for that folder.
+        TerminalEnvironment? env;
+        bool pickerPending = false;
+
+        if (envName is not null)
+            env = _config.FindEnvByName(envName) ?? _config.GetDefaultEnv();
+        else if (initialPath is not null && _config.FindBoundEnvName(initialPath) is { } boundName)
+            env = _config.FindEnvByName(boundName) ?? _config.GetDefaultEnv();
+        else if (initialPath is not null && _config.Environments.Count > 1)
+            { env = null; pickerPending = true; }
+        else
+            env = _config.GetDefaultEnv();
 
         var title = env?.TabTitle is { Length: > 0 } t ? t : "Console";
-        var vm    = new ConsoleViewModel(_config, _shellServices, initialPath, env);
+        var vm    = new CmdTerminalViewModel(_config, _shellServices, initialPath, env, pickerPending);
 
         var tab = new Page
         {
@@ -49,7 +61,10 @@ public sealed class ConsoleTabRegistration : IPageRegistration
         tab.ContentFactory = () =>
         {
             vm.Tab = tab;          // wire so the VM can mutate its own page title/breadcrumbs
-            return new ConsoleView(vm);
+            var view = new TerminalView(vm);
+            if (pickerPending && initialPath is not null)
+                vm.ShowEnvironmentPicker(_config.Environments, initialPath);
+            return view;
         };
 
         return tab;

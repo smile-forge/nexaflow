@@ -48,4 +48,10 @@ internal interface IWindowHost
 
     /// <summary>Pins an item to the ribbon via the handler registered for the request's content kind.</summary>
     void AddRibbonPin(RibbonPinRequest request);
+
+    /// <summary>Inserts text into this window's AI input bar at the caret (focusing it).</summary>
+    void InsertChatInput(string text);
+
+    /// <summary>Submits a query through this window's AI pipeline (as if typed in the bar).</summary>
+    void SubmitAiQuery(string query);
 }

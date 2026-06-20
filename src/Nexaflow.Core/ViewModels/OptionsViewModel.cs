@@ -306,7 +306,8 @@ public partial class ConfigEditViewModel : ObservableObject
         System.Windows.FrameworkElement control, string configName, string friendlyName)
         => new(control, configName, friendlyName);
 
-    public ConfigEditViewModel(object realConfig, string configName, string friendlyName)
+    public ConfigEditViewModel(object realConfig, string configName, string friendlyName,
+                               Nexaflow.Features.Common.IShellServices? shell = null)
     {
         RealConfig   = realConfig;
         ConfigName   = configName;
@@ -324,6 +325,10 @@ public partial class ConfigEditViewModel : ObservableObject
                 if (ctrl is System.Windows.FrameworkElement fe)
                     fe.DataContext = realConfig;
                 CustomControlInstance = ctrl;
+
+                // Hand the control the shell so it can use the themed file/folder pickers.
+                if (ctrl is Nexaflow.Features.Common.IShellAware aware && shell is not null)
+                    aware.AttachShell(shell);
 
                 if (ctrl is Nexaflow.Features.Common.IConfigChangeTracker tracker)
                     tracker.HasChangesChanged += (_, _) => RecheckValidity();

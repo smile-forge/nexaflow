@@ -14,7 +14,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Nexaflow.IO.Terminal\Nexaflow.IO.Terminal.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Terminal\Nexaflow.Visuals.Terminal.csproj" />
     <ProjectReference Include="..\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
   </ItemGroup>
   

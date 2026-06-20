@@ -119,7 +119,7 @@ public partial class MainWindow : Window
     {
         _manageAiVm?.Close();
         var profile = _vm.ConfigureTargetProfile ?? _vm.CurrentWorkspace.Profile;
-        var manageAiVm = new ManageAiViewModel(profile);
+        var manageAiVm = new ManageAiViewModel(profile, _shellServices);
         manageAiVm.ApplyError += msg => _vm.ShowErrorToast(msg);
         _manageAiVm = manageAiVm;
         ManageAiPanelControl.DataContext = manageAiVm;
@@ -181,6 +181,52 @@ public partial class MainWindow : Window
 
         SizeChanged    += (_, _) => CapAiRowHeight();
         RootGrid.LayoutUpdated += (_, _) => CapAiRowHeight();
+
+        WireAiBarChatHandlers();
+    }
+
+    // ── AI input bar: feature key/drop handlers + insert requests ─────────
+    // The bar is shell chrome, but the active page's feature can participate (terminal history/completion,
+    // drag-a-file-to-insert-its-path, paste-from-console). Routing lives on the ViewModel; the control
+    // mutation (caret insert, key result) stays here since the ViewModel can't reach the TextBox.
+
+    private void WireAiBarChatHandlers()
+    {
+        AiInput.KeyInterceptor = _vm.HandleChatKey;
+
+        _vm.ChatInputInsertRequested += InsertIntoAiBar;
+
+        AiInput.AllowDrop        = true;
+        AiInput.PreviewDragOver += OnAiInputDragOver;
+        AiInput.Drop            += OnAiInputDrop;
+    }
+
+    private void InsertIntoAiBar(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        AiInput.Focus();
+        int caret = Math.Clamp(AiInput.CaretIndex, 0, AiInput.Text.Length);
+        AiInput.Text       = AiInput.Text.Insert(caret, text);
+        AiInput.CaretIndex = caret + text.Length;
+    }
+
+    private void OnAiInputDragOver(object sender, DragEventArgs e)
+    {
+        if (_vm.CanHandleChatDrop(e.Data))
+        {
+            e.Effects = DragDropEffects.Copy;
+            e.Handled = true;   // suppress the TextBox's own drag handling for payloads we own
+        }
+    }
+
+    private void OnAiInputDrop(object sender, DragEventArgs e)
+    {
+        var text = _vm.BuildChatDropText(e.Data);
+        if (text is not null)
+        {
+            InsertIntoAiBar(text);
+            e.Handled = true;
+        }
     }
 
     private void NotificationScrim_MouseDown(object sender, MouseButtonEventArgs e)

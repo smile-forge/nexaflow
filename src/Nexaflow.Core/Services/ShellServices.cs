@@ -104,8 +104,7 @@ public sealed class ShellServices : IShellServices
 
     internal void UnregisterWindow(IWindowHost host)
     {
-        foreach (var tab in host.Tabs.ToList())
-            _tabToWindow.Remove(tab);
+        CloseWindowTabs(host);
 
         _windows.Remove(host);
 
@@ -120,6 +119,24 @@ public sealed class ShellServices : IShellServices
         // instantly. During an update the daemon must exit so the installer can replace its files.
         if (!WorkspaceManager.Instance.AnyWindowsOpen && (!App.IsResident || App.IsUpdating))
             Application.Current.Shutdown();
+    }
+
+    /// <summary>
+    /// Raises <see cref="Page.Closed"/> for every tab of a closing window so each page's view-model
+    /// disposes (terminal PTY shells, WebView2, …). This is the one teardown path that would otherwise
+    /// drop tabs from the registry without firing Closed, orphaning their child processes. Tab tear-off
+    /// and move re-key <c>_tabToWindow</c> and never pass through here, so a closing window only owns
+    /// tabs that are genuinely going away; RaiseClosed is safe to double-fire (view-model Dispose is
+    /// idempotent) should a tab also have been closed explicitly. Separated from
+    /// <see cref="UnregisterWindow"/> so it can be unit-tested without that method's shutdown side-effects.
+    /// </summary>
+    internal void CloseWindowTabs(IWindowHost host)
+    {
+        foreach (var tab in host.Tabs.ToList())
+        {
+            tab.RaiseClosed();
+            _tabToWindow.Remove(tab);
+        }
     }
 
     internal void SetFocused(IWindowHost host)
@@ -396,6 +413,12 @@ public sealed class ShellServices : IShellServices
             Title = "Info", Body = message, Severity = MessageSeverity.Info, ShowToast = false,
         });
 
+    public void InsertChatInput(string text)
+        => (_focused ?? _windows.FirstOrDefault())?.InsertChatInput(text);
+
+    public void SubmitAiQuery(string query)
+        => (_focused ?? _windows.FirstOrDefault())?.SubmitAiQuery(query);
+
     // ── Cross-window tab operations ───────────────────────────────────────
 
     public void TearOffTab(Page tab)
@@ -574,6 +597,15 @@ public sealed class ShellServices : IShellServices
 
         var owner = FocusedWindow?.Window;
         return Task.FromResult(FileBrowserWindow.Show(initialPath, extensions, owner));
+    }
+
+    public Task<string?> PickFolderAsync(string? initialPath = null)
+    {
+        var dispatcher = _ui;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+            return dispatcher.Invoke(() => PickFolderAsync(initialPath));
+
+        return Task.FromResult(FolderBrowserWindow.Show(initialPath, FocusedWindow?.Window));
     }
 
     public Task<string?> PickSaveFileAsync(string defaultFileName,

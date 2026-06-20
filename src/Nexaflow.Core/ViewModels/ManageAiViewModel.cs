@@ -49,9 +49,12 @@ public partial class ManageAiViewModel : ObservableObject
 
     public event Action<string>? ApplyError;
 
-    public ManageAiViewModel(Profile profile)
+    private readonly Nexaflow.Features.Common.IShellServices? _shell;
+
+    public ManageAiViewModel(Profile profile, Nexaflow.Features.Common.IShellServices? shell = null)
     {
         _profile = profile;
+        _shell   = shell;
         _title   = $"Configure Workspace — {profile.Name}";
 
         // Discover provider plugins, then make sure the profile's folder + scoped-type list exist.
@@ -90,7 +93,7 @@ public partial class ManageAiViewModel : ObservableObject
         foreach (var config in _providerConfigs)
             Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName));
         foreach (var config in _workspaceConfigs)
-            Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName));
+            Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName, _shell));
     }
 
     private static List<IFeatureConfig> LoadEditingWorkspaceConfigs(string dir)
