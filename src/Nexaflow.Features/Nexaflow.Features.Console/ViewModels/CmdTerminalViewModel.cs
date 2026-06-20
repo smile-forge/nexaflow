@@ -18,16 +18,21 @@ public sealed class CmdTerminalViewModel : TerminalViewModel
     internal CmdTerminalViewModel(
         ConsoleConfig        config,
         IShellServices       shell,
+        IAIService           ai,
         string?              initialPath,
         TerminalEnvironment? initialEnv,
         bool                 pickerPending = false)
-        : base(new PseudoConsoleHostService(), shell)
+        : base(new PseudoConsoleHostService(), shell, ai)
     {
         _config = config;
         SetupInitialState(initialEnv, initialPath, pickerPending);
     }
 
     protected override IReadOnlyList<TerminalEnvironment> Environments => _config.Environments;
+
+    // Watcher backoff comes from this feature's config (the base in Visuals.Terminal has no config type).
+    protected override int WatcherInitialMs => Math.Max(1, _config.WatcherInitialSeconds) * 1000;
+    protected override int WatcherMaxMs     => Math.Max(_config.WatcherInitialSeconds, _config.WatcherMaxSeconds) * 1000;
 
     protected override string? FindBoundEnvName(string folderPath) => _config.FindBoundEnvName(folderPath);
 

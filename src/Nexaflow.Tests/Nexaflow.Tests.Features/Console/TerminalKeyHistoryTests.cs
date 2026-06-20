@@ -24,7 +24,7 @@ public class TerminalKeyHistoryTests
 
     private sealed class TestTerminal : TerminalViewModel
     {
-        public TestTerminal() : base(new FakePty(), Substitute.For<IShellServices>()) { }
+        public TestTerminal() : base(new FakePty(), Substitute.For<IShellServices>(), Substitute.For<IAIService>()) { }
         protected override IReadOnlyList<TerminalEnvironment> Environments => [];
         protected override string? FindBoundEnvName(string folderPath) => null;
         protected override void PersistFolderBinding(string folderPath, string envName) { }

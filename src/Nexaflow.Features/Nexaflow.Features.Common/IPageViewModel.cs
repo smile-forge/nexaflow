@@ -55,4 +55,11 @@ public interface IPageViewModel
     /// <see cref="ContextSecurityRisk.Low"/>. (Advisory only; the page enforces its own boundary.)
     /// </summary>
     ContextSecurityRisk GetContextSecurityRisk() => ContextSecurityRisk.Low;
+
+    /// <summary>
+    /// Optional extra system-prompt guidance specific to this page type, appended after the persona and
+    /// ambient-context block so it biases the model up front. Default: null (no guidance). Keep it short —
+    /// it should tell the model what it can usefully do here, not restate the obvious.
+    /// </summary>
+    string? GetAiSystemPromptGuidance() => null;
 }

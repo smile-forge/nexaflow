@@ -19,6 +19,9 @@ public partial class TerminalView : UserControl, IPageView
         ViewModel   = vm;
         DataContext = vm;
 
+        // Hand the VM the empty host the shell injects its inline AI banner into (bottom of the console).
+        vm.SetEngagementHost(EngagementHost);
+
         vm.ScrollRequested += (_, _) => ScrollToBottom();
 
         // Focus the value box when the env-var edit overlay opens; otherwise keep the terminal focused so

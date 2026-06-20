@@ -83,6 +83,13 @@ public interface IShellServices
     void ShowNotification(string message);
 
     /// <summary>
+    /// Posts a notification carrying an "Open" link that activates <paramref name="tab"/> (bringing its
+    /// window to the front and selecting it). Used when a page produces a result while it isn't the active
+    /// tab — e.g. the console reporting a background command that finished after the user moved on.
+    /// </summary>
+    void ShowNotification(string message, Page tab);
+
+    /// <summary>
     /// Inserts <paramref name="text"/> into the AI input bar at the caret (focusing it). The single route
     /// behind drag-to-insert, paste-into-bar, and any feature that wants to seed the bar — so insertion
     /// behaviour lives in one place rather than each feature poking the bar.

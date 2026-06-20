@@ -12,11 +12,13 @@ public sealed class ConsoleTabRegistration : IPageRegistration
 {
     private readonly ConsoleConfig  _config;
     private readonly IShellServices _shellServices;
+    private readonly IAIService     _aiService;
 
-    public ConsoleTabRegistration(ConsoleConfig config, IShellServices shellServices)
+    public ConsoleTabRegistration(ConsoleConfig config, IShellServices shellServices, IAIService aiService)
     {
         _config        = config;
         _shellServices = shellServices;
+        _aiService     = aiService;
     }
 
     public static string StaticPageKind => "Console";
@@ -49,7 +51,7 @@ public sealed class ConsoleTabRegistration : IPageRegistration
             env = _config.GetDefaultEnv();
 
         var title = env?.TabTitle is { Length: > 0 } t ? t : "Console";
-        var vm    = new CmdTerminalViewModel(_config, _shellServices, initialPath, env, pickerPending);
+        var vm    = new CmdTerminalViewModel(_config, _shellServices, _aiService, initialPath, env, pickerPending);
 
         var tab = new Page
         {

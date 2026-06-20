@@ -115,6 +115,13 @@ public sealed class TerminalScreen
         return rows;
     }
 
+    /// <summary>
+    /// True while an alternate-screen-buffer application (e.g. vi, a full-screen TUI) owns the display.
+    /// Its output is the live screen, not appended scrollback, so callers should read <see cref="Snapshot"/>
+    /// rather than expect line-by-line output.
+    /// </summary>
+    public bool IsAltScreen => _inAltBuffer;
+
     /// <summary>Cursor row within the visible screen (0-based).</summary>
     public int CursorRow => _curRow;
 

@@ -888,6 +888,28 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     private enum TurnOutcome { Completed, Cancelled, Prefill, Error }
 
+    /// <summary>One inline banner handler per engagement page (keyed by the page's view-model).</summary>
+    private readonly Dictionary<IChatEngagement, InlineAiResponseHandler> _inlineHandlers = [];
+
+    /// <summary>
+    /// Gets — or lazily creates and wires — the inline banner handler for an engagement page: builds the
+    /// banner, injects it into the page's host, hands the handler to the page (so it can drive its own
+    /// banner, e.g. for a background-command result), and caches it. Called only while the engagement page
+    /// is the active tab, so <see cref="ActiveTab"/> is that page.
+    /// </summary>
+    private InlineAiResponseHandler AcquireInlineHandler(IChatEngagement eng)
+    {
+        if (_inlineHandlers.TryGetValue(eng, out var existing)) return existing;
+
+        var page    = ActiveTab!;
+        var handler = new InlineAiResponseHandler(this, eng, page);
+        eng.GetHostUserControl().Content = new Controls.AiResponseBanner { DataContext = handler };
+        eng.SetResponseHandler(handler);
+        _inlineHandlers[eng] = handler;
+        page.Closed += (_, _) => _inlineHandlers.Remove(eng);
+        return handler;
+    }
+
     /// <summary>The handler driving the in-flight run, or null when idle. While set, a new submission is
     /// queued into it as an interjection rather than starting a fresh run.</summary>
     private IAIResponseHandler? _runningHandler;
@@ -928,9 +950,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         var pageVm = (CurrentPage as IPageView)?.ViewModel;
         var svc    = CurrentWorkspace.AiService!;
 
-        // The active page may render AI responses itself (e.g. the conversation, inline); otherwise the
-        // shell popup (Ai) handles them. Either way the agent loop talks only to this handler.
-        IAIResponseHandler handler = pageVm as IAIResponseHandler ?? Ai;
+        // Pick the response surface: a page that renders AI itself (e.g. the conversation) uses its own;
+        // a page that hosts the shared inline banner (IChatEngagement, e.g. the console) gets that banner;
+        // otherwise the shell's modal overlay (Ai). Either way the agent loop talks only to this handler.
+        IAIResponseHandler handler =
+            pageVm as IAIResponseHandler
+            ?? (pageVm is IChatEngagement eng ? (IAIResponseHandler)AcquireInlineHandler(eng) : null)
+            ?? Ai;
 
         // Runs one prompt → answer. Returns how it ended so the outer loop can deliver any late interjections.
         async Task<TurnOutcome> RunTurn(string input)
