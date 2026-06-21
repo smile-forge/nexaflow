@@ -407,7 +407,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
         bool useFolderActions = entries.Count == 0 || onlyFolders || anyDrives;
 
         IReadOnlyList<IFileAction> applicable = useFolderActions
-            ? _actionRegistry.FilterFolderActions(entries, canPerform.Folder)
+            ? _actionRegistry.FilterFolderActions(entries, canPerform.Folder, CurrentPath)
             : _actionRegistry.FilterActions(entries, canPerform.File);
 
         var paths = entries.Count > 0
@@ -473,6 +473,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
         bool onlyFolders = selected.Count > 0 && selected.All(e => e.IsDirectory);
         bool anyDrives   = selected.Any(e => e.IsDrive);
         bool useFolderActions = selected.Count == 0 || onlyFolders || anyDrives;
+        var  currentPath = CurrentPath;   // captured for the background filter (open-folder gating)
 
         // Filter built-in actions + resolve shell verbs + custom external apps —
         // all pure background work.
@@ -481,7 +482,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
             IReadOnlyList<IFileAction> builtIn;
             if (useFolderActions)
             {
-                builtIn = _actionRegistry.FilterFolderActions(selected, canPerform.Folder);
+                builtIn = _actionRegistry.FilterFolderActions(selected, canPerform.Folder, currentPath);
             }
             else
             {

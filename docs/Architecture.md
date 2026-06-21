@@ -373,6 +373,8 @@ Key `IFileAction` members:
 | `CanPerformAction` | Computed gate (e.g. checks selection state) |
 | `PerformAction(string)` / `PerformAction(IEnumerable<string>)` | Execute the action |
 
+`IFolderAction`s are matched **structurally** rather than by `ExperienceId`: `FolderNameGlob` (folder name), `ContainsFolderGlobs` (has a matching sub-folder), and `ContainsFileGlobs` (has matching files). When `ContainsFileGlobs` is set, `MinimumFileGlobMatchPercentage` (default `0` = "at least one match") requires that share of the folder's top-level files to match — e.g. the image Slideshow/Album actions require ≥30% images. The content check enumerates the folder once and bails as soon as the threshold is reached or has become unreachable. The same name/content constraints are applied to `AppliesToRoot` actions against the **currently-open folder** (no selection), so a constrained action only appears on a qualifying folder, not every folder.
+
 ---
 
 ### `IShellServices` — Calling back to the shell

@@ -1,6 +1,5 @@
 using Nexaflow.Features.Common;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 
 namespace Nexaflow.Features.Images.FileActions
@@ -11,11 +10,6 @@ namespace Nexaflow.Features.Images.FileActions
     /// </summary>
     public class ShowImageAction : IFileAction, ICacheable
     {
-        private static readonly HashSet<string> _exts = new(System.StringComparer.OrdinalIgnoreCase)
-        {
-            ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".tiff", ".tif", ".webp"
-        };
-
         private readonly IShellServices _shellServices;
 
         public ShowImageAction(IShellServices shellServices) => _shellServices = shellServices;
@@ -40,7 +34,7 @@ namespace Nexaflow.Features.Images.FileActions
         public bool PerformAction(IEnumerable<string> filePaths)
         {
             var images = filePaths
-                .Where(p => _exts.Contains(Path.GetExtension(p)))
+                .Where(ImageFileTypes.IsImage)
                 .ToList();
 
             if (images.Count == 0) return false;

@@ -100,7 +100,8 @@ public sealed class FileActionManager
     /// </summary>
     public IReadOnlyList<IFileAction> FilterFolderActions(
         IReadOnlyList<FileSystemEntry> selected,
-        bool[]                         canPerform)
+        bool[]                         canPerform,
+        string?                        currentFolderPath = null)
     {
         var folder = Folder;
         bool emptySelection = selected.Count == 0;
@@ -117,13 +118,30 @@ public sealed class FileActionManager
             if (!emptySelection && anyDrives && !action.AppliesToDrives) continue;
             if (multipleItems && !action.SupportsMultipleFiles) continue;
 
-            if (!emptySelection && !FolderNameMatches(action, selected)) continue;
-            if (!emptySelection && !ContentsMatch(action, selected)) continue;
+            if (!emptySelection)
+            {
+                if (!FolderNameMatches(action, selected)) continue;
+                if (!ContentsMatch(action, selected)) continue;
+            }
+            else if (IsConstrained(action))
+            {
+                // Root / current-folder case: honour the action's name & content constraints against
+                // the open folder so a restricted action (e.g. the image Slideshow/Album, gated to
+                // folders that are ≥30% images) only appears when that folder actually qualifies.
+                // Without a folder path the constraint can't be verified, so the action is hidden.
+                if (string.IsNullOrEmpty(currentFolderPath) || !FolderMatchesPath(action, currentFolderPath))
+                    continue;
+            }
 
             filtered.Add(new FolderActionAdapter(action));
         }
         return filtered;
     }
+
+    private static bool IsConstrained(IFolderAction action) =>
+        action.FolderNameGlob is not "*"
+        || action.ContainsFileGlobs is not null
+        || action.ContainsFolderGlobs is not null;
 
     private static bool FileMatches(
         IFileAction                    action,
@@ -157,34 +175,91 @@ public sealed class FileActionManager
 
     private static bool ContentsMatch(IFolderAction action, IReadOnlyList<FileSystemEntry> selected)
     {
+        foreach (var entry in selected.Where(e => e.IsDirectory))
+            if (!FolderContentsMatch(action, entry.FullPath)) return false;
+        return true;
+    }
+
+    /// <summary>Name + contents check against a single folder path — the open-folder equivalent of
+    /// <see cref="FolderNameMatches"/> + <see cref="ContentsMatch"/>.</summary>
+    private static bool FolderMatchesPath(IFolderAction action, string folderPath)
+    {
+        var glob = action.FolderNameGlob;
+        if (glob is not "*")
+        {
+            var name = Path.GetFileName(folderPath.TrimEnd(Path.DirectorySeparatorChar,
+                                                            Path.AltDirectorySeparatorChar));
+            if (!GlobMatch(name, glob)) return false;
+        }
+        return FolderContentsMatch(action, folderPath);
+    }
+
+    private static bool FolderContentsMatch(IFolderAction action, string folderPath)
+    {
         var fileGlobs   = action.ContainsFileGlobs;
         var folderGlobs = action.ContainsFolderGlobs;
         if (fileGlobs is null && folderGlobs is null) return true;
 
-        foreach (var entry in selected.Where(e => e.IsDirectory))
+        int pct = System.Math.Clamp(action.MinimumFileGlobMatchPercentage, 0, 100);
+
+        try
         {
-            try
+            if (fileGlobs is not null && !FileGlobThresholdMet(folderPath, fileGlobs, pct))
+                return false;
+
+            if (folderGlobs is not null)
             {
-                if (fileGlobs is not null)
-                {
-                    bool found = false;
-                    foreach (var pattern in fileGlobs)
-                        if (Directory.EnumerateFiles(entry.FullPath, pattern, SearchOption.TopDirectoryOnly).Any())
-                        { found = true; break; }
-                    if (!found) return false;
-                }
-                if (folderGlobs is not null)
-                {
-                    bool found = false;
-                    foreach (var pattern in folderGlobs)
-                        if (Directory.EnumerateDirectories(entry.FullPath, pattern, SearchOption.TopDirectoryOnly).Any())
-                        { found = true; break; }
-                    if (!found) return false;
-                }
+                bool found = false;
+                foreach (var pattern in folderGlobs)
+                    if (Directory.EnumerateDirectories(folderPath, pattern, SearchOption.TopDirectoryOnly).Any())
+                    { found = true; break; }
+                if (!found) return false;
             }
-            catch { return false; }
         }
+        catch { return false; }
         return true;
+    }
+
+    /// <summary>
+    /// True when the folder's top-level files clear the glob threshold: at least one match when
+    /// <paramref name="pct"/> is 0, otherwise at least <paramref name="pct"/>% of all files. The
+    /// percentage path scans the file list once, returning early the moment the required count is
+    /// reached or the unscanned remainder can no longer reach it.
+    /// </summary>
+    private static bool FileGlobThresholdMet(string folderPath, string[] globs, int pct)
+    {
+        if (pct <= 0)
+        {
+            foreach (var path in Directory.EnumerateFiles(folderPath, "*", SearchOption.TopDirectoryOnly))
+                if (MatchesAnyGlob(Path.GetFileName(path), globs)) return true;
+            return false;
+        }
+
+        var files = Directory.GetFiles(folderPath, "*", SearchOption.TopDirectoryOnly);
+        int total = files.Length;
+        if (total == 0) return false;
+
+        int required = (int)System.Math.Ceiling(total * pct / 100.0);
+        int matched  = 0;
+        for (int i = 0; i < total; i++)
+        {
+            if (MatchesAnyGlob(Path.GetFileName(files[i]), globs))
+            {
+                if (++matched >= required) return true;                  // threshold reached
+            }
+            else if (matched + (total - 1 - i) < required)
+            {
+                return false;                                            // can no longer be reached
+            }
+        }
+        return matched >= required;
+    }
+
+    private static bool MatchesAnyGlob(string name, string[] globs)
+    {
+        foreach (var pattern in globs)
+            if (GlobMatch(name, pattern)) return true;
+        return false;
     }
 
     private static bool GlobMatch(string name, string pattern)
