@@ -18,7 +18,10 @@ namespace Nexaflow.Core;
 /// </summary>
 internal static class ThemeManager
 {
-    private const string PackBase = "pack://application:,,,/Nexacore;component/Themes/";
+    // Derive the assembly name at runtime so a rename of the host assembly (AssemblyName) can't
+    // silently break these pack URIs — a failed Load() would otherwise return null and crash the merge.
+    private static readonly string PackBase =
+        $"pack://application:,,,/{typeof(ThemeManager).Assembly.GetName().Name};component/Themes/";
 
     /// <summary>The theme currently merged into <see cref="Application.Resources"/>. Lets callers tell
     /// whether a saved <see cref="ShellConfig.Theme"/> differs from what is actually on screen.</summary>
@@ -30,8 +33,8 @@ internal static class ThemeManager
 
         var dicts = new List<ResourceDictionary>
         {
-            Load($"{PackBase}Colors.{theme}.xaml")!,   // 1. palette
-            Load($"{PackBase}Tokens.xaml")!,           // 2. region tokens
+            LoadRequired($"{PackBase}Colors.{theme}.xaml"),   // 1. palette
+            LoadRequired($"{PackBase}Tokens.xaml"),           // 2. region tokens
         };
 
         if (contributions is not null)                  // 3. feature contributions (optional)
@@ -41,7 +44,7 @@ internal static class ThemeManager
         if (Load($"{PackBase}Theme.{theme}.xaml") is { } themeOverrides)  // 4. overrides + scenes (optional)
             dicts.Add(themeOverrides);
 
-        dicts.Add(Load($"{PackBase}Styles.xaml")!);     // 5. styles
+        dicts.Add(LoadRequired($"{PackBase}Styles.xaml"));     // 5. styles
 
         var app = Application.Current.Resources;
         var merged = app.MergedDictionaries;
@@ -83,6 +86,18 @@ internal static class ThemeManager
         foreach (var child in dict.MergedDictionaries)
             CollectKeys(child, keys);
         return keys;
+    }
+
+    /// <summary>Loads a mandatory theme layer, surfacing a clear error naming the URI if it cannot be
+    /// found — instead of returning null and crashing deep in the dictionary merge (e.g. when a renamed
+    /// host assembly breaks the pack URI).</summary>
+    private static ResourceDictionary LoadRequired(string uri)
+    {
+        try { return new ResourceDictionary { Source = new Uri(uri) }; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Required theme resource failed to load: {uri}", ex);
+        }
     }
 
     private static ResourceDictionary? Load(string uri) => Load(new Uri(uri));

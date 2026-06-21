@@ -14,7 +14,7 @@ using FlaUI.UIA3;
 namespace Nexaflow.Tests.Core.UI;
 
 /// <summary>
-/// End-to-end first-run setup test: launches a fresh Nexacore against an isolated config dir
+/// End-to-end first-run setup test: launches a fresh Nexaflow against an isolated config dir
 /// (NEXAFLOW_CONFIG_DIR), drives the whole setup wizard configuring every step, then reads the
 /// config the wizard wrote to disk and asserts it matches what was entered.
 /// Excluded from headless/CI: --filter "TestCategory!=UI".
@@ -220,7 +220,7 @@ public class SetupWizardTests
         return doc.RootElement.Clone();
     }
 
-    /// <summary>Resolves Nexacore.exe from the test binary's output dir (RID-qualified, else flat).</summary>
+    /// <summary>Resolves Nexaflow.exe from the test binary's output dir (RID-qualified, else flat).</summary>
     private static string FindAppExe()
     {
         var testDir = new DirectoryInfo(AppContext.BaseDirectory);   // net10.0-windows
@@ -229,11 +229,11 @@ public class SetupWizardTests
         var srcDir  = testDir.Parent!.Parent!.Parent!.Parent!.Parent!.FullName;
         var coreBase = Path.Combine(srcDir, "Nexaflow.Core", "bin", config, tfm);
 
-        var withRid = Path.Combine(coreBase, "win-x64", "Nexacore.exe");
+        var withRid = Path.Combine(coreBase, "win-x64", "Nexaflow.exe");
         if (File.Exists(withRid)) return withRid;
-        var flat = Path.Combine(coreBase, "Nexacore.exe");
+        var flat = Path.Combine(coreBase, "Nexaflow.exe");
         if (File.Exists(flat)) return flat;
 
-        throw new FileNotFoundException($"Could not locate Nexacore.exe. Tried:\n  {withRid}\n  {flat}");
+        throw new FileNotFoundException($"Could not locate Nexaflow.exe. Tried:\n  {withRid}\n  {flat}");
     }
 }

@@ -40,7 +40,8 @@ public partial class ShellConfigControl : UserControl, ICustomConfigApply
 
 internal sealed partial class ShellConfigViewModel : ObservableObject
 {
-    private const string PackBase = "pack://application:,,,/Nexacore;component/Themes/Colors.";
+    private static readonly string PackBase =
+        $"pack://application:,,,/{typeof(ShellConfigViewModel).Assembly.GetName().Name};component/Themes/Colors.";
 
     private static readonly string[] SwatchKeys =
         ["BgColor", "SurfaceColor", "Surface2Color", "AccentColor", "Accent2Color", "TextColor"];

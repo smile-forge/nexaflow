@@ -4,7 +4,10 @@
     <OutputType>Bundle</OutputType>
     <_CoreCsproj>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\src\Nexaflow.Core\Nexaflow.Core.csproj'))</_CoreCsproj>
     <NexaflowVersion>$([System.Text.RegularExpressions.Regex]::Match($(_CoreCsproj), '&lt;Version&gt;([^&lt;]+)&lt;/Version&gt;').Groups[1].Value)</NexaflowVersion>
-    <OutputName>NexaflowSetup_win-x64_v$(NexaflowVersion)</OutputName>
+    <!-- This name is stamped into the exe's version resource (OriginalFilename), which is what the UAC
+         prompt and Burn's elevated cached copy display — renaming the file on disk does not change it.
+         Keep it a clean, user-facing name. The release/updater asset name is applied by renaming later. -->
+    <OutputName>Nexaflow Setup</OutputName>
     <DefineConstants>AppVersion=$(NexaflowVersion)</DefineConstants>
   </PropertyGroup>
   <ItemGroup>

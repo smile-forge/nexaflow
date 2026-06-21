@@ -7,7 +7,7 @@ using FlaUI.UIA3;
 namespace Nexaflow.Tests.Core.UI.Infrastructure;
 
 /// <summary>
-/// Base class for FlaUI UI tests. Launches a fresh Nexacore.exe before each test
+/// Base class for FlaUI UI tests. Launches a fresh Nexaflow.exe before each test
 /// and kills it after. UI tests are not parallelised — launching multiple app
 /// instances simultaneously causes FlaUI window-handle race conditions.
 /// Filter out of headless/CI runs: --filter "TestCategory!=UI"
@@ -88,7 +88,7 @@ public abstract class UITestBase
     }
 
     /// <summary>
-    /// Resolves the Nexacore.exe path from the test binary's output directory.
+    /// Resolves the Nexaflow.exe path from the test binary's output directory.
     /// Tries the RID-qualified layout (win-x64 subdir) first, then falls back to the
     /// flat layout. Both projects must use the same configuration (Debug/Release) and TFM.
     /// </summary>
@@ -108,14 +108,14 @@ public abstract class UITestBase
         var coreBase = Path.Combine(srcDir, "Nexaflow.Core", "bin", config, tfm);
 
         // With RID subdir (self-contained / single-file publish produces this layout)
-        var withRid = Path.Combine(coreBase, "win-x64", "Nexacore.exe");
+        var withRid = Path.Combine(coreBase, "win-x64", "Nexaflow.exe");
         if (File.Exists(withRid)) return withRid;
 
         // Flat layout (framework-dependent)
-        var flat = Path.Combine(coreBase, "Nexacore.exe");
+        var flat = Path.Combine(coreBase, "Nexaflow.exe");
         if (File.Exists(flat)) return flat;
 
         throw new FileNotFoundException(
-            $"Could not locate Nexacore.exe. Tried:\n  {withRid}\n  {flat}");
+            $"Could not locate Nexaflow.exe. Tried:\n  {withRid}\n  {flat}");
     }
 }

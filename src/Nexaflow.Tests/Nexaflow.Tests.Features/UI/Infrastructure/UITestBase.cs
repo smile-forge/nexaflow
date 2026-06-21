@@ -9,7 +9,7 @@ using FlaUI.UIA3;
 namespace Nexaflow.Tests.Features.UI.Infrastructure;
 
 /// <summary>
-/// Launches Nexacore.exe before each test and kills it after.
+/// Launches Nexaflow.exe before each test and kills it after.
 /// UI tests require an interactive desktop session — skip in headless/CI with
 /// --filter "TestCategory!=UI".
 ///
@@ -162,13 +162,13 @@ public abstract class UITestBase
         var srcDir  = testDir.Parent!.Parent!.Parent!.Parent!.Parent!.FullName;
 
         var coreBase = Path.Combine(srcDir, "Nexaflow.Core", "bin", config, tfm);
-        var withRid  = Path.Combine(coreBase, "win-x64", "Nexacore.exe");
+        var withRid  = Path.Combine(coreBase, "win-x64", "Nexaflow.exe");
         if (File.Exists(withRid)) return withRid;
 
-        var flat = Path.Combine(coreBase, "Nexacore.exe");
+        var flat = Path.Combine(coreBase, "Nexaflow.exe");
         if (File.Exists(flat)) return flat;
 
         throw new FileNotFoundException(
-            $"Could not locate Nexacore.exe. Tried:\n  {withRid}\n  {flat}");
+            $"Could not locate Nexaflow.exe. Tried:\n  {withRid}\n  {flat}");
     }
 }

@@ -1,11 +1,24 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Fragment>
     <StandardDirectory Id="ProgramFiles6432Folder">
-      <Directory Id="INSTALLFOLDER" Name="!(bind.Property.Manufacturer) !(bind.Property.ProductName)" />
+      <Directory Id="ManufacturerFolder" Name="!(bind.Property.Manufacturer)">
+        <Directory Id="INSTALLFOLDER" Name="!(bind.Property.ProductName)" />
+      </Directory>
     </StandardDirectory>
     <StandardDirectory Id="ProgramMenuFolder">
       <Directory Id="NexaflowMenuFolder" Name="Nexaflow" />
     </StandardDirectory>
+  </Fragment>
+
+  <Fragment>
+    <!-- Remove the shared "Smile-forge" parent folder on uninstall, but only when it is
+         empty (Windows Installer won't delete a folder that still holds other products). -->
+    <ComponentGroup Id="CleanupComponents" Directory="ManufacturerFolder">
+      <Component>
+        <RegistryValue Root="HKMU" Key="Software\Smile-forge\Nexaflow" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+        <RemoveFolder Id="RemoveManufacturerFolder" Directory="ManufacturerFolder" On="uninstall" />
+      </Component>
+    </ComponentGroup>
   </Fragment>
 
   <Fragment>
@@ -14,7 +27,7 @@
         <Shortcut Id="NexaflowStartMenuShortcut"
                   Name="Nexaflow"
                   Description="Nexaflow"
-                  Target="[INSTALLFOLDER]Nexacore.exe"
+                  Target="[INSTALLFOLDER]Nexaflow.exe"
                   WorkingDirectory="INSTALLFOLDER" />
         <RemoveFolder Id="RemoveNexaflowMenuFolder" Directory="NexaflowMenuFolder" On="uninstall" />
         <RegistryValue Root="HKCU" Key="Software\Smile-forge\Nexaflow" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
