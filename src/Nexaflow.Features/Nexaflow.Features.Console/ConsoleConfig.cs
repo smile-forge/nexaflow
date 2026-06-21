@@ -25,10 +25,6 @@ public sealed class ConsoleConfig : IFeatureConfig
 
     public ConsoleConfig() => EnsureSeeded();
 
-    public TerminalEnvironment? GetDefaultEnv()
-        => Environments.FirstOrDefault(e => e.IsDefault)
-        ?? Environments.FirstOrDefault();
-
     public TerminalEnvironment? FindEnvByName(string name)
         => Environments.FirstOrDefault(e =>
                string.Equals(e.Name, name, StringComparison.OrdinalIgnoreCase));
@@ -45,13 +41,10 @@ public sealed class ConsoleConfig : IFeatureConfig
         FolderBindings.Add(new TerminalEnvBinding { FolderPath = folderPath, EnvName = envName });
     }
 
-    /// <summary>Guarantees at least one environment so the default/picker are meaningful on first run.</summary>
+    /// <summary>Guarantees at least one environment so the launch picker is meaningful on first run.</summary>
     private void EnsureSeeded()
     {
         if (Environments.Count == 0)
-            Environments.Add(new TerminalEnvironment
-            {
-                Name = "Command Prompt", TabTitle = "Console", LocationFilter = "*", IsDefault = true
-            });
+            Environments.Add(new TerminalEnvironment { Name = "Command Prompt", TabTitle = "Console" });
     }
 }

@@ -121,6 +121,14 @@ public partial class MainWindow : Window
         var profile = _vm.ConfigureTargetProfile ?? _vm.CurrentWorkspace.Profile;
         var manageAiVm = new ManageAiViewModel(profile, _shellServices);
         manageAiVm.ApplyError += msg => _vm.ShowErrorToast(msg);
+
+        // Deep link: land on a requested section (e.g. the console page's Configure button → "console").
+        if (_vm.RequestedConfigureSection is { } section)
+        {
+            manageAiVm.SelectSection(section);
+            _vm.RequestedConfigureSection = null;
+        }
+
         _manageAiVm = manageAiVm;
         ManageAiPanelControl.DataContext = manageAiVm;
     }

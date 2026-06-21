@@ -74,6 +74,31 @@ public class WorkspaceConfigScopingTests
         }
     }
 
+    // The launch picker's "always use this environment for this location" writes a folder binding through
+    // the per-profile store (Contexts\<profile>\console\), the same place the Configure panel reads it
+    // back from — so a saved binding must survive a SaveTo/LoadFrom round-trip to show up in Options.
+    [TestMethod]
+    public void ConsoleConfig_FolderBindings_RoundTripPerProfile()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "nexaflow-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var saved = new ConsoleConfig();
+            saved.BindFolder(@"C:\proj", "Command Prompt");
+            ConfigManager.Instance.SaveTo(dir, saved, saved.ConfigName);
+
+            Assert.IsTrue(Directory.Exists(Path.Combine(dir, saved.ConfigName)));
+
+            var loaded = new ConsoleConfig();
+            ConfigManager.Instance.LoadFrom(dir, loaded, loaded.ConfigName);
+            Assert.AreEqual("Command Prompt", loaded.FindBoundEnvName(@"C:\proj"));
+        }
+        finally
+        {
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+    }
+
     [TestMethod]
     public void LoadFrom_MissingFile_KeepsDefaults()
     {

@@ -122,6 +122,20 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     protected virtual string ShellDescription =>
         "the Windows cmd.exe command prompt (use cmd / batch syntax such as `dir`, not PowerShell cmdlets)";
 
+    /// <summary>The feature's workspace-config section name, for the top-bar Configure deep link. Null
+    /// when the shell exposes no configurable environments (the button is then hidden).</summary>
+    protected virtual string? ConfigSectionName => null;
+
+    /// <summary>Whether the top-bar Configure button is shown (a config section exists to link to).</summary>
+    public bool ShowConfigureButton => ConfigSectionName is not null;
+
+    /// <summary>Opens the workspace Configure overlay on this shell's environments section.</summary>
+    [RelayCommand]
+    private void Configure()
+    {
+        if (ConfigSectionName is { } section) _shell.OpenWorkspaceConfig(section);
+    }
+
     // ── Construction / startup ────────────────────────────────────────────
 
     protected TerminalViewModel(PseudoConsoleHostService pty, IShellServices shell, IAIService ai,
@@ -140,27 +154,27 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         _envView = CollectionViewSource.GetDefaultView(EnvVars);
         _envView.Filter = o => MatchesEnvFilter(o as EnvVar);
 
-        // The PTY is started in SetupInitialState — after the active environment's start directory and
-        // variable overrides are known, so they can be applied at process creation.
+        // The PTY is started in SetupInitialState — after the active environment's variable overrides
+        // are known, so they can be applied at process creation.
     }
 
     /// <summary>
-    /// Resolves the active environment, applies its start directory + variable overrides to the PTY, and
-    /// starts the shell. Call once from the subclass constructor after its environment source is set.
+    /// Resolves the active environment, applies its variable overrides to the PTY, and starts the shell
+    /// in the launch path. Call once from the subclass constructor after its environment source is set.
     /// </summary>
     protected void SetupInitialState(TerminalEnvironment? env, string? initialPath, bool pickerPending = false)
     {
         // When a launch picker is pending, start with no active environment (and no initial command) —
         // the chosen environment is applied to the running shell once the user picks.
-        _activeEnv = pickerPending ? null : (env ?? DefaultEnv());
+        _activeEnv = pickerPending ? null : (env ?? Environments.FirstOrDefault());
 
-        // Start the shell directly in the target folder (lpCurrentDirectory) and overlay the
+        // Start the shell directly in the launch folder (lpCurrentDirectory) and overlay the
         // environment's variable overrides at process creation — no visible `cd` entry on open.
-        _pty.StartDirectory = initialPath ?? _activeEnv?.StartDirectory;
+        _pty.StartDirectory = initialPath;
         if (_activeEnv?.EnvOverrides is { Count: > 0 } overrides)
             _pty.EnvironmentOverrides = overrides;
 
-        // Only the initial command is deferred to the first prompt; the start dir is already applied.
+        // Only the initial command is deferred to the first prompt; the launch path is already applied.
         _pendingInitPath = null;
         _pendingInitCmd  = _activeEnv?.InitialCommand;
         _initPhase       = _pendingInitCmd is not null ? 0 : 2;
@@ -169,9 +183,6 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         RefreshEnvVars();
         RefreshFiles();
     }
-
-    private TerminalEnvironment? DefaultEnv()
-        => Environments.FirstOrDefault(e => e.IsDefault) ?? Environments.FirstOrDefault();
 
     protected TerminalEnvironment? FindEnvByName(string name)
         => Environments.FirstOrDefault(e =>
@@ -475,14 +486,6 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
             Tab.PageParams = new Dictionary<string, string> { ["path"] = CurrentPath };
     }
 
-    protected static bool GlobMatchPath(string path, string pattern)
-    {
-        if (string.IsNullOrEmpty(pattern) || pattern is "*" or "**") return true;
-        if (pattern.EndsWith("\\*") || pattern.EndsWith("/*"))
-            return path.StartsWith(pattern[..^2], StringComparison.OrdinalIgnoreCase);
-        return string.Equals(path, pattern, StringComparison.OrdinalIgnoreCase);
-    }
-
     /// <summary>Re-applies path/env params when an existing tab is re-activated with new params.</summary>
     public void ApplyParams(string? newPath, string? envName)
     {
@@ -625,8 +628,8 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     private void CancelEnvPicker()
     {
         EnvPickerVisible = false;
-        // No choice made — fall back to the default environment.
-        if (DefaultEnv() is { } def) ApplyPickedEnvironment(def);
+        // No choice made — fall back to the first configured environment.
+        if (Environments.FirstOrDefault() is { } first) ApplyPickedEnvironment(first);
     }
 
     private void ApplyPickedEnvironment(TerminalEnvironment env)
@@ -783,44 +786,8 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
                 }),
         };
 
-        var envs = Environments
-            .Where(e => GlobMatchPath(CurrentPath, e.LocationFilter))
-            .ToList();
-        if (envs.Count == 0) return tools;
-
-        var envList = string.Join("; ", envs.Select(e =>
-            $"'{e.Name}'" + (string.IsNullOrEmpty(e.InitialCommand) ? "" : $" (runs: {e.InitialCommand})")));
-
-        tools.Add(new DelegateClientTool(
-            "set_environment",
-            $"Switches the terminal to a configured environment. Provide 'name' matching one of: {envList}. " +
-            "The environment's initial command is sent and the tab title updates.",
-            [new ClientToolParameter("name", "Name of the environment to switch to.")],
-            ToolSafety.RequiresApproval,
-            (arguments, ct) =>
-            {
-                var name = arguments["name"]?.GetValue<string>();
-                if (string.IsNullOrEmpty(name))
-                    return Task.FromResult(ToolResult.Error("No environment name provided."));
-
-                var env = FindEnvByName(name);
-                if (env is null)
-                    return Task.FromResult(ToolResult.Error($"Unknown environment '{name}'."));
-
-                _activeEnv = env;
-                SyncTabMeta();
-
-                if (!string.IsNullOrEmpty(env.InitialCommand))
-                {
-                    if (!IsBusy)
-                        SendCommand(env.InitialCommand);
-                    else
-                        _pendingInitCmd = env.InitialCommand;
-                }
-
-                return Task.FromResult(ToolResult.Ok($"switched to {env.Name}", $"Switched the terminal to '{env.Name}'."));
-            }));
-
+        // The AI works only with the environment this terminal was launched in — it has no tool to
+        // switch environments (that's the user's choice at launch via the "Cmd here" picker).
         return tools;
     }
 
