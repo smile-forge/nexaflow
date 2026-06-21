@@ -65,8 +65,20 @@ public sealed partial class ProcessesViewModel : ObservableObject, IPageViewMode
         _source = source;
         _timer  = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += (_, _) => TriggerRefresh();
-        // First sample happens on activation (the view's Loaded), not at construction — the page is built
-        // by the factory before it's shown, and there's no point sampling a tab that isn't visible yet.
+        // The live 1s polling starts on activation (the view's Loaded) — no point polling a tab that isn't
+        // visible. But take one bootstrap sample now, off the UI thread, so the page reports IsContextReady
+        // even when it's only pinned as an AI context item and never shown (its view never Loads). Guarded
+        // by !HasData in the callback so it never clobbers fresher data from a tab that did get shown.
+        LoadBootstrapSnapshot();
+    }
+
+    private void LoadBootstrapSnapshot()
+    {
+        var task = new LoadProcessSnapshotTask(_source);
+        _shell.QueueBackgroundTask(task, onComplete: ok =>
+        {
+            if (ok && !HasData && task.Result is { } snap) ApplySnapshot(snap);
+        });
     }
 
     // ── Activation (driven by the view's Loaded/Unloaded — the active-tab signal) ─────────────────
