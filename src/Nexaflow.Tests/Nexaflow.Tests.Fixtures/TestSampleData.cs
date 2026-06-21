@@ -56,6 +56,7 @@ public static class TestSampleData
         new JsonSamples(),
         new LogSamples(),
         new BinarySamples(),
+        new ImageSamples(),
     ];
 
     private static readonly Lazy<string> RootLazy = new(EnsureAll);
@@ -144,5 +145,6 @@ public static class TestSampleData
         - `json/`     — JSON objects, arrays and a large array for seek-by-item windowing.
         - `logs/`     — timestamped log files, short and long (tail-first streaming).
         - `binary/`   — binary blobs for the hex viewer (random, zeros, mixed, image header).
+        - `images/`   — solid-colour BMPs in varied aspect ratios for the image viewer.
         """;
 }

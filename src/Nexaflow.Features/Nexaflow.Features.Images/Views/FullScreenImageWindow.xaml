@@ -1,0 +1,31 @@
+<Window x:Class="Nexaflow.Features.Images.Views.FullScreenImageWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        WindowState="Maximized"
+        ShowInTaskbar="False"
+        Topmost="True"
+        Focusable="True"
+        Background="{StaticResource BgBrush}"
+        Cursor="Hand">
+
+    <Grid>
+        <Viewbox Stretch="Uniform" Margin="24">
+            <Image Source="{Binding CurrentImage}" RenderOptions.BitmapScalingMode="HighQuality">
+                <Image.LayoutTransform>
+                    <RotateTransform Angle="{Binding RotationAngle}"/>
+                </Image.LayoutTransform>
+            </Image>
+        </Viewbox>
+
+        <TextBlock Text="{Binding CurrentFileName}" Foreground="{StaticResource TextBrush}"
+                   FontSize="13" FontWeight="SemiBold"
+                   HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,16,0,0"
+                   TextTrimming="CharacterEllipsis" MaxWidth="600"/>
+
+        <TextBlock Foreground="{StaticResource TextMutedBrush}" FontSize="12"
+                   HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18"
+                   Text="Esc exit · Space / → next · ← previous · click to navigate"/>
+    </Grid>
+</Window>

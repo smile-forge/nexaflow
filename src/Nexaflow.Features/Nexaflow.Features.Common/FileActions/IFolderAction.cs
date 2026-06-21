@@ -40,6 +40,15 @@ namespace Nexaflow.Features.Common
         string[]? ContainsFileGlobs => null;
 
         /// <summary>
+        /// When <see cref="ContainsFileGlobs"/> is set, the minimum percentage (0–100) of the folder's
+        /// top-level files that must match one of those globs for the action to apply. The default of
+        /// <c>0</c> keeps the plain "at least one match" behaviour; a positive value requires that share
+        /// of the directory to match. The matcher enumerates the folder once and bails as soon as the
+        /// threshold is reached or has become unreachable.
+        /// </summary>
+        int MinimumFileGlobMatchPercentage => 0;
+
+        /// <summary>
         /// If non-null, the folder must contain at least one sub-folder matching any of these globs.
         /// </summary>
         string[]? ContainsFolderGlobs => null;

@@ -31,6 +31,7 @@ public class SampleFileViewerTests : FileSystemUiTestBase
         ("json",     "JsonView"),
         ("logs",     "LogView"),
         ("binary",   "HexView"),
+        ("images",   "ImageView"),
     ];
 
     /// <summary>Yields one case per generated sample file: (subDir, fileName, expectedViewerId).</summary>

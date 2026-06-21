@@ -370,7 +370,7 @@ Parameters are `Dictionary<string, string>`. Keys are lowercase, values are stri
 |---------|--------|
 | Search | `query`, `root` |
 | Markdown | `path` |
-| Images | `paths` (pipe-separated) |
+| Images | `paths` (pipe-separated), `view` (`carousel` \| `album` \| `explore` \| `collage`) |
 | Projects | *(none)* |
 | ProjectDetail | `folder` |
 
