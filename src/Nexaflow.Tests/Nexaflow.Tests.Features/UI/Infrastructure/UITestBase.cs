@@ -14,9 +14,9 @@ namespace Nexaflow.Tests.Features.UI.Infrastructure;
 /// --filter "TestCategory!=UI".
 ///
 /// Each test runs against an isolated, throwaway config dir (NEXAFLOW_CONFIG_DIR) so it
-/// neither depends on nor pollutes the developer's real %APPDATA% config. A fresh config
-/// means the first-run / post-update setup wizard shows on launch; we skip it to reach the
-/// shell window, which is what these tests exercise.
+/// neither depends on nor pollutes the developer's real %APPDATA% config. The app is launched
+/// with --skipSetup so the first-run / post-update wizard is bypassed and the shell opens
+/// straight away — no hunting for the wizard window to click Skip.
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
@@ -43,6 +43,7 @@ public abstract class UITestBase
         Automation = new UIA3Automation();
 
         var psi = new ProcessStartInfo(FindAppExe()) { UseShellExecute = false };
+        psi.ArgumentList.Add("--skipSetup");                           // bypass the first-run wizard
         psi.EnvironmentVariables["NEXAFLOW_CONFIG_DIR"] = _configDir;   // isolated, fresh
         App = Application.Launch(psi);
 
@@ -67,9 +68,8 @@ public abstract class UITestBase
     }
 
     /// <summary>
-    /// Returns the shell window (AutomationId "MainWindow"), skipping the setup wizard first if it
-    /// appears. A fresh config root makes the first-run wizard show modally before the shell, so a
-    /// naive GetMainWindow would grab the wizard ("Nexaflow Setup") instead of the shell.
+    /// Returns the shell window (AutomationId "MainWindow"). The app is launched with --skipSetup, so the
+    /// wizard never shows and the shell is the first (and only) top-level window.
     /// </summary>
     private Window ResolveShellWindow()
     {
@@ -83,13 +83,6 @@ public abstract class UITestBase
             var shell = windows.FirstOrDefault(w =>
                 w.Properties.AutomationId.ValueOrDefault == "MainWindow");
             if (shell is not null) return shell;
-
-            var wizard = windows.FirstOrDefault(w =>
-                string.Equals(w.Title, "Nexaflow Setup", StringComparison.Ordinal));
-            var skip = wizard?
-                .FindFirstDescendant(cf => cf.ByAutomationId("WizardSkipButton"))?
-                .AsButton();
-            if (skip is { IsEnabled: true }) skip.Invoke();
 
             System.Threading.Thread.Sleep(100);
         }

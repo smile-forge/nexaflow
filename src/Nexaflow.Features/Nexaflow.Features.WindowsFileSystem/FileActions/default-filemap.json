@@ -81,6 +81,15 @@
     "ExperienceId": "/image",
     "Source": "User",
     "Criteria": [
+      { "Type": "Extension", "Value": "*.png" },
+      { "Type": "Extension", "Value": "*.jpg" },
+      { "Type": "Extension", "Value": "*.jpeg" },
+      { "Type": "Extension", "Value": "*.gif" },
+      { "Type": "Extension", "Value": "*.bmp" },
+      { "Type": "Extension", "Value": "*.ico" },
+      { "Type": "Extension", "Value": "*.tiff" },
+      { "Type": "Extension", "Value": "*.tif" },
+      { "Type": "Extension", "Value": "*.webp" },
       { "Type": "PerceivedType", "Value": "Image" }
     ]
   },

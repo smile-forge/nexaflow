@@ -56,11 +56,19 @@ public partial class App : Application
     /// </summary>
     public static bool IsUpdating { get; private set; }
 
+    /// <summary>
+    /// True when launched with <c>--skipSetup</c>: the first-run / post-update wizard is bypassed and the
+    /// shell opens straight away. Used by the UI test harness so it never has to find the wizard window
+    /// and click Skip.
+    /// </summary>
+    public static bool SkipSetup { get; private set; }
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
         bool prestart = e.Args.Any(a => string.Equals(a, "--prestart", StringComparison.OrdinalIgnoreCase));
+        SkipSetup = e.Args.Any(a => string.Equals(a, "--skipSetup", StringComparison.OrdinalIgnoreCase));
 
 #if !DEBUG
         // ── Single-instance guard ────────────────────────────────────────────
@@ -269,13 +277,18 @@ public partial class App : Application
         {
             _setupShown = true;
 
-            var wizard = SetupWizardViewModel.Build(profile);
-            if (wizard is not null)
+            // --skipSetup bypasses the wizard entirely (UI tests); the run is still stamped so post-update
+            // detection stays consistent.
+            if (!SkipSetup)
             {
-                var wizardWin = new SetupWizardWindow(wizard);
-                // Closing fires while the HWND is still alive, so the monitor is still resolvable.
-                wizardWin.Closing += (_, _) => wizardMonitor = WindowManager.GetWorkAreaForWindow(wizardWin);
-                wizardWin.ShowDialog();   // modal; returns on Finish / Skip / close
+                var wizard = SetupWizardViewModel.Build(profile);
+                if (wizard is not null)
+                {
+                    var wizardWin = new SetupWizardWindow(wizard);
+                    // Closing fires while the HWND is still alive, so the monitor is still resolvable.
+                    wizardWin.Closing += (_, _) => wizardMonitor = WindowManager.GetWorkAreaForWindow(wizardWin);
+                    wizardWin.ShowDialog();   // modal; returns on Finish / Skip / close
+                }
             }
 
             StampLastRunVersion();
