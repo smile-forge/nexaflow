@@ -203,18 +203,32 @@
                 Background="{StaticResource DeepBgBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,0,1">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0">
-                <TextBlock Text="&#x2B21;" Foreground="{StaticResource AccentBrush}"
+            <DockPanel VerticalAlignment="Center" Margin="14,0,8,0" LastChildFill="False">
+                <!-- Right: deep link to this shell's environments in the workspace Configure overlay -->
+                <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}"
+                        VerticalAlignment="Center" Padding="6,2"
+                        Command="{Binding ConfigureCommand}"
+                        ToolTip="Configure console environments"
+                        Visibility="{Binding ShowConfigureButton, Converter={StaticResource BoolVis}}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#x2699;" FontSize="13" Foreground="{StaticResource TextMutedBrush}"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock Text="Configure" FontSize="11" Margin="6,0,0,0"
+                                   Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <TextBlock DockPanel.Dock="Left" Text="&#x2B21;" Foreground="{StaticResource AccentBrush}"
                            FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                <TextBlock Text="{Binding CurrentPath}"
+                <TextBlock DockPanel.Dock="Left" Text="{Binding CurrentPath}"
                            Foreground="{StaticResource TextBrush}"
                            FontFamily="Consolas, Courier New" FontSize="13"
                            VerticalAlignment="Center"/>
-                <TextBlock Text="  [running...]"
+                <TextBlock DockPanel.Dock="Left" Text="  [running...]"
                            Foreground="{StaticResource WarningBrush}" FontSize="11"
                            VerticalAlignment="Center"
                            Visibility="{Binding IsBusy, Converter={StaticResource BoolVis}}"/>
-            </StackPanel>
+            </DockPanel>
         </Border>
 
         <!-- Three-column main area -->
@@ -370,11 +384,11 @@
                             HorizontalAlignment="Center" VerticalAlignment="Center">
                         <DockPanel>
                             <TextBlock DockPanel.Dock="Top"
-                                       Text="Choose an environment for this folder"
+                                       Text="Choose an environment for this location"
                                        Foreground="{StaticResource TextBrush}"
                                        FontSize="14" FontWeight="SemiBold" Margin="0,0,0,12"/>
                             <CheckBox DockPanel.Dock="Bottom"
-                                      Content="Always use this environment for this folder"
+                                      Content="Always use this environment for this location"
                                       IsChecked="{Binding AlwaysUseHere}"
                                       Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                                       Margin="0,12,0,0"/>

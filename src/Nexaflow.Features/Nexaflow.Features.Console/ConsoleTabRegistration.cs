@@ -35,20 +35,21 @@ public sealed class ConsoleTabRegistration : IPageRegistration
         var initialPath = pageParams?.GetValueOrDefault("path");
         var envName     = pageParams?.GetValueOrDefault("env");
 
-        // Decide which environment to use, or whether to ask. The launch picker only appears when opened
-        // for a folder (Cmd Here), there's a real choice (>1 environment), no explicit env was named, and
-        // no "always use here" binding has been remembered for that folder.
+        // Decide which environment to use, or whether to ask. The picker appears when a console is opened
+        // for a location (Cmd Here) that hasn't pinned an environment AND there's a real choice (>1
+        // configured) — there is no implicit default. An explicitly named env, a location that has pinned
+        // one, or a single configured environment all skip the picker.
         TerminalEnvironment? env;
         bool pickerPending = false;
 
         if (envName is not null)
-            env = _config.FindEnvByName(envName) ?? _config.GetDefaultEnv();
+            env = _config.FindEnvByName(envName) ?? _config.Environments.FirstOrDefault();
         else if (initialPath is not null && _config.FindBoundEnvName(initialPath) is { } boundName)
-            env = _config.FindEnvByName(boundName) ?? _config.GetDefaultEnv();
+            env = _config.FindEnvByName(boundName) ?? _config.Environments.FirstOrDefault();
         else if (initialPath is not null && _config.Environments.Count > 1)
             { env = null; pickerPending = true; }
         else
-            env = _config.GetDefaultEnv();
+            env = _config.Environments.FirstOrDefault();
 
         var title = env?.TabTitle is { Length: > 0 } t ? t : "Console";
         var vm    = new CmdTerminalViewModel(_config, _shellServices, _aiService, initialPath, env, pickerPending);

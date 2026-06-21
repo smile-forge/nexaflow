@@ -372,6 +372,18 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     /// </summary>
     public Profile? ConfigureTargetProfile { get; private set; }
 
+    /// <summary>Section (config name) the Configure overlay should land on when it next builds.
+    /// Set via <see cref="OpenConfigureAt"/>; consumed and cleared by the window.</summary>
+    public string? RequestedConfigureSection { get; set; }
+
+    /// <summary>Opens the Configure overlay for <paramref name="profile"/> on the section for
+    /// <paramref name="configName"/> (a deep link, e.g. from the console page's Configure button).</summary>
+    public void OpenConfigureAt(Profile? profile, string configName)
+    {
+        RequestedConfigureSection = configName;
+        ConfigureProfile(profile);
+    }
+
     /// <summary>
     /// True when Configure was opened from the Options → Workspaces tab. If the user makes no changes,
     /// closing Configure returns to the Options popup (handled by MainWindow). Reset after each close.

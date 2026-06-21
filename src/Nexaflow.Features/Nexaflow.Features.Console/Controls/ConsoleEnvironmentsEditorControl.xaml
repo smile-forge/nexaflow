@@ -1,55 +1,47 @@
 <UserControl x:Class="Nexaflow.Features.Console.Controls.ConsoleEnvironmentsEditorControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common">
 
     <UserControl.Resources>
-        <!-- Display text in a cell -->
-        <Style x:Key="CellText" TargetType="TextBlock">
-            <Setter Property="Foreground"          Value="{StaticResource TextBrush}"/>
-            <Setter Property="VerticalAlignment"   Value="Center"/>
-            <Setter Property="TextTrimming"        Value="CharacterEllipsis"/>
-            <Setter Property="Margin"              Value="8,0"/>
+        <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
+        <cv:InverseBoolToVisibilityConverter x:Key="InverseBoolVis"/>
+
+        <!-- Field label above each input -->
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontSize"   Value="11"/>
+            <Setter Property="Margin"     Value="0,8,0,3"/>
         </Style>
 
-        <!-- In-place editor: a dark textbox so editing matches the theme -->
-        <Style x:Key="CellEditor" TargetType="TextBox">
-            <Setter Property="Background"          Value="{StaticResource DeepBgBrush}"/>
-            <Setter Property="Foreground"          Value="{StaticResource TextBrush}"/>
-            <Setter Property="CaretBrush"          Value="{StaticResource TextBrush}"/>
-            <Setter Property="BorderBrush"         Value="{StaticResource AccentBrush}"/>
-            <Setter Property="BorderThickness"     Value="1"/>
-            <Setter Property="Padding"             Value="6,0"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <!-- One-line helper text under a field -->
+        <Style x:Key="FieldHint" TargetType="TextBlock">
+            <Setter Property="Foreground"   Value="{StaticResource TextDimBrush}"/>
+            <Setter Property="FontSize"     Value="10"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin"       Value="0,3,0,0"/>
         </Style>
 
-        <!-- Always-on dark textbox used inside template cells -->
-        <Style x:Key="GridCellTextBox" TargetType="TextBox">
-            <Setter Property="Background"               Value="Transparent"/>
-            <Setter Property="Foreground"               Value="{StaticResource TextBrush}"/>
-            <Setter Property="CaretBrush"               Value="{StaticResource TextBrush}"/>
-            <Setter Property="BorderThickness"          Value="0"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Padding"                  Value="6,0"/>
-        </Style>
-
-        <!-- Small "…" browse button for path cells -->
-        <Style x:Key="BrowseButton" TargetType="Button">
-            <Setter Property="Width"            Value="22"/>
-            <Setter Property="Foreground"       Value="{StaticResource TextMutedBrush}"/>
-            <Setter Property="Background"       Value="{StaticResource Surface2Brush}"/>
-            <Setter Property="BorderThickness"  Value="0"/>
-            <Setter Property="Cursor"           Value="Hand"/>
-            <Setter Property="ToolTip"          Value="Browse…"/>
+        <!-- Collapsible-section header (chevron flips with IsChecked) -->
+        <Style x:Key="SectionToggle" TargetType="ToggleButton">
+            <Setter Property="Background"          Value="Transparent"/>
+            <Setter Property="BorderThickness"     Value="0"/>
+            <Setter Property="Cursor"              Value="Hand"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Setter Property="Margin"              Value="0,12,0,2"/>
             <Setter Property="Template">
                 <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="3">
-                            <TextBlock Text="…" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       Foreground="{TemplateBinding Foreground}"/>
-                        </Border>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <StackPanel Orientation="Horizontal" Background="Transparent">
+                            <TextBlock x:Name="Chev" Text="▸" Margin="0,0,6,0"
+                                       Foreground="{StaticResource AccentBrush}" FontSize="12"/>
+                            <ContentPresenter VerticalAlignment="Center"
+                                              TextBlock.Foreground="{StaticResource AccentBrush}"
+                                              TextBlock.FontSize="12" TextBlock.FontWeight="SemiBold"/>
+                        </StackPanel>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="{StaticResource BorderBrush}"/>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Chev" Property="Text" Value="▾"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -57,192 +49,242 @@
             </Setter>
         </Style>
 
-        <Style x:Key="GridButton" TargetType="Button">
-            <Setter Property="Padding"         Value="12,4"/>
-            <Setter Property="Margin"          Value="0,0,6,0"/>
-            <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
-            <Setter Property="Background"      Value="{StaticResource SurfaceBrush}"/>
+        <!-- Small round "?" help affordance with a wrapped tooltip -->
+        <Style x:Key="HelpDot" TargetType="Border">
+            <Setter Property="Width"           Value="18"/>
+            <Setter Property="Height"          Value="18"/>
+            <Setter Property="CornerRadius"    Value="9"/>
             <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Cursor"          Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bd"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="5" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface2Brush}"/>
-                                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Cursor"          Value="Help"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
     </UserControl.Resources>
 
     <DockPanel Margin="12">
 
-        <!-- Toolbar: Add / Remove buttons -->
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-            <Button Content="Add"    Click="AddEnv_Click"    Style="{StaticResource GridButton}"/>
-            <Button x:Name="RemoveButton" Content="Remove" Click="RemoveEnv_Click" Style="{StaticResource GridButton}"/>
+        <!-- Intro -->
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+            <TextBlock Text="Console environments"
+                       Foreground="{StaticResource TextBrush}"
+                       FontSize="13" FontWeight="SemiBold"/>
+            <TextBlock Margin="0,3,0,0" TextWrapping="Wrap"
+                       Foreground="{StaticResource TextMutedBrush}" FontSize="11"
+                       Text="An environment is a named shell setup — what it runs on entry and the variables it sets. Opening a console with “Cmd here” asks which environment to use, unless you’ve pinned one to that location below."/>
         </StackPanel>
 
-        <!-- Environments grid -->
-        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6"
-                Background="{StaticResource SurfaceBrush}" ClipToBounds="True">
-            <DataGrid x:Name="EnvGrid"
-                      AutoGenerateColumns="False"
-                      CanUserAddRows="False"
-                      CanUserDeleteRows="False"
-                      CanUserReorderColumns="False"
-                      CanUserResizeRows="False"
-                      HeadersVisibility="Column"
-                      GridLinesVisibility="Horizontal"
-                      Background="Transparent"
-                      BorderThickness="0"
-                      RowBackground="Transparent"
-                      SelectionUnit="FullRow"
-                      FontSize="12"
-                      Foreground="{StaticResource TextBrush}"
-                      HorizontalGridLinesBrush="{StaticResource BorderBrush}"
-                      ColumnHeaderHeight="30"
-                      RowHeight="30">
+        <!-- Default environment by location (saved from the launch picker) -->
+        <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
 
-                <DataGrid.ColumnHeaderStyle>
-                    <Style TargetType="DataGridColumnHeader">
-                        <Setter Property="Background"          Value="{StaticResource DeepBgBrush}"/>
-                        <Setter Property="Foreground"          Value="{StaticResource TextMutedBrush}"/>
-                        <Setter Property="FontSize"            Value="11"/>
-                        <Setter Property="FontWeight"          Value="SemiBold"/>
-                        <Setter Property="Padding"             Value="8,0"/>
-                        <Setter Property="VerticalContentAlignment" Value="Center"/>
-                        <Setter Property="BorderBrush"         Value="{StaticResource BorderBrush}"/>
-                        <Setter Property="BorderThickness"     Value="0,0,0,1"/>
-                    </Style>
-                </DataGrid.ColumnHeaderStyle>
+                <ToggleButton Grid.Column="0" Style="{StaticResource SectionToggle}"
+                              IsChecked="{Binding LocationsExpanded, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Default environment by location"
+                                   Foreground="{StaticResource AccentBrush}" FontSize="12" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="LocationsCount" Margin="6,0,0,0"
+                                   Foreground="{StaticResource TextMutedBrush}" FontSize="12" FontWeight="Normal"/>
+                    </StackPanel>
+                </ToggleButton>
 
-                <DataGrid.CellStyle>
-                    <Style TargetType="DataGridCell">
-                        <Setter Property="Foreground"          Value="{StaticResource TextBrush}"/>
-                        <Setter Property="Background"          Value="Transparent"/>
-                        <Setter Property="BorderThickness"     Value="0"/>
-                        <Style.Triggers>
-                            <!-- Focused-cell ring while editing, but no jarring fill -->
-                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                                <Setter Property="Background" Value="{StaticResource DeepBgBrush}"/>
-                            </Trigger>
-                        </Style.Triggers>
-                    </Style>
-                </DataGrid.CellStyle>
+                <Border Grid.Column="1" Style="{StaticResource HelpDot}">
+                    <Border.ToolTip>
+                        <TextBlock MaxWidth="340" TextWrapping="Wrap"
+                                   Text="When you open a console with “Cmd here” and tick “Always use this environment for this location”, the choice is remembered here so that location skips the picker next time. Removing an entry makes that location ask again. Pinning one location never stops other locations from being asked."/>
+                    </Border.ToolTip>
+                    <TextBlock Text="?" FontWeight="SemiBold" FontSize="11"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+            </Grid>
 
-                <DataGrid.RowStyle>
-                    <Style TargetType="DataGridRow">
-                        <Setter Property="Background" Value="Transparent"/>
-                        <Style.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter Property="Background" Value="{StaticResource Surface2Brush}"/>
-                            </Trigger>
-                        </Style.Triggers>
-                    </Style>
-                </DataGrid.RowStyle>
+            <StackPanel Visibility="{Binding LocationsExpanded, RelativeSource={RelativeSource AncestorType=UserControl},
+                                              Converter={StaticResource BoolVis}}">
+                <TextBlock Style="{StaticResource FieldHint}" Margin="20,4,0,6"
+                           Text="These locations always launch with the listed environment, skipping the “Cmd here” picker."/>
 
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Name"
-                                        Binding="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
-                                        Width="120"
-                                        ElementStyle="{StaticResource CellText}"
-                                        EditingElementStyle="{StaticResource CellEditor}"/>
-                    <DataGridTextColumn Header="Tab Title"
-                                        Binding="{Binding TabTitle, UpdateSourceTrigger=PropertyChanged}"
-                                        Width="100"
-                                        ElementStyle="{StaticResource CellText}"
-                                        EditingElementStyle="{StaticResource CellEditor}"/>
+                <!-- Empty state -->
+                <TextBlock x:Name="NoBindingsText" Margin="20,2,0,4"
+                           Foreground="{StaticResource TextDimBrush}" FontSize="11" TextWrapping="Wrap"
+                           Text="No locations have a saved default yet. Open a console with “Cmd here” and tick “Always use this environment for this location” to add one."/>
 
-                    <!-- Location filter: type a glob, or pick a folder (sets "<folder>\*"). -->
-                    <DataGridTemplateColumn Header="Location Filter" Width="150">
-                        <DataGridTemplateColumn.CellTemplate>
+                <Border x:Name="BindingsBorder" Margin="20,0,0,0"
+                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                  MaxHeight="150" Padding="6,4">
+                        <ItemsControl x:Name="BindingsList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="150"/>
+                                            <ColumnDefinition Width="30"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding FolderPath}"
+                                                   ToolTip="{Binding FolderPath}"
+                                                   Foreground="{StaticResource TextBrush}" FontSize="11"
+                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                   Margin="2,0,8,0"/>
+                                        <Border Grid.Column="1" Margin="0,0,6,0"
+                                                BorderThickness="1.5" CornerRadius="6">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="BorderBrush" Value="Transparent"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsStale}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="{StaticResource DangerBrush}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <ComboBox ItemsSource="{Binding EnvNames, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                      SelectedItem="{Binding EnvName, Mode=OneWay}"
+                                                      SelectionChanged="BindingEnv_SelectionChanged"
+                                                      ToolTip="Which environment this location launches with."
+                                                      Style="{StaticResource DarkComboBox}" FontSize="11"/>
+                                        </Border>
+                                        <Button Grid.Column="2" Style="{StaticResource IconButton}"
+                                                ToolTip="Remove this location default (the location will ask again next time)"
+                                                Tag="{Binding}" Click="RemoveBinding_Click">
+                                            <TextBlock Text="✕" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                                        </Button>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Master / detail: environments -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="170" MinWidth="130"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: environment list + add/remove -->
+            <DockPanel Grid.Column="0">
+                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
+                    <Button Content="+ Add" MinWidth="56" Margin="0,0,4,0"
+                            Style="{StaticResource IconButton}" Click="AddEnv_Click"/>
+                    <Button x:Name="RemoveButton" Content="✕ Remove" MinWidth="72"
+                            Style="{StaticResource IconButton}" Click="RemoveEnv_Click"/>
+                </StackPanel>
+
+                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                    <ListBox x:Name="EnvList"
+                             Background="Transparent" BorderThickness="0"
+                             SelectionChanged="EnvList_SelectionChanged">
+                        <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBox Grid.Column="0" Style="{StaticResource GridCellTextBox}"
-                                             Text="{Binding LocationFilter, UpdateSourceTrigger=PropertyChanged}"/>
-                                    <Button Grid.Column="1" Style="{StaticResource BrowseButton}"
-                                            Click="LocationBrowse_Click"/>
-                                </Grid>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Name}"
+                                               Foreground="{StaticResource TextBrush}" FontSize="12"/>
+                                    <TextBlock Text="{Binding Summary}"
+                                               Foreground="{StaticResource TextMutedBrush}" FontSize="10"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
                             </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </DockPanel>
 
-                    <!-- Start directory: where the shell opens (pick a folder). -->
-                    <DataGridTemplateColumn Header="Start Dir" Width="140">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBox Grid.Column="0" Style="{StaticResource GridCellTextBox}"
-                                             Text="{Binding StartDirectory, UpdateSourceTrigger=PropertyChanged}"/>
-                                    <Button Grid.Column="1" Style="{StaticResource BrowseButton}"
-                                            Click="StartDirBrowse_Click"/>
-                                </Grid>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
+                          Background="{StaticResource BorderBrush}"/>
 
-                    <!-- Initial command: typed, or pick an executable/script file. -->
-                    <DataGridTemplateColumn Header="Initial Command" Width="*">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBox Grid.Column="0" Style="{StaticResource GridCellTextBox}"
-                                             Text="{Binding InitialCommand, UpdateSourceTrigger=PropertyChanged}"/>
-                                    <Button Grid.Column="1" Style="{StaticResource BrowseButton}"
-                                            Click="InitialCmdBrowse_Click"/>
-                                </Grid>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
+            <!-- Right: detail form -->
+            <Grid Grid.Column="2" Margin="10,0,0,0">
 
-                    <DataGridTextColumn Header="Env Vars (KEY=VALUE; …)"
-                                        Binding="{Binding OverridesText, UpdateSourceTrigger=LostFocus}"
-                                        Width="160"
-                                        ElementStyle="{StaticResource CellText}"
-                                        EditingElementStyle="{StaticResource CellEditor}"/>
+                <TextBlock Text="Add or select an environment on the left."
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="12" TextWrapping="Wrap"
+                           VerticalAlignment="Center" HorizontalAlignment="Center"
+                           Visibility="{Binding HasSelectedEnv, RelativeSource={RelativeSource AncestorType=UserControl},
+                                                Converter={StaticResource InverseBoolVis}}"/>
 
-                    <DataGridTemplateColumn Header="Default" Width="60" CanUserSort="False">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <CheckBox IsChecked="{Binding IsDefault, UpdateSourceTrigger=PropertyChanged}"
-                                          HorizontalAlignment="Center"
-                                          VerticalAlignment="Center"
-                                          Checked="IsDefault_Checked"
-                                          Unchecked="IsDefault_Unchecked"/>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                </DataGrid.Columns>
-            </DataGrid>
-        </Border>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              Visibility="{Binding HasSelectedEnv, RelativeSource={RelativeSource AncestorType=UserControl},
+                                                   Converter={StaticResource BoolVis}}"
+                              DataContext="{Binding SelectedEnv, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                    <StackPanel Margin="0,0,4,0">
 
+                        <!-- Name -->
+                        <TextBlock Text="Name" Style="{StaticResource FieldLabel}" Margin="0,0,0,3">
+                            <TextBlock.ToolTip>
+                                <TextBlock MaxWidth="320" TextWrapping="Wrap"
+                                           Text="A short, unique label for this environment. Shown in the environments list and in the “Cmd here” picker."/>
+                            </TextBlock.ToolTip>
+                        </TextBlock>
+                        <Border BorderThickness="1.5" CornerRadius="8">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="BorderBrush" Value="Transparent"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasNameError}" Value="True">
+                                            <Setter Property="BorderBrush" Value="{StaticResource DangerBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource DarkTextBox}" FontSize="11"/>
+                        </Border>
+                        <TextBlock Style="{StaticResource FieldHint}" Foreground="{StaticResource DangerBrush}"
+                                   Text="Each environment needs a unique, non-empty name."
+                                   Visibility="{Binding HasNameError, Converter={StaticResource BoolVis}}"/>
+
+                        <!-- Tab title -->
+                        <TextBlock Text="Tab title" Style="{StaticResource FieldLabel}">
+                            <TextBlock.ToolTip>
+                                <TextBlock MaxWidth="320" TextWrapping="Wrap"
+                                           Text="Text shown on the console tab when this environment is launched. Leave empty to fall back to “Console”."/>
+                            </TextBlock.ToolTip>
+                        </TextBlock>
+                        <TextBox Text="{Binding TabTitle, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource DarkTextBox}" FontSize="11"/>
+
+                        <!-- Initial command -->
+                        <TextBlock Text="Initial command" Style="{StaticResource FieldLabel}">
+                            <TextBlock.ToolTip>
+                                <TextBlock MaxWidth="320" TextWrapping="Wrap"
+                                           Text="A command sent automatically once the shell reaches its first prompt — e.g. activate a tool, set up the path, or print a banner. Leave empty for none."/>
+                            </TextBlock.ToolTip>
+                        </TextBlock>
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="…" MinWidth="28" Margin="4,0,0,0"
+                                    Style="{StaticResource IconButton}" Click="InitialCmdBrowse_Click"/>
+                            <TextBox Text="{Binding InitialCommand, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource DarkTextBox}" FontSize="11"
+                                     FontFamily="Consolas, Courier New"/>
+                        </DockPanel>
+
+                        <!-- Environment variables -->
+                        <TextBlock Text="Environment variables" Style="{StaticResource FieldLabel}">
+                            <TextBlock.ToolTip>
+                                <TextBlock MaxWidth="340" TextWrapping="Wrap"
+                                           Text="Variables overlaid on the shell for this environment. One per line as NAME=value. Applied to the process when the console launches."/>
+                            </TextBlock.ToolTip>
+                        </TextBlock>
+                        <TextBox Text="{Binding OverridesText, UpdateSourceTrigger=LostFocus}"
+                                 Style="{StaticResource DarkTextBox}" FontSize="11"
+                                 FontFamily="Consolas, Courier New"
+                                 AcceptsReturn="True" TextWrapping="NoWrap"
+                                 VerticalScrollBarVisibility="Auto" MinHeight="64"/>
+                        <TextBlock Style="{StaticResource FieldHint}"
+                                   Text="One per line, e.g. NODE_ENV=development"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Grid>
     </DockPanel>
 </UserControl>

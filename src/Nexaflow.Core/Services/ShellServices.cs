@@ -672,7 +672,15 @@ public sealed class ShellServices : IShellServices
     }
 
     void IShellServices.SaveFeatureConfig(IFeatureConfig config)
-        => ConfigManager.Instance.Save(config, config.ConfigName);
+    {
+        // Workspace-scoped configs are persisted per-profile under Contexts\<name>\ (the same place the
+        // Configure panel loads them from); global feature configs go in the shared config root. Routing
+        // a scoped config through the global Save would write where nothing reads it back.
+        if (FeatureManager.Instance.WorkspaceScopedConfigTypes.Contains(config.GetType()))
+            ConfigManager.Instance.SaveTo(_workspace.Profile.Dir, config, config.ConfigName);
+        else
+            ConfigManager.Instance.Save(config, config.ConfigName);
+    }
 
     void IShellServices.OpenOptions(string configName)
         => _ui.Invoke(() =>
@@ -681,6 +689,14 @@ public sealed class ShellServices : IShellServices
             // IShellServices, never IWindowHost itself.
             if ((_focused ?? _windows.FirstOrDefault()) is ShellViewModel vm)
                 vm.OpenOptionsAt(configName);
+        });
+
+    void IShellServices.OpenWorkspaceConfig(string configName)
+        => _ui.Invoke(() =>
+        {
+            // Deep-link the Configure overlay to this workspace's profile, on the named section.
+            if ((_focused ?? _windows.FirstOrDefault()) is ShellViewModel vm)
+                vm.OpenConfigureAt(_workspace.Profile, configName);
         });
 
     void IShellServices.PinToRibbon(string format, object payload)

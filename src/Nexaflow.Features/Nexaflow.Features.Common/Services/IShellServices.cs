@@ -172,6 +172,14 @@ public interface IShellServices
     void OpenOptions(string configName);
 
     /// <summary>
+    /// Opens the per-workspace Configure overlay for this workspace's profile, landing on the section
+    /// whose <see cref="IFeatureConfig.ConfigName"/> matches <paramref name="configName"/> (e.g.
+    /// <c>"console"</c>). The workspace-scoped sibling of <see cref="OpenOptions"/> — for configs marked
+    /// <c>[WorkspaceScopedConfig]</c>, which live in the Configure overlay rather than global Options.
+    /// </summary>
+    void OpenWorkspaceConfig(string configName);
+
+    /// <summary>
     /// Pins <paramref name="payload"/> to the focused window's ribbon using the
     /// <see cref="Nexaflow.Features.Common.IRibbonPinHandler"/> that accepts the drag-data
     /// <paramref name="format"/>.

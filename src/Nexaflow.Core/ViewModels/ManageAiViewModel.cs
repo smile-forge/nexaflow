@@ -80,6 +80,15 @@ public partial class ManageAiViewModel : ObservableObject
         SelectedSection = Sections.FirstOrDefault();
     }
 
+    /// <summary>Lands on the section whose config name matches (deep link from a feature's Configure
+    /// button), falling back to the current selection when there's no such section.</summary>
+    public void SelectSection(string configName)
+    {
+        var match = Sections.FirstOrDefault(s =>
+            string.Equals(s.ConfigName, configName, StringComparison.OrdinalIgnoreCase));
+        if (match is not null) SelectedSection = match;
+    }
+
     private void BuildSections()
     {
         // First page: the workspace identity (name/symbol/colour). The control edits the live profile
