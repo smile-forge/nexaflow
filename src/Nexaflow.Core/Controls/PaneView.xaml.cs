@@ -38,6 +38,21 @@ public partial class PaneView : UserControl
     public static readonly DependencyProperty OpenPageCommandProperty =
         DependencyProperty.Register(nameof(OpenPageCommand), typeof(ICommand), typeof(PaneView));
 
+    public static readonly DependencyProperty SplitTabCommandProperty =
+        DependencyProperty.Register(nameof(SplitTabCommand), typeof(ICommand), typeof(PaneView));
+
+    public static readonly DependencyProperty SplitEmptyCommandProperty =
+        DependencyProperty.Register(nameof(SplitEmptyCommand), typeof(ICommand), typeof(PaneView));
+
+    public static readonly DependencyProperty ClosePaneCommandProperty =
+        DependencyProperty.Register(nameof(ClosePaneCommand), typeof(ICommand), typeof(PaneView));
+
+    public static readonly DependencyProperty CloseOthersCommandProperty =
+        DependencyProperty.Register(nameof(CloseOthersCommand), typeof(ICommand), typeof(PaneView));
+
+    public static readonly DependencyProperty PaneActivatedCommandProperty =
+        DependencyProperty.Register(nameof(PaneActivatedCommand), typeof(ICommand), typeof(PaneView));
+
     public Pane? Pane
     {
         get => (Pane?)GetValue(PaneProperty);
@@ -80,6 +95,42 @@ public partial class PaneView : UserControl
         set => SetValue(OpenPageCommandProperty, value);
     }
 
+    /// <summary>"Split right": split the tab area, moving the passed <see cref="Page"/> into a new pane.</summary>
+    public ICommand? SplitTabCommand
+    {
+        get => (ICommand?)GetValue(SplitTabCommandProperty);
+        set => SetValue(SplitTabCommandProperty, value);
+    }
+
+    /// <summary>"Split": split the tab area with a new empty pane.</summary>
+    public ICommand? SplitEmptyCommand
+    {
+        get => (ICommand?)GetValue(SplitEmptyCommandProperty);
+        set => SetValue(SplitEmptyCommandProperty, value);
+    }
+
+    /// <summary>"Close pane": collapse the split, taking this pane's parameter.</summary>
+    public ICommand? ClosePaneCommand
+    {
+        get => (ICommand?)GetValue(ClosePaneCommandProperty);
+        set => SetValue(ClosePaneCommandProperty, value);
+    }
+
+    /// <summary>"Close except this": close the other tabs in this pane (parameter = the kept <see cref="Page"/>).</summary>
+    public ICommand? CloseOthersCommand
+    {
+        get => (ICommand?)GetValue(CloseOthersCommandProperty);
+        set => SetValue(CloseOthersCommandProperty, value);
+    }
+
+    /// <summary>Raised (with this view's <see cref="Pane"/>) when the pane is interacted with, so the shell
+    /// can mark it the focused pane.</summary>
+    public ICommand? PaneActivatedCommand
+    {
+        get => (ICommand?)GetValue(PaneActivatedCommandProperty);
+        set => SetValue(PaneActivatedCommandProperty, value);
+    }
+
     // ── Wiring ─────────────────────────────────────────────────────────────
 
     public PaneView()
@@ -91,6 +142,17 @@ public partial class PaneView : UserControl
             if (OpenPageCommand?.CanExecute(req) == true)
                 OpenPageCommand.Execute(req);
         };
+
+        // Mark this pane the focused one when the user clicks or tabs into it, so new tabs and AI
+        // context route here. Harmless when unsplit (there is only one pane).
+        PreviewMouseDown        += (_, _) => RaisePaneActivated();
+        PreviewGotKeyboardFocus += (_, _) => RaisePaneActivated();
+    }
+
+    private void RaisePaneActivated()
+    {
+        if (Pane is not null && PaneActivatedCommand?.CanExecute(Pane) == true)
+            PaneActivatedCommand.Execute(Pane);
     }
 
     private static void OnPaneChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -117,6 +179,22 @@ public partial class PaneView : UserControl
 
     private void UpdateContent()
     {
-        ContentHost.Content = Pane?.ActivePage?.GetOrCreateContent();
+        var content = Pane?.ActivePage?.GetOrCreateContent();
+        if (ReferenceEquals(ContentHost.Content, content)) return;
+        // A page's content control is cached and shared as it moves between panes/windows; a WPF element
+        // can have only one parent. Detach it from a prior host (e.g. the other side of a collapsing
+        // split) before adopting, so re-parenting never throws.
+        DetachFromParent(content);
+        ContentHost.Content = content;
+    }
+
+    private static void DetachFromParent(UIElement? element)
+    {
+        if (element is null) return;
+        switch (LogicalTreeHelper.GetParent(element))
+        {
+            case ContentPresenter cp when ReferenceEquals(cp.Content, element): cp.Content = null; break;
+            case ContentControl   cc when ReferenceEquals(cc.Content, element): cc.Content = null; break;
+        }
     }
 }

@@ -29,8 +29,11 @@
     </UserControl.Resources>
     <!-- Single-column layout: button overlays right edge so VisiblePanel.ActualWidth
          never changes when the button toggles, eliminating the MeasureOverflow
-         feedback loop that was caused by the old two-column grid. -->
-    <Grid>
+         feedback loop that was caused by the old two-column grid.
+         Background=Transparent makes the empty strip area hit-testable so a right-click there
+         raises this control's ContextMenu (the "Split" / "Close pane" menu) instead of falling
+         through to the parent border. -->
+    <Grid Background="Transparent">
         <!-- Tab area — always full width, clips overflowing tabs -->
         <StackPanel x:Name="VisiblePanel"
                     Orientation="Horizontal"

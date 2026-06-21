@@ -37,15 +37,27 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     // This window's UI dispatcher (captured on its constructing thread); marshal background work through it.
     private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
 
-    IReadOnlyList<Page> IWindowHost.Tabs => RootPane.Pages;
+    IReadOnlyList<Page> IWindowHost.Tabs => LeafPanes.SelectMany(p => p.Pages).ToList();
 
-    void IWindowHost.AddTab(Page tab)        => RootPane.Add(tab);
-    void IWindowHost.RemoveTab(Page tab)     => RootPane.Remove(tab);
-    void IWindowHost.BringToFront(Page tab)  => RootPane.BringToFront(tab);
+    // A new tab follows focus (it lands in the pane the user is working in); operations on an existing
+    // tab follow the pane that owns it. This keeps ShellServices pane-agnostic — it deals in windows,
+    // and the window resolves which of its panes the tab lives in.
+    void IWindowHost.AddTab(Page tab) => FocusedPane.Add(tab);
+
+    void IWindowHost.RemoveTab(Page tab)
+    {
+        (OwningPane(tab) ?? FocusedPane).Remove(tab);
+        CollapseEmptyPane();
+    }
+
+    void IWindowHost.BringToFront(Page tab) => (OwningPane(tab) ?? FocusedPane).BringToFront(tab);
+
     void IWindowHost.SetActiveTab(Page tab)
     {
-        RootPane.BringToFront(tab);
-        RootPane.ActivePage = tab;
+        var pane = OwningPane(tab) ?? FocusedPane;
+        pane.BringToFront(tab);
+        pane.ActivePage = tab;
+        FocusedPane = pane;          // activating a tab focuses its pane
     }
 
     void IWindowHost.ShowError(string message) => ShowError("Error", message);
@@ -74,36 +86,80 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         if (SendAiMessageCommand.CanExecute(null)) SendAiMessageCommand.Execute(null);
     }
 
-    // ── Pane (the strip of pages + active page) ───────────────────────────
-    // The shell hosts a single root pane today. In future this becomes a
-    // tree (SplitPaneNode = left + right Panes) — bind UI to RootPaneNode.
+    // ── Panes (each = a strip of pages + its active page) ─────────────────
+    // The window's root content is either a single Pane or a SplitPaneNode wrapping two side-by-side
+    // panes. FocusedPane is the leaf the user last interacted with: new tabs and AI context follow it,
+    // while operations on a specific tab follow whichever pane owns that tab.
 
     public Pane RootPane { get; } = new();
-    public IPaneNode RootPaneNode => RootPane;
 
-    // Legacy facades — kept so existing call sites and bindings keep working.
-    public ObservableCollection<Page> Tabs => RootPane.Pages;
+    /// <summary>The window's root content — a lone <see cref="Pane"/>, or a <see cref="SplitPaneNode"/> when split.</summary>
+    [ObservableProperty] private IPaneNode _rootPaneNode = null!;
+
+    /// <summary>The leaf new tabs and AI context route to. Equals <see cref="RootPane"/> when unsplit.</summary>
+    [ObservableProperty] private Pane _focusedPane = null!;
+
+    /// <summary>The leaf panes under the current root — one when unsplit, two when split (First then Second).</summary>
+    public IEnumerable<Pane> LeafPanes => RootPaneNode switch
+    {
+        SplitPaneNode s => [s.First, s.Second],
+        Pane p          => [p],
+        _               => [],
+    };
+
+    /// <summary>True while the tab area is split in two.</summary>
+    public bool IsSplit => RootPaneNode is SplitPaneNode;
+
+    private Pane? OwningPane(Page tab) => LeafPanes.FirstOrDefault(p => p.Pages.Contains(tab));
+
+    // Legacy facades — kept so existing call sites keep working; all route through the focused/owning pane.
+    public IEnumerable<Page> Tabs => LeafPanes.SelectMany(p => p.Pages);
 
     public Page? ActiveTab
     {
-        get => RootPane.ActivePage;
-        set => RootPane.ActivePage = value;
+        get => FocusedPane.ActivePage;
+        set => (value is null ? FocusedPane : OwningPane(value) ?? FocusedPane).ActivePage = value;
     }
 
-    public UserControl? CurrentPage => RootPane.ActivePage?.GetOrCreateContent();
+    public UserControl? CurrentPage => FocusedPane.ActivePage?.GetOrCreateContent();
 
     private void WireRootPane()
     {
-        // The breadcrumb bar binds Pane.ActivePage.Breadcrumbs directly (see PaneView.xaml),
-        // so the shell only has to re-notify its computed ActiveTab/CurrentPage facades here.
-        RootPane.PropertyChanged += (_, e) =>
+        FocusedPane  = RootPane;
+        RootPaneNode = RootPane;     // fires OnRootPaneNodeChanged → subscribes the leaf pane(s)
+    }
+
+    // The breadcrumb/content bind each Pane directly in PaneView, so the shell only owes a re-notify of its
+    // computed ActiveTab/CurrentPage facades when the *focused* pane's active page changes.
+    private void OnLeafPanePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(Pane.ActivePage) && ReferenceEquals(sender, FocusedPane))
         {
-            if (e.PropertyName == nameof(Pane.ActivePage))
-            {
-                OnPropertyChanged(nameof(ActiveTab));
-                OnPropertyChanged(nameof(CurrentPage));
-            }
-        };
+            OnPropertyChanged(nameof(ActiveTab));
+            OnPropertyChanged(nameof(CurrentPage));
+        }
+    }
+
+    private void SubscribeLeafPanes()
+    {
+        foreach (var pane in LeafPanes)
+        {
+            pane.PropertyChanged -= OnLeafPanePropertyChanged;
+            pane.PropertyChanged += OnLeafPanePropertyChanged;
+        }
+    }
+
+    partial void OnRootPaneNodeChanged(IPaneNode oldValue, IPaneNode newValue)
+    {
+        SubscribeLeafPanes();
+        OnPropertyChanged(nameof(IsSplit));
+        OnPropertyChanged(nameof(LeafPanes));
+    }
+
+    partial void OnFocusedPaneChanged(Pane oldValue, Pane newValue)
+    {
+        OnPropertyChanged(nameof(ActiveTab));
+        OnPropertyChanged(nameof(CurrentPage));
     }
 
     // ── Notifications ─────────────────────────────────────────────────────
@@ -547,9 +603,20 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     [RelayCommand]
     private void TearOffTab(Page tab) => _shellServices.TearOffTab(tab);
 
-    /// <summary>Cross-window drop target: receive a tab moved from another window.</summary>
+    /// <summary>Drop target: receive a dragged tab into the focused pane — whether it comes from another
+    /// pane of this window (a cross-pane move) or from another window (a cross-window move). The drop
+    /// handler focuses the drop pane first, so "the focused pane" is the one the user dropped on.</summary>
     [RelayCommand]
-    private void ReceiveTab(Page tab) => _shellServices.MoveTab(tab, this);
+    private void ReceiveTab(Page tab)
+    {
+        if (OwningPane(tab) is { } source)          // already in this window
+        {
+            if (!ReferenceEquals(source, FocusedPane))
+                MoveTabToPane(tab, FocusedPane);     // move it between this window's panes
+            return;
+        }
+        _shellServices.MoveTab(tab, this);           // from another window → lands in the focused pane
+    }
 
     /// <summary>
     /// Generic "open a page" entry point used by the breadcrumb bar's
@@ -558,6 +625,101 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     [RelayCommand]
     private void OpenPage(OpenPageRequest req)
         => _shellServices.OpenTab(req.PageKind, req.PageParams, CurrentPage as IPageView);
+
+    /// <summary>Closes every tab in <paramref name="tab"/>'s pane except <paramref name="tab"/> itself.</summary>
+    [RelayCommand(CanExecute = nameof(CanCloseOthersInPane))]
+    private void CloseOthersInPane(Page tab)
+    {
+        var pane = OwningPane(tab);
+        if (pane is null) return;
+        foreach (var other in pane.Pages.Where(p => p != tab).ToList())
+            _shellServices.CloseTab(other);
+    }
+
+    private bool CanCloseOthersInPane(Page? tab) => tab is not null && (OwningPane(tab)?.Pages.Count ?? 0) >= 2;
+
+    /// <summary>Forwards a tab-strip "Pin to Ribbon" request to the ribbon. Exposed here so the pane
+    /// DataTemplates can bind it without reaching the RibbonControl by element name (a DataTemplate can't).</summary>
+    [RelayCommand]
+    private void PinTabToRibbon(TabPinRequest request) => Ribbon?.PinCommand.Execute(request);
+
+    // ── Split panes ───────────────────────────────────────────────────────
+    // v1: a single, vertical (left/right) split — RootPaneNode is either a lone Pane or one SplitPaneNode.
+
+    /// <summary>Splits the tab area, moving <paramref name="tab"/> into a new right-hand pane.</summary>
+    [RelayCommand(CanExecute = nameof(CanSplitRight))]
+    private void SplitRight(Page tab)
+    {
+        var left = OwningPane(tab) ?? RootPane;
+        left.Remove(tab);
+        var right = new Pane();
+        right.Add(tab);
+        Split(left, right);
+    }
+
+    // Can't split when already split (v1 is two panes max), nor split off the only tab (the source would empty).
+    private bool CanSplitRight(Page? tab) => !IsSplit && tab is not null && (OwningPane(tab)?.Pages.Count ?? 0) >= 2;
+
+    /// <summary>Splits the tab area, adding an empty right-hand pane.</summary>
+    [RelayCommand(CanExecute = nameof(CanSplitEmpty))]
+    private void SplitEmpty() => Split(RootPane, new Pane());
+
+    private bool CanSplitEmpty() => !IsSplit;
+
+    private void Split(Pane left, Pane right)
+    {
+        RootPaneNode = new SplitPaneNode(left, right);
+        FocusedPane  = right;
+    }
+
+    /// <summary>Collapses the split back to one pane, moving <paramref name="pane"/>'s tabs into the survivor.</summary>
+    [RelayCommand(CanExecute = nameof(CanClosePane))]
+    private void ClosePane(Pane pane)
+    {
+        if (RootPaneNode is not SplitPaneNode split) return;
+        var keep = ReferenceEquals(split.First, pane) ? split.Second : split.First;
+        foreach (var p in pane.Pages.ToList())   // remove-then-add so each PaneView releases/adopts the control
+        {
+            pane.Remove(p);
+            keep.Add(p);
+        }
+        Collapse(keep);
+    }
+
+    private bool CanClosePane(Pane? pane) => IsSplit && pane is not null;
+
+    /// <summary>Moves <paramref name="tab"/> into <paramref name="target"/> (a pane in this same window).</summary>
+    private void MoveTabToPane(Page tab, Pane target)
+    {
+        var source = OwningPane(tab);
+        if (source is null || ReferenceEquals(source, target)) return;
+        source.Remove(tab);
+        target.Add(tab);
+        FocusedPane = target;
+        CollapseEmptyPane();                     // dragging out the last tab collapses the source pane
+    }
+
+    // Drops back to a single pane when a split leaf has emptied (last tab closed / torn off / dragged away).
+    private void CollapseEmptyPane()
+    {
+        if (RootPaneNode is not SplitPaneNode split) return;
+        if (split.First.Pages.Count == 0)       Collapse(split.Second);
+        else if (split.Second.Pages.Count == 0) Collapse(split.First);
+    }
+
+    private void Collapse(Pane survivor)
+    {
+        RootPaneNode = survivor;
+        FocusedPane  = survivor;
+    }
+
+    /// <summary>Marks <paramref name="pane"/> the focused pane — new tabs and AI context route here.
+    /// Fired by a <see cref="Controls.PaneView"/> when the user clicks or focuses into it.</summary>
+    [RelayCommand]
+    private void PaneActivated(Pane pane)
+    {
+        if (pane is not null) FocusedPane = pane;
+    }
 
     // ── Ribbon (shell-side: just "open a page from a ribbon item") ────────
 

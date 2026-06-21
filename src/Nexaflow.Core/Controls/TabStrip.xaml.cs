@@ -40,6 +40,31 @@ public partial class TabStrip : UserControl
     public static readonly DependencyProperty ReceiveTabCommandProperty =
         DependencyProperty.Register(nameof(ReceiveTabCommand), typeof(ICommand), typeof(TabStrip));
 
+    /// <summary>The pane this strip renders — used as the command parameter for pane-scoped actions
+    /// (split / close pane / focus-on-drop).</summary>
+    public static readonly DependencyProperty PaneProperty =
+        DependencyProperty.Register(nameof(Pane), typeof(ViewModels.Pane), typeof(TabStrip));
+
+    /// <summary>"Split right" (parameter = the Page).</summary>
+    public static readonly DependencyProperty SplitTabCommandProperty =
+        DependencyProperty.Register(nameof(SplitTabCommand), typeof(ICommand), typeof(TabStrip));
+
+    /// <summary>"Split" with an empty pane (no parameter).</summary>
+    public static readonly DependencyProperty SplitEmptyCommandProperty =
+        DependencyProperty.Register(nameof(SplitEmptyCommand), typeof(ICommand), typeof(TabStrip));
+
+    /// <summary>"Close pane" (parameter = the Pane).</summary>
+    public static readonly DependencyProperty ClosePaneCommandProperty =
+        DependencyProperty.Register(nameof(ClosePaneCommand), typeof(ICommand), typeof(TabStrip));
+
+    /// <summary>"Close except this" (parameter = the kept Page).</summary>
+    public static readonly DependencyProperty CloseOthersCommandProperty =
+        DependencyProperty.Register(nameof(CloseOthersCommand), typeof(ICommand), typeof(TabStrip));
+
+    /// <summary>Marks this strip's pane the focused one (parameter = the Pane).</summary>
+    public static readonly DependencyProperty PaneActivatedCommandProperty =
+        DependencyProperty.Register(nameof(PaneActivatedCommand), typeof(ICommand), typeof(TabStrip));
+
     public ObservableCollection<Page>? Tabs
     {
         get => (ObservableCollection<Page>?)GetValue(TabsProperty);
@@ -70,6 +95,36 @@ public partial class TabStrip : UserControl
         get => (ICommand?)GetValue(ReceiveTabCommandProperty);
         set => SetValue(ReceiveTabCommandProperty, value);
     }
+    public ViewModels.Pane? Pane
+    {
+        get => (ViewModels.Pane?)GetValue(PaneProperty);
+        set => SetValue(PaneProperty, value);
+    }
+    public ICommand? SplitTabCommand
+    {
+        get => (ICommand?)GetValue(SplitTabCommandProperty);
+        set => SetValue(SplitTabCommandProperty, value);
+    }
+    public ICommand? SplitEmptyCommand
+    {
+        get => (ICommand?)GetValue(SplitEmptyCommandProperty);
+        set => SetValue(SplitEmptyCommandProperty, value);
+    }
+    public ICommand? ClosePaneCommand
+    {
+        get => (ICommand?)GetValue(ClosePaneCommandProperty);
+        set => SetValue(ClosePaneCommandProperty, value);
+    }
+    public ICommand? CloseOthersCommand
+    {
+        get => (ICommand?)GetValue(CloseOthersCommandProperty);
+        set => SetValue(CloseOthersCommandProperty, value);
+    }
+    public ICommand? PaneActivatedCommand
+    {
+        get => (ICommand?)GetValue(PaneActivatedCommandProperty);
+        set => SetValue(PaneActivatedCommandProperty, value);
+    }
 
     public TabStrip()
     {
@@ -78,6 +133,11 @@ public partial class TabStrip : UserControl
         Drop      += TabStrip_Drop;
         DragOver  += TabStrip_DragOver;
         OverflowPopup.CustomPopupPlacementCallback = PlaceOverflowPopup;
+
+        // Empty-area right-click → "Split" / "Close pane". Tab borders carry their own menu (built in
+        // BuildTabElement) and take precedence when the click lands on a tab.
+        ContextMenu = new ContextMenu();
+        ContextMenuOpening += OnStripContextMenuOpening;
     }
 
     // Anchor the dropdown's right edge to the button's right edge so it opens inward and stays
@@ -304,27 +364,73 @@ public partial class TabStrip : UserControl
             CloseTabCommand?.Execute(tab);
         };
 
-        // Right-click menu — quick pin / tear-off without dragging.
+        // Right-click menu — rebuilt on each open so the split / close-pane items reflect the live pane state.
         var menu = new ContextMenu();
-        var pinItem = new MenuItem { Header = "Pin to Ribbon" };
-        pinItem.Click += (_, _) =>
+        border.ContextMenu = menu;
+        border.ContextMenuOpening += (_, _) => PopulateTabMenu(menu, tab);
+
+        return border;
+    }
+
+    // ── Context menus ─────────────────────────────────────────────────────
+
+    private void PopulateTabMenu(ContextMenu menu, Page tab)
+    {
+        menu.Items.Clear();
+
+        int splitGroup = menu.Items.Count;
+        AddIfExecutable(menu, "Split right",       SplitTabCommand,    tab);
+        AddIfExecutable(menu, "Close except this", CloseOthersCommand, tab);
+        if (menu.Items.Count > splitGroup) menu.Items.Add(new Separator());
+
+        AddPinItem(menu, tab);
+        menu.Items.Add(MakeItem("Open in New Window", TearOffTabCommand, tab));
+        AddIfExecutable(menu, "Close pane", ClosePaneCommand, Pane);
+    }
+
+    // Strip background (not on a tab): offer "Split" when unsplit, "Close pane" when split.
+    private void OnStripContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (IsWithinTab(e.OriginalSource)) return;   // a tab was clicked — its own menu handles it
+
+        var menu = ContextMenu!;
+        menu.Items.Clear();
+        AddIfExecutable(menu, "Split",      SplitEmptyCommand, null);
+        AddIfExecutable(menu, "Close pane", ClosePaneCommand,  Pane);
+        if (menu.Items.Count == 0) e.Handled = true;  // nothing applicable → suppress the empty menu
+    }
+
+    private static bool IsWithinTab(object? source)
+    {
+        var d = source as DependencyObject;
+        while (d is not null)
+        {
+            if (d is TabBorder) return true;
+            d = VisualTreeHelper.GetParent(d);
+        }
+        return false;
+    }
+
+    private void AddPinItem(ContextMenu menu, Page tab)
+    {
+        var item = new MenuItem { Header = "Pin to Ribbon" };
+        item.Click += (_, _) =>
         {
             var req = new TabPinRequest(tab);
             if (PinTabToRibbonCommand?.CanExecute(req) == true)
                 PinTabToRibbonCommand.Execute(req);
         };
-        var newWindowItem = new MenuItem { Header = "Open in New Window" };
-        newWindowItem.Click += (_, _) =>
-        {
-            if (TearOffTabCommand?.CanExecute(tab) == true)
-                TearOffTabCommand.Execute(tab);
-        };
-        menu.Items.Add(pinItem);
-        menu.Items.Add(newWindowItem);
-        border.ContextMenu = menu;
-
-        return border;
+        menu.Items.Add(item);
     }
+
+    private static void AddIfExecutable(ContextMenu menu, string header, ICommand? command, object? param)
+    {
+        if (command?.CanExecute(param) == true)
+            menu.Items.Add(MakeItem(header, command, param));
+    }
+
+    private static MenuItem MakeItem(string header, ICommand? command, object? param)
+        => new() { Header = header, Command = command, CommandParameter = param };
 
     private UIElement BuildOverflowItem(Page tab)
     {
@@ -376,6 +482,11 @@ public partial class TabStrip : UserControl
 
         // If the tab already belongs to this strip, nothing to do
         if (Tabs?.Contains(tab) == true) return;
+
+        // Focus this strip's pane first so the receive lands here — whether the tab comes from another
+        // pane of this window (a cross-pane move) or from another window (a cross-window move).
+        if (Pane is not null && PaneActivatedCommand?.CanExecute(Pane) == true)
+            PaneActivatedCommand.Execute(Pane);
 
         if (ReceiveTabCommand?.CanExecute(tab) == true)
             ReceiveTabCommand.Execute(tab);

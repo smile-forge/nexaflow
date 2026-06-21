@@ -1,0 +1,56 @@
+<UserControl x:Class="Nexaflow.Core.Controls.SplitPaneView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctrl="clr-namespace:Nexaflow.Core.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             x:Name="SplitRoot"
+             SizeChanged="OnSizeChanged">
+    <!-- Two panes side by side. Each binds its Pane to the SplitPaneNode's First/Second and pulls the
+         shared tab commands from the window's ShellViewModel (a DataTemplate can't see it by element name).
+         Column MinWidths are kept at 30% of the width in code-behind so neither pane can be dragged smaller. -->
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition x:Name="LeftColumn"  Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition x:Name="RightColumn" Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <ctrl:PaneView Grid.Column="0"
+                       Pane="{Binding First}"
+                       ActivateTabCommand="{Binding DataContext.ActivateTabCommand,        RelativeSource={RelativeSource AncestorType=Window}}"
+                       CloseTabCommand="{Binding DataContext.CloseTabCommand,               RelativeSource={RelativeSource AncestorType=Window}}"
+                       PinTabToRibbonCommand="{Binding DataContext.PinTabToRibbonCommand,   RelativeSource={RelativeSource AncestorType=Window}}"
+                       TearOffTabCommand="{Binding DataContext.TearOffTabCommand,           RelativeSource={RelativeSource AncestorType=Window}}"
+                       ReceiveTabCommand="{Binding DataContext.ReceiveTabCommand,           RelativeSource={RelativeSource AncestorType=Window}}"
+                       OpenPageCommand="{Binding DataContext.OpenPageCommand,               RelativeSource={RelativeSource AncestorType=Window}}"
+                       SplitTabCommand="{Binding DataContext.SplitRightCommand,             RelativeSource={RelativeSource AncestorType=Window}}"
+                       SplitEmptyCommand="{Binding DataContext.SplitEmptyCommand,           RelativeSource={RelativeSource AncestorType=Window}}"
+                       ClosePaneCommand="{Binding DataContext.ClosePaneCommand,             RelativeSource={RelativeSource AncestorType=Window}}"
+                       CloseOthersCommand="{Binding DataContext.CloseOthersInPaneCommand,   RelativeSource={RelativeSource AncestorType=Window}}"
+                       PaneActivatedCommand="{Binding DataContext.PaneActivatedCommand,     RelativeSource={RelativeSource AncestorType=Window}}"/>
+
+        <GridSplitter Grid.Column="1"
+                      Width="4"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch"
+                      ResizeBehavior="PreviousAndNext"
+                      ResizeDirection="Columns"
+                      Background="{DynamicResource TabStrip.Border}"/>
+
+        <ctrl:PaneView Grid.Column="2"
+                       Pane="{Binding Second}"
+                       ActivateTabCommand="{Binding DataContext.ActivateTabCommand,        RelativeSource={RelativeSource AncestorType=Window}}"
+                       CloseTabCommand="{Binding DataContext.CloseTabCommand,               RelativeSource={RelativeSource AncestorType=Window}}"
+                       PinTabToRibbonCommand="{Binding DataContext.PinTabToRibbonCommand,   RelativeSource={RelativeSource AncestorType=Window}}"
+                       TearOffTabCommand="{Binding DataContext.TearOffTabCommand,           RelativeSource={RelativeSource AncestorType=Window}}"
+                       ReceiveTabCommand="{Binding DataContext.ReceiveTabCommand,           RelativeSource={RelativeSource AncestorType=Window}}"
+                       OpenPageCommand="{Binding DataContext.OpenPageCommand,               RelativeSource={RelativeSource AncestorType=Window}}"
+                       SplitTabCommand="{Binding DataContext.SplitRightCommand,             RelativeSource={RelativeSource AncestorType=Window}}"
+                       SplitEmptyCommand="{Binding DataContext.SplitEmptyCommand,           RelativeSource={RelativeSource AncestorType=Window}}"
+                       ClosePaneCommand="{Binding DataContext.ClosePaneCommand,             RelativeSource={RelativeSource AncestorType=Window}}"
+                       CloseOthersCommand="{Binding DataContext.CloseOthersInPaneCommand,   RelativeSource={RelativeSource AncestorType=Window}}"
+                       PaneActivatedCommand="{Binding DataContext.PaneActivatedCommand,     RelativeSource={RelativeSource AncestorType=Window}}"/>
+    </Grid>
+</UserControl>

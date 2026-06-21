@@ -32,6 +32,27 @@
         <cv:StringToVisibilityConverter      x:Key="StringVis"/>
         <cv:ColorStringToBrushConverter      x:Key="ColorStringToBrush"/>
 
+        <!-- ── Pane tree: a lone Pane renders as one PaneView; a SplitPaneNode as two side by side.
+             Each PaneView pulls the shared tab commands from this window's ShellViewModel. ── -->
+        <DataTemplate DataType="{x:Type vm:Pane}">
+            <ctrl:PaneView Pane="{Binding}"
+                           ActivateTabCommand="{Binding DataContext.ActivateTabCommand,        RelativeSource={RelativeSource AncestorType=Window}}"
+                           CloseTabCommand="{Binding DataContext.CloseTabCommand,               RelativeSource={RelativeSource AncestorType=Window}}"
+                           PinTabToRibbonCommand="{Binding DataContext.PinTabToRibbonCommand,   RelativeSource={RelativeSource AncestorType=Window}}"
+                           TearOffTabCommand="{Binding DataContext.TearOffTabCommand,           RelativeSource={RelativeSource AncestorType=Window}}"
+                           ReceiveTabCommand="{Binding DataContext.ReceiveTabCommand,           RelativeSource={RelativeSource AncestorType=Window}}"
+                           OpenPageCommand="{Binding DataContext.OpenPageCommand,               RelativeSource={RelativeSource AncestorType=Window}}"
+                           SplitTabCommand="{Binding DataContext.SplitRightCommand,             RelativeSource={RelativeSource AncestorType=Window}}"
+                           SplitEmptyCommand="{Binding DataContext.SplitEmptyCommand,           RelativeSource={RelativeSource AncestorType=Window}}"
+                           ClosePaneCommand="{Binding DataContext.ClosePaneCommand,             RelativeSource={RelativeSource AncestorType=Window}}"
+                           CloseOthersCommand="{Binding DataContext.CloseOthersInPaneCommand,   RelativeSource={RelativeSource AncestorType=Window}}"
+                           PaneActivatedCommand="{Binding DataContext.PaneActivatedCommand,     RelativeSource={RelativeSource AncestorType=Window}}"/>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:SplitPaneNode}">
+            <ctrl:SplitPaneView/>
+        </DataTemplate>
+
         <!-- ── Window caption (min/max/close) buttons ── -->
         <Style x:Key="CaptionButton" TargetType="Button">
             <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
@@ -222,15 +243,9 @@
              PaneView renders the tab strip + breadcrumb + active page.
              The shell hands it the root Pane and the cross-pane commands.
              ═══════════════════════════════════════════════════════════ -->
-        <ctrl:PaneView Grid.Row="2"
-                       x:Name="RootPaneView"
-                       Pane="{Binding RootPane}"
-                       ActivateTabCommand="{Binding ActivateTabCommand}"
-                       CloseTabCommand="{Binding CloseTabCommand}"
-                       PinTabToRibbonCommand="{Binding ViewModel.PinCommand, ElementName=RibbonControl}"
-                       TearOffTabCommand="{Binding TearOffTabCommand}"
-                       ReceiveTabCommand="{Binding ReceiveTabCommand}"
-                       OpenPageCommand="{Binding OpenPageCommand}"/>
+        <ContentControl Grid.Row="2"
+                        x:Name="RootPaneHost"
+                        Content="{Binding RootPaneNode}"/>
 
         <!-- ═══════════════════════════════════════════════════════════
              OVERLAY — AI RESPONSE (modal over the page only)
