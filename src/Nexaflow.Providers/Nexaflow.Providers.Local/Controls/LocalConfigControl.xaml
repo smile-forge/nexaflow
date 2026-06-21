@@ -1,0 +1,208 @@
+<UserControl x:Class="Nexaflow.Providers.Local.Controls.LocalConfigControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <UserControl.Resources>
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontSize"   Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin"     Value="0,0,0,4"/>
+        </Style>
+
+        <Style x:Key="FieldBox" TargetType="TextBox">
+            <Setter Property="Background"      Value="{StaticResource DeepBgBrush}"/>
+            <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
+            <Setter Property="CaretBrush"      Value="{StaticResource TextBrush}"/>
+            <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding"         Value="6,4"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="GridButton" TargetType="Button">
+            <Setter Property="Padding"         Value="12,4"/>
+            <Setter Property="Margin"          Value="0,0,6,0"/>
+            <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
+            <Setter Property="Background"      Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background"  Value="{StaticResource Surface2Brush}"/>
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CellText" TargetType="TextBlock">
+            <Setter Property="Foreground"        Value="{StaticResource TextBrush}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextTrimming"      Value="CharacterEllipsis"/>
+            <Setter Property="Margin"            Value="8,0"/>
+        </Style>
+        <Style x:Key="CellEditor" TargetType="TextBox">
+            <Setter Property="Background"      Value="{StaticResource DeepBgBrush}"/>
+            <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
+            <Setter Property="CaretBrush"      Value="{StaticResource TextBrush}"/>
+            <Setter Property="BorderBrush"     Value="{StaticResource AccentBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding"         Value="6,0"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel Margin="12">
+
+        <!-- Models folder -->
+        <TextBlock Text="Models folder" Style="{StaticResource FieldLabel}"/>
+        <DockPanel Margin="0,0,0,12">
+            <Button DockPanel.Dock="Right" Content="Browse…" Click="Browse_Click"
+                    Style="{StaticResource GridButton}" Margin="6,0,0,0"/>
+            <TextBox x:Name="ModelsDirBox" Text="{Binding ModelsDir, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}"/>
+        </DockPanel>
+
+        <!-- Live catalog path: the file the app actually reads (edits to the source copy don't reach a seeded folder). -->
+        <DockPanel Margin="0,0,0,12">
+            <Button DockPanel.Dock="Right" Content="Reset to bundled" Click="ResetCatalog_Click"
+                    Style="{StaticResource GridButton}" Margin="6,0,0,0"
+                    ToolTip="Overwrite the live catalog.json with the version shipped in this build."/>
+            <TextBlock x:Name="CatalogPathText" Style="{StaticResource FieldLabel}" Margin="0" VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"
+                       ToolTip="The app reads this catalog.json. Edit THIS file (not the copy in source) to change model repos/filenames."/>
+        </DockPanel>
+
+        <!-- Context size + GPU layers -->
+        <Grid Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="Context window (0 = model default)" Style="{StaticResource FieldLabel}"/>
+                <TextBox x:Name="ContextSizeBox" Text="{Binding ContextSize, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}"/>
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="GPU layers (-1 = all, 0 = CPU)" Style="{StaticResource FieldLabel}"/>
+                <TextBox x:Name="GpuLayersBox" Text="{Binding GpuLayerCount, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Acceleration status (does this host run on GPU or CPU?) -->
+        <TextBlock x:Name="AccelStatusText" Style="{StaticResource FieldLabel}" Margin="0,0,0,2" TextWrapping="Wrap"/>
+        <TextBlock x:Name="CudaLinkText" Margin="0,0,0,14" Visibility="Collapsed" FontSize="11">
+            <Hyperlink NavigateUri="https://developer.nvidia.com/cuda-toolkit-archive"
+                       RequestNavigate="CudaLink_RequestNavigate"
+                       Foreground="{StaticResource AccentBrush}">
+                <Run Text="Install the CUDA Toolkit 12.x to enable GPU acceleration"/>
+            </Hyperlink>
+        </TextBlock>
+
+        <CheckBox x:Name="ThinkingBox" Content="Thinking mode" IsChecked="{Binding ThinkingMode}"
+                  Foreground="{StaticResource TextBrush}" Margin="0,0,0,14"/>
+
+        <!-- Server-side tools -->
+        <TextBlock Text="Server-side tools" Style="{StaticResource FieldLabel}"/>
+        <ItemsControl x:Name="ToolsList" Margin="0,0,0,14">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <CheckBox Content="{Binding Name}" IsChecked="{Binding Enabled}"
+                              Foreground="{StaticResource TextBrush}" Margin="0,2"/>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- MCP servers -->
+        <TextBlock Text="MCP servers (server-side tool sources)" Style="{StaticResource FieldLabel}"/>
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+            <Button Content="Add"    Click="AddMcp_Click"    Style="{StaticResource GridButton}"/>
+            <Button Content="Remove" Click="RemoveMcp_Click" Style="{StaticResource GridButton}"/>
+        </StackPanel>
+        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                Background="{StaticResource SurfaceBrush}" Height="150" ClipToBounds="True">
+            <DataGrid x:Name="McpGrid"
+                      AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                      CanUserReorderColumns="False" CanUserResizeRows="False"
+                      HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                      Background="Transparent" BorderThickness="0" RowBackground="Transparent"
+                      SelectionUnit="FullRow" FontSize="12"
+                      Foreground="{StaticResource TextBrush}"
+                      HorizontalGridLinesBrush="{StaticResource BorderBrush}"
+                      ColumnHeaderHeight="28" RowHeight="28">
+                <DataGrid.ColumnHeaderStyle>
+                    <Style TargetType="DataGridColumnHeader">
+                        <Setter Property="Background"      Value="{StaticResource DeepBgBrush}"/>
+                        <Setter Property="Foreground"      Value="{StaticResource TextMutedBrush}"/>
+                        <Setter Property="FontSize"        Value="11"/>
+                        <Setter Property="FontWeight"      Value="SemiBold"/>
+                        <Setter Property="Padding"         Value="8,0"/>
+                        <Setter Property="VerticalContentAlignment" Value="Center"/>
+                        <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
+                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                    </Style>
+                </DataGrid.ColumnHeaderStyle>
+                <DataGrid.CellStyle>
+                    <Style TargetType="DataGridCell">
+                        <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
+                        <Setter Property="Background"      Value="Transparent"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter Property="Background" Value="{StaticResource DeepBgBrush}"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.CellStyle>
+                <DataGrid.RowStyle>
+                    <Style TargetType="DataGridRow">
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="{StaticResource Surface2Brush}"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.RowStyle>
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Name" Width="140"
+                                        Binding="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                        ElementStyle="{StaticResource CellText}" EditingElementStyle="{StaticResource CellEditor}"/>
+                    <DataGridTextColumn Header="Command / URL" Width="*"
+                                        Binding="{Binding Command, UpdateSourceTrigger=PropertyChanged}"
+                                        ElementStyle="{StaticResource CellText}" EditingElementStyle="{StaticResource CellEditor}"/>
+                    <DataGridTextColumn Header="Arguments" Width="160"
+                                        Binding="{Binding Arguments, UpdateSourceTrigger=PropertyChanged}"
+                                        ElementStyle="{StaticResource CellText}" EditingElementStyle="{StaticResource CellEditor}"/>
+                    <DataGridTemplateColumn Header="On" Width="48" CanUserSort="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <CheckBox IsChecked="{Binding Enabled, UpdateSourceTrigger=PropertyChanged}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+        <TextBlock Text="MCP tool execution is not wired up yet — entries are saved for a future update."
+                   Foreground="{StaticResource TextMutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"/>
+
+    </StackPanel>
+</UserControl>
