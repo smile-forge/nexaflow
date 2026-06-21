@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <!-- Win10 SDK moniker: the WindowsApps feature uses WinRT (Store package APIs); the host must
@@ -12,9 +12,9 @@
     <Company>Smile-Forge</Company>
     <Product>Nexaflow</Product>
     <Description>Nexaflow is an open-source Windows shell replacement</Description>
-    <AssemblyVersion>0.9.1.0</AssemblyVersion>
-    <FileVersion>0.9.1.0</FileVersion>
-    <Version>0.9.1</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.0.0</Version>
     <NeutralLanguage>en</NeutralLanguage>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>Nexacore</AssemblyName>

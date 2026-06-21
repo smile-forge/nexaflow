@@ -1,26 +1,35 @@
 # What's New in Nexaflow
 
-Thanks for updating! Here's what changed in v0.9.x
+Welcome to **Nexaflow 1.0** — our inaugural stable release! 🎉
+
+Here's everything that landed since v0.9.1.
 
 ### 🚀 New Features
-*   **WindowsApps Manager**: Added a new manager for installed Windows applications, including a new "add page" dropdown in the ribbon for easier navigation.
-*   **SystemInfo Dashboard**: A brand new dashboard feature has been implemented to provide system information at a glance.
-*   **Services Manager**: A new manager for Windows services has been added, allowing users to easily view and manage their services.
-*   **Registry Manager**: A new manager for the Windows registry has been introduced, allowing viewing and editing registry keys.
-*   **System Environment Variables Manager**: A new manager for system environment variables has been introduced, making it easier to view and edit environment variables directly from Nexaflow.
-*   **.NET Folder Viewlets**: Introduced specialized viewlets for .NET folders, allowing for more integrated development workflows.
+*   **Process Explorer**: A live process tree with per-process detail tabs (including a dedicated Handles tab), AI tools, and elevated kill / priority actions.
+*   **Image Viewer**: A new four-mode viewer — carousel, album, explore, and collage — launched straight from folder actions.
+*   **Real Terminal Console**: The console is now a proper terminal with smart command/AI routing, configurable per-location environments (master/detail config with visible defaults), and a shared core ready for a PowerShell sibling.
+*   **Workspaces**: A reworked workspace selector lets you create new workspaces and manage identity, deletion, and export right from the Configure panel.
+*   **File-Association Wizard**: A "Define New" wizard for mapping file types, plus criteria-based external-app launching.
+
+### ✍️ Markdown & Diagrams
+The markdown editor now renders a huge range of Mermaid diagrams natively:
+*   Kanban boards, class & requirement diagrams, quadrant charts, sequence, gantt, gitgraph, mindmap, and state diagrams.
+*   Flowchart chains, fan-out, nested subgraphs, and diamond ports.
+*   Richer text: emphasis extras, abbreviations, alerts, and YAML front matter — all on top of the shared inline editor with polished editing UX.
 
 ### 🤖 AI & Context Enhancements
-The integration between the file system and the AI assistant has been significantly deepened:
-*   **Context-Aware Viewlets**: Folder viewlets (including the new .NET viewlet) can now feed context and tools directly to the AI, making it much more aware of your project structure.
-*   **AIChat Upgrades**: The AIChat interface now supports inline agent runs, a pluggable response handler, and a much richer set of available tools.
-*   **Improved Responsiveness**: The AI bar has been decoupled from background activity, ensuring that UI responsiveness isn't impacted by heavy processing tasks.
+*   **Console ↔ AI**: The terminal is wired into the assistant — an inline banner, command routing, and output capture feed straight back to the AI.
+*   **Process Insight**: Process Explorer exposes its data to the AI, so you can ask about what's running on your machine.
 
-### 🛠️ Bug Fixes & Improvements
-*   Fixed issues with project deletion and scratchpad stability.
-*   General build optimizations and stability improvements.
-*	Conversation improvements
-*	Agent updates
+### 🎨 Look & Feel
+*   New **Gothic** dynamic theme.
+*   Rename ribbon buttons via right-click and the edit overlay.
+*   A new **About** page in Options.
 
+### 🛠️ Improvements & Bug Fixes
+*   The file explorer loads folders off the UI thread, so the list stays responsive in large directories.
+*   The web tab survives a missing WebView2 runtime and offers to open your default browser instead.
+*   Smoother startup window handling, plus new-file creation, refresh, and selection fixes in the file browser.
+*   Under the hood: features now marshal UI work through the shell (no direct dispatcher access), theme resources are frozen once merged, and shared file-watching / encoding / formatting utilities cut duplication across the app.
 
-Press **Next** to continue.
+Thank you for being part of our 1.0 launch. Press **Next** to continue.

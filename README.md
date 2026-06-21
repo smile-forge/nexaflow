@@ -1,149 +1,74 @@
 # Nexaflow
 
-A modern rethink of the app-centric tooling we've lived with for years.
+**Your whole Windows workflow — in one window, with AI built in.**
 
-Nexaflow is an open-source Windows shell replacement that consolidates the tools you reach for every day — file explorer, terminal, text editor, markdown editor, image viewer, project management — into a single tabbed environment with first-class AI assistance baked in. No more context-switching between a dozen single-purpose windows.
+Nexaflow replaces the scattered pile of single-purpose apps you open every day — file explorer, terminal, editors, viewers, project tracker — with one fast, tabbed workspace. And it has an AI assistant that actually *sees* what you're working on, so help is always one question away.
 
+![Version 1.0.0](https://img.shields.io/badge/version-1.0.0-brightgreen)
 ![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)
 ![Platform: Windows](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)
 ![.NET 10](https://img.shields.io/badge/.NET-10.0-purple)
 
 ---
 
-## Why Nexaflow?
+## Why you'll like it
 
-The default Windows experience hasn't fundamentally changed in decades. Windows Explorer, Notepad, and the terminal are separate apps with no shared context, no integrated intelligence, and no cohesion. Nexaflow treats all of these as *tabs* in one coherent workspace — and adds an AI layer that understands what you're looking at.
+The default Windows experience hasn't really changed in decades. Explorer, Notepad, and the terminal are separate islands — no shared context, no intelligence, constant alt-tabbing. Nexaflow brings them together as **tabs in one coherent workspace**, then adds an AI layer that understands the tab you're looking at and the project you're in.
 
----
-
-## Features
-
-### Windows Filesystem
-
-Navigate your drive from a built-in file tree. Open any file as the right kind of tab — markdown files open in the editor, images in the viewer, directories in the explorer — without leaving the app.
-
-### Terminal
-
-A full pseudo-terminal (PTY) tab with ANSI/VT support, command history, and interactive shell integration. Type `>` in the AI bar to send a command directly to the active console.
-
-### Markdown Editor
-
-Write and preview Markdown with live rendering, including LaTeX formula support via WpfMath.
-
-### Image Viewer
-
-Single and batch image viewing as a native tab.
-
-### Text Editor
-
-Lightweight plain-text editor tab for quick edits without shelling out to Notepad.
-
-### Log Viewer
-
-Tail and inspect log files with filtering, as a tab. Built for large files — recent lines stream in first.
-
-### JSON Viewer
-
-Browse large JSON documents with seek-by-item windowing, so multi-gigabyte files open instantly.
-
-### Tabular Viewer
-
-CSV / TSV / fixed-width data as a tab, with automatic shape detection and column transforms.
-
-### Hex / Binary Viewer
-
-Inspect any file byte-for-byte in a hex viewer.
-
-### Windows Search
-
-Full-text file search backed by the Windows Search index, with AI-powered query refinement.
-
-### Windows Apps Manager
-
-Browse and manage installed Windows applications, surfaced as a tab and queryable through the AI bar.
-
-### System Info Dashboard
-
-A system-information dashboard at a glance — hardware, services, and environment variables (the latter two via an elevated privilege bridge).
-
-### Process Explorer
-
-A live process tree with per-process details (threads, modules, handles, performance) in vertical tabs. Kill or re-prioritise a process — escalating through the elevated privilege bridge when the action needs it — and query it all through the AI bar.
-
-### Windows Registry Editor
-
-Browse and edit the Windows registry as a tab, with AI tools for reading and (approval-gated) writing keys and values.
-
-### Scratchpad
-
-A virtual corkboard for temporary notes. Post-its auto-expire, can be pinned, and support multiple shapes and colours on an infinite canvas.
-
-### Project Management
-
-Lightweight project tracking built for developers. Each project lives as a simple `.project` file. Backlog items have a 9-state workflow and the system generates `.aisummary` files to give the AI instant context on what you're working on.
-
-### Integrated Context-Aware AI
-
-An AI input bar lives at the bottom of every window. Ask questions, get answers, issue commands — the AI knows which tab is active and what project you're in. It runs as an agent: multi-step, tool-using turns with client-side tools and an approval step before anything mutating happens. Provider support includes a local Aria service, Ollama (local models), Claude (Anthropic), Google Gemini, and OpenAI — assigned per *ability* so different tasks can use different models.
-
-### AI Chat
-
-A dedicated conversation tab that browses your saved chat history, with inline agent runs and a rich set of available tools.
-
-### Folder Viewlets (Git & .NET)
-
-Open a folder and Nexaflow surfaces context panels for what it contains — a Git panel for repositories, a .NET panel for projects/solutions. These viewlets feed both context *and* tools straight to the AI, so it understands your repo and project structure without being told.
-
-### Web Viewer
-
-An embedded Chromium tab (WebView2) for opening URLs and local HTML files without leaving the workspace.
-
-### Customisable Ribbon
-
-Add, remove, and reorder toolbar buttons. The layout persists across sessions.
+- **One window, no juggling.** Open a file and it lands in the right tool automatically — markdown opens in the editor, images in the viewer, a folder in the explorer.
+- **An assistant that has context.** Ask a question in the AI bar at the bottom of any window. It knows what's on screen and can take action for you, with your approval.
+- **Fast, even with big files.** Multi-gigabyte logs, JSON, and data tables open instantly thanks to smart windowed loading.
+- **Yours to shape.** A customisable ribbon, themes, and saved workspaces that persist across sessions.
+- **Free and open.** Public-domain licensed. No accounts, no telemetry, no lock-in.
 
 ---
 
-## Getting Started
+## What's inside
 
-### Prerequisites
+**📂 Files & search**
+A built-in file tree, full-text Windows Search with AI query refinement, and folder "viewlets" that recognise Git repos and .NET projects — feeding that context straight to the assistant.
 
-- Windows 10 or Windows 11
-- [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- Optional, for AI features: an Aria service, an Ollama installation, or an API key for Claude, Gemini, or OpenAI
+**📝 Editors & viewers**
+A live Markdown editor (LaTeX formulas *and* native Mermaid diagrams), a quick text editor, plus dedicated viewers for images (carousel / album / explore / collage), logs, JSON, CSV/TSV tables, hex/binary, and web pages.
 
-### Build & Run
+**⌨️ Terminal & system tools**
+A real terminal (PTY) with shell integration, a live Process Explorer, an installed-apps manager, a system-info dashboard, and a registry editor — with elevated actions handled safely through a privilege bridge.
+
+**🗂️ Stay organised**
+Lightweight project tracking with a backlog workflow, a virtual corkboard Scratchpad for notes, and multiple workspaces you can switch between.
+
+**🤖 AI everywhere**
+An AI input bar on every window, a dedicated AI Chat tab with saved history, and agentic, tool-using turns that always ask before doing anything that changes your files. Bring your own provider — Claude, Google Gemini, OpenAI, local models via Ollama, or an Aria service — and assign different models to different tasks.
+
+---
+
+## Get Nexaflow
+
+**[⬇️ Download the latest release](https://github.com/smile-forge/nexaflow/releases/latest)**
+
+You'll need **Windows 10 or 11**. AI features are optional and work with whichever provider you choose — a local model via Ollama, or an API key for Claude, Gemini, or OpenAI.
+
+On first launch, Nexaflow opens its Options panel so you can pick an AI provider and set your projects folder. That's it — start opening tabs.
+
+---
+
+## For developers
+
+Nexaflow is a .NET 10 / WPF app built on a strict, modular architecture — a thin shell that hosts independent feature and provider modules. Building from source is two commands:
 
 ```bash
 git clone https://github.com/smile-forge/nexaflow.git
 cd nexaflow
-
 dotnet build Nexaflow.slnx
 dotnet run --project src/Nexaflow.Core/Nexaflow.Core.csproj
 ```
 
-On first launch the Options panel will open so you can choose your AI provider and set your projects root folder.
+If you're interested in how it all fits together — the shell/feature/provider layering, how to add a new tab, the theming system, and testing — start here:
 
----
-
-## Project Structure
-
-Nexaflow is split into three layers with strict dependency rules:
-
-- **Shell** (`Nexaflow.Core`) — window chrome, tab strip, ribbon bar, breadcrumb navigation, AI input bar. Hosts tabs but never renders them directly.
-- **Features** (`Nexaflow.Features.*`) — individual tab implementations. Each feature depends only on the shared contracts in `Nexaflow.Features.Common` and never on Core or other features.
-- **Providers** (`Nexaflow.Providers.*`) — LLM provider adapters (Aria, Claude, Gemini, Ollama, OpenAI). Independent of features; wired into the shell at startup.
-- **Shared libraries** — non-contract code features reuse: `Nexaflow.Visuals.*` (WPF controls, converters, size/duration formatters, markdown rendering) and `Nexaflow.IO.Common` (encoding/BOM detection, file-change watching).
-
-For a deep dive into the architecture and how to add new features see [docs/Architecture.md](docs/Architecture.md) and [docs/features.md](docs/features.md).
-
----
-
-## Configuration
-
-| Location | Purpose |
-|---|---|
-| `%APPDATA%\Smile\Nexaflow\` | Configuration, saved chats and other non-file content |
+- [docs/Architecture.md](docs/Architecture.md) — the big picture, ownership & lifetime, dependency rules
+- [docs/features.md](docs/features.md) — how a feature is built and registered
+- [docs/theming.md](docs/theming.md) — the layered theme system
+- [docs/testing.md](docs/testing.md) — the test projects and how to run them
 
 ---
 
@@ -151,19 +76,25 @@ For a deep dive into the architecture and how to add new features see [docs/Arch
 
 - [ ] **Local native models** — ONNX / DirectML in-process inference
 - [ ] **Syntax-highlighted code editor**
-- [ ] **Improved input handling** — multi-modal input (image paste, file drop to AI bar) and richer query routing
-- [ ] **Expanded AI capabilities** — per-project memory and inline AI suggestions inside editors
-- [ ] **Expanded search with RAG** — semantic search across local files and project content using a local embedding index, retrieval-augmented answers in the AI bar
+- [ ] **Richer input** — image paste and file-drop straight to the AI bar
+- [ ] **Expanded AI** — per-project memory and inline suggestions inside editors
+- [ ] **Semantic search (RAG)** — a local embedding index for retrieval-augmented answers
 - [ ] **Multi-monitor awareness and saved workspace layouts**
 
 ---
 
-## Contributing
+## Contributing & community
 
-Nexaflow is in active development and welcomes contributions. Please open an issue before starting significant work so we can coordinate.
+Contributions are welcome! Please read:
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — how to get set up and submit changes
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — the standards we hold the community to
+- [SECURITY.md](SECURITY.md) — how to report a security concern
+
+The short version: open an issue before starting significant work so we can coordinate.
 
 ---
 
 ## License
 
-This is free and unencumbered software released into the public domain. See [LICENSE.txt](LICENSE.txt) for details.
+Nexaflow is free and unencumbered software released into the **public domain**. Use it, modify it, ship it — for any purpose. See [LICENSE.txt](LICENSE.txt) for details.
