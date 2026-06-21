@@ -14,6 +14,10 @@ namespace Nexaflow.Features.Processes.Services;
 /// </summary>
 public sealed class LiveProcessSource : IProcessSource, IDisposable
 {
+    // Snapshot() and ReadDetail() are driven from background threads (the view models call them via
+    // Task.Run), so every read/write of the shared caches below is serialised through _gate. The
+    // expensive I/O (process enumeration, version-info reads, WMI) deliberately stays outside the lock.
+    private readonly object _gate = new();
     private readonly Dictionary<int, Process> _procs = new();
     private readonly Dictionary<int, (TimeSpan cpu, long ts)> _cpu = new();
     private readonly Dictionary<int, ProcMeta> _meta = new();
@@ -144,58 +148,83 @@ public sealed class LiveProcessSource : IProcessSource, IDisposable
     // ── CPU delta (shared by Snapshot + ReadDetail) ──────────────────────────
     private double CpuDelta(int pid, TimeSpan cpuNow, long nowTicks, int cores)
     {
-        double cpu = _cpu.TryGetValue(pid, out var prev)
-            ? CpuMath.Percent(prev.cpu, cpuNow, prev.ts, nowTicks, Stopwatch.Frequency, cores)
-            : 0;
-        _cpu[pid] = (cpuNow, nowTicks);
-        return cpu;
+        lock (_gate)
+        {
+            double cpu = _cpu.TryGetValue(pid, out var prev)
+                ? CpuMath.Percent(prev.cpu, cpuNow, prev.ts, nowTicks, Stopwatch.Frequency, cores)
+                : 0;
+            _cpu[pid] = (cpuNow, nowTicks);
+            return cpu;
+        }
     }
 
     private double ComputeSystemCpu()
     {
         var (idle, kernel, user) = NativeMethods.ReadSystemTimes();
-        double result = 0;
-        if (_prevSys is { } prev)
+        lock (_gate)
         {
-            ulong dIdle  = idle - prev.idle;
-            ulong dTotal = (kernel + user) - (prev.kernel + prev.user);
-            if (dTotal > 0) result = Math.Clamp((1.0 - (double)dIdle / dTotal) * 100.0, 0, 100);
+            double result = 0;
+            if (_prevSys is { } prev)
+            {
+                ulong dIdle  = idle - prev.idle;
+                ulong dTotal = (kernel + user) - (prev.kernel + prev.user);
+                if (dTotal > 0) result = Math.Clamp((1.0 - (double)dIdle / dTotal) * 100.0, 0, 100);
+            }
+            _prevSys = (idle, kernel, user);
+            return result;
         }
-        _prevSys = (idle, kernel, user);
-        return result;
     }
 
     // ── Process-handle cache ──────────────────────────────────────────────────
     private Process? GetOrOpen(int pid)
     {
-        if (_procs.TryGetValue(pid, out var p)) return p;
-        try
+        lock (_gate)
         {
-            var np = Process.GetProcessById(pid);
+            if (_procs.TryGetValue(pid, out var p)) return p;
+        }
+
+        Process np;
+        try { np = Process.GetProcessById(pid); }   // open the handle outside the lock
+        catch { return null; }
+
+        lock (_gate)
+        {
+            if (_procs.TryGetValue(pid, out var existing)) { np.Dispose(); return existing; } // lost the race
             _procs[pid] = np;
             return np;
         }
-        catch { return null; }
     }
 
     private void PruneDead(HashSet<int> live)
     {
-        foreach (var k in _procs.Keys.Where(k => !live.Contains(k)).ToList())
+        lock (_gate)
         {
-            try { _procs[k].Dispose(); } catch { /* may have vanished */ }
-            _procs.Remove(k);
+            foreach (var k in _procs.Keys.Where(k => !live.Contains(k)).ToList())
+            {
+                try { _procs[k].Dispose(); } catch { /* may have vanished */ }
+                _procs.Remove(k);
+            }
+            foreach (var k in _cpu.Keys.Where(k => !live.Contains(k)).ToList())  _cpu.Remove(k);
+            foreach (var k in _meta.Keys.Where(k => !live.Contains(k)).ToList()) _meta.Remove(k);
         }
-        foreach (var k in _cpu.Keys.Where(k => !live.Contains(k)).ToList())  _cpu.Remove(k);
-        foreach (var k in _meta.Keys.Where(k => !live.Contains(k)).ToList()) _meta.Remove(k);
     }
 
     // ── Metadata (cached per PID) ─────────────────────────────────────────────
     private ProcMeta GetMeta(int pid, Process? proc)
     {
-        if (_meta.TryGetValue(pid, out var m)) return m;
-        m = ReadMeta(proc);
-        _meta[pid] = m;
-        return m;
+        lock (_gate)
+        {
+            if (_meta.TryGetValue(pid, out var m)) return m;
+        }
+
+        var meta = ReadMeta(proc);   // version-info read happens outside the lock
+
+        lock (_gate)
+        {
+            if (_meta.TryGetValue(pid, out var existing)) return existing;  // lost the race
+            _meta[pid] = meta;
+            return meta;
+        }
     }
 
     private static ProcMeta ReadMeta(Process? proc)
@@ -307,10 +336,13 @@ public sealed class LiveProcessSource : IProcessSource, IDisposable
 
     public void Dispose()
     {
-        foreach (var p in _procs.Values) { try { p.Dispose(); } catch { } }
-        _procs.Clear();
-        _cpu.Clear();
-        _meta.Clear();
+        lock (_gate)
+        {
+            foreach (var p in _procs.Values) { try { p.Dispose(); } catch { } }
+            _procs.Clear();
+            _cpu.Clear();
+            _meta.Clear();
+        }
     }
 
     private sealed class ProcMeta
