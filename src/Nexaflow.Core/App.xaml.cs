@@ -260,13 +260,23 @@ public partial class App : Application
     private static MainWindow EnsureConfiguredThenCreateWindow(
         BackgroundActivityManager activityManager, Profile profile, bool activate)
     {
+        // The wizard honours CenterScreen and lands on the active monitor; capture that monitor's work
+        // area so the main window opens on the SAME monitor (it otherwise takes the OS default
+        // placement, which falls back to the primary monitor).
+        Rect? wizardMonitor = null;
+
         if (!_setupShown)
         {
             _setupShown = true;
 
             var wizard = SetupWizardViewModel.Build(profile);
             if (wizard is not null)
-                new SetupWizardWindow(wizard).ShowDialog();   // modal; returns on Finish / Skip / close
+            {
+                var wizardWin = new SetupWizardWindow(wizard);
+                // Closing fires while the HWND is still alive, so the monitor is still resolvable.
+                wizardWin.Closing += (_, _) => wizardMonitor = WindowManager.GetWorkAreaForWindow(wizardWin);
+                wizardWin.ShowDialog();   // modal; returns on Finish / Skip / close
+            }
 
             StampLastRunVersion();
         }
@@ -275,9 +285,23 @@ public partial class App : Application
         ws.ShellServices!.CreateWindowFactory = MakeWindowFactory(activityManager, ws);
 
         var win = new MainWindow(activityManager, ws);
+        CenterOnMonitor(win, wizardMonitor);
         win.Show();
         if (activate) win.Activate();
         return win;
+    }
+
+    /// <summary>
+    /// Centres <paramref name="win"/> within <paramref name="workArea"/> (a monitor's work area in WPF
+    /// logical px) so it opens on that monitor. No-op when <paramref name="workArea"/> is null — the
+    /// window then keeps the OS default placement.
+    /// </summary>
+    private static void CenterOnMonitor(Window win, Rect? workArea)
+    {
+        if (workArea is not { } work) return;
+        win.WindowStartupLocation = WindowStartupLocation.Manual;
+        win.Left = work.Left + Math.Max(0, (work.Width  - win.Width)  / 2);
+        win.Top  = work.Top  + Math.Max(0, (work.Height - win.Height) / 2);
     }
 
     /// <summary>Records the current version so the next launch can detect an update (drives What's New).</summary>

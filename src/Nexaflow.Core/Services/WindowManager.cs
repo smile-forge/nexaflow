@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Interop;
 
 namespace Nexaflow.Core.Services;
 
@@ -72,6 +73,31 @@ public static class WindowManager
         return (physPt.X / scale, physPt.Y / scale, hMon, scale, work);
     }
 
+    /// <summary>
+    /// Returns the work area (WPF logical px) of the monitor that <paramref name="win"/> currently
+    /// occupies, or null if it has no native handle yet. Lets a follow-up window open on the same
+    /// monitor as the one that is closing (e.g. the setup wizard → main window). Call while the
+    /// window's HWND is still alive (e.g. from its <c>Closing</c> handler).
+    /// </summary>
+    internal static Rect? GetWorkAreaForWindow(Window win)
+    {
+        var hwnd = new WindowInteropHelper(win).Handle;
+        if (hwnd == IntPtr.Zero) return null;
+
+        var hMon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        GetDpiForMonitor(hMon, MDT_EFFECTIVE_DPI, out uint dpiX, out uint _);
+        double scale = dpiX / 96.0;
+
+        var mi = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        GetMonitorInfo(hMon, ref mi);
+
+        return new Rect(
+            mi.rcWork.Left   / scale,
+            mi.rcWork.Top    / scale,
+            (mi.rcWork.Right  - mi.rcWork.Left) / scale,
+            (mi.rcWork.Bottom - mi.rcWork.Top)  / scale);
+    }
+
     // ── P/Invoke ──────────────────────────────────────────────────────────
 
     [StructLayout(LayoutKind.Sequential)]
@@ -97,6 +123,9 @@ public static class WindowManager
 
     [DllImport("user32.dll")]
     internal static extern IntPtr MonitorFromPoint(POINT pt, uint dwFlags);
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
 
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     internal static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
