@@ -33,12 +33,18 @@
                 <ctrl:TabStrip x:Name="TabStripControl"
                                Grid.Column="1"
                                AutomationProperties.AutomationId="TabStrip"
+                               Pane="{Binding Pane, ElementName=PaneRoot}"
                                Tabs="{Binding Pane.Pages, ElementName=PaneRoot}"
                                ActivateTabCommand="{Binding ActivateTabCommand, ElementName=PaneRoot}"
                                CloseTabCommand="{Binding CloseTabCommand, ElementName=PaneRoot}"
                                PinTabToRibbonCommand="{Binding PinTabToRibbonCommand, ElementName=PaneRoot}"
                                TearOffTabCommand="{Binding TearOffTabCommand, ElementName=PaneRoot}"
-                               ReceiveTabCommand="{Binding ReceiveTabCommand, ElementName=PaneRoot}"/>
+                               ReceiveTabCommand="{Binding ReceiveTabCommand, ElementName=PaneRoot}"
+                               SplitTabCommand="{Binding SplitTabCommand, ElementName=PaneRoot}"
+                               SplitEmptyCommand="{Binding SplitEmptyCommand, ElementName=PaneRoot}"
+                               ClosePaneCommand="{Binding ClosePaneCommand, ElementName=PaneRoot}"
+                               CloseOthersCommand="{Binding CloseOthersCommand, ElementName=PaneRoot}"
+                               PaneActivatedCommand="{Binding PaneActivatedCommand, ElementName=PaneRoot}"/>
             </Grid>
         </Border>
 
