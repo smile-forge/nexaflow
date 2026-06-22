@@ -1,6 +1,8 @@
 using System.IO;
+using System.Text.Json.Nodes;
 using System.Windows;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Scratchpad;
 using Nexaflow.Features.Scratchpad.Models;
 using Nexaflow.Features.Scratchpad.Services;
@@ -318,10 +320,94 @@ public class ScratchpadViewModelTests
     }
 
     [TestMethod]
-    public void GetClientTools_ReturnsEmpty()
+    public void GetClientTools_ExposesReadOnlyNoteTools()
     {
         using var vm = NewVm();
-        Assert.AreEqual(0, ((IPageViewModel)vm).GetClientTools().Count);
+        var tools = ((IPageViewModel)vm).GetClientTools();
+        var names = tools.Select(t => t.Name).ToList();
+        CollectionAssert.Contains(names, "scratchpad_list_notes");
+        CollectionAssert.Contains(names, "scratchpad_read_notes");
+        Assert.IsTrue(tools.All(t => t.Safety == ToolSafety.ReadOnly));
+    }
+
+    private IClientTool Tool(ScratchpadViewModel vm, string name)
+        => ((IPageViewModel)vm).GetClientTools().First(t => t.Name == name);
+
+    [TestMethod]
+    public async Task ReadNotes_FiltersByColour()
+    {
+        _store.Save(new PostItNote { Content = "buy milk",   Color = "Green"  });
+        _store.Save(new PostItNote { Content = "call alice", Color = "Yellow" });
+        using var vm = NewVm();
+
+        var result = await Tool(vm, "scratchpad_read_notes")
+            .InvokeAsync(new JsonObject { ["color"] = "green" }, default);   // case-insensitive
+
+        Assert.IsTrue(result.Success);
+        StringAssert.Contains(result.ModelText, "buy milk");
+        Assert.IsFalse(result.ModelText.Contains("call alice"));
+    }
+
+    [TestMethod]
+    public async Task ListNotes_ReportsColourShapeAndOneLinePreview()
+    {
+        _store.Save(new PostItNote { Content = "first line\nsecond line", Color = "Green", Shape = "SpeechBubble" });
+        using var vm = NewVm();
+
+        var result = await Tool(vm, "scratchpad_list_notes").InvokeAsync(new JsonObject(), default);
+
+        StringAssert.Contains(result.ModelText, "Green");
+        StringAssert.Contains(result.ModelText, "SpeechBubble");
+        StringAssert.Contains(result.ModelText, "first line");
+        Assert.IsFalse(result.ModelText.Contains("second line"));   // preview is the first line only
+    }
+
+    [TestMethod]
+    public async Task ReadNotes_EmptyBoard_SaysSo()
+    {
+        using var vm = NewVm();
+        var result = await Tool(vm, "scratchpad_read_notes").InvokeAsync(new JsonObject(), default);
+        StringAssert.Contains(result.ModelText, "no notes");
+    }
+
+    [TestMethod]
+    public async Task AddNote_CreatesFixedWhiteDiagonalNote()
+    {
+        using var vm = NewVm();
+        var tool = Tool(vm, "scratchpad_add_note");
+        Assert.AreEqual(ToolSafety.ReadOnly, tool.Safety);   // auto-runs, no approval
+
+        var result = await tool.InvokeAsync(new JsonObject { ["content"] = "remember the milk" }, default);
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(1, vm.Notes.Count);
+        var note = vm.Notes[0];
+        Assert.AreEqual("remember the milk", note.Content);
+        Assert.AreEqual("White", note.Color);              // AI notes have a fixed appearance
+        Assert.AreEqual("DiagonalsRounded", note.Shape);
+    }
+
+    [TestMethod]
+    public async Task AddNote_EmptyContent_IsRejected()
+    {
+        using var vm = NewVm();
+        var result = await Tool(vm, "scratchpad_add_note").InvokeAsync(new JsonObject { ["content"] = "  " }, default);
+
+        Assert.IsTrue(result.IsError);
+        Assert.AreEqual(0, vm.Notes.Count);
+    }
+
+    [TestMethod]
+    public void GetContext_PopulatedBoard_ListsColourBreakdown()
+    {
+        _store.Save(new PostItNote { Color = "Green" });
+        _store.Save(new PostItNote { Color = "Green" });
+        _store.Save(new PostItNote { Color = "Yellow" });
+        using var vm = NewVm();
+
+        var context = vm.GetContext();
+        StringAssert.Contains(context, "3 note");
+        StringAssert.Contains(context, "2 Green");
     }
 
     [TestMethod]

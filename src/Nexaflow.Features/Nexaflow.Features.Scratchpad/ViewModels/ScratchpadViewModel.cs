@@ -1,6 +1,8 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.Scratchpad.ClientTools;
 using Nexaflow.Features.Scratchpad.Models;
 using Nexaflow.Features.Scratchpad.Services;
 using System.Collections.ObjectModel;
@@ -189,6 +191,23 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
         return vm;
     }
 
+    /// <summary>Creates a board note from the AI: the given content on a fixed white, diagonally-rounded
+    /// note — a consistent look so AI-authored notes are easy to spot. Placed near the current viewport
+    /// centre with a slight cascade so successive notes don't perfectly overlap. Returns its snapshot.</summary>
+    public NoteSnapshot AddNoteFromAi(string content)
+    {
+        var basePt  = ViewportCenter();
+        var cascade = Notes.Count % 8;
+        var note    = CreateNoteAt(new Point(basePt.X + cascade * 24, basePt.Y + cascade * 24), content);
+        note.Color  = "White";
+        note.Shape  = "DiagonalsRounded";
+
+        _store.Save(note);
+        var vm = AddNoteViewModel(note);
+        UpdateStatus();
+        return ToSnapshot(vm);
+    }
+
     /// <summary>Sizes a note so a freshly added image fits without clipping, capped and aspect-preserved.</summary>
     private static void SizeNoteToImage(PostItNote note, string imagePath)
     {
@@ -362,8 +381,50 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
 
     public string GetContext()
     {
-        var count = Notes.Count;
-        return count == 0 ? "Scratchpad: empty." : $"Scratchpad: {count} note(s).";
+        if (Notes.Count == 0) return "Scratchpad: empty.";
+
+        // A per-colour breakdown so the model knows what's on the board before reading anything
+        // (e.g. it can act on "look at the green notes" directly).
+        var byColour = Notes.GroupBy(n => n.Color)
+                            .OrderByDescending(g => g.Count())
+                            .Select(g => $"{g.Count()} {g.Key}");
+        return $"Scratchpad: {Notes.Count} note(s) ({string.Join(", ", byColour)}).";
     }
 
+    public IReadOnlyList<IClientTool> GetClientTools() =>
+    [
+        new ScratchpadListNotesTool(this),
+        new ScratchpadReadNotesTool(this),
+        new ScratchpadAddNoteTool(this),
+    ];
+
+    public string GetAiSystemPromptGuidance() =>
+        "This is a scratchpad of sticky notes — each has a colour, a shape and markdown content. Use " +
+        "scratchpad_list_notes to see what's on the board, scratchpad_read_notes to read note content, and " +
+        "scratchpad_add_note to add one. Reads can be filtered by colour (Yellow/Blue/Green/Pink/Orange/" +
+        "Purple/White) or shape, so a request like \"look at the green notes\" maps to a colour filter.";
+
+    /// <summary>Snapshot of the notes currently on the board (excludes the recycle bin), front-most first,
+    /// for the read-only AI tools. A copy, so the tools never touch the live UI collection.</summary>
+    public IReadOnlyList<NoteSnapshot> SnapshotNotes()
+        => Notes.OrderByDescending(n => n.ZIndex).Select(ToSnapshot).ToList();
+
+    private static NoteSnapshot ToSnapshot(PostItViewModel n) => new(
+        n.Note.Id.ToString("N")[..8],
+        n.Color, n.Shape, n.IsPinned, TimeLeftText(n),
+        (int)n.X, (int)n.Y, (int)n.Width, (int)n.Height,
+        n.Content ?? string.Empty);
+
+    private static string TimeLeftText(PostItViewModel n)
+    {
+        if (n.IsPinned || n.ExpiresAt is not { } exp) return "pinned";
+        var rem = exp - DateTimeOffset.Now;
+        if (rem <= TimeSpan.Zero) return "expiring";
+        return rem.TotalHours >= 1 ? $"{(int)rem.TotalHours}h {rem.Minutes}m left" : $"{rem.Minutes}m left";
+    }
 }
+
+/// <summary>An at-a-glance view of one board note for the AI tools — id, appearance, placement, content.</summary>
+public sealed record NoteSnapshot(
+    string Id, string Color, string Shape, bool Pinned, string TimeLeft,
+    int X, int Y, int Width, int Height, string Content);
