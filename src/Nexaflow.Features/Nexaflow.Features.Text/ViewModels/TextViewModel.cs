@@ -3,6 +3,8 @@ using CommunityToolkit.Mvvm.Input;
 using ICSharpCode.AvalonEdit.Document;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.Text.Services;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
 using System.IO;
 using System.Text;
@@ -15,6 +17,11 @@ namespace Nexaflow.Features.Text.ViewModels;
 public sealed record EncodingOption(string Name, Encoding Encoding)
 {
     public override string ToString() => Name;
+}
+
+public sealed record SplitModeOption(SplitMode Mode, string Label)
+{
+    public override string ToString() => Label;
 }
 
 public sealed partial class TextViewModel : ObservableObject, IDisposable, IPageViewModel
@@ -54,6 +61,20 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     // ── Monitoring ────────────────────────────────────────────────────────────
 
     [ObservableProperty] private bool _isMonitoring = true;
+
+    // ── File splitting (the raw viewer turns a too-large file into editable chunks) ──
+
+    [ObservableProperty] private bool             _isSplitPanelOpen;
+    [ObservableProperty] private SplitModeOption  _selectedSplitMode;
+    [ObservableProperty] private string           _splitValue     = "1000";
+    [ObservableProperty] private string           _splitValueHint = "Lines per file";
+
+    public IReadOnlyList<SplitModeOption> SplitModes { get; } =
+    [
+        new(SplitMode.ByLineCount, "By line count"),
+        new(SplitMode.BySize,      "By size (MB)"),
+        new(SplitMode.ByRegex,     "At lines matching regex"),
+    ];
 
     // ── Search state ──────────────────────────────────────────────────────────
 
@@ -125,7 +146,8 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     public TextViewModel(string filePath, IShellServices shell)
     {
         _shell = shell;
-        _selectedEncoding = AvailableEncodings[0]; // UTF-8
+        _selectedEncoding  = AvailableEncodings[0]; // UTF-8
+        _selectedSplitMode = SplitModes[0];
         FilePath = filePath;
         FileName = Path.GetFileName(filePath);
     }
@@ -347,6 +369,58 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
             _watch?.Dispose();
             _watch = null;
         }
+    }
+
+    // ── File splitting ──────────────────────────────────────────────────────────
+
+    partial void OnSelectedSplitModeChanged(SplitModeOption value)
+        => (SplitValueHint, SplitValue) = value.Mode switch
+        {
+            SplitMode.BySize  => ("Megabytes per file",            "10"),
+            SplitMode.ByRegex => ("Regex — new file at each match", "^"),
+            _                 => ("Lines per file",                "1000"),
+        };
+
+    [RelayCommand]
+    private void ToggleSplitPanel() => IsSplitPanelOpen = !IsSplitPanelOpen;
+
+    [RelayCommand]
+    private void Split()
+    {
+        if (string.IsNullOrEmpty(FilePath) || !File.Exists(FilePath)) return;
+
+        SplitOptions options;
+        var mode = SelectedSplitMode.Mode;
+        switch (mode)
+        {
+            case SplitMode.BySize:
+                if (!double.TryParse(SplitValue, out var mb) || mb <= 0)
+                { _shell.ShowError("Enter a positive size in MB."); return; }
+                options = new SplitOptions { Mode = mode, MaxBytesPerPart = (long)(mb * 1024 * 1024) };
+                break;
+            case SplitMode.ByLineCount:
+                if (!int.TryParse(SplitValue, out var lines) || lines <= 0)
+                { _shell.ShowError("Enter a positive line count."); return; }
+                options = new SplitOptions { Mode = mode, LinesPerPart = lines };
+                break;
+            default:
+                if (string.IsNullOrWhiteSpace(SplitValue))
+                { _shell.ShowError("Enter a regex pattern."); return; }
+                try { _ = new Regex(SplitValue); }
+                catch { _shell.ShowError("Invalid regex pattern."); return; }
+                options = new SplitOptions { Mode = mode, BoundaryPattern = SplitValue };
+                break;
+        }
+
+        IsSplitPanelOpen = false;
+        var task = new SplitFileBackgroundTask(FilePath, options);
+        _shell.QueueBackgroundTask(task, ok =>
+        {
+            if (ok && task.Result is { OutputFiles.Count: > 0 } r)
+                _shell.ShowNotification($"Split '{FileName}' into {r.OutputFiles.Count} file(s).");
+            else if (ok)
+                _shell.ShowNotification($"'{FileName}' produced no output (empty file).");
+        });
     }
 
     // ── Search ────────────────────────────────────────────────────────────────

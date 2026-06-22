@@ -55,4 +55,17 @@
         <GradientStop Color="#E08BA8" Offset="1"/>
     </LinearGradientBrush>
 
+    <!-- Syntax palette — warm sandstone tones, readable on the umber glass. -->
+    <SolidColorBrush x:Key="TextSwatch.Comment"   Color="#9A8468"/>
+    <SolidColorBrush x:Key="TextSwatch.Keyword"   Color="#E08A4A"/>
+    <SolidColorBrush x:Key="TextSwatch.String"    Color="#D9B97A"/>
+    <SolidColorBrush x:Key="TextSwatch.Number"    Color="#C99A6A"/>
+    <SolidColorBrush x:Key="TextSwatch.Type"      Color="#E8C277"/>
+    <SolidColorBrush x:Key="TextSwatch.Constant"  Color="#CF7A4A"/>
+    <SolidColorBrush x:Key="TextSwatch.Function"  Color="#E8D2A8"/>
+    <SolidColorBrush x:Key="TextSwatch.Operator"  Color="#B7A793"/>
+    <SolidColorBrush x:Key="TextSwatch.Parameter" Color="#E0D2B8"/>
+    <SolidColorBrush x:Key="TextSwatch.Tag"       Color="#E08A4A"/>
+    <SolidColorBrush x:Key="TextSwatch.Attribute" Color="#E8C277"/>
+
 </ResourceDictionary>

@@ -54,6 +54,7 @@
   </Project>
   <Project Path="src/Nexaflow.Core/Nexaflow.Core.csproj" Id="eed52ce5-c185-4a39-af4b-8df86d69359a" />
   <Project Path="src/Nexaflow.IO.Common/Nexaflow.IO.Common.csproj" />
+  <Project Path="src/Nexaflow.Syntax/Nexaflow.Syntax.csproj" />
   <Project Path="src/Nexaflow.IO.Terminal/Nexaflow.IO.Terminal.csproj" />
   <Project Path="src/Nexaflow.Visuals.Common/Nexaflow.Visuals.Common.csproj" Id="0096f396-9079-4b5a-8288-f593e0c1cadd" />
   <Project Path="src/Nexaflow.Visuals.Terminal/Nexaflow.Visuals.Terminal.csproj" />

@@ -56,4 +56,17 @@
         <GradientStop Color="#DC6FC0" Offset="1"/>
     </LinearGradientBrush>
 
+    <!-- Syntax palette — woodland greens and honey gold, readable on the mossy glass. -->
+    <SolidColorBrush x:Key="TextSwatch.Comment"   Color="#7E9A6A"/>
+    <SolidColorBrush x:Key="TextSwatch.Keyword"   Color="#E0A93A"/>
+    <SolidColorBrush x:Key="TextSwatch.String"    Color="#B6D07A"/>
+    <SolidColorBrush x:Key="TextSwatch.Number"    Color="#D9C77E"/>
+    <SolidColorBrush x:Key="TextSwatch.Type"      Color="#74C79A"/>
+    <SolidColorBrush x:Key="TextSwatch.Constant"  Color="#E08A4E"/>
+    <SolidColorBrush x:Key="TextSwatch.Function"  Color="#CFE08A"/>
+    <SolidColorBrush x:Key="TextSwatch.Operator"  Color="#A6B89A"/>
+    <SolidColorBrush x:Key="TextSwatch.Parameter" Color="#A8C8D8"/>
+    <SolidColorBrush x:Key="TextSwatch.Tag"       Color="#E0A93A"/>
+    <SolidColorBrush x:Key="TextSwatch.Attribute" Color="#BFE0A0"/>
+
 </ResourceDictionary>

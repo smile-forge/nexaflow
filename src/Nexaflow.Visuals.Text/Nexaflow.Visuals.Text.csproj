@@ -13,6 +13,18 @@
     <PackageReference Include="HtmlAgilityPack" Version="1.12.4" />
     <PackageReference Include="Markdig" Version="1.3.1" />
     <PackageReference Include="WpfMath" Version="2.1.0" />
+    <!-- Editor surface (Editor/): the read-write Edit Text host. -->
+    <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Editor base VM needs IShellServices/IPageViewModel (contracts), the encoding/transform leaves,
+         and the shared formatters. None of these reference Visuals.Text, so there is no cycle. -->
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
+    <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <ProjectReference Include="..\Nexaflow.Syntax\Nexaflow.Syntax.csproj" />
+    <ProjectReference Include="..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
   </ItemGroup>
 
 </Project>

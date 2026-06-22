@@ -59,8 +59,11 @@ feature views still bind these directly, and that's fine (see *Feature participa
 
 > **No tone-named colour keys.** The palette is deliberately structural/neutral — there is **no**
 > `GreenBrush`/`OrangeBrush`. A "green" or "amber" need is a *purpose*: use the semantic
-> tokens `SuccessBrush` / `WarningBrush` / `DangerBrush` (Tokens.xaml), or the categorical `Swatch.*`
-> bank for syntax/series colours. This keeps callers from reaching for a tone when they mean a meaning.
+> tokens `SuccessBrush` / `WarningBrush` / `DangerBrush` (Tokens.xaml), the categorical `Swatch.*`
+> bank for series/category colours, or the role-named `TextSwatch.*` palette
+> (`TextSwatch.Keyword`/`String`/`Comment`/…) for code syntax highlighting. This keeps callers from
+> reaching for a tone when they mean a meaning. Both `Swatch.*` and `TextSwatch.*` default in
+> `Tokens.xaml` (tuned for dark) and are art-directed per theme in `Theme.<name>.xaml`.
 
 ### Region tokens (layer 2)
 

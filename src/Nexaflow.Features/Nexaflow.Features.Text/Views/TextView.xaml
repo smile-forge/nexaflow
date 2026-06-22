@@ -92,6 +92,17 @@
                         </StackPanel>
                     </Button>
 
+                    <Separator Style="{StaticResource TbSep}"/>
+
+                    <Button Style="{StaticResource TbBtn}"
+                            Command="{Binding ToggleSplitPanelCommand}"
+                            ToolTip="Split this file into smaller files">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⧉" FontSize="12" Margin="0,0,4,0"/>
+                            <TextBlock Text="Split" FontSize="11"/>
+                        </StackPanel>
+                    </Button>
+
                 </StackPanel>
                 <!-- Centered search indicator (overlays both columns when active) -->
                 <Border Grid.Column="0" Grid.ColumnSpan="2"
@@ -188,6 +199,58 @@
                 <TextBlock Text="{Binding FileChangedMessage}"
                            Foreground="#FFFF00"
                            FontSize="12"/>
+            </Border>
+
+            <!-- Split panel: turns a too-large file into smaller, editable files -->
+            <Border Grid.Column="0"
+                    VerticalAlignment="Top"
+                    HorizontalAlignment="Right"
+                    Margin="0,4,8,0"
+                    Background="{StaticResource Surface2Brush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="8,6"
+                    Visibility="{Binding IsSplitPanelOpen, Converter={StaticResource BoolVis}}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Split"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource TextBrush}"
+                               FontSize="11"
+                               Margin="0,0,8,0"/>
+                    <ComboBox Style="{StaticResource DarkComboBox}"
+                              ItemsSource="{Binding SplitModes}"
+                              SelectedItem="{Binding SelectedSplitMode}"
+                              Width="150"
+                              VerticalAlignment="Center"
+                              Margin="0,0,8,0"/>
+                    <TextBox Style="{StaticResource DarkTextBox}"
+                             Text="{Binding SplitValue, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="{Binding SplitValueHint}"
+                             Width="120"
+                             VerticalAlignment="Center"
+                             Margin="0,0,6,0"/>
+                    <TextBlock Text="{Binding SplitValueHint}"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               FontSize="10"
+                               MaxWidth="170"
+                               TextTrimming="CharacterEllipsis"
+                               Margin="0,0,8,0"/>
+                    <Button Style="{StaticResource TbBtn}"
+                            Command="{Binding SplitCommand}"
+                            Padding="8,3"
+                            Margin="0,0,4,0"
+                            ToolTip="Split now">
+                        <TextBlock Text="Split" FontSize="11"/>
+                    </Button>
+                    <Button Style="{StaticResource TbBtn}"
+                            Command="{Binding ToggleSplitPanelCommand}"
+                            Padding="6,3"
+                            ToolTip="Close">
+                        <TextBlock Text="✕" FontSize="10"/>
+                    </Button>
+                </StackPanel>
             </Border>
         </Grid>
 

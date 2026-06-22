@@ -54,4 +54,17 @@
     </LinearGradientBrush>
     <SolidColorBrush x:Key="PostIt.White.Header" Color="#ADBAD0"/>
 
+    <!-- Syntax palette — dark inks for the light editor canvas (VS Light family). -->
+    <SolidColorBrush x:Key="TextSwatch.Comment"   Color="#008000"/>
+    <SolidColorBrush x:Key="TextSwatch.Keyword"   Color="#0000FF"/>
+    <SolidColorBrush x:Key="TextSwatch.String"    Color="#A31515"/>
+    <SolidColorBrush x:Key="TextSwatch.Number"    Color="#098658"/>
+    <SolidColorBrush x:Key="TextSwatch.Type"      Color="#267F99"/>
+    <SolidColorBrush x:Key="TextSwatch.Constant"  Color="#0070C1"/>
+    <SolidColorBrush x:Key="TextSwatch.Function"  Color="#795E26"/>
+    <SolidColorBrush x:Key="TextSwatch.Operator"  Color="#383838"/>
+    <SolidColorBrush x:Key="TextSwatch.Parameter" Color="#001080"/>
+    <SolidColorBrush x:Key="TextSwatch.Tag"       Color="#800000"/>
+    <SolidColorBrush x:Key="TextSwatch.Attribute" Color="#E50000"/>
+
 </ResourceDictionary>

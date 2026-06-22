@@ -61,4 +61,17 @@
     </LinearGradientBrush>
     <SolidColorBrush x:Key="PostIt.White.Header" Color="#AEC2DC"/>
 
+    <!-- Syntax palette — dark, friendly inks readable on the white panels. -->
+    <SolidColorBrush x:Key="TextSwatch.Comment"   Color="#1F8A4C"/>
+    <SolidColorBrush x:Key="TextSwatch.Keyword"   Color="#1D4ED8"/>
+    <SolidColorBrush x:Key="TextSwatch.String"    Color="#B91C1C"/>
+    <SolidColorBrush x:Key="TextSwatch.Number"    Color="#0F766E"/>
+    <SolidColorBrush x:Key="TextSwatch.Type"      Color="#7C3AED"/>
+    <SolidColorBrush x:Key="TextSwatch.Constant"  Color="#B45309"/>
+    <SolidColorBrush x:Key="TextSwatch.Function"  Color="#9A6700"/>
+    <SolidColorBrush x:Key="TextSwatch.Operator"  Color="#44403C"/>
+    <SolidColorBrush x:Key="TextSwatch.Parameter" Color="#1E3A8A"/>
+    <SolidColorBrush x:Key="TextSwatch.Tag"       Color="#9D174D"/>
+    <SolidColorBrush x:Key="TextSwatch.Attribute" Color="#C2410C"/>
+
 </ResourceDictionary>
