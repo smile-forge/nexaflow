@@ -20,12 +20,19 @@ public static class NugetUpdateChecker
 {
     public sealed record PackageUpdate(string Name, string Current, string Latest);
 
-    public static async Task<IReadOnlyList<PackageUpdate>> CheckAsync(
+    /// <summary><see cref="Checked"/> distinguishes a real result (the command ran) from a non-result
+    /// (the target wasn't restored, so <c>dotnet list</c> failed) — only the former is worth caching.</summary>
+    public sealed record CheckResult(bool Checked, IReadOnlyList<PackageUpdate> Updates)
+    {
+        public static readonly CheckResult NotChecked = new(false, []);
+    }
+
+    public static async Task<CheckResult> CheckAsync(
         DotnetTarget target, string workingDir, CancellationToken ct)
     {
         var result = await DotnetCli.RunListOutdatedAsync(target, workingDir, ct);
         if (!result.Succeeded)
-            return [];
+            return CheckResult.NotChecked;
 
         var found = new List<PackageUpdate>();
         var seen  = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -49,6 +56,6 @@ public static class NugetUpdateChecker
                 found.Add(new PackageUpdate(name, current, latest));
         }
 
-        return found;
+        return new CheckResult(true, found);
     }
 }

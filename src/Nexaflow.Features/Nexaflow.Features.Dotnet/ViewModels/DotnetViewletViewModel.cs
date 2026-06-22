@@ -175,11 +175,16 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
             string.Equals(t.DisplayName, name, StringComparison.OrdinalIgnoreCase)) ?? SelectedTarget;
     }
 
-    /// <summary>Runs an on-demand outdated-package check for the selected target (read-only).</summary>
-    public Task<IReadOnlyList<NugetUpdateChecker.PackageUpdate>> CheckOutdatedAsync(CancellationToken ct)
-        => SelectedTarget is { } target
-            ? NugetUpdateChecker.CheckAsync(target, _folderPath, ct)
-            : Task.FromResult<IReadOnlyList<NugetUpdateChecker.PackageUpdate>>([]);
+    /// <summary>Runs an on-demand outdated-package check for the selected target (read-only). Always
+    /// fresh (the agent asked explicitly), but refreshes the shared daily cache on success.</summary>
+    public async Task<IReadOnlyList<NugetUpdateChecker.PackageUpdate>> CheckOutdatedAsync(CancellationToken ct)
+    {
+        if (SelectedTarget is not { } target) return [];
+        var result = await NugetUpdateChecker.CheckAsync(target, _folderPath, ct);
+        if (result.Checked)
+            NugetCheckCache.Store(target.Path, result.Updates);
+        return result.Updates;
+    }
 
     private static string Gerund(string verb) => verb switch
     {
@@ -209,6 +214,13 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
         _nugetCts = new CancellationTokenSource();
         var token = _nugetCts.Token;
 
+        // A recent result (checked < 24h ago) is reused as-is — no settle delay, no `dotnet list` process.
+        if (NugetCheckCache.TryGet(target.Path, out var cached))
+        {
+            ApplyUpdates(cached);
+            return;
+        }
+
         // Settle delay: while the user is traversing folders the view unloads (cancelling the token)
         // before this elapses, so we never launch a check for a folder just passed through.
         try { await Task.Delay(1500, token); }
@@ -218,8 +230,14 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
         _shell.QueueBackgroundTask(task, onComplete: _ =>
         {
             // onComplete runs on the UI thread; ignore a result whose target is no longer selected.
-            if (ReferenceEquals(task.Target, SelectedTarget))
+            if (!ReferenceEquals(task.Target, SelectedTarget)) return;
+            // Only a real result (the command ran) is cached/applied — a "not restored yet" failure is
+            // left uncached so the next visit re-checks once the target has been restored.
+            if (task.Checked)
+            {
+                NugetCheckCache.Store(task.Target.Path, task.Updates);
                 ApplyUpdates(task.Updates);
+            }
         }, ct: token);
     }
 

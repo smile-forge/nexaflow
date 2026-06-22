@@ -48,13 +48,21 @@ public static class DotnetCli
         return RunRawAsync(args, workingDir, onLine, ct);
     }
 
-    /// <summary>Runs <c>dotnet list &lt;target&gt; package --outdated</c>.</summary>
+    /// <summary>Runs <c>dotnet list &lt;target&gt; package --outdated</c>. This read-only check is short
+    /// and side-effect-free, so on cancellation it is abandoned (left to exit on its own) rather than
+    /// force-killed — a tree-kill here runs synchronously on the caller's (UI) thread and stalls folder
+    /// navigation, and throws a flurry of first-chance Win32Exceptions for transient child processes.</summary>
     public static Task<Result> RunListOutdatedAsync(
         DotnetTarget target, string workingDir, CancellationToken ct = default)
-        => RunRawAsync(["list", target.Path, "package", "--outdated"], workingDir, onLine: null, ct);
+        => RunRawAsync(["list", target.Path, "package", "--outdated"], workingDir, onLine: null, ct,
+                       killTreeOnCancel: false);
 
+    /// <param name="killTreeOnCancel">When true (build/run/test/clean), cancelling <paramref name="ct"/>
+    /// force-kills the process tree. When false, cancellation just stops waiting and the process is left
+    /// to exit naturally — see <see cref="RunListOutdatedAsync"/>.</param>
     private static async Task<Result> RunRawAsync(
-        IReadOnlyList<string> args, string workingDir, IProgress<string>? onLine, CancellationToken ct)
+        IReadOnlyList<string> args, string workingDir, IProgress<string>? onLine, CancellationToken ct,
+        bool killTreeOnCancel = true)
     {
         var psi = new ProcessStartInfo("dotnet")
         {
@@ -93,12 +101,13 @@ public static class DotnetCli
             return new Result(-1, $"Failed to start dotnet: {ex.Message}");
         }
 
-        // Caller cancellation (e.g. the user navigated away) kills the process tree; the
-        // WaitForExitAsync(ct) below then throws OperationCanceledException, which propagates.
-        using var killReg = ct.Register(() =>
-        {
-            try { proc.Kill(entireProcessTree: true); } catch { /* already gone */ }
-        });
+        // Caller cancellation (e.g. the user navigated away): for killable verbs, kill the process tree
+        // (the WaitForExitAsync(ct) below then throws OperationCanceledException, which propagates). For
+        // the read-only outdated check we register nothing — the process is abandoned, not killed, so
+        // Cancel() can't block the UI thread inside a tree-kill.
+        using var killReg = killTreeOnCancel
+            ? ct.Register(() => { try { proc.Kill(entireProcessTree: true); } catch { /* already gone */ } })
+            : default;
 
         // Watchdog: kill the process if it goes silent for InactivityTimeoutMs.
         var timedOut = false;

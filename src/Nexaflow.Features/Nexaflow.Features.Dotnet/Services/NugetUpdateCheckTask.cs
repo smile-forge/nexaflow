@@ -18,8 +18,15 @@ public sealed class NugetUpdateCheckTask(DotnetTarget target, string workingDir)
 
     public IReadOnlyList<NugetUpdateChecker.PackageUpdate> Updates { get; private set; } = [];
 
+    /// <summary>True when the check actually ran (vs. failing because the target wasn't restored).</summary>
+    public bool Checked { get; private set; }
+
     public string Description => $"Checking NuGet updates: {target.DisplayName}";
 
     public async Task RunAsync(CancellationToken ct)
-        => Updates = await NugetUpdateChecker.CheckAsync(target, workingDir, ct);
+    {
+        var result = await NugetUpdateChecker.CheckAsync(target, workingDir, ct);
+        Checked = result.Checked;
+        Updates = result.Updates;
+    }
 }
