@@ -46,6 +46,7 @@ public partial class InlineMarkdownEditor : UserControl
     private bool       _navQueued;
     private bool       _menuOpen;             // a context menu is open → don't treat the focus loss as leaving edit mode
     private Point?     _pendingClickPoint;    // where the last left-click landed, consumed by the deferred activation
+    private Point?     _dragArm;              // press point when it landed on the selection — a potential copy drag-out
     private bool       _renderPending;        // a RenderAll was requested while hidden → run it once the editor is shown
 
     // Block-model undo: a snapshot of (blocks, active block, caret-in-block) taken at the start of each
@@ -80,6 +81,7 @@ public partial class InlineMarkdownEditor : UserControl
         _rtb.PreviewTextInput  += OnPreviewTextInput;
         _rtb.PreviewKeyDown    += OnPreviewKeyDown;
         _rtb.PreviewMouseLeftButtonDown  += OnPreviewMouseLeftButtonDown;
+        _rtb.PreviewMouseMove            += OnPreviewMouseMove;   // pre-empt the native (move) drag-out with a copy
         _rtb.PreviewMouseRightButtonDown += OnPreviewMouseRightButtonDown;
         _rtb.PreviewMouseRightButtonUp   += OnPreviewMouseRightButtonUp;
         _rtb.PreviewDragEnter  += OnPreviewDrag;   // override the RichTextBox's native drag-drop, which
@@ -366,6 +368,15 @@ public partial class InlineMarkdownEditor : UserControl
     {
         _pendingClickPoint = null;
 
+        // Arm a copy-only drag-out when the press lands inside an existing selection (OnPreviewMouseMove
+        // turns it into a drag once it crosses the threshold). A press anywhere else is a normal click /
+        // drag-select and leaves _dragArm null.
+        _dragArm = null;
+        if (!_rtb.Selection.IsEmpty
+            && _rtb.GetPositionFromPoint(e.GetPosition(_rtb), snapToText: true) is { } hit
+            && hit.CompareTo(_rtb.Selection.Start) >= 0 && hit.CompareTo(_rtb.Selection.End) <= 0)
+            _dragArm = e.GetPosition(_rtb);
+
         if (EditOnDoubleClick)
         {
             if (e.ClickCount == 2)
@@ -453,6 +464,29 @@ public partial class InlineMarkdownEditor : UserControl
         if (last is null) return true;
         try { return pt.Y > last.ContentEnd.GetCharacterRect(LogicalDirection.Backward).Bottom; }
         catch { return false; }
+    }
+
+    // ── Drag-out (copy-only) ──────────────────────────────────────────────
+    // The block model is authoritative and WPF must never edit the document itself. The RichTextBox's
+    // built-in text drag does a MOVE — after the drop it deletes the dragged selection straight from the
+    // document, desyncing the model and crashing on the post-drop cleanup. Pre-empt it: once a press that
+    // landed on the selection (armed in OnPreviewMouseLeftButtonDown) crosses the drag threshold, run our
+    // own COPY drag. The external app still receives the text; the source document is never mutated.
+    private void OnPreviewMouseMove(object? sender, MouseEventArgs e)
+    {
+        if (_dragArm is not { } start || e.LeftButton != MouseButtonState.Pressed) { _dragArm = null; return; }
+
+        var now = e.GetPosition(_rtb);
+        if (Math.Abs(now.X - start.X) < SystemParameters.MinimumHorizontalDragDistance
+         && Math.Abs(now.Y - start.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+
+        _dragArm = null;
+        var md = SelectedMarkdown();
+        if (string.IsNullOrEmpty(md)) return;
+
+        e.Handled = true;   // pre-empt the RichTextBox's native (move) drag, which we start before it can
+        try { DragDrop.DoDragDrop(_rtb, new DataObject(DataFormats.UnicodeText, md), DragDropEffects.Copy); }
+        catch { /* a failed/aborted drag must never take the app down */ }
     }
 
     // ── Drag-and-drop onto the editor ─────────────────────────────────────

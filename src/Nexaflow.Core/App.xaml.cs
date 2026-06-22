@@ -19,6 +19,7 @@ using Nexaflow.Features.Web;
 using Nexaflow.Features.WindowsSearch;
 using System.IO;
 using System.Windows;
+using System.Windows.Threading;
 using Updatum;
 using StageKit.Runtime;
 
@@ -66,6 +67,9 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // Catch stray UI-thread exceptions so one bad event handler can't take the whole shell down.
+        DispatcherUnhandledException += OnDispatcherUnhandledException;
 
         bool prestart = e.Args.Any(a => string.Equals(a, "--prestart", StringComparison.OrdinalIgnoreCase));
         SkipSetup = e.Args.Any(a => string.Equals(a, "--skipSetup", StringComparison.OrdinalIgnoreCase));
@@ -243,6 +247,38 @@ public partial class App : Application
         VoiceManager.Instance.Dispose();
         _singleInstance.Dispose();
         base.OnExit(e);
+    }
+
+    /// <summary>
+    /// Last-resort handler for an unhandled exception on the UI thread: log it, tell the user, and mark it
+    /// handled so the shell stays open instead of terminating. A genuinely fatal fault will recur and leave
+    /// a trail in the crash log rather than vanishing with the process.
+    /// </summary>
+    private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+    {
+        try
+        {
+            var dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Smile", "nexaflow");
+            Directory.CreateDirectory(dir);
+            File.AppendAllText(Path.Combine(dir, "crash.log"),
+                $"[{DateTimeOffset.Now:O}] {e.Exception}{Environment.NewLine}{Environment.NewLine}");
+        }
+        catch { }
+
+        try
+        {
+            MessageCenter.Instance.Post(new NotificationItem
+            {
+                Title     = "Something went wrong",
+                Body      = "An unexpected error was caught and logged; the app stayed open. If this keeps happening, please report it.",
+                Severity  = MessageSeverity.Error,
+                ShowToast = true,
+            });
+        }
+        catch { }
+
+        e.Handled = true;
     }
 
     /// <summary>

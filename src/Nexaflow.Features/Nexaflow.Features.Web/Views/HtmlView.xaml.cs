@@ -38,6 +38,15 @@ public partial class HtmlView : UserControl, IPageView
 
         try
         {
+            // The default user-data folder is created next to the executable; under an installed build
+            // that's Program Files (read-only for a standard user) and init throws. Pin it to a per-user
+            // writable location — LocalAppData, since a browser cache is large and machine-specific.
+            WebView.CreationProperties = new Microsoft.Web.WebView2.Wpf.CoreWebView2CreationProperties
+            {
+                UserDataFolder = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "Smile", "nexaflow", "WebView2"),
+            };
             await WebView.EnsureCoreWebView2Async();
             var core = WebView.CoreWebView2
                 ?? throw new InvalidOperationException("WebView2 initialised without a CoreWebView2.");

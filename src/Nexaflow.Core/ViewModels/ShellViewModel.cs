@@ -149,14 +149,14 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         }
     }
 
-    partial void OnRootPaneNodeChanged(IPaneNode oldValue, IPaneNode newValue)
+    partial void OnRootPaneNodeChanged(IPaneNode? oldValue, IPaneNode newValue)
     {
         SubscribeLeafPanes();
         OnPropertyChanged(nameof(IsSplit));
         OnPropertyChanged(nameof(LeafPanes));
     }
 
-    partial void OnFocusedPaneChanged(Pane oldValue, Pane newValue)
+    partial void OnFocusedPaneChanged(Pane? oldValue, Pane newValue)
     {
         OnPropertyChanged(nameof(ActiveTab));
         OnPropertyChanged(nameof(CurrentPage));
