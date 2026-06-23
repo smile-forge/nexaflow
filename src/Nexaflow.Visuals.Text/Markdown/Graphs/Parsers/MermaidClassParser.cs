@@ -263,6 +263,17 @@ public sealed class MermaidClassParser : IGraphParser
         raw = raw.Trim();
         if (raw.Length == 0) return;
 
+        // A trailing " @@<url>" makes the row a navigable link (used by "As Code"). Peel it first — before
+        // the visibility/classifier parsing below — so the url is never mistaken for member syntax.
+        string? href = null;
+        int at = raw.IndexOf(" @@", StringComparison.Ordinal);
+        if (at >= 0)
+        {
+            href = raw[(at + 3)..].Trim();
+            raw  = raw[..at].TrimEnd();
+            if (raw.Length == 0) return;
+        }
+
         bool isStatic = false, isAbstract = false;
         if (raw.EndsWith('*'))      { isAbstract = true; raw = raw[..^1].TrimEnd(); }
         else if (raw.EndsWith('$')) { isStatic   = true; raw = raw[..^1].TrimEnd(); }
@@ -287,7 +298,7 @@ public sealed class MermaidClassParser : IGraphParser
             }
         }
 
-        var member = new ClassMember { Text = vis + text, IsStatic = isStatic, IsAbstract = isAbstract };
+        var member = new ClassMember { Text = vis + text, IsStatic = isStatic, IsAbstract = isAbstract, Href = href };
         (isMethod ? info.Methods : info.Attributes).Add(member);
     }
 

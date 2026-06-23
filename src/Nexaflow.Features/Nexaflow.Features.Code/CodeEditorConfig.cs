@@ -1,18 +1,18 @@
 using Nexaflow.Features.Common;
 
-namespace Nexaflow.Features.Text;
+namespace Nexaflow.Features.Code;
 
 /// <summary>
-/// Global settings for the read-write "Edit Text" editor. The editor loads the whole file into memory, so
-/// files larger than this ceiling open read-only (with a prompt to use As Raw Text or split them).
+/// Global settings for the "As Code" editor. The editor loads the whole file into memory, so files larger
+/// than this ceiling open read-only (with a prompt to view them As Text or split them).
 /// </summary>
-public sealed class TextEditorConfig : IFeatureConfig
+public sealed class CodeEditorConfig : IFeatureConfig
 {
-    public string ConfigName   => "texteditor";
-    public string FriendlyName => "Text Editor";
+    public string ConfigName   => "code";
+    public string FriendlyName => "Code Editor";
 
     [ConfigDisplayName("Max editable file size")]
-    [ListSource(typeof(TextEditorConfig), nameof(GetSizeOptions))]
+    [ListSource(typeof(CodeEditorConfig), nameof(GetSizeOptions))]
     public string MaxEditableFileSize { get; set; } = "50 MB";
 
     public static IEnumerable<string> GetSizeOptions() =>

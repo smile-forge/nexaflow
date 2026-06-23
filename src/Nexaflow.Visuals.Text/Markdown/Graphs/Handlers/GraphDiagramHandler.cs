@@ -20,7 +20,7 @@ public sealed class GraphDiagramHandler : IDiagramHandler
 
     public bool CanHandle(string language) => _parser.CanParse(language);
 
-    public FrameworkElement Render(string source, MarkdownPalette palette)
+    public FrameworkElement Render(string source, MarkdownPalette palette, Func<string, bool>? onNavigate = null)
     {
         var graph  = _parser.Parse(source);
         var layout = SugiyamaLayout.Compute(graph, preferredMaxWidth: 900);

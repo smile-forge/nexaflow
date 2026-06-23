@@ -35,6 +35,12 @@ public static class WpfGraphRenderer
     private static Brush StateFill      = Frozen(Color.FromRgb(0xE8, 0xEA, 0xF2));
     private static Brush NoteBg         = Frozen(Color.FromArgb(0x33, 0xF5, 0x9E, 0x0B));
     private static Brush NoteBorder     = Frozen(Color.FromRgb(0xF5, 0x9E, 0x0B));
+    private static Brush LinkBrush      = Frozen(Color.FromRgb(0x4F, 0x8E, 0xF7));   // clickable class-member rows
+
+    // Navigation hook for clickable class-diagram members. Set once per render (markdown renders synchronously
+    // on the UI thread), but each member row captures it into its own closure so a click after a later render
+    // still calls the right handler.
+    private static Func<string, bool>? _onNavigate;
 
     private static readonly FontFamily BodyFont = new("Segoe UI");
     private const double FontSize = 12.0;
@@ -61,13 +67,15 @@ public static class WpfGraphRenderer
         NoteBorder  = p.Warning;
         var nc      = (p.Warning as SolidColorBrush)?.Color ?? Color.FromRgb(0xF5, 0x9E, 0x0B);
         NoteBg      = Frozen(Color.FromArgb(0x33, nc.R, nc.G, nc.B));
+        LinkBrush   = p.Accent;
     }
 
     // ── Public API ─────────────────────────────────────────────────────────
 
-    public static FrameworkElement Render(LayoutedGraph lg, MarkdownPalette palette)
+    public static FrameworkElement Render(LayoutedGraph lg, MarkdownPalette palette, Func<string, bool>? onNavigate = null)
     {
         SetTheme(palette);
+        _onNavigate = onNavigate;
 
         var canvas = new Canvas
         {
@@ -666,12 +674,22 @@ public static class WpfGraphRenderer
 
     private static UIElement ClassCompartment(IReadOnlyList<ClassMember> members, Brush text, double rowH, double padX, double padV)
     {
+        var nav = _onNavigate;   // capture per render so a click after a later render still routes correctly
         var sp = new StackPanel { Margin = new Thickness(0, padV, 0, padV) };
         foreach (var m in members)
         {
-            var tb = ClassRow(m.Text, text, rowH, padX);
+            bool linked = m.Href is { Length: > 0 } && nav is not null;
+            var tb = ClassRow(m.Text, linked ? LinkBrush : text, rowH, padX);
             if (m.IsAbstract) tb.FontStyle        = FontStyles.Italic;       // UML: abstract member
             if (m.IsStatic)   tb.TextDecorations  = TextDecorations.Underline; // UML: static member
+            if (linked)
+            {
+                var href = m.Href!;
+                tb.Cursor          = System.Windows.Input.Cursors.Hand;
+                tb.TextDecorations = TextDecorations.Underline;
+                tb.ToolTip         = new TextBlock { Text = "Go to definition", TextAlignment = TextAlignment.Left };
+                tb.MouseLeftButtonDown += (_, e) => { e.Handled = true; nav!(href); };
+            }
             sp.Children.Add(tb);
         }
         return sp;

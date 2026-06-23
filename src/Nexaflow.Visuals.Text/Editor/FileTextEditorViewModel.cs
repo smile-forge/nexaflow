@@ -21,12 +21,12 @@ using Nexaflow.Visuals.Text.Editor.Highlighting;
 namespace Nexaflow.Visuals.Text.Editor;
 
 /// <summary>
-/// Shared view-model for the read-write "Edit Text" surface: a full-file load into AvalonEdit's in-memory
+/// Shared view-model for the read-write code/text editor surface: a full-file load into AvalonEdit's in-memory
 /// document, with encoding/EOL-aware save, F5 reload, and a file watcher that reloads on external change
 /// (prompting first when there are unsaved edits) while ignoring the editor's own writes.
 ///
-/// Concrete and unsealed (not abstract) so the generic editor uses it directly, and a structured/code
-/// editor can subclass it and still add its own <c>[ObservableProperty]</c> members.
+/// Concrete and unsealed (not abstract) so the generic editor uses it directly, and the "As Code" editor
+/// subclasses it (see <c>CodeViewModel</c>) to add its structure panel.
 /// </summary>
 public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel, IDisposable
 {
@@ -105,6 +105,13 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
     /// <summary>Set by the view so commands can read the live selection. The only editor-control coupling.</summary>
     internal Func<TextArea>? EditorAccess { get; set; }
 
+    /// <summary>Raised to ask the hosting view to scroll the editor to a 1-based line and place the caret there.
+    /// Used by the "As Code" structure panel to jump to a member; harmless for the plain editor.</summary>
+    public event Action<int>? ScrollToLineRequested;
+
+    /// <summary>Requests the view scroll the editor to <paramref name="line"/> (1-based).</summary>
+    public void RequestScrollToLine(int line) => ScrollToLineRequested?.Invoke(line);
+
     /// <summary>Override to contribute viewer-specific commands; merged with the built-ins.</summary>
     protected virtual IEnumerable<ITextEditorCommand> ProvideCommands() => [];
 
@@ -182,7 +189,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
             {
                 IsReadOnlyMode = true;
                 ReadOnlyReason = $"This file is {SizeFormatter.FormatBytes(info.Length)} — too large to edit. "
-                               + "Open it as raw text, or split it into smaller files first.";
+                               + "Open it As Text, or split it into smaller files first.";
                 SetDocumentText(string.Empty);
                 return;
             }

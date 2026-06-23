@@ -80,8 +80,13 @@ public class SelectableMarkdownView : UserControl
     /// file. When null, only absolute/<c>file:</c> images render (remote images stay text).</summary>
     public string? BaseDirectory { get; set; }
 
+    /// <summary>When true, a diagram renders at full height (no inner scrollbar) and scales down to the
+    /// control width instead of getting its own scrollbars — so only this surface's scrollbar moves. Off by
+    /// default. Set it on surfaces that already scroll (e.g. the "As Code" structure panel).</summary>
+    public bool FitContentToWidth { get; set; }
+
     private void Rebuild() => _rtb.Document = MarkdownFlowDocument.Build(
-        Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = LinkNavigate, BaseDirectory = BaseDirectory });
+        Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = LinkNavigate, BaseDirectory = BaseDirectory, FitContentToWidth = FitContentToWidth });
 
     /// <summary>
     /// Inner editor's vertical scrollbar. Default <see cref="ScrollBarVisibility.Disabled"/>

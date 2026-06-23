@@ -96,6 +96,17 @@ public sealed class CodeHighlighter : IDisposable
         || type is "object" or "array" or "hash" or "dictionary" or "set"
         || type.Contains("comment");
 
+    /// <summary>Parses <paramref name="text"/> and invokes <paramref name="visit"/> with the root node while
+    /// the tree is alive, returning whatever it produces (or <c>default</c> if the text is empty / fails to
+    /// parse). The visitor MUST extract plain data — tree-sitter <c>Node</c>s are only valid until the tree is
+    /// disposed, which happens as this method returns. Same one-thread constraint as <see cref="Highlight"/>.</summary>
+    public T? WithParseTree<T>(string text, Func<Node, T> visit)
+    {
+        if (string.IsNullOrEmpty(text)) return default;
+        using var tree = _parser.Parse(text);
+        return tree is null ? default : visit(tree.RootNode);
+    }
+
     /// <summary>Returns the parse tree as an s-expression (for AI/graphify structural understanding), or null
     /// if the text is empty / fails to parse. Capped to keep large files from flooding a tool result.</summary>
     public string? GetParseTree(string text, int maxChars = 20_000)

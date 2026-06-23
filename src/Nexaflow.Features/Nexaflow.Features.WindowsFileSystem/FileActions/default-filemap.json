@@ -63,6 +63,28 @@
     ]
   },
   {
+    "ExperienceId": "/text/code",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.cs" },
+      { "Type": "Extension", "Value": "*.csx" },
+      { "Type": "Extension", "Value": "*.js" },
+      { "Type": "Extension", "Value": "*.mjs" },
+      { "Type": "Extension", "Value": "*.cjs" },
+      { "Type": "Extension", "Value": "*.jsx" },
+      { "Type": "Extension", "Value": "*.ts" },
+      { "Type": "Extension", "Value": "*.cts" },
+      { "Type": "Extension", "Value": "*.mts" },
+      { "Type": "Extension", "Value": "*.py" },
+      { "Type": "Extension", "Value": "*.pyw" },
+      { "Type": "Extension", "Value": "*.rb" },
+      { "Type": "Extension", "Value": "*.rbw" },
+      { "Type": "Extension", "Value": "*.rake" },
+      { "Type": "Extension", "Value": "*.ru" },
+      { "Type": "Extension", "Value": "*.gemspec" }
+    ]
+  },
+  {
     "ExperienceId": "/tabular",
     "Source": "User",
     "Criteria": [

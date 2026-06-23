@@ -35,8 +35,23 @@ public partial class FileTextEditorView : UserControl, IPageView
         ApplyHighlighting(vm.FileName);
         OnEditorReady(Editor);
 
+        vm.ScrollToLineRequested += ScrollEditorToLine;
+
         Loaded   += async (_, _) => await _vm.LoadAsync();
-        Unloaded += (_, _) => { _treeSitter?.Dispose(); _vm.Dispose(); };
+        Unloaded += (_, _) => { _treeSitter?.Dispose(); _vm.ScrollToLineRequested -= ScrollEditorToLine; _vm.Dispose(); };
+    }
+
+    /// <summary>Moves the caret to <paramref name="line"/> (1-based) and scrolls it into view. Driven by the
+    /// view-model's <see cref="FileTextEditorViewModel.ScrollToLineRequested"/> (e.g. the As Code structure panel).</summary>
+    private void ScrollEditorToLine(int line)
+    {
+        if (Editor.Document is null || line < 1 || line > Editor.Document.LineCount) return;
+        Editor.CaretOffset = Editor.Document.GetLineByNumber(line).Offset;
+        Dispatcher.InvokeAsync(() =>
+        {
+            Editor.ScrollToLine(line);
+            Editor.TextArea.Caret.BringCaretToView();
+        }, System.Windows.Threading.DispatcherPriority.Render);
     }
 
     private TreeSitterController? _treeSitter;
