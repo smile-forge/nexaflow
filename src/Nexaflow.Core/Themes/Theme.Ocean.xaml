@@ -60,4 +60,17 @@
         <GradientStop Color="#C86BE0" Offset="1"/>
     </LinearGradientBrush>
 
+    <!-- Syntax palette — cool reef tones, readable on the deep-teal editor glass. -->
+    <SolidColorBrush x:Key="TextSwatch.Comment"   Color="#6B98A0"/>
+    <SolidColorBrush x:Key="TextSwatch.Keyword"   Color="#56C8E8"/>
+    <SolidColorBrush x:Key="TextSwatch.String"    Color="#7FE3C4"/>
+    <SolidColorBrush x:Key="TextSwatch.Number"    Color="#B7E8CE"/>
+    <SolidColorBrush x:Key="TextSwatch.Type"      Color="#4FD6C4"/>
+    <SolidColorBrush x:Key="TextSwatch.Constant"  Color="#FFB37A"/>
+    <SolidColorBrush x:Key="TextSwatch.Function"  Color="#E6DE8E"/>
+    <SolidColorBrush x:Key="TextSwatch.Operator"  Color="#AECDD6"/>
+    <SolidColorBrush x:Key="TextSwatch.Parameter" Color="#BFE9FF"/>
+    <SolidColorBrush x:Key="TextSwatch.Tag"       Color="#56C8E8"/>
+    <SolidColorBrush x:Key="TextSwatch.Attribute" Color="#9FE9FF"/>
+
 </ResourceDictionary>

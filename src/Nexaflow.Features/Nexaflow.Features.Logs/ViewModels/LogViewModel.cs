@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using ICSharpCode.AvalonEdit.Document;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Logs.Parsing;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
 using System.IO;
 using System.Text;
@@ -233,32 +234,13 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
 
     private async Task<Encoding> DetectEncodingAsync(CancellationToken ct)
     {
-        using var fs  = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        var header    = new byte[4];
-        var read      = await fs.ReadAsync(header.AsMemory(0, 4), ct);
-
-        // BOM check
-        if (read >= 3 && header[0] == 0xEF && header[1] == 0xBB && header[2] == 0xBF)
-            return new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
-        if (read >= 2 && header[0] == 0xFF && header[1] == 0xFE) return Encoding.Unicode;
-        if (read >= 2 && header[0] == 0xFE && header[1] == 0xFF) return Encoding.BigEndianUnicode;
-
-        // No BOM: read first line and check for non-printable ASCII bytes
-        fs.Seek(0, SeekOrigin.Begin);
-        var lineBuf  = new byte[512];
-        var lineRead = await fs.ReadAsync(lineBuf.AsMemory(0, lineBuf.Length), ct);
-        var nlIdx    = Array.IndexOf(lineBuf, (byte)'\n', 0, lineRead);
-        var end      = nlIdx >= 0 ? nlIdx : lineRead;
-
-        for (var i = 0; i < end; i++)
+        // Use the shared sniffer (BOM + UTF-8 validity scan + UTF-16 heuristic) so every viewer detects
+        // encoding identically. The probe is small; offload the synchronous read off the UI thread.
+        return await Task.Run(() =>
         {
-            var b = lineBuf[i];
-            // Non-printable control bytes (excluding TAB=0x09, LF=0x0A, CR=0x0D)
-            if ((b < 0x09) || (b > 0x0D && b < 0x20) || b == 0x7F)
-                return Encoding.Unicode;
-        }
-
-        return Encoding.UTF8;
+            using var fs = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            return EncodingDetector.Detect(fs).Encoding;
+        }, ct);
     }
 
     // ── Parser selection ──────────────────────────────────────────────────────

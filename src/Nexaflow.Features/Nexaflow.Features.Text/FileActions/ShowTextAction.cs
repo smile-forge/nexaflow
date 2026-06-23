@@ -15,10 +15,10 @@ public sealed class ShowTextAction : IFileAction, ICacheable
     public bool   IsDestructive          => false;
     public bool   SupportsMultipleFiles  => false;
     public string Icon                   => "📄";
-    public string DisplayName            => "As Text";
+    public string DisplayName            => "As Raw Text";
     public static string? StaticExperienceId => "/text";
     public string ExperienceId           => "/text";
-    public string ExperienceDescription  => "Lightweight Text editor";
+    public string ExperienceDescription  => "Read-only text viewer for files of any size";
     public bool   RequiresRefresh        => false;
     public bool   CanPerformAction       => true;
     public bool   OpensViewer            => true;

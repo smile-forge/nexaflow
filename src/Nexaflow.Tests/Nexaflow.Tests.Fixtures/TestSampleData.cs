@@ -53,6 +53,7 @@ public static class TestSampleData
         new MarkdownSamples(),
         new TabularSamples(),
         new TextSamples(),
+        new CodeSamples(),
         new JsonSamples(),
         new LogSamples(),
         new BinarySamples(),
@@ -142,6 +143,7 @@ public static class TestSampleData
         - `markdown/` — sample markdown documents, one per supported Mermaid diagram type.
         - `tabular/`  — CSV/TSV variations (separators, quoting, headers, column types).
         - `text/`     — plain-text files: short/long, varied BOMs and line endings.
+        - `code/`     — source/config files for the editor's syntax highlighting (cs/js/ts/py/ini/xml/css/html).
         - `json/`     — JSON objects, arrays and a large array for seek-by-item windowing.
         - `logs/`     — timestamped log files, short and long (tail-first streaming).
         - `binary/`   — binary blobs for the hex viewer (random, zeros, mixed, image header).

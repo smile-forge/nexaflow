@@ -95,6 +95,24 @@
     <SolidColorBrush x:Key="Swatch.Slate"  Color="#8893B5"/>
     <SolidColorBrush x:Key="Swatch.Lime"   Color="#A8D85C"/>
 
+    <!-- ════ Syntax / code highlighting palette ════
+         Role-named colours for the text editor's syntax highlighting (tree-sitter + AvalonEdit .xshd),
+         kept SEPARATE from the categorical Swatch.* accent bank so each theme can art-direct code to its
+         own mood without disturbing chart/series hues. These defaults are tuned for the dark themes
+         (readable on a near-black editor); light and immersive themes override them in Theme.<name>.xaml.
+         Consumed at paint time by the editor colourizers (TreeSitterColorizer / XshdTheming). -->
+    <SolidColorBrush x:Key="TextSwatch.Comment"   Color="#6A9955"/>
+    <SolidColorBrush x:Key="TextSwatch.Keyword"   Color="#569CD6"/>
+    <SolidColorBrush x:Key="TextSwatch.String"    Color="#CE9178"/>
+    <SolidColorBrush x:Key="TextSwatch.Number"    Color="#B5CEA8"/>
+    <SolidColorBrush x:Key="TextSwatch.Type"      Color="#4EC9B0"/>
+    <SolidColorBrush x:Key="TextSwatch.Constant"  Color="#D19A66"/>
+    <SolidColorBrush x:Key="TextSwatch.Function"  Color="#DCDCAA"/>
+    <SolidColorBrush x:Key="TextSwatch.Operator"  Color="#C8C8C8"/>
+    <SolidColorBrush x:Key="TextSwatch.Parameter" Color="#9CDCFE"/>
+    <SolidColorBrush x:Key="TextSwatch.Tag"       Color="#569CD6"/>
+    <SolidColorBrush x:Key="TextSwatch.Attribute" Color="#9CDCFE"/>
+
     <!-- ── AI status dot (lives in the AiBar) ──
          A primary interaction element, so it carries its OWN art-directable tokens rather than
          borrowing palette tones — each theme can tune the states to fit its mood. Defaults are the

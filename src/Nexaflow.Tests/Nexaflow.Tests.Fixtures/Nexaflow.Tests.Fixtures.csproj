@@ -11,4 +11,11 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- syntax-tests/ is a reference corpus (source files + their ANSI-highlighted copies), read at
+         runtime via the filesystem — NOT project code. Keep it out of the default compile glob, or the
+         highlighted *.cs (raw ANSI) would fail to build. -->
+    <Compile Remove="syntax-tests\**" />
+  </ItemGroup>
+
 </Project>

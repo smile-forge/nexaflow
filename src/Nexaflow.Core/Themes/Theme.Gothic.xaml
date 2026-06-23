@@ -60,4 +60,17 @@
         <GradientStop Color="#D060E0" Offset="1"/>
     </LinearGradientBrush>
 
+    <!-- Syntax palette — arcane violets with spectral green/blue accents on the near-black glass. -->
+    <SolidColorBrush x:Key="TextSwatch.Comment"   Color="#786A92"/>
+    <SolidColorBrush x:Key="TextSwatch.Keyword"   Color="#B884FF"/>
+    <SolidColorBrush x:Key="TextSwatch.String"    Color="#6FCF97"/>
+    <SolidColorBrush x:Key="TextSwatch.Number"    Color="#E6B0FF"/>
+    <SolidColorBrush x:Key="TextSwatch.Type"      Color="#5AB0E8"/>
+    <SolidColorBrush x:Key="TextSwatch.Constant"  Color="#E0738A"/>
+    <SolidColorBrush x:Key="TextSwatch.Function"  Color="#D6B0FF"/>
+    <SolidColorBrush x:Key="TextSwatch.Operator"  Color="#9A8CB5"/>
+    <SolidColorBrush x:Key="TextSwatch.Parameter" Color="#C8B0E8"/>
+    <SolidColorBrush x:Key="TextSwatch.Tag"       Color="#B884FF"/>
+    <SolidColorBrush x:Key="TextSwatch.Attribute" Color="#8AB6FF"/>
+
 </ResourceDictionary>

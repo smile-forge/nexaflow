@@ -16,9 +16,16 @@ under the license noted below.
 | [NAudio](https://github.com/naudio/NAudio) | MIT |
 | [OllamaSharp](https://github.com/awaescher/OllamaSharp) | MIT |
 | [OpenAI .NET](https://github.com/openai/openai-dotnet) | MIT |
+| [tree-sitter](https://github.com/tree-sitter/tree-sitter) | MIT |
+| [TreeSitter.DotNet](https://github.com/mariusgreuel/tree-sitter-dotnet-bindings) (+ bundled grammars) | MIT |
 | [Updatum](https://github.com/sn4k3/Updatum) | MIT |
 | [Whisper.net](https://github.com/sandrohanea/whisper.net) | MIT |
 | [WpfMath](https://github.com/ForNeVeR/wpf-math) | MIT |
 | [.NET runtime libraries](https://github.com/dotnet/runtime) | MIT |
 
 Full license texts are available at each project's repository linked above.
+
+The syntax-highlighting consistency tests use a reference corpus vendored from
+[bat](https://github.com/sharkdp/bat) (MIT / Apache-2.0) under
+`src/Nexaflow.Tests/Nexaflow.Tests.Fixtures/syntax-tests/`. It is test-only reference data — not
+compiled into any assembly and not shipped in the product.
