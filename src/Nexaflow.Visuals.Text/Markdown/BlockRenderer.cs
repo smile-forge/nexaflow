@@ -71,7 +71,7 @@ public static class BlockRenderer
                 MathBlock          mb  => RenderMathBlock(mb, rawMarkdown, ctx),
                 // Diagram blocks: check Info before falling through to generic code
                 FencedCodeBlock    fc when DiagramRenderer.IsDiagramLanguage(fc.Info)
-                                       => DiagramRenderer.Render(fc.Info!, ExtractFencedContent(fc, rawMarkdown), p),
+                                       => DiagramRenderer.Render(fc.Info!, ExtractFencedContent(fc, rawMarkdown), p, ctx.OnNavigate),
                 FencedCodeBlock    fc  => RenderCode(fc.Lines.ToString(), ctx),
                 CodeBlock          cb  => RenderCode(cb.Lines.ToString(), ctx),
                 MdTable            t   => RenderTable(t, ctx),

@@ -12,6 +12,12 @@ public sealed class ClassMember
     public required string Text { get; init; }
     public bool IsStatic   { get; init; }
     public bool IsAbstract { get; init; }
+
+    /// <summary>Optional navigation target for the row. When set, the renderer draws the member as a link
+    /// (accent colour, hand cursor) and a click routes through the markdown <c>OnNavigate</c> hook. Carried in
+    /// the Mermaid source as a trailing <c>… @@&lt;url&gt;</c> token (stripped from <see cref="Text"/>), which
+    /// "As Code" uses to point each member at its definition line.</summary>
+    public string? Href { get; init; }
 }
 
 /// <summary>A lollipop interface attached to a class — a small circle on a short straight stub off the

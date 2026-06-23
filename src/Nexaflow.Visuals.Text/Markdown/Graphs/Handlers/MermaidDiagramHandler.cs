@@ -41,7 +41,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
     public bool CanHandle(string language) =>
         language.Equals("mermaid", StringComparison.OrdinalIgnoreCase);
 
-    public FrameworkElement Render(string source, MarkdownPalette palette)
+    public FrameworkElement Render(string source, MarkdownPalette palette, Func<string, bool>? onNavigate = null)
     {
         // A leading `--- … ---` YAML front-matter block (title/config) is stripped here so every
         // sub-type sees only the diagram body; a front-matter title is applied to the parsed chart.
@@ -56,7 +56,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             MermaidSubtype.Git      => RenderGit(body, title, palette),
             MermaidSubtype.Mindmap  => RenderMindmap(body, title, palette),
             MermaidSubtype.State       => RenderState(body, title, palette),
-            MermaidSubtype.Class       => RenderClass(body, title, palette),
+            MermaidSubtype.Class       => RenderClass(body, title, palette, onNavigate),
             MermaidSubtype.Requirement => RenderRequirement(body, title, palette),
             MermaidSubtype.Kanban      => RenderKanban(body, title, palette),
             MermaidSubtype.Graph       => RenderGraph(body, title, palette),
@@ -202,13 +202,14 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         return WpfGraphRenderer.Render(layout, palette);
     }
 
-    private static FrameworkElement RenderClass(string source, string? title, MarkdownPalette palette)
+    private static FrameworkElement RenderClass(string source, string? title, MarkdownPalette palette,
+        Func<string, bool>? onNavigate)
     {
         var graph  = ClassParser.Parse(source);
         graph.Title = Titled(graph.Title, title);
         // Class boxes are wide; allow more width before the layout starts compacting horizontal gaps.
         var layout = SugiyamaLayout.Compute(graph, preferredMaxWidth: 1100);
-        return WpfGraphRenderer.Render(layout, palette);
+        return WpfGraphRenderer.Render(layout, palette, onNavigate);
     }
 
     private static FrameworkElement RenderRequirement(string source, string? title, MarkdownPalette palette)

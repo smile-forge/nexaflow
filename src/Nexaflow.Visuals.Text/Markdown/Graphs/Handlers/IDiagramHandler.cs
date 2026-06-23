@@ -19,5 +19,7 @@ public interface IDiagramHandler
     /// Parse <paramref name="source"/> and return a rendered WPF element, themed with
     /// <paramref name="palette"/>. Must not throw; return an informative fallback element on failure.
     /// </summary>
-    FrameworkElement Render(string source, MarkdownPalette palette);
+    /// <param name="onNavigate">Optional click hook for navigable diagram elements (e.g. class-diagram member
+    /// rows that carry a link). Handlers without clickable elements ignore it.</param>
+    FrameworkElement Render(string source, MarkdownPalette palette, Func<string, bool>? onNavigate = null);
 }

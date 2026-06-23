@@ -12,21 +12,15 @@ public sealed class TextTabRegistration(IShellServices shell) : IPageRegistratio
 
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
-        var path      = pageParams?.GetValueOrDefault("path") ?? string.Empty;
-        var title     = string.IsNullOrEmpty(path) ? "Text" : Path.GetFileName(path);
-        var openSplit = pageParams?.GetValueOrDefault("split") == "1";
+        var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
+        var title = string.IsNullOrEmpty(path) ? "Text" : Path.GetFileName(path);
 
         return new Page
         {
             Title       = title,
             Icon        = "📄",
             Breadcrumbs = {new BreadcrumbSegment { Label = title }},
-            ContentFactory = () =>
-            {
-                var vm = new TextViewModel(path, shell);
-                if (openSplit) vm.IsSplitPanelOpen = true;
-                return new TextView(vm);
-            },
+            ContentFactory = () => new TextView(new TextViewModel(path, shell)),
         };
     }
 }

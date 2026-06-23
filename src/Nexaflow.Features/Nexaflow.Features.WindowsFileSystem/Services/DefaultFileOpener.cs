@@ -47,12 +47,22 @@ public sealed class DefaultFileOpener
             return (actions, openVerb);
         });
 
-        IFileAction? bestInternal     = null;
-        int          bestInternalSpec = -1;
+        // Pick the highest match-specificity; break ties by the deeper experience so the specific viewer
+        // wins over a broader ancestor (e.g. "As Code"/"As Markdown" at "/text/…" beat "As Text" at "/text",
+        // which the file also matches at extension level via ancestor propagation).
+        IFileAction? bestInternal      = null;
+        int          bestInternalSpec  = -1;
+        int          bestInternalDepth = -1;
         foreach (var action in internalActions)
         {
-            int spec = FileMapManager.Instance.GetMatchSpecificity(fileInfo, action.ExperienceId);
-            if (spec > bestInternalSpec) { bestInternal = action; bestInternalSpec = spec; }
+            int spec  = FileMapManager.Instance.GetMatchSpecificity(fileInfo, action.ExperienceId);
+            int depth = ExperienceDepth(action.ExperienceId);
+            if (spec > bestInternalSpec || (spec == bestInternalSpec && depth > bestInternalDepth))
+            {
+                bestInternal      = action;
+                bestInternalSpec  = spec;
+                bestInternalDepth = depth;
+            }
         }
 
         // Shell "open" verb is Extension-level (4); encode priority as spec*2 + (internal?1:0)
@@ -80,4 +90,9 @@ public sealed class DefaultFileOpener
         }
         return false;
     }
+
+    /// <summary>Number of path segments in a hierarchical experience id ("/text/code" → 2, "/text" → 1,
+    /// "/" → 0) — the tie-breaker that lets a specific viewer win over a broader ancestor.</summary>
+    private static int ExperienceDepth(string experienceId) =>
+        experienceId.Trim('/').Split('/', System.StringSplitOptions.RemoveEmptyEntries).Length;
 }

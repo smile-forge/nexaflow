@@ -333,21 +333,39 @@ public static class MarkdownFlowDocument
                 StretchDirection    = System.Windows.Controls.StretchDirection.DownOnly,
                 HorizontalAlignment = HorizontalAlignment.Left,
             };
+            // The diagram's inner ScrollViewer captures the mouse wheel even when it can't scroll, freezing
+            // the wheel over the diagram. Intercept it on the way down and re-raise so it bubbles past the
+            // diagram to the host surface's scroller (the page, not the diagram, should move).
+            element.PreviewMouseWheel += RedirectWheelToHost;
         }
         return new BlockUIContainer(element) { Margin = new Thickness(0) };
+    }
+
+    private static void RedirectWheelToHost(object sender, System.Windows.Input.MouseWheelEventArgs e)
+    {
+        if (e.Handled) return;
+        e.Handled = true;
+        var src = (UIElement)sender;
+        src.RaiseEvent(new System.Windows.Input.MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+        {
+            RoutedEvent = UIElement.MouseWheelEvent,   // bubbles up from the diagram to the host scroller
+            Source      = src,
+        });
     }
 
     /// <summary>Removes the fixed height + scrollbars from a diagram's inner
     /// <see cref="System.Windows.Controls.ScrollViewer"/> (the renderers cap it at a few hundred px) so it
     /// lays out at full natural height. Walks the logical tree, stopping at the first ScrollViewer on each
-    /// branch.</summary>
+    /// branch. <see cref="System.Windows.Controls.ScrollBarVisibility.Disabled"/> drops the scrollbars; the
+    /// wheel is freed separately by re-raising it to the host (see <c>RedirectWheelToHost</c>), because a
+    /// ScrollViewer still marks the wheel handled even when disabled.</summary>
     private static void UnboundDiagramHeight(DependencyObject root)
     {
         if (root is System.Windows.Controls.ScrollViewer sv)
         {
             sv.MaxHeight = double.PositiveInfinity;
-            sv.VerticalScrollBarVisibility   = System.Windows.Controls.ScrollBarVisibility.Hidden;
-            sv.HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Hidden;
+            sv.VerticalScrollBarVisibility   = System.Windows.Controls.ScrollBarVisibility.Disabled;
+            sv.HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled;
             return;
         }
         foreach (var child in LogicalTreeHelper.GetChildren(root))
