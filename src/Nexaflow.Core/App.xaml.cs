@@ -17,7 +17,9 @@ using Nexaflow.Features.Json;
 using Nexaflow.Features.Text;
 using Nexaflow.Features.Web;
 using Nexaflow.Features.WindowsSearch;
+using Nexaflow.IO.Common;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Threading;
 using Updatum;
@@ -193,6 +195,10 @@ public partial class App : Application
         // ── 6. Feature system ────────────────────────────────────────────────
         FeatureManager.Instance.RegisterFeatures();
 
+        // Archive backends ship in feature assemblies (IArchiveHandler) and are discovered the same way;
+        // register them into the process-wide VFS so files inside archives browse/open like a folder.
+        RegisterArchiveHandlers();
+
         // Re-apply the theme now that features are loaded, folding in any feature theme
         // contributions (IThemeContribution) below the active theme. No-op when none contribute.
         ThemeManager.Apply(shellConfig.Theme, FeatureManager.Instance.ThemeContributionUris);
@@ -240,6 +246,43 @@ public partial class App : Application
         _singleInstance.StartListening(name => OpenNewWindow(activityManager, name));
 
         return voiceConfig;
+    }
+
+    /// <summary>
+    /// Discovers every <see cref="IArchiveHandler"/> across the loaded <c>Nexaflow.*</c> assemblies
+    /// (provider DLLs are named <c>Nexaflow.Features.Compressed.*</c> so they ride the feature glob) and
+    /// registers a stateless instance of each into <see cref="VirtualFileSystem.Instance"/>. Logs the
+    /// count — a zero here means a provider DLL was mis-named and silently never loaded.
+    /// </summary>
+    private static void RegisterArchiveHandlers()
+    {
+        int registered = 0;
+        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            var name = asm.GetName().Name;
+            if (name is null || !name.StartsWith("Nexaflow.", StringComparison.Ordinal)) continue;
+
+            System.Type[] types;
+            try { types = asm.GetTypes(); }
+            catch (System.Reflection.ReflectionTypeLoadException ex) { types = ex.Types.Where(t => t is not null).ToArray()!; }
+
+            foreach (var t in types)
+            {
+                if (t is null || t.IsAbstract || t.IsInterface) continue;
+                if (!typeof(IArchiveHandler).IsAssignableFrom(t)) continue;
+                try
+                {
+                    if (Activator.CreateInstance(t) is IArchiveHandler handler)
+                    {
+                        VirtualFileSystem.Instance.RegisterHandler(handler);
+                        registered++;
+                    }
+                }
+                catch { /* a handler needing ctor args / throwing — skip */ }
+            }
+        }
+        System.Diagnostics.Debug.WriteLine(
+            $"[Compressed] Registered {registered} archive handler(s); VFS handler count = {VirtualFileSystem.Instance.HandlerCount}.");
     }
 
     protected override void OnExit(ExitEventArgs e)
