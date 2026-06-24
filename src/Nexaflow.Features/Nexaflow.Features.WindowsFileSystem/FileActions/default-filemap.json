@@ -147,7 +147,17 @@
       { "Type": "Extension", "Value": "*.apk" },
       { "Type": "Extension", "Value": "*.aar" },
       { "Type": "Extension", "Value": "*.kmz" },
-      { "Type": "Extension", "Value": "*.epub" }
+      { "Type": "Extension", "Value": "*.epub" },
+      { "Type": "Extension", "Value": "*.tar" },
+      { "Type": "Extension", "Value": "*.tar.gz" },
+      { "Type": "Extension", "Value": "*.tgz" },
+      { "Type": "Extension", "Value": "*.tar.bz2" },
+      { "Type": "Extension", "Value": "*.tar.xz" },
+      { "Type": "Extension", "Value": "*.gz" },
+      { "Type": "Extension", "Value": "*.bz2" },
+      { "Type": "Extension", "Value": "*.xz" },
+      { "Type": "Extension", "Value": "*.7z" },
+      { "Type": "Extension", "Value": "*.rar" }
     ]
   }
 ]
