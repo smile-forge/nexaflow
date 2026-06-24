@@ -1,3 +1,4 @@
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -36,9 +37,30 @@ public partial class FileTextEditorView : UserControl, IPageView
         OnEditorReady(Editor);
 
         vm.ScrollToLineRequested += ScrollEditorToLine;
+        Editor.TextArea.SelectionChanged += OnEditorSelectionChanged; // drives selection-only commands
 
         Loaded   += async (_, _) => await _vm.LoadAsync();
-        Unloaded += (_, _) => { _treeSitter?.Dispose(); _vm.ScrollToLineRequested -= ScrollEditorToLine; _vm.Dispose(); };
+        Unloaded += (_, _) =>
+        {
+            _treeSitter?.Dispose();
+            _vm.ScrollToLineRequested -= ScrollEditorToLine;
+            Editor.TextArea.SelectionChanged -= OnEditorSelectionChanged;
+            _vm.Dispose();
+        };
+    }
+
+    private void OnEditorSelectionChanged(object? sender, EventArgs e)
+        => _vm.OnSelectionChanged(!Editor.TextArea.Selection.IsEmpty);
+
+    // Opens the footer's "Lines" command popup above the status-bar button.
+    private void LineCommandsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { ContextMenu: { } menu } button)
+        {
+            menu.PlacementTarget = button;
+            menu.Placement = PlacementMode.Top;
+            menu.IsOpen = true;
+        }
     }
 
     /// <summary>Moves the caret to <paramref name="line"/> (1-based) and scrolls it into view. Driven by the

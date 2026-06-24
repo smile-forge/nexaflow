@@ -411,7 +411,7 @@ public sealed class ShellServices : IShellServices
     public void ShowNotification(string message) =>
         MessageCenter.Instance.Post(new NotificationItem
         {
-            Title = "Info", Body = message, Severity = MessageSeverity.Info, ShowToast = false,
+            Title = "Info", Body = message, Severity = MessageSeverity.Info,
         });
 
     public void ShowNotification(string message, Page tab) =>

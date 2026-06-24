@@ -13,6 +13,16 @@ public class TextTransformsTests
         Assert.IsFalse(trailing);
     }
 
+    [DataTestMethod]
+    [DataRow("a\nb\n", LineEndingKind.Lf)]
+    [DataRow("a\r\nb\r\n", LineEndingKind.CrLf)]
+    [DataRow("a\rb\r", LineEndingKind.Cr)]
+    [DataRow("a\nb\r\n", LineEndingKind.Mixed)]
+    [DataRow("single line", LineEndingKind.None)]
+    [DataRow("", LineEndingKind.None)]
+    public void DetectLineEnding_ClassifiesTerminators(string text, LineEndingKind expected)
+        => Assert.AreEqual(expected, TextTransforms.DetectLineEnding(text));
+
     [TestMethod]
     public void SplitLines_DetectsTrailingNewline()
     {

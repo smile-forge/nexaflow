@@ -85,8 +85,13 @@ public class SelectableMarkdownView : UserControl
     /// default. Set it on surfaces that already scroll (e.g. the "As Code" structure panel).</summary>
     public bool FitContentToWidth { get; set; }
 
+    /// <summary>When true (with <see cref="FitContentToWidth"/>), a too-wide diagram keeps its natural size and
+    /// gets a horizontal scrollbar instead of being scaled down to fit — readable at full size. For read-only
+    /// selectable surfaces where the scrollbar can be grabbed (the "As Code" structure panel).</summary>
+    public bool ScrollWideDiagrams { get; set; }
+
     private void Rebuild() => _rtb.Document = MarkdownFlowDocument.Build(
-        Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = LinkNavigate, BaseDirectory = BaseDirectory, FitContentToWidth = FitContentToWidth });
+        Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = LinkNavigate, BaseDirectory = BaseDirectory, FitContentToWidth = FitContentToWidth, ScrollWideDiagrams = ScrollWideDiagrams });
 
     /// <summary>
     /// Inner editor's vertical scrollbar. Default <see cref="ScrollBarVisibility.Disabled"/>

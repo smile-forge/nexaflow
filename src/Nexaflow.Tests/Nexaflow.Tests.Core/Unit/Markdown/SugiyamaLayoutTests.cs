@@ -1,6 +1,9 @@
 using Nexaflow.Visuals.Text.Markdown.Graphs;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Layout;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 
 namespace Nexaflow.Tests.Core.Unit.Markdown;
@@ -53,6 +56,20 @@ public class SugiyamaLayoutTests
         Assert.IsTrue(ContainedWithMargin(first, second), "Second must sit inside First with a margin");
         Assert.IsTrue(ContainedWithMargin(second, third), "Third must sit inside Second with a margin");
     }
+
+    [TestMethod]
+    public void ClassDiagram_DirectionLr_StacksUnconnectedClassesVertically()
+    {
+        // The "As Code" panel emits `direction LR` so a file's unrelated classes form a vertical column.
+        var td = Nodes(SugiyamaLayout.Compute(new MermaidClassParser().Parse("classDiagram\n  class A\n  class B\n  class C\n")));
+        var lr = Nodes(SugiyamaLayout.Compute(new MermaidClassParser().Parse("classDiagram\n  direction LR\n  class A\n  class B\n  class C\n")));
+
+        Assert.IsTrue(Spread(td, n => n.X) > Spread(td, n => n.Y), "default top-down lays unconnected classes in a row");
+        Assert.IsTrue(Spread(lr, n => n.Y) > Spread(lr, n => n.X), "direction LR stacks them into a column");
+    }
+
+    private static List<LayoutNode> Nodes(LayoutedGraph lg) => lg.AllNodes.Where(n => !n.IsDummy).ToList();
+    private static double Spread(List<LayoutNode> ns, Func<LayoutNode, double> sel) => ns.Max(sel) - ns.Min(sel);
 
     [TestMethod]
     public void AntiparallelEdges_AreSeparatedIntoParallelLanes()

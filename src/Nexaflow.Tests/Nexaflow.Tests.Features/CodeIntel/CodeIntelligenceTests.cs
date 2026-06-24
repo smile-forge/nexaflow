@@ -86,6 +86,79 @@ public class CodeIntelligenceTests
         Assert.IsNull(ext.ResolveLine("c-sharp", renamed, "T:Calculator/M:Reset"));
     }
 
+    private const string Inheritance = """
+        public interface IBark { }
+        public class Animal { protected int Age; }
+        public class Dog : Animal, IBark
+        {
+            private string _name;
+            public string Name => _name;
+            public int Add(int a, int b) => a + b;
+            protected void Speak() { }
+        }
+        """;
+
+    [TestMethod]
+    public void Extract_CSharp_CapturesVisibilityAndSignatures()
+    {
+        var outline = new CodeStructureExtractor().Extract("c-sharp", Inheritance);
+        var dog = outline.Types.Single(t => t.Name == "Dog");
+
+        var name = dog.Members.Single(m => m.Name == "_name");
+        Assert.AreEqual(OutlineVisibility.Private, name.Visibility);
+        Assert.AreEqual("_name : string", name.Signature);
+
+        var prop = dog.Members.Single(m => m.Name == "Name");
+        Assert.AreEqual(OutlineVisibility.Public, prop.Visibility);
+        Assert.AreEqual("Name : string", prop.Signature);
+
+        var add = dog.Members.Single(m => m.Name == "Add");
+        Assert.AreEqual(OutlineVisibility.Public, add.Visibility);
+        Assert.AreEqual("Add(int a, int b) int", add.Signature, "method shows parameters and return type");
+
+        var speak = dog.Members.Single(m => m.Name == "Speak");
+        Assert.AreEqual(OutlineVisibility.Protected, speak.Visibility);
+    }
+
+    [TestMethod]
+    public void Extract_CSharp_CapturesBaseClassAndInterface()
+    {
+        var outline = new CodeStructureExtractor().Extract("c-sharp", Inheritance);
+        var dog = outline.Types.Single(t => t.Name == "Dog");
+
+        Assert.IsTrue(dog.Bases.Any(b => b is { Name: "Animal", IsInterface: false }), "base class");
+        Assert.IsTrue(dog.Bases.Any(b => b is { Name: "IBark", IsInterface: true }), "interface (I-prefix)");
+    }
+
+    [TestMethod]
+    public void Build_EmitsInheritanceEdgesAndVisibility()
+    {
+        var outline = new CodeStructureExtractor().Extract("c-sharp", Inheritance);
+        var md = CodeIntelligenceMarkdown.Build(@"C:\proj\animals.cs", outline);
+
+        StringAssert.Contains(md, "Animal <|-- Dog");   // class inheritance: solid
+        StringAssert.Contains(md, "IBark <|.. Dog");    // interface realization: dashed
+        StringAssert.Contains(md, "-_name : string");   // private field with type
+        // Return type is emitted after the paren; the Mermaid class parser reflows it to "(…) : int" at render.
+        StringAssert.Contains(md, "+Add(int a, int b) int");
+    }
+
+    [TestMethod]
+    public void Build_AbbreviatesLongMemberSignatures()
+    {
+        const string src = """
+            public class Calc
+            {
+                public int Calculate(int alpha, string beta, bool gamma, double delta) => alpha;
+            }
+            """;
+        var outline = new CodeStructureExtractor().Extract("c-sharp", src);
+        var md = CodeIntelligenceMarkdown.Build(@"C:\proj\calc.cs", outline);
+
+        StringAssert.Contains(md, "+Calculate(int…) int");          // params collapsed; name + return kept
+        Assert.IsFalse(md.Contains("string beta"), "the full parameter list is not drawn in the box");
+    }
+
     [TestMethod]
     public void Extract_Python_ResolvesRelativeImportButNotLibrary()
     {
@@ -124,6 +197,7 @@ public class CodeIntelligenceTests
         StringAssert.Contains(md, "- import os");                                   // library import: plain text
         StringAssert.Contains(md, "[from .util import x](file:///C:/proj/util.py)"); // local import: link
         StringAssert.Contains(md, "classDiagram");
+        StringAssert.Contains(md, "direction LR");   // stacks a file's classes into a vertical column
         StringAssert.Contains(md, "class Shape {");
         StringAssert.Contains(md, "+draw() @@file:///C:/proj/shape.cs#ast=T%3AShape%2FM%3Adraw");
     }

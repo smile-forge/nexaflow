@@ -42,18 +42,29 @@ public static class CodeIntelligenceMarkdown
             sb.AppendLine("## Structure").AppendLine();
             sb.AppendLine("```mermaid");
             sb.AppendLine("classDiagram");
+            // LR ranks the diagram left-to-right, which stacks the (usually unrelated) classes of a file into a
+            // vertical column so they fit the narrow side panel instead of spreading across one wide row.
+            sb.AppendLine("  direction LR");
             foreach (var t in outline.Types)
             {
                 var cls = SafeId(t.Name);
                 if (t.Members.Count == 0)
                 {
                     sb.AppendLine($"  class {cls}");
-                    continue;
                 }
-                sb.AppendLine($"  class {cls} {{");
-                foreach (var m in t.Members)
-                    sb.AppendLine($"    {MemberLabel(m)} @@{fileUri}#ast={Uri.EscapeDataString(m.AstPath)}");
-                sb.AppendLine("  }");
+                else
+                {
+                    sb.AppendLine($"  class {cls} {{");
+                    foreach (var m in t.Members)
+                        sb.AppendLine($"    {BoxMemberLabel(m)} @@{fileUri}#ast={Uri.EscapeDataString(m.AstPath)}");
+                    sb.AppendLine("  }");
+                }
+
+                // Inheritance / realization edges: a base class draws a solid hollow-triangle arrow
+                // (`Base <|-- Derived`), an interface a dashed one (`Iface <|.. Impl`). The base box is
+                // created implicitly, so parents/interfaces declared outside the file still appear.
+                foreach (var b in t.Bases)
+                    sb.AppendLine($"  {SafeId(b.Name)} <|{(b.IsInterface ? ".." : "--")} {cls}");
             }
             sb.AppendLine("```");
             sb.AppendLine();
@@ -70,9 +81,54 @@ public static class CodeIntelligenceMarkdown
         return sb.ToString();
     }
 
-    /// <summary>The diagram/list label for a member: a leading <c>+</c> then the name, with <c>()</c> for
-    /// callables (Mermaid needs the parens to file it under methods).</summary>
-    private static string MemberLabel(OutlineMember m) => "+" + m.Signature;
+    /// <summary>The list label for a member: a UML visibility marker then the full signature (name +
+    /// parameters + return/field type). The Mermaid class parser reads the leading marker as visibility and
+    /// the <c>()</c> as the method/attribute discriminator, reflowing a trailing return type after a colon.</summary>
+    private static string MemberLabel(OutlineMember m) => VisibilitySymbol(m.Visibility) + m.Signature;
+
+    /// <summary>As <see cref="MemberLabel"/> but for a diagram box, where a long signature would make the box
+    /// very wide: the parameter list is abbreviated so boxes stay readable (the full text is still in the file).</summary>
+    private static string BoxMemberLabel(OutlineMember m) => VisibilitySymbol(m.Visibility) + Abbreviate(m.Signature);
+
+    /// <summary>Keeps a member's box label compact: once the signature passes <see cref="MaxBoxSignature"/>
+    /// chars, the parameter list collapses to a short stub + ellipsis, preserving the name and return type
+    /// (which carry the most meaning); anything still over-long is hard-truncated.</summary>
+    private static string Abbreviate(string signature)
+    {
+        if (signature.Length <= MaxBoxSignature) return signature;
+
+        int open = signature.IndexOf('(');
+        int close = open >= 0 ? MatchingParen(signature, open) : -1;
+        if (close > open + 1)   // a non-empty parameter list to collapse
+        {
+            var prms = signature[(open + 1)..close];
+            var stub = prms.Length > 4 ? prms[..4].TrimEnd() + "…" : prms;
+            signature = signature[..(open + 1)] + stub + signature[close..];
+        }
+        return signature.Length <= MaxBoxSignature ? signature : signature[..(MaxBoxSignature - 1)] + "…";
+    }
+
+    private const int MaxBoxSignature = 35;
+
+    /// <summary>The index of the close paren matching the open paren at <paramref name="open"/>, or -1.</summary>
+    private static int MatchingParen(string s, int open)
+    {
+        int depth = 0;
+        for (int i = open; i < s.Length; i++)
+        {
+            if (s[i] == '(') depth++;
+            else if (s[i] == ')' && --depth == 0) return i;
+        }
+        return -1;
+    }
+
+    private static string VisibilitySymbol(OutlineVisibility v) => v switch
+    {
+        OutlineVisibility.Private   => "-",
+        OutlineVisibility.Protected => "#",
+        OutlineVisibility.Internal  => "~",
+        _                           => "+",
+    };
 
     /// <summary>A Mermaid-safe class id (identifier characters only).</summary>
     private static string SafeId(string name) => Regex.Replace(name, "[^A-Za-z0-9_]", "_");

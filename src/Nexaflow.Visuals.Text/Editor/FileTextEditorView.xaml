@@ -55,11 +55,6 @@
                                   ToolTip="Toggle line numbers">
                         <TextBlock Text="≡#" FontSize="12"/>
                     </ToggleButton>
-                    <ToggleButton Style="{StaticResource TbToggle}"
-                                  IsChecked="{Binding WordWrap}"
-                                  ToolTip="Toggle word wrap">
-                        <TextBlock Text="⇔" FontSize="12"/>
-                    </ToggleButton>
 
                     <Separator Style="{StaticResource TbSep}"/>
 
@@ -80,7 +75,6 @@
             <avalon:TextEditor x:Name="Editor"
                                IsReadOnly="{Binding IsReadOnlyMode}"
                                ShowLineNumbers="{Binding ShowLineNumbers}"
-                               WordWrap="{Binding WordWrap}"
                                FontFamily="Cascadia Code, Consolas, Courier New, monospace"
                                FontSize="13"
                                Margin="3,3,0,0"
@@ -160,18 +154,49 @@
                 Background="{StaticResource DeepBgBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,0">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0">
-                <TextBlock Text="{Binding FileSizeText}"
-                           Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,16,0"/>
-                <TextBlock Text="{Binding LineCount, StringFormat='{}{0} lines'}"
-                           Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,16,0"/>
-                <TextBlock Text="● unsaved"
-                           Foreground="{StaticResource WarningBrush}" FontSize="11" Margin="0,0,16,0"
-                           Visibility="{Binding IsDirty, Converter={StaticResource BoolVis}}"/>
-                <TextBlock Text="read-only"
-                           Foreground="{StaticResource TextMutedBrush}" FontSize="11"
-                           Visibility="{Binding IsReadOnlyMode, Converter={StaticResource BoolVis}}"/>
-            </StackPanel>
+            <Grid Margin="14,0,8,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Left: size / dirty / read-only -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding FileSizeText}"
+                               Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,16,0"/>
+                    <TextBlock Text="● unsaved"
+                               Foreground="{StaticResource WarningBrush}" FontSize="11" Margin="0,0,16,0"
+                               Visibility="{Binding IsDirty, Converter={StaticResource BoolVis}}"/>
+                    <TextBlock Text="read-only"
+                               Foreground="{StaticResource TextMutedBrush}" FontSize="11"
+                               Visibility="{Binding IsReadOnlyMode, Converter={StaticResource BoolVis}}"/>
+                </StackPanel>
+
+                <!-- Right: line count + line-ending indicator; click opens the Lines command popup -->
+                <Button Grid.Column="1" Style="{StaticResource TbBtn}"
+                        Click="LineCommandsButton_Click"
+                        Padding="8,2" Margin="0"
+                        ToolTip="Line operations (EOL conversion, sort, dedupe…)">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding LineCount, StringFormat='{}{0} lines'}"
+                                   Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
+                        <TextBlock Text="  ·  " Foreground="{StaticResource BorderBrush}" FontSize="11"/>
+                        <TextBlock Text="{Binding LineEndingLabel}"
+                                   Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
+                        <TextBlock Text=" ⌄" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                    </StackPanel>
+                    <Button.ContextMenu>
+                        <ContextMenu ItemsSource="{Binding LineCommands}">
+                            <ContextMenu.ItemContainerStyle>
+                                <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                    <Setter Property="Header"  Value="{Binding Name}"/>
+                                    <Setter Property="Command" Value="{Binding Run}"/>
+                                </Style>
+                            </ContextMenu.ItemContainerStyle>
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
+            </Grid>
         </Border>
     </Grid>
 </UserControl>

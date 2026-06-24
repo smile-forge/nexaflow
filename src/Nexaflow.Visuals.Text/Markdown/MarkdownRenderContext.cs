@@ -32,6 +32,14 @@ public sealed class MarkdownRenderContext
     /// </summary>
     public bool FitContentToWidth { get; init; }
 
+    /// <summary>
+    /// When true (with <see cref="FitContentToWidth"/>), a too-wide diagram keeps its natural size and gets a
+    /// horizontal scrollbar instead of being scaled down — readable at full size. Only sensible on a read-only
+    /// selectable surface (the "As Code" panel) where the scrollbar thumb can actually be grabbed; an editable
+    /// surface leaves this off and scales instead. Vertical overflow still flows to the host (full height).
+    /// </summary>
+    public bool ScrollWideDiagrams { get; init; }
+
     public static readonly MarkdownRenderContext Dark = MarkdownPalette.Dark;
 
     public static implicit operator MarkdownRenderContext(MarkdownPalette palette)
