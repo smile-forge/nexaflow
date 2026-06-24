@@ -58,6 +58,9 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
     public bool IsContainer(string path)
         => !string.IsNullOrEmpty(path) && File.Exists(path) && HandlerFor(Path.GetFileName(path)) is not null;
 
+    public bool IsContainerName(string fileName)
+        => !string.IsNullOrEmpty(fileName) && HandlerFor(Path.GetFileName(fileName)) is not null;
+
     public ArchiveSummary? DescribeArchive(string containerPath)
     {
         if (!IsContainer(containerPath)) return null;

@@ -8,6 +8,7 @@ using Nexaflow.Features.WindowsFileSystem.Controls;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
 using Nexaflow.Features.WindowsFileSystem.Services;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Collections;
 using System;
 using System.Collections.Generic;
@@ -785,6 +786,14 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     private readonly IShellServices _shell;
     private readonly IAIService _ai;
 
+    /// <summary>Virtual file system the browser reads through, so archive files browse like folders.
+    /// Defaults to the process singleton; settable for tests.</summary>
+    internal IVirtualFileSystem Vfs { get; set; } = VirtualFileSystem.Instance;
+
+    /// <summary>Discovered dynamic-folder declarations — they govern the default-action policy (expand
+    /// an archive vs keep a document's normal open). Expandability itself comes from <see cref="Vfs"/>.</summary>
+    private readonly List<IDynamicFolder> _dynamicFolders = [];
+
     internal FileSystemFeatureRegistry Registry { get; }
 
     private FileSystemViewModel(IShellServices shell, IAIService ai,
@@ -798,7 +807,20 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
         _externalAppsConfig = configs.TryGetValue(typeof(ExternalAppsConfig), out var ec)
                               && ec is ExternalAppsConfig eac ? eac : new ExternalAppsConfig();
         FileMapManager.Instance.RegisterKnownExperiences(_actionRegistry.AllExperiences);
+
+        foreach (var t in shell.DiscoverImplementations<IDynamicFolder>())
+            if (Activator.CreateInstance(t) is IDynamicFolder df) _dynamicFolders.Add(df);
     }
+
+    /// <summary>True when the (file) path can be browsed as a folder — a real archive or a nested archive
+    /// entry. Real directories are handled separately.</summary>
+    private bool IsExpandable(string path)
+        => Vfs.IsContainer(path) || (Vfs.IsContainerName(Path.GetFileName(path)) && Vfs.Exists(path));
+
+    /// <summary>Whether double-clicking <paramref name="path"/> should expand it as a folder by default
+    /// (archives) rather than run its normal open action (documents).</summary>
+    private bool ExpandsByDefault(string path)
+        => (_dynamicFolders.FirstOrDefault(f => f.CanProcess(path)))?.ExpandsByDefault(path) ?? true;
 
     private void InitDebounceTimer()
     {
@@ -938,7 +960,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     public void NavigateTo(string path)
     {
         if (_navigating) return;
-        if (!Directory.Exists(path)) return;
+        if (!Vfs.IsDirectory(path)) return;   // a real directory, an archive file, or a folder inside one
         _navigating = true;
         try
         {
@@ -963,6 +985,8 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     private async Task OpenEntry(FileSystemEntry entry)
     {
         if (entry.IsDirectory) { NavigateTo(entry.FullPath); return; }
+        // An archive file expands like a folder by default (documents keep their normal open action).
+        if (IsExpandable(entry.FullPath) && ExpandsByDefault(entry.FullPath)) { NavigateTo(entry.FullPath); return; }
         await OpenFileDefaultAsync(entry);
     }
 
@@ -973,7 +997,32 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     /// </summary>
     private async Task OpenFileDefaultAsync(FileSystemEntry entry)
     {
+        // Files inside an archive open through the VFS-aware path (wired in the next step); until then a
+        // virtual path has no default opener, so do nothing rather than fail in a viewer that reads disk.
+        if (!File.Exists(entry.FullPath)) return;
         if (await _opener.OpenAsync(entry.FullPath)) Refresh();
+    }
+
+    /// <summary>Loads an archive's contents (or a folder inside one) through the VFS. Archives are small
+    /// relative to real directories, so this is a single synchronous fill rather than a streamed load.</summary>
+    private void LoadVirtualEntries(string path)
+    {
+        _loadCts?.Cancel();
+        IsLoadingEntries = false;
+
+        var entries = Vfs.EnumerateEntries(path).Select(e => new FileSystemEntry
+        {
+            Name        = e.Name,
+            FullPath    = Path.Combine(path, e.Name),
+            IsDirectory = e.IsDirectory,
+            SizeBytes   = e.IsDirectory ? 0 : e.Size,
+            Modified    = e.Modified,
+        });
+
+        var sorted = ApplySort(entries).ToList();
+        Entries.ReplaceAll(sorted);
+        int folders = sorted.Count(e => e.IsDirectory);
+        UpdateEntryCountLabel(folders, sorted.Count - folders, 0);
     }
 
     public void NavigateUp()
@@ -1305,6 +1354,9 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     private async Task RefreshEntriesAsync()
     {
         var path = CurrentPath;
+
+        // Inside an archive (or on an archive file itself): the VFS enumerates the entries in one shot.
+        if (!Directory.Exists(path) && Vfs.IsDirectory(path)) { LoadVirtualEntries(path); return; }
 
         // Cancel (don't dispose) the previous load: a background thread may still hold its
         // token, so disposing here could throw instead of cancelling cleanly.

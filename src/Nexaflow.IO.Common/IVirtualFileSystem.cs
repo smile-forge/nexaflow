@@ -33,6 +33,10 @@ public interface IVirtualFileSystem
     /// <summary>True if the path is an existing real file that a registered handler can open as a folder.</summary>
     bool IsContainer(string path);
 
+    /// <summary>True if a registered handler recognises <paramref name="fileName"/> by name alone (no
+    /// existence check) — used to spot a nested archive entry inside another archive.</summary>
+    bool IsContainerName(string fileName);
+
     /// <summary>Length in bytes of the (real or in-archive) file at the path.</summary>
     long GetLength(string path);
 
