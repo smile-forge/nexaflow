@@ -823,9 +823,11 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     private bool ExpandsByDefault(string path)
         => (_dynamicFolders.FirstOrDefault(f => f.CanProcess(path)))?.ExpandsByDefault(path) ?? true;
 
-    /// <summary>True when the path is inside an archive (a virtual location, not a real directory).</summary>
+    /// <summary>True when the browse location is an archive — its root (the archive file itself) or a
+    /// folder inside it. Such locations are virtual, so real-folder actions like "Zip It" don't apply.</summary>
     private bool IsVirtualPath(string path)
-        => !string.IsNullOrEmpty(path) && Vfs.SplitOutermostContainer(path).Inner is not null;
+        => !string.IsNullOrEmpty(path) &&
+           (Vfs.IsContainer(path) || Vfs.SplitOutermostContainer(path).Inner is not null);
 
     /// <summary>Drops folder actions that don't make sense inside an archive (e.g. "Zip It").</summary>
     private IReadOnlyList<IFileAction> FilterForVirtual(IReadOnlyList<IFileAction> actions, string path)

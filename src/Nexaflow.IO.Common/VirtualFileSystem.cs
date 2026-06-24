@@ -297,7 +297,9 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
             using (var session = OpenSession(new Resolved(realContainer, containerName, string.Empty)))
             {
                 var segments = path.Split('/');
-                for (int i = segments.Length - 1; i >= 1; i--)
+                // Include i == segments.Length so a nested container that is the *leaf* of the path
+                // (e.g. listing inner.zip itself) is descended into, not just one with a remainder.
+                for (int i = segments.Length; i >= 1; i--)
                 {
                     var candidate = string.Join('/', segments.Take(i));
                     if (HandlerFor(LastSegment(candidate)) is not null &&

@@ -249,7 +249,7 @@
             <Border Grid.Column="2" Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0" Width="120">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                    <UniformGrid Columns="2" Margin="4,6">
+                    <UniformGrid Columns="2" Margin="4,6" VerticalAlignment="Top">
                         <Button Style="{StaticResource ActionBtn}" Tag="📤" Content="Extract"   Command="{Binding ExtractCommand}"/>
                         <Button Style="{StaticResource ActionBtn}" Tag="➕" Content="Add file"  Command="{Binding AddFileCommand}"/>
                         <Button Style="{StaticResource ActionBtn}" Tag="🔍" Content="Test"      Command="{Binding TestCommand}"/>

@@ -41,9 +41,11 @@ public class ArchiveSampleTests
         var top = vfs.EnumerateEntries(nested).Select(e => e.Name).ToHashSet();
         CollectionAssert.AreEquivalent(new[] { "top.txt", "inner.zip" }, top.ToList());
 
-        // inner.zip is itself a container the VFS descends into.
+        // inner.zip is itself a container the VFS descends into — both listing and reading it.
         var innerZip = Path.Combine(nested, "inner.zip");
         Assert.IsTrue(vfs.IsDirectory(innerZip));
+        CollectionAssert.AreEqual(new[] { "hello.txt" },
+            vfs.EnumerateEntries(innerZip).Select(e => e.Name).ToList());
         Assert.AreEqual("hello from inside a nested archive",
             vfs.ReadAllText(Path.Combine(innerZip, "hello.txt")));
     }
