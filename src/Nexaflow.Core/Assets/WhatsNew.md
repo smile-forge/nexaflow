@@ -1,6 +1,6 @@
 # What's New in Nexaflow
 
-Welcome to **Nexaflow 1.0** — our inaugural stable release! 🎉
+Welcome to **Nexaflow 1.1** — our inaugural stable release! 🎉
 
 Here's everything that landed since v0.9.1.
 
@@ -10,6 +10,7 @@ Here's everything that landed since v0.9.1.
 *   **Real Terminal Console**: The console is now a proper terminal with smart command/AI routing, configurable per-location environments (master/detail config with visible defaults), and a shared core ready for a PowerShell sibling.
 *   **Workspaces**: A reworked workspace selector lets you create new workspaces and manage identity, deletion, and export right from the Configure panel.
 *   **File-Association Wizard**: A "Define New" wizard for mapping file types, plus criteria-based external-app launching.
+*   **Code editor**: A new editor with syntax highlighting, code folding and class diagrams
 
 ### ✍️ Markdown & Diagrams
 The markdown editor now renders a huge range of Mermaid diagrams natively:
@@ -32,4 +33,4 @@ The markdown editor now renders a huge range of Mermaid diagrams natively:
 *   Smoother startup window handling, plus new-file creation, refresh, and selection fixes in the file browser.
 *   Under the hood: features now marshal UI work through the shell (no direct dispatcher access), theme resources are frozen once merged, and shared file-watching / encoding / formatting utilities cut duplication across the app.
 
-Thank you for being part of our 1.0 launch. Press **Next** to continue.
+Thank you for being part of our 1.x launch. Press **Next** to continue.
