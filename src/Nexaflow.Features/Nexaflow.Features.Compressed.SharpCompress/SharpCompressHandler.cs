@@ -5,6 +5,9 @@ using System.Linq;
 using Nexaflow.IO.Common;
 using SharpCompress.Archives;
 using SharpCompress.Common;
+using SharpCompress.Compressors;
+using SharpCompress.Compressors.BZip2;
+using SharpCompress.Compressors.Xz;
 using SharpCompress.Readers;
 using SharpCompress.Writers;
 
@@ -30,6 +33,11 @@ public sealed class SharpCompressHandler : IArchiveHandler
     public ArchiveCapabilities Capabilities =>
         ArchiveCapabilities.List | ArchiveCapabilities.Extract | ArchiveCapabilities.Create;
 
+    // bzip2 / xz can't be auto-detected by ArchiveFactory (which sniffs Zip/Rar/7Zip/GZip/Tar only), so
+    // these are decompressed explicitly into a single inner stream that the VFS nests into.
+    private static readonly string[] RawCodecCompound = [".tar.bz2", ".tbz2", ".tbz", ".tar.xz", ".txz"];
+    private static readonly string[] RawCodecSimple = [".bz2", ".xz"];
+
     public bool CanHandle(string fileName)
     {
         var lower = (fileName ?? string.Empty).ToLowerInvariant();
@@ -37,8 +45,24 @@ public sealed class SharpCompressHandler : IArchiveHandler
         return Simple.Contains(Path.GetExtension(lower));
     }
 
+    public bool CanWrite(string fileName)
+    {
+        var lower = (fileName ?? string.Empty).ToLowerInvariant();
+        // SharpCompress writes only the tar family (WriterFactory: Tar + None/GZip/BZip2). Not 7z/rar/xz.
+        return lower.EndsWith(".tar", StringComparison.Ordinal)
+            || lower.EndsWith(".tar.gz", StringComparison.Ordinal) || lower.EndsWith(".tgz", StringComparison.Ordinal)
+            || lower.EndsWith(".tar.bz2", StringComparison.Ordinal) || lower.EndsWith(".tbz2", StringComparison.Ordinal)
+            || lower.EndsWith(".tbz", StringComparison.Ordinal);
+    }
+
     public IArchiveSession Open(Stream container, string fileName, ArchiveOpenOptions? options = null)
-        => new Session(container, fileName, options?.Password);
+    {
+        var lower = (fileName ?? string.Empty).ToLowerInvariant();
+        bool raw = RawCodecCompound.Any(c => lower.EndsWith(c, StringComparison.Ordinal))
+                || RawCodecSimple.Contains(Path.GetExtension(lower));
+        return raw ? new RawCodecSession(container, fileName)
+                   : new Session(container, fileName, options?.Password);
+    }
 
     public void Write(Stream target, string fileName, IReadOnlyList<ArchiveWriteEntry> entries,
                       ArchiveWriteOptions? options = null)
@@ -114,6 +138,36 @@ public sealed class SharpCompressHandler : IArchiveHandler
             var key = string.IsNullOrEmpty(e.Key) ? fallback : e.Key!.Replace('\\', '/').TrimStart('/');
             return key.StartsWith("./", StringComparison.Ordinal) ? key[2..] : key;   // some tars prefix "./"
         }
+    }
+
+    /// <summary>One inner stream for a bzip2 / xz container (which ArchiveFactory can't sniff). The inner
+    /// entry is the decompressed payload — a <c>.tar</c> for <c>.tar.bz2</c>, which the VFS nests into.</summary>
+    private sealed class RawCodecSession : IArchiveSession
+    {
+        private readonly Stream _container;
+        private readonly bool _isXz;
+
+        public RawCodecSession(Stream container, string fileName)
+        {
+            _container = container;
+            var lower = fileName.ToLowerInvariant();
+            _isXz = lower.Contains(".xz", StringComparison.Ordinal) || lower.EndsWith(".txz", StringComparison.Ordinal);
+            var inner = StripExtension(Path.GetFileName(fileName));
+            long compressed = container.CanSeek ? container.Length : 0;
+            Entries = [new VirtualEntry(inner, false, 0, compressed, DateTime.Now, Crc: 0, _isXz ? "xz" : "bzip2")];
+        }
+
+        public IReadOnlyList<VirtualEntry> Entries { get; }
+
+        public Stream OpenEntry(string entryPath)
+        {
+            if (_container.CanSeek) _container.Position = 0;
+            return _isXz
+                ? new XZStream(_container)
+                : new BZip2Stream(_container, CompressionMode.Decompress, decompressConcatenated: false);
+        }
+
+        public void Dispose() => _container.Dispose();
     }
 
     /// <summary>For a single-stream compressor, the inner name is the container name minus its codec

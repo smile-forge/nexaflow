@@ -26,7 +26,9 @@
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="4" Padding="2">
                             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                <TextBlock Text="{TemplateBinding Tag}" FontSize="18"
+                                <TextBlock Text="{TemplateBinding Tag}" FontSize="17"
+                                           Foreground="{StaticResource TextBrush}"
+                                           FontFamily="Segoe MDL2 Assets"
                                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 <TextBlock Text="{TemplateBinding Content}" FontSize="9"
                                            Foreground="{StaticResource TextMutedBrush}"
@@ -250,15 +252,15 @@
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0" Width="120">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <UniformGrid Columns="2" Margin="4,6" VerticalAlignment="Top">
-                        <Button Style="{StaticResource ActionBtn}" Tag="📤" Content="Extract"   Command="{Binding ExtractCommand}"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="➕" Content="Add file"  Command="{Binding AddFileCommand}"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="🔍" Content="Test"      Command="{Binding TestCommand}"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="🔒" Content="Encrypt"   Command="{Binding EncryptCommand}"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="🔓" Content="Decrypt"   Command="{Binding DecryptCommand}"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="🖊" Content="Sign"       Command="{Binding SignCommand}"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="✔" Content="Verify"     Command="{Binding VerifyCommand}"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="🗜" Content="Recompress" Command="{Binding RecompressCommand}"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="🔄" Content="Convert"    Command="{Binding ConvertCommand}"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE896;" Content="Extract"   Command="{Binding ExtractCommand}"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE710;" Content="Add file"  Command="{Binding AddFileCommand}"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE721;" Content="Test"      Command="{Binding TestCommand}"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE72E;" Content="Encrypt"   Command="{Binding EncryptCommand}"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE785;" Content="Decrypt"   Command="{Binding DecryptCommand}"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE70F;" Content="Sign"      Command="{Binding SignCommand}"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE73E;" Content="Sig Check" Command="{Binding VerifyCommand}"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE72C;" Content="Recompress" Command="{Binding RecompressCommand}"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE895;" Content="Convert"    Command="{Binding ConvertCommand}"/>
                     </UniformGrid>
                 </ScrollViewer>
             </Border>

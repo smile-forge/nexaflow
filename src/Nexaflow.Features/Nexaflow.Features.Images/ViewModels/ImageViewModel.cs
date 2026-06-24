@@ -396,17 +396,24 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IDisposa
         try
         {
             var bi = new BitmapImage();
-            // Decode through the VFS so images inside archives load too. OnLoad caches the whole frame at
-            // EndInit, so the backing stream is safe to dispose immediately after.
-            using (var src = VirtualFileSystem.Instance.OpenRead(path))
-            using (var ms = new MemoryStream())
+            bi.BeginInit();
+            bi.CacheOption   = BitmapCacheOption.OnLoad;
+            bi.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+            if (File.Exists(path))
             {
+                // Real file: let WPF open it directly (the proven path).
+                bi.UriSource = new Uri(path, UriKind.Absolute);
+                bi.EndInit();
+            }
+            else
+            {
+                // In-archive image: decode through the VFS. OnLoad caches the whole frame at EndInit,
+                // so the backing stream is safe to dispose immediately after.
+                using var src = VirtualFileSystem.Instance.OpenRead(path);
+                using var ms = new MemoryStream();
                 src.CopyTo(ms);
                 ms.Position = 0;
-                bi.BeginInit();
-                bi.StreamSource  = ms;
-                bi.CacheOption   = BitmapCacheOption.OnLoad;
-                bi.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+                bi.StreamSource = ms;
                 bi.EndInit();
             }
             bi.Freeze();

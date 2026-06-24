@@ -269,20 +269,26 @@ public partial class App : Application
             foreach (var t in types)
             {
                 if (t is null || t.IsAbstract || t.IsInterface) continue;
-                if (!typeof(IArchiveHandler).IsAssignableFrom(t)) continue;
                 try
                 {
-                    if (Activator.CreateInstance(t) is IArchiveHandler handler)
+                    if (typeof(IArchiveHandler).IsAssignableFrom(t) &&
+                        Activator.CreateInstance(t) is IArchiveHandler handler)
                     {
                         VirtualFileSystem.Instance.RegisterHandler(handler);
                         registered++;
                     }
+                    else if (typeof(IStreamCodec).IsAssignableFrom(t) &&
+                             Activator.CreateInstance(t) is IStreamCodec codec)
+                    {
+                        VirtualFileSystem.Instance.RegisterCodec(codec);
+                    }
                 }
-                catch { /* a handler needing ctor args / throwing — skip */ }
+                catch { /* a backend needing ctor args / throwing — skip */ }
             }
         }
         System.Diagnostics.Debug.WriteLine(
-            $"[Compressed] Registered {registered} archive handler(s); VFS handler count = {VirtualFileSystem.Instance.HandlerCount}.");
+            $"[Compressed] Registered {registered} archive handler(s) + {VirtualFileSystem.Instance.CodecCount} codec(s); " +
+            $"VFS handler count = {VirtualFileSystem.Instance.HandlerCount}.");
     }
 
     protected override void OnExit(ExitEventArgs e)

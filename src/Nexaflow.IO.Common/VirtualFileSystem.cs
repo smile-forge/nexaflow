@@ -53,6 +53,31 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
         return null;
     }
 
+    // ── Single-stream codec registry (gzip / brotli / zstd / lz4 / bzip2 …) ────
+
+    private readonly List<IStreamCodec> _codecs = [];
+
+    public void RegisterCodec(IStreamCodec codec)
+    {
+        lock (_handlersLock)
+            if (!_codecs.Contains(codec)) _codecs.Add(codec);
+    }
+
+    /// <summary>Number of registered single-stream codecs (logged at startup alongside handlers).</summary>
+    public int CodecCount { get { lock (_handlersLock) return _codecs.Count; } }
+
+    /// <summary>The compressing codec whose extension is the trailing extension of <paramref name="fileName"/>
+    /// (e.g. <c>x.tar.zst</c> or <c>x.zst</c> → the zstd codec), or null. Decode-only codecs are ignored.</summary>
+    private IStreamCodec? CompressingCodecFor(string fileName)
+    {
+        var lower = Path.GetFileName(fileName).ToLowerInvariant();
+        lock (_handlersLock)
+            foreach (var c in _codecs)
+                if (c.CanCompress && lower.EndsWith(c.Extension, System.StringComparison.Ordinal))
+                    return c;
+        return null;
+    }
+
     // ── Path classification ──────────────────────────────────────────────────
 
     public bool IsContainer(string path)
@@ -431,14 +456,25 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
     }
 
     public bool CanCreate(string archiveFileName)
-        => HandlerFor(Path.GetFileName(archiveFileName)) is { } h && h.Capabilities.HasFlag(ArchiveCapabilities.Create);
+    {
+        var name  = Path.GetFileName(archiveFileName);
+        var lower = name.ToLowerInvariant();
+        if (CompressingCodecFor(lower) is { } codec)
+        {
+            // .tar.<codec> needs a tar writer; a single-stream .<codec> always can be written.
+            if (lower[..^codec.Extension.Length].EndsWith(".tar", System.StringComparison.Ordinal))
+                return HandlerFor("a.tar") is { } th && th.CanWrite("a.tar");
+            return true;
+        }
+        return HandlerFor(name) is { } h && h.CanWrite(name);
+    }
 
     public void CreateArchive(string archivePath, string sourceDir)
     {
         var name = Path.GetFileName(archivePath);
         var handler = HandlerFor(name) ?? throw new System.NotSupportedException($"No archive handler for '{name}'.");
-        if (!handler.Capabilities.HasFlag(ArchiveCapabilities.Create))
-            throw new System.NotSupportedException($"{handler.Name} cannot create archives.");
+        if (!handler.CanWrite(name))
+            throw new System.NotSupportedException($"{handler.Name} cannot create '{Path.GetExtension(name)}' archives.");
 
         var fullSource = Path.GetFullPath(sourceDir);
         var entries = new List<ArchiveWriteEntry>();
@@ -468,10 +504,6 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
         if (!IsContainer(sourcePath)) throw new System.NotSupportedException("Not a recognised archive.");
         var srcName = Path.GetFileName(sourcePath);
         var srcHandler = HandlerFor(srcName)!;
-        var tgtName = Path.GetFileName(targetPath);
-        var tgtHandler = HandlerFor(tgtName) ?? throw new System.NotSupportedException($"No archive handler for '{tgtName}'.");
-        if (!tgtHandler.Capabilities.HasFlag(ArchiveCapabilities.Create))
-            throw new System.NotSupportedException($"{tgtHandler.Name} cannot create '{Path.GetExtension(tgtName)}' archives.");
 
         var entries = new List<ArchiveWriteEntry>();
         using (var session = srcHandler.Open(
@@ -485,10 +517,76 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
             }
         }
 
-        var tmp = targetPath + ".nexatmp";
-        using (var outStream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
-            tgtHandler.Write(outStream, tgtName, entries, options);
+        WriteEntries(targetPath, entries, options);
+        InvalidateContainer(targetPath);
+    }
 
+    /// <summary>Writes <paramref name="entries"/> to <paramref name="targetPath"/>, choosing the backend by
+    /// extension: a container handler for <c>.zip</c>/<c>.tar</c>; the tar handler + a codec for
+    /// <c>.tar.&lt;codec&gt;</c>; or a single codec stream for a one-file <c>.&lt;codec&gt;</c> target.</summary>
+    private void WriteEntries(string targetPath, List<ArchiveWriteEntry> entries, ArchiveWriteOptions? options)
+    {
+        var name  = Path.GetFileName(targetPath);
+        var lower = name.ToLowerInvariant();
+        var codec = CompressingCodecFor(lower);
+        bool isTar = lower.EndsWith(".tar", System.StringComparison.Ordinal);
+
+        // .tar.<codec> — tar to a temp, then compress that temp with the codec.
+        if (codec is not null && lower[..^codec.Extension.Length].EndsWith(".tar", System.StringComparison.Ordinal))
+        {
+            var tarHandler = HandlerFor("a.tar")
+                ?? throw new System.NotSupportedException("No tar handler is registered to build a .tar.* archive.");
+            var tmpTar = targetPath + ".tar.nexatmp";
+            try
+            {
+                using (var ts = new FileStream(tmpTar, FileMode.Create, FileAccess.Write, FileShare.None))
+                    tarHandler.Write(ts, "archive.tar", entries, options);
+                CompressFileWithCodec(tmpTar, targetPath, codec);
+            }
+            finally { try { File.Delete(tmpTar); } catch { /* best effort */ } }
+            return;
+        }
+
+        // .<codec> single stream — holds exactly one file.
+        if (codec is not null && !isTar)
+        {
+            var files = entries.FindAll(e => !e.IsDirectory);
+            if (files.Count != 1)
+                throw new System.NotSupportedException(
+                    $"A {codec.Extension} file holds a single stream, but this archive has {files.Count} files — " +
+                    $"convert to .tar{codec.Extension} instead.");
+            var tmp = targetPath + ".nexatmp";
+            using (var outStream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (var cs = codec.Compress(outStream))
+            using (var src = files[0].OpenContent!())
+                src.CopyTo(cs);
+            Commit(tmp, targetPath);
+            return;
+        }
+
+        // Plain container handler (.zip / .tar).
+        var handler = HandlerFor(name)
+            ?? throw new System.NotSupportedException($"No archive handler for '{name}'.");
+        if (!handler.CanWrite(name))
+            throw new System.NotSupportedException($"{handler.Name} cannot create '{Path.GetExtension(name)}' archives.");
+        var t = targetPath + ".nexatmp";
+        using (var outStream = new FileStream(t, FileMode.Create, FileAccess.Write, FileShare.None))
+            handler.Write(outStream, name, entries, options);
+        Commit(t, targetPath);
+    }
+
+    private static void CompressFileWithCodec(string sourceFile, string targetPath, IStreamCodec codec)
+    {
+        var tmp = targetPath + ".nexatmp";
+        using (var inStream = new FileStream(sourceFile, FileMode.Open, FileAccess.Read, FileShare.Read))
+        using (var outStream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
+        using (var cs = codec.Compress(outStream))
+            inStream.CopyTo(cs);
+        Commit(tmp, targetPath);
+    }
+
+    private static void Commit(string tmp, string targetPath)
+    {
         if (File.Exists(targetPath)) File.Replace(tmp, targetPath, null);
         else
         {
@@ -496,7 +594,6 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
             if (!string.IsNullOrEmpty(d)) Directory.CreateDirectory(d);
             File.Move(tmp, targetPath);
         }
-        InvalidateContainer(targetPath);
     }
 
     public void AddFiles(string containerPath, IReadOnlyList<(string SourcePath, string EntryName)> files)

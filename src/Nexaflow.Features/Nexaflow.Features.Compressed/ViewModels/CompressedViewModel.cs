@@ -65,10 +65,15 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
     [NotifyCanExecuteChangedFor(nameof(EncryptCommand))]
     private bool _isRecognised;
 
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(VerifyCommand))]
+    private bool _hasSignature;
+
     /// <summary>Flattened, expand-aware list of visible rows.</summary>
     public ObservableCollection<ArchiveNode> VisibleRows { get; } = [];
 
     private ArchiveNode? _root;
+    private int _fileCount;
 
     public CompressedViewModel(string path, IShellServices shell, IVirtualFileSystem vfs)
     {
@@ -109,6 +114,7 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
         CanEncrypt = summary.Capabilities.HasFlag(ArchiveCapabilities.Encrypt);
 
         var files = summary.Entries.Where(e => !e.IsDirectory).ToList();
+        _fileCount = files.Count;
         long total = files.Sum(e => e.Size);
         long comp = files.Sum(e => Math.Max(0, e.CompressedSize));
         EntryCountText = $"{files.Count} file{(files.Count == 1 ? "" : "s")}";
@@ -116,7 +122,8 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
         CompressedSizeText = ArchiveNode.FormatBytes(comp);
         RatioText = total > 0 ? $"{100.0 * (1.0 - (double)comp / total):0.#}% smaller" : "—";
         EncryptionText = summary.IsEncrypted ? "Encrypted" : "Not encrypted";
-        SignatureText = _signer.HasSignature(ArchivePath) ? "Signed (verify to confirm)" : "Unsigned";
+        HasSignature = _signer.HasSignature(ArchivePath);
+        SignatureText = HasSignature ? "Signed (Sig Check to confirm)" : "Unsigned";
         Comment = summary.Comment;
         HasComment = !string.IsNullOrWhiteSpace(summary.Comment);
 
@@ -276,11 +283,12 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
         var path = ArchivePath;
         string fingerprint = string.Empty;
         await RunBusy("Signing…", () => fingerprint = _signer.Sign(path));
+        HasSignature = true;
         SignatureText = $"Signed · {fingerprint}";
         StatusText = "Wrote a detached signature (.sig).";
     }
 
-    [RelayCommand(CanExecute = nameof(IsRecognised))]
+    [RelayCommand(CanExecute = nameof(CanVerify))]
     private async Task Verify()
     {
         var path = ArchivePath;
@@ -297,8 +305,13 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
     private bool CanConvert => IsRecognised && ConvertTargets().Count > 0;
     private bool CanEncryptArchive => IsRecognised && _encryptor is { } e && e.CanEncrypt(ArchivePath);
     private bool CanDecryptArchive => _encryptor is { } e && e.CanEncrypt(ArchivePath);
+    private bool CanVerify => IsRecognised && HasSignature;
 
-    [RelayCommand(CanExecute = nameof(IsRecognised))]
+    // Recompress applies a compression level — meaningless for an uncompressed tar.
+    private bool CanRecompress => IsRecognised && _vfs.CanCreate(Path.GetFileName(ArchivePath))
+        && !Path.GetExtension(ArchivePath).Equals(".tar", StringComparison.OrdinalIgnoreCase);
+
+    [RelayCommand(CanExecute = nameof(CanRecompress))]
     private void Recompress() => ShowChoice("Recompress — choose a level",
         ["Store (no compression)", "Fast", "Optimal", "Smallest"], async choice =>
     {
@@ -342,9 +355,15 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
 
     private IReadOnlyList<string> ConvertTargets()
     {
-        var current = Path.GetExtension(ArchivePath).TrimStart('.').ToLowerInvariant();
-        return new[] { "zip", "tar", "tar.gz" }
-            .Where(f => !string.Equals(f, current, StringComparison.OrdinalIgnoreCase) && _vfs.CanCreate("x." + f))
+        var current = Path.GetFileName(ArchivePath).ToLowerInvariant();
+
+        // Multi-entry containers are always valid targets; single-stream codecs only when the archive
+        // holds exactly one file (a .gz/.zst/.br stream can't carry a directory of files).
+        string[] multi  = ["zip", "tar", "tar.gz", "tar.bz2", "tar.zst", "tar.lz4", "tar.br"];
+        string[] single = _fileCount == 1 ? ["gz", "bz2", "zst", "lz4", "br"] : [];
+
+        return multi.Concat(single)
+            .Where(f => !current.EndsWith("." + f, StringComparison.Ordinal) && _vfs.CanCreate("x." + f))
             .ToList();
     }
 

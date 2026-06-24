@@ -83,6 +83,11 @@ public interface IArchiveHandler
     /// single handler serves (e.g. tar vs tar.gz).</summary>
     IArchiveSession Open(Stream container, string fileName, ArchiveOpenOptions? options = null);
 
+    /// <summary>Whether this handler can <b>write</b> the specific archive <paramref name="fileName"/>.
+    /// Defaults to the <see cref="ArchiveCapabilities.Create"/> capability; override when a handler reads
+    /// more formats than it writes (SharpCompress reads 7z/rar/xz but writes only the tar family).</summary>
+    bool CanWrite(string fileName) => Capabilities.HasFlag(ArchiveCapabilities.Create);
+
     /// <summary>Writes a new archive of this handler's format to <paramref name="target"/> from
     /// <paramref name="entries"/>. Only meaningful when <see cref="Capabilities"/> includes
     /// <see cref="ArchiveCapabilities.Create"/>/<see cref="ArchiveCapabilities.Modify"/>.</summary>

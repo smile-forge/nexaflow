@@ -157,6 +157,15 @@ public sealed class FileMapManager
         RebuildIndex();
     }
 
+    /// <summary>Candidate extensions for a file name, longest (most-specific) first:
+    /// <c>foo.tar.gz</c> → <c>.tar.gz</c>, <c>.gz</c>. Lets compound extensions match.</summary>
+    private static IEnumerable<string> ExtensionCandidates(string fileName)
+    {
+        var name = Path.GetFileName(fileName).ToLowerInvariant();
+        for (int i = name.IndexOf('.'); i >= 0; i = name.IndexOf('.', i + 1))
+            yield return name[i..];
+    }
+
     /// <summary>
     /// Returns all experience IDs that apply to the given file, including
     /// all ancestor IDs (hierarchical propagation).
@@ -168,9 +177,10 @@ public sealed class FileMapManager
 
         var matched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // 1. Extension lookup
-        if (idx.ByExtension.TryGetValue(ext, out var byExt))
-            foreach (var id in byExt) matched.Add(id);
+        // 1. Extension lookup — try compound extensions (.tar.gz) as well as the bare one (.gz).
+        foreach (var cand in ExtensionCandidates(file.Name))
+            if (idx.ByExtension.TryGetValue(cand, out var byExt))
+                foreach (var id in byExt) matched.Add(id);
         if (idx.ByExtension.TryGetValue("*", out var universal))
             foreach (var id in universal) matched.Add(id);
 
@@ -496,9 +506,10 @@ public sealed class FileMapManager
             foreach (var (pattern, id) in idx.PathPatternRules)
                 if (GlobMatch(file.FullName, pattern) && IsAncestorOrSelf([id], experienceId)) return 5;
 
-            // Extension-specific (level 4)
-            if (idx.ByExtension.TryGetValue(ext, out var byExt) &&
-                IsAncestorOrSelf(byExt, experienceId)) return 4;
+            // Extension-specific (level 4) — compound extensions (.tar.gz) count, longest first.
+            foreach (var cand in ExtensionCandidates(file.Name))
+                if (idx.ByExtension.TryGetValue(cand, out var byExt) &&
+                    IsAncestorOrSelf(byExt, experienceId)) return 4;
 
             // MagicNumber (level 3)
             if (idx.MagicExtensions.Contains(ext) && file.Exists && file.Length > 0)
