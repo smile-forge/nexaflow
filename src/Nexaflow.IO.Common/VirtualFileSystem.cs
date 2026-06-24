@@ -111,8 +111,12 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
     public bool IsDirectory(string path)
     {
         if (Directory.Exists(path)) return true;
-        if (IsContainer(path)) return true;                    // an archive browses like a folder
-        return GetEntryInfo(path) is { IsDirectory: true };
+        if (IsContainer(path)) return true;                    // a real archive browses like a folder
+        var info = GetEntryInfo(path);
+        if (info is null) return false;
+        if (info.IsDirectory) return true;
+        // A nested archive entry (e.g. inner.zip inside another archive) is also browsable.
+        return IsContainerName(Path.GetFileName(path));
     }
 
     public long GetLength(string path)
