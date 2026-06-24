@@ -4,6 +4,16 @@ using System.Text;
 
 namespace Nexaflow.IO.Common;
 
+/// <summary>Top-level facts about one archive, for the Compressed inspector.</summary>
+/// <param name="Format">The backend's display name (e.g. <c>"Zip"</c>).</param>
+/// <param name="Entries">Every entry, flat, with full forward-slash paths.</param>
+public sealed record ArchiveSummary(
+    string Format,
+    ArchiveCapabilities Capabilities,
+    IReadOnlyList<VirtualEntry> Entries,
+    string? Comment,
+    bool IsEncrypted);
+
 /// <summary>
 /// A file-system facade that is transparent over archive boundaries. For a real path every call is a
 /// byte-identical pass-through to <see cref="System.IO"/>; for a path that descends into an archive
@@ -54,6 +64,18 @@ public interface IVirtualFileSystem
     /// and the remainder inside it, or <c>(path, null)</c> when the path is not inside any archive. Used
     /// by the shell file-watcher to watch the real container instead of a non-existent inner path.</summary>
     (string RealContainer, string? Inner) SplitOutermostContainer(string path);
+
+    /// <summary>Top-level facts about the archive at <paramref name="containerPath"/> (a real archive
+    /// file), or null if it is not a recognised container. Used by the Compressed inspector.</summary>
+    ArchiveSummary? DescribeArchive(string containerPath);
+
+    /// <summary>Extracts every file in the archive into <paramref name="destinationDir"/>, recreating its
+    /// folder structure. Entries whose path would escape the destination (zip-slip) are skipped.</summary>
+    void ExtractAll(string containerPath, string destinationDir);
+
+    /// <summary>Adds files into the archive, rewriting it. Each item is a source file on disk and the
+    /// entry path it should take inside the archive; an existing entry of that path is replaced.</summary>
+    void AddFiles(string containerPath, IReadOnlyList<(string SourcePath, string EntryName)> files);
 
     /// <summary>Registers a compression backend. Called once per handler at startup.</summary>
     void RegisterHandler(IArchiveHandler handler);

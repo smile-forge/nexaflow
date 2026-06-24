@@ -58,6 +58,14 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
     public bool IsContainer(string path)
         => !string.IsNullOrEmpty(path) && File.Exists(path) && HandlerFor(Path.GetFileName(path)) is not null;
 
+    public ArchiveSummary? DescribeArchive(string containerPath)
+    {
+        if (!IsContainer(containerPath)) return null;
+        var handler = HandlerFor(Path.GetFileName(containerPath))!;
+        using var session = OpenSession(new Resolved(containerPath, Path.GetFileName(containerPath), string.Empty));
+        return new ArchiveSummary(handler.Name, handler.Capabilities, session.Entries, session.Comment, session.IsEncrypted);
+    }
+
     public (string RealContainer, string? Inner) SplitOutermostContainer(string path)
     {
         if (string.IsNullOrEmpty(path)) return (path, null);
@@ -380,6 +388,73 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
 
         // The container's bytes changed — drop cached extractions from it.
         InvalidateContainer(resolved.RealContainer);
+    }
+
+    public void ExtractAll(string containerPath, string destinationDir)
+    {
+        var summary = DescribeArchive(containerPath)
+            ?? throw new System.NotSupportedException("Not a recognised archive.");
+        var handler = HandlerFor(Path.GetFileName(containerPath))!;
+        Directory.CreateDirectory(destinationDir);
+        var fullDest = Path.GetFullPath(destinationDir);
+
+        using var session = handler.Open(
+            new FileStream(containerPath, FileMode.Open, FileAccess.Read, FileShare.Read), Path.GetFileName(containerPath));
+        foreach (var e in summary.Entries)
+        {
+            if (e.IsDirectory) continue;
+            var target = Path.GetFullPath(Path.Combine(fullDest, e.Name.Replace('/', Path.DirectorySeparatorChar)));
+            // Zip-slip guard: never write outside the destination root.
+            if (target != fullDest &&
+                !target.StartsWith(fullDest + Path.DirectorySeparatorChar, System.StringComparison.OrdinalIgnoreCase))
+                continue;
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            using var src = session.OpenEntry(e.Name);
+            using var dst = new FileStream(target, FileMode.Create, FileAccess.Write, FileShare.None);
+            src.CopyTo(dst);
+        }
+    }
+
+    public void AddFiles(string containerPath, IReadOnlyList<(string SourcePath, string EntryName)> files)
+    {
+        if (!IsContainer(containerPath)) throw new System.NotSupportedException("Not a recognised archive.");
+        var name = Path.GetFileName(containerPath);
+        var handler = HandlerFor(name) ?? throw new System.NotSupportedException("No archive handler.");
+        if (!handler.Capabilities.HasFlag(ArchiveCapabilities.Modify))
+            throw new System.NotSupportedException($"{handler.Name} archives are read-only.");
+
+        var additions = files.ToDictionary(f => Normalize(f.EntryName), f => f.SourcePath, System.StringComparer.OrdinalIgnoreCase);
+        var rebuilt = new List<ArchiveWriteEntry>();
+        var replaced = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+
+        using (var session = handler.Open(
+            new FileStream(containerPath, FileMode.Open, FileAccess.Read, FileShare.Read), name))
+        {
+            foreach (var e in session.Entries)
+            {
+                if (e.IsDirectory) { rebuilt.Add(new ArchiveWriteEntry { Path = e.Name, IsDirectory = true, Modified = e.Modified }); continue; }
+                var norm = Normalize(e.Name);
+                if (additions.TryGetValue(norm, out var src))
+                {
+                    replaced.Add(norm);
+                    rebuilt.Add(new ArchiveWriteEntry { Path = e.Name, Modified = System.DateTime.Now, OpenContent = () => File.OpenRead(src) });
+                }
+                else
+                {
+                    var bytes = ReadEntryBytes(session, e.Name);
+                    rebuilt.Add(new ArchiveWriteEntry { Path = e.Name, Modified = e.Modified, OpenContent = () => new MemoryStream(bytes) });
+                }
+            }
+        }
+        foreach (var kv in additions)
+            if (!replaced.Contains(kv.Key))
+                rebuilt.Add(new ArchiveWriteEntry { Path = kv.Key, Modified = System.DateTime.Now, OpenContent = () => File.OpenRead(kv.Value) });
+
+        var tmp = containerPath + ".nexatmp";
+        using (var outStream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
+            handler.Write(outStream, name, rebuilt);
+        File.Replace(tmp, containerPath, null);
+        InvalidateContainer(containerPath);
     }
 
     private static byte[] ReadEntryBytes(IArchiveSession session, string entryPath)

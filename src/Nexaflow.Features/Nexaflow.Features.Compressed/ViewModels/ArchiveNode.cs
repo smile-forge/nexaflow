@@ -1,0 +1,61 @@
+using System.Collections.Generic;
+using System.Windows;
+using CommunityToolkit.Mvvm.ComponentModel;
+
+namespace Nexaflow.Features.Compressed.ViewModels;
+
+/// <summary>
+/// One node in the archive's directory tree, doubling as a flattened-list row. The view binds a single
+/// <see cref="Indent"/> margin on the name cell so columns stay aligned while the hierarchy indents.
+/// </summary>
+public sealed partial class ArchiveNode : ObservableObject
+{
+    /// <summary>Display name (the last path segment).</summary>
+    public required string Name { get; init; }
+
+    /// <summary>Full forward-slash path inside the archive.</summary>
+    public required string ArchivePath { get; init; }
+
+    public required bool IsFolder { get; init; }
+    public int Depth { get; init; }
+
+    public long Size { get; set; }
+    public long CompressedSize { get; set; }
+    public System.DateTime Modified { get; set; }
+
+    public List<ArchiveNode> Children { get; } = [];
+
+    [ObservableProperty] private bool _isExpanded;
+
+    public bool HasChildren => Children.Count > 0;
+    public Thickness Indent => new(Depth * 14, 0, 0, 0);
+
+    /// <summary>Expander triangle for folders (empty for files / childless folders).</summary>
+    public string Chevron => IsFolder && HasChildren ? (IsExpanded ? "▾" : "▸") : string.Empty;
+
+    public string SizeText => IsFolder ? string.Empty : FormatBytes(Size);
+    public string CompressedText => IsFolder ? string.Empty : FormatBytes(CompressedSize);
+
+    public string RatioText
+    {
+        get
+        {
+            if (IsFolder || Size <= 0 || CompressedSize < 0) return string.Empty;
+            var pct = 100.0 * (1.0 - (double)CompressedSize / Size);
+            return pct <= 0 ? "—" : $"{pct:0}%";
+        }
+    }
+
+    public string ModifiedText => Modified == default ? string.Empty : Modified.ToString("yyyy-MM-dd HH:mm");
+
+    partial void OnIsExpandedChanged(bool value) => OnPropertyChanged(nameof(Chevron));
+
+    internal static string FormatBytes(long bytes)
+    {
+        if (bytes < 0) return string.Empty;
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double v = bytes; int u = 0;
+        while (v >= 1024 && u < units.Length - 1) { v /= 1024; u++; }
+        return u == 0 ? $"{bytes} B" : $"{v:0.#} {units[u]}";
+    }
+}

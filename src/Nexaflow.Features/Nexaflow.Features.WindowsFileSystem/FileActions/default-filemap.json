@@ -135,5 +135,19 @@
     "Criteria": [
       { "Type": "PerceivedType", "Value": "Document" }
     ]
+  },
+  {
+    "ExperienceId": "/archive",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.zip" },
+      { "Type": "Extension", "Value": "*.jar" },
+      { "Type": "Extension", "Value": "*.war" },
+      { "Type": "Extension", "Value": "*.ear" },
+      { "Type": "Extension", "Value": "*.apk" },
+      { "Type": "Extension", "Value": "*.aar" },
+      { "Type": "Extension", "Value": "*.kmz" },
+      { "Type": "Extension", "Value": "*.epub" }
+    ]
   }
 ]
