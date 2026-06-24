@@ -23,6 +23,7 @@ internal sealed partial class FileNodeViewModel : ObservableObject
     public ObservableCollection<FileNodeViewModel> Children { get; } = [];
 
     [ObservableProperty] private bool _isExpanded;
+    [ObservableProperty] private bool _isSelected;
 
     private bool _loaded;
 
@@ -112,7 +113,59 @@ public partial class FileBrowserWindow : Window
         {
             Owner = owner ?? Application.Current.MainWindow
         };
+        win.NavigateTo(initialPath);
         return win.ShowDialog() == true ? win.SelectedPath : null;
+    }
+
+    /// <summary>Expands the tree to <paramref name="initialPath"/> (a folder, or a file's folder),
+    /// pre-selecting the file when one was given.</summary>
+    private void NavigateTo(string? initialPath)
+    {
+        if (string.IsNullOrEmpty(initialPath)) return;
+        try { initialPath = Path.GetFullPath(initialPath); } catch { return; }
+        if (DataContext is not FileBrowserViewModel vm) return;
+
+        var targetIsFile = File.Exists(initialPath);
+        var dir = targetIsFile ? Path.GetDirectoryName(initialPath) : initialPath;
+        if (string.IsNullOrEmpty(dir)) return;
+
+        var root = Path.GetPathRoot(dir)?.TrimEnd('\\');
+        var node = vm.Roots.FirstOrDefault(r =>
+            string.Equals(r.FullPath.TrimEnd('\\'), root, StringComparison.OrdinalIgnoreCase));
+        if (node is null) return;
+
+        node.EnsureLoaded();
+        node.IsExpanded = true;
+
+        var rel = Path.GetRelativePath(node.FullPath, dir);
+        if (rel is not "." and not "")
+        {
+            foreach (var seg in rel.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var child = node.Children.FirstOrDefault(c =>
+                    c.IsDirectory && string.Equals(c.DisplayName, seg, StringComparison.OrdinalIgnoreCase));
+                if (child is null) break;
+                child.EnsureLoaded();
+                child.IsExpanded = true;
+                node = child;
+            }
+        }
+
+        if (targetIsFile)
+        {
+            var fileNode = node.Children.FirstOrDefault(c =>
+                !c.IsDirectory && string.Equals(c.FullPath, initialPath, StringComparison.OrdinalIgnoreCase));
+            if (fileNode is not null)
+            {
+                fileNode.IsSelected   = true;
+                SelectedPath          = fileNode.FullPath;
+                SelectedPathText.Text = fileNode.FullPath;
+                OkBtn.IsEnabled       = true;
+                return;
+            }
+        }
+
+        node.IsSelected = true;  // highlight the folder; OK stays disabled until a file is chosen
     }
 
     private void FileTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
@@ -136,6 +189,11 @@ public partial class FileBrowserWindow : Window
     {
         if (sender is TreeViewItem { DataContext: FileNodeViewModel node })
             node.EnsureLoaded();
+    }
+
+    private void TreeViewItem_Selected(object sender, RoutedEventArgs e)
+    {
+        if (sender is TreeViewItem { IsSelected: true } tvi) tvi.BringIntoView();
     }
 
     private void TreeViewItem_MouseDoubleClick(object sender, RoutedEventArgs e)

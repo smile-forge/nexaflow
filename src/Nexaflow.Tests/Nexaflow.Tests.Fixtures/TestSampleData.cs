@@ -58,6 +58,7 @@ public static class TestSampleData
         new LogSamples(),
         new BinarySamples(),
         new ImageSamples(),
+        new ArchiveSamples(),
     ];
 
     private static readonly Lazy<string> RootLazy = new(EnsureAll);

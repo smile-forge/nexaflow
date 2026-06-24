@@ -107,7 +107,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     // ── Large-file state ──────────────────────────────────────────────────────
 
-    private FileStream? _fileStream;
+    private Stream? _fileStream;   // a VFS stream: a real FileStream, or a seekable temp for an in-archive file
     private long        _loadedByteEnd;
     private bool        _moreDataAvailable;
     private bool        _isLoadingChunk;
@@ -160,20 +160,21 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
         try
         {
-            var info = new FileInfo(FilePath);
-            FileSizeText = FormatSize(info.Length);
-            IsLargeFile  = info.Length >= SmallFileSizeLimit;
+            long length  = VirtualFileSystem.Instance.GetLength(FilePath);
+            FileSizeText = FormatSize(length);
+            IsLargeFile  = length >= SmallFileSizeLimit;
 
             if (!IsLargeFile)
             {
-                var text = await File.ReadAllTextAsync(FilePath, SelectedEncoding.Encoding, ct);
-                Document.Text = text;
+                using var smallStream = VirtualFileSystem.Instance.OpenRead(FilePath);
+                using var smallReader = new StreamReader(smallStream, SelectedEncoding.Encoding);
+                Document.Text = await smallReader.ReadToEndAsync(ct);
                 LineCount     = Document.LineCount;
             }
             else
             {
                 _fileStream?.Dispose();
-                _fileStream    = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                _fileStream    = VirtualFileSystem.Instance.OpenRead(FilePath);
                 _loadedByteEnd = 0;
                 _loadedText    = string.Empty;
                 Document.Text  = string.Empty;
@@ -199,7 +200,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     {
         var starts = new List<long> { 0L };
         long pos   = 0;
-        using var stream = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var stream = VirtualFileSystem.Instance.OpenRead(FilePath);
         var buffer = new byte[65536];
         int read;
         while ((read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), ct)) > 0)
@@ -338,7 +339,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     private void StartMonitoring()
     {
         _watch?.Dispose();
-        if (!File.Exists(FilePath)) return;
+        if (!VirtualFileSystem.Instance.Exists(FilePath)) return;
 
         _watch = _shell.WatchFile(FilePath, OnFileChanged);
     }
@@ -387,7 +388,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     [RelayCommand]
     private void Split()
     {
-        if (string.IsNullOrEmpty(FilePath) || !File.Exists(FilePath)) return;
+        if (string.IsNullOrEmpty(FilePath) || !VirtualFileSystem.Instance.Exists(FilePath)) return;
 
         SplitOptions options;
         var mode = SelectedSplitMode.Mode;
@@ -552,7 +553,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         var matchingLines = new List<int>();
         long totalLines   = 0;
 
-        using (var reader = new StreamReader(FilePath, SelectedEncoding.Encoding))
+        using (var reader = new StreamReader(VirtualFileSystem.Instance.OpenRead(FilePath), SelectedEncoding.Encoding))
         {
             string? line;
             while ((line = await reader.ReadLineAsync(ct)) is not null)
@@ -582,7 +583,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         var matchingLines = new List<int>();
         long totalLines   = 0;
 
-        using (var reader = new StreamReader(FilePath, SelectedEncoding.Encoding))
+        using (var reader = new StreamReader(VirtualFileSystem.Instance.OpenRead(FilePath), SelectedEncoding.Encoding))
         {
             string? line;
             while ((line = await reader.ReadLineAsync(ct)) is not null)

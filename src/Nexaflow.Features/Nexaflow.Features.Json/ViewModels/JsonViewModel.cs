@@ -4,6 +4,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Json.Models;
 using Nexaflow.Features.Json.Services;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Collections;
 using Nexaflow.Visuals.Common.Formatting;
 using System.Collections.ObjectModel;
@@ -1198,7 +1199,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
         try
         {
             var json = JsonNodeSerializer.Serialize(Root);
-            await File.WriteAllTextAsync(FilePath, json, Encoding.UTF8);
+            await Task.Run(() => VirtualFileSystem.Instance.WriteAllText(FilePath, json, Encoding.UTF8));
             IsModified = false;
         }
         catch (Exception ex) { _shellServices.ShowError($"Save failed: {ex.Message}"); }

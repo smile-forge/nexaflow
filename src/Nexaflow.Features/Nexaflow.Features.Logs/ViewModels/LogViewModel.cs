@@ -129,7 +129,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
 
     public async Task LoadAsync(CancellationToken ct)
     {
-        if (string.IsNullOrEmpty(FilePath) || !File.Exists(FilePath)) return;
+        if (string.IsNullOrEmpty(FilePath) || !VirtualFileSystem.Instance.Exists(FilePath)) return;
 
         try
         {
@@ -138,15 +138,17 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
 
             _activeEncoding = await DetectEncodingAsync(ct);
 
-            var info     = new FileInfo(FilePath);
-            var fileSize = info.Length;
+            var fileSize = VirtualFileSystem.Instance.GetLength(FilePath);
             _lastKnownFileSize = fileSize;
             FileSizeText       = FormatSize(fileSize);
 
             if (fileSize <= 4096)
             {
                 // Small file: read entirely
-                var text       = await File.ReadAllTextAsync(FilePath, _activeEncoding, ct);
+                string text;
+                await using (var rs = VirtualFileSystem.Instance.OpenRead(FilePath))
+                using (var sr = new StreamReader(rs, _activeEncoding))
+                    text = await sr.ReadToEndAsync(ct);
                 Document.Text  = text;
                 _tailStartByte = 0;
             }
@@ -175,7 +177,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
 
     private async Task LoadTailAsync(long fileSize, CancellationToken ct)
     {
-        using var fs = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var fs = VirtualFileSystem.Instance.OpenRead(FilePath);
 
         // Seek 4 KB back from end; find first \n to start on a clean line
         var seekPoint = fileSize - 4096;
@@ -205,7 +207,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
             var buf        = new byte[65536];
             var totalBytes = 0L;
 
-            using var fs = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var fs = VirtualFileSystem.Instance.OpenRead(FilePath);
             while (totalBytes < _tailStartByte)
             {
                 ct.ThrowIfCancellationRequested();
@@ -238,7 +240,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
         // encoding identically. The probe is small; offload the synchronous read off the UI thread.
         return await Task.Run(() =>
         {
-            using var fs = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var fs = VirtualFileSystem.Instance.OpenRead(FilePath);
             return EncodingDetector.Detect(fs).Encoding;
         }, ct);
     }
@@ -255,7 +257,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
         byte[] header = [];
         try
         {
-            using var fs = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var fs = VirtualFileSystem.Instance.OpenRead(FilePath);
             header       = new byte[Math.Min(16, fs.Length)];
             _ = fs.Read(header, 0, header.Length);
         }
@@ -350,7 +352,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
         var buf          = new byte[newByteCount];
         try
         {
-            using var fs   = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var fs   = VirtualFileSystem.Instance.OpenRead(FilePath);
             fs.Seek(_lastKnownFileSize, SeekOrigin.Begin);
             var read       = await fs.ReadAsync(buf.AsMemory(0, newByteCount));
             var newContent = _activeEncoding.GetString(buf, 0, read);

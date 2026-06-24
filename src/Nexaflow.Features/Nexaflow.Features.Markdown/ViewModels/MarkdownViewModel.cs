@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using System.IO;
 
 namespace Nexaflow.Features.Markdown.ViewModels;
@@ -43,8 +44,8 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     public MarkdownViewModel(string filePath)
     {
         FilePath   = filePath;
-        _savedText = File.Exists(filePath)
-            ? File.ReadAllText(filePath).ReplaceLineEndings("\n")
+        _savedText = VirtualFileSystem.Instance.Exists(filePath)
+            ? VirtualFileSystem.Instance.ReadAllText(filePath).ReplaceLineEndings("\n")
             : string.Empty;
         Markdown = _savedText;   // OnMarkdownChanged sees value == _savedText → stays clean
     }
@@ -54,7 +55,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     [RelayCommand(CanExecute = nameof(IsDirty))]
     private void Save()
     {
-        File.WriteAllText(FilePath, Markdown);
+        VirtualFileSystem.Instance.WriteAllText(FilePath, Markdown);
         _savedText = Markdown;
         IsDirty    = false;
     }
