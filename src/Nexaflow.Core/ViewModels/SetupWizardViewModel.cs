@@ -348,13 +348,22 @@ public partial class SetupWizardViewModel : ObservableObject
         if (TryLoadWhatsNew(out var whatsNew))
             steps.Add(new MarkdownStep("What's New", whatsNew));
 
-        // 2. Unconfigured GLOBAL feature configs (version-defaulted) that opt into the wizard via
-        //    [MandatorySetup], excluding the Workspaces list. Everything else is set up in Options.
+        // 2. GLOBAL feature configs that opt into the wizard via [MandatorySetup], excluding the
+        //    Workspaces list. Show one when it is brand-new (defaulted — first run / new feature) OR
+        //    it was migrated from an older version but is now missing genuinely-new required info; a
+        //    migrated config whose required fields all carried over is left alone (no re-ask). The
+        //    step is prefilled with the migrated values (the editor binds the live config).
         var defaulted = ConfigManager.Instance.GetDefaultedConfigs()
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var migrated = ConfigManager.Instance.GetMigratedConfigs()
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var cfg in ConfigManager.Instance.GetAll().OfType<IFeatureConfig>())
         {
-            if (cfg is WorkspacesConfig || !defaulted.Contains(cfg.ConfigName) || !IsMandatory(cfg)) continue;
+            if (cfg is WorkspacesConfig || !IsMandatory(cfg)) continue;
+            bool isNew        = defaulted.Contains(cfg.ConfigName);
+            bool needsNewInfo = migrated.Contains(cfg.ConfigName)
+                                && !ConfigEditViewModel.AreRequiredPropertiesSatisfied(cfg);
+            if (!isNew && !needsNewInfo) continue;
             var editor = new ConfigEditViewModel(cfg, cfg.ConfigName, cfg.FriendlyName);
             steps.Add(new ConfigEditStep(cfg.FriendlyName, editor,
                 e => ConfigManager.Instance.Save(e.RealConfig, e.ConfigName)));
