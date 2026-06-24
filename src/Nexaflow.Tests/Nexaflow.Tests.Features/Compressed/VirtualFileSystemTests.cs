@@ -55,6 +55,22 @@ public class VirtualFileSystemTests
         Assert.IsTrue(VirtualFileSystem.Instance.IsDirectory(dir));
     }
 
+    [TestMethod]
+    public void WriteAllText_WithBomEncoding_EmitsPreamble()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "nexa-vfs-bom-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var path = Path.Combine(dir, "x.txt");
+            VirtualFileSystem.Instance.WriteAllText(path, "hi", new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+            var bytes = File.ReadAllBytes(path);
+            Assert.IsTrue(bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF,
+                "UTF-8 BOM should be written (matching File.WriteAllText).");
+        }
+        finally { try { Directory.Delete(dir, true); } catch { } }
+    }
+
     // ── SplitOutermostContainer ──────────────────────────────────────────────
 
     [TestMethod]

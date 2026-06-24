@@ -304,7 +304,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
 
     private async Task ReloadForEncodingAsync()
     {
-        if (IsReadOnlyMode || string.IsNullOrEmpty(FilePath) || !File.Exists(FilePath)) return;
+        if (IsReadOnlyMode || string.IsNullOrEmpty(FilePath) || !VirtualFileSystem.Instance.Exists(FilePath)) return;
         if (IsDirty && !await Shell.ConfirmAsync("Change encoding",
                 "Re-read the file with the new encoding and discard your unsaved changes?"))
             return;
@@ -320,9 +320,11 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
         try
         {
             var text = TextTransforms.NormalizeLineEndings(Document.Text, SelectedEol.Eol);
-            await File.WriteAllTextAsync(FilePath, text, SelectedEncoding.Encoding);
+            var enc  = SelectedEncoding.Encoding;
+            // VFS write: a plain file write for real paths, or an archive rewrite for an in-archive entry.
+            await Task.Run(() => VirtualFileSystem.Instance.WriteAllText(FilePath, text, enc));
             Document.UndoStack.MarkAsOriginalFile(); // current buffer is now the saved state ⇒ clean
-            FileSizeText = SizeFormatter.FormatBytes(new FileInfo(FilePath).Length);
+            FileSizeText = SizeFormatter.FormatBytes(VirtualFileSystem.Instance.GetLength(FilePath));
             StartWatching(); // a brand-new file now exists to watch
         }
         catch (Exception ex)

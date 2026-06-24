@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 
 namespace Nexaflow.Features.Hex.Buffer;
@@ -18,7 +19,7 @@ public sealed class HexBuffer : IDisposable
     private const int WindowSize   = WindowRows * BytesPerRow; // 8 192 bytes
     private const int ReloadMargin = WindowRows / 4;           // rows before edge that triggers reload
 
-    private FileStream? _stream;
+    private Stream? _stream;   // a VFS stream: a real FileStream, or a seekable temp for an in-archive entry
     private readonly string _filePath;
 
     // ── File read window ──────────────────────────────────────────────────────
@@ -46,9 +47,9 @@ public sealed class HexBuffer : IDisposable
     public HexBuffer(string filePath)
     {
         _filePath = filePath;
-        if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
+        if (!string.IsNullOrEmpty(filePath) && VirtualFileSystem.Instance.Exists(filePath))
         {
-            _stream     = new FileStream(filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
+            _stream     = VirtualFileSystem.Instance.OpenRead(filePath);
             FileLength  = _stream.Length;
         }
         if (FileLength > 0)
@@ -275,9 +276,9 @@ public sealed class HexBuffer : IDisposable
             using var outFs = new FileStream(target, FileMode.Create, FileAccess.Write, FileShare.None);
             WriteAll(outFs);
         }
-        else
+        else if (File.Exists(target))
         {
-            // Write to a temp file then replace (atomic-ish)
+            // Real file: write to a temp then replace (atomic-ish), memory-light for large files.
             string tmp = target + ".hextmp";
             try
             {
@@ -300,6 +301,22 @@ public sealed class HexBuffer : IDisposable
                 if (File.Exists(tmp)) File.Delete(tmp);
                 throw;
             }
+        }
+        else
+        {
+            // In-archive entry: build the new bytes and rewrite the owning archive through the VFS.
+            byte[] bytes;
+            using (var ms = new MemoryStream()) { WriteAll(ms); bytes = ms.ToArray(); }
+
+            _stream?.Dispose();
+            _stream = null;
+
+            VirtualFileSystem.Instance.Replace(target, bytes);
+
+            _stream    = VirtualFileSystem.Instance.OpenRead(target);
+            FileLength = _stream.Length;
+            _pieces    = [new Piece(PieceSource.File, 0, FileLength)];
+            _windowOffset = -1;
         }
 
         _undoStack.Clear();

@@ -248,7 +248,13 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
     }
 
     public void WriteAllText(string path, string contents, Encoding? encoding = null)
-        => WriteAllBytes(path, (encoding ?? new UTF8Encoding(false)).GetBytes(contents));
+    {
+        // Match File.WriteAllText: emit the encoding's preamble (BOM) when it has one.
+        var enc      = encoding ?? new UTF8Encoding(false);
+        var preamble = enc.GetPreamble();
+        var body     = enc.GetBytes(contents);
+        WriteAllBytes(path, preamble.Length == 0 ? body : [.. preamble, .. body]);
+    }
 
     public void Replace(string path, byte[] newContent)
     {

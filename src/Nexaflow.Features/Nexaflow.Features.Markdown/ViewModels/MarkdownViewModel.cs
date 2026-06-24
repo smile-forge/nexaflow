@@ -55,7 +55,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     [RelayCommand(CanExecute = nameof(IsDirty))]
     private void Save()
     {
-        File.WriteAllText(FilePath, Markdown);
+        VirtualFileSystem.Instance.WriteAllText(FilePath, Markdown);
         _savedText = Markdown;
         IsDirty    = false;
     }
