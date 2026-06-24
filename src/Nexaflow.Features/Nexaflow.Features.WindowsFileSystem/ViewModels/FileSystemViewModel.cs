@@ -997,9 +997,8 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     /// </summary>
     private async Task OpenFileDefaultAsync(FileSystemEntry entry)
     {
-        // Files inside an archive open through the VFS-aware path (wired in the next step); until then a
-        // virtual path has no default opener, so do nothing rather than fail in a viewer that reads disk.
-        if (!File.Exists(entry.FullPath)) return;
+        // Resolves the default action by extension and opens it; files inside an archive open through the
+        // VFS-aware readers (the opener's magic-byte sniff self-skips for a non-existent real path).
         if (await _opener.OpenAsync(entry.FullPath)) Refresh();
     }
 

@@ -224,31 +224,34 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
         try
         {
             // A not-yet-existing path is a new/blank file — start empty, editable, watched once saved.
-            if (string.IsNullOrEmpty(FilePath) || !File.Exists(FilePath))
+            if (string.IsNullOrEmpty(FilePath) || !VirtualFileSystem.Instance.Exists(FilePath))
             {
                 SetDocumentText(string.Empty);
                 IsDirty = false;
                 return;
             }
 
-            var info = new FileInfo(FilePath);
-            FileSizeText = SizeFormatter.FormatBytes(info.Length);
+            long length  = VirtualFileSystem.Instance.GetLength(FilePath);
+            FileSizeText = SizeFormatter.FormatBytes(length);
 
-            if (info.Length > _maxEditableBytes)
+            if (length > _maxEditableBytes)
             {
                 IsReadOnlyMode = true;
-                ReadOnlyReason = $"This file is {SizeFormatter.FormatBytes(info.Length)} — too large to edit. "
+                ReadOnlyReason = $"This file is {SizeFormatter.FormatBytes(length)} — too large to edit. "
                                + "Open it As Text, or split it into smaller files first.";
                 SetDocumentText(string.Empty);
                 return;
             }
 
             EncodingProbe probe;
-            await using (var fs = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            await using (var fs = VirtualFileSystem.Instance.OpenRead(FilePath))
                 probe = EncodingDetector.Detect(fs);
             SyncEncodingSelection(probe);
 
-            var text = await File.ReadAllTextAsync(FilePath, SelectedEncoding.Encoding, ct);
+            string text;
+            await using (var rs = VirtualFileSystem.Instance.OpenRead(FilePath))
+            using (var sr = new StreamReader(rs, SelectedEncoding.Encoding))
+                text = await sr.ReadToEndAsync(ct);
             SetDocumentText(text);
             IsDirty = false;
             StartWatching();

@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Tabular.Detection;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Tabular.Streaming;
 
@@ -25,7 +26,7 @@ public static class RowCounter
         return Task.Run(() =>
         {
             encoding ??= Encoding.UTF8;
-            using var fs = File.OpenRead(path);
+            using var fs = VirtualFileSystem.Instance.OpenRead(path);
             fs.Position = bomBytes;
             using var sr = new StreamReader(fs, encoding, detectEncodingFromByteOrderMarks: false, bufferSize: 65536);
 

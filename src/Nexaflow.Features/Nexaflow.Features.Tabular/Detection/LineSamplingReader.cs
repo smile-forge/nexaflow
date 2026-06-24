@@ -24,7 +24,7 @@ public static class LineSamplingReader
 {
     public static FileSample Read(string filePath, int linesEachEnd = 4)
     {
-        using var fs = File.OpenRead(filePath);
+        using var fs = VirtualFileSystem.Instance.OpenRead(filePath);
         var probe = EncodingDetector.Detect(fs);
         var enc   = probe.Encoding;
 
@@ -68,7 +68,7 @@ public static class LineSamplingReader
                               fs.Length, avgBytes, comments);
     }
 
-    private static List<string> ReadHead(FileStream fs, Encoding enc, int bomBytes, int wanted, out LineEndingKind lineEnding)
+    private static List<string> ReadHead(Stream fs, Encoding enc, int bomBytes, int wanted, out LineEndingKind lineEnding)
     {
         fs.Position = bomBytes;
         var lines       = new List<string>(wanted);
@@ -114,7 +114,7 @@ public static class LineSamplingReader
         return lines;
     }
 
-    private static List<string> ReadTail(FileStream fs, Encoding enc, int bomBytes, int wanted)
+    private static List<string> ReadTail(Stream fs, Encoding enc, int bomBytes, int wanted)
     {
         // Read progressively larger tail chunks until we have wanted+1 line breaks.
         long fileLen = fs.Length;

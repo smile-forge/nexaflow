@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Tabular.Detection;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Tabular.Streaming;
 
@@ -63,7 +64,7 @@ public sealed class RowWindowReader : IRowSource
         var result = new List<HydratedRow>(maxVisible);
         try
         {
-            using var fs = File.OpenRead(_path);
+            using var fs = VirtualFileSystem.Instance.OpenRead(_path);
             fs.Position  = _bomBytes;
             using var sr = new StreamReader(fs, _encoding, detectEncodingFromByteOrderMarks: false, bufferSize: 16384);
 

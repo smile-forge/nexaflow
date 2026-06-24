@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Services;
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -395,11 +396,19 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IDisposa
         try
         {
             var bi = new BitmapImage();
-            bi.BeginInit();
-            bi.UriSource     = new Uri(path, UriKind.Absolute);
-            bi.CacheOption   = BitmapCacheOption.OnLoad;
-            bi.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
-            bi.EndInit();
+            // Decode through the VFS so images inside archives load too. OnLoad caches the whole frame at
+            // EndInit, so the backing stream is safe to dispose immediately after.
+            using (var src = VirtualFileSystem.Instance.OpenRead(path))
+            using (var ms = new MemoryStream())
+            {
+                src.CopyTo(ms);
+                ms.Position = 0;
+                bi.BeginInit();
+                bi.StreamSource  = ms;
+                bi.CacheOption   = BitmapCacheOption.OnLoad;
+                bi.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+                bi.EndInit();
+            }
             bi.Freeze();
             CurrentImage = bi;
         }
