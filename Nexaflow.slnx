@@ -11,6 +11,7 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Common/Nexaflow.Features.Common.csproj" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Compressed/Nexaflow.Features.Compressed.csproj" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Compressed.SharpCompress/Nexaflow.Features.Compressed.SharpCompress.csproj" />
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Compressed.Modern/Nexaflow.Features.Compressed.Modern.csproj" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Console/Nexaflow.Features.Console.csproj" Id="5d7bfb04-e2c1-4e7e-82bb-be5485084058" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Dotnet/Nexaflow.Features.Dotnet.csproj" Id="48d6ef11-d047-420e-a2af-1fb2b071af4e" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Git/Nexaflow.Features.Git.csproj" Id="d5be6955-0a6f-4d3a-927a-1932b7a407c0" />

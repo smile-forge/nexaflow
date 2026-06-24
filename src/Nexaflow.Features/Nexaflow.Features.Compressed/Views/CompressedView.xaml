@@ -176,9 +176,9 @@
                 <Button Style="{StaticResource TbBtn}" Content="Decrypt…" Margin="0,0,0,6"
                         HorizontalContentAlignment="Left" IsEnabled="False"/>
                 <Button Style="{StaticResource TbBtn}" Content="Sign" Margin="0,0,0,6"
-                        HorizontalContentAlignment="Left" IsEnabled="False"/>
+                        HorizontalContentAlignment="Left" Command="{Binding SignCommand}"/>
                 <Button Style="{StaticResource TbBtn}" Content="Verify signature" Margin="0,0,0,6"
-                        HorizontalContentAlignment="Left" IsEnabled="False"/>
+                        HorizontalContentAlignment="Left" Command="{Binding VerifyCommand}"/>
                 <Button Style="{StaticResource TbBtn}" Content="Recompress…" Margin="0,0,0,6"
                         HorizontalContentAlignment="Left" IsEnabled="False"/>
                 <Button Style="{StaticResource TbBtn}" Content="Convert…" Margin="0,0,0,6"

@@ -20,6 +20,7 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
 {
     private readonly IShellServices _shell;
     private readonly IVirtualFileSystem _vfs;
+    private readonly Services.ArchiveSignatureService _signer = new();
 
     [ObservableProperty] private string _archivePath = string.Empty;
     [ObservableProperty] private string _fileName = string.Empty;
@@ -90,6 +91,7 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
         CompressedSizeText = ArchiveNode.FormatBytes(comp);
         RatioText = total > 0 ? $"{100.0 * (1.0 - (double)comp / total):0.#}% smaller" : "—";
         EncryptionText = summary.IsEncrypted ? "Encrypted" : "Not encrypted";
+        SignatureText = _signer.HasSignature(ArchivePath) ? "Signed (verify to confirm)" : "Unsigned";
         Comment = summary.Comment;
         HasComment = !string.IsNullOrWhiteSpace(summary.Comment);
 
@@ -238,6 +240,28 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
             }
         });
         StatusText = bad == 0 ? $"OK — {ok} entr{(ok == 1 ? "y" : "ies")} verified." : $"{bad} of {ok + bad} entries failed.";
+    }
+
+    [RelayCommand(CanExecute = nameof(IsRecognised))]
+    private async Task Sign()
+    {
+        var path = ArchivePath;
+        string fingerprint = string.Empty;
+        await RunBusy("Signing…", () => fingerprint = _signer.Sign(path));
+        SignatureText = $"Signed · {fingerprint}";
+        StatusText = "Wrote a detached signature (.sig).";
+    }
+
+    [RelayCommand(CanExecute = nameof(IsRecognised))]
+    private async Task Verify()
+    {
+        var path = ArchivePath;
+        if (!_signer.HasSignature(path)) { SignatureText = "Unsigned"; StatusText = "No .sig signature alongside this archive."; return; }
+
+        (bool Valid, string? Fingerprint) result = default;
+        await RunBusy("Verifying…", () => result = _signer.Verify(path));
+        SignatureText = result.Valid ? $"Verified ✓ · {result.Fingerprint}" : "Signature INVALID";
+        StatusText = result.Valid ? "Signature matches the archive." : "Signature does not match — the archive may have changed.";
     }
 
     /// <summary>Adds dropped files to the archive (drag-and-drop onto the page).</summary>
