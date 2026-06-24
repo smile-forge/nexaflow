@@ -424,6 +424,39 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
         }
     }
 
+    public bool CanCreate(string archiveFileName)
+        => HandlerFor(Path.GetFileName(archiveFileName)) is { } h && h.Capabilities.HasFlag(ArchiveCapabilities.Create);
+
+    public void CreateArchive(string archivePath, string sourceDir)
+    {
+        var name = Path.GetFileName(archivePath);
+        var handler = HandlerFor(name) ?? throw new System.NotSupportedException($"No archive handler for '{name}'.");
+        if (!handler.Capabilities.HasFlag(ArchiveCapabilities.Create))
+            throw new System.NotSupportedException($"{handler.Name} cannot create archives.");
+
+        var fullSource = Path.GetFullPath(sourceDir);
+        var entries = new List<ArchiveWriteEntry>();
+        foreach (var file in Directory.EnumerateFiles(fullSource, "*", SearchOption.AllDirectories))
+        {
+            var rel = Path.GetRelativePath(fullSource, file).Replace('\\', '/');
+            var captured = file;
+            entries.Add(new ArchiveWriteEntry
+            {
+                Path = rel,
+                Modified = File.GetLastWriteTime(captured),
+                OpenContent = () => File.OpenRead(captured),
+            });
+        }
+
+        var dir = Path.GetDirectoryName(archivePath);
+        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+        var tmp = archivePath + ".nexatmp";
+        using (var outStream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
+            handler.Write(outStream, name, entries);
+        if (File.Exists(archivePath)) File.Replace(tmp, archivePath, null);
+        else File.Move(tmp, archivePath);
+    }
+
     public void AddFiles(string containerPath, IReadOnlyList<(string SourcePath, string EntryName)> files)
     {
         if (!IsContainer(containerPath)) throw new System.NotSupportedException("Not a recognised archive.");

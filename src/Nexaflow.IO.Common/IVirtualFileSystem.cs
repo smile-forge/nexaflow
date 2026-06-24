@@ -77,6 +77,14 @@ public interface IVirtualFileSystem
     /// folder structure. Entries whose path would escape the destination (zip-slip) are skipped.</summary>
     void ExtractAll(string containerPath, string destinationDir);
 
+    /// <summary>Creates a new archive at <paramref name="archivePath"/> from the contents of
+    /// <paramref name="sourceDir"/> (recursively). The format is chosen by the archive file's extension;
+    /// throws if no registered handler can create it.</summary>
+    void CreateArchive(string archivePath, string sourceDir);
+
+    /// <summary>True if a registered handler can <b>create</b> an archive of the given file name's format.</summary>
+    bool CanCreate(string archiveFileName);
+
     /// <summary>Adds files into the archive, rewriting it. Each item is a source file on disk and the
     /// entry path it should take inside the archive; an existing entry of that path is replaced.</summary>
     void AddFiles(string containerPath, IReadOnlyList<(string SourcePath, string EntryName)> files);
