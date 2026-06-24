@@ -86,4 +86,30 @@ public class CodeHighlighterTests
         Assert.IsTrue(folds.Any(f => src.Substring(f.Start, f.End - f.Start).Contains("return")),
             "a fold should cover the method body");
     }
+
+    [TestMethod]
+    public void CSharp_FoldsCommentBlocks()
+    {
+        using var highlighter = CodeHighlighter.TryCreate("c-sharp");
+        const string src = "// alpha\n// beta\n// gamma\nclass C\n{\n    /* one\n       two\n       three */\n    void M() { }\n}";
+        var folds = highlighter!.GetFolds(src);
+
+        Assert.IsTrue(folds.Any(f => Covers(src, f, "alpha") && Covers(src, f, "gamma")),
+            "consecutive line comments fold as one block");
+        Assert.IsTrue(folds.Any(f => Covers(src, f, "/* one") && Covers(src, f, "three */")),
+            "a multi-line block comment folds");
+    }
+
+    [TestMethod]
+    public void CSharp_DoesNotFold_LoneOwnLineComment()
+    {
+        using var highlighter = CodeHighlighter.TryCreate("c-sharp");
+        const string src = "// lonely\nclass C {}";   // single comment + empty class body ⇒ nothing to fold
+        var folds = highlighter!.GetFolds(src);
+
+        Assert.IsFalse(folds.Any(f => Covers(src, f, "lonely")), "a single own-line comment is not folded");
+    }
+
+    private static bool Covers(string src, FoldRange f, string needle) =>
+        src.Substring(f.Start, f.End - f.Start).Contains(needle);
 }

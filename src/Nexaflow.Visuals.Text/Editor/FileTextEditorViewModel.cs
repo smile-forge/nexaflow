@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -34,8 +35,8 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
     private readonly long _maxEditableBytes;
 
     private IFileWatch? _watch;
-    private bool _suppressDirty;        // true during programmatic (re)loads, so they don't mark the buffer dirty
     private bool _applyingEncoding;     // true while syncing the encoding selector to the detected encoding
+    private bool _hasSelection;         // mirrors the editor's live selection (drives selection-only commands)
 
     public TextDocument Document { get; } = new();
 
@@ -53,7 +54,9 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
     [ObservableProperty] private string _readOnlyReason = string.Empty;
 
     [ObservableProperty] private bool _showLineNumbers = true;
-    [ObservableProperty] private bool _wordWrap;
+
+    /// <summary>The document's detected line terminator, shown in the footer (e.g. "LF", "CRLF", "Mixed").</summary>
+    [ObservableProperty] private string _lineEndingLabel = string.Empty;
 
     // ── External-change banner ──────────────────────────────────────────────────
     [ObservableProperty] private string _bannerMessage = string.Empty;
@@ -91,16 +94,22 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
         FileName = Path.GetFileName(filePath);
         IsPlainText = !HighlightingRegistry.IsStructured(FileName); // structured ⇒ highlighted; plain ⇒ spell-check eligible
         Document.TextChanged += OnDocumentTextChanged;
+        Document.UndoStack.PropertyChanged += OnUndoStackChanged; // dirty = "differs from the saved state"
         BuildCommands();
     }
 
     /// <summary>True when the file has no syntax highlighting (so the Windows spell-checker may attach).</summary>
     public bool IsPlainText { get; }
 
-    // ── Command groups (Lines / Checksum / Encode / Decode + per-subclass extras) ──
+    // ── Command groups (Checksum / Encode / Decode + per-subclass extras; Lines lives in the footer) ──
 
-    /// <summary>The toolbar's command-group dropdowns.</summary>
+    /// <summary>The floating panel's command-group dropdowns (Checksum / Encode / Decode). Selection-only
+    /// groups and entries are dropped when there is no selection, so the panel never offers a no-op.</summary>
     public ObservableCollection<EditorCommandGroupVm> CommandGroups { get; } = [];
+
+    /// <summary>The "Lines" group, surfaced from the footer's line-ending indicator (EOL conversions, plus
+    /// prose line ops for plain text). Built once — its membership doesn't depend on the selection.</summary>
+    public IReadOnlyList<EditorCommandVm> LineCommands { get; private set; } = [];
 
     /// <summary>Set by the view so commands can read the live selection. The only editor-control coupling.</summary>
     internal Func<TextArea>? EditorAccess { get; set; }
@@ -115,16 +124,41 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
     /// <summary>Override to contribute viewer-specific commands; merged with the built-ins.</summary>
     protected virtual IEnumerable<ITextEditorCommand> ProvideCommands() => [];
 
+    /// <summary>The commands available for this file: built-ins + subclass extras, minus line-reordering/munging
+    /// for code/markup (only meaningful on prose/data).</summary>
+    private IEnumerable<ITextEditorCommand> AvailableCommands =>
+        BuiltInTextEditorCommands.All.Concat(ProvideCommands()).Where(c => IsPlainText || !c.PlainTextOnly);
+
     private void BuildCommands()
     {
-        // Line-reordering/munging is hidden for code/markup (only meaningful on prose/data).
-        var commands = BuiltInTextEditorCommands.All.Concat(ProvideCommands())
-            .Where(c => IsPlainText || !c.PlainTextOnly);
+        LineCommands = AvailableCommands.Where(c => c.Group == "Lines")
+            .Select(c => new EditorCommandVm(c, this)).ToList();
+        RebuildCommandGroups();
+    }
 
-        foreach (var group in commands.GroupBy(c => c.Group))
+    /// <summary>Rebuilds the floating panel's groups for the current selection state: the "Lines" group is
+    /// excluded (it's in the footer), and selection-scoped commands appear only when there is a selection — so
+    /// Encode/Decode (all selection-scoped) vanish entirely and Checksum drops its "of selection" entries.</summary>
+    private void RebuildCommandGroups()
+    {
+        CommandGroups.Clear();
+        var groups = AvailableCommands
+            .Where(c => c.Group != "Lines")
+            .Where(c => c.Scope != TextEditScope.Selection || _hasSelection)
+            .GroupBy(c => c.Group);
+        foreach (var group in groups)
             CommandGroups.Add(new EditorCommandGroupVm(
                 group.Key,
                 group.Select(c => new EditorCommandVm(c, this)).ToList()));
+    }
+
+    /// <summary>Called by the view when the editor selection changes; rebuilds the panel only when the
+    /// has-selection state actually flips, so dragging within a selection doesn't churn the menu.</summary>
+    public void OnSelectionChanged(bool hasSelection)
+    {
+        if (hasSelection == _hasSelection) return;
+        _hasSelection = hasSelection;
+        RebuildCommandGroups();
     }
 
     internal void RunEditorCommand(ITextEditorCommand cmd)
@@ -146,7 +180,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
             ShowResult       = (label, value) =>
             {
                 try { Clipboard.SetText(value); } catch { /* clipboard briefly locked */ }
-                Shell.ShowNotification($"{label}: {value} (copied)");
+                Shell.ShowNotification($"{label}: {value} (copied)"); // toasts via the notification service
             },
             ShowError        = Shell.ShowError,
         };
@@ -160,13 +194,28 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
         }
 
         cmd.Execute(ctx);
+        RecomputeLineEndingLabel(); // an EOL-conversion command may have changed the terminator
     }
 
-    private void OnDocumentTextChanged(object? sender, EventArgs e)
+    private void OnDocumentTextChanged(object? sender, EventArgs e) => LineCount = Document.LineCount;
+
+    // Dirty follows AvalonEdit's undo-stack "original file" marker, so undoing every edit back to the saved
+    // state clears the unsaved flag (a plain "any edit ⇒ dirty" flag would stay stuck on after such an undo).
+    private void OnUndoStackChanged(object? sender, PropertyChangedEventArgs e)
     {
-        LineCount = Document.LineCount;
-        if (!_suppressDirty) IsDirty = true;
+        if (e.PropertyName is null or nameof(UndoStack.IsOriginalFile))
+            IsDirty = !Document.UndoStack.IsOriginalFile;
     }
+
+    /// <summary>Recomputes the footer line-ending indicator from the current buffer.</summary>
+    private void RecomputeLineEndingLabel() => LineEndingLabel = TextTransforms.DetectLineEnding(Document.Text) switch
+    {
+        LineEndingKind.Lf    => "LF",
+        LineEndingKind.CrLf  => "CRLF",
+        LineEndingKind.Cr    => "CR",
+        LineEndingKind.Mixed => "Mixed",
+        _                    => "—",
+    };
 
     // ── Loading ──────────────────────────────────────────────────────────────────
 
@@ -215,10 +264,14 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
 
     private void SetDocumentText(string text)
     {
-        _suppressDirty = true;
         Document.Text = text;
         LineCount = Document.LineCount;
-        _suppressDirty = false;
+        // A programmatic (re)load is the new saved baseline: clear the undo history and mark it original so the
+        // buffer is clean and the user can't undo past the loaded content.
+        Document.UndoStack.ClearAll();
+        Document.UndoStack.MarkAsOriginalFile();
+        IsDirty = false;
+        RecomputeLineEndingLabel();
     }
 
     /// <summary>Reflects the detected encoding in the selector without triggering a re-read.</summary>
@@ -265,7 +318,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
         {
             var text = TextTransforms.NormalizeLineEndings(Document.Text, SelectedEol.Eol);
             await File.WriteAllTextAsync(FilePath, text, SelectedEncoding.Encoding);
-            IsDirty = false;
+            Document.UndoStack.MarkAsOriginalFile(); // current buffer is now the saved state ⇒ clean
             FileSizeText = SizeFormatter.FormatBytes(new FileInfo(FilePath).Length);
             StartWatching(); // a brand-new file now exists to watch
         }
@@ -367,6 +420,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
     public void Dispose()
     {
         Document.TextChanged -= OnDocumentTextChanged;
+        Document.UndoStack.PropertyChanged -= OnUndoStackChanged;
         _watch?.Dispose();
         GC.SuppressFinalize(this);
     }

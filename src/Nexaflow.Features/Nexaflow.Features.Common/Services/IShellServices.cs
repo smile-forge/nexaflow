@@ -79,7 +79,7 @@ public interface IShellServices
     /// <summary>Shows a transient error toast in the focused window.</summary>
     void ShowError(string message);
 
-    /// <summary>Adds a persistent notification in the focused window.</summary>
+    /// <summary>Posts a notification: it lands in the inbox and pops a transient, self-dismissing toast.</summary>
     void ShowNotification(string message);
 
     /// <summary>

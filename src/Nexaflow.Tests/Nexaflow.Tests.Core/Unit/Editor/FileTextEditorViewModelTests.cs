@@ -96,17 +96,36 @@ public class FileTextEditorViewModelTests
     });
 
     [TestMethod]
-    public void CommandGroups_HideLineReorderingForCode() => AsyncPump.Run(async () =>
+    public void LineCommands_HideLineReorderingForCode() => AsyncPump.Run(async () =>
     {
         using var code = new FileTextEditorViewModel("snippet.cs", Shell(), Big);
         using var text = new FileTextEditorViewModel("notes.txt", Shell(), Big);
         await Task.CompletedTask;
 
-        static bool OffersSort(FileTextEditorViewModel vm) =>
-            vm.CommandGroups.SelectMany(g => g.Commands).Any(c => c.Name.Contains("Sort"));
+        // Line ops live in the footer "Lines" popup, not the floating panel.
+        static bool OffersSort(FileTextEditorViewModel vm) => vm.LineCommands.Any(c => c.Name.Contains("Sort"));
 
         Assert.IsFalse(OffersSort(code), "code files must not offer line sorting");
         Assert.IsTrue(OffersSort(text), "text files should offer line sorting");
+        Assert.IsFalse(code.CommandGroups.Any(g => g.Name == "Lines"), "Lines moved out of the floating panel");
+    });
+
+    [TestMethod]
+    public void CommandGroups_HideSelectionOnlyGroups_UntilSelectionExists() => AsyncPump.Run(async () =>
+    {
+        using var vm = new FileTextEditorViewModel("notes.txt", Shell(), Big);
+        await Task.CompletedTask;
+
+        // No selection yet: Encode/Decode (all selection-scoped) are hidden; Checksum stays (it has document ops).
+        Assert.IsFalse(vm.CommandGroups.Any(g => g.Name is "Encode" or "Decode"), "selection-only groups hidden without a selection");
+        Assert.IsTrue(vm.CommandGroups.Any(g => g.Name == "Checksum"), "Checksum stays (document-scoped entries)");
+
+        vm.OnSelectionChanged(true);
+        Assert.IsTrue(vm.CommandGroups.Any(g => g.Name == "Encode"), "Encode appears once there's a selection");
+        Assert.IsTrue(vm.CommandGroups.Any(g => g.Name == "Decode"), "Decode appears once there's a selection");
+
+        vm.OnSelectionChanged(false);
+        Assert.IsFalse(vm.CommandGroups.Any(g => g.Name is "Encode" or "Decode"), "they hide again when the selection clears");
     });
 
     [TestMethod]

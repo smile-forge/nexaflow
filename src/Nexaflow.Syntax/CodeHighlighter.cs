@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using TreeSitter;
 
 namespace Nexaflow.Syntax;
@@ -66,35 +67,87 @@ public sealed class CodeHighlighter : IDisposable
     }
 
     /// <summary>Collapsible ranges for editor folding: every multi-line, block-like node in the parse tree
-    /// (function/class bodies, blocks, object/array literals, multi-line comments). Char offsets.</summary>
+    /// (function/class bodies, blocks, object/array literals) plus comment blocks — a single multi-line block
+    /// comment, or a run of consecutive own-line line/doc comments collapsed into one fold. Char offsets.</summary>
     public IReadOnlyList<FoldRange> GetFolds(string text)
     {
         var folds = new List<FoldRange>();
         if (string.IsNullOrEmpty(text)) return folds;
         using var tree = _parser.Parse(text);
-        if (tree is not null) CollectFolds(tree.RootNode, folds);
+        if (tree is null) return folds;
+
+        var comments = new List<CommentSpan>();
+        CollectFolds(tree.RootNode, folds, comments);
+        AddCommentFolds(comments, text, folds);
         return folds;
     }
 
-    private static void CollectFolds(Node node, List<FoldRange> folds)
+    private readonly record struct CommentSpan(int Start, int End, int StartRow, int EndRow);
+
+    private static void CollectFolds(Node node, List<FoldRange> folds, List<CommentSpan> comments)
     {
         foreach (var child in node.NamedChildren)
         {
-            if (child.EndPosition.Row > child.StartPosition.Row
+            if (child.Type.Contains("comment"))
+            {
+                if (child.EndIndex > child.StartIndex)
+                    comments.Add(new CommentSpan(child.StartIndex, child.EndIndex,
+                        child.StartPosition.Row, child.EndPosition.Row));
+            }
+            else if (child.EndPosition.Row > child.StartPosition.Row
                 && child.EndIndex > child.StartIndex
                 && IsFoldable(child.Type))
+            {
                 folds.Add(new FoldRange(child.StartIndex, child.EndIndex));
-            CollectFolds(child, folds);
+            }
+            CollectFolds(child, folds, comments);
         }
     }
 
-    // Block-like node types across our grammars: `{…}`/indented bodies, collections, multi-line comments.
+    /// <summary>Folds comment blocks: a multi-line block comment, or a run of consecutive comments that each
+    /// start their own line (so trailing end-of-line comments are not folded). Adjacent comments on
+    /// consecutive lines merge into a single fold; a lone single-line comment is left alone.</summary>
+    private static void AddCommentFolds(List<CommentSpan> comments, string text, List<FoldRange> folds)
+    {
+        if (comments.Count == 0) return;
+
+        var ownLine = comments
+            .Where(c => IsAtLineStart(text, c.Start))
+            .OrderBy(c => c.Start)
+            .ToList();
+
+        int i = 0;
+        while (i < ownLine.Count)
+        {
+            int runStart = ownLine[i].Start, runEnd = ownLine[i].End;
+            int runStartRow = ownLine[i].StartRow, runEndRow = ownLine[i].EndRow;
+            int j = i + 1;
+            while (j < ownLine.Count && ownLine[j].StartRow <= runEndRow + 1)   // contiguous (no blank gap)
+            {
+                runEnd    = Math.Max(runEnd, ownLine[j].End);
+                runEndRow = Math.Max(runEndRow, ownLine[j].EndRow);
+                j++;
+            }
+            if (runEndRow > runStartRow) folds.Add(new FoldRange(runStart, runEnd));   // spans >1 line ⇒ foldable
+            i = j;
+        }
+    }
+
+    /// <summary>True if only whitespace precedes <paramref name="offset"/> on its line (the comment owns the line).</summary>
+    private static bool IsAtLineStart(string text, int offset)
+    {
+        int i = Math.Min(offset, text.Length) - 1;
+        while (i >= 0 && (text[i] == ' ' || text[i] == '\t')) i--;
+        return i < 0 || text[i] == '\n';
+    }
+
+    // Block-like node types across our grammars: `{…}`/indented bodies, collections. (Comments are folded
+    // separately, by run, in AddCommentFolds.)
     private static bool IsFoldable(string type) =>
         type.Contains("block")
         || type.Contains("body")
         || type.EndsWith("_list")
-        || type is "object" or "array" or "hash" or "dictionary" or "set"
-        || type.Contains("comment");
+        || type is "object" or "array" or "hash" or "dictionary" or "set";
 
     /// <summary>Parses <paramref name="text"/> and invokes <paramref name="visit"/> with the root node while
     /// the tree is alive, returning whatever it produces (or <c>default</c> if the text is empty / fails to

@@ -325,17 +325,20 @@ public static class MarkdownFlowDocument
         var element = BlockRenderer.Render(block, raw, ctx);
         if (ctx.FitContentToWidth)
         {
-            UnboundDiagramHeight(element);
-            element = new System.Windows.Controls.Viewbox
-            {
-                Child               = element,
-                Stretch             = Stretch.Uniform,
-                StretchDirection    = System.Windows.Controls.StretchDirection.DownOnly,
-                HorizontalAlignment = HorizontalAlignment.Left,
-            };
-            // The diagram's inner ScrollViewer captures the mouse wheel even when it can't scroll, freezing
-            // the wheel over the diagram. Intercept it on the way down and re-raise so it bubbles past the
-            // diagram to the host surface's scroller (the page, not the diagram, should move).
+            // Either way the diagram renders full height (vertical overflow flows to the host page).
+            UnboundDiagramHeight(element, allowHorizontalScroll: ctx.ScrollWideDiagrams);
+            if (!ctx.ScrollWideDiagrams)
+                element = new System.Windows.Controls.Viewbox
+                {
+                    Child               = element,
+                    Stretch             = Stretch.Uniform,
+                    StretchDirection    = System.Windows.Controls.StretchDirection.DownOnly,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                };
+            // The diagram's inner ScrollViewer captures the mouse wheel even when it can't scroll vertically,
+            // freezing the wheel over the diagram. Intercept it on the way down and re-raise so it bubbles past
+            // the diagram to the host surface's scroller (the page scrolls; a wide diagram scrolls via its
+            // horizontal scrollbar).
             element.PreviewMouseWheel += RedirectWheelToHost;
         }
         return new BlockUIContainer(element) { Margin = new Thickness(0) };
@@ -359,17 +362,21 @@ public static class MarkdownFlowDocument
     /// branch. <see cref="System.Windows.Controls.ScrollBarVisibility.Disabled"/> drops the scrollbars; the
     /// wheel is freed separately by re-raising it to the host (see <c>RedirectWheelToHost</c>), because a
     /// ScrollViewer still marks the wheel handled even when disabled.</summary>
-    private static void UnboundDiagramHeight(DependencyObject root)
+    private static void UnboundDiagramHeight(DependencyObject root, bool allowHorizontalScroll = false)
     {
         if (root is System.Windows.Controls.ScrollViewer sv)
         {
             sv.MaxHeight = double.PositiveInfinity;
             sv.VerticalScrollBarVisibility   = System.Windows.Controls.ScrollBarVisibility.Disabled;
-            sv.HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled;
+            // Off: the diagram is scaled to fit, so it never overflows horizontally. On: a too-wide diagram
+            // keeps natural size and is reached via a horizontal scrollbar (constrained to the column width).
+            sv.HorizontalScrollBarVisibility = allowHorizontalScroll
+                ? System.Windows.Controls.ScrollBarVisibility.Auto
+                : System.Windows.Controls.ScrollBarVisibility.Disabled;
             return;
         }
         foreach (var child in LogicalTreeHelper.GetChildren(root))
-            if (child is DependencyObject d) UnboundDiagramHeight(d);
+            if (child is DependencyObject d) UnboundDiagramHeight(d, allowHorizontalScroll);
     }
 
     // ── Raw-source extraction (mirrors MarkdownView) ────────────────────────

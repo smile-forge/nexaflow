@@ -96,6 +96,29 @@ public static class TextTransforms
         return trailingNewline ? joined + separator : joined;
     }
 
+    /// <summary>Classifies the terminators present in <paramref name="text"/> for a status indicator: a single
+    /// kind, <see cref="LineEndingKind.Mixed"/> when more than one appears, or <see cref="LineEndingKind.None"/>
+    /// when there are none. Early-exits as soon as a second kind is seen.</summary>
+    public static LineEndingKind DetectLineEnding(string text)
+    {
+        LineEndingKind found = LineEndingKind.None;
+        for (var i = 0; i < text.Length; i++)
+        {
+            LineEndingKind here;
+            if (text[i] == '\r')
+            {
+                if (i + 1 < text.Length && text[i + 1] == '\n') { here = LineEndingKind.CrLf; i++; }
+                else here = LineEndingKind.Cr;
+            }
+            else if (text[i] == '\n') here = LineEndingKind.Lf;
+            else continue;
+
+            if (found == LineEndingKind.None) found = here;
+            else if (found != here) return LineEndingKind.Mixed;
+        }
+        return found;
+    }
+
     /// <summary>The most common terminator in the text; LF when there are none (CRLF wins ties).</summary>
     public static string DominantSeparator(string text)
     {

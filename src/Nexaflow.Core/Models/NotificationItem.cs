@@ -12,8 +12,9 @@ public partial class NotificationItem : ObservableObject
     /// <summary>Severity — drives the toast/inbox icon and colour.</summary>
     public MessageSeverity Severity { get; init; } = MessageSeverity.Info;
 
-    /// <summary>Whether this message should also surface as a transient toast (false = inbox-only).</summary>
-    public bool ShowToast { get; init; }
+    /// <summary>Whether this message also surfaces as a transient toast. Defaults to true — every notification
+    /// toasts (and auto-dismisses); set false only for a deliberately inbox-only message.</summary>
+    public bool ShowToast { get; init; } = true;
 
     /// <summary>Set by the first window that toasts this message, so others don't re-toast it.</summary>
     [ObservableProperty] private bool _shownAsToast;
