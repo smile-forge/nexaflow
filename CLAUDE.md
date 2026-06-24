@@ -90,6 +90,8 @@ Contexts\<name>\              PER-PROFILE data (the on-disk folder is named "Con
 
 Ribbon, AI ability grid, provider configs and conversations are **per-profile** (not global). Feature `IFeatureConfig` is **global** (one instance per assembly).
 
+**Versioned, self-migrating.** Each config persists as `…\{configName}\config_{AssemblyVersion}.json`. When an assembly version bumps, `ConfigManager` **migrates the newest older file forward** instead of discarding it — a lenient field-by-field carry-over (unknown fields dropped, missing ones keep defaults) plus an optional `IConfigMigration.MigrateFrom(previousJson, version)` hook for renames/restructures. So an update keeps the user's data, and the setup wizard re-asks only for genuinely new required info. File-type mappings merge changed bundled defaults while preserving user customizations. Options → About has a **Reset Config** button (confirmation-gated) that wipes `%APPDATA%\Smile\nexaflow` and relaunches into first-run. Full detail in [docs/Architecture.md → Config versioning & migration](docs/Architecture.md#config-versioning--migration).
+
 ## Profile / Workspace scoping
 
 A **`Profile`** is the saved, shared config shown in the dropdown; a **`Workspace`** is a runtime grouping of one-or-more window frames running ONE profile. Getting scope wrong is the easiest way to add a bug — full detail in [docs/Architecture.md → Ownership & Lifetime](docs/Architecture.md#ownership--lifetime).
