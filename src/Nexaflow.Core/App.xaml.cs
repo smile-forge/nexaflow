@@ -18,6 +18,7 @@ using Nexaflow.Features.Text;
 using Nexaflow.Features.Web;
 using Nexaflow.Features.WindowsSearch;
 using Nexaflow.IO.Common;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -66,6 +67,13 @@ public partial class App : Application
     /// </summary>
     public static bool SkipSetup { get; private set; }
 
+    /// <summary>
+    /// True when launched with <c>--reset</c>: the relaunch issued by "Reset Config" (Options → About).
+    /// <see cref="InitializeApp"/> deletes the whole app-data directory before initialising, so the run
+    /// starts as a clean first-run. Set by the fresh process; the old one armed it before relaunching.
+    /// </summary>
+    private static bool _resetRequested;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -75,6 +83,7 @@ public partial class App : Application
 
         bool prestart = e.Args.Any(a => string.Equals(a, "--prestart", StringComparison.OrdinalIgnoreCase));
         SkipSetup = e.Args.Any(a => string.Equals(a, "--skipSetup", StringComparison.OrdinalIgnoreCase));
+        _resetRequested = e.Args.Any(a => string.Equals(a, "--reset", StringComparison.OrdinalIgnoreCase));
 
 #if !DEBUG
         // ── Single-instance guard ────────────────────────────────────────────
@@ -136,6 +145,12 @@ public partial class App : Application
             baseDir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "Smile", "nexaflow");
+
+        // "Reset Config" relaunch: wipe the directory now, in the fresh process, so no handle from the
+        // old (exiting) instance is held. The empty dir then drives a clean first-run.
+        if (_resetRequested)
+            DeleteDirectoryWithRetry(baseDir);
+
         ConfigManager.Instance.Initialize(baseDir);
 
         // ── 1. Shell config ──────────────────────────────────────────────────
@@ -400,6 +415,49 @@ public partial class App : Application
         win.WindowStartupLocation = WindowStartupLocation.Manual;
         win.Left = work.Left + Math.Max(0, (work.Width  - win.Width)  / 2);
         win.Top  = work.Top  + Math.Max(0, (work.Height - win.Height) / 2);
+    }
+
+    /// <summary>
+    /// "Reset Config" (Options → About): delete all configuration and relaunch into first-run. Arms the
+    /// config-write suppressor so nothing re-persists during teardown, drops the single-instance mutex so
+    /// the relaunched process can claim it, closes every window, and starts a fresh <c>--reset</c> process
+    /// that wipes the app-data directory before initialising. Irreversible — only reached after the user
+    /// confirms the shell overlay.
+    /// </summary>
+    internal static void ResetAndRestart()
+    {
+        ConfigManager.Instance.SuppressWrites();
+
+        var exe = Environment.ProcessPath;
+
+        // Release the mutex first so the relaunched instance isn't bounced by the single-instance guard.
+        _singleInstance.Dispose();
+
+        foreach (var window in Current.Windows.Cast<Window>().ToList())
+            window.Close();
+
+        if (!string.IsNullOrEmpty(exe))
+            Process.Start(new ProcessStartInfo(exe, "--reset") { UseShellExecute = false });
+
+        Current.Shutdown();
+    }
+
+    /// <summary>
+    /// Recursively deletes <paramref name="dir"/>, retrying briefly to wait out any handle the exiting
+    /// previous instance still holds. Best-effort: gives up quietly after the retry budget.
+    /// </summary>
+    private static void DeleteDirectoryWithRetry(string dir)
+    {
+        for (int attempt = 0; attempt < 20; attempt++)
+        {
+            try
+            {
+                if (!Directory.Exists(dir)) return;
+                Directory.Delete(dir, recursive: true);
+                return;
+            }
+            catch { System.Threading.Thread.Sleep(100); }
+        }
     }
 
     /// <summary>Records the current version so the next launch can detect an update (drives What's New).</summary>

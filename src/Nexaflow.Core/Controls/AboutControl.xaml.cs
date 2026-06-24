@@ -4,6 +4,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Navigation;
+using Nexaflow.Core.Services;
 using Nexaflow.Core.ViewModels;
 
 namespace Nexaflow.Core.Controls;
@@ -43,5 +44,22 @@ public partial class AboutControl : UserControl
         e.Handled = true;
         try { Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true }); }
         catch { }
+    }
+
+    /// <summary>
+    /// "Reset Config" — confirms via the shell overlay, then wipes all app-data and relaunches.
+    /// Reaches the shell directly (rather than a RelativeSource-bound command) because this control is
+    /// hosted in the Options panel's ContentControl with its DataContext set to the config POCO.
+    /// </summary>
+    private void OnResetClick(object sender, RoutedEventArgs e)
+    {
+        Nexaflow.Features.Common.IShellServices? shell =
+            WorkspaceManager.Instance.FirstActive?.ShellServices;
+        shell?.ShowConfirmation(
+            "Reset configuration?",
+            "This permanently deletes every Nexaflow setting, workspace, provider and conversation " +
+            "for all profiles, then restarts the app. This cannot be undone.",
+            App.ResetAndRestart,
+            () => { });
     }
 }
