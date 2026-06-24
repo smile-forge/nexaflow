@@ -191,6 +191,11 @@ public partial class FileBrowserWindow : Window
             node.EnsureLoaded();
     }
 
+    private void TreeViewItem_Selected(object sender, RoutedEventArgs e)
+    {
+        if (sender is TreeViewItem { IsSelected: true } tvi) tvi.BringIntoView();
+    }
+
     private void TreeViewItem_MouseDoubleClick(object sender, RoutedEventArgs e)
     {
         // Double-clicking a file confirms the selection.

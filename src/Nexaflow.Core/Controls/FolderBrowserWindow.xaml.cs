@@ -151,6 +151,11 @@ public partial class FolderBrowserWindow : Window
             node.EnsureLoaded();
     }
 
+    private void TreeViewItem_Selected(object sender, RoutedEventArgs e)
+    {
+        if (sender is TreeViewItem { IsSelected: true } tvi) tvi.BringIntoView();
+    }
+
     private void Ok_Click(object sender, RoutedEventArgs e)
     {
         DialogResult = true;
