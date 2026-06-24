@@ -26,7 +26,9 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
     // ── Overlays (choice picker + password) ────────────────────────────────────
     [ObservableProperty] private bool _choiceVisible;
     [ObservableProperty] private string _choiceTitle = string.Empty;
-    public ObservableCollection<string> ChoiceOptions { get; } = [];
+    [ObservableProperty] private bool _choiceAsGrid;   // Convert: icon-badge grid. Recompress: plain list.
+    [ObservableProperty] private bool _choiceAsList = true;
+    public ObservableCollection<ChoiceOption> ChoiceOptions { get; } = [];
     private Func<string, Task>? _choiceAction;
 
     [ObservableProperty] private bool _passwordVisible;
@@ -313,7 +315,9 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
 
     [RelayCommand(CanExecute = nameof(CanRecompress))]
     private void Recompress() => ShowChoice("Recompress — choose a level",
-        ["Store (no compression)", "Fast", "Optimal", "Smallest"], async choice =>
+        [new ChoiceOption("Store (no compression)", "Store (no compression)", "0"), new ChoiceOption("Fast", "Fast", "3"),
+         new ChoiceOption("Optimal", "Optimal", "6"), new ChoiceOption("Smallest", "Smallest", "9")],
+        async choice =>
     {
         int level = choice.StartsWith("Store") ? 0 : choice.StartsWith("Fast") ? 3 : choice.StartsWith("Smallest") ? 9 : 6;
         var path = ArchivePath;
@@ -323,13 +327,14 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
     });
 
     [RelayCommand(CanExecute = nameof(CanConvert))]
-    private void Convert() => ShowChoice("Convert — target format", ConvertTargets(), async fmt =>
+    private void Convert() => ShowChoice("Convert — target format",
+        ConvertTargets().Select(f => new ChoiceOption(f, f, IconForFormat(f))), async fmt =>
     {
         var dest = SiblingPath($" (as {fmt.Replace('.', '_')})", "." + fmt);
         var path = ArchivePath;
         await RunBusy($"Converting to {fmt}…", () => _vfs.Repackage(path, dest, null));
         StatusText = $"Converted → {Path.GetFileName(dest)}";
-    });
+    }, asGrid: true);
 
     [RelayCommand(CanExecute = nameof(CanEncryptArchive))]
     private void Encrypt() => ShowPassword("Encrypt — set a password", async pwd =>
@@ -367,6 +372,9 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
             .ToList();
     }
 
+    /// <summary>The short type badge shown on a format button (the codec after the last dot): tar.zst → ZST.</summary>
+    private static string IconForFormat(string fmt) => fmt.Split('.')[^1].ToUpperInvariant();
+
     private string SiblingPath(string suffix, string ext)
     {
         var dir = Path.GetDirectoryName(ArchivePath) ?? ".";
@@ -378,12 +386,15 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
 
     // ── Overlay plumbing ───────────────────────────────────────────────────────
 
-    private void ShowChoice(string title, IEnumerable<string> options, Func<string, Task> action)
+    private void ShowChoice(string title, IEnumerable<ChoiceOption> options, Func<string, Task> action,
+                            bool asGrid = false)
     {
         ChoiceTitle = title;
         ChoiceOptions.Clear();
         foreach (var o in options) ChoiceOptions.Add(o);
         if (ChoiceOptions.Count == 0) { StatusText = "No applicable options."; return; }
+        ChoiceAsGrid = asGrid;
+        ChoiceAsList = !asGrid;
         _choiceAction = action;
         ChoiceVisible = true;
     }
@@ -447,3 +458,7 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
             ? $"Compressed archive '{FileName}' ({Format}) — {EntryCountText}, {TotalSizeText} uncompressed."
             : $"Compressed archive '{FileName}' — unrecognised format.";
 }
+
+/// <summary>One option in the choice overlay: an icon badge over a label; <see cref="Value"/> is passed to
+/// the picked action.</summary>
+public sealed record ChoiceOption(string Label, string Value, string Icon);

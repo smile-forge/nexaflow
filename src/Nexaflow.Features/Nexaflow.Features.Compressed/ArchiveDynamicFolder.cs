@@ -13,10 +13,13 @@ namespace Nexaflow.Features.Compressed;
 /// </summary>
 public sealed class ArchiveDynamicFolder : IDynamicFolder
 {
-    // Zip-based document/package formats: browsable on request, but not expand-by-default.
+    // Zip-based document formats: browsable on request, but not expand-by-default (a double-click should
+    // still open the document, not dive into its parts). Packages (.ipa/.nupkg/.vsix/…) are not listed —
+    // those behave like ordinary archives and expand by default.
     private static readonly HashSet<string> DocumentExtensions = new(System.StringComparer.OrdinalIgnoreCase)
     {
-        ".docx", ".xlsx", ".pptx", ".odt", ".ods", ".odp", ".odg",
+        ".docx", ".docm", ".xlsx", ".xlsm", ".pptx", ".pptm",
+        ".odt", ".ods", ".odp", ".odg", ".ott", ".ots", ".otp",
     };
 
     public bool CanProcess(string path) => VirtualFileSystem.Instance.IsContainer(path);
