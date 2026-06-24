@@ -85,6 +85,11 @@ public interface IVirtualFileSystem
     /// <summary>True if a registered handler can <b>create</b> an archive of the given file name's format.</summary>
     bool CanCreate(string archiveFileName);
 
+    /// <summary>Rebuilds the archive's contents into <paramref name="targetPath"/> — a different
+    /// extension to convert formats, or the same path with new <paramref name="options"/> (e.g. a
+    /// compression level) to recompress.</summary>
+    void Repackage(string sourcePath, string targetPath, ArchiveWriteOptions? options = null);
+
     /// <summary>Adds files into the archive, rewriting it. Each item is a source file on disk and the
     /// entry path it should take inside the archive; an existing entry of that path is replaced.</summary>
     void AddFiles(string containerPath, IReadOnlyList<(string SourcePath, string EntryName)> files);

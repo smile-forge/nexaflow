@@ -408,7 +408,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
         bool useFolderActions = entries.Count == 0 || onlyFolders || anyDrives;
 
         IReadOnlyList<IFileAction> applicable = useFolderActions
-            ? _actionRegistry.FilterFolderActions(entries, canPerform.Folder, CurrentPath)
+            ? FilterForVirtual(_actionRegistry.FilterFolderActions(entries, canPerform.Folder, CurrentPath), CurrentPath)
             : _actionRegistry.FilterActions(entries, canPerform.File);
 
         var paths = entries.Count > 0
@@ -483,7 +483,8 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
             IReadOnlyList<IFileAction> builtIn;
             if (useFolderActions)
             {
-                builtIn = _actionRegistry.FilterFolderActions(selected, canPerform.Folder, currentPath);
+                builtIn = FilterForVirtual(
+                    _actionRegistry.FilterFolderActions(selected, canPerform.Folder, currentPath), currentPath);
             }
             else
             {
@@ -822,6 +823,16 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     private bool ExpandsByDefault(string path)
         => (_dynamicFolders.FirstOrDefault(f => f.CanProcess(path)))?.ExpandsByDefault(path) ?? true;
 
+    /// <summary>True when the path is inside an archive (a virtual location, not a real directory).</summary>
+    private bool IsVirtualPath(string path)
+        => !string.IsNullOrEmpty(path) && Vfs.SplitOutermostContainer(path).Inner is not null;
+
+    /// <summary>Drops folder actions that don't make sense inside an archive (e.g. "Zip It").</summary>
+    private IReadOnlyList<IFileAction> FilterForVirtual(IReadOnlyList<IFileAction> actions, string path)
+        => IsVirtualPath(path)
+            ? actions.Where(a => a is not FolderActionAdapter fa || fa.Inner.AppliesInsideArchive).ToList()
+            : actions;
+
     private void InitDebounceTimer()
     {
         _actionDebounceTimer.Tick    += OnActionDebounceTimer;
@@ -1009,13 +1020,19 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
         _loadCts?.Cancel();
         IsLoadingEntries = false;
 
-        var entries = Vfs.EnumerateEntries(path).Select(e => new FileSystemEntry
+        var entries = Vfs.EnumerateEntries(path).Select(e =>
         {
-            Name        = e.Name,
-            FullPath    = Path.Combine(path, e.Name),
-            IsDirectory = e.IsDirectory,
-            SizeBytes   = e.IsDirectory ? 0 : e.Size,
-            Modified    = e.Modified,
+            // A nested archive entry (e.g. inner.zip inside this archive) is itself browsable, so present
+            // it as a folder — it gets the folder affordance and double-click descends into it.
+            bool isDir = e.IsDirectory || Vfs.IsContainerName(e.Name);
+            return new FileSystemEntry
+            {
+                Name        = e.Name,
+                FullPath    = Path.Combine(path, e.Name),
+                IsDirectory = isDir,
+                SizeBytes   = isDir ? 0 : e.Size,
+                Modified    = e.Modified,
+            };
         });
 
         var sorted = ApplySort(entries).ToList();

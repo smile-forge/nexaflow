@@ -461,6 +461,42 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
         else File.Move(tmp, archivePath);
     }
 
+    public void Repackage(string sourcePath, string targetPath, ArchiveWriteOptions? options = null)
+    {
+        if (!IsContainer(sourcePath)) throw new System.NotSupportedException("Not a recognised archive.");
+        var srcName = Path.GetFileName(sourcePath);
+        var srcHandler = HandlerFor(srcName)!;
+        var tgtName = Path.GetFileName(targetPath);
+        var tgtHandler = HandlerFor(tgtName) ?? throw new System.NotSupportedException($"No archive handler for '{tgtName}'.");
+        if (!tgtHandler.Capabilities.HasFlag(ArchiveCapabilities.Create))
+            throw new System.NotSupportedException($"{tgtHandler.Name} cannot create '{Path.GetExtension(tgtName)}' archives.");
+
+        var entries = new List<ArchiveWriteEntry>();
+        using (var session = srcHandler.Open(
+            new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read), srcName, new ArchiveOpenOptions { Password = options?.Password }))
+        {
+            foreach (var e in session.Entries)
+            {
+                if (e.IsDirectory) { entries.Add(new ArchiveWriteEntry { Path = e.Name, IsDirectory = true, Modified = e.Modified }); continue; }
+                var bytes = ReadEntryBytes(session, e.Name);
+                entries.Add(new ArchiveWriteEntry { Path = e.Name, Modified = e.Modified, OpenContent = () => new MemoryStream(bytes) });
+            }
+        }
+
+        var tmp = targetPath + ".nexatmp";
+        using (var outStream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
+            tgtHandler.Write(outStream, tgtName, entries, options);
+
+        if (File.Exists(targetPath)) File.Replace(tmp, targetPath, null);
+        else
+        {
+            var d = Path.GetDirectoryName(targetPath);
+            if (!string.IsNullOrEmpty(d)) Directory.CreateDirectory(d);
+            File.Move(tmp, targetPath);
+        }
+        InvalidateContainer(targetPath);
+    }
+
     public void AddFiles(string containerPath, IReadOnlyList<(string SourcePath, string EntryName)> files)
     {
         if (!IsContainer(containerPath)) throw new System.NotSupportedException("Not a recognised archive.");

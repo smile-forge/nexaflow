@@ -21,6 +21,17 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
     private readonly IShellServices _shell;
     private readonly IVirtualFileSystem _vfs;
     private readonly Services.ArchiveSignatureService _signer = new();
+    private readonly IArchiveEncryptor? _encryptor;
+
+    // ── Overlays (choice picker + password) ────────────────────────────────────
+    [ObservableProperty] private bool _choiceVisible;
+    [ObservableProperty] private string _choiceTitle = string.Empty;
+    public ObservableCollection<string> ChoiceOptions { get; } = [];
+    private Func<string, Task>? _choiceAction;
+
+    [ObservableProperty] private bool _passwordVisible;
+    [ObservableProperty] private string _passwordTitle = string.Empty;
+    private Func<string, Task>? _passwordAction;
 
     [ObservableProperty] private string _archivePath = string.Empty;
     [ObservableProperty] private string _fileName = string.Empty;
@@ -39,9 +50,20 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
     [ObservableProperty] private bool _isBusy;
 
     // ── Capability gates (drive the action-bar button enablement) ──────────────
-    [ObservableProperty] private bool _canModify;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(AddFileCommand))]
+    private bool _canModify;
     [ObservableProperty] private bool _canEncrypt;
-    [ObservableProperty] private bool _isRecognised;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ExtractCommand))]
+    [NotifyCanExecuteChangedFor(nameof(TestCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SignCommand))]
+    [NotifyCanExecuteChangedFor(nameof(VerifyCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RecompressCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ConvertCommand))]
+    [NotifyCanExecuteChangedFor(nameof(EncryptCommand))]
+    private bool _isRecognised;
 
     /// <summary>Flattened, expand-aware list of visible rows.</summary>
     public ObservableCollection<ArchiveNode> VisibleRows { get; } = [];
@@ -52,6 +74,9 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
     {
         _shell = shell;
         _vfs = vfs;
+        _encryptor = shell.DiscoverImplementations<IArchiveEncryptor>()
+            .Select(t => { try { return Activator.CreateInstance(t) as IArchiveEncryptor; } catch { return null; } })
+            .FirstOrDefault(e => e is not null);
         ArchivePath = path;
         FileName = string.IsNullOrEmpty(path) ? "Archive" : Path.GetFileName(path);
         Load();
@@ -195,8 +220,11 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
         {
             node.IsExpanded = !node.IsExpanded;
             RebuildVisibleRows();
+            return;
         }
-        // File activation (open inner file in its viewer) arrives with the VFS-aware open routing.
+        // Open the inner file in its normal viewer — the shell routes it through the VFS-aware opener.
+        var full = Path.Combine(ArchivePath, node.ArchivePath.Replace('/', Path.DirectorySeparatorChar));
+        _shell.HandleObject(full);
     }
 
     // ── Action bar ───────────────────────────────────────────────────────────────
@@ -214,7 +242,7 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
     [RelayCommand(CanExecute = nameof(CanModify))]
     private async Task AddFile()
     {
-        var source = await _shell.PickOpenFileAsync();
+        var source = await _shell.PickOpenFileAsync(null, Path.GetDirectoryName(ArchivePath));
         if (string.IsNullOrEmpty(source)) return;
         await AddSourcesAsync([source]);
     }
@@ -263,6 +291,112 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
         SignatureText = result.Valid ? $"Verified ✓ · {result.Fingerprint}" : "Signature INVALID";
         StatusText = result.Valid ? "Signature matches the archive." : "Signature does not match — the archive may have changed.";
     }
+
+    // ── Recompress / Convert / Encrypt / Decrypt ──────────────────────────────────
+
+    private bool CanConvert => IsRecognised && ConvertTargets().Count > 0;
+    private bool CanEncryptArchive => IsRecognised && _encryptor is { } e && e.CanEncrypt(ArchivePath);
+    private bool CanDecryptArchive => _encryptor is { } e && e.CanEncrypt(ArchivePath);
+
+    [RelayCommand(CanExecute = nameof(IsRecognised))]
+    private void Recompress() => ShowChoice("Recompress — choose a level",
+        ["Store (no compression)", "Fast", "Optimal", "Smallest"], async choice =>
+    {
+        int level = choice.StartsWith("Store") ? 0 : choice.StartsWith("Fast") ? 3 : choice.StartsWith("Smallest") ? 9 : 6;
+        var path = ArchivePath;
+        await RunBusy("Recompressing…", () => _vfs.Repackage(path, path, new ArchiveWriteOptions { CompressionLevel = level }));
+        Load();
+        StatusText = $"Recompressed ({choice}).";
+    });
+
+    [RelayCommand(CanExecute = nameof(CanConvert))]
+    private void Convert() => ShowChoice("Convert — target format", ConvertTargets(), async fmt =>
+    {
+        var dest = SiblingPath($" (as {fmt.Replace('.', '_')})", "." + fmt);
+        var path = ArchivePath;
+        await RunBusy($"Converting to {fmt}…", () => _vfs.Repackage(path, dest, null));
+        StatusText = $"Converted → {Path.GetFileName(dest)}";
+    });
+
+    [RelayCommand(CanExecute = nameof(CanEncryptArchive))]
+    private void Encrypt() => ShowPassword("Encrypt — set a password", async pwd =>
+    {
+        var dest = SiblingPath(" (encrypted)", ".zip");
+        var path = ArchivePath;
+        await RunBusy("Encrypting…", () => _encryptor!.Encrypt(path, dest, pwd));
+        StatusText = $"Encrypted copy written: {Path.GetFileName(dest)}";
+    });
+
+    [RelayCommand(CanExecute = nameof(CanDecryptArchive))]
+    private void Decrypt() => ShowPassword("Decrypt — enter the password", async pwd =>
+    {
+        var dest = SiblingPath(" (decrypted)", ".zip");
+        var path = ArchivePath;
+        try
+        {
+            await RunBusy("Decrypting…", () => _encryptor!.Decrypt(path, dest, pwd));
+            StatusText = $"Decrypted copy written: {Path.GetFileName(dest)}";
+        }
+        catch { StatusText = "Decrypt failed — wrong password or not an encrypted zip."; }
+    });
+
+    private IReadOnlyList<string> ConvertTargets()
+    {
+        var current = Path.GetExtension(ArchivePath).TrimStart('.').ToLowerInvariant();
+        return new[] { "zip", "tar", "tar.gz" }
+            .Where(f => !string.Equals(f, current, StringComparison.OrdinalIgnoreCase) && _vfs.CanCreate("x." + f))
+            .ToList();
+    }
+
+    private string SiblingPath(string suffix, string ext)
+    {
+        var dir = Path.GetDirectoryName(ArchivePath) ?? ".";
+        var baseName = Path.GetFileNameWithoutExtension(ArchivePath);
+        var dest = Path.Combine(dir, baseName + suffix + ext);
+        for (int n = 1; File.Exists(dest); n++) dest = Path.Combine(dir, $"{baseName}{suffix} ({n}){ext}");
+        return dest;
+    }
+
+    // ── Overlay plumbing ───────────────────────────────────────────────────────
+
+    private void ShowChoice(string title, IEnumerable<string> options, Func<string, Task> action)
+    {
+        ChoiceTitle = title;
+        ChoiceOptions.Clear();
+        foreach (var o in options) ChoiceOptions.Add(o);
+        if (ChoiceOptions.Count == 0) { StatusText = "No applicable options."; return; }
+        _choiceAction = action;
+        ChoiceVisible = true;
+    }
+
+    [RelayCommand]
+    private async Task PickChoice(string option)
+    {
+        ChoiceVisible = false;
+        var action = _choiceAction; _choiceAction = null;
+        if (action is not null) await action(option);
+    }
+
+    [RelayCommand]
+    private void CancelChoice() { ChoiceVisible = false; _choiceAction = null; }
+
+    private void ShowPassword(string title, Func<string, Task> action)
+    {
+        PasswordTitle = title;
+        _passwordAction = action;
+        PasswordVisible = true;
+    }
+
+    /// <summary>Invoked from the view's password overlay (a PasswordBox can't be data-bound).</summary>
+    public async Task SubmitPasswordAsync(string password)
+    {
+        PasswordVisible = false;
+        var action = _passwordAction; _passwordAction = null;
+        if (action is not null && !string.IsNullOrEmpty(password)) await action(password);
+    }
+
+    [RelayCommand]
+    private void CancelPassword() { PasswordVisible = false; _passwordAction = null; }
 
     /// <summary>Adds dropped files to the archive (drag-and-drop onto the page).</summary>
     public async Task AddSourcesAsync(IReadOnlyList<string> sources)

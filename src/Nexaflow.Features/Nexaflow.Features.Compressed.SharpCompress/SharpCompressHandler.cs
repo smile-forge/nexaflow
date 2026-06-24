@@ -4,7 +4,9 @@ using System.IO;
 using System.Linq;
 using Nexaflow.IO.Common;
 using SharpCompress.Archives;
+using SharpCompress.Common;
 using SharpCompress.Readers;
+using SharpCompress.Writers;
 
 namespace Nexaflow.Features.Compressed.SharpCompress;
 
@@ -24,7 +26,9 @@ public sealed class SharpCompressHandler : IArchiveHandler
 
     public string Name => "SharpCompress";
 
-    public ArchiveCapabilities Capabilities => ArchiveCapabilities.List | ArchiveCapabilities.Extract;
+    // Create covers tar / tar.gz / tar.bz2 only (Write throws for 7z/rar, which SharpCompress can't write).
+    public ArchiveCapabilities Capabilities =>
+        ArchiveCapabilities.List | ArchiveCapabilities.Extract | ArchiveCapabilities.Create;
 
     public bool CanHandle(string fileName)
     {
@@ -35,6 +39,32 @@ public sealed class SharpCompressHandler : IArchiveHandler
 
     public IArchiveSession Open(Stream container, string fileName, ArchiveOpenOptions? options = null)
         => new Session(container, fileName, options?.Password);
+
+    public void Write(Stream target, string fileName, IReadOnlyList<ArchiveWriteEntry> entries,
+                      ArchiveWriteOptions? options = null)
+    {
+        var (type, compression) = WriteFormat(fileName);
+        using var writer = WriterFactory.Open(target, type, new WriterOptions(compression) { LeaveStreamOpen = true });
+        foreach (var e in entries)
+        {
+            if (e.IsDirectory || e.OpenContent is null) continue;
+            using var s = e.OpenContent();
+            writer.Write(e.Path.Replace('\\', '/'), s, e.Modified);
+        }
+    }
+
+    private static (ArchiveType Type, CompressionType Compression) WriteFormat(string fileName)
+    {
+        var lower = fileName.ToLowerInvariant();
+        if (lower.EndsWith(".tar.gz", StringComparison.Ordinal) || lower.EndsWith(".tgz", StringComparison.Ordinal))
+            return (ArchiveType.Tar, CompressionType.GZip);
+        if (lower.EndsWith(".tar.bz2", StringComparison.Ordinal) || lower.EndsWith(".tbz2", StringComparison.Ordinal)
+            || lower.EndsWith(".tbz", StringComparison.Ordinal))
+            return (ArchiveType.Tar, CompressionType.BZip2);
+        if (lower.EndsWith(".tar", StringComparison.Ordinal))
+            return (ArchiveType.Tar, CompressionType.None);
+        throw new System.NotSupportedException($"SharpCompress cannot create '{Path.GetExtension(fileName)}' archives.");
+    }
 
     private sealed class Session : IArchiveSession
     {

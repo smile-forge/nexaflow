@@ -66,6 +66,7 @@
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Compressed\Nexaflow.Features.Compressed.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Compressed.SharpCompress\Nexaflow.Features.Compressed.SharpCompress.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Compressed.Modern\Nexaflow.Features.Compressed.Modern.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Compressed.SecureZip\Nexaflow.Features.Compressed.SecureZip.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Console\Nexaflow.Features.Console.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Dotnet\Nexaflow.Features.Dotnet.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Git\Nexaflow.Features.Git.csproj" />

@@ -34,6 +34,21 @@ public partial class CompressedView : UserControl, IPageView
             _vm.ActivateRowCommand.Execute(node);
     }
 
+    // ── Password overlay (PasswordBox can't be data-bound) ─────────────────────
+
+    private void PasswordOk_Click(object sender, RoutedEventArgs e)
+    {
+        var pwd = PasswordEntry.Password;
+        PasswordEntry.Clear();
+        _ = _vm.SubmitPasswordAsync(pwd);
+    }
+
+    private void PasswordEntry_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) PasswordOk_Click(sender, e);
+        else if (e.Key == Key.Escape) _vm.CancelPasswordCommand.Execute(null);
+    }
+
     private static bool HasFiles(DragEventArgs e) => e.Data.GetDataPresent(DataFormats.FileDrop);
 
     private void OnDragOver(object sender, DragEventArgs e)

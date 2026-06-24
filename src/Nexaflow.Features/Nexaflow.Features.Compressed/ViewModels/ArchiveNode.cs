@@ -33,14 +33,15 @@ public sealed partial class ArchiveNode : ObservableObject
     /// <summary>Expander triangle for folders (empty for files / childless folders).</summary>
     public string Chevron => IsFolder && HasChildren ? (IsExpanded ? "▾" : "▸") : string.Empty;
 
-    public string SizeText => IsFolder ? string.Empty : FormatBytes(Size);
-    public string CompressedText => IsFolder ? string.Empty : FormatBytes(CompressedSize);
+    // Folders show their rolled-up totals (summed from descendants), same columns as files.
+    public string SizeText => FormatBytes(Size);
+    public string CompressedText => FormatBytes(CompressedSize);
 
     public string RatioText
     {
         get
         {
-            if (IsFolder || Size <= 0 || CompressedSize < 0) return string.Empty;
+            if (Size <= 0 || CompressedSize < 0) return string.Empty;
             var pct = 100.0 * (1.0 - (double)CompressedSize / Size);
             return pct <= 0 ? "—" : $"{pct:0}%";
         }

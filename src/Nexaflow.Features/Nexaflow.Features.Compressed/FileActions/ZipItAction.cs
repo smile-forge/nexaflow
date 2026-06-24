@@ -19,6 +19,7 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config) :
     public bool CanPerformAction => true;
     public bool AppliesToRoot => true;
     public bool AppliesToDrives => false;
+    public bool AppliesInsideArchive => false;   // nothing real to compress from a virtual path
 
     public bool PerformAction(string folderPath)
     {

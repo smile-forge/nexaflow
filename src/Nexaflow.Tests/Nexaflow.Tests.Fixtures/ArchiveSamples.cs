@@ -1,4 +1,5 @@
 using System;
+using System.Formats.Tar;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
@@ -6,10 +7,11 @@ using System.Text;
 namespace Nexaflow.Tests.Fixtures;
 
 /// <summary>
-/// Archive fixtures for the Compressed feature: a plain zip and a nested zip (zip-in-zip) for the
-/// virtual-file-system / browse-as-folder paths. Built with fixed entry timestamps so the bytes are
-/// stable across runs (no regeneration churn). Richer formats (tar/7z/zst/AES) are exercised by the
-/// handler-level unit tests, which generate their own fixtures.
+/// Archive fixtures for the Compressed feature, covering the formats that can be produced with no extra
+/// dependency: zip, nested zip (zip-in-zip), tar, tar.gz and a single-stream gzip. Built with fixed
+/// entry timestamps (and the dependency-free <c>ustar</c> tar format) so the bytes are stable across
+/// runs. The remaining formats (7z/rar/zst/lz4/AES) are exercised by the provider unit tests, which
+/// generate their own in-memory fixtures.
 /// </summary>
 public sealed class ArchiveSamples : ISampleSet
 {
@@ -22,8 +24,10 @@ public sealed class ArchiveSamples : ISampleSet
 
     private static IReadOnlyList<SampleFile> Build()
     {
-        var inner = Zip(
-            ("hello.txt", Utf8("hello from inside a nested archive")));
+        var inner = Zip(("hello.txt", Utf8("hello from inside a nested archive")));
+        var tar = Tar(
+            ("readme.txt", Utf8("# Tar sample\nA file inside a tar.\n")),
+            ("docs/notes.txt", Utf8("notes inside docs\n")));
 
         return
         [
@@ -34,10 +38,40 @@ public sealed class ArchiveSamples : ISampleSet
             SampleFile.Raw("nested.zip", Zip(
                 ("top.txt", Utf8("top-level entry")),
                 ("inner.zip", inner))),
+
+            SampleFile.Raw("bundle.tar", tar),
+            SampleFile.Raw("bundle.tar.gz", Gzip(tar)),
+            SampleFile.Raw("readme.txt.gz", Gzip(Utf8("# Gzipped single file\n"))),
         ];
     }
 
     private static byte[] Utf8(string s) => Encoding.UTF8.GetBytes(s);
+
+    private static byte[] Tar(params (string Name, byte[] Content)[] entries)
+    {
+        using var ms = new MemoryStream();
+        using (var writer = new TarWriter(ms, TarEntryFormat.Ustar, leaveOpen: true))
+        {
+            foreach (var (name, content) in entries)
+            {
+                var entry = new UstarTarEntry(TarEntryType.RegularFile, name)
+                {
+                    ModificationTime = Epoch,
+                    DataStream = new MemoryStream(content),
+                };
+                writer.WriteEntry(entry);
+            }
+        }
+        return ms.ToArray();
+    }
+
+    private static byte[] Gzip(byte[] data)
+    {
+        using var ms = new MemoryStream();
+        using (var gz = new GZipStream(ms, CompressionLevel.Optimal, leaveOpen: true))
+            gz.Write(data, 0, data.Length);
+        return ms.ToArray();
+    }
 
     private static byte[] Zip(params (string Name, byte[] Content)[] entries)
     {
