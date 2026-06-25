@@ -436,3 +436,6 @@ nexaflowSetup/*.exe
 /test-samples/
 
 /.claude/*
+
+# Nexaflow Product Manager — live metadata (snapshots are committed under the export dir)
+.product/
