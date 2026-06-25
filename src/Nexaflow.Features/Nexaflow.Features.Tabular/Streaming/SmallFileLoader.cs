@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Tabular.Detection;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Tabular.Streaming;
 
@@ -23,7 +24,7 @@ public sealed class SmallFileLoader : IRowSource
         _shape = shape;
         _rows  = new List<string[]>(1024);
 
-        using var fs = File.OpenRead(filePath);
+        using var fs = VirtualFileSystem.Instance.OpenRead(filePath);
         fs.Position  = bomBytes;
         using var sr = new StreamReader(fs, encoding, detectEncodingFromByteOrderMarks: false);
         int  commentsLeft = shape.LeadingCommentCount;

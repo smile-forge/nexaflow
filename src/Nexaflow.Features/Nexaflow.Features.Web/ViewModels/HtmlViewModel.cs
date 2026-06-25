@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using System.IO;
 
 namespace Nexaflow.Features.Web.ViewModels;
@@ -56,7 +57,10 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel
     {
         try
         {
-            foreach (var line in File.ReadLines(filePath))
+            using var stream = VirtualFileSystem.Instance.OpenRead(filePath);
+            using var reader = new StreamReader(stream);
+            string? line;
+            while ((line = reader.ReadLine()) is not null)
             {
                 if (line.StartsWith("URL=", StringComparison.OrdinalIgnoreCase))
                 {

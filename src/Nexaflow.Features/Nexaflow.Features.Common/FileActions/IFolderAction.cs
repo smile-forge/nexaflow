@@ -63,6 +63,11 @@ namespace Nexaflow.Features.Common
         /// </summary>
         bool IsRibbonPinnable => true;
 
+        /// <summary>Whether this action is offered when the current folder is <b>inside an archive</b>
+        /// (a virtual path). Defaults to <c>true</c>; set <c>false</c> for actions that need a real
+        /// on-disk folder — e.g. "Zip It", which has nothing to compress from a virtual location.</summary>
+        bool AppliesInsideArchive => true;
+
         bool PerformAction(string folderPath);
         bool PerformAction(IEnumerable<string> folderPaths);
 

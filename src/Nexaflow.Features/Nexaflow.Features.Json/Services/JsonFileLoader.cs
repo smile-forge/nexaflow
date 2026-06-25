@@ -1,4 +1,5 @@
 using Nexaflow.Features.Json.Models;
+using Nexaflow.IO.Common;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -45,13 +46,13 @@ internal sealed class JsonFileLoader
     {
         try
         {
-            var info = new FileInfo(filePath);
-            if (!info.Exists)
+            if (!VirtualFileSystem.Instance.Exists(filePath))
                 return new LoadResult(null, [], false, 0, 0, 0, $"File not found: {filePath}");
 
-            return info.Length <= SmallFileSizeLimit
-                ? await LoadSmallAsync(filePath, info.Length, ct)
-                : await LoadLargeAsync(filePath, info.Length, ct);
+            long fileSize = VirtualFileSystem.Instance.GetLength(filePath);
+            return fileSize <= SmallFileSizeLimit
+                ? await LoadSmallAsync(filePath, fileSize, ct)
+                : await LoadLargeAsync(filePath, fileSize, ct);
         }
         catch (OperationCanceledException) { return new LoadResult(null, [], false, 0, 0, 0, null); }
         catch (Exception ex) { return new LoadResult(null, [], false, 0, 0, 0, $"Error loading file: {ex.Message}"); }
@@ -61,7 +62,10 @@ internal sealed class JsonFileLoader
 
     private static async Task<LoadResult> LoadSmallAsync(string filePath, long fileSize, CancellationToken ct)
     {
-        var text = await File.ReadAllTextAsync(filePath, Encoding.UTF8, ct);
+        string text;
+        await using (var rs = VirtualFileSystem.Instance.OpenRead(filePath))
+        using (var sr = new StreamReader(rs, Encoding.UTF8))
+            text = await sr.ReadToEndAsync(ct);
         try
         {
             var jsonNode = JsonNode.Parse(text, nodeOptions: null, documentOptions: s_documentOptions);
@@ -79,7 +83,7 @@ internal sealed class JsonFileLoader
 
     private async Task<LoadResult> LoadLargeAsync(string filePath, long fileSize, CancellationToken ct)
     {
-        await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        await using var stream = VirtualFileSystem.Instance.OpenRead(filePath);
 
         // Read front chunk; grow if even the first item is bigger than the chunk
         var (frontBuf, frontRead) = await ReadGrowingChunkAsync(stream, 0, fileSize, ct);
@@ -174,7 +178,7 @@ internal sealed class JsonFileLoader
     {
         if (startOffset >= fileSize - 2) return ([], startOffset);
 
-        await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        await using var stream = VirtualFileSystem.Instance.OpenRead(filePath);
 
         // Grow chunk if no items found — handles items larger than initial chunk size
         var chunkSize = FrontChunkSize;
@@ -204,7 +208,7 @@ internal sealed class JsonFileLoader
         const int SampleBytes = 64 * 1024;
 
         // Front sample: parse the first object only
-        await using var fs1 = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        await using var fs1 = VirtualFileSystem.Instance.OpenRead(filePath);
         var frontBuf  = new byte[(int)Math.Min(SampleBytes, fileSize)];
         int frontRead = await fs1.ReadAsync(frontBuf, 0, frontBuf.Length, ct);
 
@@ -220,7 +224,7 @@ internal sealed class JsonFileLoader
         var firstKeys      = GetObjectKeys(firstNode);
 
         // Back sample: parse the LAST object
-        await using var fs2 = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        await using var fs2 = VirtualFileSystem.Instance.OpenRead(filePath);
         var backStart  = Math.Max(0, fileSize - SampleBytes);
         fs2.Seek(backStart, SeekOrigin.Begin);
         var backBuf  = new byte[(int)(fileSize - backStart)];
@@ -424,7 +428,7 @@ internal sealed class JsonFileLoader
     // Reads up to `initialSize` bytes from `stream` starting at `offset`.
     // Used for the initial chunk; chunk growing is handled by the caller.
     private static async Task<(byte[] buf, int read)> ReadGrowingChunkAsync(
-        FileStream stream, long offset, long fileSize, CancellationToken ct, int initialSize = FrontChunkSize)
+        Stream stream, long offset, long fileSize, CancellationToken ct, int initialSize = FrontChunkSize)
     {
         var size = (int)Math.Min(initialSize, fileSize - offset);
         if (size <= 0) return ([], 0);

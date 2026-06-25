@@ -17,7 +17,10 @@ using Nexaflow.Features.Json;
 using Nexaflow.Features.Text;
 using Nexaflow.Features.Web;
 using Nexaflow.Features.WindowsSearch;
+using Nexaflow.IO.Common;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Threading;
 using Updatum;
@@ -64,6 +67,13 @@ public partial class App : Application
     /// </summary>
     public static bool SkipSetup { get; private set; }
 
+    /// <summary>
+    /// True when launched with <c>--reset</c>: the relaunch issued by "Reset Config" (Options → About).
+    /// <see cref="InitializeApp"/> deletes the whole app-data directory before initialising, so the run
+    /// starts as a clean first-run. Set by the fresh process; the old one armed it before relaunching.
+    /// </summary>
+    private static bool _resetRequested;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -73,6 +83,7 @@ public partial class App : Application
 
         bool prestart = e.Args.Any(a => string.Equals(a, "--prestart", StringComparison.OrdinalIgnoreCase));
         SkipSetup = e.Args.Any(a => string.Equals(a, "--skipSetup", StringComparison.OrdinalIgnoreCase));
+        _resetRequested = e.Args.Any(a => string.Equals(a, "--reset", StringComparison.OrdinalIgnoreCase));
 
 #if !DEBUG
         // ── Single-instance guard ────────────────────────────────────────────
@@ -134,6 +145,12 @@ public partial class App : Application
             baseDir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "Smile", "nexaflow");
+
+        // "Reset Config" relaunch: wipe the directory now, in the fresh process, so no handle from the
+        // old (exiting) instance is held. The empty dir then drives a clean first-run.
+        if (_resetRequested)
+            DeleteDirectoryWithRetry(baseDir);
+
         ConfigManager.Instance.Initialize(baseDir);
 
         // ── 1. Shell config ──────────────────────────────────────────────────
@@ -193,6 +210,10 @@ public partial class App : Application
         // ── 6. Feature system ────────────────────────────────────────────────
         FeatureManager.Instance.RegisterFeatures();
 
+        // Archive backends ship in feature assemblies (IArchiveHandler) and are discovered the same way;
+        // register them into the process-wide VFS so files inside archives browse/open like a folder.
+        RegisterArchiveHandlers();
+
         // Re-apply the theme now that features are loaded, folding in any feature theme
         // contributions (IThemeContribution) below the active theme. No-op when none contribute.
         ThemeManager.Apply(shellConfig.Theme, FeatureManager.Instance.ThemeContributionUris);
@@ -240,6 +261,49 @@ public partial class App : Application
         _singleInstance.StartListening(name => OpenNewWindow(activityManager, name));
 
         return voiceConfig;
+    }
+
+    /// <summary>
+    /// Discovers every <see cref="IArchiveHandler"/> across the loaded <c>Nexaflow.*</c> assemblies
+    /// (provider DLLs are named <c>Nexaflow.Features.Compressed.*</c> so they ride the feature glob) and
+    /// registers a stateless instance of each into <see cref="VirtualFileSystem.Instance"/>. Logs the
+    /// count — a zero here means a provider DLL was mis-named and silently never loaded.
+    /// </summary>
+    private static void RegisterArchiveHandlers()
+    {
+        int registered = 0;
+        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            var name = asm.GetName().Name;
+            if (name is null || !name.StartsWith("Nexaflow.", StringComparison.Ordinal)) continue;
+
+            System.Type[] types;
+            try { types = asm.GetTypes(); }
+            catch (System.Reflection.ReflectionTypeLoadException ex) { types = ex.Types.Where(t => t is not null).ToArray()!; }
+
+            foreach (var t in types)
+            {
+                if (t is null || t.IsAbstract || t.IsInterface) continue;
+                try
+                {
+                    if (typeof(IArchiveHandler).IsAssignableFrom(t) &&
+                        Activator.CreateInstance(t) is IArchiveHandler handler)
+                    {
+                        VirtualFileSystem.Instance.RegisterHandler(handler);
+                        registered++;
+                    }
+                    else if (typeof(IStreamCodec).IsAssignableFrom(t) &&
+                             Activator.CreateInstance(t) is IStreamCodec codec)
+                    {
+                        VirtualFileSystem.Instance.RegisterCodec(codec);
+                    }
+                }
+                catch { /* a backend needing ctor args / throwing — skip */ }
+            }
+        }
+        System.Diagnostics.Debug.WriteLine(
+            $"[Compressed] Registered {registered} archive handler(s) + {VirtualFileSystem.Instance.CodecCount} codec(s); " +
+            $"VFS handler count = {VirtualFileSystem.Instance.HandlerCount}.");
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -351,6 +415,49 @@ public partial class App : Application
         win.WindowStartupLocation = WindowStartupLocation.Manual;
         win.Left = work.Left + Math.Max(0, (work.Width  - win.Width)  / 2);
         win.Top  = work.Top  + Math.Max(0, (work.Height - win.Height) / 2);
+    }
+
+    /// <summary>
+    /// "Reset Config" (Options → About): delete all configuration and relaunch into first-run. Arms the
+    /// config-write suppressor so nothing re-persists during teardown, drops the single-instance mutex so
+    /// the relaunched process can claim it, closes every window, and starts a fresh <c>--reset</c> process
+    /// that wipes the app-data directory before initialising. Irreversible — only reached after the user
+    /// confirms the shell overlay.
+    /// </summary>
+    internal static void ResetAndRestart()
+    {
+        ConfigManager.Instance.SuppressWrites();
+
+        var exe = Environment.ProcessPath;
+
+        // Release the mutex first so the relaunched instance isn't bounced by the single-instance guard.
+        _singleInstance.Dispose();
+
+        foreach (var window in Current.Windows.Cast<Window>().ToList())
+            window.Close();
+
+        if (!string.IsNullOrEmpty(exe))
+            Process.Start(new ProcessStartInfo(exe, "--reset") { UseShellExecute = false });
+
+        Current.Shutdown();
+    }
+
+    /// <summary>
+    /// Recursively deletes <paramref name="dir"/>, retrying briefly to wait out any handle the exiting
+    /// previous instance still holds. Best-effort: gives up quietly after the retry budget.
+    /// </summary>
+    private static void DeleteDirectoryWithRetry(string dir)
+    {
+        for (int attempt = 0; attempt < 20; attempt++)
+        {
+            try
+            {
+                if (!Directory.Exists(dir)) return;
+                Directory.Delete(dir, recursive: true);
+                return;
+            }
+            catch { System.Threading.Thread.Sleep(100); }
+        }
     }
 
     /// <summary>Records the current version so the next launch can detect an update (drives What's New).</summary>

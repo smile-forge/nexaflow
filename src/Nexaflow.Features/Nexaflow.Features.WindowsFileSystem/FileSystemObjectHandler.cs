@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.Services;
+using Nexaflow.IO.Common;
 using System.Collections.Generic;
 using System.IO;
 
@@ -17,13 +18,15 @@ public sealed class FileSystemObjectHandler(
     IReadOnlyDictionary<Type, IFeatureConfig> configs) : IGenericObjectHandler
 {
     public bool CanHandleObject(object obj)
-        => ToLocalPath(obj) is { } p && (File.Exists(p) || Directory.Exists(p));
+        => ToLocalPath(obj) is { } p &&
+           (File.Exists(p) || Directory.Exists(p) || VirtualFileSystem.Instance.Exists(p));
 
     public void Handle(object obj)
     {
         if (ToLocalPath(obj) is not { } path) return;
 
-        if (Directory.Exists(path))
+        // A real directory, an archive file, or a folder inside an archive → open a file-browser tab there.
+        if (Directory.Exists(path) || VirtualFileSystem.Instance.IsDirectory(path))
         {
             shell.OpenTab("FileSystem", new()
             {

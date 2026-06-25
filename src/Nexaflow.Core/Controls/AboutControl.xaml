@@ -14,6 +14,7 @@
             <RowDefinition Height="Auto"/>  <!-- header -->
             <RowDefinition Height="Auto"/>  <!-- notices heading -->
             <RowDefinition Height="*"/>     <!-- scrollable notices -->
+            <RowDefinition Height="Auto"/>  <!-- danger zone: reset config -->
         </Grid.RowDefinitions>
 
         <!-- Header: product, version, source link -->
@@ -67,6 +68,24 @@
                           HorizontalScrollBarVisibility="Disabled">
                 <md:SelectableMarkdownView x:Name="NoticesView"/>
             </ScrollViewer>
+        </Border>
+
+        <!-- Danger zone: wipe all app-data and restart. Confirmed via the shell overlay. -->
+        <Border Grid.Row="3" Margin="0,16,0,0" Padding="14"
+                BorderBrush="{StaticResource DangerBrush}" BorderThickness="1" CornerRadius="6"
+                Background="{StaticResource DangerSubtleBrush}">
+            <StackPanel>
+                <TextBlock Text="Reset configuration" FontSize="13" FontWeight="Bold"
+                           Foreground="{StaticResource DangerBrush}"/>
+                <TextBlock Margin="0,4,0,10" FontSize="12" TextWrapping="Wrap"
+                           Foreground="{StaticResource TextBrush}"
+                           Text="Deletes every setting, workspace, provider and conversation for all profiles, then restarts. This cannot be undone."/>
+                <Button Content="Reset Config…" HorizontalAlignment="Left"
+                        Padding="14,6" Cursor="Hand" BorderThickness="0"
+                        Background="{StaticResource DangerBrush}"
+                        Foreground="{StaticResource OnAccentBrush}"
+                        Click="OnResetClick"/>
+            </StackPanel>
         </Border>
     </Grid>
 </UserControl>

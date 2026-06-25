@@ -4,6 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -33,7 +35,8 @@ public sealed class FileMapManager
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "Smile", "nexaflow", "filemap");
 
-    private string IndexPath => Path.Combine(_filemapDir, "_index.bin");
+    private string IndexPath           => Path.Combine(_filemapDir, "_index.bin");
+    private string DefaultsManifestPath => Path.Combine(_filemapDir, "_defaults.json");
 
     // ── In-memory state ──────────────────────────────────────────────────────
 
@@ -57,14 +60,14 @@ public sealed class FileMapManager
 
         Directory.CreateDirectory(_filemapDir);
 
-        // Seed default mappings on first use
-        SeedDefaultsIfEmpty();
+        // Seed / merge bundled default mappings, preserving user customizations.
+        bool defaultsChanged = SyncBundledDefaults();
 
         // Load all per-mapping JSON files
         LoadMappings();
 
-        // Fast startup: try to load the pre-built index
-        if (!TryLoadIndex())
+        // Fast startup: reuse the pre-built index unless the defaults just changed.
+        if (defaultsChanged || !TryLoadIndex())
             RebuildIndex();
 
         // Background: refresh registry-derived entries and update index
@@ -157,6 +160,15 @@ public sealed class FileMapManager
         RebuildIndex();
     }
 
+    /// <summary>Candidate extensions for a file name, longest (most-specific) first:
+    /// <c>foo.tar.gz</c> → <c>.tar.gz</c>, <c>.gz</c>. Lets compound extensions match.</summary>
+    private static IEnumerable<string> ExtensionCandidates(string fileName)
+    {
+        var name = Path.GetFileName(fileName).ToLowerInvariant();
+        for (int i = name.IndexOf('.'); i >= 0; i = name.IndexOf('.', i + 1))
+            yield return name[i..];
+    }
+
     /// <summary>
     /// Returns all experience IDs that apply to the given file, including
     /// all ancestor IDs (hierarchical propagation).
@@ -168,9 +180,10 @@ public sealed class FileMapManager
 
         var matched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // 1. Extension lookup
-        if (idx.ByExtension.TryGetValue(ext, out var byExt))
-            foreach (var id in byExt) matched.Add(id);
+        // 1. Extension lookup — try compound extensions (.tar.gz) as well as the bare one (.gz).
+        foreach (var cand in ExtensionCandidates(file.Name))
+            if (idx.ByExtension.TryGetValue(cand, out var byExt))
+                foreach (var id in byExt) matched.Add(id);
         if (idx.ByExtension.TryGetValue("*", out var universal))
             foreach (var id in universal) matched.Add(id);
 
@@ -226,21 +239,142 @@ public sealed class FileMapManager
 
     // ── Persistence helpers ───────────────────────────────────────────────────
 
-    private void SeedDefaultsIfEmpty()
+    /// <summary>
+    /// Tracks the pristine default content per experience so an app update can refresh the bundled
+    /// defaults a user hasn't customized without clobbering the ones they have. <see cref="BundleHash"/>
+    /// is the hash of the whole bundle so an unchanged bundle is a fast no-op; <see cref="Mappings"/>
+    /// records, per experience id, the hash of the default we last wrote — an on-disk file still equal
+    /// to it is "unmodified" and safe to update.
+    /// </summary>
+    private sealed class DefaultsManifest
     {
-        if (Directory.GetFiles(_filemapDir, "*.json").Length > 0) return;
+        public string BundleHash { get; set; } = string.Empty;
+        public Dictionary<string, string> Mappings { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    }
 
+    /// <summary>
+    /// Seeds the bundled default mappings on first run and, on later runs, merges changed defaults:
+    /// brand-new defaults are added, defaults the user hasn't touched are refreshed, and
+    /// user-customized mappings are preserved. Returns true when any mapping file was written/deleted
+    /// (so the caller rebuilds the index).
+    ///
+    /// First-merge note: the very first release shipping this should NOT change default-filemap.json,
+    /// so the baseline is captured from today's pristine files — without a recorded baseline an
+    /// old-pristine default is indistinguishable from a user edit and is conservatively preserved.
+    /// </summary>
+    private bool SyncBundledDefaults()
+    {
         string bundled = Path.Combine(
             AppContext.BaseDirectory, "FileActions", "default-filemap.json");
-        if (!File.Exists(bundled)) return;
+        if (!File.Exists(bundled)) return false;
 
-        var defaults = JsonSerializer.Deserialize<List<ExperienceMapping>>(
-            File.ReadAllText(bundled), _jsonOpts);
-        if (defaults is null) return;
-
-        foreach (var m in defaults)
-            WriteMapping(m);
+        string bundleText = File.ReadAllText(bundled);
+        var defaults = JsonSerializer.Deserialize<List<ExperienceMapping>>(bundleText, _jsonOpts);
+        return defaults is not null && ApplyBundledDefaults(defaults, Hash(bundleText));
     }
+
+    /// <summary>
+    /// Core of <see cref="SyncBundledDefaults"/>, split out for testing: merges <paramref name="defaults"/>
+    /// (already deserialized) keyed by <paramref name="bundleHash"/> against the on-disk mappings and the
+    /// hash manifest. Returns true when any mapping file was written/deleted.
+    /// </summary>
+    internal bool ApplyBundledDefaults(List<ExperienceMapping> defaults, string bundleHash)
+    {
+        var manifest = LoadDefaultsManifest();
+        if (manifest is not null && manifest.BundleHash == bundleHash)
+            return false;   // bundle unchanged since last sync — nothing to do
+
+        manifest ??= new DefaultsManifest();
+        bool changed = false;
+
+        var bundledIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var d in defaults)
+        {
+            if (string.IsNullOrEmpty(d.ExperienceId)) continue;
+            bundledIds.Add(d.ExperienceId);
+
+            string defaultHash = HashMapping(d);
+            string path        = MappingFilePath(d.ExperienceId);
+
+            if (!File.Exists(path))
+            {
+                // A default the user doesn't have yet — add it.
+                WriteMapping(d);
+                manifest.Mappings[d.ExperienceId] = defaultHash;
+                changed = true;
+                continue;
+            }
+
+            string onDiskHash = HashOnDisk(path);
+            string baseline   = manifest.Mappings.TryGetValue(d.ExperienceId, out var b) ? b : defaultHash;
+            if (onDiskHash == baseline)
+            {
+                // Unmodified (still equals the default we last wrote / the current default) — refresh.
+                if (onDiskHash != defaultHash) { WriteMapping(d); changed = true; }
+                manifest.Mappings[d.ExperienceId] = defaultHash;
+            }
+            else if (!manifest.Mappings.ContainsKey(d.ExperienceId))
+            {
+                // First sync after upgrade with no recorded baseline: assume the existing file is the
+                // user's and record it, so future bundle changes never clobber it.
+                manifest.Mappings[d.ExperienceId] = onDiskHash;
+            }
+            // else: recorded baseline exists and the file diverged → user-customized → preserve.
+        }
+
+        // A default removed from the bundle and still pristine on disk → clean it up.
+        foreach (var (id, recordedHash) in manifest.Mappings.ToList())
+        {
+            if (bundledIds.Contains(id)) continue;
+            string path = MappingFilePath(id);
+            if (File.Exists(path) && HashOnDisk(path) == recordedHash)
+            {
+                File.Delete(path);
+                changed = true;
+            }
+            manifest.Mappings.Remove(id);
+        }
+
+        manifest.BundleHash = bundleHash;
+        SaveDefaultsManifest(manifest);
+        return changed;
+    }
+
+    private DefaultsManifest? LoadDefaultsManifest()
+    {
+        try
+        {
+            return File.Exists(DefaultsManifestPath)
+                ? JsonSerializer.Deserialize<DefaultsManifest>(File.ReadAllText(DefaultsManifestPath), _jsonOpts)
+                : null;
+        }
+        catch { return null; }
+    }
+
+    private void SaveDefaultsManifest(DefaultsManifest manifest)
+    {
+        try { File.WriteAllText(DefaultsManifestPath, JsonSerializer.Serialize(manifest, _jsonOpts)); }
+        catch { }
+    }
+
+    /// <summary>Canonical content hash of a mapping (serialized through <see cref="_jsonOpts"/>).</summary>
+    private string HashMapping(ExperienceMapping mapping) =>
+        Hash(JsonSerializer.Serialize(mapping, _jsonOpts));
+
+    /// <summary>Canonical content hash of an on-disk mapping file (whitespace/order insensitive).</summary>
+    private string HashOnDisk(string path)
+    {
+        try
+        {
+            string text = File.ReadAllText(path);
+            var m = JsonSerializer.Deserialize<ExperienceMapping>(text, _jsonOpts);
+            return m is not null ? HashMapping(m) : Hash(text);
+        }
+        catch { return string.Empty; }
+    }
+
+    private static string Hash(string text) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
 
     private void LoadMappings()
     {
@@ -496,9 +630,10 @@ public sealed class FileMapManager
             foreach (var (pattern, id) in idx.PathPatternRules)
                 if (GlobMatch(file.FullName, pattern) && IsAncestorOrSelf([id], experienceId)) return 5;
 
-            // Extension-specific (level 4)
-            if (idx.ByExtension.TryGetValue(ext, out var byExt) &&
-                IsAncestorOrSelf(byExt, experienceId)) return 4;
+            // Extension-specific (level 4) — compound extensions (.tar.gz) count, longest first.
+            foreach (var cand in ExtensionCandidates(file.Name))
+                if (idx.ByExtension.TryGetValue(cand, out var byExt) &&
+                    IsAncestorOrSelf(byExt, experienceId)) return 4;
 
             // MagicNumber (level 3)
             if (idx.MagicExtensions.Contains(ext) && file.Exists && file.Length > 0)

@@ -18,6 +18,7 @@ internal sealed partial class FolderNodeViewModel : ObservableObject
     public ObservableCollection<FolderNodeViewModel> Children { get; } = [];
 
     [ObservableProperty] private bool _isExpanded;
+    [ObservableProperty] private bool _isSelected;
 
     private bool _loaded;
 
@@ -86,7 +87,46 @@ public partial class FolderBrowserWindow : Window
         {
             Owner = owner ?? Application.Current.MainWindow
         };
+        win.NavigateTo(initialPath);
         return win.ShowDialog() == true ? win.SelectedPath : null;
+    }
+
+    /// <summary>Expands the tree to <paramref name="initialPath"/> and pre-selects it.</summary>
+    private void NavigateTo(string? initialPath)
+    {
+        if (string.IsNullOrEmpty(initialPath)) return;
+        try { if (File.Exists(initialPath)) initialPath = Path.GetDirectoryName(initialPath); }
+        catch { return; }
+        if (string.IsNullOrEmpty(initialPath)) return;
+        try { initialPath = Path.GetFullPath(initialPath); } catch { return; }
+        if (DataContext is not FolderBrowserViewModel vm) return;
+
+        var root = Path.GetPathRoot(initialPath)?.TrimEnd('\\');
+        var node = vm.Roots.FirstOrDefault(r =>
+            string.Equals(r.FullPath.TrimEnd('\\'), root, StringComparison.OrdinalIgnoreCase));
+        if (node is null) return;
+
+        node.EnsureLoaded();
+        node.IsExpanded = true;
+
+        var rel = Path.GetRelativePath(node.FullPath, initialPath);
+        if (rel is not "." and not "")
+        {
+            foreach (var seg in rel.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var child = node.Children.FirstOrDefault(c =>
+                    string.Equals(c.DisplayName, seg, StringComparison.OrdinalIgnoreCase));
+                if (child is null) break;
+                child.EnsureLoaded();
+                child.IsExpanded = true;
+                node = child;
+            }
+        }
+
+        node.IsSelected = true;
+        SelectedPath = node.FullPath;
+        SelectedPathText.Text = node.FullPath;
+        OkBtn.IsEnabled = true;
     }
 
     private void FolderTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
@@ -109,6 +149,11 @@ public partial class FolderBrowserWindow : Window
     {
         if (sender is TreeViewItem { DataContext: FolderNodeViewModel node })
             node.EnsureLoaded();
+    }
+
+    private void TreeViewItem_Selected(object sender, RoutedEventArgs e)
+    {
+        if (sender is TreeViewItem { IsSelected: true } tvi) tvi.BringIntoView();
     }
 
     private void Ok_Click(object sender, RoutedEventArgs e)

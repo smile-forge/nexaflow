@@ -353,7 +353,13 @@ public sealed class ShellServices : IShellServices
 
     private static string SafeFullPath(string path)
     {
-        try { return Path.GetFullPath(path); }
+        try
+        {
+            // Watch the outermost real container, so a request to watch a file *inside* an archive
+            // (a non-existent OS path) watches the archive that actually changes on disk. Resolving such
+            // a container change back to the specific inner view is deferred.
+            return VirtualFileSystem.Instance.SplitOutermostContainer(Path.GetFullPath(path)).RealContainer;
+        }
         catch { return path; }
     }
 

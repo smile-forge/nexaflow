@@ -86,6 +86,18 @@ The model has two halves: a **`Profile`** is the saved, shared configuration sho
 
 > ⚠️ The **AI persona** (name + system prompt) is **global**, but **which provider/model answers each ability** is **per-profile**. Don't conflate them.
 
+### Config versioning & migration
+
+Every config (global or per-profile) persists as `…\{configName}\config_{AssemblyVersion}.json`, so the filename records the version that wrote it. On load — `ConfigManager.Register` for global, `LoadFrom` for per-profile — when the current-version file is absent but an older one exists, `ConfigManager` **migrates it forward** rather than discarding it:
+
+1. The newest older `config_*.json` is loaded with a **lenient field-by-field carry-over**: unknown JSON fields are skipped and missing ones keep their type defaults, so additive and removed fields need no code.
+2. A shape change the carry-over can't express (a rename or restructure) opts into **`IConfigMigration`** — a tiny one-method interface mirrored in `Features.Common` and `Providers.Common` (kept parallel so the layering rule holds; Core checks both). Its `MigrateFrom(previousJson, previousVersion)` runs right after the carry-over, with the raw old JSON in hand.
+3. The result is rewritten under the current version and the stale files are deleted (**write-then-delete**, so a failed write never loses the prior data).
+
+Migrated configs are tracked apart from brand-new ones (`GetMigratedConfigs` vs `GetDefaultedConfigs`). The first-run/update **setup wizard** (`SetupWizardViewModel.Build`) therefore re-asks for a global mandatory config only when it is genuinely new **or** its migrated data still fails the required-field check (`AreRequiredPropertiesSatisfied`) — never for information already on disk; the workspace/provider/model flow is skipped because the migrated per-profile configs keep `IsWorkspaceConfigured` true. File-type mappings (`FileMapManager.SyncBundledDefaults`) follow the same spirit through a `_defaults.json` hash manifest: a changed bundled default refreshes mappings the user hasn't touched and leaves customized ones alone, fast-pathing when the bundle is unchanged.
+
+**Reset.** Options → About offers a danger-styled **Reset Config** that, after a window-modal confirmation, wipes the entire `%APPDATA%\Smile\nexaflow` tree and relaunches (`App.ResetAndRestart` arms a write-suppressor, drops the single-instance mutex, then starts a `--reset` process that deletes the directory **before** init — lock-safe because the fresh process holds no handle) straight into first-run.
+
 ### Per-`Profile` — shared, saved (one instance per named profile)
 
 A `Profile` (`Core/Models/Profile.cs`) is a named, themed, saved workspace configuration. `Name`/`Color`/`Icon` persist (in `WorkspacesConfig`); the shared services below are runtime-only (`[JsonIgnore]`), loaded once by `Profile.EnsureSharedServicesLoaded`, with on-disk state under `…\Smile\nexaflow\Contexts\<Name>\` (the on-disk folder is named `Contexts`):
