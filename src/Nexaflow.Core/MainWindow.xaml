@@ -663,13 +663,52 @@
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button Content="Cancel"
                                 Command="{Binding CancelShellPromptCommand}"
-                                Padding="14,6" Margin="0,0,8,0"/>
+                                Width="90" Height="32" Margin="0,0,8,0" FontSize="12"
+                                Cursor="Hand"
+                                Background="{StaticResource Surface2Brush}"
+                                Foreground="{StaticResource TextBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="root"
+                                            Background="{TemplateBinding Background}"
+                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                            BorderThickness="{TemplateBinding BorderThickness}"
+                                            CornerRadius="7" Padding="8,6">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="root" Property="Background" Value="{StaticResource BorderBrush}"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
                         <Button Content="OK"
                                 Command="{Binding ConfirmShellPromptCommand}"
-                                Padding="14,6"
+                                Width="90" Height="32" FontSize="12"
+                                Cursor="Hand"
                                 Background="{StaticResource AccentBrush}"
                                 Foreground="White"
-                                FontWeight="SemiBold"/>
+                                BorderThickness="0"
+                                FontWeight="SemiBold">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="root"
+                                            Background="{TemplateBinding Background}"
+                                            CornerRadius="7" Padding="8,6">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="root" Property="Opacity" Value="0.85"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
                     </StackPanel>
                 </StackPanel>
             </Border>

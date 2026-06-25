@@ -243,7 +243,8 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     private static string DefaultNameFor(CreateActionViewModel? a)
     {
         if (a is null) return string.Empty;
-        return string.IsNullOrEmpty(a.FileExtension) ? "New Folder" : "New File" + a.FileExtension;
+        // Extensionless types name the item after the type ("New Folder", "New Product"); files use "New File.ext".
+        return string.IsNullOrEmpty(a.FileExtension) ? "New " + a.DisplayName : "New File" + a.FileExtension;
     }
 
     /// <summary>Applies the host extension rule: keep the user's extension, else append the type's.</summary>

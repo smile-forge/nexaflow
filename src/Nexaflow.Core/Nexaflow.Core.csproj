@@ -74,6 +74,7 @@
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Json\Nexaflow.Features.Json.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Logs\Nexaflow.Features.Logs.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Processes\Nexaflow.Features.Processes.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.ProductManager\Nexaflow.Features.ProductManager.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.SystemInfo\Nexaflow.Features.SystemInfo.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Tabular\Nexaflow.Features.Tabular.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.WindowsApps\Nexaflow.Features.WindowsApps.csproj" />
