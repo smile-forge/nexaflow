@@ -37,6 +37,12 @@ public partial class MarkdownView : UserControl, IPageView
         };
 
         Focusable = true;
+
+        // Opened from a snaplink with a heading → scroll there once the document has rendered + laid out.
+        if (viewModel.InitialHeading is { Count: > 0 } heading)
+            Loaded += (_, _) => Dispatcher.BeginInvoke(
+                () => Editor.ScrollToHeading(heading),
+                System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)

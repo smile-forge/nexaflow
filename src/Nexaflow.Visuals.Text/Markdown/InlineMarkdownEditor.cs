@@ -281,6 +281,46 @@ public partial class InlineMarkdownEditor : UserControl
         Keyboard.Focus(_rtb);
     }
 
+    /// <summary>Scrolls the rendered view so the heading whose <em>ancestor path</em> equals
+    /// <paramref name="titlePath"/> sits at the top — matched on the full heading hierarchy (not a
+    /// document-wide text match), so duplicate heading names under different parents stay distinct. No-op if
+    /// no such heading exists. Deferred to a layout pass so the block rects are measured first.</summary>
+    public void ScrollToHeading(IReadOnlyList<string>? titlePath)
+    {
+        if (titlePath is not { Count: > 0 }) return;
+
+        int blockIndex = -1;
+        var stack = new List<(int Level, string Text)>();
+        for (int i = 0; i < _blocks.Count; i++)
+        {
+            var firstLine = _blocks[i].Split('\n', 2)[0].TrimStart();
+            if (!firstLine.StartsWith('#')) continue;
+            int level = firstLine.Length - firstLine.TrimStart('#').Length;
+            var text = firstLine.TrimStart('#').Trim().TrimEnd('#').Trim();
+            if (text.Length == 0) continue;
+
+            while (stack.Count > 0 && stack[^1].Level >= level) stack.RemoveAt(stack.Count - 1);
+            var path = stack.Select(s => s.Text).Append(text).ToList();
+            stack.Add((level, text));
+            if (PathEquals(path, titlePath)) { blockIndex = i; break; }
+        }
+        if (blockIndex < 0) return;
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            try { if (BlockTopY(blockIndex) is double y) _rtb.ScrollToVerticalOffset(_rtb.VerticalOffset + y - 8); }
+            catch { /* not laid out yet — leave the scroll where it is */ }
+        }, DispatcherPriority.Loaded);
+    }
+
+    private static bool PathEquals(List<string> a, IReadOnlyList<string> b)
+    {
+        if (a.Count != b.Count) return false;
+        for (int i = 0; i < a.Count; i++)
+            if (!string.Equals(a[i].Trim(), b[i].Trim(), StringComparison.OrdinalIgnoreCase)) return false;
+        return true;
+    }
+
     /// <summary>
     /// Inserts <paramref name="markdown"/> as new block(s) at a drop point: after the block under
     /// <paramref name="pointInEditor"/>, or appended when dropped in the empty space below the text.

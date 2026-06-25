@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
+using System.Collections.Generic;
 using System.IO;
 
 namespace Nexaflow.Features.Markdown.ViewModels;
@@ -21,6 +22,9 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     public string FilePath { get; }
     public string FileName => Path.GetFileName(FilePath);
 
+    /// <summary>Heading title-path to scroll to once rendered (set when opened from a snaplink), or null.</summary>
+    public IReadOnlyList<string>? InitialHeading { get; }
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     private bool _isDirty;
@@ -40,9 +44,10 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
 
     // ── Construction ──────────────────────────────────────────────────────
 
-    public MarkdownViewModel(string filePath)
+    public MarkdownViewModel(string filePath, IReadOnlyList<string>? initialHeading = null)
     {
-        FilePath   = filePath;
+        FilePath       = filePath;
+        InitialHeading = initialHeading;
         _savedText = File.Exists(filePath)
             ? File.ReadAllText(filePath).ReplaceLineEndings("\n")
             : string.Empty;
