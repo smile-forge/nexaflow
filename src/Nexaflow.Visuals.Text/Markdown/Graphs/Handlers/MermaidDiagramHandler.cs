@@ -1,3 +1,4 @@
+using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Layout;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
@@ -19,6 +20,12 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 ///   • <c>classDiagram</c>     → <see cref="MermaidClassParser"/>   + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///   • <c>requirementDiagram</c> → <see cref="MermaidRequirementParser"/> + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///   • <c>kanban</c>           → <see cref="MermaidKanbanParser"/>  + <see cref="WpfKanbanRenderer"/>
+///   • <c>xychart[-beta]</c>   → <see cref="MermaidXyChartParser"/> + <see cref="WpfXyChartRenderer"/>
+///   • <c>radar-beta</c>       → <see cref="MermaidRadarParser"/>   + <see cref="WpfRadarRenderer"/>
+///   • <c>ishikawa-beta</c>    → <see cref="MermaidIshikawaParser"/> + <see cref="WpfIshikawaRenderer"/>
+///   • <c>sankey</c>           → <see cref="MermaidSankeyParser"/>  + <see cref="WpfSankeyRenderer"/>
+///   • <c>erDiagram</c>        → <see cref="MermaidErParser"/>      + Sugiyama + <see cref="WpfGraphRenderer"/>
+///   • <c>venn-beta</c>        → <see cref="MermaidVennParser"/>    + <see cref="WpfVennRenderer"/>
 ///   • <c>graph / flowchart</c> → <see cref="MermaidParser"/>        + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///
 /// Adding a new Mermaid diagram type means adding a branch in <see cref="SubtypeOf"/>
@@ -37,6 +44,12 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
     private static readonly MermaidClassParser    ClassParser    = new();
     private static readonly MermaidRequirementParser RequirementParser = new();
     private static readonly MermaidKanbanParser   KanbanParser   = new();
+    private static readonly MermaidXyChartParser  XyParser       = new();
+    private static readonly MermaidRadarParser    RadarParser    = new();
+    private static readonly MermaidIshikawaParser IshikawaParser = new();
+    private static readonly MermaidSankeyParser   SankeyParser   = new();
+    private static readonly MermaidErParser       ErParser       = new();
+    private static readonly MermaidVennParser     VennParser     = new();
 
     public bool CanHandle(string language) =>
         language.Equals("mermaid", StringComparison.OrdinalIgnoreCase);
@@ -59,6 +72,12 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             MermaidSubtype.Class       => RenderClass(body, title, palette, onNavigate),
             MermaidSubtype.Requirement => RenderRequirement(body, title, palette),
             MermaidSubtype.Kanban      => RenderKanban(body, title, palette),
+            MermaidSubtype.XyChart     => RenderXyChart(source, body, title, palette),
+            MermaidSubtype.Radar       => RenderRadar(source, body, title, palette),
+            MermaidSubtype.Ishikawa    => RenderIshikawa(source, body, title, palette),
+            MermaidSubtype.Sankey      => RenderSankey(source, body, title, palette),
+            MermaidSubtype.Er          => RenderEr(source, body, title, palette),
+            MermaidSubtype.Venn        => RenderVenn(source, body, title, palette),
             MermaidSubtype.Graph       => RenderGraph(body, title, palette),
             _                       => RenderSourceText(body),
         };
@@ -70,7 +89,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 
     // ── Subtype detection ──────────────────────────────────────────────────
 
-    private enum MermaidSubtype { Graph, Pie, Quadrant, Sequence, Gantt, Git, Mindmap, State, Class, Requirement, Kanban, Unknown }
+    private enum MermaidSubtype { Graph, Pie, Quadrant, Sequence, Gantt, Git, Mindmap, State, Class, Requirement, Kanban, XyChart, Radar, Ishikawa, Sankey, Er, Venn, Unknown }
 
     /// <summary>
     /// Reads the first non-blank, non-comment keyword to identify the diagram
@@ -94,6 +113,18 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             if (keyword.StartsWith("classdiagram")) return MermaidSubtype.Class;
             // requirementDiagram.
             if (keyword.StartsWith("requirementdiagram")) return MermaidSubtype.Requirement;
+            // xychart / xychart-beta (an orientation keyword may follow on the same line).
+            if (keyword.StartsWith("xychart")) return MermaidSubtype.XyChart;
+            // radar / radar-beta.
+            if (keyword.StartsWith("radar")) return MermaidSubtype.Radar;
+            // ishikawa / ishikawa-beta (fishbone).
+            if (keyword.StartsWith("ishikawa")) return MermaidSubtype.Ishikawa;
+            // sankey (CSV flow diagram).
+            if (keyword.StartsWith("sankey")) return MermaidSubtype.Sankey;
+            // erDiagram (entity-relationship).
+            if (keyword.StartsWith("erdiagram")) return MermaidSubtype.Er;
+            // venn-beta.
+            if (keyword.StartsWith("venn")) return MermaidSubtype.Venn;
 
             return keyword switch
             {
@@ -104,8 +135,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
                 "mindmap"                          => MermaidSubtype.Mindmap,
                 "kanban"                           => MermaidSubtype.Kanban,
                 "graph" or "flowchart"             => MermaidSubtype.Graph,
-                "erdiagram"
-                    or "timeline"
+                "timeline"
                     or "journey"
                     or "c4context"
                     or "block-beta"
@@ -165,6 +195,71 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         var board = KanbanParser.Parse(source);
         board.Title = Titled(board.Title, title);
         return WpfKanbanRenderer.Render(board, palette);
+    }
+
+    private static FrameworkElement RenderXyChart(string source, string body, string? title, MarkdownPalette palette)
+    {
+        var chart = XyParser.Parse(body);
+        chart.Title  = Titled(chart.Title, title);
+        // The xychart is the one diagram that applies its front-matter config: block (parsed from the
+        // original, pre-stripped source). A config chartOrientation overrides the declaration keyword.
+        chart.Config = XyChartConfigParser.Parse(MermaidFrontmatter.RawBlock(source));
+        if (chart.Config.Orientation is XyOrientation o) chart.Orientation = o;
+        return WpfXyChartRenderer.Render(chart, palette);
+    }
+
+    private static FrameworkElement RenderRadar(string source, string body, string? title, MarkdownPalette palette)
+    {
+        var chart = RadarParser.Parse(body);
+        chart.Title  = Titled(chart.Title, title);
+        // Like xychart, radar applies its front-matter config: block (geometry, themeVariables, cScale palette).
+        chart.Config = RadarConfigParser.Parse(MermaidFrontmatter.RawBlock(source));
+        return WpfRadarRenderer.Render(chart, palette);
+    }
+
+    private static FrameworkElement RenderIshikawa(string source, string body, string? title, MarkdownPalette palette)
+    {
+        var diagram = IshikawaParser.Parse(body);
+        diagram.Title  = Titled(diagram.Title, title);   // Ishikawa has no inline title; a front-matter title shows above.
+        diagram.Config = IshikawaConfigParser.Parse(MermaidFrontmatter.RawBlock(source));
+        return WpfIshikawaRenderer.Render(diagram, palette);
+    }
+
+    private static FrameworkElement RenderSankey(string source, string body, string? title, MarkdownPalette palette)
+    {
+        var diagram = SankeyParser.Parse(body);
+        diagram.Title  = Titled(diagram.Title, title);   // Sankey has no inline title; a front-matter title shows above.
+        diagram.Config = SankeyConfigParser.Parse(MermaidFrontmatter.RawBlock(source));
+        return WpfSankeyRenderer.Render(diagram, palette);
+    }
+
+    private static FrameworkElement RenderEr(string source, string body, string? title, MarkdownPalette palette)
+    {
+        // ER entities are UML-style boxes, so they reuse the shared graph model + Sugiyama + WpfGraphRenderer
+        // (like class / requirement diagrams). The er config is applied here: an inline `direction` wins, else
+        // config layoutDirection; an explicit fill/stroke becomes the default for entities lacking a colour.
+        var graph = ErParser.Parse(body);
+        graph.Title = Titled(graph.Title, title);
+
+        var cfg = ErConfigParser.Parse(MermaidFrontmatter.RawBlock(source));
+        bool inlineDir = body.Split('\n').Any(l => l.TrimStart().StartsWith("direction ", StringComparison.OrdinalIgnoreCase));
+        if (!inlineDir && cfg.LayoutDirection is GraphDirection d) graph.Direction = d;
+        foreach (var node in graph.Nodes)
+        {
+            if (cfg.Fill   is string f && node.FillColor   is null) node.FillColor   = f;
+            if (cfg.Stroke is string s && node.StrokeColor is null) node.StrokeColor = s;
+        }
+
+        var layout = SugiyamaLayout.Compute(graph, preferredMaxWidth: 1100);
+        return WpfGraphRenderer.Render(layout, palette);
+    }
+
+    private static FrameworkElement RenderVenn(string source, string body, string? title, MarkdownPalette palette)
+    {
+        var diagram = VennParser.Parse(body);
+        diagram.Title  = Titled(diagram.Title, title);
+        diagram.Config = VennConfigParser.Parse(MermaidFrontmatter.RawBlock(source));
+        return WpfVennRenderer.Render(diagram, palette);
     }
 
     private static FrameworkElement RenderSourceText(string source) =>

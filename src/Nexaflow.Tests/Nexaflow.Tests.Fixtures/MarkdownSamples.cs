@@ -3,7 +3,7 @@ namespace Nexaflow.Tests.Fixtures;
 /// <summary>
 /// Catalog of sample markdown documents — one per Mermaid diagram type the renderer supports
 /// (pie, flowchart, quadrant chart, sequence diagram, gantt, git graph, mindmap, state diagram,
-/// class diagram, requirement diagram, kanban board), plus an <c>extensions.md</c> exercising the non-diagram Markdig extensions (emphasis extras,
+/// class diagram, requirement diagram, kanban board, XY chart, radar chart, Ishikawa/fishbone, Sankey, ER, Venn), plus an <c>extensions.md</c> exercising the non-diagram Markdig extensions (emphasis extras,
 /// abbreviations, alert blocks). Each document showcases several variations, so the fixtures
 /// double as a human-readable reference. The <c>mermaid-*</c> naming marks the diagram docs.
 /// </summary>
@@ -24,8 +24,594 @@ internal sealed class MarkdownSamples : ISampleSet
         SampleFile.Text("mermaid-class.md",       Class),
         SampleFile.Text("mermaid-requirement.md", Requirement),
         SampleFile.Text("mermaid-kanban.md",      Kanban),
+        SampleFile.Text("mermaid-xychart.md",     XyChart),
+        SampleFile.Text("mermaid-radar.md",       Radar),
+        SampleFile.Text("mermaid-ishikawa.md",    Ishikawa),
+        SampleFile.Text("mermaid-sankey.md",      Sankey),
+        SampleFile.Text("mermaid-er.md",          Er),
+        SampleFile.Text("mermaid-venn.md",        Venn),
         SampleFile.Text("extensions.md",          Extensions),
     ];
+
+    private const string Venn =
+        """
+        # Mermaid — Venn diagram
+
+        A `venn-beta` diagram shows overlapping `set` circles. Comma is the only intersection operator —
+        `union A,B` is the A∩B region. A `["Label"]` renames a region and `:N` weights its circle area;
+        indented `text` lines list items inside the most recent set/union. Front-matter `config: venn:`
+        (`width`/`height`/`padding`) and the `venn1…venn8` theme-variable palette are honoured.
+
+        ## Team overlap
+
+        ```mermaid
+        venn-beta
+          title "Team overlap"
+          set Frontend
+          set Backend
+          union Frontend,Backend["APIs"]
+        ```
+
+        ## Labels, sizes, and items
+
+        ```mermaid
+        venn-beta
+          set A["Frontend"]:20
+            text A1["React"]
+            text A2["Design Systems"]
+          set B["Backend"]:12
+            text B1["API"]
+          union A,B["Shared"]:3
+            text AB1["OpenAPI"]
+        ```
+
+        ## Three sets (desirability / feasibility / viability)
+
+        ```mermaid
+        venn-beta
+          set Desirable
+          set Feasible
+          set Viable
+          union Desirable,Feasible,Viable["Innovation"]
+        ```
+
+        ## Styling and a custom palette
+
+        ```mermaid
+        ---
+        config:
+          themeVariables:
+            venn1: "#4e79a7"
+            venn2: "#e15759"
+        ---
+        venn-beta
+          set A["Alpha"]:20
+            text A1["React"]
+          set B["Beta"]:12
+          union A,B["AB"]:3
+          style A fill:#ff6b6b
+          style A,B color:#cccccc
+        ```
+        """;
+
+    private const string Er =
+        """
+        # Mermaid — Entity Relationship diagram
+
+        An `erDiagram` models entities and their relationships. Cardinality uses crow's-foot notation —
+        either the symbol form (`||--o{`, `}o..o{`) or word aliases (`one to zero or more`); `--` is an
+        identifying (solid) relationship, `..` a non-identifying (dashed) one. Entities can carry an
+        attribute block (`type name [PK|FK|UK] ["comment"]`). Front-matter `config: er:` (`layoutDirection`,
+        `fill`, `stroke`, …) is honoured.
+
+        ## Order example with attributes
+
+        ```mermaid
+        ---
+        title: Order example
+        ---
+        erDiagram
+            CUSTOMER ||--o{ ORDER : places
+            CUSTOMER {
+                string name
+                string custNumber
+                string sector
+            }
+            ORDER ||--|{ LINE-ITEM : contains
+            ORDER {
+                int orderNumber
+                string deliveryAddress
+            }
+            LINE-ITEM {
+                string productCode
+                int quantity
+                float pricePerUnit
+            }
+            CUSTOMER }|..|{ DELIVERY-ADDRESS : uses
+        ```
+
+        ## Attribute keys, comments, and array types
+
+        ```mermaid
+        erDiagram
+            CAR ||--o{ NAMED-DRIVER : allows
+            CAR {
+                string registrationNumber PK
+                string make
+                string model
+                string[] parts
+            }
+            PERSON ||--o{ NAMED-DRIVER : is
+            PERSON {
+                string driversLicense PK "The license #"
+                string(99) firstName "Only 99 characters are allowed"
+                string lastName
+                string phone UK
+                int age
+            }
+            NAMED-DRIVER {
+                string carRegistrationNumber PK, FK
+                string driverLicence PK, FK
+            }
+            MANUFACTURER only one to zero or more CAR : makes
+        ```
+
+        ## Word-alias cardinality and non-identifying relationships
+
+        ```mermaid
+        erDiagram
+            CAR 1 to zero or more NAMED-DRIVER : allows
+            PERSON many(0) optionally to 0+ NAMED-DRIVER : is
+        ```
+
+        ## Entity name aliases
+
+        ```mermaid
+        erDiagram
+            p[Person] {
+                string firstName
+                string lastName
+            }
+            a["Customer Account"] {
+                string email
+            }
+            p ||--o| a : has
+        ```
+
+        ## Direction and styling
+
+        ```mermaid
+        ---
+        config:
+          er:
+            layoutDirection: LR
+        ---
+        erDiagram
+            CAR:::someclass {
+                string registrationNumber
+                string make
+            }
+            PERSON:::someclass {
+                string firstName
+                int age
+            }
+            PERSON ||--o{ CAR : drives
+
+            classDef someclass fill:#f96
+        ```
+        """;
+
+    private const string Sankey =
+        """"
+        # Mermaid — Sankey diagram
+
+        A `sankey` diagram depicts a flow from one set of values to another. The body is CSV with three
+        columns — `source,target,value`, one link per row; nodes are inferred from the names. Fields with
+        commas are double-quoted (a literal quote is a doubled `""`). Front-matter `config: sankey:`
+        (sizes, `linkColor`, `nodeAlignment`, `showValues`/`prefix`/`suffix`, `nodeWidth`/`nodePadding`,
+        `labelStyle`, `nodeColors`) is honoured.
+
+        ## Energy flow
+
+        ```mermaid
+        ---
+        config:
+          sankey:
+            showValues: false
+        ---
+        sankey
+
+        Agricultural 'waste',Bio-conversion,124.729
+        Bio-conversion,Liquid,0.597
+        Bio-conversion,Losses,26.862
+        Bio-conversion,Solid,280.322
+        Bio-conversion,Gas,81.144
+        Biofuel imports,Liquid,35
+        Biomass imports,Solid,35
+        Coal imports,Coal,11.606
+        Coal reserves,Coal,63.965
+        Coal,Solid,75.571
+        District heating,Industry,10.639
+        District heating,Heating and cooling - commercial,22.505
+        District heating,Heating and cooling - homes,46.184
+        Electricity grid,Over generation / exports,104.453
+        Electricity grid,Heating and cooling - homes,113.726
+        Electricity grid,H2 conversion,27.14
+        Electricity grid,Industry,342.165
+        Electricity grid,Road transport,37.797
+        Electricity grid,Agriculture,4.412
+        Electricity grid,Heating and cooling - commercial,40.858
+        Electricity grid,Losses,56.691
+        Electricity grid,Rail transport,7.863
+        Electricity grid,Lighting & appliances - commercial,90.008
+        Electricity grid,Lighting & appliances - homes,93.494
+        Gas imports,Ngas,40.719
+        Gas reserves,Ngas,82.233
+        Gas,Heating and cooling - commercial,0.129
+        Gas,Losses,1.401
+        Gas,Thermal generation,151.891
+        Gas,Agriculture,2.096
+        Gas,Industry,48.58
+        Geothermal,Electricity grid,7.013
+        H2 conversion,H2,20.897
+        H2 conversion,Losses,6.242
+        H2,Road transport,20.897
+        Hydro,Electricity grid,6.995
+        Liquid,Industry,121.066
+        Liquid,International shipping,128.69
+        Liquid,Road transport,135.835
+        Liquid,Domestic aviation,14.458
+        Liquid,International aviation,206.267
+        Liquid,Agriculture,3.64
+        Liquid,National navigation,33.218
+        Liquid,Rail transport,4.413
+        Marine algae,Bio-conversion,4.375
+        Ngas,Gas,122.952
+        Nuclear,Thermal generation,839.978
+        Oil imports,Oil,504.287
+        Oil reserves,Oil,107.703
+        Oil,Liquid,611.99
+        Other waste,Solid,56.587
+        Other waste,Bio-conversion,77.81
+        Pumped heat,Heating and cooling - homes,193.026
+        Pumped heat,Heating and cooling - commercial,70.672
+        Solar PV,Electricity grid,59.901
+        Solar Thermal,Heating and cooling - homes,19.263
+        Solar,Solar Thermal,19.263
+        Solar,Solar PV,59.901
+        Solid,Agriculture,0.882
+        Solid,Thermal generation,400.12
+        Solid,Industry,46.477
+        Thermal generation,Electricity grid,525.531
+        Thermal generation,Losses,787.129
+        Thermal generation,District heating,79.329
+        Tidal,Electricity grid,9.452
+        UK land based bioenergy,Bio-conversion,182.01
+        Wave,Electricity grid,19.013
+        Wind,Electricity grid,289.366
+        ```
+
+        ## Basic (with values, and a `%%` header comment)
+
+        ```mermaid
+        sankey
+
+        %% source,target,value
+        Electricity grid,Over generation / exports,104.453
+        Electricity grid,Heating and cooling - homes,113.726
+        Electricity grid,H2 conversion,27.14
+        ```
+
+        ## Quoted names with commas and doubled quotes
+
+        ```mermaid
+        sankey
+
+        Pumped heat,"Heating and cooling, homes",193.026
+        Pumped heat,"Heating and cooling, ""commercial""",70.672
+        ```
+
+        ## Config — node colours, alignment, units
+
+        ```mermaid
+        ---
+        config:
+          sankey:
+            showValues: true
+            suffix: " TWh"
+            nodeAlignment: left
+            nodeWidth: 15
+            nodePadding: 18
+            linkColor: gradient
+            nodeColors:
+              Electricity grid: "#4e79a7"
+              Industry: "#e15759"
+              Losses: "#bab0ab"
+        ---
+        sankey
+
+        Electricity grid,Heating and cooling - homes,113.726
+        Electricity grid,Industry,342.165
+        Electricity grid,Losses,56.691
+        ```
+        """";
+
+    private const string Ishikawa =
+        """
+        # Mermaid — Ishikawa (fishbone) chart
+
+        An `ishikawa-beta` (alias `ishikawa`) diagram does cause-and-effect / root-cause analysis. The
+        first line is the effect (the fish head); every later line is a cause, and the fishbone structure
+        comes purely from indentation — categories at the shallowest indent, sub-causes nested deeper.
+
+        ## Blurry photo — nested causes
+
+        ```mermaid
+        ishikawa-beta
+            Blurry Photo
+            Process
+                Out of focus
+                Shutter speed too slow
+                Protective film not removed
+                Beautification filter applied
+            User
+                Shaky hands
+            Equipment
+                LENS
+                    Inappropriate lens
+                    Damaged lens
+                    Dirty lens
+                SENSOR
+                    Damaged sensor
+                    Dirty sensor
+            Environment
+                Subject moved too quickly
+                Too dark
+        ```
+
+        ## Slow API response — two-space indentation
+
+        ```mermaid
+        ishikawa-beta
+        Slow API Response
+          Infrastructure
+            Underpowered instances
+            No CDN
+          Code
+            N+1 queries
+            Unoptimized indexes
+            Missing caching
+          Process
+            No performance budgets
+            Reviews skip load testing
+        ```
+        """;
+
+    private const string Radar =
+        """
+        # Mermaid — Radar chart
+
+        A `radar-beta` diagram (radar / spider / Kiviat chart) plots one or more `curve` datasets over a
+        set of `axis` spokes. Curve values are positional (`{1, 2, 3}`, mapped to the axes in order) or
+        keyed (`{ axisId: value }`). Body options `min` / `max` / `ticks` / `graticule` / `showLegend`
+        and front-matter `config: radar:` (geometry), `config: themeVariables: radar:` (styling) and the
+        `cScale0…N` curve palette are honoured.
+
+        ## Grades — labeled axes and curves, explicit range
+
+        ```mermaid
+        ---
+        title: "Grades"
+        ---
+        radar-beta
+          axis m["Math"], s["Science"], e["English"]
+          axis h["History"], g["Geography"], a["Art"]
+          curve a["Alice"]{85, 90, 80, 70, 75, 90}
+          curve b["Bob"]{70, 75, 85, 80, 90, 85}
+
+          max 100
+          min 0
+        ```
+
+        ## Restaurant comparison — polygon graticule
+
+        ```mermaid
+        radar-beta
+          title Restaurant Comparison
+          axis food["Food Quality"], service["Service"], price["Price"]
+          axis ambiance["Ambiance"]
+
+          curve a["Restaurant A"]{4, 3, 2, 4}
+          curve b["Restaurant B"]{3, 4, 3, 3}
+          curve c["Restaurant C"]{2, 3, 4, 2}
+          curve d["Restaurant D"]{2, 2, 4, 3}
+
+          graticule polygon
+          max 5
+        ```
+
+        ## Bare axes, keyed values, and options
+
+        ```mermaid
+        radar-beta
+          axis axis1, axis2, axis3
+          curve id1["Label1"]{1, 2, 3}
+          curve id2["Label2"]{4, 5, 6}, id3{7, 8, 9}
+          curve id4{ axis3: 30, axis1: 20, axis2: 10 }
+
+          showLegend true
+          ticks 5
+          graticule circle
+          max 30
+        ```
+
+        ## Config and theme — scale factor, tension, custom curve colours
+
+        ```mermaid
+        ---
+        config:
+          radar:
+            axisScaleFactor: 0.9
+            curveTension: 0.1
+          themeVariables:
+            cScale0: "#FF0000"
+            cScale1: "#00FF00"
+            cScale2: "#0000FF"
+            radar:
+              curveOpacity: 0.5
+        ---
+        radar-beta
+          axis A, B, C, D, E
+          curve c1{1, 2, 3, 4, 5}
+          curve c2{5, 4, 3, 2, 1}
+          curve c3{3, 3, 3, 3, 3}
+        ```
+        """;
+
+    private const string XyChart =
+        """
+        # Mermaid — XY chart
+
+        An `xychart` (alias `xychart-beta`) plots `bar` and `line` series against a categorical or
+        numeric x-axis and a numeric y-axis. Series share the axes; a named series joins the legend.
+        Front-matter `config: xyChart:` (layout/flags) and `config: themeVariables: xyChart:` (colours,
+        `plotColorPalette`) are honoured.
+
+        ## Basic — bars and a line
+
+        ```mermaid
+        xychart-beta
+            title "Sales Revenue"
+            x-axis [jan, feb, mar, apr, may, jun, jul, aug, sep, oct, nov, dec]
+            y-axis "Revenue (in $)" 4000 --> 11000
+            bar [5000, 6000, 7500, 8200, 9500, 10500, 11000, 10200, 9200, 8500, 7000, 6000]
+            line [5000, 6000, 7500, 8200, 9500, 10500, 11000, 10200, 9200, 8500, 7000, 6000]
+        ```
+
+        ## Horizontal orientation
+
+        ```mermaid
+        xychart-beta horizontal
+            title "Books read per month"
+            x-axis [jan, feb, mar, apr, may, jun]
+            y-axis "Books" 0 --> 10
+            bar [2, 4, 3, 6, 5, 8]
+        ```
+
+        ## Legend — multiple named line series
+
+        ```mermaid
+        xychart-beta
+          title "An Example Chart"
+          x-axis ["90d", "60d", "30d", "7d", "1d", "Current"]
+          y-axis "Seconds" 0 --> 198.2
+          line "avg" [48.1, 41.5, 45.7, 72.8, 67.7, 59.9]
+          line "p50" [38.2, 36.8, 39.7, 54.5, 49.0, 38.4]
+          line "p95" [112.2, 75.3, 103.0, 177.0, 180.2, 109.4]
+        ```
+
+        ## Simplest possible — one dataset, axes auto-ranged
+
+        ```mermaid
+        xychart-beta
+            line [+1.3, .6, 2.4, -.34]
+        ```
+
+        ## Custom colours via `plotColorPalette` (with `%%` comments)
+
+        ```mermaid
+        ---
+        config:
+          themeVariables:
+            xyChart:
+              plotColorPalette: '#000000, #0000FF, #00FF00, #FF0000'
+        ---
+        xychart-beta
+        title "Different Colors in xyChart"
+        x-axis "categoriesX" ["Category 1", "Category 2", "Category 3", "Category 4"]
+        y-axis "valuesY" 0 --> 50
+        %% Black line
+        line [10, 20, 30, 40]
+        %% Blue bar
+        bar [20, 30, 25, 35]
+        %% Green bar
+        bar [15, 25, 20, 30]
+        %% Red line
+        line [5, 15, 25, 35]
+        ```
+
+        ## Data labels inside the bars (`showDataLabel`)
+
+        ```mermaid
+        ---
+        config:
+            xyChart:
+                showDataLabel: true
+        ---
+        xychart-beta
+            title "Genres in top 100 book survey of 2025"
+            x-axis [comedy, romance, mystery, crime, "non fiction", other]
+            y-axis "Number of Books" 0 --> 30
+            bar [12, 2, 20, 25, 17, 24]
+        ```
+
+        ## Data labels outside the bars (`showDataLabelOutsideBar`)
+
+        ```mermaid
+        ---
+        config:
+            xyChart:
+                showDataLabel: true
+                showDataLabelOutsideBar: true
+        ---
+        xychart-beta
+            title "Genres in top 100 book survey of 2025"
+            x-axis [comedy, romance, mystery, crime, "non fiction", other]
+            y-axis "Number of Books" 0 --> 30
+            bar [12, 2, 20, 25, 17, 24]
+        ```
+
+        ## Per-point labels on a line
+
+        ```mermaid
+        xychart-beta
+            title "Smallest AI models scoring above 60% on MMLU"
+            x-axis "Date" ["Apr 2022", "Feb 2023", "Jul 2023", "Sep 2023", "Apr 2024"]
+            y-axis "Parameters (B)" 0 --> 600
+            line [540 "PaLM", 65 "LLaMA-65B", 34 "Llama 2 34B", 7 "Mistral 7B", 3.8 "Phi-3-mini"]
+        ```
+
+        ## Per-point labels mixed with unlabeled values
+
+        ```mermaid
+        xychart-beta
+            title "Quarterly Performance"
+            x-axis [Q1, Q2, Q3, Q4]
+            y-axis "Revenue ($M)" 0 --> 100
+            line [25 "Launch", 45, 72, 90 "Target Hit"]
+        ```
+
+        ## Combined layout config and theme colour
+
+        ```mermaid
+        ---
+        config:
+            xyChart:
+                width: 900
+                height: 600
+                showDataLabel: true
+            themeVariables:
+                xyChart:
+                    titleColor: "#ff0000"
+        ---
+        xychart-beta
+            title "Sales Revenue"
+            x-axis [jan, feb, mar, apr, may, jun, jul, aug, sep, oct, nov, dec]
+            y-axis "Revenue (in $)" 4000 --> 11000
+            bar [5000, 6000, 7500, 8200, 9500, 10500, 11000, 10200, 9200, 8500, 7000, 6000]
+            line [5000, 6000, 7500, 8200, 9500, 10500, 11000, 10200, 9200, 8500, 7000, 6000]
+        ```
+        """;
 
     private const string Kanban =
         """

@@ -236,4 +236,353 @@ public class DiagramRendererTests
         var board = new MermaidKanbanParser().Parse("kanban\n");
         Assert.IsNotNull(WpfKanbanRenderer.Render(board, MarkdownPalette.Dark));
     });
+
+    // ── XY chart ──────────────────────────────────────────────────────────
+
+    private const string XySrc =
+        """
+        xychart-beta
+            title "Sales Revenue"
+            x-axis [jan, feb, mar, apr]
+            y-axis "Revenue (in $)" 4000 --> 11000
+            bar  "actual" [5000, 6000, 7500, 8200]
+            line "trend"  [5200, 6100, 7400, 8000]
+        """;
+
+    [TestMethod]
+    public void XyChart_RendersBorder() => UiThread.Run(() =>
+    {
+        var chart = new MermaidXyChartParser().Parse(XySrc);
+        var fe    = WpfXyChartRenderer.Render(chart, MarkdownPalette.Dark);
+        Assert.IsInstanceOfType(fe, typeof(Border));
+    });
+
+    [TestMethod]
+    public void XyChart_DispatchesThroughDiagramRenderer() => UiThread.Run(() =>
+    {
+        Assert.IsNotNull(DiagramRenderer.Render("mermaid", XySrc, MarkdownPalette.Dark));
+    });
+
+    [TestMethod]
+    public void XyChart_HorizontalRenders() => UiThread.Run(() =>
+    {
+        var chart = new MermaidXyChartParser().Parse(
+            "xychart horizontal\n  x-axis [a, b, c]\n  y-axis 0 --> 10\n  bar [3, 7, 5]\n  line [2, 6, 4]\n");
+        Assert.IsInstanceOfType(WpfXyChartRenderer.Render(chart, MarkdownPalette.Dark), typeof(Border));
+    });
+
+    [TestMethod]
+    public void XyChart_WithFrontMatterConfig_RendersThroughDiagramRenderer() => UiThread.Run(() =>
+    {
+        const string src =
+            """
+            ---
+            config:
+              xyChart:
+                showDataLabel: true
+              themeVariables:
+                xyChart:
+                  plotColorPalette: '#000000, #0000FF'
+            ---
+            xychart
+              x-axis [comedy, romance, mystery]
+              y-axis "Number of Books" 0 --> 30
+              bar [12, 2, 20]
+            """;
+        Assert.IsNotNull(DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark));
+    });
+
+    [TestMethod]
+    public void XyChart_PerPointLabels_RenderWithoutThrowing() => UiThread.Run(() =>
+    {
+        var chart = new MermaidXyChartParser().Parse(
+            "xychart\n  line [540 \"PaLM\", 65 \"LLaMA-65B\", 7 \"Mistral 7B\"]\n");
+        Assert.IsInstanceOfType(WpfXyChartRenderer.Render(chart, MarkdownPalette.Dark), typeof(Border));
+    });
+
+    // ── Radar ─────────────────────────────────────────────────────────────
+
+    private const string RadarSrc =
+        """
+        radar-beta
+          title Restaurant Comparison
+          axis food["Food Quality"], service["Service"], price["Price"]
+          axis ambiance["Ambiance"]
+          curve a["Restaurant A"]{4, 3, 2, 4}
+          curve b["Restaurant B"]{3, 4, 3, 3}
+          graticule polygon
+          max 5
+        """;
+
+    [TestMethod]
+    public void Radar_RendersBorder() => UiThread.Run(() =>
+    {
+        var chart = new MermaidRadarParser().Parse(RadarSrc);
+        Assert.IsInstanceOfType(WpfRadarRenderer.Render(chart, MarkdownPalette.Dark), typeof(Border));
+    });
+
+    [TestMethod]
+    public void Radar_DispatchesThroughDiagramRenderer() => UiThread.Run(() =>
+    {
+        Assert.IsNotNull(DiagramRenderer.Render("mermaid", RadarSrc, MarkdownPalette.Dark));
+    });
+
+    [TestMethod]
+    public void Radar_CircleGraticuleAndKeyedCurve_Render() => UiThread.Run(() =>
+    {
+        var chart = new MermaidRadarParser().Parse(
+            "radar-beta\n  axis a, b, c\n  curve x{ c: 3, a: 1, b: 2 }\n  ticks 4\n");
+        Assert.IsInstanceOfType(WpfRadarRenderer.Render(chart, MarkdownPalette.Dark), typeof(Border));
+    });
+
+    [TestMethod]
+    public void Radar_WithFrontMatterConfig_RendersThroughDiagramRenderer() => UiThread.Run(() =>
+    {
+        const string src =
+            """
+            ---
+            config:
+              radar:
+                axisScaleFactor: 0.5
+                curveTension: 0.1
+              themeVariables:
+                cScale0: "#FF0000"
+                cScale1: "#00FF00"
+                radar:
+                  curveOpacity: 0.4
+            ---
+            radar-beta
+              axis A, B, C, D, E
+              curve c1{1,2,3,4,5}
+              curve c2{5,4,3,2,1}
+            """;
+        Assert.IsNotNull(DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark));
+    });
+
+    [TestMethod]
+    public void Radar_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
+    {
+        var chart = new MermaidRadarParser().Parse("radar-beta\n");
+        Assert.IsNotNull(WpfRadarRenderer.Render(chart, MarkdownPalette.Dark));
+    });
+
+    // ── Ishikawa (fishbone) ───────────────────────────────────────────────
+
+    private const string IshikawaSrc =
+        """
+        ishikawa-beta
+            Blurry Photo
+            Process
+                Out of focus
+                Shutter speed too slow
+            Equipment
+                LENS
+                    Inappropriate lens
+                    Dirty lens
+            Environment
+                Too dark
+        """;
+
+    [TestMethod]
+    public void Ishikawa_RendersBorder() => UiThread.Run(() =>
+    {
+        var d = new MermaidIshikawaParser().Parse(IshikawaSrc);
+        Assert.IsInstanceOfType(WpfIshikawaRenderer.Render(d, MarkdownPalette.Dark), typeof(Border));
+    });
+
+    [TestMethod]
+    public void Ishikawa_DispatchesThroughDiagramRenderer() => UiThread.Run(() =>
+    {
+        Assert.IsNotNull(DiagramRenderer.Render("mermaid", IshikawaSrc, MarkdownPalette.Dark));
+    });
+
+    [TestMethod]
+    public void Ishikawa_WithFrontMatterConfig_RendersThroughDiagramRenderer() => UiThread.Run(() =>
+    {
+        const string src =
+            """
+            ---
+            config:
+              ishikawa:
+                diagramPadding: 30
+            ---
+            ishikawa-beta
+              Slow API Response
+              Infrastructure
+                No CDN
+              Code
+                N+1 queries
+                Missing caching
+            """;
+        Assert.IsNotNull(DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark));
+    });
+
+    [TestMethod]
+    public void Ishikawa_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
+    {
+        var d = new MermaidIshikawaParser().Parse("ishikawa-beta\n");
+        Assert.IsNotNull(WpfIshikawaRenderer.Render(d, MarkdownPalette.Dark));
+    });
+
+    // ── Sankey ────────────────────────────────────────────────────────────
+
+    private const string SankeySrc =
+        """
+        sankey
+
+        Coal,Electricity,75
+        Gas,Electricity,40
+        Electricity,Industry,60
+        Electricity,Homes,55
+        """;
+
+    [TestMethod]
+    public void Sankey_RendersBorder() => UiThread.Run(() =>
+    {
+        var d = new MermaidSankeyParser().Parse(SankeySrc);
+        Assert.IsInstanceOfType(WpfSankeyRenderer.Render(d, MarkdownPalette.Dark), typeof(Border));
+    });
+
+    [TestMethod]
+    public void Sankey_DispatchesThroughDiagramRenderer() => UiThread.Run(() =>
+    {
+        Assert.IsNotNull(DiagramRenderer.Render("mermaid", SankeySrc, MarkdownPalette.Dark));
+    });
+
+    [TestMethod]
+    public void Sankey_WithFrontMatterConfig_RendersThroughDiagramRenderer() => UiThread.Run(() =>
+    {
+        const string src =
+            """
+            ---
+            config:
+              sankey:
+                showValues: true
+                linkColor: gradient
+                nodeAlignment: left
+                suffix: " TWh"
+                nodeColors:
+                  Electricity: "#4e79a7"
+            ---
+            sankey
+
+            Coal,Electricity,75
+            Gas,Electricity,40
+            Electricity,Industry,60
+            Electricity,Homes,55
+            """;
+        Assert.IsNotNull(DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark));
+    });
+
+    [TestMethod]
+    public void Sankey_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
+    {
+        var d = new MermaidSankeyParser().Parse("sankey\n");
+        Assert.IsNotNull(WpfSankeyRenderer.Render(d, MarkdownPalette.Dark));
+    });
+
+    // ── ER diagram ────────────────────────────────────────────────────────
+
+    private const string ErSrc =
+        """
+        erDiagram
+            CUSTOMER ||--o{ ORDER : places
+            CUSTOMER {
+                string name
+                string custNumber
+            }
+            ORDER ||--|{ LINE-ITEM : contains
+            CUSTOMER }|..|{ DELIVERY-ADDRESS : uses
+        """;
+
+    [TestMethod]
+    public void Er_RoutesToGraphRenderer() => UiThread.Run(() =>
+    {
+        // ER reuses the graph renderer: Border → ScrollViewer → Canvas (and is no longer raw source text).
+        var fe = DiagramRenderer.Render("mermaid", ErSrc, MarkdownPalette.Dark);
+        Assert.IsInstanceOfType(fe, typeof(Border));
+        var sv = ((Border)fe).Child as ScrollViewer;
+        Assert.IsNotNull(sv, "erDiagram should route to the graph renderer (ScrollViewer/Canvas)");
+        Assert.IsInstanceOfType(sv!.Content, typeof(Canvas));
+    });
+
+    [TestMethod]
+    public void Er_WordCardinalityAndConfig_Render() => UiThread.Run(() =>
+    {
+        const string src =
+            """
+            ---
+            config:
+              er:
+                layoutDirection: LR
+                fill: honeydew
+            ---
+            erDiagram
+                CAR 1 to zero or more NAMED-DRIVER : allows
+                PERSON many(0) optionally to 0+ NAMED-DRIVER : is
+            """;
+        Assert.IsNotNull(DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark));
+    });
+
+    [TestMethod]
+    public void Er_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
+    {
+        Assert.IsNotNull(DiagramRenderer.Render("mermaid", "erDiagram\n", MarkdownPalette.Dark));
+    });
+
+    // ── Venn diagram ──────────────────────────────────────────────────────
+
+    private const string VennSrc =
+        """
+        venn-beta
+          title "Team overlap"
+          set A["Frontend"]
+            text A1["React"]
+          set B["Backend"]
+          union A,B["Shared"]
+            text AB1["OpenAPI"]
+        """;
+
+    [TestMethod]
+    public void Venn_RendersBorder() => UiThread.Run(() =>
+    {
+        var d = new MermaidVennParser().Parse(VennSrc);
+        Assert.IsInstanceOfType(WpfVennRenderer.Render(d, MarkdownPalette.Dark), typeof(Border));
+    });
+
+    [TestMethod]
+    public void Venn_DispatchesThroughDiagramRenderer() => UiThread.Run(() =>
+    {
+        Assert.IsNotNull(DiagramRenderer.Render("mermaid", VennSrc, MarkdownPalette.Dark));
+    });
+
+    [TestMethod]
+    public void Venn_ThreeSetWithConfig_Renders() => UiThread.Run(() =>
+    {
+        const string src =
+            """
+            ---
+            config:
+              venn:
+                width: 600
+              themeVariables:
+                venn1: "#FF0000"
+                venn2: "#00FF00"
+                venn3: "#0000FF"
+            ---
+            venn-beta
+              set Desirable
+              set Feasible
+              set Viable
+              union Desirable,Feasible,Viable["Innovation"]
+            """;
+        Assert.IsNotNull(DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark));
+    });
+
+    [TestMethod]
+    public void Venn_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
+    {
+        var d = new MermaidVennParser().Parse("venn-beta\n");
+        Assert.IsNotNull(WpfVennRenderer.Render(d, MarkdownPalette.Dark));
+    });
 }

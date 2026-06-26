@@ -1592,4 +1592,663 @@ public class DiagramParsersTests
         CollectionAssert.AreEqual(new[] { "Todo", "Done" }, b.Columns.Select(c => c.Title).ToArray());
         Assert.AreEqual("task", b.Columns[0].Items.Single().Text);
     }
+
+    // ── XY chart — parser ─────────────────────────────────────────────────
+
+    private const string XySrc =
+        """
+        xychart-beta
+            title "Sales Revenue"
+            x-axis [jan, feb, mar]
+            y-axis "Revenue (in $)" 4000 --> 11000
+            bar [5000, 6000, 7500]
+            line [5200, 6100, 7400]
+        """;
+
+    [TestMethod]
+    public void XyChart_ParsesTitleCategoriesAndRange()
+    {
+        var c = new MermaidXyChartParser().Parse(XySrc);
+
+        Assert.AreEqual("Sales Revenue", c.Title);
+        CollectionAssert.AreEqual(new[] { "jan", "feb", "mar" }, c.XAxis.Categories.ToArray());
+        Assert.IsTrue(c.XAxis.IsCategorical);
+        Assert.AreEqual("Revenue (in $)", c.YAxis.Title);
+        Assert.AreEqual(4000, c.YAxis.Min);
+        Assert.AreEqual(11000, c.YAxis.Max);
+        Assert.AreEqual(XyOrientation.Vertical, c.Orientation);
+    }
+
+    [TestMethod]
+    public void XyChart_ParsesBarAndLineSeries()
+    {
+        var c = new MermaidXyChartParser().Parse(XySrc);
+
+        Assert.AreEqual(2, c.Series.Count);
+        Assert.AreEqual(XySeriesKind.Bar,  c.Series[0].Kind);
+        Assert.AreEqual(XySeriesKind.Line, c.Series[1].Kind);
+        Assert.AreEqual(3, c.Series[0].Points.Count);
+        Assert.AreEqual(5000, c.Series[0].Points[0].Value, 1e-9);
+        Assert.AreEqual(7400, c.Series[1].Points[2].Value, 1e-9);
+    }
+
+    [TestMethod]
+    public void XyChart_NamedSeries_AreCapturedForLegend()
+    {
+        var c = new MermaidXyChartParser().Parse(
+            "xychart-beta\n  x-axis [\"90d\", \"60d\"]\n  line \"avg\" [48.1, 41.5]\n  line \"p50\" [38.2, 36.8]\n");
+
+        CollectionAssert.AreEqual(new[] { "90d", "60d" }, c.XAxis.Categories.ToArray());
+        Assert.AreEqual("avg", c.Series[0].Name);
+        Assert.AreEqual("p50", c.Series[1].Name);
+    }
+
+    [TestMethod]
+    public void XyChart_LinePointLabels_ParsedAndMixable()
+    {
+        var c = new MermaidXyChartParser().Parse("xychart\n  line [25 \"Launch\", 45, 72, 90 \"Target Hit\"]\n");
+
+        var pts = c.Series.Single().Points;
+        Assert.AreEqual(4, pts.Count);
+        Assert.AreEqual("Launch", pts[0].Label);
+        Assert.IsNull(pts[1].Label);
+        Assert.IsNull(pts[2].Label);
+        Assert.AreEqual("Target Hit", pts[3].Label);
+        Assert.AreEqual(90, pts[3].Value, 1e-9);
+    }
+
+    [TestMethod]
+    public void XyChart_HorizontalKeyword_SetsOrientation()
+    {
+        var c = new MermaidXyChartParser().Parse("xychart horizontal\n  line [1, 2, 3]\n");
+        Assert.AreEqual(XyOrientation.Horizontal, c.Orientation);
+    }
+
+    [TestMethod]
+    public void XyChart_MinimalLineOnly_SignedAndLeadingDotValues()
+    {
+        var c = new MermaidXyChartParser().Parse("xychart\n    line [+1.3, .6, 2.4, -.34]\n");
+
+        var pts = c.Series.Single().Points;
+        Assert.AreEqual(4, pts.Count);
+        Assert.AreEqual(1.3,  pts[0].Value, 1e-9);
+        Assert.AreEqual(0.6,  pts[1].Value, 1e-9);
+        Assert.AreEqual(2.4,  pts[2].Value, 1e-9);
+        Assert.AreEqual(-0.34, pts[3].Value, 1e-9);
+    }
+
+    [TestMethod]
+    public void XyChart_QuotedCategoriesWithSpaces()
+    {
+        var c = new MermaidXyChartParser().Parse(
+            "xychart\n  x-axis [comedy, romance, \"non fiction\", other]\n  bar [1, 2, 3, 4]\n");
+        CollectionAssert.AreEqual(new[] { "comedy", "romance", "non fiction", "other" }, c.XAxis.Categories.ToArray());
+    }
+
+    [TestMethod]
+    public void XyChart_NumericXAxisRange_NotCategorical()
+    {
+        var c = new MermaidXyChartParser().Parse("xychart\n  x-axis \"t\" 0 --> 100\n  line [1, 2]\n");
+        Assert.IsFalse(c.XAxis.IsCategorical);
+        Assert.AreEqual("t", c.XAxis.Title);
+        Assert.AreEqual(0, c.XAxis.Min);
+        Assert.AreEqual(100, c.XAxis.Max);
+    }
+
+    [TestMethod]
+    public void XyChart_CommentsIgnored()
+    {
+        var c = new MermaidXyChartParser().Parse("xychart\n  %% a comment\n  line [10, 20]\n  %% bar skipped\n");
+        Assert.AreEqual(1, c.Series.Count);
+        Assert.AreEqual(2, c.Series[0].Points.Count);
+    }
+
+    // ── XY chart — config ─────────────────────────────────────────────────
+
+    [TestMethod]
+    public void XyChartConfig_ParsesLayoutKeys()
+    {
+        var cfg = XyChartConfigParser.Parse(
+            """
+            config:
+              xyChart:
+                width: 900
+                height: 600
+                showDataLabel: true
+                showDataLabelOutsideBar: true
+            """);
+
+        Assert.AreEqual(900, cfg.Width, 1e-9);
+        Assert.AreEqual(600, cfg.Height, 1e-9);
+        Assert.IsTrue(cfg.ShowDataLabel);
+        Assert.IsTrue(cfg.ShowDataLabelOutsideBar);
+    }
+
+    [TestMethod]
+    public void XyChartConfig_ParsesOrientation()
+    {
+        var cfg = XyChartConfigParser.Parse("config:\n  xyChart:\n    chartOrientation: horizontal\n");
+        Assert.AreEqual(XyOrientation.Horizontal, cfg.Orientation);
+    }
+
+    [TestMethod]
+    public void XyChartConfig_ParsesPlotColorPalette()
+    {
+        var cfg = XyChartConfigParser.Parse(
+            """
+            config:
+              themeVariables:
+                xyChart:
+                  plotColorPalette: '#000000, #0000FF, #00FF00, #FF0000'
+            """);
+        Assert.AreEqual(4, cfg.PlotPalette.Count);
+    }
+
+    [TestMethod]
+    public void XyChartConfig_ParsesAxisSubConfig()
+    {
+        var cfg = XyChartConfigParser.Parse(
+            """
+            config:
+              xyChart:
+                xAxis:
+                  showLabel: false
+                  labelRotation: 45
+            """);
+        Assert.IsFalse(cfg.XAxis.ShowLabel);
+        Assert.AreEqual(45, cfg.XAxis.LabelRotation, 1e-9);
+        Assert.IsTrue(cfg.YAxis.ShowLabel);   // untouched → default
+    }
+
+    [TestMethod]
+    public void XyChartConfig_ParsesThemeColor()
+    {
+        var cfg = XyChartConfigParser.Parse("config:\n  themeVariables:\n    xyChart:\n      titleColor: \"#ff0000\"\n");
+        Assert.IsNotNull(cfg.TitleColor);
+        Assert.AreEqual(System.Windows.Media.Colors.Red, ((System.Windows.Media.SolidColorBrush)cfg.TitleColor!).Color);
+    }
+
+    [TestMethod]
+    public void XyChartConfig_IgnoresUnrelatedConfig()
+    {
+        var cfg = XyChartConfigParser.Parse("config:\n  theme: dark\n");
+        Assert.AreEqual(600, cfg.Width, 1e-9);   // default, untouched
+    }
+
+    // ── Radar — parser ────────────────────────────────────────────────────
+
+    private const string RadarSrc =
+        """
+        radar-beta
+          title Restaurant Comparison
+          axis food["Food Quality"], service["Service"], price["Price"]
+          axis ambiance["Ambiance"]
+          curve a["Restaurant A"]{4, 3, 2, 4}
+          curve b["Restaurant B"]{3, 4, 3, 3}
+          graticule polygon
+          max 5
+          min 0
+        """;
+
+    [TestMethod]
+    public void Radar_ParsesTitleAxesAndOptions()
+    {
+        var c = new MermaidRadarParser().Parse(RadarSrc);
+
+        Assert.AreEqual("Restaurant Comparison", c.Title);
+        Assert.AreEqual(4, c.Axes.Count);
+        Assert.AreEqual("food", c.Axes[0].Id);
+        Assert.AreEqual("Food Quality", c.Axes[0].Label);
+        Assert.AreEqual("Ambiance", c.Axes[3].Display);
+        Assert.AreEqual(RadarGraticule.Polygon, c.Graticule);
+        Assert.AreEqual(5, c.Max);
+        Assert.AreEqual(0, c.Min);
+    }
+
+    [TestMethod]
+    public void Radar_ParsesPositionalCurves()
+    {
+        var c = new MermaidRadarParser().Parse(RadarSrc);
+
+        Assert.AreEqual(2, c.Curves.Count);
+        Assert.AreEqual("Restaurant A", c.Curves[0].Display);
+        CollectionAssert.AreEqual(new double?[] { 4, 3, 2, 4 }, c.Curves[0].Values.ToArray());
+    }
+
+    [TestMethod]
+    public void Radar_BareAxes_AndMultiplePerLine()
+    {
+        var c = new MermaidRadarParser().Parse("radar-beta\n  axis A, B, C, D, E\n  curve c1{1,2,3,4,5}\n");
+        CollectionAssert.AreEqual(new[] { "A", "B", "C", "D", "E" }, c.Axes.Select(a => a.Id).ToArray());
+        Assert.AreEqual("c1", c.Curves[0].Id);
+        CollectionAssert.AreEqual(new double?[] { 1, 2, 3, 4, 5 }, c.Curves[0].Values.ToArray());
+    }
+
+    [TestMethod]
+    public void Radar_KeyedCurve_MapsByAxisId()
+    {
+        var c = new MermaidRadarParser().Parse(
+            "radar-beta\n  axis axis1, axis2, axis3\n  curve id4{ axis3: 30, axis1: 20, axis2: 10 }\n");
+        // values align to axis declaration order: axis1=20, axis2=10, axis3=30
+        CollectionAssert.AreEqual(new double?[] { 20, 10, 30 }, c.Curves[0].Values.ToArray());
+    }
+
+    [TestMethod]
+    public void Radar_MultipleCurvesOnOneLine()
+    {
+        var c = new MermaidRadarParser().Parse(
+            "radar-beta\n  axis a, b, c\n  curve id2[\"Label2\"]{4, 5, 6}, id3{7, 8, 9}\n");
+        Assert.AreEqual(2, c.Curves.Count);
+        Assert.AreEqual("Label2", c.Curves[0].Display);
+        Assert.AreEqual("id3", c.Curves[1].Id);
+        CollectionAssert.AreEqual(new double?[] { 7, 8, 9 }, c.Curves[1].Values.ToArray());
+    }
+
+    [TestMethod]
+    public void Radar_TicksAndShowLegend()
+    {
+        var c = new MermaidRadarParser().Parse("radar-beta\n  axis a, b, c\n  curve x{1,2,3}\n  ticks 8\n  showLegend false\n");
+        Assert.AreEqual(8, c.Ticks);
+        Assert.IsFalse(c.ShowLegend);
+        Assert.AreEqual(RadarGraticule.Circle, c.Graticule);   // default
+    }
+
+    // ── Radar — config ────────────────────────────────────────────────────
+
+    [TestMethod]
+    public void RadarConfig_ParsesGeometry()
+    {
+        var cfg = RadarConfigParser.Parse(
+            """
+            config:
+              radar:
+                axisScaleFactor: 0.25
+                curveTension: 0.1
+                width: 800
+            """);
+        Assert.AreEqual(0.25, cfg.AxisScaleFactor, 1e-9);
+        Assert.AreEqual(0.1, cfg.CurveTension, 1e-9);
+        Assert.AreEqual(800, cfg.Width, 1e-9);
+    }
+
+    [TestMethod]
+    public void RadarConfig_ParsesThemeRadarStyling()
+    {
+        var cfg = RadarConfigParser.Parse(
+            """
+            config:
+              themeVariables:
+                radar:
+                  curveOpacity: 0
+                  axisLabelFontSize: 16px
+            """);
+        Assert.AreEqual(0, cfg.CurveOpacity, 1e-9);
+        Assert.AreEqual(16, cfg.AxisLabelFontSize, 1e-9);
+    }
+
+    [TestMethod]
+    public void RadarConfig_ParsesCScalePalette()
+    {
+        var cfg = RadarConfigParser.Parse(
+            """
+            config:
+              themeVariables:
+                cScale0: "#FF0000"
+                cScale1: "#00FF00"
+                cScale2: "#0000FF"
+            """);
+        Assert.AreEqual(3, cfg.CurvePalette.Count);
+        Assert.AreEqual(System.Windows.Media.Colors.Red,  ((System.Windows.Media.SolidColorBrush)cfg.CurvePalette[0]).Color);
+        Assert.AreEqual(System.Windows.Media.Colors.Blue, ((System.Windows.Media.SolidColorBrush)cfg.CurvePalette[2]).Color);
+    }
+
+    // ── Ishikawa (fishbone) — parser ──────────────────────────────────────
+
+    private const string IshikawaSrc =
+        """
+        ishikawa-beta
+            Blurry Photo
+            Process
+                Out of focus
+                Shutter speed too slow
+            Equipment
+                LENS
+                    Inappropriate lens
+                    Dirty lens
+                SENSOR
+                    Dirty sensor
+            Environment
+                Too dark
+        """;
+
+    [TestMethod]
+    public void Ishikawa_FirstLineIsHead_RestAreCategories()
+    {
+        var d = new MermaidIshikawaParser().Parse(IshikawaSrc);
+
+        Assert.AreEqual("Blurry Photo", d.Head);
+        CollectionAssert.AreEqual(new[] { "Process", "Equipment", "Environment" },
+            d.Categories.Select(c => c.Text).ToArray());
+    }
+
+    [TestMethod]
+    public void Ishikawa_NestsCausesByIndentation()
+    {
+        var d = new MermaidIshikawaParser().Parse(IshikawaSrc);
+
+        var process = d.Categories[0];
+        CollectionAssert.AreEqual(new[] { "Out of focus", "Shutter speed too slow" },
+            process.Children.Select(c => c.Text).ToArray());
+
+        var equipment = d.Categories[1];
+        Assert.AreEqual("LENS", equipment.Children[0].Text);
+        CollectionAssert.AreEqual(new[] { "Inappropriate lens", "Dirty lens" },
+            equipment.Children[0].Children.Select(c => c.Text).ToArray());     // 3 levels deep
+        Assert.AreEqual("Dirty sensor", equipment.Children[1].Children.Single().Text);
+    }
+
+    [TestMethod]
+    public void Ishikawa_TwoSpaceIndent_AndBareKeyword()
+    {
+        // Indent width is flexible (2 spaces here); the `ishikawa` alias is accepted.
+        var d = new MermaidIshikawaParser().Parse(
+            "ishikawa\nSlow API Response\n  Infrastructure\n    No CDN\n  Code\n    N+1 queries\n");
+        Assert.AreEqual("Slow API Response", d.Head);
+        CollectionAssert.AreEqual(new[] { "Infrastructure", "Code" }, d.Categories.Select(c => c.Text).ToArray());
+        Assert.AreEqual("No CDN", d.Categories[0].Children.Single().Text);
+    }
+
+    [TestMethod]
+    public void IshikawaConfig_ParsesDiagramPadding()
+    {
+        var cfg = IshikawaConfigParser.Parse("config:\n  ishikawa:\n    diagramPadding: 40\n    useMaxWidth: true\n");
+        Assert.AreEqual(40, cfg.DiagramPadding, 1e-9);
+        Assert.IsTrue(cfg.UseMaxWidth);
+    }
+
+    // ── Sankey — parser ───────────────────────────────────────────────────
+
+    [TestMethod]
+    public void Sankey_InfersNodesAndLinks()
+    {
+        var d = new MermaidSankeyParser().Parse(
+            "sankey\n\nA,B,10\nA,C,5\nB,C,3\n");
+
+        CollectionAssert.AreEqual(new[] { "A", "B", "C" }, d.Nodes.Select(x => x.Name).ToArray());
+        Assert.AreEqual(3, d.Links.Count);
+        Assert.AreEqual(0, d.Links[0].Source);   // A
+        Assert.AreEqual(1, d.Links[0].Target);   // B
+        Assert.AreEqual(10, d.Links[0].Value, 1e-9);
+    }
+
+    [TestMethod]
+    public void Sankey_QuotedFieldsAndDoubledQuotes()
+    {
+        var d = new MermaidSankeyParser().Parse(
+            "sankey\nPumped heat,\"Heating and cooling, homes\",193.026\nPumped heat,\"Heating and cooling, \"\"commercial\"\"\",70.672\n");
+
+        Assert.AreEqual("Heating and cooling, homes", d.Nodes[1].Name);            // comma inside quotes
+        Assert.AreEqual("Heating and cooling, \"commercial\"", d.Nodes[2].Name);    // doubled "" → literal "
+        Assert.AreEqual(193.026, d.Links[0].Value, 1e-9);
+    }
+
+    [TestMethod]
+    public void Sankey_SkipsCommentsAndBlankLines()
+    {
+        var d = new MermaidSankeyParser().Parse(
+            "sankey\n\n%% source,target,value\nA,B,1\n\nB,C,2\n");
+        Assert.AreEqual(3, d.Nodes.Count);
+        Assert.AreEqual(2, d.Links.Count);
+    }
+
+    [TestMethod]
+    public void Sankey_NodeUsedAsSourceAndTarget_IsOneNode()
+    {
+        var d = new MermaidSankeyParser().Parse("sankey\nA,B,1\nB,C,2\n");
+        Assert.AreEqual(3, d.Nodes.Count);                 // A, B, C — B shared
+        Assert.AreEqual(1, d.Links[0].Target);             // B
+        Assert.AreEqual(1, d.Links[1].Source);             // B again
+    }
+
+    // ── Sankey — config ───────────────────────────────────────────────────
+
+    [TestMethod]
+    public void SankeyConfig_ParsesEnumsAndFlags()
+    {
+        var cfg = SankeyConfigParser.Parse(
+            """
+            config:
+              sankey:
+                showValues: false
+                linkColor: source
+                nodeAlignment: left
+                nodeWidth: 15
+                nodePadding: 20
+                labelStyle: outlined
+                suffix: " TWh"
+            """);
+        Assert.IsFalse(cfg.ShowValues);
+        Assert.AreEqual(SankeyLinkColor.Source, cfg.LinkColor);
+        Assert.AreEqual(SankeyNodeAlignment.Left, cfg.NodeAlignment);
+        Assert.AreEqual(15, cfg.NodeWidth, 1e-9);
+        Assert.AreEqual(20, cfg.NodePadding, 1e-9);
+        Assert.AreEqual(SankeyLabelStyle.Outlined, cfg.LabelStyle);
+        Assert.AreEqual(" TWh", cfg.Suffix);
+    }
+
+    [TestMethod]
+    public void SankeyConfig_LinkColorHex_IsCustom()
+    {
+        var cfg = SankeyConfigParser.Parse("config:\n  sankey:\n    linkColor: \"#a1a1a1\"\n");
+        Assert.AreEqual(SankeyLinkColor.Custom, cfg.LinkColor);
+        Assert.IsNotNull(cfg.LinkColorCustom);
+    }
+
+    [TestMethod]
+    public void SankeyConfig_ParsesNodeColorsMap()
+    {
+        var cfg = SankeyConfigParser.Parse(
+            """
+            config:
+              sankey:
+                nodeColors:
+                  Electricity grid: "#4e79a7"
+                  Industry: "#e15759"
+            """);
+        Assert.AreEqual(2, cfg.NodeColors.Count);
+        Assert.IsTrue(cfg.NodeColors.ContainsKey("Electricity grid"));
+        var industry = ((System.Windows.Media.SolidColorBrush)cfg.NodeColors["Industry"]).Color;
+        Assert.AreEqual(0xE1, industry.R);
+        Assert.AreEqual(0x57, industry.G);
+        Assert.AreEqual(0x59, industry.B);
+    }
+
+    // ── ER diagram — parser ───────────────────────────────────────────────
+
+    private const string ErSrc =
+        """
+        erDiagram
+            CUSTOMER ||--o{ ORDER : places
+            ORDER ||--|{ LINE-ITEM : contains
+            CUSTOMER }|..|{ DELIVERY-ADDRESS : uses
+        """;
+
+    [TestMethod]
+    public void Er_SymbolCardinalityAndIdentification()
+    {
+        var g = new MermaidErParser().Parse(ErSrc);
+
+        CollectionAssert.AreEquivalent(
+            new[] { "CUSTOMER", "ORDER", "LINE-ITEM", "DELIVERY-ADDRESS" },
+            g.Nodes.Select(n => n.Id).ToArray());
+        Assert.IsTrue(g.Nodes.All(n => n.Shape == NodeShape.ClassBox));
+
+        var places = g.Edges[0];
+        Assert.AreEqual("CUSTOMER", places.SourceId);
+        Assert.AreEqual("ORDER", places.TargetId);
+        Assert.AreEqual("places", places.Label);
+        Assert.AreEqual(EdgeStyle.Solid, places.Style);                 // -- identifying
+        Assert.AreEqual(EdgeArrow.ErExactlyOne, places.StartArrow);     // ||
+        Assert.AreEqual(EdgeArrow.ErZeroMany,  places.Arrow);          // o{
+
+        var uses = g.Edges[2];
+        Assert.AreEqual(EdgeStyle.Dashed, uses.Style);                  // .. non-identifying
+        Assert.AreEqual(EdgeArrow.ErOneMany, uses.StartArrow);         // }|
+        Assert.AreEqual(EdgeArrow.ErOneMany, uses.Arrow);             // |{
+    }
+
+    [TestMethod]
+    public void Er_NoSpaceSymbol()
+    {
+        var g = new MermaidErParser().Parse("erDiagram\n    id1||--o| id2 : label\n");
+        var e = g.Edges.Single();
+        Assert.AreEqual("id1", e.SourceId);
+        Assert.AreEqual("id2", e.TargetId);
+        Assert.AreEqual(EdgeArrow.ErExactlyOne, e.StartArrow);
+        Assert.AreEqual(EdgeArrow.ErZeroOne, e.Arrow);
+    }
+
+    [TestMethod]
+    public void Er_WordAliasCardinality()
+    {
+        var g = new MermaidErParser().Parse(
+            "erDiagram\n    CAR 1 to zero or more NAMED-DRIVER : allows\n    PERSON many(0) optionally to 0+ NAMED-DRIVER : is\n");
+
+        var allows = g.Edges[0];
+        Assert.AreEqual("CAR", allows.SourceId);
+        Assert.AreEqual("NAMED-DRIVER", allows.TargetId);
+        Assert.AreEqual(EdgeStyle.Solid, allows.Style);                 // "to"
+        Assert.AreEqual(EdgeArrow.ErExactlyOne, allows.StartArrow);     // 1
+        Assert.AreEqual(EdgeArrow.ErZeroMany, allows.Arrow);          // zero or more
+
+        var isRel = g.Edges[1];
+        Assert.AreEqual(EdgeStyle.Dashed, isRel.Style);                 // "optionally to"
+        Assert.AreEqual(EdgeArrow.ErZeroMany, isRel.StartArrow);       // many(0)
+        Assert.AreEqual(EdgeArrow.ErZeroMany, isRel.Arrow);          // 0+
+    }
+
+    [TestMethod]
+    public void Er_AttributesWithKeysAndComment()
+    {
+        var g = new MermaidErParser().Parse(
+            "erDiagram\n    PERSON {\n        string driversLicense PK \"The license #\"\n        string[] parts\n        string code PK, FK\n    }\n");
+
+        var attrs = g.FindNode("PERSON")!.Class!.Attributes;
+        Assert.AreEqual(3, attrs.Count);
+        StringAssert.Contains(attrs[0].Text, "string driversLicense");
+        StringAssert.Contains(attrs[0].Text, "PK");
+        StringAssert.Contains(attrs[0].Text, "The license #");
+        StringAssert.Contains(attrs[1].Text, "string[] parts");
+        StringAssert.Contains(attrs[2].Text, "PK, FK");
+    }
+
+    [TestMethod]
+    public void Er_EntityAliases()
+    {
+        var g = new MermaidErParser().Parse(
+            "erDiagram\n    p[Person] {\n        string firstName\n    }\n    a[\"Customer Account\"] {\n        string email\n    }\n    p ||--o| a : has\n");
+
+        Assert.AreEqual("Person", g.FindNode("p")!.Label);
+        Assert.AreEqual("Customer Account", g.FindNode("a")!.Label);
+        Assert.AreEqual(1, g.Edges.Count);
+        Assert.AreEqual("p", g.Edges[0].SourceId);
+        Assert.AreEqual("a", g.Edges[0].TargetId);
+    }
+
+    [TestMethod]
+    public void Er_BareEntityAndDirection()
+    {
+        var g = new MermaidErParser().Parse("erDiagram\n    direction LR\n    CUSTOMER\n");
+        Assert.AreEqual(GraphDirection.LeftRight, g.Direction);
+        Assert.IsNotNull(g.FindNode("CUSTOMER"));
+        Assert.AreEqual(0, g.Edges.Count);
+    }
+
+    [TestMethod]
+    public void ErConfig_ParsesKeys()
+    {
+        var cfg = ErConfigParser.Parse(
+            """
+            config:
+              er:
+                layoutDirection: LR
+                fill: honeydew
+                stroke: gray
+                minEntityWidth: 120
+            """);
+        Assert.AreEqual(GraphDirection.LeftRight, cfg.LayoutDirection);
+        Assert.AreEqual("honeydew", cfg.Fill);
+        Assert.AreEqual("gray", cfg.Stroke);
+        Assert.AreEqual(120, cfg.MinEntityWidth);
+    }
+
+    // ── Venn diagram — parser ─────────────────────────────────────────────
+
+    [TestMethod]
+    public void Venn_SetsUnionTitleAndSizes()
+    {
+        var d = new MermaidVennParser().Parse(
+            "venn-beta\n  title \"Team overlap\"\n  set A[\"Alpha\"]:20\n  set B[\"Beta\"]:12\n  union A,B[\"AB\"]:3\n");
+
+        Assert.AreEqual("Team overlap", d.Title);
+        Assert.AreEqual(2, d.Sets.Count);
+        Assert.AreEqual("Alpha", d.Sets[0].Label);
+        Assert.AreEqual(20, d.Sets[0].Size);
+        Assert.AreEqual(12, d.Sets[1].Size);
+
+        var u = d.Unions.Single();
+        CollectionAssert.AreEqual(new[] { "A", "B" }, u.SetIds.ToArray());   // sorted
+        Assert.AreEqual("AB", u.Label);
+        Assert.AreEqual(3, u.Size);
+    }
+
+    [TestMethod]
+    public void Venn_UnionIsOrderIndependent_AndImpliesSets()
+    {
+        var d = new MermaidVennParser().Parse("venn-beta\n  union B,A[\"AB\"]\n");
+        CollectionAssert.AreEqual(new[] { "A", "B" }, d.Unions.Single().SetIds.ToArray());   // alphabetised
+        CollectionAssert.AreEquivalent(new[] { "A", "B" }, d.Sets.Select(s => s.Id).ToArray());   // auto-created
+    }
+
+    [TestMethod]
+    public void Venn_IndentedAndExplicitTextItems()
+    {
+        var d = new MermaidVennParser().Parse(
+            "venn-beta\n  set A[\"Frontend\"]\n    text A1[\"React\"]\n    text A2[\"Design Systems\"]\n  set B[\"Backend\"]\n  union A,B[\"Shared\"]\n  text A,B AB1[\"OpenAPI\"]\n");
+
+        var a = d.FindSet("A")!;
+        CollectionAssert.AreEqual(new[] { "React", "Design Systems" }, a.Items.Select(i => i.Display).ToArray());
+        var shared = d.Unions.Single();
+        Assert.AreEqual("OpenAPI", shared.Items.Single().Display);
+    }
+
+    [TestMethod]
+    public void Venn_Styling()
+    {
+        var d = new MermaidVennParser().Parse(
+            "venn-beta\n  set A[\"Alpha\"]\n  set B[\"Beta\"]\n  union A,B[\"AB\"]\n  style A fill:#ff6b6b\n  style A,B color:#333\n");
+
+        Assert.AreEqual("#ff6b6b", d.FindSet("A")!.Fill);
+        Assert.AreEqual("#333", d.Unions.Single().TextColor);   // comma target = the union region
+    }
+
+    [TestMethod]
+    public void VennConfig_ParsesBlockAndPalette()
+    {
+        var cfg = VennConfigParser.Parse(
+            """
+            config:
+              venn:
+                width: 600
+                height: 400
+                padding: 12
+              themeVariables:
+                venn1: "#FF0000"
+                venn2: "#00FF00"
+            """);
+        Assert.AreEqual(600, cfg.Width, 1e-9);
+        Assert.AreEqual(400, cfg.Height, 1e-9);
+        Assert.AreEqual(12, cfg.Padding, 1e-9);
+        Assert.AreEqual(2, cfg.SetPalette.Count);
+    }
 }
