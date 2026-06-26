@@ -472,8 +472,60 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     /// <summary>
     /// Set by MainWindow after the RibbonControl is initialised so the shell can
     /// remove ribbon items from handler execution (e.g. "files no longer exist").
+    /// The setter also subscribes to the ribbon editor's open state, which covers the page area.
     /// </summary>
-    public RibbonViewModel? Ribbon { get; set; }
+    public RibbonViewModel? Ribbon
+    {
+        get => _ribbon;
+        set
+        {
+            if (_ribbon is not null) _ribbon.PropertyChanged -= OnRibbonPropertyChangedForOverlay;
+            _ribbon = value;
+            if (_ribbon is not null) _ribbon.PropertyChanged += OnRibbonPropertyChangedForOverlay;
+            RefreshOverlayCoverage();
+        }
+    }
+    private RibbonViewModel? _ribbon;
+
+    // ── Airspace overlay coverage ─────────────────────────────────────────
+    // A WebView2 tab hosts a native child window (HWND) that renders above ALL WPF content, so the
+    // shell's modal overlays would be hidden behind it. We track whether any overlay covers the page
+    // area and tell each realized airspace-hosting page view to hide/show its native control to match.
+
+    private bool _pageCoveredByOverlay;
+
+    /// <summary>True when any window-modal overlay currently covers the page content area.</summary>
+    private bool AnyOverlayCoversPage =>
+        OptionsOpen || ManageAiOpen || ConfirmationVisible || PromptVisible || NotificationsOpen
+        || Ai.AiResponseOverlayOpen || _ribbon?.IsEditOpen == true;
+
+    private void OnShellPropertyChangedForOverlay(object? _, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(OptionsOpen) or nameof(ManageAiOpen) or nameof(ConfirmationVisible)
+            or nameof(PromptVisible) or nameof(NotificationsOpen))
+            RefreshOverlayCoverage();
+    }
+
+    private void OnRibbonPropertyChangedForOverlay(object? _, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(RibbonViewModel.IsEditOpen))
+            RefreshOverlayCoverage();
+    }
+
+    /// <summary>
+    /// Recomputes overlay coverage and, when it flips, notifies every realized airspace-hosting page
+    /// view (e.g. a WebView2 tab) so it can collapse/restore its native control behind/in front of the overlay.
+    /// </summary>
+    private void RefreshOverlayCoverage()
+    {
+        var covered = AnyOverlayCoversPage;
+        if (covered == _pageCoveredByOverlay) return;
+        _pageCoveredByOverlay = covered;
+
+        foreach (var page in LeafPanes.SelectMany(p => p.Pages))
+            if (page.Content is IAirspaceContent airspace)
+                airspace.SetCoveredByOverlay(covered);
+    }
 
     public ShellViewModel(BackgroundActivityManager activityManager,
                           Workspace workspace)
@@ -485,6 +537,15 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         _currentWorkspace = workspace;
         _shellServices = workspace.ShellServices!;
         Ai = new ShellAIResponseHandler(this);
+
+        // Keep airspace-hosting pages (WebView2) hidden while a modal overlay covers the page area —
+        // its native HWND would otherwise render above the overlay. Track the contributing overlay flags.
+        PropertyChanged    += OnShellPropertyChangedForOverlay;
+        Ai.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ShellAIResponseHandler.AiResponseOverlayOpen))
+                RefreshOverlayCoverage();
+        };
 
         WireRootPane();
 

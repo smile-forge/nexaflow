@@ -133,15 +133,23 @@
                                TextTrimming="CharacterEllipsis"/>
                 </Border>
 
-                <!-- Reload -->
-                <Button Grid.Column="2"
-                        Style="{StaticResource ToolbarBtnStyle}"
-                        Click="Reload_Click"
-                        ToolTip="Reload"
-                        Margin="6,0,0,0">
-                    <TextBlock Text="↺" FontSize="14"
-                               Foreground="{StaticResource TextMutedBrush}"/>
-                </Button>
+                <!-- Reload + open-in-default-browser -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal"
+                            VerticalAlignment="Center" Margin="6,0,0,0">
+                    <Button Style="{StaticResource ToolbarBtnStyle}"
+                            Click="Reload_Click"
+                            ToolTip="Reload">
+                        <TextBlock Text="↺" FontSize="14"
+                                   Foreground="{StaticResource TextMutedBrush}"/>
+                    </Button>
+                    <Button Style="{StaticResource ToolbarBtnStyle}"
+                            Click="OpenExternal_Click"
+                            ToolTip="Open in your default browser"
+                            Margin="6,0,0,0">
+                        <TextBlock Text="↗" FontSize="14"
+                                   Foreground="{StaticResource TextMutedBrush}"/>
+                    </Button>
+                </StackPanel>
             </Grid>
         </Border>
 
@@ -157,10 +165,15 @@
                        VerticalAlignment="Center"/>
         </Border>
 
-        <!-- WebView2 -->
+        <!-- WebView2.
+             • Visibility collapses while a shell overlay covers the page (WebViewVisible) — the WebView's
+               native HWND renders above all WPF content, so the AI/Options overlays would otherwise be hidden.
+             • Left/right margin keeps the WebView's HWND clear of the window's WindowChrome resize border,
+               which it would otherwise swallow (making the window's side edges un-draggable). -->
         <wv2:WebView2 x:Name="WebView"
                       Grid.Row="1"
-                      Visibility="{Binding WebViewAvailable, Converter={StaticResource BoolToVis}}"
+                      Margin="8,0"
+                      Visibility="{Binding WebViewVisible, Converter={StaticResource BoolToVis}}"
                       NavigationStarting="WebView_NavigationStarting"
                       NavigationCompleted="WebView_NavigationCompleted"/>
 

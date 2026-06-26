@@ -26,8 +26,7 @@ public class AgentLoopTests
         public string Name => "fake";
 
         public Task<LlmResponse?> CompleteAsync(
-            IReadOnlyList<LlmMessage> messages,
-            IReadOnlyList<LlmAttachment>? attachments = null, CancellationToken ct = default)
+            IReadOnlyList<LlmMessage> messages, CancellationToken ct = default)
         {
             ct.ThrowIfCancellationRequested();
             var lastUser = messages.LastOrDefault(m => m.Role == LlmRole.User)?.Text ?? string.Empty;
@@ -61,7 +60,7 @@ public class AgentLoopTests
         public void Abort() { }
     }
 
-    private sealed class RecordingTool(string name, ToolSafety safety, bool parallelizable = false) : IClientTool
+    private sealed class RecordingTool(string name, ToolSafety safety, bool parallelizable = false, bool exempt = false) : IClientTool
     {
         private int _invocations;
         public int Invocations => _invocations;
@@ -71,6 +70,7 @@ public class AgentLoopTests
         public IReadOnlyList<ClientToolParameter> Parameters => [];
         public ToolSafety Safety => safety;
         public bool Parallelizable => parallelizable;
+        public bool ExemptFromRepeatGuard => exempt;
 
         public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
         {
@@ -83,6 +83,86 @@ public class AgentLoopTests
     {
         public string GetContext() => "Test page.";
         public IReadOnlyList<IClientTool> GetClientTools() => tools;
+    }
+
+    // Records the attachments handed to each completion turn, and reports an image capability.
+    private sealed class AttachmentRecordingProvider(IEnumerable<string> responses, bool supportsImages) : ILlmProvider
+    {
+        private readonly Queue<string> _responses = new(responses);
+        public List<IReadOnlyList<LlmAttachment>?> Calls { get; } = [];
+        public string LastToolResultsText { get; private set; } = string.Empty;
+
+        public string Name => "fake";
+        public bool SupportsImages => supportsImages;
+
+        public Task<LlmResponse?> CompleteAsync(
+            IReadOnlyList<LlmMessage> messages, CancellationToken ct = default)
+        {
+            var lastUser = messages.LastOrDefault(m => m.Role == LlmRole.User);
+            var lastText = lastUser?.Text ?? string.Empty;
+            if (lastText.Contains("Most relevant tool numbers"))
+                return Task.FromResult<LlmResponse?>(new LlmResponse("1,2,3,4"));
+
+            LastToolResultsText = lastText;
+            Calls.Add(lastUser?.Attachments);   // attachments now ride the message, not a side parameter
+            var text = _responses.Count > 0 ? _responses.Dequeue() : "done";
+            return Task.FromResult<LlmResponse?>(new LlmResponse(text));
+        }
+
+        public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<string>>(["m"]);
+    }
+
+    // A read-only tool that "captures" an image and returns it for the model to view (mirrors the web
+    // view's capture_web_page tool).
+    private sealed class ImageCaptureTool(byte[] png) : IClientTool
+    {
+        public int Invocations;
+        public string Name => "capture_web_page";
+        public string Description => "capture the current page as an image";
+        public IReadOnlyList<ClientToolParameter> Parameters => [];
+        public ToolSafety Safety => ToolSafety.ReadOnly;
+        public bool Parallelizable => false;
+
+        public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
+        {
+            Invocations++;
+            return Task.FromResult(
+                ToolResult.Ok("captured", "screenshot attached")
+                with { Images = [new ContextImage(png, "image/png", "http://x")] });
+        }
+    }
+
+    // A vision model that records the images it was asked to describe and returns a fixed description.
+    private sealed class DescribingImageProvider(string description) : ILlmProvider
+    {
+        public List<LlmAttachment> Seen { get; } = [];
+        public string Name => "img";
+        public bool SupportsImages => true;
+
+        public Task<LlmResponse?> CompleteAsync(IReadOnlyList<LlmMessage> messages, CancellationToken ct = default)
+        {
+            Seen.AddRange(messages.SelectMany(m => m.Attachments ?? []));
+            return Task.FromResult<LlmResponse?>(new LlmResponse(description));
+        }
+
+        public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<string>>(["v"]);
+    }
+
+    // Conversation on c1, a distinct image-recognition model on c2.
+    private static AIService BuildServiceWithImageModel(ILlmProvider conversation, ILlmProvider image)
+    {
+        var svc = new AIService(new Workspace(), Path.GetTempPath());
+        svc.Register("c1", conversation);
+        svc.Register("c2", image);
+        svc.LoadAbilityConfig(new AiConfig
+        {
+            Columns = [new ProviderModelPair { Id = "c1", ProviderName = "conv", Model = "m" },
+                       new ProviderModelPair { Id = "c2", ProviderName = "img",  Model = "v" }],
+            Assignments = { ["Conversation"] = "c1", ["Disambiguation"] = "c1", ["ImageRecognition"] = "c2" }
+        });
+        return svc;
     }
 
     private static AIService BuildService(ILlmProvider provider)
@@ -175,6 +255,21 @@ public class AgentLoopTests
     }
 
     [TestMethod]
+    public async Task ExemptTool_RepeatedIdentically_BypassesRepeatGuard()
+    {
+        // A scroll-like tool whose identical repeats are real progress: it must run past the repeat
+        // guard, bounded only by the overall step cap — not stopped after 2 like a normal tool.
+        var tool     = new RecordingTool("scroll", ToolSafety.ReadOnly, exempt: true);
+        var provider = new ScriptedLlmProvider(Enumerable.Repeat(ToolBlock("scroll"), 50));
+        var approver = new FakeApprover();
+
+        var res = await BuildService(provider).RunAgentAsync(new TestPage(tool), "scroll", true, approver, default);
+
+        StringAssert.Contains(res!.Text!, "max steps");   // hit the step cap, not the repeat guard
+        Assert.AreEqual(20, tool.Invocations);            // MaxAgentSteps
+    }
+
+    [TestMethod]
     public async Task IterationCap_ReturnsStoppedMessage()
     {
         // Distinct calls each step (so the repeat guard never fires) → the hard step cap stops it.
@@ -244,5 +339,65 @@ public class AgentLoopTests
         var res = await BuildService(provider).RunAgentAsync(new TestPage(), "x", true, approver, default);
 
         Assert.AreEqual("Recovered.", res!.Text);
+    }
+
+    // ── Visual context: the capture tool feeds an image to the next turn ─────
+
+    [TestMethod]
+    public async Task ImageTool_AttachesCapturedImage_ToFollowingTurn_ForVisionModel()
+    {
+        var png      = new byte[] { 1, 2, 3, 4 };
+        var tool     = new ImageCaptureTool(png);
+        // Turn 1: the model calls the capture tool. Turn 2: it answers using the attached image.
+        var provider = new AttachmentRecordingProvider([ToolBlock("capture_web_page"), "I can see it."],
+                                                       supportsImages: true);
+
+        await BuildService(provider).RunAgentAsync(new TestPage(tool), "what's on the page?", true,
+                                                   new FakeApprover(), default);
+
+        Assert.AreEqual(1, tool.Invocations);
+        Assert.AreEqual(2, provider.Calls.Count);
+        Assert.IsNull(provider.Calls[0], "no image before the tool is called");
+        Assert.IsNotNull(provider.Calls[1], "the captured image rides the turn after the tool ran");
+        Assert.AreEqual(1, provider.Calls[1]!.Count);
+        Assert.IsTrue(provider.Calls[1]![0].IsImage);
+        CollectionAssert.AreEqual(png, provider.Calls[1]![0].Bytes);
+    }
+
+    [TestMethod]
+    public async Task ImageTool_ImageNotSent_AndModelTold_WhenModelLacksVision()
+    {
+        var tool     = new ImageCaptureTool([9, 9, 9]);
+        var provider = new AttachmentRecordingProvider([ToolBlock("capture_web_page"), "Okay."],
+                                                       supportsImages: false);
+
+        await BuildService(provider).RunAgentAsync(new TestPage(tool), "what's on the page?", true,
+                                                   new FakeApprover(), default);
+
+        Assert.AreEqual(1, tool.Invocations, "the tool still runs — the model just can't see the result");
+        Assert.IsNull(provider.Calls[1], "a text-only model must not be sent images");
+        StringAssert.Contains(provider.LastToolResultsText, "can't view images");
+    }
+
+    [TestMethod]
+    public async Task SeparateImageModel_DescribesImage_AndPassesTextToTextOnlyConversationModel()
+    {
+        var png   = new byte[] { 1, 2, 3 };
+        var tool  = new ImageCaptureTool(png);
+        // Conversation model is text-only; a distinct vision model is assigned to Image Recognition.
+        var conv  = new AttachmentRecordingProvider([ToolBlock("capture_web_page"), "Got it."], supportsImages: false);
+        var image = new DescribingImageProvider("A blue page titled WEBVIEW2 TEST PAGE.");
+
+        await BuildServiceWithImageModel(conv, image)
+            .RunAgentAsync(new TestPage(tool), "what's on the page?", true, new FakeApprover(), default);
+
+        // The image model saw the screenshot...
+        Assert.AreEqual(1, image.Seen.Count);
+        Assert.IsTrue(image.Seen[0].IsImage);
+        CollectionAssert.AreEqual(png, image.Seen[0].Bytes);
+
+        // ...and the conversation model got the description as TEXT, with no image attachment.
+        Assert.IsNull(conv.Calls[1], "the text-only conversation model must not receive the image");
+        StringAssert.Contains(conv.LastToolResultsText, "WEBVIEW2 TEST PAGE");
     }
 }

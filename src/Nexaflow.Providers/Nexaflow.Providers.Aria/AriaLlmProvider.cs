@@ -25,9 +25,8 @@ public sealed class AriaLlmProvider : ILlmProvider, IAsyncDisposable
     // ── ILlmProvider ───────────────────────────────────────────────────────
 
     public Task<LlmResponse?> CompleteAsync(
-        IReadOnlyList<LlmMessage>     messages,
-        IReadOnlyList<LlmAttachment>? attachments = null,
-        CancellationToken             ct = default)
+        IReadOnlyList<LlmMessage> messages,
+        CancellationToken         ct = default)
     {
         // Aria uses a simple text pipe; serialise the conversation as a labelled transcript
         var sb = new StringBuilder();
@@ -42,12 +41,14 @@ public sealed class AriaLlmProvider : ILlmProvider, IAsyncDisposable
             sb.AppendLine($"{label}: {msg.Text}");
         }
 
-        // Extract file paths for the named-pipe protocol (model is not applicable to Aria)
-        var paths = attachments is { Count: > 0 }
-            ? (IReadOnlyList<string>)attachments.Select(a => a.FilePath).ToList()
-            : null;
+        // Extract any attachment file paths for the named-pipe protocol (model is not applicable to Aria)
+        var paths = messages
+            .Where(m => m.Attachments is { Count: > 0 })
+            .SelectMany(m => m.Attachments!)
+            .Select(a => a.FilePath)
+            .ToList();
 
-        return SendCoreAsync(sb.ToString().TrimEnd(), paths, ct);
+        return SendCoreAsync(sb.ToString().TrimEnd(), paths.Count > 0 ? paths : null, ct);
     }
 
     // ── Internal ───────────────────────────────────────────────────────────

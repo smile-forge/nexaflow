@@ -11,6 +11,9 @@ public sealed class OpenAILlmProvider : ILlmProvider
     public const  string ProviderName = "OpenAI";
     public string Name => ProviderName;
 
+    /// <summary>OpenAI's current chat models are multimodal; image attachments are sent as vision parts.</summary>
+    public bool SupportsImages => true;
+
     private readonly OpenAIConfig               _config;
     private readonly IBackgroundActivityManager _activityManager;
     private readonly string                     _model;
@@ -25,20 +28,17 @@ public sealed class OpenAILlmProvider : ILlmProvider
     // ── ILlmProvider ───────────────────────────────────────────────────────
 
     public Task<LlmResponse?> CompleteAsync(
-        IReadOnlyList<LlmMessage>     messages,
-        IReadOnlyList<LlmAttachment>? attachments = null,
-        CancellationToken             ct = default)
+        IReadOnlyList<LlmMessage> messages,
+        CancellationToken         ct = default)
     {
         var chatMessages = new List<ChatMessage>();
-        for (var i = 0; i < messages.Count; i++)
+        foreach (var msg in messages)
         {
-            var msg = messages[i];
             chatMessages.Add(msg.Role switch
             {
                 LlmRole.System    => new SystemChatMessage(msg.Text),
                 LlmRole.Assistant => new AssistantChatMessage(msg.Text),
-                _                 => new UserChatMessage(BuildUserContent(msg.Text,
-                                         i == messages.Count - 1 ? attachments : null))
+                _                 => BuildUserMessage(msg.Text, msg.Attachments)
             });
         }
 
@@ -102,18 +102,38 @@ public sealed class OpenAILlmProvider : ILlmProvider
         }
     }
 
-    private static string BuildUserContent(string prompt, IReadOnlyList<LlmAttachment>? attachments)
+    /// <summary>
+    /// Builds the final user message. Image attachments become native vision content parts; non-image
+    /// attachments keep the path-as-text behaviour. With no images, returns a plain-text message.
+    /// </summary>
+    private static UserChatMessage BuildUserMessage(string prompt, IReadOnlyList<LlmAttachment>? attachments)
     {
         if (attachments is null || attachments.Count == 0)
-            return prompt;
+            return new UserChatMessage(prompt);
 
+        var images = attachments.Where(a => a.IsImage).ToList();
+        var files  = attachments.Where(a => !a.IsImage).ToList();
+        var text   = files.Count == 0 ? prompt : AppendFileList(prompt, files);
+
+        if (images.Count == 0)
+            return new UserChatMessage(text);
+
+        var parts = new List<ChatMessageContentPart> { ChatMessageContentPart.CreateTextPart(text) };
+        foreach (var img in images)
+            parts.Add(ChatMessageContentPart.CreateImagePart(
+                BinaryData.FromBytes(img.ReadBytes()), img.ResolvedMimeType));
+
+        return new UserChatMessage(parts);
+    }
+
+    private static string AppendFileList(string prompt, IReadOnlyList<LlmAttachment> files)
+    {
         var sb = new StringBuilder(prompt);
         sb.AppendLine();
         sb.AppendLine();
         sb.AppendLine("Attached files:");
-        foreach (var a in attachments)
+        foreach (var a in files)
             sb.AppendLine($"  {a.FilePath}");
-
         return sb.ToString();
     }
 }
