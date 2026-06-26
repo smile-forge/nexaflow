@@ -1039,6 +1039,44 @@ public static class WpfGraphRenderer
             return;
         }
 
+        // ER crow's-foot cardinality: a max indicator nearest the box (bar = one, fork = many) and a min
+        // indicator just outside it (bar = one, circle = zero), drawn back along the line from the box edge.
+        if (arrowType is EdgeArrow.ErZeroOne or EdgeArrow.ErExactlyOne or EdgeArrow.ErZeroMany or EdgeArrow.ErOneMany)
+        {
+            double ux = Math.Cos(angle), uy = Math.Sin(angle);   // from → tip (toward the box)
+            double px = -uy, py = ux;                            // perpendicular
+
+            void Bar(double d, double hw)
+            {
+                double bx = tip.X - ux * d, by = tip.Y - uy * d;
+                canvas.Children.Add(new Line { X1 = bx + px * hw, Y1 = by + py * hw, X2 = bx - px * hw, Y2 = by - py * hw, Stroke = brush, StrokeThickness = 1.6 });
+            }
+            void Bulb(double d, double r)
+            {
+                double bx = tip.X - ux * d, by = tip.Y - uy * d;
+                var e = new Ellipse { Width = r * 2, Height = r * 2, Fill = BgBrush, Stroke = brush, StrokeThickness = 1.5 };
+                Canvas.SetLeft(e, bx - r);
+                Canvas.SetTop(e, by - r);
+                canvas.Children.Add(e);
+            }
+            void Foot(double apexLen, double hw)
+            {
+                double ax = tip.X - ux * apexLen, ay = tip.Y - uy * apexLen;
+                canvas.Children.Add(new Line { X1 = ax, Y1 = ay, X2 = tip.X,          Y2 = tip.Y,          Stroke = brush, StrokeThickness = 1.5 });
+                canvas.Children.Add(new Line { X1 = ax, Y1 = ay, X2 = tip.X + px * hw, Y2 = tip.Y + py * hw, Stroke = brush, StrokeThickness = 1.5 });
+                canvas.Children.Add(new Line { X1 = ax, Y1 = ay, X2 = tip.X - px * hw, Y2 = tip.Y - py * hw, Stroke = brush, StrokeThickness = 1.5 });
+            }
+
+            switch (arrowType)
+            {
+                case EdgeArrow.ErExactlyOne: Bar(8, 6);  Bar(14, 6);  break;
+                case EdgeArrow.ErZeroOne:    Bar(8, 6);  Bulb(15, 4); break;
+                case EdgeArrow.ErOneMany:    Foot(12, 7); Bar(17, 6); break;
+                case EdgeArrow.ErZeroMany:   Foot(12, 7); Bulb(18, 4); break;
+            }
+            return;
+        }
+
         double a1 = angle + Math.PI - arrowAngle;
         double a2 = angle + Math.PI + arrowAngle;
         var p1 = new Point(tip.X + arrowLen * Math.Cos(a1), tip.Y + arrowLen * Math.Sin(a1));

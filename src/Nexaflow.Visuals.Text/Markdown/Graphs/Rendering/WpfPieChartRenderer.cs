@@ -80,8 +80,18 @@ public static class WpfPieChartRenderer
             double sweep   = fraction * 2 * Math.PI;
             double angleEnd = angleStart + sweep;
 
-            var path = BuildSlice(PieCX, pieCY, PieR, angleStart, angleEnd, Slice(i), bgBrush);
-            canvas.Children.Add(path);
+            if (fraction >= 0.999)
+            {
+                // A single full-circle slice — a wedge would be degenerate, so draw the disc directly.
+                var disc = new Ellipse { Width = 2 * PieR, Height = 2 * PieR, Fill = Slice(i) };
+                Canvas.SetLeft(disc, PieCX - PieR);
+                Canvas.SetTop(disc, pieCY - PieR);
+                canvas.Children.Add(disc);
+            }
+            else
+            {
+                canvas.Children.Add(BuildSlice(PieCX, pieCY, PieR, angleStart, angleEnd, Slice(i), bgBrush));
+            }
 
             // Percentage label inside slice (only if slice is wide enough)
             if (fraction >= 0.05)
@@ -172,20 +182,17 @@ public static class WpfPieChartRenderer
     private static Path BuildSlice(double cx, double cy, double r,
         double startAngle, double endAngle, Brush fill, Brush gapStroke)
     {
-        // Inset by 1px for a thin gap between slices
-        const double gap = 0.012; // radians
-        double a0 = startAngle + gap;
-        double a1 = endAngle   - gap;
-        if (a1 <= a0) { a0 = startAngle; a1 = endAngle; }
-
         var center = new Point(cx, cy);
-        var pStart = new Point(cx + r * Math.Cos(a0), cy + r * Math.Sin(a0));
-        var pEnd   = new Point(cx + r * Math.Cos(a1), cy + r * Math.Sin(a1));
+        var pStart = new Point(cx + r * Math.Cos(startAngle), cy + r * Math.Sin(startAngle));
+        var pEnd   = new Point(cx + r * Math.Cos(endAngle),   cy + r * Math.Sin(endAngle));
 
         bool isLarge = (endAngle - startAngle) > Math.PI;
 
+        // A full wedge — no angular inset. The uniform gap between slices comes from stroking every edge
+        // with the surface colour: adjacent slices share a radial edge, so their coincident 2px strokes
+        // form one even seam, while the rim stroke is the same colour as the canvas and so stays invisible.
         var figure = new PathFigure { StartPoint = center, IsClosed = true };
-        figure.Segments.Add(new LineSegment(pStart, isStroked: false));
+        figure.Segments.Add(new LineSegment(pStart, isStroked: true));
         figure.Segments.Add(new ArcSegment(
             pEnd, new Size(r, r), 0,
             isLargeArc: isLarge,
@@ -193,7 +200,14 @@ public static class WpfPieChartRenderer
             isStroked: true));
 
         var geo = new PathGeometry([figure]);
-        return new Path { Data = geo, Fill = fill, Stroke = gapStroke, StrokeThickness = 1 };
+        return new Path
+        {
+            Data            = geo,
+            Fill            = fill,
+            Stroke          = gapStroke,
+            StrokeThickness = 2,
+            StrokeLineJoin  = PenLineJoin.Round,
+        };
     }
 
     // ── Text measurement ───────────────────────────────────────────────────

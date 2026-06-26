@@ -37,4 +37,25 @@ public static class MermaidFrontmatter
         string body = string.Join('\n', lines[(close + 1)..]);
         return (body, string.IsNullOrWhiteSpace(title) ? null : title);
     }
+
+    /// <summary>Returns the raw inner YAML of a leading <c>--- … ---</c> front-matter block (the lines
+    /// between the fences), or <c>null</c> when there is no terminated front-matter.  Used by diagrams
+    /// that apply their <c>config:</c> block (e.g. <c>xychart</c>) rather than discarding it.</summary>
+    public static string? RawBlock(string source)
+    {
+        var lines = source.Split('\n');
+
+        int start = 0;
+        while (start < lines.Length && lines[start].Trim().Length == 0) start++;
+        if (start >= lines.Length || lines[start].Trim() != "---")
+            return null;
+
+        int close = -1;
+        for (int j = start + 1; j < lines.Length; j++)
+            if (lines[j].Trim() == "---") { close = j; break; }
+        if (close < 0)
+            return null;
+
+        return string.Join('\n', lines[(start + 1)..close]);
+    }
 }

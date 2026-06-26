@@ -35,8 +35,17 @@ public enum EdgeStyle { Solid, Dashed, Dotted, Thick }
 
 /// <summary>The marker drawn at an edge end. <c>TriangleHollow</c>/<c>DiamondFilled</c>/<c>DiamondHollow</c>
 /// are UML class-diagram heads (inheritance / composition / aggregation); <c>CrossCircle</c> is the
-/// SysML composite-containment crosshair (requirement diagrams).</summary>
-public enum EdgeArrow { Normal, Open, None, Circle, Cross, TriangleHollow, DiamondFilled, DiamondHollow, CrossCircle }
+/// SysML composite-containment crosshair (requirement diagrams); the <c>Er*</c> markers are ER crow's-foot
+/// cardinality (a min indicator — bar for one, circle for zero — plus a max indicator — bar for one, fork
+/// for many).</summary>
+public enum EdgeArrow
+{
+    Normal, Open, None, Circle, Cross, TriangleHollow, DiamondFilled, DiamondHollow, CrossCircle,
+    ErZeroOne,     // |o  — zero or one  (circle + bar)
+    ErExactlyOne,  // ||  — exactly one  (double bar)
+    ErZeroMany,    // }o  — zero or more (circle + crow's foot)
+    ErOneMany,     // }|  — one or more  (bar + crow's foot)
+}
 public enum GraphDirection { TopDown, LeftRight, BottomUp, RightLeft }
 
 // ── Core domain types ─────────────────────────────────────────────────────────
