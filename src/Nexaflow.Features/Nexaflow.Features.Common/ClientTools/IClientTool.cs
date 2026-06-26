@@ -30,6 +30,13 @@ public interface IClientTool
     bool Parallelizable { get; }
 
     /// <summary>
+    /// True for a tool whose identical repeated calls are legitimate progress, not spinning — e.g. a
+    /// "scroll the page" tool the model calls repeatedly to walk down a long page. Such calls are exempt
+    /// from the agent loop's repeated-batch guard (the overall step cap still bounds them). Default: false.
+    /// </summary>
+    bool ExemptFromRepeatGuard => false;
+
+    /// <summary>
     /// Executes the tool. The harness keeps the UI synchronization context, so implementations may
     /// read and mutate ViewModel state directly and should offload blocking work with
     /// <c>await … Async</c> / <c>Task.Run</c>. Do not throw for an expected failure — return a

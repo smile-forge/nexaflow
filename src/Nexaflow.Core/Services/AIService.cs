@@ -272,8 +272,7 @@ public sealed class AIService : IAIService
         if (provider is null) return null;
 
         var response = await provider.CompleteAsync(
-            [new(LlmRole.System, systemPrompt), new(LlmRole.User, userPrompt)],
-            null, ct);
+            [new(LlmRole.System, systemPrompt), new(LlmRole.User, userPrompt)], ct);
         return response?.RawText;
     }
 
@@ -345,7 +344,7 @@ public sealed class AIService : IAIService
             {
                 ct.ThrowIfCancellationRequested();
 
-                var resp = await provider.CompleteAsync(messages, null, ct);
+                var resp = await provider.CompleteAsync(messages, ct);
                 var raw  = resp?.RawText?.Trim() ?? string.Empty;
                 var turn = ClientBlockParser.Parse(raw);
 
@@ -399,22 +398,27 @@ public sealed class AIService : IAIService
                 // 4. A batch of tool calls.
                 messages.Add(new(LlmRole.Assistant, raw));
 
-                // Loop guard: if the model keeps emitting the SAME batch (tool + args), it's spinning
-                // without progress — stop rather than burn the whole step budget.
-                var signature = string.Join("|", turn.ToolCalls.Select(c => $"{c.Tool}:{c.Arguments.ToJsonString()}"));
-                batchCounts.TryGetValue(signature, out var seen);
-                batchCounts[signature] = seen + 1;
-                if (seen + 1 >= MaxIdenticalBatches)
-                {
-                    const string looped = "I've stopped because I kept repeating the same action without making " +
-                                          "progress. Let me know how you'd like to proceed. _(stopped: repeated tool call)_";
-                    approval.ShowFinal(looped);
-                    return AiResponse.AsMessage(looped, artifacts);
-                }
-
                 var calls = turn.ToolCalls
                     .Select(c => (Call: c, Tool: FindTool(fullCatalog, c.Tool)))
                     .ToList();
+
+                // Loop guard: if the model keeps emitting the SAME batch (tool + args), it's spinning
+                // without progress — stop rather than burn the whole step budget. Tools whose identical
+                // repeats are purposeful (e.g. "scroll the page") opt out; the step cap still bounds them.
+                var guardedBatch = !calls.All(c => c.Tool is { ExemptFromRepeatGuard: true });
+                if (guardedBatch)
+                {
+                    var signature = string.Join("|", turn.ToolCalls.Select(c => $"{c.Tool}:{c.Arguments.ToJsonString()}"));
+                    batchCounts.TryGetValue(signature, out var seen);
+                    batchCounts[signature] = seen + 1;
+                    if (seen + 1 >= MaxIdenticalBatches)
+                    {
+                        const string looped = "I've stopped because I kept repeating the same action without making " +
+                                              "progress. Let me know how you'd like to proceed. _(stopped: repeated tool call)_";
+                        approval.ShowFinal(looped);
+                        return AiResponse.AsMessage(looped, artifacts);
+                    }
+                }
 
                 var needApproval = !planMode &&
                     calls.Any(rc => rc.Tool is { Safety: ToolSafety.RequiresApproval });
@@ -445,12 +449,25 @@ public sealed class AIService : IAIService
                         foreach (var p in att)
                             if (!artifacts.Contains(p)) artifacts.Add(p);
 
-                // Fold in any messages the user interjected while the batch ran, so the model can steer.
                 var toolResultsText = FormatToolResults(results);
+
+                // A tool may have captured an image for the model to see (e.g. the web view screenshot).
+                // How it reaches the conversation model depends on the Image Recognition ability: same model
+                // → attach the image directly; a different model → that model describes it and we pass text.
+                IReadOnlyList<LlmAttachment>? toolImageAttachments = null;
+                var toolImages = results.SelectMany(x => x.Result.Images ?? []).ToList();
+                if (toolImages.Count > 0)
+                {
+                    var (atts, note) = await ResolveToolImagesAsync(provider, toolImages, approval, ct);
+                    toolImageAttachments = atts;
+                    if (note is not null) toolResultsText += "\n\n" + note;
+                }
+
+                // Fold in any messages the user interjected while the batch ran, so the model can steer.
                 var interjections   = approval.TakeInterjections();
                 if (interjections.Count > 0)
                     toolResultsText += "\n\n" + FormatInterjections(interjections);
-                messages.Add(new(LlmRole.User, toolResultsText));
+                messages.Add(new(LlmRole.User, toolResultsText) { Attachments = toolImageAttachments });
             }
         }
         catch (OperationCanceledException) { return null; }
@@ -537,6 +554,78 @@ public sealed class AIService : IAIService
     }
 
     /// <summary>
+    /// Decides how a tool-captured image reaches the conversation model, honouring the grid's Image
+    /// Recognition ability:
+    /// <list type="bullet">
+    /// <item>No image model set, or it's the SAME model as Conversation → attach the image directly when
+    /// that model is multimodal; otherwise return a note that it can't be shown.</item>
+    /// <item>A DIFFERENT image model → ask it to describe the image(s) and return that text for the
+    /// conversation model, so a text-only conversation model still gets the gist. No image is attached.</item>
+    /// </list>
+    /// Returns the attachments to carry on the message (or null), plus an optional note to append to the text.
+    /// </summary>
+    private async Task<(IReadOnlyList<LlmAttachment>? Attachments, string? Note)> ResolveToolImagesAsync(
+        ILlmProvider convProvider, IReadOnlyList<ContextImage> images,
+        IAIResponseHandler approval, CancellationToken ct)
+    {
+        var atts = images
+            .Select(i => new LlmAttachment(i.Label ?? "image", i.MimeType, i.Bytes))
+            .ToList();
+
+        // GetProvider returns the SAME pooled instance for two abilities on the same (config, model),
+        // so reference equality means "the image model and the conversation model are the same model".
+        var imageProvider = GetProvider(AiAbility.ImageRecognition);
+
+        if (imageProvider is null || ReferenceEquals(imageProvider, convProvider))
+        {
+            return convProvider.SupportsImages
+                ? (atts, null)
+                : (null, "(An image was captured, but the current model can't view images, so it wasn't attached.)");
+        }
+
+        // A separate image-recognition model is configured — have it describe each image, then pass the
+        // description as text so the (possibly text-only) conversation model can still use it.
+        approval.ReportProgress("Analysing the captured image…");
+        var descriptions = new List<string>();
+        foreach (var image in atts)
+        {
+            var desc = await DescribeImageAsync(imageProvider, image, ct);
+            if (!string.IsNullOrWhiteSpace(desc)) descriptions.Add(desc!.Trim());
+        }
+
+        return descriptions.Count > 0
+            ? (null, "Description of the captured image (from the image-recognition model):\n\n"
+                     + string.Join("\n\n", descriptions))
+            : (null, "(An image was captured, but it couldn't be described.)");
+    }
+
+    /// <summary>
+    /// Asks the image-recognition model to describe one image. Returns null if that model can't process
+    /// images or the call fails (cancellation propagates).
+    /// </summary>
+    private static async Task<string?> DescribeImageAsync(
+        ILlmProvider imageProvider, LlmAttachment image, CancellationToken ct)
+    {
+        if (!imageProvider.SupportsImages) return null;
+
+        const string system =
+            "You are an image analyst. Describe the image thoroughly and factually so someone who can't see " +
+            "it understands what's there: overall layout, any visible text (transcribe it), UI elements, " +
+            "charts/figures, and anything notable. Be complete but concise; don't speculate beyond what's shown.";
+
+        try
+        {
+            var resp = await imageProvider.CompleteAsync(
+                [new(LlmRole.System, system),
+                 new(LlmRole.User, "Describe this image.") { Attachments = [image] }],
+                ct);
+            return resp?.RawText;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch { return null; }
+    }
+
+    /// <summary>
     /// Asks the Disambiguation-ability model to pick the most relevant page tools for the request.
     /// Falls back to the first <see cref="MaxUnfilteredTools"/> when no ranker is configured.
     /// </summary>
@@ -555,7 +644,7 @@ public sealed class AIService : IAIService
         try
         {
             var resp = await provider.CompleteAsync(
-                [new(LlmRole.System, system), new(LlmRole.User, user)], null, ct);
+                [new(LlmRole.System, system), new(LlmRole.User, user)], ct);
             raw = resp?.RawText ?? string.Empty;
         }
         catch (OperationCanceledException) { throw; }

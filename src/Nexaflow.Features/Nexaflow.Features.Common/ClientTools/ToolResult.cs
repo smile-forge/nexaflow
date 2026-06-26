@@ -16,6 +16,14 @@ public sealed record ToolResult(bool Success, string Summary, string ModelText, 
     public IReadOnlyList<string>? Attachments { get; init; }
 
     /// <summary>
+    /// Images this tool captured for the model to see (e.g. a web page screenshot). The harness
+    /// forwards them to the next model turn as vision input when the conversation model supports
+    /// images; otherwise it tells the model they couldn't be shown. Transient — not persisted as
+    /// conversation artifacts like <see cref="Attachments"/>.
+    /// </summary>
+    public IReadOnlyList<ContextImage>? Images { get; init; }
+
+    /// <summary>
     /// When true the agent run ends immediately and silently after this result: the harness feeds NO
     /// tool-results text back to the model and shows no final message — it just dismisses the response
     /// UI. Used when a tool has handed work off to a background process and there is nothing to report yet.

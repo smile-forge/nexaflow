@@ -30,23 +30,20 @@ public sealed class OllamaLlmProvider : ILlmProvider
     // ── ILlmProvider ───────────────────────────────────────────────────────
 
     public Task<LlmResponse?> CompleteAsync(
-        IReadOnlyList<LlmMessage>     messages,
-        IReadOnlyList<LlmAttachment>? attachments = null,
-        CancellationToken             ct = default)
+        IReadOnlyList<LlmMessage> messages,
+        CancellationToken         ct = default)
     {
         // Ollama's API accepts system messages inline in the messages array
         var msgList = new List<Message>();
-        for (var i = 0; i < messages.Count; i++)
+        foreach (var msg in messages)
         {
-            var msg  = messages[i];
             ChatRole role = msg.Role switch
             {
                 LlmRole.System    => ChatRole.System,
                 LlmRole.Assistant => ChatRole.Assistant,
                 _                 => ChatRole.User
             };
-            var isLastUser = msg.Role == LlmRole.User && i == messages.Count - 1;
-            var content    = isLastUser ? BuildUserContent(msg.Text, attachments) : msg.Text;
+            var content = msg.Role == LlmRole.User ? BuildUserContent(msg.Text, msg.Attachments) : msg.Text;
 
             msgList.Add(new Message { Role = role, Content = content });
         }

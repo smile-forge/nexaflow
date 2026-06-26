@@ -11,6 +11,9 @@ public sealed class ClaudeLlmProvider : ILlmProvider
     public const  string ProviderName = "Claude";
     public string Name => ProviderName;
 
+    /// <summary>Every Claude model in our list (Claude 3 and later) accepts image input.</summary>
+    public bool SupportsImages => true;
+
     private readonly ClaudeConfig               _config;
     private readonly IBackgroundActivityManager _activityManager;
     private readonly string                     _model;
@@ -25,9 +28,8 @@ public sealed class ClaudeLlmProvider : ILlmProvider
     // ── ILlmProvider ───────────────────────────────────────────────────────
 
     public Task<LlmResponse?> CompleteAsync(
-        IReadOnlyList<LlmMessage>     messages,
-        IReadOnlyList<LlmAttachment>? attachments = null,
-        CancellationToken             ct = default)
+        IReadOnlyList<LlmMessage> messages,
+        CancellationToken         ct = default)
     {
         // Claude's API separates the system prompt from the messages array
         string? systemPrompt = null;
@@ -41,14 +43,15 @@ public sealed class ClaudeLlmProvider : ILlmProvider
         var msgParams = new List<MessageParam>();
         for (var i = start; i < messages.Count; i++)
         {
-            var msg        = messages[i];
-            var isLastUser = msg.Role == LlmRole.User && i == messages.Count - 1;
-            var content    = isLastUser ? BuildUserContent(msg.Text, attachments) : msg.Text;
+            var msg     = messages[i];
+            var content = msg.Role == LlmRole.User
+                ? BuildUserContent(msg.Text, msg.Attachments)
+                : new MessageParamContent(msg.Text);
 
             msgParams.Add(new MessageParam
             {
                 Role    = msg.Role == LlmRole.User ? Role.User : Role.Assistant,
-                Content = new MessageParamContent(content)
+                Content = content
             });
         }
 
@@ -126,18 +129,52 @@ public sealed class ClaudeLlmProvider : ILlmProvider
         return Task.FromResult(info);
     }
 
-    private static string BuildUserContent(string prompt, IReadOnlyList<LlmAttachment>? attachments)
+    /// <summary>
+    /// Builds the final user turn. Image attachments become native vision blocks (base64); non-image
+    /// attachments keep the path-as-text behaviour. With no images, returns a plain string content.
+    /// </summary>
+    private static MessageParamContent BuildUserContent(string prompt, IReadOnlyList<LlmAttachment>? attachments)
     {
         if (attachments is null || attachments.Count == 0)
-            return prompt;
+            return new MessageParamContent(prompt);
 
+        var images = attachments.Where(a => a.IsImage).ToList();
+        var files  = attachments.Where(a => !a.IsImage).ToList();
+        var text   = files.Count == 0 ? prompt : AppendFileList(prompt, files);
+
+        if (images.Count == 0)
+            return new MessageParamContent(text);
+
+        var blocks = new List<ContentBlockParam> { new TextBlockParam(text) };
+        foreach (var img in images)
+            blocks.Add(new ImageBlockParam
+            {
+                Source = new Base64ImageSource
+                {
+                    Data      = Convert.ToBase64String(img.ReadBytes()),
+                    MediaType = ToMediaType(img.ResolvedMimeType),
+                },
+            });
+
+        return blocks;   // implicit List<ContentBlockParam> -> MessageParamContent
+    }
+
+    private static string AppendFileList(string prompt, IReadOnlyList<LlmAttachment> files)
+    {
         var sb = new StringBuilder(prompt);
         sb.AppendLine();
         sb.AppendLine();
         sb.AppendLine("Attached files:");
-        foreach (var a in attachments)
+        foreach (var a in files)
             sb.AppendLine($"  {a.FilePath}");
-
         return sb.ToString();
     }
+
+    private static MediaType ToMediaType(string mime) => mime switch
+    {
+        "image/jpeg" => MediaType.ImageJpeg,
+        "image/gif"  => MediaType.ImageGif,
+        "image/webp" => MediaType.ImageWebP,
+        _            => MediaType.ImagePng,
+    };
 }

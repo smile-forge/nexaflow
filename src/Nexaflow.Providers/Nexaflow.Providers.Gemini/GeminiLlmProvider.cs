@@ -10,6 +10,9 @@ public sealed class GeminiLlmProvider : ILlmProvider
     public const  string ProviderName = "Gemini";
     public string Name => ProviderName;
 
+    /// <summary>Gemini models are multimodal; image attachments are sent as inline data parts.</summary>
+    public bool SupportsImages => true;
+
     private readonly GeminiConfig                _config;
     private readonly IBackgroundActivityManager  _activityManager;
     private readonly string                      _model;
@@ -24,9 +27,8 @@ public sealed class GeminiLlmProvider : ILlmProvider
     // ── ILlmProvider ───────────────────────────────────────────────────────
 
     public Task<LlmResponse?> CompleteAsync(
-        IReadOnlyList<LlmMessage>     messages,
-        IReadOnlyList<LlmAttachment>? attachments = null,
-        CancellationToken             ct = default)
+        IReadOnlyList<LlmMessage> messages,
+        CancellationToken         ct = default)
     {
         // Gemini separates system instructions from the conversation turns
         Content? systemInstruction = null;
@@ -43,14 +45,15 @@ public sealed class GeminiLlmProvider : ILlmProvider
         var contents = new List<Content>();
         for (var i = start; i < messages.Count; i++)
         {
-            var msg        = messages[i];
-            var isLastUser = msg.Role == LlmRole.User && i == messages.Count - 1;
-            var text       = isLastUser ? BuildUserText(msg.Text, attachments) : msg.Text;
+            var msg = messages[i];
+            List<Part> parts = msg.Role == LlmRole.User
+                ? BuildUserParts(msg.Text, msg.Attachments)
+                : [new Part { Text = msg.Text }];
 
             contents.Add(new Content
             {
                 Role  = msg.Role == LlmRole.User ? "user" : "model",
-                Parts = [new Part { Text = text }]
+                Parts = parts
             });
         }
 
@@ -121,18 +124,37 @@ public sealed class GeminiLlmProvider : ILlmProvider
         }
     }
 
-    private static string BuildUserText(string prompt, IReadOnlyList<LlmAttachment>? attachments)
+    /// <summary>
+    /// Builds the final user turn's parts. Image attachments become inline-data parts; non-image
+    /// attachments keep the path-as-text behaviour appended to the prompt text part.
+    /// </summary>
+    private static List<Part> BuildUserParts(string prompt, IReadOnlyList<LlmAttachment>? attachments)
     {
         if (attachments is null || attachments.Count == 0)
-            return prompt;
+            return [new Part { Text = prompt }];
 
+        var images = attachments.Where(a => a.IsImage).ToList();
+        var files  = attachments.Where(a => !a.IsImage).ToList();
+        var text   = files.Count == 0 ? prompt : AppendFileList(prompt, files);
+
+        var parts = new List<Part> { new Part { Text = text } };
+        foreach (var img in images)
+            parts.Add(new Part
+            {
+                InlineData = new Blob { Data = img.ReadBytes(), MimeType = img.ResolvedMimeType }
+            });
+
+        return parts;
+    }
+
+    private static string AppendFileList(string prompt, IReadOnlyList<LlmAttachment> files)
+    {
         var sb = new StringBuilder(prompt);
         sb.AppendLine();
         sb.AppendLine();
         sb.AppendLine("Attached files:");
-        foreach (var a in attachments)
+        foreach (var a in files)
             sb.AppendLine($"  {a.FilePath}");
-
         return sb.ToString();
     }
 }

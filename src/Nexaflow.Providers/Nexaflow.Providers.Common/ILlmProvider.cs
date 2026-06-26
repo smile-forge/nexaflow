@@ -16,14 +16,23 @@ public interface ILlmProvider
     string Name { get; }
 
     /// <summary>
+    /// Whether this provider's bound model can accept image attachments (vision input). When true, the
+    /// host may pass image <see cref="LlmAttachment"/>s and the provider encodes them as vision content;
+    /// when false, callers should not send images (the provider would only stringify their paths).
+    /// Best-effort per provider — default false (text-only).
+    /// </summary>
+    bool SupportsImages => false;
+
+    /// <summary>
     /// Sends an ordered list of messages to this provider's bound model and returns the completion.
     /// The first message may carry <see cref="LlmRole.System"/> to set the system prompt; subsequent
-    /// messages alternate <see cref="LlmRole.User"/> / <see cref="LlmRole.Assistant"/>.
+    /// messages alternate <see cref="LlmRole.User"/> / <see cref="LlmRole.Assistant"/>. A message may
+    /// carry <see cref="LlmMessage.Attachments"/> (e.g. an image a tool captured); providers that report
+    /// <see cref="SupportsImages"/> encode image attachments inline, others list their file paths in text.
     /// </summary>
     Task<LlmResponse?> CompleteAsync(
-        IReadOnlyList<LlmMessage>     messages,
-        IReadOnlyList<LlmAttachment>? attachments = null,
-        CancellationToken             ct = default);
+        IReadOnlyList<LlmMessage> messages,
+        CancellationToken         ct = default);
 
     /// <summary>
     /// Returns the list of model identifiers available from this provider (independent of the bound

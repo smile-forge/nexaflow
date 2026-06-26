@@ -3,12 +3,18 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Web.ViewModels;
 using System;
 using System.Diagnostics;
+using System.IO;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace Nexaflow.Features.Web.Views;
 
-public partial class HtmlView : UserControl, IPageView
+public partial class HtmlView : UserControl, IPageView, IAirspaceContent
 {
     private readonly IShellServices _shell;
     private bool _initStarted;   // Loaded can fire more than once (e.g. when a tab is torn off to a new window)
@@ -24,6 +30,12 @@ public partial class HtmlView : UserControl, IPageView
         ViewModel   = viewModel;
         _shell      = shell;
         DataContext = viewModel;
+
+        // Let the view-model drive the live page on demand for AI visual context: capture a screenshot,
+        // read the scroll position, and scroll through a long page.
+        ViewModel.CaptureScreenshotAsync       = CaptureScreenshotAsync;
+        ViewModel.GetScrollInfoAsync           = GetScrollInfoAsync;
+        ViewModel.ScrollByViewportFractionAsync = ScrollByViewportFractionAsync;
 
         Loaded += OnLoaded;
     }
@@ -164,6 +176,81 @@ public partial class HtmlView : UserControl, IPageView
         return scheme == Uri.UriSchemeHttp
             || scheme == Uri.UriSchemeHttps
             || scheme == Uri.UriSchemeFile;
+    }
+
+    // ── IAirspaceContent ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Collapses the WebView2 while a shell overlay covers the page, and restores it after. The WebView's
+    /// native HWND draws above all WPF content, so without this the overlay would be hidden behind it.
+    /// </summary>
+    void IAirspaceContent.SetCoveredByOverlay(bool covered) => ViewModel.IsCovered = covered;
+
+    /// <summary>
+    /// Captures the current page as a PNG, downscaled to a modest longest edge so the upload stays cheap.
+    /// Runs on the UI thread (WebView2 + WPF imaging are thread-affine); returns null if the browser isn't ready.
+    /// </summary>
+    private async Task<byte[]?> CaptureScreenshotAsync(CancellationToken ct)
+    {
+        var core = WebView.CoreWebView2;
+        if (core is null) return null;
+
+        using var raw = new MemoryStream();
+        await core.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, raw);
+        ct.ThrowIfCancellationRequested();
+        raw.Position = 0;
+
+        var frame = BitmapFrame.Create(raw, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
+
+        const double maxEdge = 1200;
+        var longest = Math.Max(frame.PixelWidth, frame.PixelHeight);
+        var scale   = longest > maxEdge ? maxEdge / longest : 1.0;
+        BitmapSource source = scale < 1.0
+            ? new TransformedBitmap(frame, new ScaleTransform(scale, scale))
+            : frame;
+
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(source));
+        using var outStream = new MemoryStream();
+        encoder.Save(outStream);
+        return outStream.ToArray();
+    }
+
+    /// <summary>Reads the page's current scroll offset and content/viewport heights via JavaScript.</summary>
+    private async Task<WebScrollInfo?> GetScrollInfoAsync(CancellationToken ct)
+    {
+        var core = WebView.CoreWebView2;
+        if (core is null) return null;
+
+        // ExecuteScriptAsync returns the result JSON-serialized; return a plain object literal.
+        var json = await core.ExecuteScriptAsync(
+            "(function(){var d=document.documentElement,b=document.body;" +
+            "return {y:window.scrollY," +
+            "h:Math.max(d?d.scrollHeight:0,b?b.scrollHeight:0,window.innerHeight)," +
+            "v:window.innerHeight};})()");
+        ct.ThrowIfCancellationRequested();
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var r = doc.RootElement;
+            return new WebScrollInfo(
+                r.GetProperty("y").GetDouble(),
+                r.GetProperty("h").GetDouble(),
+                r.GetProperty("v").GetDouble());
+        }
+        catch { return null; }   // page not ready / script blocked — caller proceeds without metrics
+    }
+
+    /// <summary>Scrolls by a signed fraction of the viewport height (instant), then lets it settle.</summary>
+    private async Task ScrollByViewportFractionAsync(double fraction, CancellationToken ct)
+    {
+        var core = WebView.CoreWebView2;
+        if (core is null) return;
+
+        var f = fraction.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        await core.ExecuteScriptAsync($"window.scrollBy(0, Math.round(window.innerHeight * ({f})));");
+        await Task.Delay(250, ct);   // let the scroll (and any lazy content) settle before capture
     }
 
     // ── IPageView ─────────────────────────────────────────────────────────

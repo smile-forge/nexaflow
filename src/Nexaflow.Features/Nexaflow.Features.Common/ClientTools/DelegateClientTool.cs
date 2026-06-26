@@ -13,13 +13,15 @@ public sealed class DelegateClientTool(
     IReadOnlyList<ClientToolParameter> parameters,
     ToolSafety safety,
     Func<JsonObject, CancellationToken, Task<ToolResult>> invoke,
-    bool parallelizable = false) : IClientTool
+    bool parallelizable = false,
+    bool exemptFromRepeatGuard = false) : IClientTool
 {
     public string Name { get; } = name;
     public string Description { get; } = description;
     public IReadOnlyList<ClientToolParameter> Parameters { get; } = parameters;
     public ToolSafety Safety { get; } = safety;
     public bool Parallelizable { get; } = parallelizable;
+    public bool ExemptFromRepeatGuard { get; } = exemptFromRepeatGuard;
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) =>
         invoke(arguments, ct);
