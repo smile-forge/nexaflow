@@ -1,5 +1,6 @@
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -122,7 +123,7 @@ public sealed class ExternalAppRegistry
     {
         CriteriaType.Extension   => ExtensionMatches(c.Value,
                                         Path.GetExtension(entry.Name).TrimStart('.').ToLowerInvariant()),
-        CriteriaType.PathPattern => c.Value is "*" or "*.*" || GlobMatcher.IsMatch(entry.FullPath, c.Value),
+        CriteriaType.PathPattern => c.Value is "*" or "*.*" || Glob.IsMatch(entry.FullPath, c.Value),
         _                        => false,
     };
 

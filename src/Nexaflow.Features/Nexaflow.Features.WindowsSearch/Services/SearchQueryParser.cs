@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.WindowsSearch.Services;
 
@@ -16,7 +17,6 @@ public sealed class ParsedQuery
 public static class SearchQueryParser
 {
     private static readonly Regex QuotedWhole    = new(@"^""[^""]+""$",              RegexOptions.Compiled);
-    private static readonly Regex GlobChars      = new(@"[\*\?]",                    RegexOptions.Compiled);
     private static readonly Regex PrefixSyntax   = new(@"(^|\s)[+\-]\S",            RegexOptions.Compiled);
     private static readonly Regex FilterKeyword  = new(
         @"\b(size|date|modified|before|after|larger|smaller):",
@@ -46,13 +46,13 @@ public static class SearchQueryParser
         }
 
         // ── File glob (no spaces, contains * or ?) ────────────────────────────
-        if (GlobChars.IsMatch(trimmed) && !trimmed.Contains(' '))
+        if (Glob.ContainsGlobChars(trimmed) && !trimmed.Contains(' '))
         {
             return new ParsedQuery
             {
                 RawInput    = raw,
                 IsGlob      = true,
-                WhereClause = $"System.FileName LIKE '{GlobToLike(trimmed)}'"
+                WhereClause = $"System.FileName LIKE '{Glob.ToSqlLike(trimmed)}'"
             };
         }
 
@@ -92,8 +92,8 @@ public static class SearchQueryParser
         // ── Plain terms (content + filename) ─────────────────────────────────
         var terms = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var termClauses = terms.Select(t =>
-            GlobChars.IsMatch(t)
-                ? $"System.FileName LIKE '{GlobToLike(t)}'"
+            Glob.ContainsGlobChars(t)
+                ? $"System.FileName LIKE '{Glob.ToSqlLike(t)}'"
                 : $"(CONTAINS(System.Search.Contents,'{EscapeSql(t)}')" +
                   $" OR System.FileName LIKE '%{EscapeLike(t)}%')");
         return new ParsedQuery
@@ -117,13 +117,6 @@ public static class SearchQueryParser
         };
 
     // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private static string GlobToLike(string glob)
-        => glob.Replace("%", "[%]")
-               .Replace("_", "[_]")
-               .Replace("'", "''")
-               .Replace("*", "%")
-               .Replace("?", "_");
 
     private static string EscapeSql(string s)  => s.Replace("'", "''");
     private static string EscapeLike(string s) => s.Replace("'", "''")

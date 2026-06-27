@@ -2,30 +2,46 @@ using System.Collections.Concurrent;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace Nexaflow.Features.WindowsFileSystem.Services;
+namespace Nexaflow.IO.Common;
 
 /// <summary>
-/// Matches a full file path against a glob pattern. Shared by
-/// <see cref="FileMapManager"/> (PathPattern criteria) and
-/// <see cref="ExternalAppRegistry"/> so the two stay in lock-step.
+/// Shared glob vocabulary used across the app: in-process path/name matching
+/// (<see cref="IsMatch"/>), a cheap "does this contain glob chars" check
+/// (<see cref="ContainsGlobChars"/>), and glob→SQL <c>LIKE</c> conversion
+/// (<see cref="ToSqlLike"/>) for query builders.
 ///
-/// Tokens (case-insensitive, either <c>\</c> or <c>/</c> accepted as a separator):
+/// Match tokens (case-insensitive, either <c>\</c> or <c>/</c> accepted as a separator):
 ///   <c>?</c>  — any single character except a separator
 ///   <c>*</c>  — any run of characters within a single path segment
 ///   <c>**</c> — any number of full path segments (e.g. <c>C:\src\**\*.cs</c>
 ///               matches <c>C:\src\a.cs</c> and <c>C:\src\x\y\a.cs</c>)
 /// Everything else is matched literally. Compiled regexes are cached per pattern.
 /// </summary>
-public static class GlobMatcher
+public static class Glob
 {
     private static readonly ConcurrentDictionary<string, Regex> _cache = new();
 
-    /// <summary>True when <paramref name="path"/> matches <paramref name="pattern"/>.</summary>
-    public static bool IsMatch(string path, string pattern)
+    /// <summary>True when <paramref name="text"/> (a path or bare file name) matches
+    /// <paramref name="pattern"/>. A pattern with no separator matches against a bare name.</summary>
+    public static bool IsMatch(string text, string pattern)
     {
         if (string.IsNullOrEmpty(pattern)) return false;
-        return _cache.GetOrAdd(pattern, Compile).IsMatch(path);
+        return _cache.GetOrAdd(pattern, Compile).IsMatch(text);
     }
+
+    /// <summary>True when <paramref name="s"/> contains a glob wildcard (<c>*</c> or <c>?</c>).</summary>
+    public static bool ContainsGlobChars(string s) => s.IndexOfAny(['*', '?']) >= 0;
+
+    /// <summary>
+    /// Converts a glob to a SQL <c>LIKE</c> pattern: existing <c>%</c>/<c>_</c> are escaped to literals,
+    /// single quotes doubled, then <c>*</c>→<c>%</c> and <c>?</c>→<c>_</c>. For OLE DB / SQL query builders.
+    /// </summary>
+    public static string ToSqlLike(string glob)
+        => glob.Replace("%", "[%]")
+               .Replace("_", "[_]")
+               .Replace("'", "''")
+               .Replace("*", "%")
+               .Replace("?", "_");
 
     private static Regex Compile(string pattern)
     {
