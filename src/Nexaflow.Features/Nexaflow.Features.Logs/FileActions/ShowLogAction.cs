@@ -12,7 +12,7 @@ public sealed class ShowLogAction : IFileAction, ICacheable
 
     public ShowLogAction(IShellServices shellServices) => _shellServices = shellServices;
 
-    public string DisplayName           => "Open Log";
+    public string DisplayName           => "As Log";
     public string Icon                  => "📋";
     public static string? StaticExperienceId => "/text/log";
     public string ExperienceId          => "/text/log";
