@@ -306,34 +306,6 @@ internal sealed class CodeSamples : ISampleSet
             }
             """),
 
-        // Jupyter notebook: json envelope + python in code-cell source (array-of-lines, the format Jupyter
-        // writes). The structure extractor decodes each cell, so the class shows in the code map.
-        SampleFile.Text("notebook.ipynb",
-            """
-            {
-             "cells": [
-              {"cell_type": "markdown", "source": ["# Circles\n"], "metadata": {}},
-              {"cell_type": "code", "metadata": {}, "outputs": [], "execution_count": null, "source": [
-                 "import math\n",
-                 "\n",
-                 "class Circle:\n",
-                 "    def __init__(self, radius):\n",
-                 "        self.radius = radius\n",
-                 "\n",
-                 "    def area(self):\n",
-                 "        return math.pi * self.radius ** 2\n"
-              ]},
-              {"cell_type": "code", "metadata": {}, "outputs": [], "execution_count": null, "source": [
-                 "def total_area(circles):\n",
-                 "    return sum(c.area() for c in circles)\n"
-              ]}
-             ],
-             "metadata": {"kernelspec": {"language": "python", "name": "python3"}},
-             "nbformat": 4,
-             "nbformat_minor": 5
-            }
-            """),
-
         // ── Systems / JVM languages (structure extractor) ──
 
         SampleFile.Text("point.rs",

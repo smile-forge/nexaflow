@@ -41,7 +41,6 @@ public sealed class CodeHighlighter : IDisposable
     private static readonly Dictionary<string, string> NativeAlias = new()
     {
         ["jinja"] = "html",   // markup parses as html; python injected into {{ }}/{% %}
-        ["ipynb"] = "json",   // a notebook is json; the kernel language injected into code-cell source
     };
 
     private CodeHighlighter(string grammarId, Language language, Parser parser, Query query)

@@ -54,6 +54,7 @@ public static class TestSampleData
         new TabularSamples(),
         new TextSamples(),
         new CodeSamples(),
+        new NotebookSamples(),
         new JsonSamples(),
         new LogSamples(),
         new BinarySamples(),

@@ -14,22 +14,6 @@ namespace Nexaflow.Visuals.Text.Editor.Highlighting;
 /// </summary>
 internal sealed class TreeSitterColorizer : DocumentColorizingTransformer
 {
-    // capture name → syntax-palette resource key (per-theme TextSwatch.*)
-    private static readonly Dictionary<string, string> CaptureToToken = new()
-    {
-        ["comment"]   = "TextSwatch.Comment",
-        ["string"]    = "TextSwatch.String",
-        ["number"]    = "TextSwatch.Number",
-        ["keyword"]   = "TextSwatch.Keyword",
-        ["type"]      = "TextSwatch.Type",
-        ["constant"]  = "TextSwatch.Constant",
-        ["function"]  = "TextSwatch.Function",
-        ["parameter"] = "TextSwatch.Parameter",
-        ["variable"]  = "TextSwatch.Parameter",
-        ["tag"]       = "TextSwatch.Tag",         // html/markup element names
-        ["attribute"] = "TextSwatch.Attribute",   // html attributes, css properties
-    };
-
     private readonly Dictionary<string, Brush?> _brushCache = new();
     private IReadOnlyList<HighlightSpan> _spans = [];
 
@@ -60,7 +44,7 @@ internal sealed class TreeSitterColorizer : DocumentColorizingTransformer
         if (_brushCache.TryGetValue(capture, out var cached)) return cached;
 
         Brush? brush = null;
-        if (CaptureToToken.TryGetValue(capture, out var key))
+        if (SyntaxTokenMap.ResourceKey(capture) is { } key)
             brush = Application.Current?.TryFindResource(key) as Brush;
         _brushCache[capture] = brush;
         return brush;

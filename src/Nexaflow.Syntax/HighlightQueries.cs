@@ -53,14 +53,6 @@ public static class HighlightQueries
             [(true) (false) (null)] @constant
             """,
 
-        // Jupyter notebooks are json (aliased to the json native in CodeHighlighter); the kernel language is
-        // injected into each code cell's source. Same query as json so the notebook envelope still colours.
-        ["ipynb"] =
-            """
-            (string) @string
-            (number) @number
-            [(true) (false) (null)] @constant
-            """,
 
         ["python"] =
             """

@@ -40,7 +40,7 @@ public static class LanguageInjections
     public static bool HasInjections(string outerGrammarId) => outerGrammarId switch
     {
         "html" or "ruby" or "embedded-template" or "php" or "jinja"
-            or "javascript" or "typescript" or "ipynb" => true,
+            or "javascript" or "typescript" => true,
         _ => false,
     };
 
@@ -54,7 +54,6 @@ public static class LanguageInjections
         "php"                       => FindPhp(root),
         "jinja"                     => FindJinja(root, text),
         "javascript" or "typescript" => FindTaggedTemplates(root),
-        "ipynb"                     => FindIpynb(root),
         _                           => [],
     };
 
@@ -203,99 +202,8 @@ public static class LanguageInjections
         return list;
     }
 
-    // ── Jupyter (.ipynb): JSON whose code cells hold source in the kernel language ──────────────
-    // Outer grammar is json (aliased from "ipynb" in CodeHighlighter). Each code cell's `source` is a JSON
-    // array of line-strings; we inject the kernel language over each string's *content* (between the quotes).
-    // Per-line because the JSON `","` separators sit between array elements — a single combined range would
-    // swallow them; this colours each line but doesn't see multi-line constructs (a best-effort limitation).
-    private static List<InjectionRange> FindIpynb(Node root)
-    {
-        var list = new List<InjectionRange>();
-        if (FirstOfType(root, "object") is not { } top) return list;
-
-        var lang = NormalizeKernel(DetectKernel(top));
-        if (lang is null) return list;
-
-        if (ValueOfKey(top, "cells") is not { Type: "array" } cells) return list;
-        foreach (var cell in cells.NamedChildren)
-        {
-            if (cell.Type != "object") continue;
-            var kind = ValueOfKey(cell, "cell_type") is { } ct ? StringValue(ct) : "code";
-            if (kind != "code") continue;                       // markdown/raw cells: no grammar, skip
-            if (ValueOfKey(cell, "source") is not { } source) continue;
-
-            if (source.Type == "array")
-                foreach (var el in source.NamedChildren) AddStringContent(el, lang, list);
-            else
-                AddStringContent(source, lang, list);           // some writers store source as one string
-        }
-        return list;
-    }
-
-    private static void AddStringContent(Node maybeString, string target, List<InjectionRange> list)
-    {
-        if (maybeString.Type != "string") return;
-        foreach (var c in maybeString.NamedChildren)
-            if (c.Type == "string_content") { Add(list, c, target); return; }
-    }
-
-    /// <summary>The kernel language from <c>metadata.kernelspec.language</c> or
-    /// <c>metadata.language_info.name</c>, or null when absent.</summary>
-    private static string? DetectKernel(Node top)
-    {
-        if (ValueOfKey(top, "metadata") is not { Type: "object" } meta) return "python";  // default for a bare notebook
-        if (ValueOfKey(meta, "kernelspec") is { Type: "object" } ks && ValueOfKey(ks, "language") is { } l)
-            return StringValue(l);
-        if (ValueOfKey(meta, "language_info") is { Type: "object" } li && ValueOfKey(li, "name") is { } n)
-            return StringValue(n);
-        return "python";
-    }
-
-    /// <summary>Maps a kernel language name to a grammar id we can load (python3/ipython → python), or null.</summary>
-    private static string? NormalizeKernel(string? kernel)
-    {
-        if (string.IsNullOrWhiteSpace(kernel)) return null;
-        var k = kernel.ToLowerInvariant();
-        if (k.Contains("python") || k == "ipython") return "python";
-        return k switch
-        {
-            "ruby"                  => "ruby",
-            "javascript" or "node"  => "javascript",
-            "typescript"            => "typescript",
-            "csharp" or "c#"        => "c-sharp",
-            _                       => null,   // unknown kernel ⇒ no injection
-        };
-    }
-
-    /// <summary>The value node of the first <c>pair</c> in <paramref name="obj"/> whose key string equals
-    /// <paramref name="key"/> (field-name-independent: key = first string child, value = the pair's value).</summary>
-    private static Node? ValueOfKey(Node obj, string key)
-    {
-        foreach (var pair in obj.NamedChildren)
-        {
-            if (pair.Type != "pair") continue;
-            if (pair.GetChildForField("key") is not { } k || StringValue(k) != key) continue;
-            return pair.GetChildForField("value");
-        }
-        return null;
-    }
-
-    private static Node? FirstOfType(Node n, string type)
-    {
-        foreach (var c in n.NamedChildren)
-            if (c.Type == type) return c;
-        return null;
-    }
-
-    /// <summary>The decoded-ish text of a JSON string node (its <c>string_content</c>, else quote-stripped).</summary>
-    private static string StringValue(Node n)
-    {
-        if (n.Type == "string")
-            foreach (var c in n.NamedChildren)
-                if (c.Type == "string_content") return c.Text;
-        var t = n.Text;
-        return t.Length >= 2 && t[0] == '"' && t[^1] == '"' ? t[1..^1] : t;
-    }
+    // (Jupyter .ipynb is handled by the dedicated Notebook feature, which decodes each cell's JSON source —
+    // the in-place injection model can't, since cell newlines are JSON-escaped.)
 
     // ── shared ─────────────────────────────────────────────────────────────────────────────────
     private static void Add(List<InjectionRange> list, Node node, string targetGrammarId, string? group = null)
