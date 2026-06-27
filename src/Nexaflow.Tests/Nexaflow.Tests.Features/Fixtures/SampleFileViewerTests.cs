@@ -32,6 +32,7 @@ public class SampleFileViewerTests : FileSystemUiTestBase
         ("logs",     "LogView"),
         ("binary",   "HexView"),
         ("images",   "ImageView"),
+        ("audio",    "AudioView"),
     ];
 
     /// <summary>Yields one case per generated sample file: (subDir, fileName, expectedViewerId).</summary>

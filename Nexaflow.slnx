@@ -7,6 +7,7 @@
   </Configurations>
   <Folder Name="/NexaFlow.Features/">
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.AIChat/Nexaflow.Features.AIChat.csproj" Id="2f50c24e-a2af-46ae-908a-15dea1c28659" />
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Audio/Nexaflow.Features.Audio.csproj" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Code/Nexaflow.Features.Code.csproj" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Common/Nexaflow.Features.Common.csproj" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Notebook/Nexaflow.Features.Notebook.csproj" />

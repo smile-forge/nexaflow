@@ -53,6 +53,7 @@ The file-viewer features additionally get a per-file open-smoke UI case from the
 | Console | — | — |
 | Dotnet | ✅ `DotnetTargetScanner`, `DotnetViewletViewModel` | — |
 | Git | ✅ `GitService` | — |
+| Audio | ✅ `LrcParser`, `AudioFileTypes`, `WaveformAnalyzer` | ✅ *via SampleFileViewer* (`audio` → `AudioView`) |
 | Hex | ✅ `HexBuffer`, `HexViewModel` | ✅ *via SampleFileViewer* (`binary` → `HexView`) |
 | Images | — | — |
 | Json | ✅ `JsonFileLoader` (small + large streaming, virtual-chunk windowing, BOM, estimation) | ✅ *via SampleFileViewer* (`json` → `JsonView`) |
@@ -163,6 +164,7 @@ route), and waits for the viewer's root `AutomationProperties.AutomationId`:
 | `json`     | `.json` | `JsonView` |
 | `logs`     | `.log` | `LogView` |
 | `binary`   | `.bin` `.dat` | `HexView` |
+| `audio`    | `.wav` (+ `.mp3` `.flac` `.m4a` `.aac` `.wma` `.ogg` `.opus` at runtime) | `AudioView` |
 
 The default-open route is deterministic because the UI test runs against a fresh `NEXAFLOW_CONFIG_DIR`:
 the file-type map (`FileMapManager`) is seeded from the bundled `default-filemap.json`, which maps each

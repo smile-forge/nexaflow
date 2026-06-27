@@ -7,6 +7,7 @@ under the license noted below.
 | [Anthropic SDK](https://github.com/tghamm/Anthropic.SDK) | MIT |
 | [AvalonEdit](https://github.com/icsharpcode/AvalonEdit) | MIT |
 | [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) | MIT |
+| [Concentus](https://github.com/lostromb/concentus) (+ Oggfile) | MIT |
 | [Google.GenAI](https://github.com/googleapis/dotnet-genai) | Apache-2.0 |
 | [HtmlAgilityPack](https://github.com/zzzprojects/html-agility-pack) | MIT |
 | [JsonPath.Net](https://github.com/json-everything/json-everything) | MIT |
@@ -14,8 +15,10 @@ under the license noted below.
 | [Markdig](https://github.com/xoofx/markdig) | BSD-2-Clause |
 | [Microsoft.Web.WebView2](https://developer.microsoft.com/microsoft-edge/webview2/) | Microsoft Software License |
 | [NAudio](https://github.com/naudio/NAudio) | MIT |
+| [NAudio.Vorbis](https://github.com/naudio/Vorbis) | MIT |
 | [OllamaSharp](https://github.com/awaescher/OllamaSharp) | MIT |
 | [OpenAI .NET](https://github.com/openai/openai-dotnet) | MIT |
+| [TagLibSharp](https://github.com/mono/taglib-sharp) | LGPL-2.1 |
 | [tree-sitter](https://github.com/tree-sitter/tree-sitter) | MIT |
 | [TreeSitter.DotNet](https://github.com/mariusgreuel/tree-sitter-dotnet-bindings) (+ bundled grammars) | MIT |
 | [Updatum](https://github.com/sn4k3/Updatum) | MIT |

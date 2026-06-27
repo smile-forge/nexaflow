@@ -61,6 +61,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.AIChat\Nexaflow.Features.AIChat.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Audio\Nexaflow.Features.Audio.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Code\Nexaflow.Features.Code.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Notebook\Nexaflow.Features.Notebook.csproj" />
