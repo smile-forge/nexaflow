@@ -53,6 +53,15 @@ public static class HighlightQueries
             [(true) (false) (null)] @constant
             """,
 
+        // Jupyter notebooks are json (aliased to the json native in CodeHighlighter); the kernel language is
+        // injected into each code cell's source. Same query as json so the notebook envelope still colours.
+        ["ipynb"] =
+            """
+            (string) @string
+            (number) @number
+            [(true) (false) (null)] @constant
+            """,
+
         ["python"] =
             """
             (comment) @comment
@@ -108,6 +117,153 @@ public static class HighlightQueries
               "def" "class" "module" "end" "if" "elsif" "else" "unless" "while" "until"
               "do" "return" "then" "case" "when" "begin" "rescue" "ensure" "yield"
               "and" "or" "not" "in"
+            ] @keyword
+            """,
+
+        // ── Markup / templating (also the injection hosts) ──────────────────────────────────────
+        // HTML colours tags + attributes; the <script>/<style> bodies are left to language injection
+        // (javascript/css), so raw_text is intentionally NOT captured here.
+        ["html"] =
+            """
+            (comment) @comment
+            (doctype) @keyword
+            (tag_name) @tag
+            (attribute_name) @attribute
+            (quoted_attribute_value) @string
+            """,
+
+        // Jinja parses as HTML (the markup) and injects python into {{ }}/{% %} (see LanguageInjections);
+        // its native grammar is aliased to html in CodeHighlighter, so this query must be html-valid.
+        ["jinja"] =
+            """
+            (comment) @comment
+            (doctype) @keyword
+            (tag_name) @tag
+            (attribute_name) @attribute
+            (quoted_attribute_value) @string
+            """,
+
+        ["css"] =
+            """
+            (comment) @comment
+            (tag_name) @tag
+            (class_name) @type
+            (id_name) @type
+            (property_name) @attribute
+            (plain_value) @variable
+            (integer_value) @number
+            (float_value) @number
+            (color_value) @constant
+            (string_value) @string
+            (keyword_query) @keyword
+            """,
+
+        // ERB: the only thing to colour directly is the <%# … %> comment; <% code %> → ruby and the
+        // surrounding markup → html both come from language injection.
+        ["embedded-template"] =
+            """
+            (comment) @comment
+            """,
+
+        // Razor unifies C# and markup in one grammar, so we colour its (C#-shaped) nodes directly rather
+        // than injecting. Conservative: only nodes verified present in the razor grammar.
+        ["razor"] =
+            """
+            (identifier) @variable
+            ((identifier) @type (#match? @type "^[A-Z]"))
+            (razor_comment) @comment
+            (predefined_type) @type
+            (modifier) @keyword
+            (integer_literal) @number
+            (string_literal) @string
+            (string_literal_content) @string
+            (local_function_statement name: (identifier) @function)
+            (member_access_expression name: (identifier) @function)
+            """,
+
+        // PHP parses its code natively; the surrounding raw HTML (text nodes) is injected as html. Capture
+        // string_content (not the whole encapsed_string) so interpolated $vars keep the variable colour.
+        ["php"] =
+            """
+            (name) @variable
+            (variable_name) @variable
+            (comment) @comment
+            (string_content) @string
+            (integer) @number
+            (float) @number
+            (visibility_modifier) @keyword
+            (function_definition name: (name) @function)
+            (method_declaration name: (name) @function)
+            (function_call_expression function: (name) @function)
+            [
+              "function" "return" "echo" "if" "else" "elseif" "foreach" "while" "for"
+              "class" "new" "public" "private" "protected" "static" "use" "namespace"
+            ] @keyword
+            """,
+
+        // ── Systems / JVM languages (structure extractor + colour) ──────────────────────────────
+        ["rust"] =
+            """
+            (line_comment) @comment
+            (block_comment) @comment
+            (identifier) @variable
+            (type_identifier) @type
+            (primitive_type) @type
+            (field_identifier) @variable
+            (integer_literal) @number
+            (float_literal) @number
+            (boolean_literal) @constant
+            (char_literal) @string
+            (string_literal) @string
+            (visibility_modifier) @keyword
+            (function_item name: (identifier) @function)
+            (function_signature_item name: (identifier) @function)
+            (call_expression function: (identifier) @function)
+            [
+              "use" "mod" "struct" "enum" "trait" "impl" "fn" "let" "const" "static"
+              "match" "if" "else" "for" "while" "loop" "return" "in" "as" "where" "ref" "move"
+            ] @keyword
+            """,
+
+        ["cpp"] =
+            """
+            (comment) @comment
+            (identifier) @variable
+            (type_identifier) @type
+            (namespace_identifier) @type
+            (primitive_type) @type
+            (field_identifier) @variable
+            (number_literal) @number
+            (string_literal) @string
+            (char_literal) @string
+            (access_specifier) @keyword
+            (function_declarator declarator: (identifier) @function)
+            (function_declarator declarator: (field_identifier) @function)
+            [
+              "class" "struct" "enum" "namespace" "template" "typename" "using" "return"
+              "if" "else" "for" "while" "switch" "case" "break" "continue" "new" "delete"
+              "const" "static" "virtual"
+            ] @keyword
+            """,
+
+        ["java"] =
+            """
+            (line_comment) @comment
+            (block_comment) @comment
+            (identifier) @variable
+            (type_identifier) @type
+            (integral_type) @type
+            (void_type) @type
+            (decimal_integer_literal) @number
+            (string_literal) @string
+            (marker_annotation name: (identifier) @attribute)
+            (method_declaration name: (identifier) @function)
+            (method_invocation name: (identifier) @function)
+            (this) @keyword
+            [
+              "package" "import" "public" "private" "protected" "class" "interface" "enum"
+              "extends" "implements" "static" "final" "abstract" "new" "return"
+              "if" "else" "for" "while" "switch" "case" "break" "continue" "try" "catch" "finally" "throw" "throws"
             ] @keyword
             """,
     };

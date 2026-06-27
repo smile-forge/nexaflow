@@ -36,8 +36,17 @@ public sealed record OutlineType(string Name, int Line, OutlineKind Kind, string
     public IReadOnlyList<BaseRef> Bases { get; init; } = [];
 }
 
-/// <summary>The structural outline of one source file: its imports, declared types (with members), and any
-/// top-level members (free functions). Produced by <see cref="CodeStructureExtractor"/>.</summary>
+/// <summary>A region of the file written in another language (the JavaScript inside an HTML
+/// <c>&lt;script&gt;</c>, the Ruby inside an ERB block, …), with its own structural outline. Rendered as a
+/// linked sub-graph in the class diagram. <see cref="Language"/> is the embedded grammar id, <see cref="HostLine"/>
+/// the 1-based line where the region begins (so the sub-graph heading can link back to it), and
+/// <see cref="Outline"/> the embedded structure — its line numbers already mapped to absolute document lines and
+/// its AST paths namespaced so they stay unique within the host.</summary>
+public sealed record EmbeddedOutline(string Language, string HostLabel, int HostLine, CodeOutline Outline);
+
+/// <summary>The structural outline of one source file: its imports, declared types (with members), any
+/// top-level members (free functions), and any embedded-language regions. Produced by
+/// <see cref="CodeStructureExtractor"/>.</summary>
 public sealed record CodeOutline(
     IReadOnlyList<ImportRef> Imports,
     IReadOnlyList<OutlineType> Types,
@@ -45,5 +54,9 @@ public sealed record CodeOutline(
 {
     public static readonly CodeOutline Empty = new([], [], []);
 
-    public bool HasContent => Imports.Count > 0 || Types.Count > 0 || TopLevel.Count > 0;
+    /// <summary>Embedded-language regions (HTML's script/style, ERB's Ruby, …), each a linked sub-graph.</summary>
+    public IReadOnlyList<EmbeddedOutline> Embedded { get; init; } = [];
+
+    public bool HasContent =>
+        Imports.Count > 0 || Types.Count > 0 || TopLevel.Count > 0 || Embedded.Count > 0;
 }

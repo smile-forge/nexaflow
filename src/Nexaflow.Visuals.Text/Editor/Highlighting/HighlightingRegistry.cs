@@ -39,7 +39,20 @@ public static class HighlightingRegistry
         RegisterTreeSitter("python",     ".py", ".pyw");
         RegisterTreeSitter("ruby",       ".rb", ".rbw", ".rake", ".gemspec", ".ru");
         RegisterTreeSitter("json",       ".json");
-        // Markup/config (xml, html, css, …) intentionally stay on AvalonEdit's built-in .xshd.
+        RegisterTreeSitter("rust",       ".rs");
+        RegisterTreeSitter("cpp",        ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".ipp");
+        RegisterTreeSitter("java",       ".java");
+
+        // Markup / templating languages — also the hosts for embedded-language injection (a <script> in
+        // HTML, the Ruby in an ERB/Razor block, the HTML around <?php …?>). See LanguageInjections.
+        RegisterTreeSitter("html",              ".html", ".htm");
+        RegisterTreeSitter("css",               ".css");
+        RegisterTreeSitter("embedded-template", ".erb");
+        RegisterTreeSitter("razor",             ".razor", ".cshtml");
+        RegisterTreeSitter("php",               ".php", ".phtml");
+        RegisterTreeSitter("jinja",             ".j2", ".jinja", ".jinja2");   // html + python {{ }}/{% %}
+        RegisterTreeSitter("ipynb",             ".ipynb");                     // json + per-cell kernel language
+        // xml/xaml/xsl stay on AvalonEdit's built-in .xshd (no bundled tree-sitter xml grammar).
     }
 
     /// <summary>Registers a tree-sitter grammar for a set of extensions (called during tree-sitter setup).</summary>

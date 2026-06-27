@@ -26,6 +26,8 @@ internal sealed class TreeSitterColorizer : DocumentColorizingTransformer
         ["function"]  = "TextSwatch.Function",
         ["parameter"] = "TextSwatch.Parameter",
         ["variable"]  = "TextSwatch.Parameter",
+        ["tag"]       = "TextSwatch.Tag",         // html/markup element names
+        ["attribute"] = "TextSwatch.Attribute",   // html attributes, css properties
     };
 
     private readonly Dictionary<string, Brush?> _brushCache = new();
