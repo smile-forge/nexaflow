@@ -22,6 +22,13 @@ public partial class FileActionViewModel : ObservableObject
     /// <summary>Invoked after a successful action so the view can refresh the file list / tree.</summary>
     public event Action? ActionExecuted;
 
+    /// <summary>
+    /// Raised when the action failed with a user-facing reason (e.g. a paste blocked because the
+    /// file is in use, or the destination isn't writable). The host shows the message; faults that
+    /// aren't <see cref="FileOperationException"/> are left to propagate to the global handler.
+    /// </summary>
+    public event Action<string>? ActionFailed;
+
     /// <summary>Raised immediately after the action executes — dims all other buttons.</summary>
     public event Action<FileActionViewModel>? FlashBegan;
 
@@ -76,9 +83,19 @@ public partial class FileActionViewModel : ObservableObject
 
     private async void PerformAction(bool force)
     {
-        bool ok = _paths.Count == 1
-            ? _action.PerformAction(_paths[0], force)
-            : _action.PerformAction(_paths, force);
+        bool ok;
+        try
+        {
+            ok = _paths.Count == 1
+                ? _action.PerformAction(_paths[0], force)
+                : _action.PerformAction(_paths, force);
+        }
+        catch (FileOperationException ex)
+        {
+            // A specific, already-friendly copy/move failure — show it instead of crashing.
+            ActionFailed?.Invoke(ex.Message);
+            return;
+        }
 
         // Only flash the success tick when the action actually did something now (deferred
         // actions that confirm first return false) and when the action opts into the tick
