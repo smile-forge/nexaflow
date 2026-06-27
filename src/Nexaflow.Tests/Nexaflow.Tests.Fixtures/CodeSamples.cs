@@ -14,14 +14,49 @@ internal sealed class CodeSamples : ISampleSet
         SampleFile.Text("hello.cs",
             """
             using System;
+            using System.Collections.Generic;
+            using System.Linq;
 
             namespace Demo;
 
-            // A tiny sample for the editor's syntax highlighting and parse-tree tests.
-            public sealed class Greeter
+            /// <summary>Something that can be greeted.</summary>
+            public interface IGreeter
             {
-                public string Greet(string name) => $"Hello, {name}!";
+                string Greet(string name);
+            }
 
+            public abstract class GreeterBase : IGreeter
+            {
+                protected int Count { get; private set; }
+                public event EventHandler? Greeted;
+
+                public abstract string Greet(string name);
+
+                protected void OnGreeted()
+                {
+                    Count++;
+                    Greeted?.Invoke(this, EventArgs.Empty);
+                }
+            }
+
+            public sealed class Greeter : GreeterBase
+            {
+                private readonly string _prefix;
+                public Greeter(string prefix = "Hello") => _prefix = prefix;
+
+                public override string Greet(string name)
+                {
+                    OnGreeted();
+                    return $"{_prefix}, {name}!";
+                }
+
+                public IEnumerable<string> GreetAll(IEnumerable<string> names) => names.Select(Greet);
+
+                public sealed record Result(string Text, int Index);
+            }
+
+            public static class Program
+            {
                 public static void Main() => Console.WriteLine(new Greeter().Greet("world"));
             }
             """),
@@ -47,11 +82,49 @@ internal sealed class CodeSamples : ISampleSet
         SampleFile.Text("main.py",
             """
             # Sample Python.
-            def greet(name: str) -> str:
-                return f"Hello, {name}!"
+            from __future__ import annotations
+
+            import math
+            from dataclasses import dataclass
+            from typing import Iterable
+
+
+            @dataclass
+            class Point:
+                x: float
+                y: float
+
+                def distance_to(self, other: "Point") -> float:
+                    return math.hypot(self.x - other.x, self.y - other.y)
+
+
+            class Shape:
+                def __init__(self, name: str) -> None:
+                    self._name = name
+
+                @property
+                def name(self) -> str:
+                    return self._name
+
+                def area(self) -> float:
+                    raise NotImplementedError
+
+
+            class Circle(Shape):
+                def __init__(self, radius: float) -> None:
+                    super().__init__("circle")
+                    self.radius = radius
+
+                def area(self) -> float:
+                    return math.pi * self.radius ** 2
+
+
+            def total_area(shapes: Iterable[Shape]) -> float:
+                return sum(s.area() for s in shapes)
+
 
             if __name__ == "__main__":
-                print(greet("world"))
+                print(total_area([Circle(1.0), Circle(2.0)]))
             """),
 
         SampleFile.Text("config.ini",
@@ -120,21 +193,44 @@ internal sealed class CodeSamples : ISampleSet
             </html>
             """),
 
-        // Ruby with heredocs tagged SQL (no grammar → plain) and HTML (injected).
+        // Ruby with heredocs: SQL (no grammar → plain), HTML (injected), and nested ERB (ruby + html).
         SampleFile.Text("heredocs.rb",
             """
             # Ruby with embedded languages in heredocs.
-            class Report
-              def query
-                <<~SQL
-                  SELECT id, name FROM users WHERE active = true
-                SQL
-              end
+            require "erb"
 
-              def render
-                <<~HTML
-                  <div class="report"><h1>Users</h1></div>
-                HTML
+            module Reporting
+              class Report
+                attr_reader :users
+
+                def initialize(users)
+                  @users = users
+                end
+
+                def query
+                  <<~SQL
+                    SELECT id, name FROM users WHERE active = true
+                  SQL
+                end
+
+                def style
+                  <<~CSS
+                    .report { color: #222; }
+                    .report h1 { font-weight: 600; }
+                  CSS
+                end
+
+                # A heredoc tagged ERB embeds a template that is itself Ruby-in-HTML.
+                def template
+                  <<~ERB
+                    <h1>Users</h1>
+                    <ul>
+                    <% @users.each do |u| %>
+                      <li><%= u.name %> (<%= u.id %>)</li>
+                    <% end %>
+                    </ul>
+                  ERB
+                end
               end
             end
             """),
@@ -199,6 +295,15 @@ internal sealed class CodeSamples : ISampleSet
                 user(id: $id) { id name email }
               }
             `;
+
+            export async function fetchUser(client, id) {
+              const { data } = await client.query({ query: GET_USER, variables: { id } });
+              return data.user;
+            }
+
+            export function formatUser(user) {
+              return `${user.name} <${user.email}>`;
+            }
             """),
 
         // Jupyter notebook: json envelope + python in code-cell source.

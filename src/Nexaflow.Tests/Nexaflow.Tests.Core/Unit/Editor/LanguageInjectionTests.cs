@@ -56,6 +56,18 @@ public class LanguageInjectionTests
     }
 
     [TestMethod]
+    public void Ruby_Heredoc_Erb_InjectsNestedTemplate()
+    {
+        // <<~ERB embeds an ERB template, itself ruby-in-html → nested injection ruby → erb → html.
+        const string src = "t = <<~ERB\n  <h1><%= title %></h1>\nERB\n";
+        using var hl = CodeHighlighter.TryCreate("ruby");
+
+        Assert.IsTrue(hl!.FindInjections(src).Any(r => r.TargetGrammarId == "embedded-template"));
+        var pairs = hl.Highlight(src).Select(s => (s.Capture, Text: src.Substring(s.Start, s.Length))).ToArray();
+        Assert.IsTrue(pairs.Any(p => p is { Capture: "tag", Text: "h1" }), "html tag reached through ruby→erb→html");
+    }
+
+    [TestMethod]
     public void Ruby_Heredoc_UnknownLanguage_IsNoOp()
     {
         // SQL has no grammar ⇒ the body keeps whatever the outer ruby gives it (nothing — ruby doesn't

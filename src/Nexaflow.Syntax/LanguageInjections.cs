@@ -126,6 +126,8 @@ public static class LanguageInjections
             "CSS"                => "css",
             "JS" or "JAVASCRIPT" => "javascript",
             "JSON"               => "json",
+            "SQL"                => "sql",          // no grammar yet → no-op, but detected
+            "ERB"                => "embedded-template",  // nested ERB (ruby + html) inside a heredoc
             "RUBY" or "RB"       => "ruby",
             _                    => null,
         };

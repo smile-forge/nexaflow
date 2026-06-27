@@ -64,13 +64,30 @@ rule already points at it.
 | Host | Embeds | Rule (`LanguageInjections.Find`) |
 |------|--------|----------------------------------|
 | `html` | `<script>`→`javascript`, `<style>`→`css` | the element's `raw_text` child |
-| `ruby` | heredoc tag → `html`/`css`/`javascript`/`json` (`sql` no-op) | `heredoc_body` content, language by `<<~TAG` |
+| `ruby` | heredoc tag → `html`/`css`/`javascript`/`json`/`embedded-template` (`sql` no-op) | `heredoc_body` content, language by `<<~TAG` |
 | `embedded-template` (ERB) | `code`→`ruby`, `content`→`html` | by node type |
 | `php` | `text`→`html` | the raw-HTML `text` nodes |
 | `razor` | *(none — the grammar unifies C# + markup; coloured directly)* | — |
 | `jinja` | `{{ }}` / `{% %}`→`python` (+ html script/style) | text scan |
 | `javascript`/`typescript` | `` gql`…` `` / `` graphql`…` ``→`graphql` | tagged-template call (no-op until grammar) |
 | `ipynb` | code cell `source`→kernel language | JSON walk (per source line) |
+
+### Known limitations (per-fragment parsing)
+
+Each embedded fragment is parsed **independently** (its own substring → its own tree). When one language's
+fragments are non-contiguous in the host, cross-fragment constructs are lost:
+
+- **PHP trailing markup** — the HTML after the last `?>` is an orphan run of close tags (`</body></html>`),
+  which tree-sitter-html parses as errors, so those closing tags don't colour (the leading/opening markup and
+  all code do).
+- **Jupyter / `.ipynb` structure** — a cell's `source` is JSON with **escaped** newlines (`\n`), so the code
+  highlights per source line but multi-line defs/classes can't be parsed → the code map shows nothing for
+  notebooks. (Highlighting works; structure does not.)
+- **ERB / multi-block** — `<% if %>…<% end %>` split across directives parse per-block.
+
+The fix for all three is tree-sitter **combined injection** (`Parser.IncludedRanges`): parse all of a
+language's fragments as one tree in original-document coordinates. It's verified to work but is a larger
+change (and carries a byte/char-offset caveat for non-ASCII), so it's a deliberate follow-up.
 
 ## The role palette (`TextSwatch.*`)
 

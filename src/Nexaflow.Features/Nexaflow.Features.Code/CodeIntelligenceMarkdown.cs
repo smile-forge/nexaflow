@@ -24,15 +24,19 @@ public static class CodeIntelligenceMarkdown
         var fileUri = SafeFileUri(filePath);
         var sb = new StringBuilder();
 
-        if (outline.Imports.Count > 0)
+        // Host imports plus those from any embedded language (a notebook cell's imports, a <script>'s imports …).
+        var imports = new List<ImportRef>();
+        CollectImports(outline, imports, new HashSet<string>());
+        if (imports.Count > 0)
         {
             sb.AppendLine("## Dependencies").AppendLine();
-            foreach (var imp in outline.Imports)
+            foreach (var imp in imports)
             {
                 if (imp.ResolvedPath is { } rp)
                     sb.AppendLine($"- [{LinkLabel(imp.Text)}]({SafeFileUri(rp)})");
                 else
-                    sb.AppendLine($"- {imp.Text}");
+                    // Code span so angle-bracketed text (e.g. C++ `#include <string>`) isn't eaten as an HTML tag.
+                    sb.AppendLine($"- `{imp.Text.Replace("`", "'")}`");
             }
             sb.AppendLine();
         }
@@ -70,6 +74,16 @@ public static class CodeIntelligenceMarkdown
         }
 
         return sb.ToString();
+    }
+
+    /// <summary>Gathers imports from the outline and, recursively, its embedded-language regions, de-duped by
+    /// text so an import shared by host and embedded code is listed once.</summary>
+    private static void CollectImports(CodeOutline o, List<ImportRef> into, HashSet<string> seen)
+    {
+        foreach (var imp in o.Imports)
+            if (seen.Add(imp.Text)) into.Add(imp);
+        foreach (var e in o.Embedded)
+            CollectImports(e.Outline, into, seen);
     }
 
     /// <summary>Emits one Mermaid class box. <paramref name="label"/> null ⇒ the id is shown verbatim (host

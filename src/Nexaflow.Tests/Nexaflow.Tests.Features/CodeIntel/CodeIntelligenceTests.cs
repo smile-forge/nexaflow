@@ -322,6 +322,16 @@ public class CodeIntelligenceTests
     }
 
     [TestMethod]
+    public void Build_Cpp_PreservesAngleBracketIncludes()
+    {
+        var outline = new CodeStructureExtractor().Extract("cpp", "#include <string>\nclass C { int x; };\n");
+        var md = CodeIntelligenceMarkdown.Build(@"C:\proj\c.cpp", outline);
+
+        // The include is shown as a code span so <string> survives instead of being eaten as an HTML tag.
+        StringAssert.Contains(md, "`#include <string>`");
+    }
+
+    [TestMethod]
     public void Extract_Razor_CodeBlockMembers()
     {
         const string src = """
@@ -418,7 +428,7 @@ public class CodeIntelligenceTests
         var md = CodeIntelligenceMarkdown.Build(@"C:\proj\shape.cs", outline);
 
         StringAssert.Contains(md, "## Dependencies");
-        StringAssert.Contains(md, "- import os");                                   // library import: plain text
+        StringAssert.Contains(md, "- `import os`");                                  // library import: code span
         StringAssert.Contains(md, "[from .util import x](file:///C:/proj/util.py)"); // local import: link
         StringAssert.Contains(md, "classDiagram");
         StringAssert.Contains(md, "direction LR");   // stacks a file's classes into a vertical column
