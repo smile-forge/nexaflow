@@ -1,0 +1,60 @@
+<UserControl x:Class="Nexaflow.Features.Tabular.Controls.TabularTemplatesEditorControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common">
+
+    <UserControl.Resources>
+        <cv:ZeroCountToVisibilityConverter x:Key="ZeroVis"/>
+    </UserControl.Resources>
+
+    <DockPanel Margin="12">
+
+        <TextBlock DockPanel.Dock="Top" Margin="0,0,0,10" TextWrapping="Wrap"
+                   Foreground="{StaticResource TextMutedBrush}" FontSize="12"
+                   Text="Saved tabular templates. Create them from the table viewer (Template This); here you can rename or delete them. Deletions take effect when you click Save."/>
+
+        <!-- Empty state -->
+        <TextBlock DockPanel.Dock="Top"
+                   Text="No templates yet. Open a CSV/TSV file, reshape it, then use Template This."
+                   Foreground="{StaticResource TextDimBrush}" FontSize="12" TextWrapping="Wrap"
+                   Visibility="{Binding TemplateCount, RelativeSource={RelativeSource AncestorType=UserControl},
+                                        Converter={StaticResource ZeroVis}}"/>
+
+        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl x:Name="RowsHost">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                                    Padding="8,6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource DarkTextBox}" FontSize="12"
+                                                 HorizontalAlignment="Left" MinWidth="200"/>
+                                        <TextBlock Foreground="{StaticResource TextMutedBrush}" FontSize="10"
+                                                   Margin="2,3,0,0" Text="{Binding ScopeSummary}"/>
+                                        <TextBlock Foreground="{StaticResource TextDimBrush}" FontSize="10"
+                                                   Margin="2,1,0,0" Text="{Binding ColumnsSummary}"/>
+                                    </StackPanel>
+
+                                    <Button Grid.Column="1" Content="✕ Remove"
+                                            VerticalAlignment="Center" MinWidth="72"
+                                            Style="{StaticResource IconButton}"
+                                            Foreground="{StaticResource DangerBrush}"
+                                            Click="Remove_Click"
+                                            Tag="{Binding}"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+    </DockPanel>
+</UserControl>

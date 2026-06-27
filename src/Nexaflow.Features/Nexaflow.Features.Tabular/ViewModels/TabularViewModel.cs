@@ -14,6 +14,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Tabular.Detection;
 using Nexaflow.Features.Tabular.Streaming;
+using Nexaflow.Features.Tabular.Templates;
 
 namespace Nexaflow.Features.Tabular.ViewModels;
 
@@ -31,6 +32,9 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
     private DataShape?        _data;
     private FileSample?       _sample;
     private readonly string?  _initialTransformsJson;
+
+    private readonly TabularTemplatesConfig _templates;
+    private List<TabularTemplate> _pendingChoices = new();
 
     /// <summary>The current data shape (raw shape + transform chain). Used by the ribbon
     /// pin handler to capture the user's morphs into the pinned button's params.</summary>
@@ -84,11 +88,28 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
     /// finished. Tests await this; the View doesn't need to.</summary>
     public Task Ready => _ready;
 
+    // ── Templates: Template-This popup ────────────────────────────────────
+    [ObservableProperty] private bool _isTemplatePopupOpen;
+    [ObservableProperty][NotifyCanExecuteChangedFor(nameof(SaveTemplateCommand))] private string _templateName = string.Empty;
+    [ObservableProperty][NotifyCanExecuteChangedFor(nameof(SaveTemplateCommand))] private TemplateScope _selectedScope = TemplateScope.Folder;
+    [ObservableProperty][NotifyCanExecuteChangedFor(nameof(SaveTemplateCommand))] private string _globPattern = string.Empty;
+    [ObservableProperty] private string _templateFolderPath = string.Empty;
+
+    // ── Templates: Apply-Template panel ───────────────────────────────────
+    [ObservableProperty] private bool _isTemplatePanelOpen;
+    [ObservableProperty] private bool _showOnlyCompatible = true;
+    /// <summary>True while the panel is forcing a choice between several auto-apply matches.</summary>
+    [ObservableProperty] private bool _isChooseMode;
+    public ObservableCollection<TemplateItemViewModel> PanelTemplates { get; } = new();
+
+    partial void OnShowOnlyCompatibleChanged(bool value) => RebuildPanelTemplates();
+
     public TabularViewModel(string filePath, IShellServices shell, IAIService ai,
-                            string? initialTransformsJson = null)
+                            TabularTemplatesConfig templates, string? initialTransformsJson = null)
     {
         _shell                  = shell;
         _ai                     = ai;
+        _templates              = templates;
         _initialTransformsJson  = initialTransformsJson;
         FilePath                = filePath;
         FileName                = string.IsNullOrEmpty(filePath) ? "Tabular" : Path.GetFileName(filePath);
@@ -233,9 +254,28 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
 
             // Replay any transforms supplied at construction (ribbon-pin replay path) BEFORE
             // building the initial column VMs so the view sees the morphed shape from frame one.
+            // A ribbon pin's explicit chain wins; only when there is none do we consult templates
+            // for an auto-apply match against this file's path + original shape.
             if (!string.IsNullOrEmpty(_initialTransformsJson))
+            {
                 foreach (var t in TransformSerializer.Deserialize(_initialTransformsJson))
                     _data.AddTransform(t);
+            }
+            else
+            {
+                var matches = TemplateMatcher.FindAutoApply(
+                    _templates.Templates, FilePath, _data.RawShape, _data.RawHeaderCells);
+                if (matches.Count == 1)
+                {
+                    foreach (var t in TransformSerializer.Deserialize(matches[0].TransformsJson))
+                        _data.AddTransform(t);
+                }
+                else if (matches.Count > 1)
+                {
+                    // Don't guess — surface the candidates and let the user pick (handled post-load).
+                    _pendingChoices = matches.ToList();
+                }
+            }
 
             RebuildColumns();
 
@@ -270,6 +310,16 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
             await RefreshWindowAsync();
             LayoutChanged?.Invoke();
             StatusMessage = string.Empty;
+
+            // A single auto-apply match is applied silently (the reshaped grid is self-evident).
+            // Only the ambiguous case needs the user: surface the candidates and let them pick.
+            if (_pendingChoices.Count > 1)
+            {
+                IsChooseMode = true;
+                RebuildPanelTemplates();
+                IsTemplatePanelOpen = true;
+                _shell.ShowNotification("Multiple templates match this file — choose one to apply.");
+            }
         }
         catch (Exception ex)
         {
@@ -587,6 +637,103 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
         Columns[index].DisplayType = type;
         _data.AddTransform(new EvaluateAsTransform(index, type));
         await RefreshWindowAsync();
+    }
+
+    // ── Template commands ─────────────────────────────────────────────────
+
+    [RelayCommand]
+    private void OpenTemplateThis()
+    {
+        if (_data is null) return;
+        TemplateName        = Path.GetFileNameWithoutExtension(FileName);
+        TemplateFolderPath  = Path.GetDirectoryName(FilePath) ?? string.Empty;
+        GlobPattern         = "*" + Path.GetExtension(FilePath);
+        SelectedScope       = TemplateScope.Folder;
+        IsTemplatePopupOpen = true;
+    }
+
+    [RelayCommand]
+    private void CancelTemplateThis() => IsTemplatePopupOpen = false;
+
+    private bool CanSaveTemplate() =>
+        !string.IsNullOrWhiteSpace(TemplateName) &&
+        (SelectedScope != TemplateScope.Glob || !string.IsNullOrWhiteSpace(GlobPattern));
+
+    [RelayCommand(CanExecute = nameof(CanSaveTemplate))]
+    private void SaveTemplate()
+    {
+        if (_data is null) return;
+        var folder = Path.GetDirectoryName(FilePath) ?? string.Empty;
+        var tmpl   = TemplateMatcher.Capture(TemplateName, SelectedScope, folder, GlobPattern.Trim(), _data);
+        _templates.Templates.Add(tmpl);
+        _shell.SaveFeatureConfig(_templates);
+        IsTemplatePopupOpen = false;
+        _shell.ShowNotification($"Saved template '{tmpl.Name}'.");
+    }
+
+    /// <summary>Toolbar toggle for the Apply-Template side panel.</summary>
+    [RelayCommand]
+    private void OpenTemplatePanel()
+    {
+        if (IsTemplatePanelOpen) { IsTemplatePanelOpen = false; return; }
+        IsChooseMode = false;
+        RebuildPanelTemplates();
+        IsTemplatePanelOpen = true;
+    }
+
+    [RelayCommand]
+    private void CloseTemplatePanel() => IsTemplatePanelOpen = false;
+
+    [RelayCommand]
+    private async Task ApplyTemplate(TemplateItemViewModel? item)
+    {
+        if (item is null) return;
+        if (!item.IsCompatible)
+        {
+            bool ok = await _shell.ConfirmAsync(
+                "Apply template?",
+                "This template was built from a differently-shaped file and may not line up. Apply anyway?");
+            if (!ok) return;
+        }
+        await ApplyTemplateChainAsync(item.Template);
+        _pendingChoices.Clear();
+        IsChooseMode        = false;
+        IsTemplatePanelOpen = false;
+    }
+
+    [RelayCommand]
+    private void DeleteTemplate(TemplateItemViewModel? item)
+    {
+        if (item is null) return;
+        _templates.Templates.RemoveAll(t => t.Id == item.Template.Id);
+        _pendingChoices.RemoveAll(t => t.Id == item.Template.Id);
+        _shell.SaveFeatureConfig(_templates);
+        RebuildPanelTemplates();
+    }
+
+    /// <summary>Replaces the live transform chain with the template's — i.e. loads the file with a
+    /// predefined shape — then rebuilds columns and the visible window.</summary>
+    private async Task ApplyTemplateChainAsync(TabularTemplate t)
+    {
+        if (_data is null) return;
+        _data.ClearTransforms();
+        foreach (var tr in TransformSerializer.Deserialize(t.TransformsJson))
+            _data.AddTransform(tr);
+        RebuildColumns();
+        await RefreshWindowAsync();
+    }
+
+    private void RebuildPanelTemplates()
+    {
+        PanelTemplates.Clear();
+        var src = IsChooseMode ? (IEnumerable<TabularTemplate>)_pendingChoices : _templates.Templates;
+        foreach (var t in src)
+        {
+            bool compat = _data is not null &&
+                          TemplateMatcher.IsCompatible(t, _data.RawShape, _data.RawHeaderCells);
+            if (!IsChooseMode && ShowOnlyCompatible && !compat) continue;
+            PanelTemplates.Add(new TemplateItemViewModel(t, compat));
+        }
     }
 
     // ── Row selection (Excel-style) ───────────────────────────────────────

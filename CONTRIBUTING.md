@@ -63,7 +63,7 @@ Run the unit tests before opening a pull request, especially for changes to Core
 
 ```powershell
 dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Core/Nexaflow.Tests.Core.csproj
-src/Nexaflow.Tests/Nexaflow.Tests.Core/bin/Debug/net10.0-windows/Nexaflow.Tests.Core.exe --filter "FullyQualifiedName~Unit"
+src/Nexaflow.Tests/Nexaflow.Tests.Core/bin/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.Core.exe --filter "FullyQualifiedName~Unit"
 ```
 
 UI tests (`--filter "TestCategory=UI"`) need an interactive desktop session — run

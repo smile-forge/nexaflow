@@ -8,9 +8,12 @@
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
-        <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
-        <cv:NullToCollapsedConverter  x:Key="NullVis"/>
-
+        <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
+        <cv:NullToCollapsedConverter         x:Key="NullVis"/>
+        <cv:EnumToBoolConverter              x:Key="EnumBool"/>
+        <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
+        <cv:StringToVisibilityConverter      x:Key="StrVis"/>
+        <cv:ZeroCountToVisibilityConverter   x:Key="ZeroVis"/>
     </UserControl.Resources>
 
     <Grid>
@@ -25,27 +28,86 @@
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,0,1">
-            <StackPanel Orientation="Horizontal" Margin="6,4">
-                <TextBlock Text="{Binding DetectedShapeLabel}"
-                           Foreground="{StaticResource TextMutedBrush}"
-                           VerticalAlignment="Center" Margin="2,0,12,0"
-                           FontSize="11"/>
-                <TextBlock Text="Click a column header to select it; right-click for column actions."
-                           Foreground="{StaticResource TextDimBrush}"
-                           VerticalAlignment="Center" Margin="0,0,12,0"
-                           FontSize="11"/>
-                <TextBlock Text="{Binding StatusMessage}"
-                           Foreground="{StaticResource WarningBrush}"
-                           Margin="12,0,0,0"
-                           VerticalAlignment="Center" FontSize="11"/>
-            </StackPanel>
+            <DockPanel Margin="6,4" LastChildFill="True">
+                <!-- Template actions, pinned to the right -->
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="TemplateThisButton" Content="Template This"
+                            Style="{StaticResource TbBtn}"
+                            Command="{Binding OpenTemplateThisCommand}"
+                            ToolTip="Save the current column layout as a reusable template"/>
+                    <Button Content="Apply Template"
+                            Style="{StaticResource TbBtn}"
+                            Command="{Binding OpenTemplatePanelCommand}"
+                            ToolTip="Apply a saved template to this file"/>
+                </StackPanel>
+                <!-- Descriptor, fills the left -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding DetectedShapeLabel}"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               VerticalAlignment="Center" Margin="2,0,12,0"
+                               FontSize="11"/>
+                    <TextBlock Text="Click a column header to select it; right-click for column actions."
+                               Foreground="{StaticResource TextDimBrush}"
+                               VerticalAlignment="Center" Margin="0,0,12,0"
+                               FontSize="11"/>
+                    <TextBlock Text="{Binding StatusMessage}"
+                               Foreground="{StaticResource WarningBrush}"
+                               Margin="12,0,0,0"
+                               VerticalAlignment="Center" FontSize="11"/>
+                </StackPanel>
+            </DockPanel>
         </Border>
 
-        <!-- ══ Grid + filter side panel ══════════════════════════════════════ -->
+        <!-- ══ Template This popup ════════════════════════════════════════════ -->
+        <Popup PlacementTarget="{Binding ElementName=TemplateThisButton}"
+               Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
+               PopupAnimation="Fade" HorizontalOffset="0" VerticalOffset="2"
+               IsOpen="{Binding IsTemplatePopupOpen, Mode=TwoWay}">
+            <Border Style="{StaticResource PopupBorder}" Padding="14" MaxWidth="360">
+                <StackPanel>
+                    <TextBlock Text="Save as template" FontWeight="SemiBold" FontSize="13"
+                               Foreground="{StaticResource TextBrush}" Margin="0,0,0,10"/>
+
+                    <TextBlock Text="Name" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
+                    <TextBox Text="{Binding TemplateName, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{StaticResource DarkTextBox}" Margin="0,2,0,12"/>
+
+                    <!-- Scope -->
+                    <RadioButton GroupName="TmplScope" Foreground="{StaticResource TextBrush}"
+                                 Content="Auto-apply to any file in this folder"
+                                 IsChecked="{Binding SelectedScope, Converter={StaticResource EnumBool}, ConverterParameter=Folder}"/>
+                    <TextBlock Text="{Binding TemplateFolderPath}" TextTrimming="CharacterEllipsis"
+                               Foreground="{StaticResource TextDimBrush}" FontSize="10"
+                               Margin="20,1,0,8"/>
+
+                    <RadioButton GroupName="TmplScope" Foreground="{StaticResource TextBrush}"
+                                 Content="Auto-apply to any file matching name pattern"
+                                 IsChecked="{Binding SelectedScope, Converter={StaticResource EnumBool}, ConverterParameter=Glob}"/>
+                    <TextBox Text="{Binding GlobPattern, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{StaticResource DarkTextBox}" Margin="20,2,0,8"
+                             IsEnabled="{Binding SelectedScope, Converter={StaticResource EnumBool}, ConverterParameter=Glob}"
+                             ToolTip="e.g. *.csv or sales-*.csv"/>
+
+                    <RadioButton GroupName="TmplScope" Foreground="{StaticResource TextBrush}" Margin="0,0,0,12"
+                                 Content="Selectable template only"
+                                 IsChecked="{Binding SelectedScope, Converter={StaticResource EnumBool}, ConverterParameter=Manual}"/>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Cancel" Style="{StaticResource TbBtn}" MinWidth="64"
+                                Command="{Binding CancelTemplateThisCommand}"/>
+                        <Button Content="Save" Style="{StaticResource TbBtn}" MinWidth="64" Margin="6,0,0,0"
+                                Command="{Binding SaveTemplateCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Popup>
+
+        <!-- ══ Grid + side panels ═════════════════════════════════════════════ -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>  <!-- filter panel -->
+                <ColumnDefinition Width="Auto"/>  <!-- templates panel -->
             </Grid.ColumnDefinitions>
 
             <local:VirtualizedRowsControl Grid.Column="0"
@@ -71,6 +133,100 @@
                         <ItemsControl x:Name="FiltersHost"/>
                     </StackPanel>
                 </ScrollViewer>
+            </Border>
+
+            <!-- Apply-Template side panel -->
+            <Border Grid.Column="2"
+                    Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1,0,0,0"
+                    Width="300"
+                    Visibility="{Binding IsTemplatePanelOpen, Converter={StaticResource BoolVis}}">
+                <DockPanel Margin="10,12">
+                    <!-- Header -->
+                    <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
+                        <TextBlock Text="Templates" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"/>
+                        <Button Content="✕" HorizontalAlignment="Right" Style="{StaticResource TbBtn}"
+                                Command="{Binding CloseTemplatePanelCommand}" ToolTip="Close"/>
+                    </Grid>
+
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8"
+                                Visibility="{Binding IsChooseMode, Converter={StaticResource InvBoolVis}}"
+                                ToolTip="Only list templates whose original shape matches this file">
+                        <ToggleButton Style="{StaticResource ToggleSwitch}" VerticalAlignment="Center"
+                                      IsChecked="{Binding ShowOnlyCompatible}"/>
+                        <TextBlock Text="Show only compatible" Margin="8,0,0,0" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
+                    </StackPanel>
+
+                    <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,0,0,8"
+                               Foreground="{StaticResource WarningBrush}" FontSize="11"
+                               Text="Several templates match this file — pick one to apply."
+                               Visibility="{Binding IsChooseMode, Converter={StaticResource BoolVis}}"/>
+
+                    <!-- Empty state -->
+                    <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap"
+                               Foreground="{StaticResource TextDimBrush}" FontSize="11"
+                               Text="No templates to show."
+                               Visibility="{Binding PanelTemplates.Count, Converter={StaticResource ZeroVis}}"/>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding PanelTemplates}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:TemplateItemViewModel}">
+                                    <Border x:Name="Row" Margin="0,0,0,4" Padding="8,6" CornerRadius="6"
+                                            Background="{StaticResource Surface2Brush}"
+                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Apply: whole left area is the click target -->
+                                            <Button Grid.Column="0" HorizontalContentAlignment="Stretch"
+                                                    Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                                    Padding="0"
+                                                    Command="{Binding DataContext.ApplyTemplateCommand,
+                                                              RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip="Apply this template">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Name}"
+                                                               Foreground="{StaticResource TextBrush}" FontSize="12"/>
+                                                    <TextBlock Text="{Binding ScopeSummary}"
+                                                               Foreground="{StaticResource TextMutedBrush}" FontSize="10"
+                                                               Margin="0,1,0,0"/>
+                                                    <TextBlock Text="{Binding CompatibilityNote}"
+                                                               Foreground="{StaticResource WarningBrush}" FontSize="10"
+                                                               Margin="0,1,0,0"
+                                                               Visibility="{Binding CompatibilityNote, Converter={StaticResource StrVis}}"/>
+                                                </StackPanel>
+                                            </Button>
+
+                                            <!-- Hover-revealed delete -->
+                                            <Button x:Name="DeleteBtn" Grid.Column="1" Content="✕"
+                                                    VerticalAlignment="Top" Opacity="0"
+                                                    Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                                    Foreground="{StaticResource DangerBrush}"
+                                                    Padding="6,0"
+                                                    Command="{Binding DataContext.DeleteTemplateCommand,
+                                                              RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip="Delete this template"/>
+                                        </Grid>
+                                    </Border>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsMouseOver, ElementName=Row}" Value="True">
+                                            <Setter TargetName="DeleteBtn" Property="Opacity" Value="1"/>
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
             </Border>
         </Grid>
 

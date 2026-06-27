@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -754,6 +755,6 @@ public sealed class FileMapManager
     private static bool GlobMatch(string path, string pattern)
     {
         if (pattern is "*" or "*.*") return true;
-        return GlobMatcher.IsMatch(path, pattern);
+        return Glob.IsMatch(path, pattern);
     }
 }
