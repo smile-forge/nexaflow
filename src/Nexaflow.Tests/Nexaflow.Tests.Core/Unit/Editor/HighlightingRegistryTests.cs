@@ -8,13 +8,31 @@ namespace Nexaflow.Tests.Core.Unit.Editor;
 public class HighlightingRegistryTests
 {
     [TestMethod]
-    public void MarkupFormats_ResolveToXshd()
+    public void XmlFamily_ResolvesToXshd()
     {
-        foreach (var name in new[] { "a.xml", "page.html", "styles.css" })
+        // xml/xaml/xsl keep the built-in .xshd engine (no bundled tree-sitter xml grammar).
+        foreach (var name in new[] { "a.xml", "b.xsl" })
         {
             var r = HighlightingRegistry.Resolve(name);
             Assert.AreEqual(HighlightMode.Xshd, r.Mode, name);
             Assert.IsNotNull(r.Definition, name);
+        }
+    }
+
+    [TestMethod]
+    public void MarkupAndTemplating_ResolveToTreeSitter()
+    {
+        // html/css/erb/razor/php now parse with tree-sitter (so embedded languages can be injected).
+        foreach (var (name, grammar) in new[]
+                 {
+                     ("page.html", "html"), ("styles.css", "css"), ("view.erb", "embedded-template"),
+                     ("Page.razor", "razor"), ("Page.cshtml", "razor"), ("index.php", "php"),
+                     ("home.jinja", "jinja"), ("home.j2", "jinja"),
+                 })
+        {
+            var r = HighlightingRegistry.Resolve(name);
+            Assert.AreEqual(HighlightMode.TreeSitter, r.Mode, name);
+            Assert.AreEqual(grammar, r.TreeSitterLanguage, name);
         }
     }
 
@@ -47,6 +65,20 @@ public class HighlightingRegistryTests
         var r = HighlightingRegistry.Resolve("app.rb");
         Assert.AreEqual(HighlightMode.TreeSitter, r.Mode);
         Assert.AreEqual("ruby", r.TreeSitterLanguage);
+    }
+
+    [TestMethod]
+    public void SystemsAndJvmLanguages_ResolveToTreeSitter()
+    {
+        foreach (var (name, grammar) in new[]
+                 {
+                     ("main.rs", "rust"), ("widget.cpp", "cpp"), ("widget.hpp", "cpp"), ("App.java", "java"),
+                 })
+        {
+            var r = HighlightingRegistry.Resolve(name);
+            Assert.AreEqual(HighlightMode.TreeSitter, r.Mode, name);
+            Assert.AreEqual(grammar, r.TreeSitterLanguage, name);
+        }
     }
 
     [TestMethod]

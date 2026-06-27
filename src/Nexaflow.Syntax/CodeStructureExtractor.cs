@@ -1,4 +1,6 @@
 using System.IO;
+using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using TreeSitter;
 
@@ -19,30 +21,201 @@ namespace Nexaflow.Syntax;
 /// </summary>
 public sealed class CodeStructureExtractor
 {
+    // Embedded outlines recurse (ERB → HTML → <script>); bound the depth so a pathological file can't spin.
+    private const int MaxEmbedDepth = 3;
+
     public CodeOutline Extract(string grammarId, string text, string? baseDir = null)
+        => grammarId == "ipynb" ? BuildNotebook(text, baseDir) : Extract(grammarId, text, baseDir, 0);
+
+    private CodeOutline Extract(string grammarId, string text, string? baseDir, int depth)
     {
         if (string.IsNullOrEmpty(grammarId) || string.IsNullOrEmpty(text)) return CodeOutline.Empty;
         using var hl = CodeHighlighter.TryCreate(grammarId);
         if (hl is null) return CodeOutline.Empty;
-        try { return hl.WithParseTree(text, root => Build(grammarId, root, baseDir)) ?? CodeOutline.Empty; }
+
+        // One parse yields both the host outline and the embedded-language ranges (plain data; nodes don't escape).
+        (CodeOutline Outline, IReadOnlyList<InjectionRange> Injections)? res;
+        try
+        {
+            res = hl.WithParseTree(text, root =>
+                (Build(grammarId, root, baseDir),
+                 LanguageInjections.HasInjections(grammarId)
+                     ? LanguageInjections.Find(grammarId, root, text)
+                     : (IReadOnlyList<InjectionRange>)[]));
+        }
         catch { return CodeOutline.Empty; }   // never throw — a malformed parse just yields no outline
+        if (res is not { } r) return CodeOutline.Empty;
+
+        var host = r.Outline;
+        if (depth >= MaxEmbedDepth || r.Injections.Count == 0) return host;
+
+        var embeds = new List<EmbeddedOutline>();
+        int i = 0;
+        foreach (var inj in r.Injections)
+        {
+            if (inj.TargetGrammarId == grammarId) continue;                          // self-injection guard
+            if (inj.Start < 0 || inj.Length <= 0 || inj.Start + inj.Length > text.Length) continue;
+            var sub = text.Substring(inj.Start, inj.Length);
+            if (string.IsNullOrWhiteSpace(sub)) continue;
+
+            var child = Extract(inj.TargetGrammarId, sub, baseDir, depth + 1);
+            if (!child.HasContent) continue;                                         // nothing structural to show
+
+            // Map the child's lines to absolute document lines and namespace its AST paths so a member link
+            // stays unique within the host and re-resolves through ResolveLine.
+            var reprojected = Reproject(child, $"E{i}:{inj.TargetGrammarId}", inj.StartRow);
+            embeds.Add(new EmbeddedOutline(inj.TargetGrammarId, $"{inj.TargetGrammarId} @ line {inj.StartRow + 1}",
+                inj.StartRow + 1, reprojected));
+            i++;
+        }
+
+        return embeds.Count == 0 ? host : host with { Embedded = embeds };
     }
 
     /// <summary>The current 1-based line of the element with <paramref name="astPath"/>, or null if it no
-    /// longer exists (renamed / removed). Resolved against the live <paramref name="text"/>.</summary>
+    /// longer exists (renamed / removed). Resolved against the live <paramref name="text"/>. Searches embedded
+    /// regions too, so links into an embedded language navigate correctly.</summary>
     public int? ResolveLine(string grammarId, string text, string astPath, string? baseDir = null)
     {
         if (string.IsNullOrEmpty(astPath)) return null;
-        var outline = Extract(grammarId, text, baseDir);
-        foreach (var t in outline.Types)
+        return Search(Extract(grammarId, text, baseDir), astPath);
+    }
+
+    private static int? Search(CodeOutline o, string astPath)
+    {
+        foreach (var t in o.Types)
         {
             if (t.AstPath == astPath) return t.Line;
             foreach (var m in t.Members)
                 if (m.AstPath == astPath) return m.Line;
         }
-        foreach (var m in outline.TopLevel)
+        foreach (var m in o.TopLevel)
             if (m.AstPath == astPath) return m.Line;
+        foreach (var e in o.Embedded)
+            if (Search(e.Outline, astPath) is { } line) return line;
         return null;
+    }
+
+    /// <summary>Returns a copy of <paramref name="o"/> with every line shifted by <paramref name="lineOffset"/>
+    /// and every AST path prefixed by <paramref name="prefix"/> — used to splice an embedded outline into its
+    /// host's coordinate space.</summary>
+    private static CodeOutline Reproject(CodeOutline o, string prefix, int lineOffset)
+    {
+        var types = o.Types.Select(t => new OutlineType(
+            t.Name, t.Line + lineOffset, t.Kind, $"{prefix}/{t.AstPath}",
+            t.Members.Select(m => Shift(m, prefix, lineOffset)).ToList()) { Bases = t.Bases }).ToList();
+        var top = o.TopLevel.Select(m => Shift(m, prefix, lineOffset)).ToList();
+        var embeds = o.Embedded.Select(e => new EmbeddedOutline(
+            e.Language, e.HostLabel, e.HostLine + lineOffset, Reproject(e.Outline, prefix, lineOffset))).ToList();
+        return new CodeOutline(o.Imports, types, top) { Embedded = embeds };
+    }
+
+    private static OutlineMember Shift(OutlineMember m, string prefix, int lineOffset) =>
+        new(m.Name, m.Line + lineOffset, m.Kind, m.Signature, $"{prefix}/{m.AstPath}") { Visibility = m.Visibility };
+
+    // ── Jupyter notebooks (.ipynb) ─────────────────────────────────────────────
+    // A cell's `source` is JSON with *escaped* newlines, so (unlike the injection path) it can't be parsed in
+    // place — we DECODE each code cell with System.Text.Json and extract its kernel language, surfacing each
+    // cell as a linked sub-graph. Member lines are mapped back to the cell's approximate document row.
+
+    private CodeOutline BuildNotebook(string text, string? baseDir)
+    {
+        JsonDocument doc;
+        try { doc = JsonDocument.Parse(text); }
+        catch { return CodeOutline.Empty; }
+        using (doc)
+        {
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return CodeOutline.Empty;
+            var lang = NotebookKernel(root);
+            if (lang is null || !root.TryGetProperty("cells", out var cells) || cells.ValueKind != JsonValueKind.Array)
+                return CodeOutline.Empty;
+
+            var embeds = new List<EmbeddedOutline>();
+            int searchFrom = 0, cellNo = 0;
+            foreach (var cell in cells.EnumerateArray())
+            {
+                if (cell.ValueKind != JsonValueKind.Object) continue;
+                var kind = cell.TryGetProperty("cell_type", out var ct) && ct.ValueKind == JsonValueKind.String
+                    ? ct.GetString() : "code";
+                if (kind != "code" || !cell.TryGetProperty("source", out var src)) continue;
+
+                var source = DecodeSource(src);
+                if (string.IsNullOrWhiteSpace(source)) continue;
+
+                int hostRow = LocateCell(text, source, ref searchFrom);
+                var inner = Extract(lang, source, baseDir, 1);
+                if (!inner.HasContent) { cellNo++; continue; }
+
+                embeds.Add(new EmbeddedOutline(lang, $"{lang} · cell {cellNo + 1}", hostRow + 1,
+                    Reproject(inner, $"E{cellNo}:{lang}", hostRow)));
+                cellNo++;
+            }
+            return embeds.Count == 0 ? CodeOutline.Empty : CodeOutline.Empty with { Embedded = embeds };
+        }
+    }
+
+    /// <summary>The notebook's kernel language (`metadata.kernelspec.language` / `language_info.name`) mapped
+    /// to a grammar id, defaulting to python; null when it maps to a language we can't load.</summary>
+    private static string? NotebookKernel(JsonElement root)
+    {
+        if (root.TryGetProperty("metadata", out var meta) && meta.ValueKind == JsonValueKind.Object)
+        {
+            if (meta.TryGetProperty("kernelspec", out var ks) && ks.ValueKind == JsonValueKind.Object
+                && ks.TryGetProperty("language", out var l) && l.ValueKind == JsonValueKind.String)
+                return NormalizeKernel(l.GetString());
+            if (meta.TryGetProperty("language_info", out var li) && li.ValueKind == JsonValueKind.Object
+                && li.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)
+                return NormalizeKernel(n.GetString());
+        }
+        return "python";
+    }
+
+    private static string? NormalizeKernel(string? kernel)
+    {
+        if (string.IsNullOrWhiteSpace(kernel)) return null;
+        var k = kernel.ToLowerInvariant();
+        if (k.Contains("python") || k == "ipython") return "python";
+        return k switch
+        {
+            "ruby"                 => "ruby",
+            "javascript" or "node" => "javascript",
+            "typescript"           => "typescript",
+            "csharp" or "c#"       => "c-sharp",
+            _                      => null,
+        };
+    }
+
+    /// <summary>Joins a cell's `source` (a string or an array of line-strings), decoding JSON escapes.</summary>
+    private static string DecodeSource(JsonElement src)
+    {
+        if (src.ValueKind == JsonValueKind.String) return src.GetString() ?? "";
+        if (src.ValueKind != JsonValueKind.Array) return "";
+        var sb = new StringBuilder();
+        foreach (var el in src.EnumerateArray())
+            if (el.ValueKind == JsonValueKind.String) sb.Append(el.GetString());
+        return sb.ToString();
+    }
+
+    /// <summary>Best-effort document row for a cell: finds its first non-blank source line in the raw JSON
+    /// (advancing a cursor so later cells match later occurrences).</summary>
+    private static int LocateCell(string raw, string source, ref int searchFrom)
+    {
+        string first = "";
+        foreach (var line in source.Split('\n'))
+            if (line.Trim().Length > 0) { first = line.Trim(); break; }
+
+        int from = System.Math.Min(searchFrom, raw.Length);
+        int idx = first.Length == 0 ? from : raw.IndexOf(first, from, System.StringComparison.Ordinal);
+        if (idx < 0) idx = from; else searchFrom = idx + first.Length;
+        return RowAt(raw, idx);
+    }
+
+    private static int RowAt(string text, int index)
+    {
+        int row = 0, end = System.Math.Min(index, text.Length);
+        for (int i = 0; i < end; i++) if (text[i] == '\n') row++;
+        return row;
     }
 
     private static CodeOutline Build(string grammar, Node root, string? baseDir) => grammar switch
@@ -52,6 +225,11 @@ public sealed class CodeStructureExtractor
         "typescript" => BuildJsTs(root, baseDir, ts: true),
         "python"     => BuildPython(root, baseDir),
         "ruby"       => BuildRuby(root, baseDir),
+        "java"       => BuildJava(root, baseDir),
+        "php"        => BuildPhp(root, baseDir),
+        "cpp"        => BuildCpp(root, baseDir),
+        "rust"       => BuildRust(root, baseDir),
+        "razor"      => BuildRazor(root, baseDir),
         _            => CodeOutline.Empty,
     };
 
@@ -273,6 +451,14 @@ public sealed class CodeStructureExtractor
     {
         var dflt = typeKind == OutlineKind.Interface ? OutlineVisibility.Public : OutlineVisibility.Private;
         var raw = new List<RawMember>();
+        CollectCsMembers(body, dflt, raw);
+        return Finalize(raw, typePath);
+    }
+
+    /// <summary>Collects C# member declarations from a body into <paramref name="raw"/> (shared by class bodies
+    /// and the Razor <c>@code</c> block, whose members are C#-shaped nodes directly under the block).</summary>
+    private static void CollectCsMembers(Node body, OutlineVisibility dflt, List<RawMember> raw)
+    {
         foreach (var m in body.NamedChildren)
         {
             switch (m.Type)
@@ -310,7 +496,36 @@ public sealed class CodeStructureExtractor
                     AddMember(raw, NameOf(m), Line(m), OutlineKind.Field); break;
             }
         }
-        return Finalize(raw, typePath);
+    }
+
+    // ── Razor (.razor / .cshtml) ───────────────────────────────────────────────
+    // The razor grammar parses C# directly: @code/@functions become `razor_block`s whose children are the
+    // same C# member nodes a class body has. We surface those as a synthetic "Code" type (the component's
+    // members) and pull out any real nested C# types declared in the block.
+
+    private static CodeOutline BuildRazor(Node root, string? baseDir)
+    {
+        var imports = new List<ImportRef>();
+        foreach (var n in Descendants(root))
+            if (n.Type == "using_directive")
+                imports.Add(new ImportRef(OneLine(n.Text), null));   // @using directives
+
+        var types = new List<OutlineType>();
+        var codeRaw = new List<RawMember>();
+        int codeLine = 0;
+        foreach (var block in Descendants(root))
+            if (block.Type == "razor_block")
+            {
+                if (codeLine == 0) codeLine = Line(block);
+                ScanCsTypes(block, "", types);                              // nested C# types in @code
+                CollectCsMembers(block, OutlineVisibility.Private, codeRaw); // component members (C# default: private)
+            }
+
+        if (codeRaw.Count > 0)
+            types.Insert(0, new OutlineType("Code", codeLine == 0 ? 1 : codeLine, OutlineKind.Class, "T:Code",
+                Finalize(codeRaw, "T:Code")));
+
+        return new CodeOutline(imports, types, []);
     }
 
     // ── JavaScript / TypeScript ────────────────────────────────────────────────
@@ -678,7 +893,507 @@ public sealed class CodeStructureExtractor
         return File.Exists(combined + ".rb") ? combined + ".rb" : null;
     }
 
+    // ── Java ─────────────────────────────────────────────────────────────────────
+
+    private static readonly HashSet<string> JavaTypeDecls =
+        ["class_declaration", "interface_declaration", "enum_declaration", "record_declaration", "annotation_type_declaration"];
+
+    private static OutlineKind JavaTypeKind(string t) => t switch
+    {
+        "interface_declaration" or "annotation_type_declaration" => OutlineKind.Interface,
+        "enum_declaration"                                       => OutlineKind.Enum,
+        _                                                        => OutlineKind.Class,
+    };
+
+    private static CodeOutline BuildJava(Node root, string? baseDir)
+    {
+        var imports = new List<ImportRef>();
+        foreach (var n in Descendants(root))
+            if (n.Type == "import_declaration")
+                imports.Add(new ImportRef(OneLine(n.Text), null));
+
+        var types = new List<OutlineType>();
+        ScanJavaTypes(root, "", types);
+        return new CodeOutline(imports, types, []);
+    }
+
+    private static void ScanJavaTypes(Node container, string parentPath, List<OutlineType> outTypes)
+    {
+        foreach (var child in container.NamedChildren)
+        {
+            if (JavaTypeDecls.Contains(child.Type))
+            {
+                var name = Simple(NameOf(child) ?? "");
+                if (name.Length == 0) continue;
+                var kind = JavaTypeKind(child.Type);
+                var path = parentPath.Length > 0 ? $"{parentPath}/T:{name}" : $"T:{name}";
+                var body = child.GetChildForField("body");
+                var members = body is { } b ? JavaMembers(b, path, kind) : [];
+                outTypes.Add(new OutlineType(name, Line(child), kind, path, members) { Bases = JavaBases(child) });
+                if (body is { } b2) ScanJavaTypes(b2, path, outTypes);   // nested types
+            }
+        }
+    }
+
+    private static IReadOnlyList<BaseRef> JavaBases(Node typeDecl)
+    {
+        var bases = new List<BaseRef>();
+        if (typeDecl.GetChildForField("superclass") is { } sc)
+            foreach (var c in sc.NamedChildren)
+            {
+                var n = Simple(c.Text);
+                if (n.Length > 0) bases.Add(new BaseRef(n, IsInterface: false));
+            }
+        if (typeDecl.GetChildForField("interfaces") is { } ifaces)
+            foreach (var d in Descendants(ifaces))
+                if (d.Type == "type_identifier")
+                {
+                    var n = Simple(d.Text);
+                    if (n.Length > 0) bases.Add(new BaseRef(n, IsInterface: true));
+                }
+        return bases;
+    }
+
+    private static IReadOnlyList<OutlineMember> JavaMembers(Node body, string typePath, OutlineKind typeKind)
+    {
+        var dflt = typeKind == OutlineKind.Interface ? OutlineVisibility.Public : OutlineVisibility.Internal;  // package-private
+        var raw = new List<RawMember>();
+        foreach (var m in body.NamedChildren)
+        {
+            switch (m.Type)
+            {
+                case "method_declaration":
+                    AddMember(raw, NameOf(m), Line(m), OutlineKind.Method, JavaVisibility(m, dflt),
+                        CallableSig(NameOf(m) ?? "", Field(m, "parameters"), Field(m, "type")));
+                    break;
+                case "constructor_declaration":
+                    AddMember(raw, NameOf(m), Line(m), OutlineKind.Constructor, JavaVisibility(m, dflt),
+                        CallableSig(NameOf(m) ?? "", Field(m, "parameters"), null));
+                    break;
+                case "field_declaration":
+                {
+                    var vis = JavaVisibility(m, dflt);
+                    var type = Field(m, "type");
+                    foreach (var vd in m.NamedChildren)
+                        if (vd.Type == "variable_declarator")
+                            AddMember(raw, NameOf(vd), Line(vd), OutlineKind.Field, vis, FieldSig(NameOf(vd) ?? "", type));
+                    break;
+                }
+                case "enum_constant":
+                    AddMember(raw, NameOf(m), Line(m), OutlineKind.Field, OutlineVisibility.Public);
+                    break;
+                case "enum_body_declarations":
+                    foreach (var inner in JavaMembers(m, typePath, typeKind)) raw.Add(
+                        new RawMember(inner.Name, inner.Line, inner.Kind, inner.Visibility, inner.Signature));
+                    break;
+            }
+        }
+        return Finalize(raw, typePath);
+    }
+
+    /// <summary>Java visibility from the <c>modifiers</c> node text (no explicit modifier ⇒ package-private,
+    /// mapped to internal); interface members default public.</summary>
+    private static OutlineVisibility JavaVisibility(Node m, OutlineVisibility dflt)
+    {
+        var text = FirstChild(m, "modifiers")?.Text ?? "";
+        if (text.Contains("public")) return OutlineVisibility.Public;
+        if (text.Contains("private")) return OutlineVisibility.Private;
+        if (text.Contains("protected")) return OutlineVisibility.Protected;
+        return dflt;
+    }
+
+    // ── PHP ──────────────────────────────────────────────────────────────────────
+
+    private static readonly HashSet<string> PhpTypeDecls =
+        ["class_declaration", "interface_declaration", "trait_declaration", "enum_declaration"];
+
+    private static OutlineKind PhpTypeKind(string t) => t switch
+    {
+        "interface_declaration" or "trait_declaration" => OutlineKind.Interface,
+        "enum_declaration"                             => OutlineKind.Enum,
+        _                                              => OutlineKind.Class,
+    };
+
+    private static CodeOutline BuildPhp(Node root, string? baseDir)
+    {
+        var imports = new List<ImportRef>();
+        foreach (var n in Descendants(root))
+            if (n.Type == "namespace_use_declaration")
+                imports.Add(new ImportRef(OneLine(n.Text), null));
+
+        var types = new List<OutlineType>();
+        var topRaw = new List<RawMember>();
+        ScanPhpTypes(root, "", types, topRaw);
+        return new CodeOutline(imports, types, Finalize(topRaw, ""));
+    }
+
+    private static void ScanPhpTypes(Node container, string parentPath, List<OutlineType> outTypes, List<RawMember> topFuncs)
+    {
+        foreach (var child in container.NamedChildren)
+        {
+            if (PhpTypeDecls.Contains(child.Type))
+            {
+                var name = Simple(NameOf(child) ?? "");
+                if (name.Length == 0) continue;
+                var path = parentPath.Length > 0 ? $"{parentPath}/T:{name}" : $"T:{name}";
+                var body = FirstChild(child, "declaration_list");
+                var members = body is { } b ? PhpMembers(b, path) : [];
+                outTypes.Add(new OutlineType(name, Line(child), PhpTypeKind(child.Type), path, members) { Bases = PhpBases(child) });
+            }
+            else if (child.Type == "function_definition" && parentPath.Length == 0)
+            {
+                AddMember(topFuncs, NameOf(child), Line(child), OutlineKind.Method, OutlineVisibility.Public,
+                    CallableSig(NameOf(child) ?? "", Field(child, "parameters"), Field(child, "return_type")));
+            }
+        }
+    }
+
+    private static IReadOnlyList<BaseRef> PhpBases(Node typeDecl)
+    {
+        var bases = new List<BaseRef>();
+        if (FirstChild(typeDecl, "base_clause") is { } bc)
+            foreach (var c in bc.NamedChildren)
+            {
+                var n = ShortName(c.Text);
+                if (n.Length > 0) bases.Add(new BaseRef(n, IsInterface: false));
+            }
+        if (FirstChild(typeDecl, "class_interface_clause") is { } ic)
+            foreach (var c in ic.NamedChildren)
+            {
+                var n = ShortName(c.Text);
+                if (n.Length > 0) bases.Add(new BaseRef(n, IsInterface: true));
+            }
+        return bases;
+    }
+
+    private static IReadOnlyList<OutlineMember> PhpMembers(Node body, string typePath)
+    {
+        var raw = new List<RawMember>();
+        foreach (var m in body.NamedChildren)
+        {
+            switch (m.Type)
+            {
+                case "method_declaration":
+                {
+                    var name = NameOf(m) ?? "";
+                    var kind = name == "__construct" ? OutlineKind.Constructor : OutlineKind.Method;
+                    AddMember(raw, name, Line(m), kind, PhpVisibility(m),
+                        CallableSig(name, Field(m, "parameters"), Field(m, "return_type")));
+                    break;
+                }
+                case "property_declaration":
+                {
+                    var vis = PhpVisibility(m);
+                    var type = Field(m, "type");
+                    foreach (var pe in m.NamedChildren)
+                        if (pe.Type == "property_element" && pe.GetChildForField("name") is { } vn)
+                        {
+                            var pname = StripDollar(vn.Text);
+                            AddMember(raw, pname, Line(pe), OutlineKind.Property, vis, FieldSig(pname, type));
+                        }
+                    break;
+                }
+                case "const_declaration":
+                {
+                    var vis = PhpVisibility(m);
+                    foreach (var ce in m.NamedChildren)
+                        if (ce.Type == "const_element")
+                            AddMember(raw, FirstChild(ce, "name")?.Text, Line(ce), OutlineKind.Field, vis);
+                    break;
+                }
+            }
+        }
+        return Finalize(raw, typePath);
+    }
+
+    private static OutlineVisibility PhpVisibility(Node m) =>
+        FirstChild(m, "visibility_modifier")?.Text switch
+        {
+            "private"   => OutlineVisibility.Private,
+            "protected" => OutlineVisibility.Protected,
+            _           => OutlineVisibility.Public,   // PHP members are public by default
+        };
+
+    private static string StripDollar(string s) => s.StartsWith('$') ? s[1..] : s;
+
+    // ── C++ ──────────────────────────────────────────────────────────────────────
+
+    private static CodeOutline BuildCpp(Node root, string? baseDir)
+    {
+        var imports = new List<ImportRef>();
+        foreach (var n in Descendants(root))
+            if (n.Type == "preproc_include")
+                imports.Add(new ImportRef(OneLine(n.Text), null));
+
+        var types = new List<OutlineType>();
+        var topRaw = new List<RawMember>();
+        ScanCppTypes(root, "", types, topRaw);
+        return new CodeOutline(imports, types, Finalize(topRaw, ""));
+    }
+
+    private static void ScanCppTypes(Node container, string parentPath, List<OutlineType> outTypes, List<RawMember> topFuncs)
+    {
+        foreach (var child in container.NamedChildren)
+        {
+            switch (child.Type)
+            {
+                case "class_specifier":
+                case "struct_specifier":
+                {
+                    var name = Simple(NameOf(child) ?? "");
+                    if (name.Length == 0) break;
+                    var kind = child.Type == "struct_specifier" ? OutlineKind.Struct : OutlineKind.Class;
+                    var path = parentPath.Length > 0 ? $"{parentPath}/T:{name}" : $"T:{name}";
+                    var body = FirstChild(child, "field_declaration_list");
+                    var dflt = child.Type == "struct_specifier" ? OutlineVisibility.Public : OutlineVisibility.Private;
+                    var members = body is { } b ? CppMembers(b, path, name, dflt) : [];
+                    outTypes.Add(new OutlineType(name, Line(child), kind, path, members) { Bases = CppBases(child) });
+                    if (body is { } b2) ScanCppTypes(b2, path, outTypes, topFuncs);   // nested types
+                    break;
+                }
+                case "enum_specifier":
+                {
+                    var name = Simple(NameOf(child) ?? "");
+                    if (name.Length == 0) break;
+                    var path = parentPath.Length > 0 ? $"{parentPath}/T:{name}" : $"T:{name}";
+                    var raw = new List<RawMember>();
+                    if (FirstChild(child, "enumerator_list") is { } el)
+                        foreach (var e in el.NamedChildren)
+                            if (e.Type == "enumerator") AddMember(raw, NameOf(e), Line(e), OutlineKind.Field);
+                    outTypes.Add(new OutlineType(name, Line(child), OutlineKind.Enum, path, Finalize(raw, path)));
+                    break;
+                }
+                case "namespace_definition":
+                    if (FirstChild(child, "declaration_list") is { } nb) ScanCppTypes(nb, parentPath, outTypes, topFuncs);
+                    break;
+                case "declaration_list":
+                    ScanCppTypes(child, parentPath, outTypes, topFuncs);
+                    break;
+                case "function_definition":
+                    if (parentPath.Length == 0 && CppFunctionName(child) is { } fname)
+                        AddMember(topFuncs, fname, Line(child), OutlineKind.Method, OutlineVisibility.Public, CppSig(child, fname));
+                    break;
+            }
+        }
+    }
+
+    private static IReadOnlyList<BaseRef> CppBases(Node typeDecl)
+    {
+        var bc = FirstChild(typeDecl, "base_class_clause");
+        if (bc is null) return [];
+        var bases = new List<BaseRef>();
+        foreach (var c in bc.NamedChildren)
+            if (c.Type is "type_identifier" or "qualified_identifier" or "template_type")
+            {
+                var n = Simple(c.Text);
+                if (n.Length > 0) bases.Add(new BaseRef(n, IsInterface: false));
+            }
+        return bases;
+    }
+
+    private static IReadOnlyList<OutlineMember> CppMembers(Node body, string typePath, string typeName, OutlineVisibility dflt)
+    {
+        var raw = new List<RawMember>();
+        var vis = dflt;
+        foreach (var m in body.NamedChildren)
+        {
+            switch (m.Type)
+            {
+                case "access_specifier":
+                    vis = m.Text.Contains("public") ? OutlineVisibility.Public
+                        : m.Text.Contains("protected") ? OutlineVisibility.Protected
+                        : OutlineVisibility.Private;
+                    break;
+                case "function_definition":
+                case "declaration":
+                    if (CppFunctionName(m) is { } fn)
+                        AddMember(raw, fn, Line(m), fn == typeName ? OutlineKind.Constructor : OutlineKind.Method, vis, CppSig(m, fn));
+                    break;
+                case "field_declaration":
+                    if (CppFunctionName(m) is { } mfn)                                    // a method declaration
+                        AddMember(raw, mfn, Line(m), mfn == typeName ? OutlineKind.Constructor : OutlineKind.Method, vis, CppSig(m, mfn));
+                    else if (CppFieldName(m) is { } dn)                                   // a data member
+                        AddMember(raw, dn, Line(m), OutlineKind.Field, vis, FieldSig(dn, Field(m, "type")));
+                    break;
+            }
+        }
+        return Finalize(raw, typePath);
+    }
+
+    /// <summary>The declared name of a function from its <c>function_declarator</c> (the method/ctor name), or null
+    /// when the node declares no function.</summary>
+    private static string? CppFunctionName(Node node)
+    {
+        var fd = FindDescendantOfType(node, "function_declarator");
+        var d = fd?.GetChildForField("declarator");
+        return d is null ? null : (d.Type is "identifier" or "field_identifier" ? d.Text : LeafIdentifier(d));
+    }
+
+    private static string? CppFieldName(Node fieldDecl)
+    {
+        var d = fieldDecl.GetChildForField("declarator");
+        return d is null ? null : (d.Type is "field_identifier" or "identifier" ? d.Text : LeafIdentifier(d));
+    }
+
+    private static string CppSig(Node node, string name)
+    {
+        var fd = FindDescendantOfType(node, "function_declarator");
+        return CallableSig(name, fd?.GetChildForField("parameters")?.Text, Field(node, "type"));
+    }
+
+    // ── Rust ─────────────────────────────────────────────────────────────────────
+
+    /// <summary>A type accumulated across its declaration and one-or-more <c>impl</c> blocks.</summary>
+    private sealed class RustType
+    {
+        public string Name = "";
+        public int Line;
+        public OutlineKind Kind;
+        public readonly List<RawMember> Members = [];
+        public readonly List<BaseRef> Bases = [];
+    }
+
+    private static CodeOutline BuildRust(Node root, string? baseDir)
+    {
+        var imports = new List<ImportRef>();
+        foreach (var n in root.NamedChildren)
+            if (n.Type == "use_declaration")
+                imports.Add(new ImportRef(OneLine(n.Text), null));
+
+        var byName = new Dictionary<string, RustType>();
+        var order = new List<string>();
+        var topRaw = new List<RawMember>();
+
+        foreach (var child in root.NamedChildren)
+        {
+            switch (child.Type)
+            {
+                case "struct_item": RustDeclare(byName, order, child, OutlineKind.Struct, RustStructFields(child)); break;
+                case "enum_item":   RustDeclare(byName, order, child, OutlineKind.Enum, RustEnumVariants(child)); break;
+                case "trait_item":  RustDeclare(byName, order, child, OutlineKind.Interface, RustTraitMethods(child)); break;
+                case "function_item":
+                    AddMember(topRaw, NameOf(child), Line(child), OutlineKind.Method, RustVisibility(child),
+                        CallableSig(NameOf(child) ?? "", Field(child, "parameters"), Field(child, "return_type")));
+                    break;
+                case "impl_item": RustApplyImpl(byName, order, child); break;
+            }
+        }
+
+        var types = new List<OutlineType>();
+        foreach (var name in order)
+        {
+            var rt = byName[name];
+            types.Add(new OutlineType(rt.Name, rt.Line, rt.Kind, $"T:{rt.Name}", Finalize(rt.Members, $"T:{rt.Name}")) { Bases = rt.Bases });
+        }
+        return new CodeOutline(imports, types, Finalize(topRaw, ""));
+    }
+
+    private static RustType RustEntry(Dictionary<string, RustType> byName, List<string> order, string name, int line, OutlineKind kind)
+    {
+        if (!byName.TryGetValue(name, out var rt))
+        {
+            rt = new RustType { Name = name, Line = line, Kind = kind };
+            byName[name] = rt;
+            order.Add(name);
+        }
+        return rt;
+    }
+
+    private static void RustDeclare(Dictionary<string, RustType> byName, List<string> order, Node node, OutlineKind kind, List<RawMember> members)
+    {
+        var name = Simple(NameOf(node) ?? "");
+        if (name.Length == 0) return;
+        var rt = RustEntry(byName, order, name, Line(node), kind);
+        rt.Kind = kind;                 // a real declaration wins over a placeholder created by an impl block
+        rt.Members.AddRange(members);
+    }
+
+    private static void RustApplyImpl(Dictionary<string, RustType> byName, List<string> order, Node impl)
+    {
+        var typeName = Simple(Field(impl, "type") ?? "");
+        if (typeName.Length == 0) return;
+        var rt = RustEntry(byName, order, typeName, Line(impl), OutlineKind.Struct);
+
+        if (impl.GetChildForField("trait") is { } tr)
+        {
+            var tn = Simple(tr.Text);
+            if (tn.Length > 0) rt.Bases.Add(new BaseRef(tn, IsInterface: true));
+        }
+        if (FirstChild(impl, "declaration_list") is { } body)
+            foreach (var f in body.NamedChildren)
+                if (f.Type is "function_item" or "function_signature_item")
+                    AddMember(rt.Members, NameOf(f), Line(f), OutlineKind.Method, RustVisibility(f),
+                        CallableSig(NameOf(f) ?? "", Field(f, "parameters"), Field(f, "return_type")));
+    }
+
+    private static List<RawMember> RustStructFields(Node structItem)
+    {
+        var raw = new List<RawMember>();
+        if (FirstChild(structItem, "field_declaration_list") is { } body)
+            foreach (var f in body.NamedChildren)
+                if (f.Type == "field_declaration")
+                    AddMember(raw, Field(f, "name"), Line(f), OutlineKind.Field, RustVisibility(f),
+                        FieldSig(Field(f, "name") ?? "", Field(f, "type")));
+        return raw;
+    }
+
+    private static List<RawMember> RustEnumVariants(Node enumItem)
+    {
+        var raw = new List<RawMember>();
+        if (FirstChild(enumItem, "enum_variant_list") is { } body)
+            foreach (var v in body.NamedChildren)
+                if (v.Type == "enum_variant")
+                    AddMember(raw, NameOf(v), Line(v), OutlineKind.Field, RustVisibility(v));
+        return raw;
+    }
+
+    private static List<RawMember> RustTraitMethods(Node traitItem)
+    {
+        var raw = new List<RawMember>();
+        if (FirstChild(traitItem, "declaration_list") is { } body)
+            foreach (var f in body.NamedChildren)
+                if (f.Type is "function_signature_item" or "function_item")
+                    AddMember(raw, NameOf(f), Line(f), OutlineKind.Method, OutlineVisibility.Public,
+                        CallableSig(NameOf(f) ?? "", Field(f, "parameters"), Field(f, "return_type")));
+        return raw;
+    }
+
+    private static OutlineVisibility RustVisibility(Node n) =>
+        FirstChild(n, "visibility_modifier") is not null ? OutlineVisibility.Public : OutlineVisibility.Private;
+
     // ── Misc ───────────────────────────────────────────────────────────────────
+
+    /// <summary>The short (last-segment) name from a possibly-qualified identifier (<c>App\Models\User</c> →
+    /// <c>User</c>, <c>std::vector</c> → <c>vector</c>), generics stripped.</summary>
+    private static string ShortName(string text)
+    {
+        var t = text.Trim();
+        int slash = t.LastIndexOf('\\');
+        if (slash >= 0) t = t[(slash + 1)..];
+        int colons = t.LastIndexOf("::", StringComparison.Ordinal);
+        if (colons >= 0) t = t[(colons + 2)..];
+        return Simple(t);
+    }
+
+    /// <summary>The first descendant of <paramref name="n"/> with type <paramref name="type"/> (DFS), or null.</summary>
+    private static Node? FindDescendantOfType(Node n, string type)
+    {
+        foreach (var c in n.NamedChildren)
+        {
+            if (c.Type == type) return c;
+            if (FindDescendantOfType(c, type) is { } d) return d;
+        }
+        return null;
+    }
+
+    /// <summary>The first identifier-like leaf under a (possibly pointer/reference) declarator.</summary>
+    private static string? LeafIdentifier(Node n)
+    {
+        if (n.Type is "identifier" or "field_identifier" or "type_identifier") return n.Text;
+        foreach (var c in n.NamedChildren)
+            if (LeafIdentifier(c) is { } id) return id;
+        return null;
+    }
 
     private static string StripQuotes(string s)
     {

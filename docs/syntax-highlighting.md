@@ -25,11 +25,68 @@ capture names → `TextSwatch.*`; `XshdTheming` retints AvalonEdit's built-in de
 | Python     | `python`     | `.py` `.pyw` |
 | Ruby       | `ruby`       | `.rb` `.rbw` `.rake` `.gemspec` `.ru` |
 | JSON       | `json`       | `.json` |
+| Rust       | `rust`       | `.rs` |
+| C++        | `cpp`        | `.cpp` `.cc` `.cxx` `.hpp` `.hh` `.hxx` `.ipp` |
+| Java       | `java`       | `.java` |
+| HTML       | `html`       | `.html` `.htm` |
+| CSS        | `css`        | `.css` |
+| ERB        | `embedded-template` | `.erb` |
+| Razor      | `razor`      | `.razor` `.cshtml` |
+| PHP        | `php`        | `.php` `.phtml` |
+| Jinja      | `jinja` *(→html native)* | `.j2` `.jinja` `.jinja2` |
+| Jupyter    | `ipynb` *(→json native)* | `.ipynb` |
 
-**AvalonEdit `.xshd` (basic colour):** the markup/config formats AvalonEdit ships a definition for —
-XML, **XAML** (`.xaml`, via the XML definition), HTML, CSS, and similar — resolved automatically by
-extension and retinted by `XshdTheming`. There is no bundled tree-sitter XML grammar, so XAML/XML use
-this path.
+Several of these are **injection hosts** — they embed another language (see *Embedded languages* below).
+`jinja`/`ipynb` are **aliases**: they parse with the html/json native grammar but route injection by their
+own id (`CodeHighlighter.NativeAlias`).
+
+**AvalonEdit `.xshd` (basic colour):** the remaining markup/config formats AvalonEdit ships a definition
+for — **XML / XAML** (`.xml`, `.xaml`, `.xsl`, via the XML definition) and similar — resolved automatically
+by extension and retinted by `XshdTheming`. There is no bundled tree-sitter XML grammar, so XAML/XML use
+this path. (HTML and CSS were moved off `.xshd` onto tree-sitter so embedded `<script>`/`<style>` can be
+injected.)
+
+## Embedded languages (injection)
+
+A file can embed another language — JavaScript/CSS inside HTML's `<script>`/`<style>`, Ruby inside an ERB
+`<% %>`, SQL/HTML inside a Ruby heredoc, Python inside a Jinja `{{ }}`, the kernel language inside a Jupyter
+code cell. `LanguageInjections` (`src/Nexaflow.Syntax/LanguageInjections.cs`) finds those sub-ranges; the
+highlighter re-parses each substring with a cached **child** highlighter and merges the spans (offset into
+parent coordinates), recursing so nesting works (ERB → HTML → `<script>` → JS). The same ranges drive code
+folding, the spliced AST s-expression (`get_syntax_tree`), and the **class viewer** (each embedded region
+renders as a linked `namespace` sub-graph).
+
+Detection is **decoupled** from rendering: a site for a language we don't ship yet (`sql`, `graphql`) is
+still detected — it simply produces no spans until that grammar is added, at which point it lights up with
+no code change. To add a missing target language, follow *Add a tree-sitter language* below; the injection
+rule already points at it.
+
+An injection is either **isolated** (a self-contained block parsed on its own) or **combined** (a
+`GroupKey` on the range groups non-contiguous fragments of one language into a single
+`Parser.IncludedRanges` parse, so they form one coherent tree in original-document coordinates).
+
+| Host | Embeds | Rule (`LanguageInjections.Find`) | Mode |
+|------|--------|----------------------------------|------|
+| `html` | `<script>`→`javascript`, `<style>`→`css` | the element's `raw_text` child | isolated |
+| `ruby` | heredoc tag → `html`/`css`/`javascript`/`json`/`embedded-template` (`sql` no-op) | `heredoc_body`, language by `<<~TAG` | isolated |
+| `embedded-template` (ERB) | `code`→`ruby`, `content`→`html` | by node type | **combined** |
+| `php` | `text`→`html` | the raw-HTML `text` nodes | **combined** |
+| `razor` | *(none — the grammar unifies C# + markup; coloured directly)* | — | — |
+| `jinja` | `{{ }}` / `{% %}`→`python` (+ html script/style) | text scan | isolated |
+| `javascript`/`typescript` | `` gql`…` `` / `` graphql`…` ``→`graphql` | tagged-template call (no-op until grammar) | isolated |
+| `ipynb` | code cell `source`→kernel language | JSON walk (per source line) | isolated |
+
+Combined injection is what lets PHP's HTML around `<?php?>` parse as one document (so the trailing
+`</body></html>` close tags colour) and ERB's `<% if %>…<% end %>` pair across directives. `IncludedRanges`
+is char-indexed (consistent with `Node.StartIndex`), so it's Unicode-safe.
+
+### Jupyter notebooks are special
+
+A `.ipynb` cell's `source` is JSON with **escaped** newlines, so it can't be parsed in place. The
+**structure** extractor (`CodeStructureExtractor.BuildNotebook`) instead *decodes* each code cell with
+`System.Text.Json` and extracts the kernel language, surfacing each cell as a linked sub-graph (member lines
+mapped back to the cell's approximate document row). In-editor **highlighting** stays per source line (each
+array element is a self-contained fragment), which colours fine but doesn't span multi-line constructs.
 
 ## The role palette (`TextSwatch.*`)
 
@@ -94,7 +151,8 @@ a grammar.
 | File | Role |
 |------|------|
 | `src/Nexaflow.Syntax/HighlightQueries.cs` | Per-grammar tree-sitter highlight queries |
-| `src/Nexaflow.Syntax/CodeHighlighter.cs` | Wraps a grammar + query; `Highlight` → spans, `GetParseTree` |
+| `src/Nexaflow.Syntax/CodeHighlighter.cs` | Wraps a grammar + query; `Highlight` → spans, `GetParseTree`; recurses into embedded languages |
+| `src/Nexaflow.Syntax/LanguageInjections.cs` | Finds embedded-language sub-ranges per host grammar |
 | `src/Nexaflow.Visuals.Text/Editor/Highlighting/HighlightingRegistry.cs` | Extension → engine (tree-sitter / xshd / plain) |
 | `src/Nexaflow.Visuals.Text/Editor/Highlighting/TreeSitterColorizer.cs` | Capture → `TextSwatch.*`, painted onto AvalonEdit |
 | `src/Nexaflow.Visuals.Text/Editor/Highlighting/XshdTheming.cs` | Retints built-in `.xshd` colours to the palette |
