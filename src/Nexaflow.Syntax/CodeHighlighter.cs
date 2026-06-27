@@ -33,6 +33,9 @@ public sealed class CodeHighlighter : IDisposable
     private const int MaxInjections = 128;
     private sealed class InjectionBudget { public int Depth; public int Remaining = MaxInjections; }
 
+    // Empty included-ranges ⇒ parse the whole document (resets any previous combined-parse state on reuse).
+    private static readonly TreeSitter.Range[] NoRanges = System.Array.Empty<TreeSitter.Range>();
+
     // Grammar ids that parse with a *different* native grammar but route injection by their own id (jinja
     // parses as html for the markup, then additionally injects python into {{ }}/{% %} — see LanguageInjections).
     private static readonly Dictionary<string, string> NativeAlias = new()
@@ -78,13 +81,18 @@ public sealed class CodeHighlighter : IDisposable
     public IReadOnlyList<HighlightSpan> Highlight(string text)
     {
         var spans = new List<HighlightSpan>();
-        HighlightInto(spans, text, 0, new InjectionBudget());
+        HighlightInto(spans, text, 0, null, new InjectionBudget());
         return spans;
     }
 
-    private void HighlightInto(List<HighlightSpan> spans, string text, int offset, InjectionBudget budget)
+    // <paramref name="included"/> null ⇒ parse the whole <paramref name="text"/> (offset shifts isolated child
+    // spans). Non-null ⇒ a combined parse over those ranges, whose node offsets are already in <paramref
+    // name="text"/> coordinates (so offset is the parent's, not per-fragment).
+    private void HighlightInto(List<HighlightSpan> spans, string text, int offset,
+        TreeSitter.Range[]? included, InjectionBudget budget)
     {
         if (string.IsNullOrEmpty(text)) return;
+        _parser.IncludedRanges = included ?? NoRanges;
         using var tree = _parser.Parse(text);
         if (tree is null) return;
 
@@ -97,8 +105,8 @@ public sealed class CodeHighlighter : IDisposable
         }
 
         // Embedded spans appended after the outer spans ⇒ last-wins gives them priority.
-        ForEachInjection(text, tree.RootNode, budget, (child, sub, inj) =>
-            child.HighlightInto(spans, sub, offset + inj.Start, budget));
+        ForEachInjection(text, tree.RootNode, offset, budget,
+            (child, t, o, inc) => child.HighlightInto(spans, t, o, inc, budget));
     }
 
     /// <summary>Collapsible ranges for editor folding: every multi-line, block-like node in the parse tree
@@ -108,13 +116,15 @@ public sealed class CodeHighlighter : IDisposable
     public IReadOnlyList<FoldRange> GetFolds(string text)
     {
         var folds = new List<FoldRange>();
-        GetFoldsInto(folds, text, 0, new InjectionBudget());
+        GetFoldsInto(folds, text, 0, null, new InjectionBudget());
         return folds;
     }
 
-    private void GetFoldsInto(List<FoldRange> folds, string text, int offset, InjectionBudget budget)
+    private void GetFoldsInto(List<FoldRange> folds, string text, int offset,
+        TreeSitter.Range[]? included, InjectionBudget budget)
     {
         if (string.IsNullOrEmpty(text)) return;
+        _parser.IncludedRanges = included ?? NoRanges;
         using var tree = _parser.Parse(text);
         if (tree is null) return;
 
@@ -124,8 +134,8 @@ public sealed class CodeHighlighter : IDisposable
         AddCommentFolds(comments, text, local);
         foreach (var f in local) folds.Add(new FoldRange(f.Start + offset, f.End + offset));
 
-        ForEachInjection(text, tree.RootNode, budget, (child, sub, inj) =>
-            child.GetFoldsInto(folds, sub, offset + inj.Start, budget));
+        ForEachInjection(text, tree.RootNode, offset, budget,
+            (child, t, o, inc) => child.GetFoldsInto(folds, t, o, inc, budget));
     }
 
     private readonly record struct CommentSpan(int Start, int End, int StartRow, int EndRow);
@@ -202,6 +212,7 @@ public sealed class CodeHighlighter : IDisposable
     public T? WithParseTree<T>(string text, Func<Node, T> visit)
     {
         if (string.IsNullOrEmpty(text)) return default;
+        _parser.IncludedRanges = NoRanges;   // always whole-doc (clear any combined-parse state)
         using var tree = _parser.Parse(text);
         return tree is null ? default : visit(tree.RootNode);
     }
@@ -220,34 +231,37 @@ public sealed class CodeHighlighter : IDisposable
     /// Capped to keep large files from flooding a tool result.</summary>
     public string? GetParseTree(string text, int maxChars = 20_000)
     {
-        var expr = BuildParseTree(text, new InjectionBudget());
+        var expr = BuildParseTree(text, null, new InjectionBudget());
         if (expr is null) return null;
         return expr.Length > maxChars ? expr[..maxChars] + " …(truncated)" : expr;
     }
 
-    private string? BuildParseTree(string text, InjectionBudget budget)
+    private string? BuildParseTree(string text, TreeSitter.Range[]? included, InjectionBudget budget)
     {
         if (string.IsNullOrEmpty(text)) return null;
+        _parser.IncludedRanges = included ?? NoRanges;
         using var tree = _parser.Parse(text);
         var expr = tree?.RootNode.Expression;
         if (expr is null) return null;
 
         var sb = new StringBuilder(expr);
-        ForEachInjection(text, tree!.RootNode, budget, (child, sub, inj) =>
+        ForEachInjection(text, tree!.RootNode, 0, budget, (child, t, _, inc) =>
         {
-            var childExpr = child.BuildParseTree(sub, budget);
+            var childExpr = child.BuildParseTree(t, inc, budget);
             if (childExpr is not null)
-                sb.Append("\n(injection language: \"").Append(inj.TargetGrammarId).Append("\"\n  ")
+                sb.Append("\n(injection language: \"").Append(child._grammarId).Append("\"\n  ")
                   .Append(childExpr).Append(')');
         });
         return sb.ToString();
     }
 
     /// <summary>Discovers the embedded ranges in <paramref name="root"/> (must be live) and invokes
-    /// <paramref name="visit"/> for each with a child highlighter + the substring, honouring the depth /
-    /// count budget and skipping self-injection and unavailable grammars.</summary>
-    private void ForEachInjection(string text, Node root, InjectionBudget budget,
-        Action<CodeHighlighter, string, InjectionRange> visit)
+    /// <paramref name="visit"/> with each child highlighter and how to parse it: an <b>isolated</b> range is
+    /// passed its substring (and the absolute offset), while a <b>combined</b> group is passed the parent text
+    /// plus <c>IncludedRanges</c> so its non-contiguous fragments parse as one tree in original coordinates.
+    /// Honours the depth/count budget and skips self-injection and unavailable grammars.</summary>
+    private void ForEachInjection(string text, Node root, int offset, InjectionBudget budget,
+        Action<CodeHighlighter, string, int, TreeSitter.Range[]?> visit)
     {
         if (budget.Depth >= MaxDepth) return;
         if (!LanguageInjections.HasInjections(_grammarId)) return;
@@ -258,20 +272,65 @@ public sealed class CodeHighlighter : IDisposable
         if (injections.Count == 0) return;
 
         budget.Depth++;
-        foreach (var inj in injections)
+
+        foreach (var inj in injections)   // isolated ranges → parse each substring on its own
         {
+            if (inj.GroupKey is not null) continue;
             if (budget.Remaining <= 0) break;
             if (inj.TargetGrammarId == _grammarId) continue;                          // self-injection guard
-            if (inj.Start < 0 || inj.Length <= 0 || inj.Start + inj.Length > text.Length) continue;
+            if (inj.Start < 0 || inj.Length <= 0 || inj.End > text.Length) continue;
             var sub = text.Substring(inj.Start, inj.Length);
             if (string.IsNullOrWhiteSpace(sub)) continue;
             var child = GetChild(inj.TargetGrammarId);
             if (child is null) continue;                                              // grammar unavailable → no-op
             budget.Remaining--;
-            try { visit(child, sub, inj); }
-            catch { /* a bad embedded substring must never break the host's highlighting */ }
+            try { visit(child, sub, offset + inj.Start, null); }
+            catch { /* a bad embedded fragment must never break the host's highlighting */ }
         }
+
+        foreach (var (grammar, ranges) in BuildGroups(injections, text.Length))   // combined groups
+        {
+            if (budget.Remaining <= 0) break;
+            if (grammar == _grammarId) continue;
+            var child = GetChild(grammar);
+            if (child is null) continue;
+            budget.Remaining--;
+            try { visit(child, text, offset, ranges); }
+            catch { /* combined parse failure must never break the host */ }
+        }
+
         budget.Depth--;
+    }
+
+    /// <summary>Builds the <c>IncludedRanges</c> arrays for combined injections, one per
+    /// (<see cref="InjectionRange.TargetGrammarId"/>, <see cref="InjectionRange.GroupKey"/>), in first-seen
+    /// order, each sorted by position and bounds-checked.</summary>
+    private static IEnumerable<(string Grammar, TreeSitter.Range[] Ranges)> BuildGroups(
+        IReadOnlyList<InjectionRange> injections, int textLength)
+    {
+        var order = new List<string>();
+        var byKey = new Dictionary<string, (string Grammar, List<InjectionRange> Ranges)>();
+        foreach (var inj in injections)
+        {
+            if (inj.GroupKey is null) continue;
+            if (inj.Start < 0 || inj.End <= inj.Start || inj.End > textLength) continue;
+            var key = inj.TargetGrammarId + " " + inj.GroupKey;
+            if (!byKey.TryGetValue(key, out var g)) { g = (inj.TargetGrammarId, new List<InjectionRange>()); byKey[key] = g; order.Add(key); }
+            g.Ranges.Add(inj);
+        }
+
+        foreach (var key in order)
+        {
+            var (grammar, ranges) = byKey[key];
+            ranges.Sort((a, b) => a.Start.CompareTo(b.Start));
+            var arr = new TreeSitter.Range[ranges.Count];
+            for (int i = 0; i < ranges.Count; i++)
+            {
+                var r = ranges[i];
+                arr[i] = new TreeSitter.Range(new Point(r.StartRow, r.StartColumn), new Point(r.EndRow, r.EndColumn), r.Start, r.End);
+            }
+            yield return (grammar, arr);
+        }
     }
 
     private CodeHighlighter? GetChild(string grammarId)

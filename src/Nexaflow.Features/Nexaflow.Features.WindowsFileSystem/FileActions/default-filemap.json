@@ -98,7 +98,8 @@
       { "Type": "Extension", "Value": "*.erb" },
       { "Type": "Extension", "Value": "*.j2" },
       { "Type": "Extension", "Value": "*.jinja" },
-      { "Type": "Extension", "Value": "*.jinja2" }
+      { "Type": "Extension", "Value": "*.jinja2" },
+      { "Type": "Extension", "Value": "*.ipynb" }
     ]
   },
   {

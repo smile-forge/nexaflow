@@ -61,33 +61,32 @@ still detected — it simply produces no spans until that grammar is added, at w
 no code change. To add a missing target language, follow *Add a tree-sitter language* below; the injection
 rule already points at it.
 
-| Host | Embeds | Rule (`LanguageInjections.Find`) |
-|------|--------|----------------------------------|
-| `html` | `<script>`→`javascript`, `<style>`→`css` | the element's `raw_text` child |
-| `ruby` | heredoc tag → `html`/`css`/`javascript`/`json`/`embedded-template` (`sql` no-op) | `heredoc_body` content, language by `<<~TAG` |
-| `embedded-template` (ERB) | `code`→`ruby`, `content`→`html` | by node type |
-| `php` | `text`→`html` | the raw-HTML `text` nodes |
-| `razor` | *(none — the grammar unifies C# + markup; coloured directly)* | — |
-| `jinja` | `{{ }}` / `{% %}`→`python` (+ html script/style) | text scan |
-| `javascript`/`typescript` | `` gql`…` `` / `` graphql`…` ``→`graphql` | tagged-template call (no-op until grammar) |
-| `ipynb` | code cell `source`→kernel language | JSON walk (per source line) |
+An injection is either **isolated** (a self-contained block parsed on its own) or **combined** (a
+`GroupKey` on the range groups non-contiguous fragments of one language into a single
+`Parser.IncludedRanges` parse, so they form one coherent tree in original-document coordinates).
 
-### Known limitations (per-fragment parsing)
+| Host | Embeds | Rule (`LanguageInjections.Find`) | Mode |
+|------|--------|----------------------------------|------|
+| `html` | `<script>`→`javascript`, `<style>`→`css` | the element's `raw_text` child | isolated |
+| `ruby` | heredoc tag → `html`/`css`/`javascript`/`json`/`embedded-template` (`sql` no-op) | `heredoc_body`, language by `<<~TAG` | isolated |
+| `embedded-template` (ERB) | `code`→`ruby`, `content`→`html` | by node type | **combined** |
+| `php` | `text`→`html` | the raw-HTML `text` nodes | **combined** |
+| `razor` | *(none — the grammar unifies C# + markup; coloured directly)* | — | — |
+| `jinja` | `{{ }}` / `{% %}`→`python` (+ html script/style) | text scan | isolated |
+| `javascript`/`typescript` | `` gql`…` `` / `` graphql`…` ``→`graphql` | tagged-template call (no-op until grammar) | isolated |
+| `ipynb` | code cell `source`→kernel language | JSON walk (per source line) | isolated |
 
-Each embedded fragment is parsed **independently** (its own substring → its own tree). When one language's
-fragments are non-contiguous in the host, cross-fragment constructs are lost:
+Combined injection is what lets PHP's HTML around `<?php?>` parse as one document (so the trailing
+`</body></html>` close tags colour) and ERB's `<% if %>…<% end %>` pair across directives. `IncludedRanges`
+is char-indexed (consistent with `Node.StartIndex`), so it's Unicode-safe.
 
-- **PHP trailing markup** — the HTML after the last `?>` is an orphan run of close tags (`</body></html>`),
-  which tree-sitter-html parses as errors, so those closing tags don't colour (the leading/opening markup and
-  all code do).
-- **Jupyter / `.ipynb` structure** — a cell's `source` is JSON with **escaped** newlines (`\n`), so the code
-  highlights per source line but multi-line defs/classes can't be parsed → the code map shows nothing for
-  notebooks. (Highlighting works; structure does not.)
-- **ERB / multi-block** — `<% if %>…<% end %>` split across directives parse per-block.
+### Jupyter notebooks are special
 
-The fix for all three is tree-sitter **combined injection** (`Parser.IncludedRanges`): parse all of a
-language's fragments as one tree in original-document coordinates. It's verified to work but is a larger
-change (and carries a byte/char-offset caveat for non-ASCII), so it's a deliberate follow-up.
+A `.ipynb` cell's `source` is JSON with **escaped** newlines, so it can't be parsed in place. The
+**structure** extractor (`CodeStructureExtractor.BuildNotebook`) instead *decodes* each code cell with
+`System.Text.Json` and extracts the kernel language, surfacing each cell as a linked sub-graph (member lines
+mapped back to the cell's approximate document row). In-editor **highlighting** stays per source line (each
+array element is a self-contained fragment), which colours fine but doesn't span multi-line constructs.
 
 ## The role palette (`TextSwatch.*`)
 

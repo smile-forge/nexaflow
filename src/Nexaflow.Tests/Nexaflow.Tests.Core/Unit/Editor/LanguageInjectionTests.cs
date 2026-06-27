@@ -104,6 +104,24 @@ public class LanguageInjectionTests
     }
 
     [TestMethod]
+    public void Php_CombinedHtml_ColorsTrailingCloseTags()
+    {
+        // The HTML before <?php and after ?> is combined into one parse, so the trailing close-tag-only
+        // fragment (</body></html>) is no longer an orphan the html grammar rejects.
+        const string src = "<html>\n<body>\n<?php echo 1; ?>\n</body>\n</html>\n";
+        using var hl = CodeHighlighter.TryCreate("php");
+        var spans = hl!.Highlight(src);
+
+        int afterPhp = src.IndexOf("?>") + 2;
+        Assert.IsTrue(spans.Any(s => s.Capture == "tag" && s.Start > afterPhp
+                && src.Substring(s.Start, s.Length) == "body"),
+            "the trailing </body> close tag (after ?>) is coloured via combined injection");
+        Assert.IsTrue(spans.Any(s => s.Capture == "tag" && s.Start > afterPhp
+                && src.Substring(s.Start, s.Length) == "html"),
+            "the trailing </html> close tag is coloured");
+    }
+
+    [TestMethod]
     public void Ruby_Heredoc_SelfLanguage_DoesNotRecurseForever()
     {
         // <<~RUBY would inject ruby into ruby — the self-injection guard must stop it (and not hang).

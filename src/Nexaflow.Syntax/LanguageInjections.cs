@@ -7,11 +7,22 @@ namespace Nexaflow.Syntax;
 /// <summary>
 /// A sub-range of a document that is written in a <b>different</b> language than the outer file — e.g. the
 /// JavaScript inside an HTML <c>&lt;script&gt;</c>, the Ruby inside an ERB <c>&lt;% %&gt;</c>, or the SQL/HTML
-/// inside a Ruby heredoc. Char offsets (<see cref="Start"/>/<see cref="Length"/>) index the same UTF-16 space
-/// as the editor document; <see cref="StartRow"/> is the 0-based row of the region's start (so the outline can
-/// map a child's line numbers back to absolute document lines).
+/// inside a Ruby heredoc. Char offsets (<see cref="Start"/>/<see cref="End"/>/<see cref="Length"/>) index the
+/// same UTF-16 space as the editor document; the row/column fields give the same boundaries as tree-sitter
+/// <c>Point</c>s (needed to build a combined <c>IncludedRanges</c> parse).
+///
+/// <para><see cref="GroupKey"/> controls how the range is parsed. When null, the range is parsed on its own
+/// (a self-contained block like a <c>&lt;script&gt;</c> or a heredoc). When set, all ranges that share a
+/// (<see cref="TargetGrammarId"/>, <see cref="GroupKey"/>) are parsed <b>together</b> as one tree via
+/// <c>Parser.IncludedRanges</c> — so non-contiguous fragments of one language (PHP's HTML around <c>&lt;?php?&gt;</c>,
+/// an ERB template's <c>&lt;% %&gt;</c> blocks) form a single coherent document.</para>
 /// </summary>
-public readonly record struct InjectionRange(int Start, int Length, int StartRow, string TargetGrammarId);
+public readonly record struct InjectionRange(
+    int Start, int End, int StartRow, int StartColumn, int EndRow, int EndColumn,
+    string TargetGrammarId, string? GroupKey = null)
+{
+    public int Length => End - Start;
+}
 
 /// <summary>
 /// Language injection — tree-sitter's model for files that embed another language. Given an outer grammar's
@@ -66,24 +77,26 @@ public static class LanguageInjections
         return list;
     }
 
-    // ── ERB (embedded-template): code → ruby, content → html ───────────────────────────────────
+    // ── ERB (embedded-template): code → ruby, content → html. Both are COMBINED so do/end and start/end
+    //    tags that span separate directives pair up into one tree. ──────────────────────────────────────
     private static List<InjectionRange> FindErb(Node root)
     {
         var list = new List<InjectionRange>();
         foreach (var n in Descendants(root))
         {
-            if (n.Type == "code") Add(list, n, "ruby");
-            else if (n.Type == "content") Add(list, n, "html");
+            if (n.Type == "code") Add(list, n, "ruby", group: "ruby");
+            else if (n.Type == "content") Add(list, n, "html", group: "html");
         }
         return list;
     }
 
-    // ── PHP: the raw HTML lives in `text` nodes between/around the <?php …?> tags ───────────────
+    // ── PHP: the raw HTML lives in `text` nodes around the <?php …?> tags. COMBINED so the markup parses as
+    //    one document (otherwise the trailing close-tag-only fragment is an orphan the html grammar rejects). ─
     private static List<InjectionRange> FindPhp(Node root)
     {
         var list = new List<InjectionRange>();
         foreach (var n in Descendants(root))
-            if (n.Type == "text") Add(list, n, "html");
+            if (n.Type == "text") Add(list, n, "html", group: "html");
         return list;
     }
 
@@ -155,8 +168,7 @@ public static class LanguageInjections
             int e = text.IndexOf(close, s + open.Length, StringComparison.Ordinal);
             if (e < 0) break;
             int inner = s + open.Length;
-            int len = e - inner;
-            if (len > 0) list.Add(new InjectionRange(inner, len, RowAt(text, inner), target));
+            if (e > inner) list.Add(IsolatedRange(inner, e, RowAt(text, inner), target));
             i = e + close.Length;
         }
     }
@@ -184,7 +196,7 @@ public static class LanguageInjections
                 {
                     int start = c.StartIndex + 1, end = c.EndIndex - 1;   // strip the surrounding backticks
                     if (end > start)
-                        list.Add(new InjectionRange(start, end - start, c.StartPosition.Row, "graphql"));
+                        list.Add(IsolatedRange(start, end, c.StartPosition.Row, "graphql"));
                     break;
                 }
         }
@@ -286,12 +298,18 @@ public static class LanguageInjections
     }
 
     // ── shared ─────────────────────────────────────────────────────────────────────────────────
-    private static void Add(List<InjectionRange> list, Node node, string targetGrammarId)
+    private static void Add(List<InjectionRange> list, Node node, string targetGrammarId, string? group = null)
     {
-        int length = node.EndIndex - node.StartIndex;
-        if (length > 0)
-            list.Add(new InjectionRange(node.StartIndex, length, node.StartPosition.Row, targetGrammarId));
+        if (node.EndIndex <= node.StartIndex) return;
+        var s = node.StartPosition;
+        var e = node.EndPosition;
+        list.Add(new InjectionRange(node.StartIndex, node.EndIndex, s.Row, s.Column, e.Row, e.Column, targetGrammarId, group));
     }
+
+    /// <summary>An isolated range (parsed on its own) built from text scanning, where row/column boundaries
+    /// aren't needed — only combined (<see cref="InjectionRange.GroupKey"/>) ranges use the column/end points.</summary>
+    private static InjectionRange IsolatedRange(int start, int end, int startRow, string targetGrammarId)
+        => new(start, end, startRow, 0, 0, 0, targetGrammarId, null);
 
     private static IEnumerable<Node> Descendants(Node n)
     {
