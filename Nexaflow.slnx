@@ -9,6 +9,7 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.AIChat/Nexaflow.Features.AIChat.csproj" Id="2f50c24e-a2af-46ae-908a-15dea1c28659" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Code/Nexaflow.Features.Code.csproj" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Common/Nexaflow.Features.Common.csproj" />
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Notebook/Nexaflow.Features.Notebook.csproj" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Compressed/Nexaflow.Features.Compressed.csproj" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Compressed.SharpCompress/Nexaflow.Features.Compressed.SharpCompress.csproj" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Compressed.Modern/Nexaflow.Features.Compressed.Modern.csproj" />

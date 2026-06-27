@@ -34,11 +34,14 @@ capture names → `TextSwatch.*`; `XshdTheming` retints AvalonEdit's built-in de
 | Razor      | `razor`      | `.razor` `.cshtml` |
 | PHP        | `php`        | `.php` `.phtml` |
 | Jinja      | `jinja` *(→html native)* | `.j2` `.jinja` `.jinja2` |
-| Jupyter    | `ipynb` *(→json native)* | `.ipynb` |
 
 Several of these are **injection hosts** — they embed another language (see *Embedded languages* below).
-`jinja`/`ipynb` are **aliases**: they parse with the html/json native grammar but route injection by their
-own id (`CodeHighlighter.NativeAlias`).
+`jinja` is an **alias**: it parses with the html native grammar but routes injection by its own id
+(`CodeHighlighter.NativeAlias`).
+
+> Jupyter notebooks (`.ipynb`) are **not** handled here — a notebook is a structured cell document, not a
+> flat source file, so it has its own `Nexaflow.Features.Notebook` feature (cell viewer + per-cell outline).
+> That feature reuses the read-only `CodeBlockView` (in `Nexaflow.Visuals.Text`) to highlight each code cell.
 
 **AvalonEdit `.xshd` (basic colour):** the remaining markup/config formats AvalonEdit ships a definition
 for — **XML / XAML** (`.xml`, `.xaml`, `.xsl`, via the XML definition) and similar — resolved automatically
@@ -49,8 +52,8 @@ injected.)
 ## Embedded languages (injection)
 
 A file can embed another language — JavaScript/CSS inside HTML's `<script>`/`<style>`, Ruby inside an ERB
-`<% %>`, SQL/HTML inside a Ruby heredoc, Python inside a Jinja `{{ }}`, the kernel language inside a Jupyter
-code cell. `LanguageInjections` (`src/Nexaflow.Syntax/LanguageInjections.cs`) finds those sub-ranges; the
+`<% %>`, SQL/HTML inside a Ruby heredoc, Python inside a Jinja `{{ }}`.
+`LanguageInjections` (`src/Nexaflow.Syntax/LanguageInjections.cs`) finds those sub-ranges; the
 highlighter re-parses each substring with a cached **child** highlighter and merges the spans (offset into
 parent coordinates), recursing so nesting works (ERB → HTML → `<script>` → JS). The same ranges drive code
 folding, the spliced AST s-expression (`get_syntax_tree`), and the **class viewer** (each embedded region
@@ -74,19 +77,10 @@ An injection is either **isolated** (a self-contained block parsed on its own) o
 | `razor` | *(none — the grammar unifies C# + markup; coloured directly)* | — | — |
 | `jinja` | `{{ }}` / `{% %}`→`python` (+ html script/style) | text scan | isolated |
 | `javascript`/`typescript` | `` gql`…` `` / `` graphql`…` ``→`graphql` | tagged-template call (no-op until grammar) | isolated |
-| `ipynb` | code cell `source`→kernel language | JSON walk (per source line) | isolated |
 
 Combined injection is what lets PHP's HTML around `<?php?>` parse as one document (so the trailing
 `</body></html>` close tags colour) and ERB's `<% if %>…<% end %>` pair across directives. `IncludedRanges`
 is char-indexed (consistent with `Node.StartIndex`), so it's Unicode-safe.
-
-### Jupyter notebooks are special
-
-A `.ipynb` cell's `source` is JSON with **escaped** newlines, so it can't be parsed in place. The
-**structure** extractor (`CodeStructureExtractor.BuildNotebook`) instead *decodes* each code cell with
-`System.Text.Json` and extracts the kernel language, surfacing each cell as a linked sub-graph (member lines
-mapped back to the cell's approximate document row). In-editor **highlighting** stays per source line (each
-array element is a self-contained fragment), which colours fine but doesn't span multi-line constructs.
 
 ## The role palette (`TextSwatch.*`)
 

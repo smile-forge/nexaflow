@@ -1,6 +1,4 @@
 using System.IO;
-using System.Text;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using TreeSitter;
 
@@ -25,7 +23,7 @@ public sealed class CodeStructureExtractor
     private const int MaxEmbedDepth = 3;
 
     public CodeOutline Extract(string grammarId, string text, string? baseDir = null)
-        => grammarId == "ipynb" ? BuildNotebook(text, baseDir) : Extract(grammarId, text, baseDir, 0);
+        => Extract(grammarId, text, baseDir, 0);
 
     private CodeOutline Extract(string grammarId, string text, string? baseDir, int depth)
     {
@@ -112,111 +110,6 @@ public sealed class CodeStructureExtractor
 
     private static OutlineMember Shift(OutlineMember m, string prefix, int lineOffset) =>
         new(m.Name, m.Line + lineOffset, m.Kind, m.Signature, $"{prefix}/{m.AstPath}") { Visibility = m.Visibility };
-
-    // ── Jupyter notebooks (.ipynb) ─────────────────────────────────────────────
-    // A cell's `source` is JSON with *escaped* newlines, so (unlike the injection path) it can't be parsed in
-    // place — we DECODE each code cell with System.Text.Json and extract its kernel language, surfacing each
-    // cell as a linked sub-graph. Member lines are mapped back to the cell's approximate document row.
-
-    private CodeOutline BuildNotebook(string text, string? baseDir)
-    {
-        JsonDocument doc;
-        try { doc = JsonDocument.Parse(text); }
-        catch { return CodeOutline.Empty; }
-        using (doc)
-        {
-            var root = doc.RootElement;
-            if (root.ValueKind != JsonValueKind.Object) return CodeOutline.Empty;
-            var lang = NotebookKernel(root);
-            if (lang is null || !root.TryGetProperty("cells", out var cells) || cells.ValueKind != JsonValueKind.Array)
-                return CodeOutline.Empty;
-
-            var embeds = new List<EmbeddedOutline>();
-            int searchFrom = 0, cellNo = 0;
-            foreach (var cell in cells.EnumerateArray())
-            {
-                if (cell.ValueKind != JsonValueKind.Object) continue;
-                var kind = cell.TryGetProperty("cell_type", out var ct) && ct.ValueKind == JsonValueKind.String
-                    ? ct.GetString() : "code";
-                if (kind != "code" || !cell.TryGetProperty("source", out var src)) continue;
-
-                var source = DecodeSource(src);
-                if (string.IsNullOrWhiteSpace(source)) continue;
-
-                int hostRow = LocateCell(text, source, ref searchFrom);
-                var inner = Extract(lang, source, baseDir, 1);
-                if (!inner.HasContent) { cellNo++; continue; }
-
-                embeds.Add(new EmbeddedOutline(lang, $"{lang} · cell {cellNo + 1}", hostRow + 1,
-                    Reproject(inner, $"E{cellNo}:{lang}", hostRow)));
-                cellNo++;
-            }
-            return embeds.Count == 0 ? CodeOutline.Empty : CodeOutline.Empty with { Embedded = embeds };
-        }
-    }
-
-    /// <summary>The notebook's kernel language (`metadata.kernelspec.language` / `language_info.name`) mapped
-    /// to a grammar id, defaulting to python; null when it maps to a language we can't load.</summary>
-    private static string? NotebookKernel(JsonElement root)
-    {
-        if (root.TryGetProperty("metadata", out var meta) && meta.ValueKind == JsonValueKind.Object)
-        {
-            if (meta.TryGetProperty("kernelspec", out var ks) && ks.ValueKind == JsonValueKind.Object
-                && ks.TryGetProperty("language", out var l) && l.ValueKind == JsonValueKind.String)
-                return NormalizeKernel(l.GetString());
-            if (meta.TryGetProperty("language_info", out var li) && li.ValueKind == JsonValueKind.Object
-                && li.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)
-                return NormalizeKernel(n.GetString());
-        }
-        return "python";
-    }
-
-    private static string? NormalizeKernel(string? kernel)
-    {
-        if (string.IsNullOrWhiteSpace(kernel)) return null;
-        var k = kernel.ToLowerInvariant();
-        if (k.Contains("python") || k == "ipython") return "python";
-        return k switch
-        {
-            "ruby"                 => "ruby",
-            "javascript" or "node" => "javascript",
-            "typescript"           => "typescript",
-            "csharp" or "c#"       => "c-sharp",
-            _                      => null,
-        };
-    }
-
-    /// <summary>Joins a cell's `source` (a string or an array of line-strings), decoding JSON escapes.</summary>
-    private static string DecodeSource(JsonElement src)
-    {
-        if (src.ValueKind == JsonValueKind.String) return src.GetString() ?? "";
-        if (src.ValueKind != JsonValueKind.Array) return "";
-        var sb = new StringBuilder();
-        foreach (var el in src.EnumerateArray())
-            if (el.ValueKind == JsonValueKind.String) sb.Append(el.GetString());
-        return sb.ToString();
-    }
-
-    /// <summary>Best-effort document row for a cell: finds its first non-blank source line in the raw JSON
-    /// (advancing a cursor so later cells match later occurrences).</summary>
-    private static int LocateCell(string raw, string source, ref int searchFrom)
-    {
-        string first = "";
-        foreach (var line in source.Split('\n'))
-            if (line.Trim().Length > 0) { first = line.Trim(); break; }
-
-        int from = System.Math.Min(searchFrom, raw.Length);
-        int idx = first.Length == 0 ? from : raw.IndexOf(first, from, System.StringComparison.Ordinal);
-        if (idx < 0) idx = from; else searchFrom = idx + first.Length;
-        return RowAt(raw, idx);
-    }
-
-    private static int RowAt(string text, int index)
-    {
-        int row = 0, end = System.Math.Min(index, text.Length);
-        for (int i = 0; i < end; i++) if (text[i] == '\n') row++;
-        return row;
-    }
 
     private static CodeOutline Build(string grammar, Node root, string? baseDir) => grammar switch
     {

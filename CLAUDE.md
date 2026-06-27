@@ -27,6 +27,7 @@ src/
     Nexaflow.Features.Json/         JSON viewer (seek-by-item windowing)
     Nexaflow.Features.Logs/         log viewer (tail-first streaming)
     Nexaflow.Features.Markdown/     markdown editor + preview
+    Nexaflow.Features.Notebook/     Jupyter .ipynb viewer — cells (rendered markdown + highlighted code) + per-cell outline
     Nexaflow.Features.Processes/    Process Explorer — live process tree + per-process details (vertical tabs), AI tools, elevated kill/priority
     Nexaflow.Features.Projects/     project + backlog management
     Nexaflow.Features.Scratchpad/   virtual corkboard

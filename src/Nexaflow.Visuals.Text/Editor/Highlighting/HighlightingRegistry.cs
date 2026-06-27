@@ -51,7 +51,7 @@ public static class HighlightingRegistry
         RegisterTreeSitter("razor",             ".razor", ".cshtml");
         RegisterTreeSitter("php",               ".php", ".phtml");
         RegisterTreeSitter("jinja",             ".j2", ".jinja", ".jinja2");   // html + python {{ }}/{% %}
-        RegisterTreeSitter("ipynb",             ".ipynb");                     // json + per-cell kernel language
+        // .ipynb is owned by the Notebook feature (its own viewer), not the code editor.
         // xml/xaml/xsl stay on AvalonEdit's built-in .xshd (no bundled tree-sitter xml grammar).
     }
 

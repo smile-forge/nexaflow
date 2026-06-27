@@ -171,21 +171,6 @@ public class LanguageInjectionTests
     }
 
     [TestMethod]
-    public void Ipynb_InjectsKernelLanguage_IntoCodeCells()
-    {
-        // A code cell's source array carries python; the markdown cell does not get injected.
-        const string src =
-            "{\n \"cells\": [\n" +
-            "  {\"cell_type\": \"code\", \"source\": [\"import os\\n\", \"x = 1\\n\"]},\n" +
-            "  {\"cell_type\": \"markdown\", \"source\": [\"# heading\\n\"]}\n" +
-            " ],\n \"metadata\": {\"kernelspec\": {\"language\": \"python\"}}\n}\n";
-        var pairs = Pairs("ipynb", src);
-
-        CollectionAssert.Contains(pairs, ("keyword", "import"));   // python injected into the code cell
-        CollectionAssert.Contains(pairs, ("number", "1"));
-    }
-
-    [TestMethod]
     public void Html_NestedScript_FoldsAndParseTreeIncludeEmbedded()
     {
         const string src = "<html>\n<script>\nfunction f() {\n  return 1;\n}\n</script>\n</html>";

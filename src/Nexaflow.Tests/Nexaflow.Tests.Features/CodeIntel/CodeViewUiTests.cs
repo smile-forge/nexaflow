@@ -25,7 +25,6 @@ public class CodeViewUiTests : FileSystemUiTestBase
     [DataRow("Greeter.java")]   // Java
     [DataRow("index.php")]      // PHP
     [DataRow("Counter.razor")]  // Razor (@code → component box)
-    [DataRow("notebook.ipynb")] // Jupyter (decoded cell structure)
     public void CodeFile_OpensAsCode_WithStructurePanel(string fileName)
     {
         NavigateFileBrowserTo(TestSampleData.Path("code"));

@@ -322,29 +322,6 @@ public class CodeIntelligenceTests
     }
 
     [TestMethod]
-    public void Extract_Ipynb_DecodesMultiLineCellStructure()
-    {
-        // Realistic array-of-lines source (escaped \n). The decode path joins + unescapes it, so a multi-line
-        // class is recovered (the in-place injection path can't do this — escaped newlines).
-        const string nb = """
-            {
-             "cells": [
-              {"cell_type": "code", "source": ["import math\n", "\n", "class Circle:\n", "    def __init__(self, r):\n", "        self.r = r\n", "    def area(self):\n", "        return math.pi * self.r ** 2\n"]},
-              {"cell_type": "markdown", "source": ["# notes\n"]}
-             ],
-             "metadata": {"kernelspec": {"language": "python", "name": "python3"}},
-             "nbformat": 4, "nbformat_minor": 5
-            }
-            """;
-        var o = new CodeStructureExtractor().Extract("ipynb", nb);
-
-        var cell = o.Embedded.Single(e => e.Language == "python");
-        var circle = cell.Outline.Types.Single(t => t.Name == "Circle");
-        Assert.IsTrue(circle.Members.Any(m => m is { Name: "__init__", Kind: OutlineKind.Constructor }));
-        Assert.IsTrue(circle.Members.Any(m => m.Name == "area"));
-    }
-
-    [TestMethod]
     public void Build_Cpp_PreservesAngleBracketIncludes()
     {
         var outline = new CodeStructureExtractor().Extract("cpp", "#include <string>\nclass C { int x; };\n");
