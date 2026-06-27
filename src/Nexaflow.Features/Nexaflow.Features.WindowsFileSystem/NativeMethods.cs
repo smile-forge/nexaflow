@@ -207,7 +207,9 @@ namespace Nexaflow.Features.WindowsFileSystem
         /// <summary>
         /// Pastes clipboard files into <paramref name="destinationFolder"/>.
         /// Moves files when the clipboard effect is <see cref="DragDropEffects.Move"/>,
-        /// otherwise copies them.
+        /// otherwise copies them. Each item that can't be moved/copied (in use, no permission,
+        /// disk full, …) is reported through a single <see cref="FileOperationException"/> whose
+        /// message lists the precise reasons; items that succeed are left in place.
         /// </summary>
         public static void ClipboardPasteFiles(string destinationFolder)
         {
@@ -227,10 +229,18 @@ namespace Nexaflow.Features.WindowsFileSystem
                     isCut = (DragDropEffects)BitConverter.ToInt32(bytes, 0) == DragDropEffects.Move;
             }
 
+            var    failures = new List<string>();
+            string verb     = isCut ? "move" : "copy";
+
             foreach (string? source in list)
             {
                 if (source is null) continue;
-                bool   sourceIsDir = Directory.Exists(source);
+                bool sourceIsDir  = Directory.Exists(source);
+                bool sourceIsFile = File.Exists(source);
+
+                // Source vanished between copy and paste — nothing to do, and not worth a complaint.
+                if (!sourceIsDir && !sourceIsFile) continue;
+
                 string sourceTrimmed = source.TrimEnd(Path.DirectorySeparatorChar,
                                                       Path.AltDirectorySeparatorChar);
                 string name = Path.GetFileName(sourceTrimmed);
@@ -242,7 +252,10 @@ namespace Nexaflow.Features.WindowsFileSystem
                     if (string.Equals(destNorm, sourceTrimmed, StringComparison.OrdinalIgnoreCase) ||
                         destNorm.StartsWith(sourceTrimmed + Path.DirectorySeparatorChar,
                                             StringComparison.OrdinalIgnoreCase))
+                    {
+                        failures.Add($"Can't copy \"{name}\" into itself.");
                         continue;
+                    }
                 }
 
                 // Same-parent copy: use "Copy of <name>" so the result is distinct.
@@ -254,22 +267,33 @@ namespace Nexaflow.Features.WindowsFileSystem
                     ? CopyOfDestination(destinationFolder, name, sourceIsDir)
                     : UniqueDestination(Path.Combine(destinationFolder, name), sourceIsDir);
 
-                if (sourceIsDir)
+                try
                 {
-                    if (isCut) Directory.Move(source, dest);
-                    else       CopyDirectory(source, dest);
+                    if (sourceIsDir)
+                    {
+                        if (isCut) FileTransfer.MoveDirectory(source, dest);
+                        else       FileTransfer.CopyDirectory(source, dest);
+                    }
+                    else
+                    {
+                        if (isCut) FileTransfer.MoveFile(source, dest);
+                        else       FileTransfer.CopyFile(source, dest);
+                    }
                 }
-                else
+                catch (FileOperationException ex)
                 {
-                    if (isCut) File.Move(source, dest);
-                    else       File.Copy(source, dest, overwrite: false);
+                    failures.Add(ex.Message);
                 }
             }
 
-            // After a cut-paste the clipboard contents are consumed — clear it
-            // to match Windows Explorer behaviour.
-            if (isCut)
+            // After a cut-paste the clipboard contents are consumed — clear it to match Windows
+            // Explorer. Keep it when something failed so the user can fix the cause (e.g. close the
+            // program holding the file) and paste again.
+            if (isCut && failures.Count == 0)
                 Clipboard.Clear();
+
+            if (failures.Count > 0)
+                throw new FileOperationException(string.Join(Environment.NewLine, failures));
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────
@@ -320,15 +344,6 @@ namespace Nexaflow.Features.WindowsFileSystem
                 if (isDirectory ? !Directory.Exists(candidate) : !File.Exists(candidate))
                     return candidate;
             }
-        }
-
-        private static void CopyDirectory(string source, string dest)
-        {
-            Directory.CreateDirectory(dest);
-            foreach (var file in Directory.GetFiles(source))
-                File.Copy(file, Path.Combine(dest, Path.GetFileName(file)), overwrite: false);
-            foreach (var dir in Directory.GetDirectories(source))
-                CopyDirectory(dir, Path.Combine(dest, Path.GetFileName(dir)));
         }
 
         // ── Recycle bin deletion via SHFileOperation ──────────────────────────

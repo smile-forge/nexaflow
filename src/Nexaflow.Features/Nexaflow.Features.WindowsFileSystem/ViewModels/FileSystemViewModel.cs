@@ -424,6 +424,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
             vm.ShiftHeld = ShiftHeld;
             vm.UpdatePaths(paths);
             vm.ActionExecuted += Refresh;
+            vm.ActionFailed   += _shell.ShowError;
             result.Add(vm);
         }
         return result;
@@ -554,6 +555,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
             vm.ShiftHeld = ShiftHeld;
             vm.UpdatePaths(paths);
             vm.ActionExecuted += Refresh;
+            vm.ActionFailed   += _shell.ShowError;
             vm.FlashBegan += fa =>
             {
                 foreach (var other in FileActions)
@@ -787,6 +789,10 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
 
     private readonly IShellServices _shell;
     private readonly IAIService _ai;
+
+    /// <summary>Surfaces a file-operation error (e.g. a failed drag-drop move) as a toast.
+    /// Used by <see cref="FileSystemDropTarget"/>, which only holds this view model.</summary>
+    internal void ReportError(string message) => _shell.ShowError(message);
 
     /// <summary>Virtual file system the browser reads through, so archive files browse like folders.
     /// Defaults to the process singleton; settable for tests.</summary>

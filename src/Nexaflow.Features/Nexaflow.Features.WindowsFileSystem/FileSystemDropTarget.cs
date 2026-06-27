@@ -1,14 +1,15 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Windows;
 
 namespace Nexaflow.Features.WindowsFileSystem;
 
 /// <summary>
-/// Accepts file drag-drop onto <see cref="FileSystemView"/>, copying dropped
-/// files into either the hovered folder node or the current directory.
+/// Accepts file drag-drop onto <see cref="FileSystemView"/>, copying (or moving, with Shift)
+/// dropped files into either the hovered folder node or the current directory.
 /// </summary>
 public sealed class FileSystemDropTarget : IDropTarget
 {
@@ -34,42 +35,41 @@ public sealed class FileSystemDropTarget : IDropTarget
     {
         if (data.GetData(DataFormats.FileDrop) is not string[] sources) return;
 
+        var    failures = new List<string>();
+        string verb     = move ? "move" : "copy";
+
         foreach (var source in sources)
         {
+            // Source vanished between drag and drop — nothing to do, not worth a complaint.
+            bool isFile = File.Exists(source);
+            bool isDir  = Directory.Exists(source);
+            if (!isFile && !isDir) continue;
+
+            var dest = Path.Combine(destinationPath, Path.GetFileName(
+                source.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)));
+
             try
             {
-                if (File.Exists(source))
+                if (isFile)
                 {
-                    var dest = Path.Combine(destinationPath, Path.GetFileName(source));
-                    if (move)
-                        File.Move(source, dest, overwrite: false);
-                    else
-                        File.Copy(source, dest, overwrite: false);
+                    if (move) FileTransfer.MoveFile(source, dest);
+                    else      FileTransfer.CopyFile(source, dest);
                 }
-                else if (Directory.Exists(source))
+                else
                 {
-                    var dest = Path.Combine(destinationPath, Path.GetFileName(source));
-                    if (move)
-                        Directory.Move(source, dest);
-                    else
-                        CopyDirectory(source, dest);
+                    if (move) FileTransfer.MoveDirectory(source, dest);
+                    else      FileTransfer.CopyDirectory(source, dest);
                 }
             }
-            catch (Exception)
+            catch (FileOperationException ex)
             {
-                // Skip individual failures; partial operations are better than nothing.
+                failures.Add(ex.Message);
             }
         }
 
         _viewModel.Refresh();
-    }
 
-    private static void CopyDirectory(string sourceDir, string destDir)
-    {
-        Directory.CreateDirectory(destDir);
-        foreach (var file in Directory.GetFiles(sourceDir))
-            File.Copy(file, Path.Combine(destDir, Path.GetFileName(file)), overwrite: false);
-        foreach (var dir in Directory.GetDirectories(sourceDir))
-            CopyDirectory(dir, Path.Combine(destDir, Path.GetFileName(dir)));
+        if (failures.Count > 0)
+            _viewModel.ReportError(string.Join(Environment.NewLine, failures));
     }
 }
