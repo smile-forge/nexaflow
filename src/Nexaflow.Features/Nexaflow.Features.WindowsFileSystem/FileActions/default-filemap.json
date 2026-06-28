@@ -117,6 +117,19 @@
     ]
   },
   {
+    "ExperienceId": "/model3d",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.stl" },
+      { "Type": "Extension", "Value": "*.obj" },
+      { "Type": "Extension", "Value": "*.3ds" },
+      { "Type": "Extension", "Value": "*.ply" },
+      { "Type": "Extension", "Value": "*.gltf" },
+      { "Type": "Extension", "Value": "*.glb" },
+      { "Type": "Extension", "Value": "*.fbx" }
+    ]
+  },
+  {
     "ExperienceId": "/json",
     "Source": "User",
     "Criteria": [

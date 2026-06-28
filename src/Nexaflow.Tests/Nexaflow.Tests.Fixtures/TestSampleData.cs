@@ -60,6 +60,7 @@ public static class TestSampleData
         new BinarySamples(),
         new ImageSamples(),
         new ArchiveSamples(),
+        new Model3DSamples(),
     ];
 
     private static readonly Lazy<string> RootLazy = new(EnsureAll);

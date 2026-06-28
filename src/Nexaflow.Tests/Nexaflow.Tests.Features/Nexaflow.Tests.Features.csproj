@@ -40,6 +40,7 @@
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Json\Nexaflow.Features.Json.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Logs\Nexaflow.Features.Logs.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Markdown\Nexaflow.Features.Markdown.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Model3D\Nexaflow.Features.Model3D.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Processes\Nexaflow.Features.Processes.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.ProductManager\Nexaflow.Features.ProductManager.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Projects\Nexaflow.Features.Projects.csproj" />

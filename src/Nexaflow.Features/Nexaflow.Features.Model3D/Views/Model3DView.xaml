@@ -1,0 +1,133 @@
+<UserControl x:Class="Nexaflow.Features.Model3D.Views.Model3DView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:h="http://helix-toolkit.org/wpf"
+             AutomationProperties.AutomationId="Model3DView"
+             Background="{StaticResource BgBrush}">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>   <!-- toolbar, full width -->
+            <RowDefinition Height="*"/>      <!-- viewport + inspector -->
+        </Grid.RowDefinitions>
+
+        <!-- Toolbar (spans the full width; inspector toggle sits on the right) -->
+        <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="8,6">
+            <DockPanel>
+                <ToggleButton DockPanel.Dock="Right" Style="{StaticResource TbToggle}" Content="Inspector"
+                              IsChecked="{Binding ShowInspector}" ToolTip="Show materials and details"
+                              Visibility="{Binding HasInspectorContent, Converter={StaticResource BoolToVis}}"/>
+                <StackPanel Orientation="Horizontal">
+                    <ToggleButton Style="{StaticResource TbToggle}" Content="Wireframe"
+                                  IsChecked="{Binding ShowWireframe}" ToolTip="Toggle wireframe rendering"/>
+                    <Button Style="{StaticResource TbBtn}" Content="Reset view" Click="OnResetClick"
+                            ToolTip="Fit the model to the viewport"/>
+                    <TextBlock Text="Alt + right-drag to turn (green axis)" VerticalAlignment="Center" Margin="10,0,0,0"
+                               FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Content: viewport (+footer) on the left, inspector slides out under the toolbar on the right -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Viewport -->
+                <Border Grid.Row="0" Background="{DynamicResource Model3D.ViewportBg}">
+                    <Grid>
+                        <h:HelixViewport3D x:Name="Viewport" Background="Transparent"
+                                           ShowViewCube="True" ShowCoordinateSystem="True"
+                                           ZoomExtentsWhenLoaded="True">
+                            <h:DefaultLights/>
+                        </h:HelixViewport3D>
+
+                        <!-- Error overlay -->
+                        <Border Background="{StaticResource SurfaceBrush}" CornerRadius="6" Padding="16,12"
+                                HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource TextBrush}"
+                                       TextWrapping="Wrap" MaxWidth="360"/>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- Footer: live counts -->
+                <Border Grid.Row="1" Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="14,5">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding FormatName}" Foreground="{StaticResource TextMutedBrush}"
+                                   FontSize="11" Margin="0,0,16,0"/>
+                        <TextBlock Text="{Binding TriangleCount, StringFormat='{}{0:N0} triangles'}"
+                                   Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,16,0"/>
+                        <TextBlock Text="{Binding VertexCount, StringFormat='{}{0:N0} vertices'}"
+                                   Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,16,0"/>
+                        <TextBlock Text="{Binding MeshCount, StringFormat='{}{0:N0} meshes'}"
+                                   Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,16,0"/>
+                        <TextBlock Text="{Binding FileSizeText}" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Inspector (materials + unsupported elements) -->
+            <Border Grid.Column="1" Width="300" Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0"
+                    Visibility="{Binding ShowInspector, Converter={StaticResource BoolToVis}}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="12,12">
+                        <TextBlock Text="Materials" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"
+                                   Margin="0,0,0,6" Visibility="{Binding HasMaterials, Converter={StaticResource BoolToVis}}"/>
+                        <ItemsControl ItemsSource="{Binding Materials}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Width="14" Height="14" CornerRadius="2"
+                                                Margin="0,2,8,0" VerticalAlignment="Top"
+                                                Background="{Binding Swatch}"
+                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                Visibility="{Binding HasSwatch, Converter={StaticResource BoolToVis}}"/>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}"
+                                                       FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding Detail}" Foreground="{StaticResource TextMutedBrush}"
+                                                       FontSize="11" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="Declared but not rendered" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextBrush}" Margin="0,16,0,6"
+                                   Visibility="{Binding HasUnsupported, Converter={StaticResource BoolToVis}}"/>
+                        <ItemsControl ItemsSource="{Binding UnsupportedElements}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}" Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="11" TextWrapping="Wrap" Margin="0,2"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>
