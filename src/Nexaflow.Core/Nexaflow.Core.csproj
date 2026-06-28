@@ -12,9 +12,9 @@
     <Company>Smile-Forge</Company>
     <Product>Nexaflow</Product>
     <Description>Nexaflow is an open-source Windows shell replacement</Description>
-    <AssemblyVersion>1.1.0.0</AssemblyVersion>
-    <FileVersion>1.1.0.0</FileVersion>
-    <Version>1.1.0</Version>
+    <AssemblyVersion>1.2.0.0</AssemblyVersion>
+    <FileVersion>1.2.0.0</FileVersion>
+    <Version>1.2.0</Version>
     <NeutralLanguage>en</NeutralLanguage>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>Nexaflow</AssemblyName>
@@ -139,6 +139,74 @@
     <Copy SourceFiles="@(_BridgeFile)"
           DestinationFiles="@(_BridgeFile->'$(_BridgeDest)%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
+  </Target>
+
+  <!--
+    libVLC (VideoLAN.LibVLC.Windows, referenced by Nexaflow.Features.Video) copies its native runtime into
+    the VIDEO project's output under libvlc\win-x64\ — a non-standard location (NOT runtimes\), so unlike the
+    Assimp / tree-sitter natives it does NOT flow through ProjectReference into Core's output. Without it the
+    WiX harvester (globs Core's output) ships Video.dll with no engine and video playback fails. Copy the
+    Video project's libvlc tree into Core's output explicitly — same resolve-via-GetTargetPath pattern as
+    CopyPrivilegeBridge, so it tracks whatever Configuration/Platform Core is built with (we ship win-x64).
+  -->
+  <Target Name="CopyLibVlc" AfterTargets="Build;Publish">
+    <PropertyGroup>
+      <_VideoProj>$(MSBuildThisFileDirectory)..\Nexaflow.Features\Nexaflow.Features.Video\Nexaflow.Features.Video.csproj</_VideoProj>
+    </PropertyGroup>
+
+    <MSBuild Projects="$(_VideoProj)" Targets="Build" Properties="Configuration=$(Configuration)" />
+    <MSBuild Projects="$(_VideoProj)" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_VideoTarget" />
+    </MSBuild>
+
+    <PropertyGroup>
+      <_VideoOutDir>$([System.IO.Path]::GetDirectoryName('%(_VideoTarget.Identity)'))\</_VideoOutDir>
+      <_VlcPlugins>$(_VideoOutDir)libvlc\win-x64\plugins</_VlcPlugins>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <!--
+        Prune the VLC plugins an embedded, local-file player never loads (~68 MB uncompressed, ~25 MB off
+        the installer). We embed libVLC via LibVLCSharp and render into our own WPF surface, so:
+          gui                = VLC's own Qt/skins DESKTOP UI (libqt_plugin.dll, 44 MB) — never used embedded
+          stream_out         = transcoding / streaming-server output
+          access_output      = streaming/recording output sinks
+          services_discovery = UPnP / SAP / mDNS network discovery
+          visualization      = audio visualizers (we have our own Audio feature)
+          codec\libaom       = the AV1 ENCODER (playback DECODES AV1 via avcodec / dav1d)
+        Kept: all codecs/demuxers, file/http access, video + audio output, chroma/filters, subtitles,
+        packetizers/muxers, metadata, hardware decode (d3d11/d3d9/nvdec). If a prune ever removes
+        something playback needs, the installer's libVLC guard (libvlc.dll) won't catch it — so this is
+        the set worth a quick playback smoke test (local file + seek + subtitles + a couple of formats).
+      -->
+      <_VlcPrune Include="$(_VlcPlugins)\gui\**" />
+      <_VlcPrune Include="$(_VlcPlugins)\stream_out\**" />
+      <_VlcPrune Include="$(_VlcPlugins)\access_output\**" />
+      <_VlcPrune Include="$(_VlcPlugins)\services_discovery\**" />
+      <_VlcPrune Include="$(_VlcPlugins)\visualization\**" />
+      <_VlcPrune Include="$(_VlcPlugins)\codec\libaom_plugin.dll" />
+
+      <_VlcFile Include="$(_VideoOutDir)libvlc\**\*" Exclude="@(_VlcPrune)" />
+    </ItemGroup>
+
+    <Error Condition="'@(_VlcFile)' == ''"
+           Text="CopyLibVlc: no libVLC native files found under '$(_VideoOutDir)libvlc'. The VideoLAN.LibVLC.Windows runtime is missing from the Video project's output, so video playback would not ship — rebuild Nexaflow.Features.Video." />
+
+    <!-- Build output (this is also what the WiX harvester globs). -->
+    <Copy SourceFiles="@(_VlcFile)"
+          DestinationFiles="@(_VlcFile->'$(OutDir)libvlc\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <!-- Publish output — ONLY when actually publishing. $(PublishDir) has a non-empty default even during a
+         plain build, so gate on $(_IsPublishing) (set by the SDK publish pipeline); otherwise a normal build
+         would create a stray bin\…\publish\libvlc\ tree that the harvester would then duplicate. -->
+    <Copy Condition="'$(_IsPublishing)' == 'true'" SourceFiles="@(_VlcFile)"
+          DestinationFiles="@(_VlcFile->'$(PublishDir)libvlc\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+
+    <!-- Clear any pruned plugins left in the destination by an earlier un-pruned copy, so incremental
+         builds (which never delete) don't keep shipping them. -->
+    <RemoveDir Directories="$(OutDir)libvlc\win-x64\plugins\gui;$(OutDir)libvlc\win-x64\plugins\stream_out;$(OutDir)libvlc\win-x64\plugins\access_output;$(OutDir)libvlc\win-x64\plugins\services_discovery;$(OutDir)libvlc\win-x64\plugins\visualization" />
+    <Delete Files="$(OutDir)libvlc\win-x64\plugins\codec\libaom_plugin.dll" />
   </Target>
 
 </Project>

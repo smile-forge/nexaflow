@@ -1,20 +1,17 @@
 <Solution>
   <Configurations>
     <Platform Name="Any CPU" />
-    <Platform Name="ARM64" />
     <Platform Name="x64" />
-    <Platform Name="x86" />
   </Configurations>
   <Folder Name="/NexaFlow.Features/">
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.AIChat/Nexaflow.Features.AIChat.csproj" Id="2f50c24e-a2af-46ae-908a-15dea1c28659" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Audio/Nexaflow.Features.Audio.csproj" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Code/Nexaflow.Features.Code.csproj" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Common/Nexaflow.Features.Common.csproj" />
-    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Notebook/Nexaflow.Features.Notebook.csproj" />
-    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Compressed/Nexaflow.Features.Compressed.csproj" />
-    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Compressed.SharpCompress/Nexaflow.Features.Compressed.SharpCompress.csproj" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Compressed.Modern/Nexaflow.Features.Compressed.Modern.csproj" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Compressed.SecureZip/Nexaflow.Features.Compressed.SecureZip.csproj" />
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Compressed.SharpCompress/Nexaflow.Features.Compressed.SharpCompress.csproj" />
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Compressed/Nexaflow.Features.Compressed.csproj" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Console/Nexaflow.Features.Console.csproj" Id="5d7bfb04-e2c1-4e7e-82bb-be5485084058" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Dotnet/Nexaflow.Features.Dotnet.csproj" Id="48d6ef11-d047-420e-a2af-1fb2b071af4e" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Git/Nexaflow.Features.Git.csproj" Id="d5be6955-0a6f-4d3a-927a-1932b7a407c0" />
@@ -24,6 +21,7 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Logs/Nexaflow.Features.Logs.csproj" Id="01595234-c9f7-4d65-acb0-f419a242509b" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Markdown/Nexaflow.Features.Markdown.csproj" Id="5a06ef32-279d-48a9-8d7f-0eba9c1b43f2" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Model3D/Nexaflow.Features.Model3D.csproj" />
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Notebook/Nexaflow.Features.Notebook.csproj" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Processes/Nexaflow.Features.Processes.csproj" Id="0a74fe7e-3298-46d0-bc0c-b7e20e9f71eb" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.ProductManager/Nexaflow.Features.ProductManager.csproj" />
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Projects/Nexaflow.Features.Projects.csproj" Id="57e7f577-d6bf-47a8-ae6f-872fd2f52a14" />
@@ -51,21 +49,21 @@
     <Project Path="src/Nexaflow.Elevation/Nexaflow.PrivilegeBridge/Nexaflow.PrivilegeBridge.csproj" />
   </Folder>
   <Folder Name="/Nexaflow.Tests/">
-    <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Fixtures/Nexaflow.Tests.Fixtures.csproj" />
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Core/Nexaflow.Tests.Core.csproj" Id="ccb84772-1b15-4e2b-b98a-1e9b524e7238" />
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Features/Nexaflow.Tests.Features.csproj" Id="79cfb0c8-0b1c-4342-ab15-9565928e6344" />
+    <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Fixtures/Nexaflow.Tests.Fixtures.csproj" />
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Providers/Nexaflow.Tests.Providers.csproj" Id="326ee97c-f425-4981-a59a-76072e0ed179" />
   </Folder>
   <Project Path="nexaflowBundle/nexaflowBundle.wixproj" Type="b7dd6f7e-def8-4e67-b5b7-07ef123db6f0" Id="4e1c900e-18d5-462c-8c16-ac2cb1a79c4c">
-    <Platform Solution="*|Any CPU" Project="x64" />
+    <Platform Project="x64" />
   </Project>
   <Project Path="nexaflowSetup/nexaflowSetup.wixproj" Type="b7dd6f7e-def8-4e67-b5b7-07ef123db6f0" Id="52400615-c2b1-4ecf-a059-2f752e45b47c">
-    <Platform Solution="*|Any CPU" Project="x64" />
+    <Platform Project="x64" />
   </Project>
   <Project Path="src/Nexaflow.Core/Nexaflow.Core.csproj" Id="eed52ce5-c185-4a39-af4b-8df86d69359a" />
   <Project Path="src/Nexaflow.IO.Common/Nexaflow.IO.Common.csproj" />
-  <Project Path="src/Nexaflow.Syntax/Nexaflow.Syntax.csproj" />
   <Project Path="src/Nexaflow.IO.Terminal/Nexaflow.IO.Terminal.csproj" />
+  <Project Path="src/Nexaflow.Syntax/Nexaflow.Syntax.csproj" />
   <Project Path="src/Nexaflow.Visuals.Common/Nexaflow.Visuals.Common.csproj" Id="0096f396-9079-4b5a-8288-f593e0c1cadd" />
   <Project Path="src/Nexaflow.Visuals.Terminal/Nexaflow.Visuals.Terminal.csproj" />
   <Project Path="src/Nexaflow.Visuals.Text/Nexaflow.Visuals.Text.csproj" Id="53d7c296-1e51-4186-8de9-dd7b940d0ba6" />

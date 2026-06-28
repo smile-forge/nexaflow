@@ -71,6 +71,20 @@
            Text="Installer payload is incomplete: harvested @(_HarvestedProvider->Count()) provider DLL(s) from $(_CoreOutDir) but the solution has @(_ProviderProj->Count()) provider project(s). Core's output is stale — clean/rebuild Nexaflow.Core for $(Configuration), then rebuild the installer. Harvested: @(_HarvestedProvider->'%(Filename)', ', ')." />
 
     <!--
+      Completeness guard: the libVLC native runtime (VideoLAN.LibVLC.Windows, via Nexaflow.Features.Video)
+      ships under libvlc\win-x64\. The package drops it into the Video project's output but it does NOT flow
+      through ProjectReference into Core's output, so Core's CopyLibVlc target copies it in explicitly. If it
+      ever goes missing the Video tab ships with no engine and playback fails — make that a hard error, like
+      the provider guard.
+    -->
+    <ItemGroup>
+      <_HarvestedLibVlc Include="@(_CoreFile)" Condition="'%(Filename)%(Extension)' == 'libvlc.dll'" />
+    </ItemGroup>
+
+    <Error Condition="'@(_HarvestedLibVlc->Count())' == '0'"
+           Text="Installer payload is incomplete: the libVLC native runtime (libvlc.dll under libvlc\win-x64\) is missing from $(_CoreOutDir), so video playback would not work. Core's CopyLibVlc target should copy it from the Video project's output into Core's output — clean/rebuild Nexaflow.Core, then rebuild the installer." />
+
+    <!--
       Generate one <Component> per file.
       Root-level files use no Subdirectory attribute.
       Files in subdirs use Subdirectory="path\to\subdir" (trailing backslash stripped via regex).

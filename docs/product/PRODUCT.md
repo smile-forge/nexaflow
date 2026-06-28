@@ -1,0 +1,856 @@
+# Nexaflow — product status
+
+_Version **v1.2.0** · 2026-06-28_
+
+**98% shipping** — 652/666 components done (14 should · 0 faulted · 0 shouldn't)
+
+## Tree
+
+- **Features** — _should_
+  - **Code** — _done_
+    - **Class view** — _done_
+    - **Code View** — _done_
+      - **Editor toolbar** — _done_
+        - **Encoding selector** — _done_
+        - **Line-ending selector** — _done_
+        - **Line numbers toggle** — _done_
+      - **Save** — _done_
+      - **Reload (F5) & external-change watch** — _done_
+      - **Status bar** — _done_
+      - **Cut / Copy / Paste** — _done_
+      - **Read-only / too-large banner** — _done_
+      - **Editor commands panel** — _done_
+        - **Checksum** — _done_
+        - **Base64 encode / decode** — _done_
+      - **Line operations** — _done_
+    - **Open As Code** — _done_
+    - **Max editable size** — _done_
+    - **Syntax highlighting** — _done_
+      - **Tree-sitter colouring** — _done_
+      - **Markup (.xshd) colouring** — _done_
+      - **Role palette** — _done_
+    - **Code folding** — _done_
+    - **Embedded languages** — _done_
+    - **Syntax tree (AI tool)** — _done_
+    - **Code map panel** — _done_
+      - **Dependencies list** — _done_
+      - **Free functions list** — _done_
+      - **Map navigation** — _done_
+      - **Show/hide map** — _done_
+  - **Console** — _should_
+    - **PTY Terminal** — _done_
+    - **Cmd Here** — _done_
+    - **Command vs AI routing** — _done_
+      - **Enter line classification** — _done_
+      - **'>' prefix to terminal** — _done_
+      - **AI-bar history / completion keys** — _done_
+      - **Drop file onto AI bar** — _done_
+    - **Side panels** — _done_
+      - **Files panel** — _done_
+      - **Environment panel** — _done_
+        - **Env-var add/edit overlay** — _done_
+      - **History panel** — _done_
+      - **Copy / Paste terminal menu** — _done_
+    - **Per-location environments** — _done_
+      - **Environments config editor** — _done_
+      - **Launch environment picker** — _done_
+      - **Configure button** — _done_
+    - **AI integration** — _done_
+      - **Inline AI banner** — _done_
+      - **run_command tool + capture** — _done_
+      - **Background command watcher** — _done_
+  - **DotNet** — _should_
+    - **.NET Viewlet** — _done_
+      - **Target Picker** — _done_
+      - **Verb Toolbar** — _done_
+      - **Run Status Indicator** — _done_
+      - **NuGet Update Caution** — _done_
+      - **.NET AI Tools** — _done_
+        - **dotnet_build/test/restore/clean Tools** — _done_
+        - **dotnet_check_outdated_packages Tool** — _done_
+  - **Git** — _should_
+    - **Git Viewlet** — _done_
+      - **Branch Picker** — _done_
+      - **Pull Button** — _done_
+      - **Open in Git Manager** — _done_
+      - **Status Line** — _done_
+      - **Last Commit Line** — _done_
+      - **Git AI Tools** — _done_
+        - **git_status Tool** — _done_
+        - **git_log Tool** — _done_
+        - **git_diff Tool** — _done_
+        - **git_branches Tool** — _done_
+        - **git_show Tool** — _done_
+        - **git_remotes Tool** — _done_
+  - **Hex** — _should_
+    - **View Hex** — _done_
+      - **Hex + ASCII Panel** — _done_
+      - **Windowed Buffer** — _done_
+      - **Text Evaluation Pane** — _done_
+      - **Go To Offset** — _done_
+      - **Edit Modes** — _done_
+      - **Encoding Selector** — _done_
+      - **Undo / Redo** — _done_
+      - **Save / Save As** — _done_
+      - **Selection & Status Bar** — _done_
+  - **Images** — _done_
+    - **Display Modes** — _done_
+      - **Album** — _done_
+      - **Carousel** — _done_
+      - **Explore (Hybrid Album)** — _done_
+      - **Collage** — _done_
+        - **Collage Minimap** — _done_
+    - **Navigation** — _done_
+      - **Previous / Next Arrows** — _done_
+      - **Wheel & Keyboard Stepping** — _done_
+      - **Dot Position Indicator** — _done_
+      - **Thumbnail Select / Open** — _done_
+    - **Image Tools** — _done_
+      - **Rotate Left / Right** — _done_
+      - **Fit / Actual Size** — _done_
+      - **Full-Screen View** — _done_
+    - **Slideshow** — _done_
+      - **Auto-Advance Toggle** — _done_
+      - **Speed Slider** — _done_
+    - **Delete Image** — _done_
+    - **Thumbnail Loading** — _done_
+    - **Open Actions** — _done_
+      - **Open As Image** — _done_
+      - **Folder Slideshow** — _done_
+      - **Folder Album** — _done_
+    - **EXIF / Metadata Panel** — _should_
+  - **Json** — _should_
+    - **View Json** — _done_
+      - **Tree View** — _done_
+      - **Raw Text Mode** — _done_
+      - **Table Mode** — _done_
+      - **Seek-by-Item Windowing** — _done_
+      - **Expand / Collapse** — _done_
+      - **JSONPath Query** — _done_
+      - **Path Breadcrumb** — _done_
+      - **Format JSON** — _done_
+      - **Edit & Save** — _done_
+  - **Log Viewer** — _done_
+    - **Toolbar** — _done_
+      - **Level Highlight Toggles** — _done_
+      - **Custom Highlight Term** — _done_
+      - **Pause / Resume** — _done_
+      - **Follow / Auto-Scroll** — _done_
+      - **Line Selection & Copy** — _done_
+      - **Encoding Selector** — _done_
+    - **Log View** — _done_
+    - **Tail-First Streaming** — _done_
+    - **Live File Watch / Append** — _done_
+    - **Regex Filter** — _done_
+    - **Time Range Filter** — _done_
+    - **Format Auto-Detect** — _done_
+  - **Markdown** — _done_
+    - **Open in Markdown editor** — _done_
+    - **Editor toolbar** — _done_
+      - **File name label** — _done_
+      - **Source toggle** — _done_
+      - **Save button** — _done_
+    - **Inline (live) editor** — _done_
+      - **Block model + edit keys** — _done_
+      - **Block-level undo** — _done_
+      - **Scroll anchoring** — _done_
+      - **Scroll-to-heading deep link** — _done_
+    - **Source-only editor** — _done_
+    - **Formatting mini-toolbar** — _done_
+      - **Heading buttons (H1/H2/H3)** — _done_
+      - **Inline formatting (bold/italic/strike/code)** — _done_
+      - **Quote button** — _done_
+      - **Code-block button** — _done_
+    - **Render-mode context menu** — _done_
+    - **Copy as markdown** — _done_
+    - **Paste (HTML to markdown)** — _done_
+    - **Drag and drop** — _done_
+    - **Dirty tracking** — _done_
+    - **AI context** — _done_
+  - **Processes** — _done_
+    - **Process View** — _done_
+      - **Sortable Columns** — _done_
+      - **Row Context Menu** — _done_
+        - **Kill Process / Tree** — _done_
+        - **Open File Location** — _done_
+        - **Copy Name / PID / Path / Details** — _done_
+    - **Tree vs List** — _done_
+    - **Expand / Collapse All** — _done_
+    - **Live vs Pause** — _done_
+    - **Search / Filter** — _done_
+    - **Details View** — _done_
+      - **General Info** — _done_
+        - **Set Priority** — _done_
+      - **Performance** — _done_
+      - **Threads** — _done_
+      - **Modules** — _done_
+      - **Handles** — _done_
+    - **System CPU / RAM Gauges** — _done_
+    - **View Controls** — _done_
+    - **Privilege Escalation** — _done_
+    - **AI Process Tools** — _done_
+  - **Product** — _should_
+    - **Sunburst View** — _done_
+      - **Node context menu** — _done_
+      - **Version bar** — _done_
+      - **Restructure overlay** — _done_
+      - **Settings overlay** — _done_
+    - **Data model** — _done_
+    - **Node detail pane** — _done_
+      - **Node properties** — _done_
+      - **Needs-attention list** — _done_
+      - **Status roll-up** — _done_
+    - **Concerns** — _done_
+    - **Snaplinks** — _done_
+      - **Snaplink picker overlay** — _done_
+    - **Folder viewlet** — _done_
+    - **Create .product action** — _done_
+    - **AI product tools** — _done_
+  - **Projects** — _should_
+    - **Project list** — _done_
+    - **Project summary pane** — _done_
+    - **Project detail tab** — _done_
+      - **Edit project fields** — _done_
+    - **Backlog** — _done_
+      - **9-state workflow** — _done_
+      - **Add backlog item** — _done_
+      - **Progress item** — _done_
+      - **Backlog item editor** — _done_
+      - **Delete (cancel) item** — _done_
+    - **AI Summary viewlet** — _done_
+    - **Projects config** — _done_
+    - **AI project tools** — _should_
+  - **Scratchpad** — _done_
+    - **Canvas View** — _done_
+      - **Canvas Context Menu** — _done_
+    - **Universal Drop Target** — _done_
+    - **Minimap Navigation** — _done_
+    - **Recycle Bin** — _done_
+    - **Shapes** — _done_
+      - **Square** — _done_
+      - **Rounded** — _done_
+      - **Diagonals** — _done_
+      - **Speech Bubble** — _done_
+    - **Toolbar** — _done_
+      - **New** — _done_
+      - **Zoom to Fit** — _done_
+      - **Recycle Bin Button** — _done_
+    - **Pan & Zoom** — _done_
+      - **Pan** — _done_
+      - **Mouse-wheel Zoom** — _done_
+      - **Zoom % Picker** — _done_
+    - **Post-it Note** — _done_
+      - **Inline Markdown Editor** — _done_
+      - **Drag to Move** — _done_
+      - **Resize Handles** — _done_
+      - **Rotate Handle** — _done_
+      - **Pin / Expiry Timer** — _done_
+      - **Remove Note** — _done_
+      - **Z-order (Front / Back)** — _done_
+      - **Note Mini-ribbon** — _done_
+        - **Colours** — _done_
+    - **Content Types** — _done_
+      - **Image Note** — _done_
+      - **File / Folder Link Note** — _done_
+      - **URL Preview Note** — _done_
+      - **Text / Markdown Note** — _done_
+      - **Note Attachments** — _done_
+    - **Settings** — _done_
+    - **AI Tools** — _done_
+      - **List Notes Tool** — _done_
+      - **Read Notes Tool** — _done_
+      - **Add Note Tool** — _done_
+    - **PostIt Theme Tokens** — _done_
+  - **SysInfo** — _done_
+    - **Dashboard Panels** — _done_
+      - **Operating System** — _done_
+      - **Hardware** — _done_
+      - **Display** — _done_
+      - **Storage** — _done_
+      - **Windows Security** — _done_
+      - **Health Colour Coding** — _done_
+    - **Dashboard** — _done_
+      - **Refresh** — _done_
+      - **AI Device Context** — _done_
+    - **WMI Probe Layer** — _done_
+    - **Services Page** — _done_
+      - **Service List & Filter** — _done_
+      - **Services Refresh** — _done_
+      - **Start / Stop / Restart / Pause / Resume** — _done_
+      - **Startup Type Picker** — _done_
+      - **Services AI Tools** — _done_
+    - **Environment Variables Page** — _done_
+      - **Scope Selector & Filter** — _done_
+      - **Value Editor** — _done_
+      - **PATH Entry Editor** — _done_
+      - **Save Variable** — _done_
+      - **Delete Variable** — _done_
+      - **Add Variable** — _done_
+      - **Environment Variables AI Tools** — _done_
+    - **Privilege Bridge** — _done_
+  - **Tabular** — _done_
+    - **View table** — _done_
+      - **Windowed loading** — _done_
+      - **Row count** — _done_
+      - **Column resize** — _done_
+      - **Horizontal scroll** — _done_
+      - **Status footer** — _done_
+      - **Path breadcrumb** — _done_
+    - **Open As Table** — _done_
+    - **Reading & shape detection** — _done_
+      - **Fixed-width fallback** — _done_
+      - **Single-column fallback** — _done_
+      - **Header detection** — _done_
+      - **Column-type detection** — _done_
+      - **Comment-line stripping** — _done_
+      - **Encoding & line-ending detection** — _done_
+      - **AI shape disambiguation** — _done_
+      - **Parser** — _done_
+        - **CSV** — _done_
+        - **TSV** — _done_
+    - **Column actions** — _done_
+      - **Select column** — _done_
+      - **Rename column** — _done_
+      - **Merge with previous** — _done_
+      - **Split by** — _done_
+      - **Evaluate as** — _done_
+    - **Column sort** — _done_
+    - **Filter panel** — _done_
+      - **Text filter** — _done_
+      - **Numeric range filter** — _done_
+      - **Date range filter** — _done_
+      - **Boolean filter** — _done_
+    - **Row selection** — _done_
+    - **Templates** — _done_
+      - **Template This** — _done_
+      - **Apply Template panel** — _done_
+      - **Auto-apply on open** — _done_
+      - **Templates options editor** — _done_
+      - **Ribbon pin (with reshaping)** — _done_
+    - **AI integration** — _done_
+      - **AI grid tools** — _done_
+  - **Text Viewer** — _done_
+    - **Toolbar** — _done_
+      - **Encoding Selector** — _done_
+      - **Line Numbers Toggle** — _done_
+      - **Word Wrap Toggle** — _done_
+      - **Cut / Copy / Paste** — _done_
+      - **File Monitor Toggle** — _done_
+      - **Split File** — _done_
+    - **Text View** — _done_
+    - **Head-First Windowing** — _done_
+    - **Streaming Indicator** — _done_
+    - **Find** — _done_
+      - **Find Next / Previous** — _done_
+      - **Match Minimap** — _done_
+    - **AI Tools** — _done_
+  - **Web Viewer** — _done_
+    - **Navigation toolbar** — _done_
+    - **Title & breadcrumbs** — _done_
+    - **Missing-runtime fallback** — _done_
+    - **AI page context** — _done_
+    - **Overlay airspace handling** — _done_
+    - **Browse file action** — _done_
+    - **Pin URL to ribbon / open URL object** — _done_
+  - **Installed Apps** — _done_
+    - **View Apps** — _done_
+      - **Windows Store Apps** — _done_
+      - **Registry Apps** — _done_
+      - **App Columns** — _done_
+      - **Column Sort** — _done_
+      - **Size Measurement Pass** — _done_
+      - **Name Filter** — _done_
+    - **Uninstall** — _done_
+    - **Remove from list** — _done_
+    - **Header Bar** — _done_
+      - **Refresh** — _done_
+      - **Loading / Count Indicator** — _done_
+    - **Row Actions Menu** — _done_
+      - **Open Location** — _done_
+    - **AI Integration** — _done_
+      - **App List Context** — _done_
+      - **Tool: get_application_details** — _done_
+      - **Tool: list_installed_applications** — _done_
+  - **Win File System** — _done_
+    - **File Explorer Tab** — _done_
+      - **This PC (drive list)** — _done_
+      - **Named-folder tab variants** — _done_
+      - **Directory Tree** — _done_
+      - **File List** — _done_
+        - **Open / Navigate Entry** — _done_
+        - **Column Sorting** — _done_
+        - **Footer Counts + Quick-Filter** — _done_
+      - **Breadcrumb / Address Bar** — _done_
+        - **Path Navigation Query (>)** — _done_
+      - **File Action Strip** — _done_
+        - **Copy** — _done_
+        - **Cut** — _done_
+        - **Paste** — _done_
+        - **Rename** — _done_
+        - **Delete** — _done_
+        - **Run** — _done_
+        - **Install** — _done_
+        - **Properties** — _done_
+        - **Open With** — _done_
+        - **Shell Verb Actions** — _done_
+        - **Custom External-App Actions** — _done_
+        - **Action Button Context Menu** — _done_
+        - **Pin Action / Tab to Ribbon** — _done_
+      - **File/Folder Context Menu** — _done_
+      - **New / Create Overlay** — _done_
+        - **New Folder** — _done_
+        - **ShellNew Types** — _done_
+        - **Templated Create** — _done_
+      - **Define New (association wizard)** — _done_
+      - **External Apps Editor** — _done_
+      - **File Type Actions Editor** — _done_
+      - **Confirmation Overlay** — _done_
+      - **Input Prompt Overlay** — _done_
+      - **Drag & Drop** — _done_
+      - **Keyboard Shortcuts** — _done_
+      - **Folder Viewlets Host** — _done_
+    - **AI File Tools** — _done_
+      - **AI Context & Security Risk** — _done_
+  - **Win Registry** — _done_
+    - **Toolbar** — _done_
+      - **Hive Dropdown** — _done_
+      - **Export** — _done_
+      - **Import** — _done_
+    - **Key Tree** — _done_
+      - **New Key** — _done_
+      - **Rename Key** — _done_
+      - **Delete Key** — _done_
+    - **Value List** — _done_
+      - **Modify Value** — _done_
+      - **New Value** — _done_
+      - **Delete Value** — _done_
+    - **Elevation-gated Writes** — _done_
+    - **Input & Confirmation Overlays** — _done_
+    - **Pin Key to Ribbon** — _done_
+    - **AI Registry Tools** — _done_
+      - **AI: List Subkeys** — _done_
+      - **AI: Get Values** — _done_
+      - **AI: Set Value** — _done_
+      - **AI: Insert Value** — _done_
+  - **Win Search** — _done_
+    - **Top Bar** — _done_
+    - **Scope / Root** — _done_
+    - **Query Parser** — _done_
+    - **SystemIndex Query (OLE DB)** — _done_
+    - **Results List** — _done_
+      - **Column Sort** — _done_
+    - **Action Strip** — _done_
+      - **Open Location** — _done_
+      - **Open File** — _done_
+    - **AI Query Routing** — _done_
+      - **AI: Launch Search** — _done_
+      - **AI: Refine Search** — _done_
+      - **AI: Search Tool** — _done_
+  - **Audio** — _done_
+    - **Open Actions** — _done_
+      - **Open As Audio** — _done_
+      - **Play Folder** — _done_
+    - **Now Playing** — _done_
+    - **Transport** — _done_
+      - **Play / Pause** — _done_
+      - **Stop** — _done_
+      - **Next Track** — _done_
+      - **Previous Track** — _done_
+      - **Volume Slider** — _done_
+      - **Seek (waveform click)** — _done_
+      - **Auto-advance** — _done_
+    - **Playlist Drawer** — _done_
+      - **Play Playlist Item** — _done_
+      - **Reorder Playlist (drag)** — _done_
+    - **Spectrum Analyser** — _done_
+    - **Waveform View** — _done_
+    - **Lyrics Panel** — _done_
+    - **Tag Editor** — _done_
+      - **Album Art (change / remove)** — _done_
+  - **Compressed / Archives** — _done_
+    - **Archive Inspector Tab** — _done_
+      - **Metadata Pane** — _done_
+      - **Entry Tree** — _done_
+      - **Open File Inside Archive** — _done_
+      - **Action Bar** — _done_
+        - **Extract** — _done_
+        - **Add File** — _done_
+        - **Edit & Write Back** — _done_
+        - **Test** — _done_
+        - **Encrypt** — _done_
+        - **Decrypt** — _done_
+        - **Sign** — _done_
+        - **Sig Check** — _done_
+        - **Recompress** — _done_
+        - **Convert** — _done_
+      - **Choice & Password Overlays** — _done_
+      - **Drag-and-Drop Add** — _done_
+    - **Virtual Filesystem (Browse Like a Folder)** — _done_
+      - **Browse Archive in File Tree** — _done_
+    - **File / Folder Actions** — _done_
+      - **As Archive (Open)** — _done_
+      - **Unzip Here** — _done_
+      - **Zip It** — _done_
+    - **Format Backends** — _done_
+      - **ZIP Backend (in-box)** — _done_
+      - **tar / 7z / rar Backend** — _done_
+      - **zstd / lz4 Backend** — _done_
+      - **AES-256 Zip Backend** — _done_
+  - **3D Model** — _done_
+    - **Viewport** — _done_
+      - **Rotate / Zoom / Pan** — _done_
+      - **Alt+Right-Drag Turn** — _done_
+    - **Toolbar** — _done_
+      - **Wireframe Toggle** — _done_
+      - **Reset View** — _done_
+    - **Stats Footer** — _done_
+    - **Material Inspector** — _done_
+    - **Loader Format Coverage** — _done_
+    - **AI Viewport Tools** — _done_
+  - **Notebook** — _done_
+    - **Cell List** — _done_
+      - **Markdown Cell** — _done_
+      - **Code Cell** — _done_
+        - **Kernel Language Detection** — _done_
+    - **Code Outline** — _done_
+  - **Video** — _done_
+    - **Video Surface** — _done_
+      - **Poster & Big Play Button** — _done_
+      - **Loading / Error States** — _done_
+    - **Transport Bar** — _done_
+      - **Play / Pause** — _done_
+      - **Skip Back / Forward** — _done_
+      - **Scrubber & Time** — _done_
+      - **Volume & Mute** — _done_
+      - **Playback Speed** — _done_
+      - **Subtitles (CC)** — _done_
+    - **Media Info Panel** — _done_
+    - **Scene Strip (Keyframes)** — _done_
+    - **Fullscreen** — _done_
+    - **AI: Capture Frame** — _done_
+    - **Hardware Decoding Setting** — _done_
+  - **AI Chat** — _done_
+    - **Conversation browser** — _done_
+    - **New conversation** — _done_
+    - **Conversation row actions** — _done_
+    - **Analysis overlay** — _done_
+    - **Conversation view** — _done_
+      - **Inline tool approvals** — _done_
+      - **Mid-turn interjections** — _done_
+    - **Context pinning** — _done_
+    - **History & resume** — _done_
+    - **AI Chat config** — _done_
+- **Providers** — _should_
+  - **Claude** — _done_
+  - **Gemini** — _done_
+  - **Ollama** — _done_
+  - **OpenAI** — _done_
+  - **Aria** — _done_
+  - **Providers.Common** — _done_
+- **Common / Shared** — _should_
+  - **Visuals.Text** — _done_
+    - **Markdown Rendering** — _should_
+      - **CommonMark** — _done_
+        - **Paragraphs** — _done_
+        - **ATX Headings** — _done_
+        - **Setext Headings** — _done_
+        - **Thematic Breaks** — _done_
+        - **Block Quotes** — _done_
+        - **Nested / Loose Lists** — _done_
+        - **unordered Lists** — _done_
+        - **ordered lists** — _done_
+        - **Indented Code Blocks** — _done_
+        - **Fenced Code Blocks** — _done_
+        - **Inline Code** — _done_
+        - **Emphasis** — _done_
+        - **Strong** — _done_
+        - **Inline Links** — _done_
+        - **Reference Links** — _done_
+        - **Images** — _done_
+        - **AutoLinks** — _done_
+        - **Hard Breaks** — _done_
+        - **Soft line breaks** — _done_
+        - **Backslash escapes** — _done_
+      - **Latex** — _should_
+      - **Mermaid** — _should_
+        - **Graph / Flowchart** — _done_
+        - **Quadrant Chart** — _done_
+        - **Pie** — _done_
+        - **State Diagram** — _done_
+        - **Sequence Diagram** — _done_
+        - **gantt** — _done_
+        - **gitgraph** — _done_
+        - **mindmap** — _done_
+        - **class diagram** — _done_
+        - **requirement diagram** — _done_
+        - **kanban** — _done_
+        - **XY Chart** — _done_
+        - **Radar Chart** — _done_
+        - **Ishikawa (Fishbone)** — _done_
+        - **Sankey** — _done_
+        - **ER Diagram** — _done_
+        - **Venn** — _done_
+        - **timeline** — _should_
+        - **Journey** — _should_
+        - **C4Context** — _should_
+        - **Block** — _should_
+        - **Architecture** — _should_
+      - **Markdig Extensions** — _should_
+        - **Pipe tables** — _done_
+        - **Grid tables** — _done_
+        - **Task Lists** — _done_
+        - **Emphasis Extra** — _done_
+        - **Autolinks** — _done_
+        - **Definition Lists** — _done_
+        - **List Extras** — _done_
+        - **Abbreviations** — _done_
+        - **Alert Blocks** — _done_
+        - **YAML front matter** — _done_
+        - **Figures** — _done_
+        - **Footers** — _done_
+        - **Citations** — _done_
+        - **jira links** — _should_
+        - **media links** — _should_
+        - **smartypants** — _should_
+        - **emoji and smilies** — _should_
+      - **nomnoml** — _should_
+    - **Code/Text Editor** — _done_
+      - **Editor Host** — _done_
+      - **Highlighting Host** — _done_
+      - **CodeBlockView** — _done_
+      - **Selectable Markdown** — _done_
+      - **Markdown Pipeline** — _done_
+  - **Syntax Engine (tree-sitter)** — _done_
+    - **Parsers** — _done_
+      - **C#** — _done_
+      - **Ruby** — _done_
+      - **JavaScript** — _done_
+      - **TypeScript** — _done_
+      - **Python** — _done_
+      - **Java** — _done_
+      - **C++** — _done_
+      - **Rust** — _done_
+      - **PHP** — _done_
+      - **Razor** — _done_
+      - **HTML** — _done_
+      - **CSS** — _done_
+      - **ERB** — _done_
+      - **Jinja** — _done_
+      - **JSON** — _done_
+      - **SQL / GraphQL (detected, no grammar)** — _should_
+    - **Highlight Queries** — _done_
+    - **Embedded Languages** — _done_
+    - **Parse Tree (AI)** — _done_
+    - **Code Outline / Structure** — _done_
+  - **Visuals.Terminal** — _done_
+    - **Terminal View** — _done_
+    - **Command Classifier** — _done_
+    - **Keys & History** — _done_
+    - **Environments Model** — _done_
+  - **IO.Terminal (PTY)** — _done_
+    - **Terminal Screen** — _done_
+    - **Process Lifetime** — _done_
+  - **IO.Common** — _done_
+    - **Encoding Detector** — _done_
+    - **File Change Watcher** — _done_
+    - **Glob** — _done_
+    - **Virtual File System** — _done_
+    - **Codec / Archive Contracts** — _done_
+    - **Text Transforms & Hashing** — _done_
+  - **Visuals.Common** — _done_
+    - **Shared Controls** — _done_
+    - **Value Converters** — _done_
+    - **Formatters** — _done_
+    - **Collections** — _done_
+- **Core UX** — _should_
+  - **Themes** — _done_
+    - **Dark** — _done_
+    - **Light** — _done_
+    - **Sunny** — _done_
+    - **Ocean** — _done_
+    - **Gothic** — _done_
+    - **Sandstone** — _done_
+    - **Nature** — _done_
+    - **Theming System** — _done_
+      - **Layered Assembly** — _done_
+      - **Base Palette** — _done_
+      - **Region Tokens** — _done_
+      - **ThemedRegion + Scene Backdrops** — _done_
+        - **OceanReefScene** — _done_
+        - **ForestScene** — _done_
+        - **GothicScene** — _done_
+        - **SandstoneWall** — _done_
+        - **SunnyScene** — _done_
+      - **Categorical Swatch Bank** — _done_
+      - **Code Colour Palette (TextSwatch)** — _done_
+      - **Semantic Status Tokens** — _done_
+      - **Feature Theme Contributions** — _done_
+      - **Theme Selection (Options)** — _done_
+      - **Theme Switch (Window Restart)** — _done_
+      - **Freeze-on-Merge** — _done_
+  - **Ribbon** — _done_
+    - **Ribbon Bar** — _done_
+      - **Ribbon Button (full)** — _done_
+      - **Half-height Button** — _done_
+      - **Separator** — _done_
+      - **Overflow Menu** — _done_
+      - **Edit / Customise Toggle** — _done_
+      - **Button Accent Colour** — _done_
+    - **Right-click Quick Edit** — _done_
+      - **Quick Rename** — _done_
+      - **Quick Recolour Flyout** — _done_
+      - **Quick Change Icon Flyout** — _done_
+      - **Quick Grow / Shrink** — _done_
+      - **Quick Delete** — _done_
+      - **Open in New Window** — _done_
+    - **Ribbon Editor** — _done_
+      - **Draft / Commit Model** — _done_
+      - **Card Strip Preview** — _done_
+      - **Drag to Reorder** — _done_
+      - **Add Page Dropdown** — _done_
+      - **Rename (Name field)** — _done_
+      - **Size Toggle (Full / Compact)** — _done_
+      - **Icon Picker Grid** — _done_
+      - **Colour Swatches + Hex Input** — _done_
+      - **Remove Item** — _done_
+      - **Insert Separator** — _done_
+      - **Reset to Defaults** — _done_
+      - **Done / Cancel** — _done_
+    - **Pin to Ribbon (drag-drop)** — _done_
+      - **Pin a Dragged Tab** — _done_
+      - **Pin a File Action** — _done_
+      - **Pin a Dropped URL** — _done_
+      - **Duplicate-pin Rejection Flash** — _done_
+    - **Per-profile Layout + Live Sync** — _done_
+    - **Bundled Default Items** — _done_
+  - **Messages** — _done_
+    - **Messages Button + Unread Badge** — _done_
+    - **Notifications Panel** — _done_
+    - **Notification Toast** — _done_
+    - **Message Action Buttons** — _done_
+    - **Show Error (toast)** — _done_
+    - **Show Notification** — _done_
+  - **Options** — _done_
+    - **Property Grid** — _done_
+      - **Text / Number Row** — _done_
+      - **Folder Path Picker** — _done_
+      - **File Path Picker** — _done_
+      - **Enum Combo** — _done_
+      - **List-Source Combo** — _done_
+      - **Toggle Switch** — _done_
+      - **Conditional Enable (DisabledIf)** — _done_
+    - **Save / Validate / Dirty Tracking** — _done_
+    - **Shell Settings** — _done_
+    - **Voice Settings** — _done_
+    - **File-Type Actions Editor** — _done_
+    - **Workspaces (Profiles) Editor** — _done_
+    - **Manage AI / Configure Workspace** — _done_
+      - **AI Ability Grid** — _done_
+        - **Add Provider / Model Column** — _done_
+      - **AI Persona** — _done_
+      - **Provider Config / API Keys** — _done_
+      - **Workspace Identity Page** — _done_
+    - **About Page** — _done_
+      - **Reset Config (Danger)** — _done_
+    - **Setup Wizard** — _done_
+      - **What's New Step** — _done_
+      - **Mandatory Config Steps** — _done_
+      - **AI Bootstrap (Provider → Key → Model)** — _done_
+    - **Config Versioning & Migration** — _done_
+  - **Workspaces & Profiles** — _done_
+    - **Add Workspace** — _done_
+    - **Configure Workspace** — _done_
+      - **Identity Editor** — _done_
+        - **Colour Swatches** — _done_
+        - **Export Conversations** — _done_
+      - **Reconfigure In Place** — _done_
+    - **Launch Control** — _done_
+      - **Taskbar JumpList** — _done_
+      - **Single-Instance IPC** — _done_
+      - **Resident Daemon (--prestart)** — _done_
+    - **Profile Selector** — _done_
+      - **Switch Profile** — _done_
+      - **Modal Switch Block** — _done_
+    - **Workspaces List (Options)** — _done_
+      - **Clone Workspace** — _done_
+      - **Delete Workspace** — _done_
+      - **Reorder Workspaces** — _done_
+  - **Background Tasks** — _done_
+    - **Activity Ticker** — _done_
+    - **Activity Reporting (IActivityHandle)** — _done_
+  - **AI Input Bar & Response Overlay** — _done_
+    - **Include Page Context Toggle** — _done_
+    - **Voice Input** — _done_
+      - **Voice Settings (Whisper Model)** — _done_
+    - **Intent Symbol / Handler Routing** — _done_
+    - **Input Cluster** — _done_
+      - **Prompt Text Box** — _done_
+        - **Ghost-Text Completion** — _done_
+    - **Send Button** — _done_
+    - **Cancel Button** — _done_
+    - **Queue Message Button** — _done_
+    - **Clear Input** — _done_
+    - **AI Status Dot** — _done_
+    - **Page Chat-Bar Hooks** — _done_
+    - **Prefill Type-In** — _done_
+    - **AI Response Overlay** — _done_
+      - **Live Progress Line** — _done_
+      - **Tool-Batch Approval** — _done_
+      - **Plan Approval** — _done_
+      - **Final Answer Render** — _done_
+      - **Continue as Conversation** — _done_
+      - **Dismiss Overlay** — _done_
+    - **Inline Response Banner** — _done_
+      - **Escalate to Overlay** — _done_
+    - **Background Activity Ticker** — _done_
+  - **Window Handling** — _done_
+    - **Tear Off Tab** — _done_
+    - **Split View (Dual Pane)** — _done_
+      - **Split Empty Pane** — _done_
+      - **Close Pane** — _done_
+    - **Open in New Window** — _done_
+    - **Cross-Window Tab Drag** — _done_
+    - **Multi-Window Registry** — _done_
+    - **DPI-Aware Placement** — _done_
+    - **Themed File Picker** — _done_
+    - **Themed Folder Picker** — _done_
+  - **Shell Prompt Overlays** — _done_
+    - **Input Prompt Dialog** — _done_
+    - **Confirmation Dialog** — _done_
+  - **Breadcrumb Bar** — _done_
+    - **Same-tab Navigate Segment** — _done_
+    - **Cross-tab Follow Segment** — _done_
+    - **Segment Dropdown** — _done_
+  - **Tab Strip** — _done_
+    - **Activate Tab** — _done_
+    - **Close Tab** — _done_
+    - **Tab Overflow Menu** — _done_
+    - **Tab Drag / Tear-off Source** — _done_
+    - **Tab Context Menu** — _done_
+    - **Pin Tab to Ribbon** — _done_
+  - **Main Window Frame** — _done_
+    - **Custom Title Bar / Window Controls** — _done_
+    - **Top Bar** — _done_
+      - **Options Button** — _done_
+    - **Content Area (Pane Host)** — _done_
+    - **AI Interaction Bar** — _done_
+      - **AI Status Dot** — _done_
+      - **Ask Box (AI Input)** — _done_
+      - **Send / Cancel / Queue Button** — _done_
+      - **Clear Input Button** — _done_
+      - **AI Bar Resize Splitter** — _done_
+  - **Taskbar Jump List** — _done_
+
+## Needs attention
+
+_Nothing faulted._
+
+## Concerns
+
+| Concern | Done |
+|---|---|
+| i18n | 0/666 |
+| theming | 551/666 |
+| tests | 231/666 |
+| docs | 1/666 |
+| AI Ready | 131/666 |
