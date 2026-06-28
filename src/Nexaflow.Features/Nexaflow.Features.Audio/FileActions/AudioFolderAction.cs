@@ -37,6 +37,7 @@ public sealed class AudioFolderAction : IFolderAction, ICacheable
             ["paths"] = string.Join('|', queue),
             ["index"] = "0",
             ["autoplay"] = "true",   // "Play folder" starts immediately
+            ["scope"] = "folder",    // whole-folder queue → breadcrumb reads "all audio files"
         });
         return true;
     }

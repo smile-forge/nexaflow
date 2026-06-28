@@ -33,6 +33,7 @@ public sealed class AudioTabRegistration : IPageRegistration
         new("paths", "Pipe-separated audio file paths forming the play queue."),
         new("index", "Zero-based index of the track to start on.", Required: false),
         new("autoplay", "When \"true\", playback starts immediately (used by \"Play folder\").", Required: false),
+        new("scope", "\"folder\" when the queue is a whole folder (used by \"Play folder\").", Required: false),
     ];
 
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
@@ -48,16 +49,22 @@ public sealed class AudioTabRegistration : IPageRegistration
         bool autoPlay = string.Equals(pageParams?.GetValueOrDefault("autoplay"), "true",
             StringComparison.OrdinalIgnoreCase);
 
-        var title = paths.Count > 0
-            ? Path.GetFileName(paths[Math.Clamp(index, 0, paths.Count - 1)])
-            : "Audio";
+        // "folder" = the whole-folder "Play folder" action; otherwise it's a single file or explicit selection.
+        var wholeFolder = pageParams?.GetValueOrDefault("scope") == "folder";
+
+        var currentPath = paths.Count > 0 ? paths[Math.Clamp(index, 0, paths.Count - 1)] : string.Empty;
+        var title = paths.Count > 0 ? Path.GetFileName(currentPath) : "Audio";
 
         var page = new Page
         {
             Title = title,
             Icon = "🎵",
-            Breadcrumbs = { new BreadcrumbSegment { Label = title } },
         };
+        // Single track → "folder › track"; a folder queue → "folder › all audio files"; a selection → "folder › N tracks".
+        if (paths.Count > 1)
+            page.SetMultiFileBreadcrumbs(paths, wholeFolder ? "all audio files" : $"{paths.Count} tracks");
+        else
+            page.SetFileBreadcrumbs(currentPath, title);
 
         page.ContentFactory = () =>
         {
