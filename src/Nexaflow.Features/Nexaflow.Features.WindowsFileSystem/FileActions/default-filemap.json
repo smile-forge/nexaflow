@@ -203,6 +203,19 @@
     "ExperienceId": "/video",
     "Source": "User",
     "Criteria": [
+      { "Type": "Extension", "Value": "*.mp4" },
+      { "Type": "Extension", "Value": "*.m4v" },
+      { "Type": "Extension", "Value": "*.mkv" },
+      { "Type": "Extension", "Value": "*.webm" },
+      { "Type": "Extension", "Value": "*.mov" },
+      { "Type": "Extension", "Value": "*.avi" },
+      { "Type": "Extension", "Value": "*.wmv" },
+      { "Type": "Extension", "Value": "*.flv" },
+      { "Type": "Extension", "Value": "*.mpg" },
+      { "Type": "Extension", "Value": "*.mpeg" },
+      { "Type": "Extension", "Value": "*.m2ts" },
+      { "Type": "Extension", "Value": "*.ogv" },
+      { "Type": "Extension", "Value": "*.3gp" },
       { "Type": "PerceivedType", "Value": "Video" }
     ]
   },
