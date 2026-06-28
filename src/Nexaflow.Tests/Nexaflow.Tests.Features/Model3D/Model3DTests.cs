@@ -1,6 +1,7 @@
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows.Media;
 using Nexaflow.Features.Model3D.Loaders;
 using Nexaflow.Features.Model3D.ViewModels;
 using Nexaflow.Tests.Fixtures;
@@ -83,6 +84,26 @@ public class Model3DTests
         Assert.AreEqual(1, loaded.Materials.Count);
         Assert.AreEqual("Red", loaded.Materials[0].Name);
         Assert.IsNotNull(loaded.Materials[0].DiffuseColor, "base colour parsed from the glTF material");
+    }
+
+    [TestMethod]
+    public void Tinting_SeparatesMaterialsThatShareAColour()
+    {
+        var palette = CategoricalPalette.Fallback;
+        var grey = Color.FromRgb(0x80, 0x80, 0x80);
+
+        // Two materials the file left the same grey (no textures) → both tinted, and to different colours.
+        var tinted = CategoricalTinting.Resolve(new (Color?, bool)[] { (grey, false), (grey, false) }, palette);
+        Assert.IsNotNull(tinted[0]);
+        Assert.IsNotNull(tinted[1]);
+        Assert.AreNotEqual(tinted[0], tinted[1], "indistinct materials are tinted distinctly");
+
+        // Materials that already carry distinct colours are left untouched.
+        var red = Color.FromRgb(0xC0, 0x10, 0x10);
+        var blue = Color.FromRgb(0x10, 0x10, 0xC0);
+        var kept = CategoricalTinting.Resolve(new (Color?, bool)[] { (red, false), (blue, false) }, palette);
+        Assert.AreEqual(red, kept[0]);
+        Assert.AreEqual(blue, kept[1]);
     }
 
     [TestMethod]

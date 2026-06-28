@@ -36,24 +36,45 @@ public sealed class FbxModelLoader : IModelLoader
 
         var group = new Model3DGroup();
         var materials = new List<ModelMaterial>();
-        int triangles = 0, vertices = 0, untinted = 0;
+        int triangles = 0, vertices = 0;
         var hasBones = false;
 
-        foreach (var mesh in scene?.Meshes ?? [])
+        if (scene is { MeshCount: > 0 })
         {
-            var geometry = BuildMesh(mesh);
-            if (geometry.Positions.Count == 0) continue;
-            triangles += geometry.TriangleIndices.Count / 3;
-            vertices += geometry.Positions.Count;
-            hasBones |= mesh.HasBones;
+            var source = scene.Materials;
+            // Resolve a display colour per source material with the shared tinting rule (so multiple
+            // materials the FBX left the same grey become individually visible).
+            var described = source.Select(Describe).ToList();
+            var resolved = CategoricalTinting.Resolve(
+                described.Select(d => (d.Colour, d.Texture is not null)).ToList(), palette);
 
-            var source = scene!.Materials is { Count: > 0 } mats
-                         && mesh.MaterialIndex >= 0 && mesh.MaterialIndex < mats.Count
-                ? mats[mesh.MaterialIndex]
-                : null;
-            var (wpfMaterial, described) = Describe(source, materials.Count + 1, palette, ref untinted);
-            materials.Add(described);
-            group.Children.Add(new GeometryModel3D(geometry, wpfMaterial) { BackMaterial = wpfMaterial });
+            var wpfByIndex = new WpfMaterial?[source.Count]; // one shared material per source material
+            var used = new bool[source.Count];
+
+            foreach (var mesh in scene.Meshes)
+            {
+                var geometry = BuildMesh(mesh);
+                if (geometry.Positions.Count == 0) continue;
+                triangles += geometry.TriangleIndices.Count / 3;
+                vertices += geometry.Positions.Count;
+                hasBones |= mesh.HasBones;
+
+                var index = mesh.MaterialIndex >= 0 && mesh.MaterialIndex < source.Count ? mesh.MaterialIndex : -1;
+                var wpfMaterial = index >= 0
+                    ? (wpfByIndex[index] ??= CategoricalTinting.ToDiffuseMaterial(resolved[index]))
+                    : CategoricalTinting.ToDiffuseMaterial(null);
+                if (index >= 0) used[index] = true;
+                group.Children.Add(new GeometryModel3D(geometry, wpfMaterial) { BackMaterial = wpfMaterial });
+            }
+
+            // Inspector: one row per material actually used, with its resolved colour.
+            for (var i = 0; i < source.Count; i++)
+            {
+                if (!used[i]) continue;
+                materials.Add(new ModelMaterial(
+                    string.IsNullOrWhiteSpace(described[i].Name) ? $"Material {materials.Count + 1}" : described[i].Name,
+                    resolved[i], described[i].Texture));
+            }
         }
 
         if (group.CanFreeze) group.Freeze();
@@ -96,34 +117,24 @@ public sealed class FbxModelLoader : IModelLoader
         return geometry;
     }
 
-    private static (WpfMaterial wpf, ModelMaterial described) Describe(
-        AssimpMaterial? material, int ordinal, IReadOnlyList<Color> palette, ref int untinted)
+    /// <summary>Reads an Assimp material's name, diffuse colour and whether it has a diffuse texture.
+    /// The shared tinter decides the final display colour.</summary>
+    private static (string Name, Color? Colour, string? Texture) Describe(AssimpMaterial material)
     {
-        var name = string.IsNullOrWhiteSpace(material?.Name) ? $"Material {ordinal}" : material!.Name;
+        var name = material.Name ?? string.Empty;
         Color? colour = null;
         string? texture = null;
 
-        if (material is not null)
+        if (material.HasColorDiffuse)
         {
-            if (material.HasColorDiffuse)
-            {
-                var c = material.ColorDiffuse; // RGBA 0..1; ignore alpha so a 0-alpha material isn't invisible
-                colour = Color.FromRgb(ToByte(c.X), ToByte(c.Y), ToByte(c.Z));
-            }
-            if (material.HasTextureDiffuse)
-                texture = string.IsNullOrWhiteSpace(material.TextureDiffuse.FilePath)
-                    ? "texture" : material.TextureDiffuse.FilePath;
+            var c = material.ColorDiffuse; // RGBA 0..1; ignore alpha so a 0-alpha material isn't invisible
+            colour = Color.FromRgb(ToByte(c.X), ToByte(c.Y), ToByte(c.Z));
         }
+        if (material.HasTextureDiffuse)
+            texture = string.IsNullOrWhiteSpace(material.TextureDiffuse.FilePath)
+                ? "texture" : material.TextureDiffuse.FilePath;
 
-        // No colour and no texture in the file → give it a distinct categorical colour so it's separable.
-        if (colour is null && texture is null && palette.Count > 0)
-            colour = palette[untinted++ % palette.Count];
-
-        var brush = new SolidColorBrush(colour ?? Colors.LightGray);
-        brush.Freeze();
-        WpfMaterial wpf = new DiffuseMaterial(brush);
-        wpf.Freeze();
-        return (wpf, new ModelMaterial(name, colour, texture));
+        return (name, colour, texture);
     }
 
     private static IReadOnlyList<string> DescribeUnsupported(Scene? scene, bool hasBones)

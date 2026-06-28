@@ -34,23 +34,17 @@ internal static class ModelInspection
                 : e.Mesh.Positions.Count / 3;
         }
 
-        // Recolour only when the file gives us nothing to tell meshes apart: no textures, and at most one
-        // distinct diffuse colour across them all (the reader's uniform default). Files that already colour
-        // their meshes distinctly are left untouched.
-        var anyTexture = meshes.Any(e => e.Texture is not null);
-        var distinctColours = meshes.Where(e => e.Color is not null).Select(e => e.Color!.Value).Distinct().Count();
-        var recolour = palette.Count > 0 && !anyTexture && distinctColours <= 1 && meshes.Count > 0;
+        // Tint indistinct meshes using the shared rule (same as glTF/FBX). The HelixToolkit readers don't
+        // surface material names, so each mesh is treated as its own material here.
+        var resolved = CategoricalTinting.Resolve(
+            meshes.Select(e => (e.Color, e.Texture is not null)).ToList(), palette);
 
         var materials = new List<ModelMaterial>(meshes.Count);
         for (int i = 0; i < meshes.Count; i++)
         {
             var e = meshes[i];
-            var colour = e.Color;
-            if (recolour)
-            {
-                colour = palette[i % palette.Count];
-                ReSkin(e.Gm, colour.Value);
-            }
+            var colour = resolved[i];
+            if (e.Texture is null && colour is { } c) ReSkin(e.Gm, c);
             materials.Add(new ModelMaterial($"Material {i + 1}", colour, e.Texture));
         }
 

@@ -4,7 +4,6 @@ using System.Windows.Media.Media3D;
 using SharpGLTF.Geometry;
 using SharpGLTF.Schema2;
 using GltfMaterial = SharpGLTF.Schema2.Material;
-using WpfMaterial = System.Windows.Media.Media3D.Material;
 
 namespace Nexaflow.Features.Model3D.Loaders;
 
@@ -30,7 +29,7 @@ public sealed class GltfModelLoader : IModelLoader
 
         var group = new Model3DGroup();
         var materials = new List<ModelMaterial>();
-        int triangles = 0, vertices = 0, untinted = 0;
+        int triangles = 0, vertices = 0;
 
         if (scene is not null)
         {
@@ -45,17 +44,24 @@ public sealed class GltfModelLoader : IModelLoader
                 accum.AddTriangle(a, b, c);
             }
 
-            foreach (var (key, accum) in buckets)
+            // Resolve a display colour per material with the shared tinting rule, then build a mesh each.
+            var ordered = buckets.ToList();
+            var described = ordered.Select(kv => Describe(kv.Key >= 0 ? model.LogicalMaterials[kv.Key] : null)).ToList();
+            var resolved = CategoricalTinting.Resolve(
+                described.Select(d => (d.Colour, d.Texture is not null)).ToList(), palette);
+
+            for (var i = 0; i < ordered.Count; i++)
             {
-                var mesh = accum.Build();
+                var mesh = ordered[i].Value.Build();
                 if (mesh.Positions.Count == 0) continue;
-                triangles += accum.TriangleCount;
+                triangles += ordered[i].Value.TriangleCount;
                 vertices += mesh.Positions.Count;
 
-                var material = key >= 0 ? model.LogicalMaterials[key] : null;
-                var (wpfMaterial, described) = Describe(material, materials.Count + 1, palette, ref untinted);
-                materials.Add(described);
+                var wpfMaterial = CategoricalTinting.ToDiffuseMaterial(resolved[i]);
                 group.Children.Add(new GeometryModel3D(mesh, wpfMaterial) { BackMaterial = wpfMaterial });
+                materials.Add(new ModelMaterial(
+                    string.IsNullOrWhiteSpace(described[i].Name) ? $"Material {materials.Count + 1}" : described[i].Name,
+                    resolved[i], described[i].Texture));
             }
         }
 
@@ -94,11 +100,12 @@ public sealed class GltfModelLoader : IModelLoader
         return null;
     }
 
-    private static (WpfMaterial wpf, ModelMaterial described) Describe(
-        GltfMaterial? material, int ordinal, IReadOnlyList<Color> palette, ref int untinted)
+    /// <summary>Reads a glTF material's name, base colour and whether it has a base-colour texture.
+    /// The shared tinter decides the final display colour.</summary>
+    private static (string Name, Color? Colour, string? Texture) Describe(GltfMaterial? material)
     {
-        var name = string.IsNullOrWhiteSpace(material?.Name) ? $"Material {ordinal}" : material!.Name;
-        Color? color = null;
+        var name = material?.Name ?? string.Empty;
+        Color? colour = null;
         string? texture = null;
 
         if (material?.FindChannel("BaseColor") is { } channel)
@@ -106,20 +113,12 @@ public sealed class GltfModelLoader : IModelLoader
 #pragma warning disable CS0618 // Parameter (single Vector4) is the base-colour factor; ample for a viewer.
             var p = channel.Parameter; // Vector4 RGBA, linear 0..1
 #pragma warning restore CS0618
-            color = Color.FromScRgb(Clamp01(p.W), Clamp01(p.X), Clamp01(p.Y), Clamp01(p.Z));
+            colour = Color.FromScRgb(Clamp01(p.W), Clamp01(p.X), Clamp01(p.Y), Clamp01(p.Z));
             if (channel.Texture is { } tex)
                 texture = string.IsNullOrWhiteSpace(tex.PrimaryImage?.Name) ? "embedded texture" : tex.PrimaryImage!.Name;
         }
 
-        // No colour and no texture in the file → give it a distinct categorical colour so it's separable.
-        if (color is null && texture is null && palette.Count > 0)
-            color = palette[untinted++ % palette.Count];
-
-        var brush = new SolidColorBrush(color ?? Colors.LightGray);
-        brush.Freeze();
-        WpfMaterial wpf = new DiffuseMaterial(brush);
-        wpf.Freeze();
-        return (wpf, new ModelMaterial(name, color, texture));
+        return (name, colour, texture);
     }
 
     private static IReadOnlyList<string> DescribeUnsupported(ModelRoot model, bool usedCamera)
