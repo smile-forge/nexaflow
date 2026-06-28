@@ -26,6 +26,7 @@ nexaflow/src/
 ├── Nexaflow.Features/
 │   ├── Nexaflow.Features.Common/              ← Shared contracts (interfaces + small DTOs). FeatureManager is NOT here — it's in Core.
 │   ├── Nexaflow.Features.AIChat/              ← AI conversation tab (browser over saved conversations)
+│   ├── Nexaflow.Features.Audio/               ← Audio player tab (playback, spectrum + waveform, .lrc lyrics, ID3 tag editor)
 │   ├── Nexaflow.Features.Console/             ← PTY terminal tab
 │   ├── Nexaflow.Features.Dotnet/             ← .NET folder viewlet — AI context + dotnet client tools
 │   ├── Nexaflow.Features.Git/                 ← Git folder viewlet — AI context + git client tools

@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <!-- Playback + DSP. NAudio matches the version Core already ships. -->
+    <PackageReference Include="NAudio" Version="2.3.0" />
+    <!-- Vorbis (.ogg) decode — MediaFoundation can't. -->
+    <PackageReference Include="NAudio.Vorbis" Version="1.5.0" />
+    <!-- Opus (.opus) decode (pure-C#); Oggfile is the Ogg-container demuxer over Concentus. -->
+    <PackageReference Include="Concentus" Version="2.2.2" />
+    <PackageReference Include="Concentus.Oggfile" Version="1.0.7" />
+    <!-- ID3 / Vorbis-comment / MP4-atom tag read + write, embedded art. -->
+    <PackageReference Include="TagLibSharp" Version="2.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
+  </ItemGroup>
+
+</Project>
