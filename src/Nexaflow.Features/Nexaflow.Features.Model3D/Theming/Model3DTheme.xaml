@@ -1,0 +1,17 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ════ 3D viewer colour tokens ════
+         Shipped as an IThemeContribution so they merge BELOW the active theme (layer 3): every theme
+         gets these viewport defaults for free, and any theme may retune a Model3D.* key by name (e.g. a
+         lighter stage on the Light theme) without Core or the feature referencing each other. Literal
+         fallbacks — the same approach the scratchpad's PostIt bank uses — so they resolve standalone.
+         The viewport reads ViewportBg (also the screenshot background); the code-behind reads
+         WireframeColor for the wireframe overlay. Grid/Edge are provided for theme authors. -->
+
+    <SolidColorBrush x:Key="Model3D.ViewportBg"     Color="#0B0E14"/>
+    <SolidColorBrush x:Key="Model3D.WireframeColor" Color="#7FB0FF"/>
+    <SolidColorBrush x:Key="Model3D.GridColor"      Color="#2A3047"/>
+    <SolidColorBrush x:Key="Model3D.EdgeColor"      Color="#9AA4BF"/>
+
+</ResourceDictionary>
