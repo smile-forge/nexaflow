@@ -6,7 +6,7 @@ and [extensions](https://xoofx.github.io/markdig/docs/extensions/) docs.
 
 ## How it's wired
 
-- **Parser:** Markdig **1.3.1** (`Markdig` package).
+- **Parser:** Markdig **1.3.2** (`Markdig` package).
 - **Pipeline:** one shared config — [`MarkdownPipelineFactory.Default`](../src/Nexaflow.Visuals.Text/Markdown/MarkdownPipelineFactory.cs).
   Every surface parses with it: the read-only `MarkdownView`, the selectable
   `SelectableMarkdownView` (via `MarkdownFlowDocument`), the AI overlay, AIChat, and

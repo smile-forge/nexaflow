@@ -50,21 +50,27 @@ The file-viewer features additionally get a per-file open-smoke UI case from the
 | Feature | Unit tests | UI tests |
 |---------|-----------|----------|
 | AIChat | ✅ `ConversationContextReadiness` | — |
+| Audio | ✅ `LrcParser`, `AudioFileTypes`, `WaveformAnalyzer` | ✅ *via SampleFileViewer* (`audio` → `AudioView`) |
+| Code | ✅ `CodeIntelligence` (embedded-language parse, code/class map) | ✅ `CodeViewUiTests` |
+| Compressed | ✅ 11 classes (zip/tar/7z/rar handlers, `VirtualFileSystem`, codec convert, repackage + encrypt, signatures + modern codecs, extended formats, archive samples) | — |
 | Console | — | — |
 | Dotnet | ✅ `DotnetTargetScanner`, `DotnetViewletViewModel` | — |
 | Git | ✅ `GitService` | — |
-| Audio | ✅ `LrcParser`, `AudioFileTypes`, `WaveformAnalyzer` | ✅ *via SampleFileViewer* (`audio` → `AudioView`) |
 | Hex | ✅ `HexBuffer`, `HexViewModel` | ✅ *via SampleFileViewer* (`binary` → `HexView`) |
-| Images | — | — |
+| Images | ✅ `ImageSamples` | ✅ *via SampleFileViewer* (`images` → `ImageView`) |
 | Json | ✅ `JsonFileLoader` (small + large streaming, virtual-chunk windowing, BOM, estimation) | ✅ *via SampleFileViewer* (`json` → `JsonView`) |
 | Logs | ✅ `LogViewModel` (small load, tail-first read, encoding detection) | ✅ *via SampleFileViewer* (`logs` → `LogView`) |
 | Markdown | ✅ `MarkdownViewModelEditing` (editor model; rendering is covered in `Tests.Core`) | ✅ *via SampleFileViewer* (`markdown` → `MarkdownView`) |
+| Model3D | ✅ `Model3D` (loader dispatch, mesh/material parse) | ✅ *via SampleFileViewer* (`model3d` → `Model3DView`) |
+| Notebook | ✅ `Notebook` (cell decode + outline) | ✅ `NotebookViewUiTests` |
 | Processes | ✅ `CpuSampling`, `Handles`, `ProcessTools`, `ProcessTreeBuilder`, `Reconciliation` | ✅ `ProcessesViewTests` |
+| ProductManager | ✅ 9 classes (`ProductStore`, `ProductTreeOps`, `ProductRollup`, `ProductAggregator`, `ProductGit`, `ProductRootLocator`, `ProductTools`, `ProductCreateAction`, `SnaplinkPicker`) | — |
 | Projects | — | — |
 | Scratchpad | ✅ `DroppedMedia`, `PostItStore`, `PostItViewModel`, `ScratchpadConfig`, `ScratchpadViewModel`, `UrlPreviewTask` | — |
 | SystemInfo | ✅ `EnvironmentVariablesViewModel`, `EnvVarModel`, `EnvVarsCollector`, `ServicesCollector`, `ServicesViewModel`, `SystemInfoViewModel` | — |
 | Tabular | ✅ 13 classes (CSV tokeniser, shape + column-type detection, column transforms, windowed `RowWindowReader`/`LineSamplingReader`, encoding detection, sample detection, …) | ✅ *via SampleFileViewer* (`tabular` → `TabularView`) |
 | Text | ✅ `TextViewModel` (small + large windowed load, window advance) | ✅ *via SampleFileViewer* (`text` → `TextView`) |
+| Video | — | ✅ *via SampleFileViewer* (`video` → `VideoView`) |
 | Web | ✅ `WebPageChrome` | — |
 | WindowsApps | ✅ `WindowsAppsViewModel` | — |
 | WindowsFileSystem | ✅ 15 classes (file-type map, create actions + templates, glob matcher, external apps, tree node, view model, …) | ✅ `FileSystemViewTests`, `FileSystemCreateTests`, `TemplatedCreateOptionsTests` |
@@ -79,7 +85,7 @@ points, so `LogViewModel`/`TextViewModel` tests run under `Infrastructure/AsyncP
 single-threaded synchronization context). `LogViewModel`'s background head-reassembly needs a live UI
 `Dispatcher`, so that one path is left to the UI smoke rather than a unit test.
 
-**No coverage yet:** Console, Images, Projects and WindowsRegistry have no tests.
+**No coverage yet:** Console, Projects and WindowsRegistry have no tests.
 
 ### Core & shared libraries (`Nexaflow.Tests.Core`)
 
@@ -115,9 +121,16 @@ test-samples/
   tabular/    csv/tsv variations: separators (, ; tab, ", "), quoting, headers, single column,
               mixed column types, and one long file for the windowed streaming readers
   text/       short + long plain text; UTF-8 (BOM/no-BOM), UTF-16 LE/BE, UTF-32 LE; LF and CRLF
+  code/       source files across the highlighted languages (embedded-language hosts included)
+  notebook/   .ipynb documents (markdown + code cells, varied outputs)
   json/       object, array, deeply nested, and a 1,000-item array for seek-by-item windowing
   logs/       short + long timestamped logs (tail-first streaming)
   binary/     random / zeros / mixed / PNG-header blobs for the hex viewer
+  images/     small raster images for the image viewer
+  archive/    zip/tar/7z/… containers (incl. nested) for the Compressed handlers
+  model3d/    STL / OBJ / PLY / glTF meshes for the 3D viewer
+  audio/      short WAV clips for the audio player
+  video/      a minimal .mp4 for the video viewer
 ```
 
 ### Catalog model
@@ -135,8 +148,9 @@ TestSampleData    — resolves <repoRoot>/test-samples, materialises every regis
                       Files(subDir)              every path owned by that set
 ```
 
-Each set is a small class (`MarkdownSamples`, `TabularSamples`, `TextSamples`, `JsonSamples`,
-`LogSamples`, `BinarySamples`) registered in `TestSampleData.Sets`. Long/large fixtures are built
+Each set is a small class (`MarkdownSamples`, `TabularSamples`, `TextSamples`, `CodeSamples`,
+`NotebookSamples`, `JsonSamples`, `LogSamples`, `BinarySamples`, `ImageSamples`, `ArchiveSamples`,
+`Model3DSamples`, `AudioSamples`, `VideoSamples`) registered in `TestSampleData.Sets`. Long/large fixtures are built
 programmatically **without `Random`** (fixed-seed LCG or deterministic arithmetic) so regeneration is
 reproducible and churn-free.
 
@@ -164,7 +178,12 @@ route), and waits for the viewer's root `AutomationProperties.AutomationId`:
 | `json`     | `.json` | `JsonView` |
 | `logs`     | `.log` | `LogView` |
 | `binary`   | `.bin` `.dat` | `HexView` |
+| `images`   | `.png` (+ other raster formats at runtime) | `ImageView` |
+| `model3d`  | `.stl` `.obj` `.ply` `.gltf` `.glb` (+ FBX/3MF/… at runtime) | `Model3DView` |
 | `audio`    | `.wav` (+ `.mp3` `.flac` `.m4a` `.aac` `.wma` `.ogg` `.opus` at runtime) | `AudioView` |
+| `video`    | `.mp4` (+ `.mkv` `.webm` `.mov` `.avi` `.wmv` … at runtime) | `VideoView` |
+
+(The `code`, `notebook` and `archive` sample sets also exist for unit/feature tests but route through their feature's own UI tests, not the data-driven `SampleFileViewerTests` map above.)
 
 The default-open route is deterministic because the UI test runs against a fresh `NEXAFLOW_CONFIG_DIR`:
 the file-type map (`FileMapManager`) is seeded from the bundled `default-filemap.json`, which maps each
@@ -180,7 +199,7 @@ When you add a **new viewer**, give its root `UserControl` a stable
 | Concern | File |
 |---------|------|
 | Sample dataset generator | `Nexaflow.Tests.Fixtures/TestSampleData.cs` |
-| Sample catalogs | `Nexaflow.Tests.Fixtures/{Markdown,Tabular,Text,Json,Log,Binary}Samples.cs` |
+| Sample catalogs | `Nexaflow.Tests.Fixtures/{Markdown,Tabular,Text,Code,Notebook,Json,Log,Binary,Image,Archive,Model3D,Audio,Video}Samples.cs` |
 | UI test base (app launch, isolated config) | `*/UI/Infrastructure/UITestBase.cs` |
 | File-browser UI helpers (navigate, waits) | `Nexaflow.Tests.Features/WindowsFileSystem/UI/FileSystemUiTestBase.cs` |
 | Per-file viewer UI tests | `Nexaflow.Tests.Features/Fixtures/SampleFileViewerTests.cs` |

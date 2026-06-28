@@ -4,7 +4,7 @@
 
 Nexaflow replaces the scattered pile of single-purpose apps you open every day — file explorer, terminal, editors, viewers, project tracker — with one fast, tabbed workspace. And it has an AI assistant that actually *sees* what you're working on, so help is always one question away.
 
-![Version 1.0.0](https://img.shields.io/badge/version-1.0.0-brightgreen)
+![Version 1.2.0](https://img.shields.io/badge/version-1.2.0-brightgreen)
 ![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)
 ![Platform: Windows](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)
 ![.NET 10](https://img.shields.io/badge/.NET-10.0-purple)
@@ -29,13 +29,19 @@ The default Windows experience hasn't really changed in decades. Explorer, Notep
 A built-in file tree, full-text Windows Search with AI query refinement, and folder "viewlets" that recognise Git repos and .NET projects — feeding that context straight to the assistant.
 
 **📝 Editors & viewers**
-A live Markdown editor (LaTeX formulas *and* native Mermaid diagrams), a quick text editor, plus dedicated viewers for images (carousel / album / explore / collage), logs, JSON, CSV/TSV tables, hex/binary, and web pages.
+A live Markdown editor (LaTeX formulas *and* native Mermaid diagrams), a syntax-highlighting **code editor** with code folding and a class/structure map, a quick text editor, and a Jupyter **notebook** viewer — plus dedicated viewers for images (carousel / album / explore / collage), logs, JSON, CSV/TSV tables, hex/binary, and web pages.
+
+**🎬 Media & 3D**
+An **audio player** with spectrum/waveform visualisations, `.lrc` lyrics, and ID3 tag editing; an interactive **3D model viewer** (STL, OBJ, glTF/glb, FBX, and more); and native **video playback**.
+
+**📦 Archives, in place**
+Browse `.zip`, `.7z`, `.tar`, `.rar`, and modern `zstd`/`lz4` archives **like folders** in the file tree — open files inside them in their normal viewers, edit and write changes straight back, and zip/unzip from the right-click menu.
 
 **⌨️ Terminal & system tools**
 A real terminal (PTY) with shell integration, a live Process Explorer, an installed-apps manager, a system-info dashboard, and a registry editor — with elevated actions handled safely through a privilege bridge.
 
 **🗂️ Stay organised**
-Lightweight project tracking with a backlog workflow, a virtual corkboard Scratchpad for notes, and multiple workspaces you can switch between.
+Lightweight project tracking with a backlog workflow, a **Product Manager** for status-tracking a product tree, a virtual corkboard Scratchpad for notes, and multiple workspaces you can switch between.
 
 **🤖 AI everywhere**
 An AI input bar on every window, a dedicated AI Chat tab with saved history, and agentic, tool-using turns that always ask before doing anything that changes your files. Bring your own provider — Claude, Google Gemini, OpenAI, local models via Ollama, or an Aria service — and assign different models to different tasks.
@@ -75,7 +81,6 @@ If you're interested in how it all fits together — the shell/feature/provider 
 ## Roadmap
 
 - [ ] **Local native models** — ONNX / DirectML in-process inference
-- [ ] **Syntax-highlighted code editor**
 - [ ] **Richer input** — image paste and file-drop straight to the AI bar
 - [ ] **Expanded AI** — per-project memory and inline suggestions inside editors
 - [ ] **Semantic search (RAG)** — a local embedding index for retrieval-augmented answers

@@ -2,13 +2,16 @@
 
 A feature is a class library (`Nexaflow.Features.MyFeature`) that references only `Nexaflow.Features.Common` and WPF. Core never imports your types directly — everything goes through the contracts in `Features.Common`.
 
+> This is the map and the rules. For a working template, read a real sibling feature (pointers below) and the
+> target interface's own XML doc-comment — those are authoritative and never drift from the code.
+
 ---
 
 ## Checklist
 
 | Step | Required | What |
 |------|----------|------|
-| Create project | yes | Class library, reference `Features.Common` |
+| Create project | yes | `net10.0-windows` WPF class library, reference `Features.Common` |
 | `IPageRegistration` | yes | Factory that produces a `Page` (expose `static string StaticPageKind`) |
 | `IPageView` on your `UserControl` | recommended | Shell lifecycle handle: `ViewModel` property + `Reinitialize` |
 | `IPageViewModel` on your ViewModel | recommended | AI pipeline contract: `GetContext`, `GetClientTools`, `GetContextObject` |
@@ -17,376 +20,247 @@ A feature is a class library (`Nexaflow.Features.MyFeature`) that references onl
 | `IFeatureConfig` | optional | Persisted settings, free Options panel UI |
 | `IQueryHandler` | optional | Handle AI input bar text |
 | `IFileAction` / `IFolderAction` | optional | File browser context actions |
-| `IKeyboardHandler` | optional | Global keyboard shortcuts |
-| `IDropTarget` | optional | File drag-drop acceptance |
+| `IKeyboardHandler` / `IDropTarget` | optional | Global keyboard shortcuts / file drag-drop |
 
 ---
 
-## 1. Project Setup
+## Project setup
 
-```
-src/Nexaflow.Features/Nexaflow.Features.MyFeature/
-  MyPageRegistration.cs
-  MyConfig.cs             ← optional
-  ViewModels/
-    MyViewModel.cs
-  Views/
-    MyView.xaml
-    MyView.xaml.cs
-```
-
-`Nexaflow.Features.MyFeature.csproj`:
-
-```xml
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
-    <UseWPF>true</UseWPF>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
-  </ItemGroup>
-</Project>
-```
-
-Add a `<ProjectReference>` to `Nexaflow.Core.csproj` so the feature DLL ships; `FeatureManager` discovers the registration by reflection at startup.
+A `net10.0-windows` WPF class library referencing **only** `Features.Common` (plus the `Nexaflow.Visuals.*` /
+`Nexaflow.IO.Common` shared libs when needed). Add a `<ProjectReference>` to it from `Nexaflow.Core.csproj` so
+the DLL ships and `FeatureManager` reflection-discovers it at startup. Convention: `*TabRegistration.cs` (a few
+are `*PageRegistration.cs`) at the root, `ViewModels/`, `Views/`. Copy the csproj from a sibling feature (e.g.
+`Nexaflow.Features.Text`).
 
 ---
 
-## 2. `IPageRegistration` — Entry Point
+## The entry point — `IPageRegistration`
 
-`FeatureManager.RegisterFeatures()` discovers this via reflection (reading `static StaticPageKind` without instantiating), resolves constructor dependencies, and builds an instance per `Workspace`. Available for injection:
+The one required contract. `FeatureManager.RegisterFeatures()` discovers it by reflection (reading
+`static StaticPageKind` without instantiating) and builds one instance **per `Workspace`**, injecting: any
+`IFeatureConfig` from the **same assembly**, the workspace's `IShellServices`, and its `IAIService`.
 
-- Any `IFeatureConfig` declared in **the same assembly**
-- `IShellServices` (the active workspace's, always available after `App.OnStartup` wires it)
-- `IAIService` (the active workspace's)
-
-```csharp
-public sealed class MyPageRegistration(MyConfig config, IShellServices shellServices) : IPageRegistration
-{
-    public static string StaticPageKind => "MyFeature";   // read by FeatureManager via reflection
-    public string PageKind => StaticPageKind;              // stable string key; persisted in ribbon.json
-
-    public Page CreatePage(Dictionary<string, string>? pageParams = null)
-    {
-        var vm = new MyViewModel(config, shellServices);
-
-        return new Page
-        {
-            Title          = "My Feature",
-            Icon           = "🔧",
-            PageParams     = pageParams,
-            Breadcrumbs    = { new BreadcrumbSegment { Label = "My Feature" } }, // get-only collection
-            ContentFactory = () => new MyView(vm)
-        };
-    }
-}
-```
-
-`ContentFactory` is invoked lazily — `MyView` is not constructed until the tab is first activated.
+- `CreatePageDefinition` must be **cheap and side-effect-free** — the shell builds definitions speculatively
+  just to read `Title`/`Icon` (menus, the AI "add context" list) and may discard them. Build the view-model and
+  view **inside the `ContentFactory` closure**, which runs lazily on first activation.
+- Advertise `Parameters` so the shell/AI can describe how to open the page; set
+  `CanBeContextItem` / `CreatePageDefinitions` for pages (or page variants) offered in those menus.
+- Canonical examples: `Nexaflow.Features.Text/TextTabRegistration.cs` (plain single-file viewer);
+  `Nexaflow.Features.WindowsFileSystem/FileSystemPageRegistration.cs` (multi-variant + context item).
 
 ---
 
-## 3. `IPageView` / `IPageViewModel` — AI Pipeline Integration
+## View & ViewModel — `IPageView` / `IPageViewModel`
 
-`IPageView` is the shell's typed handle to a tab `UserControl`. Implement it on your `UserControl` with:
-- `IPageViewModel? ViewModel` — exposes the ViewModel to the shell
-- `Reinitialize(pageParams)` — called on first activation and whenever the shell routes the tab with a new param set (including re-clicking the already-active tab)
-
-`IPageViewModel` is the AI pipeline contract. Implement it on your ViewModel with:
-- `GetContext()` — short description sent as system context to the LLM
-- `GetClientTools()` — optional list of `IClientTool` the AI agent may invoke (read-only tools auto-run; mutating tools need approval). Defaults to none.
-- `GetContextObject()` — optional strongly-typed `IContext` for query handlers to consume. Defaults to null.
-
-```csharp
-// The View — thin shell-lifecycle wrapper only
-public partial class MyView : UserControl, IPageView
-{
-    private readonly MyViewModel _vm;
-
-    public MyView(MyViewModel vm)
-    {
-        _vm = vm;
-        DataContext = vm;
-        InitializeComponent();
-    }
-
-    public IPageViewModel? ViewModel => _vm;
-
-    public void Reinitialize(Dictionary<string, string> pageParams)
-    {
-        var id = pageParams.GetValueOrDefault("id");
-        if (id != null && id != _vm.CurrentId)
-            _vm.LoadAsync(id);
-    }
-}
-
-// The ViewModel — owns all AI pipeline logic
-public partial class MyViewModel : ObservableObject, IPageViewModel
-{
-    public string GetContext() => $"User is viewing My Feature. Current item: {SelectedItem?.Name ?? "none"}";
-
-    public IReadOnlyList<IClientTool> GetClientTools() =>
-    [
-        // read-only: auto-runs
-        new DelegateClientTool(
-            "refresh", "Reload the current view.", [], ToolSafety.ReadOnly,
-            (args, ct) => { RefreshCommand.Execute(null); return Task.FromResult(ToolResult.Ok("reloaded")); }),
-
-        // mutating: approved before it runs
-        new DelegateClientTool(
-            "open_item", "Open an item by id.",
-            [new ClientToolParameter("item", "Id of the item to open.")],
-            ToolSafety.RequiresApproval,
-            (args, ct) =>
-            {
-                var id = args["item"]?.GetValue<string>();
-                if (string.IsNullOrEmpty(id)) return Task.FromResult(ToolResult.Error("No item id."));
-                OpenCommand.Execute(id);
-                return Task.FromResult(ToolResult.Ok($"opened {id}"));
-            })
-    ];
-}
-```
+`IPageView` on the tab `UserControl` exposes its `ViewModel` and the `Reinitialize(pageParams)` hook — called
+on first activation **and** whenever the shell routes the tab a new param set (including re-clicking the active
+tab). `IPageViewModel` on the ViewModel is the AI-pipeline contract (`GetContext`, `GetClientTools`,
+`GetContextObject`, plus security-scope / readiness defaults — see its XML doc). Both interfaces have sensible
+defaults, so a context-only page overrides almost nothing.
 
 ---
 
-## 4. `IQueryHandler` — AI Input Bar
+## AI input bar — `IQueryHandler`
 
-Intercepts the shell's AI input bar before text reaches the LLM. Two registration modes:
+Intercepts the AI input bar before text reaches the LLM. Register **globally** in `App.xaml.cs` after
+`RegisterFeatures()` via `FeatureManager.Instance.RegisterQueryHandler(...)`, or **page-scoped** by implementing
+it on the ViewModel (the shell checks `page?.ViewModel as IQueryHandler`). `Symbol` claims a single-char prefix
+for exact routing (e.g. `>` → console); otherwise `CanProcess` returns a 0–1 score and
+`IAIService.DisambiguateToolSelection` breaks ties via the LLM. `ProcessAsync` returns null (handled silently)
+or a string (shown in AI Chat). Canonical example: `Nexaflow.Features.WindowsSearch`.
 
-**Global** — always active regardless of which tab is open:
-
-```csharp
-// in App.xaml.cs after RegisterFeatures():
-FeatureManager.Instance.RegisterQueryHandler(new MyGlobalHandler());
-```
-
-**Page-scoped** — active only when your tab is open. Implement `IQueryHandler` directly on your ViewModel; the shell checks `page?.ViewModel as IQueryHandler` automatically.
-
-```csharp
-public sealed class MyQueryHandler : IQueryHandler
-{
-    public string Description => "Does something useful when my tab is active";
-    public string? Symbol => null;      // set to e.g. "?" to claim prefix routing
-
-    public float CanProcess(string input, IPageViewModel? pageVm = null)
-    {
-        if (pageVm is not MyViewModel vm) return 0f;
-        return LooksLikeMyInput(input) ? 0.85f : 0f;
-    }
-
-    public async Task<string?> ProcessAsync(string input, IPageViewModel? pageVm = null)
-    {
-        if (pageVm is not MyViewModel vm) return "No active tab.";
-        await vm.HandleInputAsync(input);
-        return null;    // null = handled silently; non-null string = shown in AI Chat
-    }
-}
-```
-
-The shell uses `Symbol` for exact-prefix routing (e.g. `>` routes to the console). When multiple handlers score > 0, `IAIService.DisambiguateToolSelection()` asks the LLM to pick one.
+The terminal also shows the richer chat-bar hooks — `IChatKeyHandler` (history/Tab-completion),
+`IChatInputPreview` (echo a `>` command), `IChatDropHandler` (dropped file → quoted path); see the interface
+reference.
 
 ---
 
-## 5. `IShellServices` — Shell Capabilities
+## Calling the shell — `IShellServices`
 
-Injected into your `IPageRegistration` (and optionally forwarded to your ViewModel). All tab management flows through here.
+The active workspace's handle (injected into registrations and file actions): `OpenTab` / `CloseTab` /
+`FindTab`, notifications + prompts, `QueueBackgroundTask`, `WatchFile`, `RunOnUiAsync`,
+`DiscoverImplementations<T>`. To change a tab's own title/breadcrumbs/params, mutate the observable `Page`
+directly. The full, documented surface is in `Services/IShellServices.cs`.
 
-```csharp
-// Open or focus a tab (moves it to the caller's window if it exists elsewhere)
-shellServices.OpenTab("ProjectDetail", new() { ["folder"] = folder }, callerPageView);
-
-// Close a tab
-shellServices.CloseTab(page);
-
-// Update the tab's own title/breadcrumbs/params after in-tab navigation by mutating the
-// observable Page directly.
-page.Title = "New Title";
-page.Breadcrumbs.Clear();
-page.Breadcrumbs.Add(new BreadcrumbSegment { Label = "New Title" });
-page.PageParams = new() { ["id"] = newId };
-
-// Check if a tab is already open before opening a duplicate
-var existing = shellServices.FindTab("Search", new() { ["root"] = root });
-
-// User-visible feedback + modal prompts
-shellServices.ShowError("Could not load file.");
-shellServices.ShowNotification("Export complete.");
-shellServices.ShowConfirmation("Delete?", "This cannot be undone.", onConfirm: () => { /* … */ });
-```
-
-**`OpenTab` param-matching:** the shell searches globally for an existing tab whose `PageKind` matches and whose `PageParams` are compatible (all requested keys match). If found, `Reinitialize(pageParams)` is called on it; if not, a new tab is created.
+- **`OpenTab` param-matching:** the shell reuses an existing tab whose `PageKind` matches and whose
+  `PageParams` are compatible (all requested keys match) — calling `Reinitialize` on it — else creates one. So
+  keep `Page.PageParams` in sync with the tab's current state.
+- **Viewer breadcrumbs:** a file/media viewer must **not** hand-roll its trail. Call
+  `page.SetFileBreadcrumbs(path, title)` (→ `D:\temp › report.csv`) or
+  `page.SetMultiFileBreadcrumbs(paths, summary)` (→ `D:\temp › 6 images`; the parent crumb shows only when all
+  paths share a folder). Both clear-then-rebuild, so they're safe to re-call from `Reinitialize`. The parent
+  crumb opens a file-explorer tab at that folder. See `FileBreadcrumbs.cs`.
 
 ---
 
-## 6. `IFeatureConfig` — Persisted Settings
+## Persisted settings — `IFeatureConfig`
 
-Declare a plain POCO in your assembly. `FeatureManager.RegisterFeatures()` discovers it, instantiates it (loading from `%AppData%\Smile\Nexaflow\{ConfigName}\`), and injects it into your `IPageRegistration` constructor. The Options panel generates a property-grid editor for free.
-
-```csharp
-public sealed class MyConfig : IFeatureConfig
-{
-    public string ConfigName   => "myfeature";
-    public string FriendlyName => "My Feature";
-
-    [ConfigDisplayName("Root Folder")]
-    [FolderPath]
-    public string RootFolder { get; set; } = string.Empty;
-
-    [ConfigDisplayName("AI Provider")]
-    [ListSource(typeof(LlmProviderRegistry), nameof(LlmProviderRegistry.GetProviderNames))]
-    public string Provider { get; set; } = string.Empty;
-}
-```
-
-For a fully custom Options UI, annotate the class with `[CustomControl(typeof(MyOptionsControl))]` and implement `ICustomConfigApply.Apply()` on the control to handle saves.
-
-Config attributes:
+A plain POCO; `FeatureManager` discovers it, loads it from `%AppData%\Smile\nexaflow\{ConfigName}\`, and injects
+it into your registration's constructor. The Options panel renders a property grid for free from these
+attributes (all in `ConfigAttributes.cs`):
 
 | Attribute | Effect |
 |-----------|--------|
 | `[ConfigDisplayName("Label")]` | Row label in the Options grid |
-| `[FolderPath]` | TextBox + browse button + existence validation |
-| `[ListSource(type, method)]` | ComboBox populated by a static `IEnumerable<string>` method |
-| `[CustomControl(type)]` | Replaces the whole section with a custom `UserControl` |
+| `[FolderPath]` / `[FilePath(".ext"…)]` | TextBox + browse button + existence validation |
+| `[ListSource(type, method)]` | ComboBox from a static `IEnumerable<string>` method |
+| `[DisabledIfSet]` / `[DisabledIfNotSet]` | Grey out an editor based on a sibling property's value |
+| `[CustomControl(type)]` | Replace the section with a custom `UserControl` (+ `ICustomConfigApply` to save) |
+
+Configs are **global** by default; add `[WorkspaceScopedConfig]` for a per-profile one, `[MandatorySetup]` to
+add it to the first-run wizard. Implement `IConfigMigration` to fix shape changes across a version bump.
 
 ---
 
-## 7. `IFileAction` — File Browser Context Actions
+## File browser actions — `IFileAction` / `IFolderAction` / `IFileCreateAction`
 
-Implement in your feature assembly (viewer-opener actions) or in `Nexaflow.Core.FileActions` (system-level). `FileSystemFeatureRegistry` (in Core, **not** `FeatureManager`) discovers all implementations automatically across Core and the feature assemblies.
+Context actions discovered by `FileSystemFeatureRegistry` (in Core, **not** `FeatureManager`) across Core and
+every feature. Viewer-opener actions live in the owning feature; system actions (copy/rename…) live in
+`Nexaflow.Core.FileActions`. The constructor receives `IShellServices` by injection.
 
-Constructor receives `IShellServices` via injection; show modal prompts via `IShellServices.ShowPrompt` / `ShowConfirmation`.
-
-```csharp
-public sealed class OpenInMyViewerAction(IShellServices shellServices) : IFileAction
-{
-    public string ExperienceId          => "/myformat";
-    public string ExperienceDescription => "My Format files";
-    public string DisplayName           => "Open in My Viewer";
-    public string Icon                  => "👁";
-    public bool   IsDestructive         => false;
-    public bool   RequiresRefresh       => false;
-    public bool   SupportsMultipleFiles => false;
-    public bool   CanPerformAction      => true;
-
-    public bool PerformAction(string filePath)
-    {
-        shellServices.OpenTab("MyFeature", new() { ["path"] = filePath });
-        return true;
-    }
-
-    public bool PerformAction(IEnumerable<string> filePaths)
-        => PerformAction(filePaths.First());
-}
-```
-
-`ExperienceId` is a hierarchical path matched by `FileMapManager`. Users configure which experience applies to which file type in the Options panel. Parent IDs automatically satisfy child experiences.
+- `IFileAction` is matched to a file by hierarchical `ExperienceId` (e.g. `/binary/installer`) via
+  `FileMapManager`; parent ids satisfy child experiences, and the user maps experiences→file-types in Options.
+  Implement `ICacheable` unless the action's identity depends on constructor args (then provide
+  `GetReinitParams` + a static `Rehydrate`).
+- `IFolderAction` is matched **structurally** (folder-name / contained-file / contained-folder globs, with an
+  optional match-percentage), not by experience id.
+- Canonical examples: `Nexaflow.Features.Images/FileActions/` — `ShowImageAction` (file),
+  `ImageFolderAction` (folder).
 
 ---
 
-## 8. `IContext` — Typed Context for Query Handlers
+## Typed AI context — `IContext`
 
-If your tab provides structured data that other query handlers need (beyond a string description), implement `IContext` and return an instance from `IPageViewModel.GetContextObject()`.
-
-```csharp
-public sealed class MyContext : IContext
-{
-    public required string CurrentMode { get; init; }
-    public IReadOnlyList<string> SelectedItems { get; init; } = [];
-}
-
-// In MyViewModel:
-public IContext? GetContextObject() => new MyContext
-{
-    CurrentMode   = Mode,
-    SelectedItems = Selection.ToList()
-};
-```
-
-Query handlers then gate on and extract it:
-
-```csharp
-public float CanProcess(string input, IPageViewModel? pageVm = null)
-{
-    if (pageVm?.GetContextObject() is not MyContext ctx) return 0f;
-    return ctx.CurrentMode == "edit" ? 0.9f : 0f;
-}
-```
+Return a strongly-typed `IContext` from `IPageViewModel.GetContextObject()` when query handlers need structured
+data beyond the `GetContext()` string. Handlers gate on it with a type check — see `FileSystemContext` (in
+`IContext.cs`), consumed by the Windows Search query handler to pick the search root/scope.
 
 ---
 
-## 9. `IKeyboardHandler` — Global Keyboard Shortcuts
+## Keyboard & drag-drop — `IKeyboardHandler` / `IDropTarget`
 
-Implement on your `UserControl` or ViewModel. The shell calls `CanProcessKey` before consuming the event, so you can safely check state without side effects.
-
-```csharp
-public bool CanProcessKey(Key key, ModifierKeys modifiers)
-    => modifiers == ModifierKeys.Control && key is Key.OemPlus or Key.OemMinus or Key.D0;
-
-public bool ProcessKey(Key key, ModifierKeys modifiers)
-{
-    if (key == Key.OemPlus)  { _vm.ZoomIn();    return true; }
-    if (key == Key.OemMinus) { _vm.ZoomOut();   return true; }
-    if (key == Key.D0)       { _vm.ResetZoom(); return true; }
-    return false;
-}
-```
+Implement on the `UserControl` or ViewModel. The shell calls `CanProcessKey` / `CanAcceptDrop` before acting,
+so checks stay side-effect-free; it only queries the **active** page.
 
 ---
 
-## 10. `IClientTool` — AI Client Tools
+## AI client tools — `IClientTool`
 
-For richer behaviour than a `DelegateClientTool` lambda, implement `IClientTool` directly and return it from `GetClientTools()`. The agent harness invokes it during `IAIService.RunAgentAsync`: read-only tools auto-run, mutating tools (`ToolSafety.RequiresApproval`) are approved first via `IToolApprovalCoordinator`, and each `ToolResult` is fed back to the model.
-
-```csharp
-public sealed class OpenItemTool(MyViewModel vm) : IClientTool
-{
-    public string Name => "open_item";
-    public string Description => "Open an item by id.";
-    public IReadOnlyList<ClientToolParameter> Parameters =>
-        [new ClientToolParameter("item", "Id of the item to open.")];
-    public ToolSafety Safety => ToolSafety.RequiresApproval;
-    public bool Parallelizable => false;
-
-    public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
-    {
-        var id = arguments["item"]?.GetValue<string>();
-        if (string.IsNullOrEmpty(id)) return ToolResult.Error("No item id.");
-        await vm.OpenAsync(id, ct);
-        return ToolResult.Ok($"opened {id}");
-    }
-}
-```
+Tools a page exposes to the agent via `IPageViewModel.GetClientTools()`. Use `DelegateClientTool` for
+one-liners, or implement `IClientTool` for richer ones. `ToolSafety.ReadOnly` tools auto-run; mutating ones are
+approved via `IToolApprovalCoordinator` before running, and each `ToolResult` is fed back to the model. Return
+an error `ToolResult` (don't throw) for an expected failure. Canonical example:
+`Nexaflow.Features.Video/ClientTools/VideoCaptureFrameTool.cs`.
 
 ---
 
-## Tab Parameters Convention
+## Tab parameters convention
 
-Parameters are `Dictionary<string, string>`. Keys are lowercase, values are strings. Examples from existing features:
+Params are `Dictionary<string, string>` — keys lowercase, values strings. `Page.PageParams` should always
+reflect the tab's current state (set it after in-tab navigation so `FindTab` and breadcrumb restore work).
 
 | Feature | Params |
 |---------|--------|
 | Search | `query`, `root` |
 | Markdown | `path` |
-| Images | `paths` (pipe-separated), `view` (`carousel` \| `album` \| `explore` \| `collage`) |
+| Code | `path`, `ast` (optional — member to jump to) |
+| Notebook / Model3D / Compressed | `path` |
+| Images | `paths` (pipe-separated), `view` (`carousel` \| `album` \| `explore` \| `collage`), `scope` (`folder` = whole-folder view) |
+| Audio | `paths` (pipe-separated queue), `index`, `autoplay`, `scope` (`folder` = whole-folder queue) |
+| ProductManager | `path` (folder holding/initialising `.product/`) |
 | Projects | *(none)* |
 | ProjectDetail | `folder` |
 
-`Page.PageParams` should always reflect the tab's current state — set `page.PageParams = ...` after in-tab navigation so that `FindTab` and breadcrumb restores work correctly.
+---
+
+## AI capabilities — `IAIService`
+
+Injected like `IShellServices` (the active workspace's instance). Use it from query handlers and tool code:
+`DisambiguateToolSelection` (LLM picks a handler), `RunAgentAsync` (the agent loop), `RunAnalysisAsync` (a
+one-shot completion), plus conversation load/save and artifacts. The full, documented surface is in
+`IAIService.cs`.
 
 ---
 
-## `IAIService` — AI Capabilities
+## Interface reference — `Features.Common`
 
-Injected into your `IPageRegistration` constructor by `FeatureManager` (the active workspace's instance, same as `IShellServices`). Use it in ViewModels that implement `IQueryHandler` or expose client tools.
+Every contract a feature implements or consumes, grouped by concern. All live under
+`src/Nexaflow.Features/Nexaflow.Features.Common/` (sub-folder noted per group). Each interface's own XML
+doc-comment is the authoritative, fuller description. Most are discovered by reflection and built per
+`Workspace` — **except** file/folder actions, which `FileSystemFeatureRegistry` discovers (not `FeatureManager`).
 
-```csharp
-// Let the LLM pick the best handler from a candidate list
-IQueryHandler? chosen = await aiService.DisambiguateToolSelection(pageVm, input, candidates);
+### Pages & tabs
+| Interface | What it's for |
+|---|---|
+| `IPageRegistration` | Advertises one page kind; the cheap `CreatePageDefinition` factory the shell discovers by reflection. |
+| `IPageView` | Implemented by a tab `UserControl` — exposes its ViewModel and the `Reinitialize` lifecycle hook. |
+| `IPageViewModel` | The AI-pipeline contract on a ViewModel: context string, client tools, typed context, security scope. |
+| `IContext` (+ `FileSystemContext`) | Marker for a strongly-typed context object a page offers to query handlers. |
+| `IContextItemReceiver` | A page VM that can receive another open page as a live context item (the conversation page). |
+| `IAirspaceContent` | A page hosting a native HWND child (e.g. WebView2) that must hide itself while a modal overlay covers it. |
 
-// Run the agent loop: the LLM may invoke the page's client tools, see results,
-// and continue, until it returns a final Message or a Prefill.
-AiResponse? response = await aiService.RunAgentAsync(pageVm, input, includeContext: true, approval);
-```
+### AI pipeline
+| Interface | What it's for |
+|---|---|
+| `IAIService` | Per-workspace AI service: the agent loop, conversation store, handler scoring, analysis. Injected like `IShellServices`. |
+| `IClientTool` | A locally-executed tool a page/shell exposes to the agent (use `DelegateClientTool` for one-liners). |
+| `IAIResponseHandler` | The sink the agent loop drives for all response UI (progress, approval, final). Default = shell overlay; a VM can implement it to render inline. |
+| `IChatEngagement` | A page VM opting to host AI responses in an inline banner instead of the modal overlay. |
+| `IQueryHandler` | Intercepts AI-input-bar text before the LLM (`Symbol` prefix / `CanProcess` score). Global or page-scoped. |
+
+### AI input bar — key / preview / drop handlers (`Services/`)
+| Interface | What it's for |
+|---|---|
+| `IChatKeyHandler` | Active page claims key presses in the AI bar (e.g. terminal history, Tab completion). |
+| `IChatInputPreview` | Active page mirrors what's being typed (e.g. terminal echoing a `>` command at a faux prompt). |
+| `IChatDropHandler` | Turns something dropped on the AI bar into inserted text (a dragged file → its quoted path). |
+
+### Shell services & lifecycle (`Services/`)
+| Interface | What it's for |
+|---|---|
+| `IShellServices` | The active workspace's shell handle: open/close/find tabs, notifications, prompts, `WatchFile`, `RunOnUiAsync`. |
+| `IFileWatch` | Handle from `IShellServices.WatchFile`; `Enabled = false` holds + coalesces callbacks, dispose to unwatch. |
+| `IBackgroundTask` | Self-contained background work handed to `IShellServices.QueueBackgroundTask` (runs off the UI thread). |
+| `IShellAware` | A custom config-editor control that needs the shell handed to it (for the themed file/folder pickers). |
+| `IGenericObjectHandler` | "Do the default thing with this object" (open a path / URL) — the non-drag sibling of `IDropTarget`. |
+| `IKeyboardHandler` | Claims global keyboard shortcuts; queried against the active page before the key is consumed. |
+| `IDropTarget` | Accepts file drag-drop; resolved from the active page by the file browser. |
+
+### File & folder actions (`FileActions/`) — discovered by `FileSystemFeatureRegistry`
+| Interface | What it's for |
+|---|---|
+| `IFileAction` | Context action on file(s); matched by hierarchical `ExperienceId` via `FileMapManager`. |
+| `IFolderAction` | Context action on folder(s); matched **structurally** (name / contents globs), not by experience id. |
+| `IFileCreateAction` | A "new file/folder of type X" action for the current folder. |
+| `ICacheable` | Marker: the action has exactly one instance per `WorkContext`, so it's cached + auto-listed. Non-cacheable actions are rehydrated instead. |
+
+### Folder viewlets (`Viewlets/`)
+| Interface | What it's for |
+|---|---|
+| `IFolderViewlet` | Inline view shown above the file list when the open folder matches (Git status, .NET build). |
+| `IViewletController` | Host handle passed to a viewlet's `CreateView` — read/set its display mode. |
+| `IViewletAiSurface` | Optional: a viewlet view feeding folder-specific context + tools into the host page's AI surface. |
+| `IDynamicFolder` | Declares that certain files are browsable like folders (archives) — the explorer descends into them. |
+
+### Ribbon pinning (`Ribbon/`)
+| Interface | What it's for |
+|---|---|
+| `IRibbonPinHandler` | Turns a dragged foreign payload (a file action, a dropped URL) into a ribbon button (format-matched). |
+| `ITabPinHandler` | Snapshots a dragged tab into a ribbon button that re-opens its exact state (matched by tab page kind). |
+| `IRibbonItemExecutor` | Runs a ribbon button whose click does something other than open a tab (e.g. a pinned file action). |
+| `IRibbonExecutionContext` | Shell context handed to an executor/pin-handler at click time: selection, error/confirm, self-remove. |
+| `ISelectionProvider` | A page view exposing its current file/path selection so the shell can read it without the concrete type. |
+
+### Config (`ConfigAttributes.cs`, `IFeatureConfig.cs`, `IConfigMigration.cs`)
+| Interface | What it's for |
+|---|---|
+| `IFeatureConfig` | Marks a POCO as a config section (global by default; `[WorkspaceScopedConfig]` makes it per-profile). |
+| `IConfigMigration` | Opt-in hook to fix up shape changes when a config is migrated forward across an assembly-version bump. |
+| `ICustomConfigApply` | A custom Options control participating in the Save flow (`Apply()`). |
+| `IConfigChangeTracker` | A custom Options control reporting whether it has unsaved changes (else it's assumed always-dirty). |
+| `IConfigValidation` | A custom Options control reporting whether its state is valid (blocks Save while any section is invalid). |
+
+### Theming
+| Interface | What it's for |
+|---|---|
+| `IThemeContribution` | A feature ships fallback theme resources (region tokens / `Scene.*` templates) without Core referencing it. |

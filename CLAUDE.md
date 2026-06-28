@@ -20,6 +20,11 @@ src/
     Nexaflow.Features.Common/       ALL contracts (interfaces + small DTOs). NO FeatureManager — that's in Core.
     Nexaflow.Features.AIChat/       AI conversation tab (now a browser over conversations)
     Nexaflow.Features.Audio/        audio player tab — NAudio playback, spectrum + waveform, .lrc lyrics, ID3 tag editor
+    Nexaflow.Features.Code/         code editor tab — tree-sitter highlighting, folding, code/class map, embedded languages
+    Nexaflow.Features.Compressed/   archive inspector tab + virtual-filesystem facade (browse/edit archives in the file tree)
+      Nexaflow.Features.Compressed.Modern/        zstd / lz4 codec backend
+      Nexaflow.Features.Compressed.SecureZip/     in-box ZIP backend (SharpZipLib — AES + detached signing)
+      Nexaflow.Features.Compressed.SharpCompress/ tar / 7z / rar backend
     Nexaflow.Features.Console/      PTY terminal
     Nexaflow.Features.Dotnet/       .NET folder viewlet — feeds AI context + dotnet client tools
     Nexaflow.Features.Git/          git folder viewlet — feeds AI context + git client tools
@@ -28,13 +33,16 @@ src/
     Nexaflow.Features.Json/         JSON viewer (seek-by-item windowing)
     Nexaflow.Features.Logs/         log viewer (tail-first streaming)
     Nexaflow.Features.Markdown/     markdown editor + preview
+    Nexaflow.Features.Model3D/      3D model viewer — STL/OBJ/PLY/glTF + FBX/3MF/… via Assimp; rotate/zoom/pan, wireframe, material inspector
     Nexaflow.Features.Notebook/     Jupyter .ipynb viewer — cells (rendered markdown + highlighted code) + per-cell outline
     Nexaflow.Features.Processes/    Process Explorer — live process tree + per-process details (vertical tabs), AI tools, elevated kill/priority
+    Nexaflow.Features.ProductManager/ product status-tree tab (sunburst) + folder viewlet — reads/writes a folder's .product/ (product.json + tree.json)
     Nexaflow.Features.Projects/     project + backlog management
     Nexaflow.Features.Scratchpad/   virtual corkboard
     Nexaflow.Features.SystemInfo/   system info dashboard (WMI; Services/EnvVars pages via privilege bridge)
     Nexaflow.Features.Tabular/      CSV/TSV/fixed-width viewer (shape detection + transforms)
     Nexaflow.Features.Text/         text editor (head-first windowing)
+    Nexaflow.Features.Video/        video player tab — embedded libVLC (codec/metadata panel, keyframe scene-strip, fullscreen)
     Nexaflow.Features.Web/          WebView2 browser tab
     Nexaflow.Features.WindowsApps/  installed-apps manager + AI query handler
     Nexaflow.Features.WindowsFileSystem/ file explorer tab (the DirectoryTree + file list)

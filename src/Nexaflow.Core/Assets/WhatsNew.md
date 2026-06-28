@@ -1,36 +1,35 @@
 # What's New in Nexaflow
 
-Welcome to **Nexaflow 1.1** — our inaugural stable release! 🎉
+Welcome to **Nexaflow 1.2** 🎉
 
-Here's everything that landed since v0.9.1.
+This release is all about opening *more* of your files — sound, 3D, notebooks, archives — right inside the same window, plus a smarter code editor and a new way to track a product.
 
-### 🚀 New Features
-*   **Process Explorer**: A live process tree with per-process detail tabs (including a dedicated Handles tab), AI tools, and elevated kill / priority actions.
-*   **Image Viewer**: A new four-mode viewer — carousel, album, explore, and collage — launched straight from folder actions.
-*   **Real Terminal Console**: The console is now a proper terminal with smart command/AI routing, configurable per-location environments (master/detail config with visible defaults), and a shared core ready for a PowerShell sibling.
-*   **Workspaces**: A reworked workspace selector lets you create new workspaces and manage identity, deletion, and export right from the Configure panel.
-*   **File-Association Wizard**: A "Define New" wizard for mapping file types, plus criteria-based external-app launching.
-*   **Code editor**: A new editor with syntax highlighting, code folding and class diagrams
+### 🎬 New media & 3D viewers
+*   **Audio player**: A full player tab — playback with a live spectrum + waveform, scrolling `.lrc` lyrics, and an in-place ID3 tag editor. Plays MP3, FLAC, M4A/AAC, WMA, Ogg/Opus, and WAV.
+*   **3D model viewer**: Open STL, OBJ, PLY, 3DS, glTF/glb and — via Assimp — FBX, 3MF, AMF, Collada and many more. Rotate / zoom / pan, toggle wireframe, and inspect materials and mesh stats.
+*   **Native video playback**: An embedded libVLC player handles the wide range of formats VLC does — with a codec/metadata panel, a scrubbable keyframe scene-strip, and fullscreen.
 
-### ✍️ Markdown & Diagrams
-The markdown editor now renders a huge range of Mermaid diagrams natively:
-*   Kanban boards, class & requirement diagrams, quadrant charts, sequence, gantt, gitgraph, mindmap, and state diagrams.
-*   Flowchart chains, fan-out, nested subgraphs, and diamond ports.
-*   Richer text: emphasis extras, abbreviations, alerts, and YAML front matter — all on top of the shared inline editor with polished editing UX.
+### 📦 Browse archives like folders
+*   **Step into archives in the file tree**: `.zip`, `.7z`, `.tar`, `.rar`, and modern `zstd` / `lz4` containers expand like folders — nesting included.
+*   **Open, edit, write back**: Open a file inside an archive in its normal viewer, edit it, and your change is written straight back into the container.
+*   **Zip It / Unzip here**: New right-click file and folder actions, plus a dedicated archive inspector tab.
 
-### 🤖 AI & Context Enhancements
-*   **Console ↔ AI**: The terminal is wired into the assistant — an inline banner, command routing, and output capture feed straight back to the AI.
-*   **Process Insight**: Process Explorer exposes its data to the AI, so you can ask about what's running on your machine.
+### 📓 Notebooks & a smarter code editor
+*   **Jupyter notebooks**: `.ipynb` files render as cells — rendered markdown alongside syntax-highlighted code — with a per-cell code outline.
+*   **Richer code intelligence**: The code editor now parses **embedded languages** (JavaScript/CSS in HTML, Ruby in ERB, and more), broadens language coverage, and draws a cleaner code/class map. New code formats open *As Code* by default.
 
-### 🎨 Look & Feel
-*   New **Gothic** dynamic theme.
-*   Rename ribbon buttons via right-click and the edit overlay.
-*   A new **About** page in Options.
+### 🧭 Product Manager
+*   A new feature for tracking a **product as a status tree** — a sunburst you can navigate, with cross-cutting concerns, snaplinks, and a status roll-up. Opens from any folder that has (or can start) a `.product/` directory.
 
-### 🛠️ Improvements & Bug Fixes
-*   The file explorer loads folders off the UI thread, so the list stays responsive in large directories.
-*   The web tab survives a missing WebView2 runtime and offers to open your default browser instead.
-*   Smoother startup window handling, plus new-file creation, refresh, and selection fixes in the file browser.
-*   Under the hood: features now marshal UI work through the shell (no direct dispatcher access), theme resources are frozen once merged, and shared file-watching / encoding / formatting utilities cut duplication across the app.
+### ✍️ More Mermaid diagrams
+The markdown renderer adds six more native diagram types — **XY charts**, **radar**, **Ishikawa** (fishbone), **Sankey**, **ER diagrams**, and **Venn** — each drawn in WPF with full front-matter `config:` support. A diagram showcase doc ships alongside.
 
-Thank you for being part of our 1.x launch. Press **Next** to continue.
+### 🤖 AI & web
+*   **The web tab is now AI-aware and resizable** — ask the assistant about the page you're viewing.
+*   Tabular data gains reusable **templates** for common shapes.
+
+### 🛠️ Improvements & under the hood
+*   **Config survives updates**: App and feature settings now **migrate forward** across version bumps instead of resetting — your keys, layout, and preferences carry over.
+*   File copy/move now reports the **specific** Windows fault instead of a generic error.
+
+Thank you for being part of the journey. Press **Next** to continue.

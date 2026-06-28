@@ -1,8 +1,9 @@
 # Nexaflow Architecture
 
-> **Freshness:** reviewed/refreshed 2026-05-31, including the `Profile` (saved config) vs `Workspace`
-> (runtime) split and the ref-counted provider pool — see [Ownership & Lifetime](#ownership--lifetime)
-> for what is central vs profile-scoped vs workspace-scoped.
+> **Freshness:** reviewed/refreshed 2026-06-28 for the **1.2** release — adds the Audio, Code, Compressed
+> (archive), Model3D, Notebook, ProductManager and Video feature assemblies. Covers the `Profile` (saved
+> config) vs `Workspace` (runtime) split and the ref-counted provider pool — see
+> [Ownership & Lifetime](#ownership--lifetime) for what is central vs profile-scoped vs workspace-scoped.
 > Architectural cleanup opportunities are tracked in [arch_improvements.md](arch_improvements.md).
 
 ## Table of Contents
@@ -27,6 +28,11 @@ nexaflow/src/
 │   ├── Nexaflow.Features.Common/              ← Shared contracts (interfaces + small DTOs). FeatureManager is NOT here — it's in Core.
 │   ├── Nexaflow.Features.AIChat/              ← AI conversation tab (browser over saved conversations)
 │   ├── Nexaflow.Features.Audio/               ← Audio player tab (playback, spectrum + waveform, .lrc lyrics, ID3 tag editor)
+│   ├── Nexaflow.Features.Code/                ← Code editor tab (tree-sitter highlighting, folding, code/class map, embedded languages)
+│   ├── Nexaflow.Features.Compressed/          ← Archive inspector tab + virtual-filesystem facade (browse/edit archives in the file tree)
+│   │   ├── Nexaflow.Features.Compressed.Modern/        ← zstd / lz4 codec backend
+│   │   ├── Nexaflow.Features.Compressed.SecureZip/     ← in-box ZIP backend (SharpZipLib — AES + detached signing)
+│   │   └── Nexaflow.Features.Compressed.SharpCompress/ ← tar / 7z / rar backend
 │   ├── Nexaflow.Features.Console/             ← PTY terminal tab
 │   ├── Nexaflow.Features.Dotnet/             ← .NET folder viewlet — AI context + dotnet client tools
 │   ├── Nexaflow.Features.Git/                 ← Git folder viewlet — AI context + git client tools
@@ -35,13 +41,17 @@ nexaflow/src/
 │   ├── Nexaflow.Features.Json/                ← JSON viewer tab (seek-by-item windowing)
 │   ├── Nexaflow.Features.Logs/                ← Log viewer tab (tail-first streaming)
 │   ├── Nexaflow.Features.Markdown/            ← Markdown editor/preview tab
+│   ├── Nexaflow.Features.Model3D/             ← 3D model viewer tab (STL/OBJ/PLY/glTF + FBX/3MF/… via Assimp)
+│   ├── Nexaflow.Features.Notebook/            ← Jupyter .ipynb viewer tab (cells + per-cell outline)
 │   ├── Nexaflow.Features.Processes/           ← Process Explorer (live tree + per-process detail tabs; elevated kill/priority)
+│   ├── Nexaflow.Features.ProductManager/      ← Product status-tree tab (sunburst) + folder viewlet
 │   ├── Nexaflow.Features.Projects/            ← Project management tabs
 │   ├── Nexaflow.Features.Scratchpad/          ← Virtual corkboard tab
 │   ├── Nexaflow.Features.SystemInfo/          ← System info dashboard (WMI; Services/EnvVars via privilege bridge)
 │   ├── Nexaflow.Features.Tabular/             ← CSV/TSV/fixed-width viewer tab (shape detection + transforms)
 │   ├── Nexaflow.Features.Text/                ← Text editor tab (head-first windowing)
-│   ├── Nexaflow.Features.Web/                 ← HTML/URL viewer tab
+│   ├── Nexaflow.Features.Video/               ← Video player tab (embedded libVLC: playback, codec/metadata panel, keyframe scene-strip, fullscreen)
+│   ├── Nexaflow.Features.Web/                 ← HTML/URL viewer tab (AI-aware, resizable)
 │   ├── Nexaflow.Features.WindowsApps/         ← Installed-apps manager + AI query handler
 │   ├── Nexaflow.Features.WindowsFileSystem/   ← File explorer tab (DirectoryTree + file list)
 │   ├── Nexaflow.Features.WindowsRegistry/     ← Registry browser/editor tab + AI tools
@@ -125,7 +135,7 @@ The `IShellServices` / `IAIService` injected into a feature are the **active wor
 ### Per-window / per-tab
 
 - A **window** (`IWindowHost`) registers into its context's `ShellServices`. Several windows can show one context; a window can **switch** context, which moves its host + tabs to the target context's `ShellServices` via `TransferWindowTo`. Tearoff / "new window" currently default to `Contexts[0]`.
-- A **`Page`** (tab) is built by `FeatureManager.CreateTab(pageKind, workContext, params)` → the matching `IPageRegistration.CreatePage`. Its ViewModel + content live for the life of the tab.
+- A **`Page`** (tab) is built by `FeatureManager.CreateTab(pageKind, workContext, params)` → the matching `IPageRegistration.CreatePageDefinition`. Its ViewModel + content are realized lazily by `ContentFactory` and live for the life of the tab.
 
 ### Per-feature (assembly)
 
@@ -171,7 +181,7 @@ The contract layer. Every feature depends on this; nothing else does.
 |------|----------------|
 | `Page.cs` | Observable page/tab state: `Title`, `Icon`, `IsActive`, `Breadcrumbs`, `PageKind`, `PageParams`, `ContentFactory` delegate, cached `Content`, `Closed` event |
 | `BreadcrumbSegment.cs` | One crumb: label, drop-down children, same-tab `Navigate` action, or cross-tab `TargetPageKind` |
-| `IPageRegistration.cs` | Interface a feature implements to advertise one page kind: `PageKind` + `CreatePage(params)`. Each impl also exposes `static string StaticPageKind` so `FeatureManager` discovers it by reflection |
+| `IPageRegistration.cs` | Interface a feature implements to advertise one page kind: `PageKind` + the cheap `CreatePageDefinition(params)` (plus optional `Parameters`, `CanBeContextItem`, `CreatePageDefinitions`). Each impl also exposes `static string StaticPageKind` so `FeatureManager` discovers it by reflection |
 | `OpenPageRequest.cs` | `(PageKind, PageParams)` carrier for shell-level open commands (breadcrumb follow-links). Core-internal MVVM glue — `arch_improvements.md` proposes relocating it to Core |
 | `IPageView.cs` | Thin shell-lifecycle contract implemented by tab `UserControl`s: exposes `IPageViewModel? ViewModel` and `Reinitialize` |
 | `IPageViewModel.cs` | AI pipeline contract implemented by ViewModels: `GetContext`, `GetClientTools`, `GetContextObject` |
@@ -222,6 +232,8 @@ All providers implement `ILlmProvider` (and optionally `IAsyncDisposable`) from 
 |----------|----------------|
 | `Nexaflow.Providers.Aria` | Windows named-pipe to the local Aria service. Two layers: `AriaNamedPipeClient` (raw JSON framing) and `AriaClientService` (one-shot request/reply, parses `#focustab` instructions from responses). |
 | `Nexaflow.Providers.Claude` | Anthropic Claude API over HTTPS. |
+| `Nexaflow.Providers.Gemini` | Google Gemini API over HTTPS. |
+| `Nexaflow.Providers.OpenAI` | OpenAI API over HTTPS. |
 | `Nexaflow.Providers.Ollama` | Ollama REST API for locally-hosted models. |
 
 ---
@@ -234,7 +246,7 @@ Page  (ObservableObject)
   ├── PageKind: string?                 (e.g. "Search", "Projects")
   ├── PageParams: Dict?                 (current params, kept in sync by the page via IShellServices)
   ├── Breadcrumbs: ObservableCollection<BreadcrumbSegment>
-  ├── ContentFactory: Func<UserControl>? (set by IPageRegistration.CreatePage; lazy-invoked on first activation)
+  ├── ContentFactory: Func<UserControl>? (set by IPageRegistration.CreatePageDefinition; lazy-invoked on first activation)
   ├── Content: UserControl              (cached after GetOrCreateContent() first call)
   └── Closed: event                     (raised on permanent close, not deactivation)
 
@@ -268,22 +280,28 @@ ConversationRecord
 
 Implement in your feature assembly. `FeatureManager.RegisterFeatures()` discovers it **automatically by reflection** at startup. It injects constructor dependencies per `Workspace`: any `IFeatureConfig` declared in the same assembly, the scoped `IShellServices`, and `IAIService`. Expose a `static string StaticPageKind` so discovery can read the page kind without instantiating.
 
+`CreatePageDefinition` must stay **cheap and side-effect-free** — callers build a definition speculatively just to read its `Title`/`Icon` (e.g. for a menu) and may discard it. Construct the view-model and view **inside the `ContentFactory` closure** so they're built only when the tab is first shown. Optionally advertise `Parameters` (so the shell/AI can describe how to open the page) and set `CanBeContextItem`/`CreatePageDefinitions` for pages offered in the AI "add context" and ribbon-editor menus.
+
 ```csharp
 public sealed class MyPageRegistration(MyConfig config, IShellServices shellServices) : IPageRegistration
 {
     public static string StaticPageKind => "MyFeature";   // read by FeatureManager via reflection
     public string PageKind => StaticPageKind;
 
-    public Page CreatePage(Dictionary<string, string>? pageParams = null)
+    public IReadOnlyList<PageParameter> Parameters =>
+        [new("path", "File to open in My Feature.", Required: false)];
+
+    public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
-        var vm = new MyViewModel(config, shellServices);
+        var path = pageParams?.GetValueOrDefault("path") ?? string.Empty;
         return new Page
         {
             Title          = "My Feature",
             Icon           = "🔧",
             PageParams     = pageParams,
             Breadcrumbs    = { new BreadcrumbSegment { Label = "My Feature" } }, // get-only collection
-            ContentFactory = () => new MyView(vm)                                // lazy-invoked on first activation
+            // built lazily on first activation — keep all heavy work in here, not above
+            ContentFactory = () => new MyView(new MyViewModel(path, config, shellServices))
         };
     }
 }
@@ -510,7 +528,7 @@ Feature code calls shellServices.OpenTab("PageKind", params, callerPage)
   → Searches this workspace's windows for an existing matching tab
   → If found: move to target window if needed → Reinitialize(params) → activate
   → If not found: FeatureManager.CreateTab(pageKind, workContext, params)   ← internal; returns a Page
-      → matching IPageRegistration.CreatePage(params)
+      → matching IPageRegistration.CreatePageDefinition(params)
   → IWindowHost.AddTab(page) → prepends, sets active, loads content
 ```
 
@@ -542,7 +560,7 @@ ShellServices:
   → resolves target window from callerPageView
   → FindTab("ProjectDetail", params) — check if already open
   → FeatureManager.CreateTab("ProjectDetail", params) if not found
-      → ProjectDetailTabRegistration.CreatePage(params)
+      → ProjectDetailTabRegistration.CreatePageDefinition(params)
   → IWindowHost.AddTab(tab)
 ```
 
@@ -553,7 +571,7 @@ User selects file in file browser → clicks action button
   → FileActionManager.PerformAction(action, paths)
   → e.g. ShowMarkdownAction.PerformAction(path)
       _shellServices.OpenTab("Markdown", { "path": filePath })
-  → ShellServices → MarkdownTabRegistration.CreatePage(params) → tab opens
+  → ShellServices → MarkdownTabRegistration.CreatePageDefinition(params) → tab opens
 ```
 
 ### Ribbon persistence cycle
