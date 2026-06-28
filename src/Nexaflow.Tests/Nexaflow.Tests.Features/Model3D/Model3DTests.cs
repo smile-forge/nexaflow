@@ -26,32 +26,38 @@ public class Model3DTests
 
         Assert.IsInstanceOfType(registry.LoaderFor(Sample("tetra.stl")), typeof(HelixModelLoader));
         Assert.IsInstanceOfType(registry.LoaderFor(Sample("triangle.gltf")), typeof(GltfModelLoader));
-        Assert.IsInstanceOfType(registry.LoaderFor("model.fbx"), typeof(FbxModelLoader));
+        Assert.IsInstanceOfType(registry.LoaderFor("model.fbx"), typeof(AssimpModelLoader));
+        Assert.IsInstanceOfType(registry.LoaderFor("part.3mf"), typeof(AssimpModelLoader));
+        Assert.IsInstanceOfType(registry.LoaderFor("part.amf"), typeof(AssimpModelLoader));
+        Assert.IsInstanceOfType(registry.LoaderFor("scene.dae"), typeof(AssimpModelLoader));
         Assert.IsNull(registry.LoaderFor("model.unknownformat"));
     }
 
     [TestMethod]
-    public void FbxLoader_ReadsAnFbx_WithGeometry()
+    public void AssimpLoader_RoundTripsFbxAnd3mf_WithGeometry()
     {
-        // Round-trip the OBJ fixture through Assimp to a temp FBX, then load it back through our FBX loader.
-        var fbxPath = Path.Combine(Path.GetTempPath(), $"nexaflow_test_{System.Guid.NewGuid():N}.fbx");
-        using (var context = new AssimpContext())
+        // Round-trip the OBJ fixture through Assimp to each format, then load it back via the Assimp loader.
+        foreach (var format in new[] { "fbx", "3mf" })
         {
-            var scene = context.ImportFile(Sample("tetra.obj"), PostProcessSteps.Triangulate);
-            Assert.IsTrue(context.ExportFile(scene, fbxPath, "fbx"), "Assimp exported an FBX to round-trip.");
-        }
+            var path = Path.Combine(Path.GetTempPath(), $"nexaflow_test_{System.Guid.NewGuid():N}.{format}");
+            using (var context = new AssimpContext())
+            {
+                var scene = context.ImportFile(Sample("tetra.obj"), PostProcessSteps.Triangulate);
+                Assert.IsTrue(context.ExportFile(scene, path, format), $"Assimp exported {format} to round-trip.");
+            }
 
-        try
-        {
-            var loaded = new FbxModelLoader().Load(fbxPath, CategoricalPalette.Fallback);
-            Assert.AreEqual("FBX", loaded.FormatName);
-            Assert.IsTrue(loaded.TriangleCount > 0, "FBX mesh has triangles");
-            Assert.IsTrue(loaded.VertexCount > 0, "FBX mesh has vertices");
-            Assert.IsTrue(loaded.Geometry.Children.Count > 0, "FBX produced renderable geometry");
-        }
-        finally
-        {
-            if (File.Exists(fbxPath)) File.Delete(fbxPath);
+            try
+            {
+                var loaded = new AssimpModelLoader().Load(path, CategoricalPalette.Fallback);
+                Assert.AreEqual(format.ToUpperInvariant(), loaded.FormatName);
+                Assert.IsTrue(loaded.TriangleCount > 0, $"{format} mesh has triangles");
+                Assert.IsTrue(loaded.VertexCount > 0, $"{format} mesh has vertices");
+                Assert.IsTrue(loaded.Geometry.Children.Count > 0, $"{format} produced renderable geometry");
+            }
+            finally
+            {
+                if (File.Exists(path)) File.Delete(path);
+            }
         }
     }
 

@@ -14,7 +14,7 @@ public sealed class ModelLoaderRegistry
     {
         Register(new HelixModelLoader());
         Register(new GltfModelLoader());
-        Register(new FbxModelLoader());
+        Register(new AssimpModelLoader()); // last: dedicated loaders above win for their formats
     }
 
     public void Register(IModelLoader loader)

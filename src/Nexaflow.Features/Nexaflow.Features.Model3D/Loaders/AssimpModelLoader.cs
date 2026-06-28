@@ -8,19 +8,33 @@ using WpfMaterial = System.Windows.Media.Media3D.Material;
 namespace Nexaflow.Features.Model3D.Loaders;
 
 /// <summary>
-/// Loads FBX via SharpAssimp (a managed wrapper over the native Assimp library) and converts it to WPF
-/// geometry. We let Assimp triangulate, generate smooth normals where missing, weld identical vertices and
-/// bake the node transforms (<see cref="PostProcessSteps.PreTransformVertices"/>) so each mesh arrives in
-/// final coordinates — then map meshes + diffuse materials to WPF, mirroring the glTF loader. Animations,
-/// cameras, lights and skeletal rigs are reported as unsupported, not rendered.
+/// The catch-all mesh loader, backed by the native Assimp library (via SharpAssimp). Assimp imports dozens
+/// of formats; this loader claims the genuine 3D-model ones that the dedicated HelixToolkit/SharpGLTF
+/// loaders don't already handle (FBX, 3MF, AMF, Collada, Blender, DirectX X, and many more). We let Assimp
+/// triangulate, smooth-normal where missing, weld vertices and bake node transforms, then map meshes +
+/// diffuse materials to WPF — animations, cameras, lights and rigs are reported, not rendered.
 /// </summary>
-/// <remarks>The Assimp native binary ships only for win-x64/x86; on other architectures the import throws
-/// and the viewer shows a friendly error rather than crashing.</remarks>
-public sealed class FbxModelLoader : IModelLoader
+/// <remarks>
+/// Registered after the dedicated loaders, so STL/OBJ/3DS/PLY (HelixToolkit) and glTF/glb (SharpGLTF) keep
+/// their tuned readers; Assimp covers the long tail. Ambiguous or non-mesh formats Assimp also lists
+/// (e.g. <c>.xml</c>, <c>.raw</c>, <c>.uc</c>, motion-capture <c>.bvh</c>) are deliberately excluded so they
+/// don't hijack other file types. The native binary ships for win-x64/x86; elsewhere the import throws and
+/// the viewer shows a friendly error rather than crashing.
+/// </remarks>
+public sealed class AssimpModelLoader : IModelLoader
 {
-    public string Name => "FBX";
+    public string Name => "Assimp (FBX/3MF/AMF/Collada/…)";
 
-    public IReadOnlyList<string> SupportedExtensions { get; } = [".fbx"];
+    // Curated from Assimp's import list — real 3D-model formats minus those the dedicated loaders own
+    // (STL/OBJ/3DS/PLY/glTF/glb) and minus generic/animation-only/ambiguous ones.
+    public IReadOnlyList<string> SupportedExtensions { get; } =
+    [
+        ".3d", ".3mf", ".ac", ".ac3d", ".acc", ".amf", ".ase", ".b3d", ".blend", ".bsp", ".cob", ".dae",
+        ".dxf", ".enff", ".fbx", ".hmp", ".ifc", ".ifczip", ".iqm", ".irr", ".irrmesh", ".lwo", ".lws",
+        ".lxo", ".md2", ".md3", ".md5mesh", ".mdc", ".mdl", ".mesh", ".ms3d", ".ndo", ".nff", ".off",
+        ".ogex", ".pmx", ".q3o", ".q3s", ".sib", ".smd", ".ter", ".vrm", ".x", ".x3d", ".x3db", ".xgl",
+        ".zae", ".zgl",
+    ];
 
     public bool CanLoad(string path) =>
         SupportedExtensions.Contains(Path.GetExtension(path).ToLowerInvariant());
@@ -43,7 +57,7 @@ public sealed class FbxModelLoader : IModelLoader
         {
             var source = scene.Materials;
             // Resolve a display colour per source material with the shared tinting rule (so multiple
-            // materials the FBX left the same grey become individually visible).
+            // materials the file left the same colour become individually visible).
             var described = source.Select(Describe).ToList();
             var resolved = CategoricalTinting.Resolve(
                 described.Select(d => (d.Colour, d.Texture is not null)).ToList(), palette);
@@ -72,7 +86,7 @@ public sealed class FbxModelLoader : IModelLoader
             {
                 if (!used[i]) continue;
                 materials.Add(new ModelMaterial(
-                    string.IsNullOrWhiteSpace(described[i].Name) ? $"Material {materials.Count + 1}" : described[i].Name,
+                    string.IsNullOrWhiteSpace(source[i].Name) ? $"Material {materials.Count + 1}" : source[i].Name,
                     resolved[i], described[i].Texture));
             }
         }
@@ -82,7 +96,7 @@ public sealed class FbxModelLoader : IModelLoader
         return new LoadedModel
         {
             Geometry = group,
-            FormatName = "FBX",
+            FormatName = Path.GetExtension(path).TrimStart('.').ToUpperInvariant(),
             TriangleCount = triangles,
             VertexCount = vertices,
             MeshCount = group.Children.Count,
@@ -117,11 +131,10 @@ public sealed class FbxModelLoader : IModelLoader
         return geometry;
     }
 
-    /// <summary>Reads an Assimp material's name, diffuse colour and whether it has a diffuse texture.
+    /// <summary>Reads an Assimp material's diffuse colour and whether it has a diffuse texture.
     /// The shared tinter decides the final display colour.</summary>
-    private static (string Name, Color? Colour, string? Texture) Describe(AssimpMaterial material)
+    private static (Color? Colour, string? Texture) Describe(AssimpMaterial material)
     {
-        var name = material.Name ?? string.Empty;
         Color? colour = null;
         string? texture = null;
 
@@ -134,7 +147,7 @@ public sealed class FbxModelLoader : IModelLoader
             texture = string.IsNullOrWhiteSpace(material.TextureDiffuse.FilePath)
                 ? "texture" : material.TextureDiffuse.FilePath;
 
-        return (name, colour, texture);
+        return (colour, texture);
     }
 
     private static IReadOnlyList<string> DescribeUnsupported(Scene? scene, bool hasBones)

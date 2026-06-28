@@ -7,8 +7,9 @@ using Nexaflow.Features.Model3D.Views;
 namespace Nexaflow.Features.Model3D;
 
 /// <summary>
-/// Registers the "Model3D" page: an interactive 3D viewer for mesh files (STL/OBJ/3DS/PLY), glTF/glb and FBX,
-/// with rotate/zoom/pan, a wireframe toggle, a stats footer and a material inspector. Discovered by
+/// Registers the "Model3D" page: an interactive 3D viewer for mesh files (STL/OBJ/3DS/PLY), glTF/glb and a
+/// wide range of formats via Assimp (FBX, 3MF, AMF, Collada, …), with rotate/zoom/pan, a wireframe toggle,
+/// a stats footer and a material inspector. Discovered by
 /// <c>FeatureManager</c> via <see cref="StaticPageKind"/>.
 /// </summary>
 public sealed class Model3DTabRegistration : IPageRegistration
@@ -21,7 +22,7 @@ public sealed class Model3DTabRegistration : IPageRegistration
 
     public IReadOnlyList<PageParameter> Parameters =>
     [
-        new("path", "Path to the 3D model file (.stl, .obj, .3ds, .ply, .gltf, .glb, .fbx).", Required: true),
+        new("path", "Path to a 3D model file (.stl, .obj, .3ds, .ply, .gltf, .glb, .fbx, .3mf, .amf, .dae, …).", Required: true),
     ];
 
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)

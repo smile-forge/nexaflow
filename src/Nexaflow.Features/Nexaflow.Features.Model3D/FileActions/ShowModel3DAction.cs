@@ -5,7 +5,8 @@ using Nexaflow.Features.Common;
 namespace Nexaflow.Features.Model3D.FileActions;
 
 /// <summary>
-/// Opens a 3D model file (STL/OBJ/3DS/PLY/glTF/glb/FBX) in the Model3D viewer tab. The bundled file-type map
+/// Opens a 3D model file (STL/OBJ/3DS/PLY/glTF/glb plus FBX, 3MF, AMF, Collada and many more via Assimp)
+/// in the Model3D viewer tab. The bundled file-type map
 /// points the <c>/model3d</c> experience at those extensions; this action realises it by opening the tab.
 /// One model per tab — opening several files opens the first.
 /// </summary>
@@ -21,7 +22,7 @@ public sealed class ShowModel3DAction : IFileAction, ICacheable
     public string DisplayName => "As 3D Model";
     public static string? StaticExperienceId => "/model3d";
     public string ExperienceId => "/model3d";
-    public string ExperienceDescription => "3D model viewer: rotate/zoom/pan, wireframe, mesh stats and materials (STL/OBJ/3DS/PLY/glTF/FBX)";
+    public string ExperienceDescription => "3D model viewer: rotate/zoom/pan, wireframe, mesh stats and materials (STL/OBJ/glTF/FBX/3MF/Collada and many more)";
     public bool RequiresRefresh => false;
     public bool CanPerformAction => true;
     public bool OpensViewer => true;
