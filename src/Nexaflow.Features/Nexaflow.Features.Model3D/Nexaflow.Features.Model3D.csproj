@@ -17,8 +17,8 @@
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="HelixToolkit.Wpf" Version="3.1.2" />
-    <PackageReference Include="SharpGLTF.Toolkit" Version="1.0.5" />
-    <PackageReference Include="SharpAssimp" Version="6.0.5" />
+    <PackageReference Include="SharpGLTF.Toolkit" Version="1.0.6" />
+    <PackageReference Include="SharpAssimp" Version="6.0.12" />
   </ItemGroup>
 
   <ItemGroup>
