@@ -15,12 +15,13 @@ public sealed class HexTabRegistration(IShellServices shell) : IPageRegistration
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
         var title = string.IsNullOrEmpty(path) ? "Hex" : Path.GetFileName(path);
 
-        return new Page
+        var page = new Page
         {
             Title          = title,
             Icon           = "⬡",
-            Breadcrumbs    = { new BreadcrumbSegment { Label = title } },
             ContentFactory = () => new HexView(new HexViewModel(path, shell)),
         };
+        page.SetFileBreadcrumbs(path, title);
+        return page;
     }
 }

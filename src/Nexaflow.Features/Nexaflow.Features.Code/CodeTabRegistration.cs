@@ -21,12 +21,13 @@ public sealed class CodeTabRegistration(CodeEditorConfig config, IShellServices 
         var ast   = pageParams?.GetValueOrDefault("ast");
         var title = string.IsNullOrEmpty(path) ? "Code" : Path.GetFileName(path);
 
-        return new Page
+        var page = new Page
         {
             Title       = title,
             Icon        = "⟨⟩",
-            Breadcrumbs = { new BreadcrumbSegment { Label = title } },
             ContentFactory = () => new CodeView(new CodeViewModel(path, shell, config.GetMaxEditableBytes(), ast)),
         };
+        page.SetFileBreadcrumbs(path, title);
+        return page;
     }
 }

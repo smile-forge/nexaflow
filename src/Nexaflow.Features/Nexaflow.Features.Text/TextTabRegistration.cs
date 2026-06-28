@@ -15,12 +15,13 @@ public sealed class TextTabRegistration(IShellServices shell) : IPageRegistratio
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
         var title = string.IsNullOrEmpty(path) ? "Text" : Path.GetFileName(path);
 
-        return new Page
+        var page = new Page
         {
             Title       = title,
             Icon        = "📄",
-            Breadcrumbs = {new BreadcrumbSegment { Label = title }},
             ContentFactory = () => new TextView(new TextViewModel(path, shell)),
         };
+        page.SetFileBreadcrumbs(path, title);
+        return page;
     }
 }

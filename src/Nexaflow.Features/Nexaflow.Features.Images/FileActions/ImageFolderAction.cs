@@ -40,6 +40,7 @@ public abstract class ImageFolderAction : IFolderAction, ICacheable
         {
             ["paths"] = string.Join('|', images),
             ["view"]  = ViewMode,
+            ["scope"] = "folder",   // whole-folder view → breadcrumb reads "all image files"
         });
         return true;
     }

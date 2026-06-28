@@ -15,12 +15,13 @@ public sealed class LogTabRegistration(IShellServices shell) : IPageRegistration
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
         var title = string.IsNullOrEmpty(path) ? "Log" : Path.GetFileName(path);
 
-        return new Page
+        var page = new Page
         {
             Title       = title,
             Icon        = "📋",
-            Breadcrumbs = {new BreadcrumbSegment { Label = title }},
             ContentFactory = () => new LogView(new LogViewModel(path, shell)),
         };
+        page.SetFileBreadcrumbs(path, title);
+        return page;
     }
 }

@@ -20,16 +20,17 @@ public sealed class JsonTabRegistration : IPageRegistration
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
         var title = string.IsNullOrEmpty(path) ? "JSON" : Path.GetFileName(path);
 
-        return new Page
+        var page = new Page
         {
             Title       = title,
             Icon        = "{}",
-            Breadcrumbs = {new BreadcrumbSegment { Label = title }},
             ContentFactory = () =>
             {
                 var vm = new JsonViewModel(path, new JsonFileLoader(), new JsonPathEvaluator(), _shellServices);
                 return new JsonView(vm);
             },
         };
+        page.SetFileBreadcrumbs(path, title);
+        return page;
     }
 }

@@ -38,16 +38,26 @@ public sealed class ImageTabRegistration : IPageRegistration
 
         var mode = ParseView(pageParams?.GetValueOrDefault("view"));
 
+        // "folder" = the whole-folder actions (slideshow/album); otherwise it's an explicit file selection.
+        var wholeFolder = pageParams?.GetValueOrDefault("scope") == "folder";
+
         var title = paths.Count == 1
             ? Path.GetFileName(paths[0])
             : $"Images ({paths.Count})";
 
-        return new Page
+        var page = new Page
         {
             Title       = title,
             Icon        = "🖼",
-            Breadcrumbs = {new BreadcrumbSegment { Label = title }},
             ContentFactory = () => new ImageView(new ImageViewModel(paths, _shell, mode))
         };
+
+        // Single image → "folder › name"; a folder view → "folder › all image files"; a selection → "folder › N images".
+        if (paths.Count > 1)
+            page.SetMultiFileBreadcrumbs(paths, wholeFolder ? "all image files" : $"{paths.Count} images");
+        else
+            page.SetFileBreadcrumbs(paths.Count == 1 ? paths[0] : string.Empty, paths.Count == 1 ? title : "Images");
+
+        return page;
     }
 }

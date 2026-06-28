@@ -23,12 +23,13 @@ public sealed class MarkdownTabRegistration : IPageRegistration
         var heading  = pageParams?.GetValueOrDefault("heading") is { Length: > 0 } h
             ? h.Split('>', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
             : null;
-        return new Page
+        var page = new Page
         {
             Title       = title,
             Icon        = "📝",
-            Breadcrumbs = {new BreadcrumbSegment { Label = title }},
             ContentFactory = () => new MarkdownView(new MarkdownViewModel(filePath, heading))
         };
+        page.SetFileBreadcrumbs(filePath, title);
+        return page;
     }
 }

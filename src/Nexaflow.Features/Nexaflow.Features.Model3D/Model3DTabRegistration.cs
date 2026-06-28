@@ -30,12 +30,13 @@ public sealed class Model3DTabRegistration : IPageRegistration
         var path = pageParams?.GetValueOrDefault("path") ?? string.Empty;
         var title = string.IsNullOrEmpty(path) ? "3D Model" : Path.GetFileName(path);
 
-        return new Page
+        var page = new Page
         {
             Title = title,
             Icon = "🧊",
-            Breadcrumbs = { new BreadcrumbSegment { Label = title } },
             ContentFactory = () => new Model3DView(new Model3DViewModel(path, _registry)),
         };
+        page.SetFileBreadcrumbs(path, title);
+        return page;
     }
 }

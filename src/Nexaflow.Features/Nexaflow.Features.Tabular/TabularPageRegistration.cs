@@ -37,42 +37,8 @@ public sealed class TabularPageRegistration : IPageRegistration
             ContentFactory = () => new TabularView(new TabularViewModel(path, _shell, _ai, _templates, transforms)),
         };
 
-        // Breadcrumbs: each path segment routes to a FileSystem tab; the final segment
-        // is the file name itself (non-clickable).
-        BuildBreadcrumbs(page, path);
+        // "folder › file.csv" — the folder crumb opens a file-explorer tab there.
+        page.SetFileBreadcrumbs(path, title);
         return page;
-    }
-
-    private static void BuildBreadcrumbs(Page page, string filePath)
-    {
-        page.Breadcrumbs.Clear();
-        if (string.IsNullOrEmpty(filePath))
-        {
-            page.Breadcrumbs.Add(new BreadcrumbSegment { Label = "Tabular" });
-            return;
-        }
-
-        var dir = Path.GetDirectoryName(filePath);
-        if (!string.IsNullOrEmpty(dir))
-        {
-            var parts = dir.TrimEnd(Path.DirectorySeparatorChar).Split(Path.DirectorySeparatorChar);
-            string acc = string.Empty;
-            for (int i = 0; i < parts.Length; i++)
-            {
-                acc = i == 0 ? parts[i] + Path.DirectorySeparatorChar : Path.Combine(acc, parts[i]);
-                page.Breadcrumbs.Add(new BreadcrumbSegment
-                {
-                    Label            = parts[i],
-                    TargetPageKind   = "FileSystem",
-                    TargetPageParams = new Dictionary<string, string>
-                    {
-                        ["mode"]  = "path",
-                        ["path"]  = acc,
-                        ["label"] = parts[i],
-                    }
-                });
-            }
-        }
-        page.Breadcrumbs.Add(new BreadcrumbSegment { Label = Path.GetFileName(filePath) });
     }
 }

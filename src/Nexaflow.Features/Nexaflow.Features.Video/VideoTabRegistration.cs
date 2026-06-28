@@ -35,8 +35,8 @@ public sealed class VideoTabRegistration : IPageRegistration
         {
             Title       = title,
             Icon        = "🎬",
-            Breadcrumbs = { new BreadcrumbSegment { Label = title } },
         };
+        page.SetFileBreadcrumbs(path, title);
 
         // Build the engine lazily on first activation; dispose its native resources when the tab closes.
         page.ContentFactory = () =>

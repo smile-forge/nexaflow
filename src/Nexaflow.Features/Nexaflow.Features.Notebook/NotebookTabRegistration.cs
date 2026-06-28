@@ -17,12 +17,13 @@ public sealed class NotebookTabRegistration : IPageRegistration
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
         var title = string.IsNullOrEmpty(path) ? "Notebook" : Path.GetFileName(path);
 
-        return new Page
+        var page = new Page
         {
             Title       = title,
             Icon        = "📓",
-            Breadcrumbs = { new BreadcrumbSegment { Label = title } },
             ContentFactory = () => new NotebookView(new NotebookViewModel(path)),
         };
+        page.SetFileBreadcrumbs(path, title);
+        return page;
     }
 }
