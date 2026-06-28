@@ -1,8 +1,10 @@
 # Nexaflow
 
-**Your whole Windows workflow — in one window, with AI built in.**
+**A Windows workspace that holds your context so you don't have to.**
 
-Nexaflow replaces the scattered pile of single-purpose apps you open every day — file explorer, terminal, editors, viewers, project tracker — with one fast, tabbed workspace. And it has an AI assistant that actually *sees* what you're working on, so help is always one question away.
+Nexaflow replaces the scattered pile of apps you juggle every day — file explorer, terminal, editors, viewers, trackers — with one fast, tabbed workspace where everything already knows where you are and what you're doing.
+
+The goal isn't to add more features. It's to reduce the friction between you and the thing you're actually trying to do.
 
 ![Version 1.2.0](https://img.shields.io/badge/version-1.2.0-brightgreen)
 ![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)
@@ -11,48 +13,55 @@ Nexaflow replaces the scattered pile of single-purpose apps you open every day �
 
 ---
 
-## Why you'll like it
+## The problem it solves
 
-The default Windows experience hasn't really changed in decades. Explorer, Notepad, and the terminal are separate islands — no shared context, no intelligence, constant alt-tabbing. Nexaflow brings them together as **tabs in one coherent workspace**, then adds an AI layer that understands the tab you're looking at and the project you're in.
+You know the feeling: you're in the middle of something, and you have to remember which window has the file, which terminal session is running in the right folder, which editor has the thing you were looking at twenty minutes ago. Half your cognitive overhead is just *orientation* — keeping track of where everything is so you can stay in flow.
 
-- **One window, no juggling.** Open a file and it lands in the right tool automatically — markdown opens in the editor, images in the viewer, a folder in the explorer.
-- **An assistant that has context.** Ask a question in the AI bar at the bottom of any window. It knows what's on screen and can take action for you, with your approval.
-- **Fast, even with big files.** Multi-gigabyte logs, JSON, and data tables open instantly thanks to smart windowed loading.
-- **Yours to shape.** A customisable ribbon, themes, and saved workspaces that persist across sessions.
-- **Free and open.** Public-domain licensed. No accounts, no telemetry, no lock-in.
+Nexaflow treats context as a first-class citizen. Open a file and it lands in the right tool automatically. Your AI assistant can see the same tab you can. Your project folders, yourotoolsur search history, your workspace layout — they're all there when you come back.
+
+Power users shouldn't have to remember everything. They should be able to *build* a context and then get on with it.
 
 ---
 
-## What's inside
+## What you get
 
-**📂 Files & search**
-A built-in file tree, full-text Windows Search with AI query refinement, and folder "viewlets" that recognise Git repos and .NET projects — feeding that context straight to the assistant.
+**📂 Files, search, and navigation**
 
-**📝 Editors & viewers**
-A live Markdown editor (LaTeX formulas *and* native Mermaid diagrams), a syntax-highlighting **code editor** with code folding and a class/structure map, a quick text editor, and a Jupyter **notebook** viewer — plus dedicated viewers for images (carousel / album / explore / collage), logs, JSON, CSV/TSV tables, hex/binary, and web pages.
+A built-in file tree with full-text Windows Search and AI-assisted query refinement. Folder viewlets automatically recognise Git repos and .NET projects and surface that context directly to the assistant — so you don't have to explain where you are.
 
-**🎬 Media & 3D**
-An **audio player** with spectrum/waveform visualisations, `.lrc` lyrics, and ID3 tag editing; an interactive **3D model viewer** (STL, OBJ, glTF/glb, FBX, and more); and native **video playback**.
+**📝 Editors and viewers that understand their content**
+
+A live Markdown editor with LaTeX and native Mermaid diagram rendering. A code editor with syntax highlighting, code folding, and a class/structure map. Dedicated viewers for images (carousel, album, collage, explore), logs, JSON, CSV/TSV tables, hex/binary, web pages, and Jupyter notebooks. This list keeps growing — understanding more formats, better, is an ongoing focus.
+
+**🎬 Media and 3D**
+
+An audio player with spectrum and waveform visualisation, `.lrc` lyrics, and ID3 tag editing. An interactive 3D model viewer supporting STL, OBJ, glTF/glb, FBX, and more. Native video playback. These aren't afterthoughts — they're part of making Nexaflow the one place you actually open things.
 
 **📦 Archives, in place**
-Browse `.zip`, `.7z`, `.tar`, `.rar`, and modern `zstd`/`lz4` archives **like folders** in the file tree — open files inside them in their normal viewers, edit and write changes straight back, and zip/unzip from the right-click menu.
 
-**⌨️ Terminal & system tools**
-A real terminal (PTY) with shell integration, a live Process Explorer, an installed-apps manager, a system-info dashboard, and a registry editor — with elevated actions handled safely through a privilege bridge.
+Browse `.zip`, `.7z`, `.tar`, `.rar`, `zstd`, and `lz4` archives like folders in the file tree. Open files inside them in their normal viewers. Edit and write changes back. Zip and unzip from the right-click menu. It's just files.
 
-**🗂️ Stay organised**
-Lightweight project tracking with a backlog workflow, a **Product Manager** for status-tracking a product tree, a virtual corkboard Scratchpad for notes, and multiple workspaces you can switch between.
+**⌨️ Terminal and system tools**
 
-**🤖 AI everywhere**
-An AI input bar on every window, a dedicated AI Chat tab with saved history, and agentic, tool-using turns that always ask before doing anything that changes your files. Bring your own provider — Claude, Google Gemini, OpenAI, local models via Ollama, or an Aria service — and assign different models to different tasks.
+A real PTY terminal with shell integration. A live Process Explorer. An installed-apps manager. A system-info dashboard. A registry editor. Elevated actions go through a privilege bridge so you're never blindsided by a UAC prompt mid-flow.
+
+**🗂️ Organisation built in**
+
+Lightweight project tracking with a backlog workflow. A Product Manager for tracking status across a product tree. A Scratchpad corkboard for loose notes and ideas. Multiple workspaces you can switch between — each with its own context intact.
+
+**🤖 AI that works with your context, not despite it**
+
+An AI input bar on every window. A dedicated AI Chat tab with saved history. The AI sees what you're looking at — the file, the folder, the project — so you spend less time explaining and more time doing. Agentic turns that touch your files always ask first. Bring your own provider: Claude, Gemini, OpenAI, or a local model via Ollama.
 
 ---
 
-## Get Nexaflow
+## Get it
 
 **[⬇️ Download the latest release](https://github.com/smile-forge/nexaflow/releases/latest)**
 
-You'll need **Windows 10 or 11**. AI features are optional and work with whichever provider you choose — a local model via Ollama, or an API key for Claude, Gemini, or OpenAI.
+Requires Windows 10 or 11. AI features are optional — use a local model via Ollama, or an API key for Claude, Gemini, or OpenAI.
+
+On first launch, Newizardxguidesayou toits Options panel so you can piefaultsck a provider and set your projects folder. Then just start opening tabs.
 
 On first launch, Nexaflow opens its Options panel so you can pick an AI provider and set your projects folder. That's it — start opening tabs.
 
@@ -78,22 +87,26 @@ If you're interested in how it all fits together — the shell/feature/provider 
 
 ---
 
-## Roadmap
+## What's next
 
-- [ ] **Local native models** — ONNX / DirectML in-process inference
-- [ ] **Richer input** — image paste and file-drop straight to the AI bar
-- [ ] **Expanded AI** — per-project memory and inline suggestions inside editors
-- [ ] **Semantic search (RAG)** — a local embedding index for retrieval-augmented answers
-- [ ] **Multi-monitor awareness and saved workspace layouts**
+The focus is straightforward: understand more of what you throw at it, give the AI better context to work with, and keep reducing friction everywhere.
+
+Concretely:
+
+- **More and better viewers** — more formats, richer understanding of the ones already there`
+
+- **Deeper AI context** — giving the AI more of what it needs to be genuinely useful in the tab you're in, not just adjacent to it
+
+- **Native local model support** — ONNX / DirectML in-process inference, no external service required
 
 ---
 
 ## Contributing & community
 
-Contributions are welcome! Please read:
+Contributions are welcome. Before starting significant work, open an issue so we can coordinate.
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) — how to get set up and submit changes
-- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — the standards we hold the community to
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — community standards
 - [SECURITY.md](SECURITY.md) — how to report a security concern
 
 The short version: open an issue before starting significant work so we can coordinate.
@@ -102,4 +115,4 @@ The short version: open an issue before starting significant work so we can coor
 
 ## License
 
-Nexaflow is free and unencumbered software released into the **public domain**. Use it, modify it, ship it — for any purpose. See [LICENSE.txt](LICENSE.txt) for details.
+Nexaflow is free and unencumbered software released into the public domain under the [Unlicense](LICENSE.txt). No accounts. No telemetry. No lock-in. Use it, modify it, ship it.
