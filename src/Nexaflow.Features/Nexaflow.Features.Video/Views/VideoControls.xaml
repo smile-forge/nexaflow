@@ -1,0 +1,198 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
+    <!-- Translucent overlay control button. -->
+    <Style x:Key="TransportButton" TargetType="Button">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="7,4"/>
+        <Setter Property="FontSize" Value="15"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentBrush}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource OnAccentBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A pop-up menu entry (speed / subtitle). -->
+    <Style x:Key="MenuEntryButton" TargetType="Button" BasedOn="{StaticResource TransportButton}">
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="Padding" Value="14,6"/>
+        <Setter Property="FontSize" Value="13"/>
+    </Style>
+
+    <!-- Invisible full-area button that turns a click on the picture into play/pause. -->
+    <Style x:Key="ClickCatcherStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="IsTabStop" Value="False"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="VerticalAlignment" Value="Stretch"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border Background="{TemplateBinding Background}"/>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Scene-strip thumbnail button. -->
+    <Style x:Key="KeyframeButton" TargetType="Button">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Margin" Value="3,0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                            CornerRadius="3" SnapsToDevicePixels="True">
+                        <ContentPresenter/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                            <Setter TargetName="Bd" Property="BorderThickness" Value="2"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The transport bar, shared by the tab and the fullscreen window (DataContext = VideoViewModel). -->
+    <DataTemplate x:Key="TransportBarTemplate">
+        <Border Background="{DynamicResource SurfaceBrush}" Opacity="0.92" Padding="8,6">
+            <DockPanel LastChildFill="True">
+                <!-- Left cluster -->
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                    <Button Command="{Binding TogglePlayPauseCommand}" ToolTip="Play / Pause">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource TransportButton}">
+                                <Setter Property="Content" Value="▶"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsPlaying}" Value="True">
+                                        <Setter Property="Content" Value="⏸"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Style="{StaticResource TransportButton}" Command="{Binding StepBackCommand}"
+                            Content="⏪" ToolTip="Back 5s"/>
+                    <Button Style="{StaticResource TransportButton}" Command="{Binding StepForwardCommand}"
+                            Content="⏩" ToolTip="Forward 5s"/>
+                </StackPanel>
+
+                <!-- Right cluster -->
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Command="{Binding ToggleMuteCommand}" ToolTip="Mute">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource TransportButton}">
+                                <Setter Property="Content" Value="🔊"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsMuted}" Value="True">
+                                        <Setter Property="Content" Value="🔇"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Slider Width="70" Minimum="0" Maximum="100" Value="{Binding Volume, Mode=TwoWay}"
+                            IsMoveToPointEnabled="True" VerticalAlignment="Center" ToolTip="Volume"/>
+
+                    <!-- Playback speed -->
+                    <Grid>
+                        <Button x:Name="SpeedButton" Style="{StaticResource TransportButton}"
+                                Command="{Binding ToggleSpeedMenuCommand}" Content="{Binding RateLabel}"
+                                ToolTip="Playback speed"/>
+                        <Popup IsOpen="{Binding IsSpeedMenuOpen, Mode=TwoWay}" StaysOpen="False"
+                               PlacementTarget="{Binding ElementName=SpeedButton}" Placement="Top"
+                               AllowsTransparency="True" PopupAnimation="Fade">
+                            <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1" CornerRadius="4" Margin="0,0,0,6">
+                                <StackPanel MinWidth="84">
+                                    <Button Style="{StaticResource MenuEntryButton}" Content="1×"
+                                            Command="{Binding SetSpeedCommand}" CommandParameter="1"/>
+                                    <Button Style="{StaticResource MenuEntryButton}" Content="1.25×"
+                                            Command="{Binding SetSpeedCommand}" CommandParameter="1.25"/>
+                                    <Button Style="{StaticResource MenuEntryButton}" Content="1.5×"
+                                            Command="{Binding SetSpeedCommand}" CommandParameter="1.5"/>
+                                    <Button Style="{StaticResource MenuEntryButton}" Content="2×"
+                                            Command="{Binding SetSpeedCommand}" CommandParameter="2"/>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
+
+                    <!-- Subtitles (only when the file has text tracks) -->
+                    <Grid Visibility="{Binding HasSubtitles, Converter={StaticResource BoolToVis}}">
+                        <Button x:Name="SubtitleButton" Style="{StaticResource TransportButton}"
+                                Command="{Binding ToggleSubtitleMenuCommand}" Content="CC" FontSize="13"
+                                ToolTip="Subtitles"/>
+                        <Popup IsOpen="{Binding IsSubtitleMenuOpen, Mode=TwoWay}" StaysOpen="False"
+                               PlacementTarget="{Binding ElementName=SubtitleButton}" Placement="Top"
+                               AllowsTransparency="True" PopupAnimation="Fade">
+                            <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1" CornerRadius="4" Margin="0,0,0,6">
+                                <ItemsControl ItemsSource="{Binding SubtitleTracks}" MinWidth="120">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Style="{StaticResource MenuEntryButton}" Content="{Binding Label}"
+                                                    Command="{Binding DataContext.SetSubtitleCommand,
+                                                              RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Border>
+                        </Popup>
+                    </Grid>
+
+                    <Button Style="{StaticResource TransportButton}" Command="{Binding ToggleSceneStripCommand}"
+                            Content="🎞" ToolTip="Show / hide scene strip"/>
+                    <Button Style="{StaticResource TransportButton}" Command="{Binding ToggleInfoPanelCommand}"
+                            Content="ⓘ" ToolTip="Codec / media info"/>
+                    <Button Style="{StaticResource TransportButton}" Command="{Binding ToggleFullScreenCommand}"
+                            Content="⛶" ToolTip="Fullscreen"/>
+                </StackPanel>
+
+                <!-- Centre: time + scrubber (fills remaining space) -->
+                <Grid VerticalAlignment="Center" Margin="6,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{Binding PositionDisplay}" Margin="2,0,8,0"
+                               VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}"/>
+                    <Slider Grid.Column="1" Minimum="0" Maximum="{Binding DurationSeconds}"
+                            Value="{Binding PositionSeconds, Mode=TwoWay}"
+                            IsMoveToPointEnabled="True" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="2" Text="{Binding DurationDisplay}" Margin="8,0,2,0"
+                               VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}"/>
+                </Grid>
+            </DockPanel>
+        </Border>
+    </DataTemplate>
+
+</ResourceDictionary>

@@ -1,0 +1,30 @@
+<Window x:Class="Nexaflow.Features.Video.Views.FullScreenVideoWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        WindowState="Maximized"
+        ShowInTaskbar="False"
+        Topmost="True"
+        Focusable="True"
+        Background="Black">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Nexaflow.Features.Video;component/Views/VideoControls.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <!-- Same VideoFrame bitmap as the tab, so it shows the identical live frames with no player handover. -->
+    <Grid Background="Black">
+        <Image Source="{Binding VideoFrame}" Stretch="Uniform"/>
+
+        <!-- Click toggles play/pause -->
+        <Button Style="{StaticResource ClickCatcherStyle}" Command="{Binding TogglePlayPauseCommand}"/>
+
+        <!-- Shared transport bar -->
+        <ContentControl VerticalAlignment="Bottom" ContentTemplate="{StaticResource TransportBarTemplate}"
+                        Content="{Binding}"/>
+    </Grid>
+</Window>
