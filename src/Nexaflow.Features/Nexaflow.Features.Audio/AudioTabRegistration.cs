@@ -1,0 +1,71 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using Nexaflow.Features.Audio.ViewModels;
+using Nexaflow.Features.Audio.Views;
+using Nexaflow.Features.Common;
+
+namespace Nexaflow.Features.Audio;
+
+/// <summary>
+/// Registers the audio player page with <see cref="FeatureManager"/>. Accepts a pipe-separated
+/// <c>"paths"</c> queue and an <c>"index"</c> selecting the starting track. Disposal of the
+/// view-model (and its playback engine) is wired to <see cref="Page.Closed"/> — NOT the view's
+/// Unloaded — so playback survives tab switches and only stops when the tab is closed.
+/// </summary>
+public sealed class AudioTabRegistration : IPageRegistration
+{
+    private readonly IShellServices _shell;
+    private readonly AudioConfig _config;
+
+    public AudioTabRegistration(IShellServices shell, AudioConfig config)
+    {
+        _shell = shell;
+        _config = config;
+    }
+
+    public static string StaticPageKind => "Audio";
+    public string PageKind => StaticPageKind;
+
+    public IReadOnlyList<PageParameter> Parameters =>
+    [
+        new("paths", "Pipe-separated audio file paths forming the play queue."),
+        new("index", "Zero-based index of the track to start on.", Required: false),
+        new("autoplay", "When \"true\", playback starts immediately (used by \"Play folder\").", Required: false),
+    ];
+
+    public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
+    {
+        var paths = pageParams?.GetValueOrDefault("paths")?
+            .Split('|', StringSplitOptions.RemoveEmptyEntries)
+            .ToList() ?? [];
+
+        int index = 0;
+        if (pageParams?.GetValueOrDefault("index") is { } raw && int.TryParse(raw, out var i))
+            index = i;
+
+        bool autoPlay = string.Equals(pageParams?.GetValueOrDefault("autoplay"), "true",
+            StringComparison.OrdinalIgnoreCase);
+
+        var title = paths.Count > 0
+            ? Path.GetFileName(paths[Math.Clamp(index, 0, paths.Count - 1)])
+            : "Audio";
+
+        var page = new Page
+        {
+            Title = title,
+            Icon = "🎵",
+            Breadcrumbs = { new BreadcrumbSegment { Label = title } },
+        };
+
+        page.ContentFactory = () =>
+        {
+            var vm = new AudioViewModel(paths, index, _shell, _config, autoPlay);
+            page.Closed += (_, _) => vm.Dispose();
+            return new AudioView(vm);
+        };
+
+        return page;
+    }
+}

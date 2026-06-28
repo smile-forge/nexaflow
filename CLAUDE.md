@@ -19,6 +19,7 @@ src/
   Nexaflow.Features/
     Nexaflow.Features.Common/       ALL contracts (interfaces + small DTOs). NO FeatureManager — that's in Core.
     Nexaflow.Features.AIChat/       AI conversation tab (now a browser over conversations)
+    Nexaflow.Features.Audio/        audio player tab — NAudio playback, spectrum + waveform, .lrc lyrics, ID3 tag editor
     Nexaflow.Features.Console/      PTY terminal
     Nexaflow.Features.Dotnet/       .NET folder viewlet — feeds AI context + dotnet client tools
     Nexaflow.Features.Git/          git folder viewlet — feeds AI context + git client tools

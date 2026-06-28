@@ -210,6 +210,14 @@
     "ExperienceId": "/audio",
     "Source": "User",
     "Criteria": [
+      { "Type": "Extension", "Value": "*.mp3" },
+      { "Type": "Extension", "Value": "*.wav" },
+      { "Type": "Extension", "Value": "*.flac" },
+      { "Type": "Extension", "Value": "*.m4a" },
+      { "Type": "Extension", "Value": "*.aac" },
+      { "Type": "Extension", "Value": "*.wma" },
+      { "Type": "Extension", "Value": "*.ogg" },
+      { "Type": "Extension", "Value": "*.opus" },
       { "Type": "PerceivedType", "Value": "Audio" }
     ]
   },

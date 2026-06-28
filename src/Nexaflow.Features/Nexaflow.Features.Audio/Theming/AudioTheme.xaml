@@ -1,0 +1,22 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ════ Audio player colour tokens ════
+         Shipped as an IThemeContribution so they merge BELOW the active theme (layer 3): every theme
+         gets these defaults for free, and any theme may retune a key by name (e.g. a warmer spectrum on
+         a given theme) without Core or the feature referencing each other. The code-drawn spectrum and
+         waveform controls read these as Brush dependency properties bound in AudioView.xaml. -->
+
+    <!-- Spectrum bar gradient (bottom → top). -->
+    <SolidColorBrush x:Key="Audio.Spectrum.Low"  Color="#3B82F6"/>
+    <SolidColorBrush x:Key="Audio.Spectrum.High" Color="#22D3EE"/>
+
+    <!-- Waveform: the played portion vs the remainder. -->
+    <SolidColorBrush x:Key="Audio.Waveform.Played"   Color="#3B82F6"/>
+    <SolidColorBrush x:Key="Audio.Waveform.Unplayed" Color="#4B5563"/>
+
+    <!-- Lyrics: the current line vs the rest. -->
+    <SolidColorBrush x:Key="Audio.Lyrics.Active"   Color="#F8FAFC"/>
+    <SolidColorBrush x:Key="Audio.Lyrics.Inactive" Color="#7E8794"/>
+
+</ResourceDictionary>
