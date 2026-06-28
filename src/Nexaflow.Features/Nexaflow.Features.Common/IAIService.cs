@@ -5,6 +5,14 @@ using Nexaflow.Features.Common.ClientTools;
 
 namespace Nexaflow.Features.Common
 {
+    /// <summary>
+    /// The per-<c>Workspace</c> AI service injected into feature registrations (alongside
+    /// <see cref="IShellServices"/>). It owns the client-side agent loop
+    /// (<see cref="RunAgentAsync"/>), query-handler scoring/disambiguation for the AI input bar,
+    /// conversation load/save plus its context pages and artifacts, and one-shot analysis/disambiguation
+    /// completions. Resolves each ability through the active profile's model assignments and the
+    /// workspace's acquired providers, so a feature never talks to a provider directly.
+    /// </summary>
     public interface IAIService
     {
         ConversationRecord? ActiveConversation { get; }
@@ -53,7 +61,7 @@ namespace Nexaflow.Features.Common
         /// <summary>
         /// Runs the client-side agent loop: the LLM may call the active page's client tools (and
         /// built-in tools), see their results, and continue, until it produces a final message or
-        /// a prefill. Tool batches and plans are approved through <paramref name="approval"/>.
+        /// a prefill. Tool batches and plans are approved through <paramref name="handler"/>.
         /// When <paramref name="includeContext"/> is false the active page's context and tools are
         /// omitted. Returns null when no Conversation provider is configured or on cancellation.
         /// </summary>

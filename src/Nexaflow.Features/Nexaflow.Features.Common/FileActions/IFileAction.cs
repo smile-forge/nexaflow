@@ -3,6 +3,14 @@ using System.Windows.Media;
 
 namespace Nexaflow.Features.Common
 {
+    /// <summary>
+    /// A context action offered for one or more <b>files</b> in the file browser (open in a viewer,
+    /// delete, run an external app, …). Matched to a file by its hierarchical <see cref="ExperienceId"/>
+    /// via <c>FileMapManager</c> — unlike <see cref="IFolderAction"/>, which matches structurally. Viewer-
+    /// opening actions live in the owning feature; system actions (copy/rename/…) live in Core. Discovered
+    /// by <c>FileSystemFeatureRegistry</c> (NOT <c>FeatureManager</c>); see <see cref="ICacheable"/> for the
+    /// per-<c>WorkContext</c> caching rule and <see cref="IFileCreateAction"/> for "new file" actions.
+    /// </summary>
     public interface IFileAction
     {
         bool IsDestructive { get; }
@@ -16,7 +24,7 @@ namespace Nexaflow.Features.Common
         /// Child IDs automatically satisfy parent experiences (hierarchy propagates upward).
         /// Each implementation must also expose a
         /// <c>public static string? StaticExperienceId { get; }</c> so that
-        /// <see cref="FeatureManager"/> can build the experience list via reflection
+        /// <c>FeatureManager</c> can build the experience list via reflection
         /// without instantiation.
         /// </summary>
         string ExperienceId { get; }

@@ -5,7 +5,7 @@ namespace Nexaflow.Features.Common;
 
 /// <summary>
 /// Turns a foreign drag payload (a file action, a URL dropped from a browser, …) into a ribbon button.
-/// Implementations are auto-discovered from feature assemblies by <see cref="FeatureManager"/>.
+/// Implementations are auto-discovered from feature assemblies by <c>FeatureManager</c>.
 /// Tab drag-pinning is a separate concern — see <see cref="ITabPinHandler"/>; click-time behaviour that
 /// isn't simply "open a tab" is another — see <see cref="IRibbonItemExecutor"/>.
 /// </summary>

@@ -4,7 +4,7 @@ namespace Nexaflow.Features.Common;
 /// A feature-provided handler for "do the default thing with this object" — the non-drag
 /// sibling of <see cref="IDropTarget"/>. A feature advertises one (discovered by reflection,
 /// like <see cref="IDropTarget"/>) so another feature can act on an object it owns without a
-/// direct reference. Core dispatches via <see cref="Services.IShellServices.HandleObject"/>,
+/// direct reference. Core dispatches via <see cref="IShellServices.HandleObject"/>,
 /// which walks every implementor and invokes the first whose <see cref="CanHandleObject"/>
 /// returns true.
 ///

@@ -5,7 +5,7 @@ namespace Nexaflow.Features.Common;
 /// descends into them (and back out) using the same path handling as a real directory, with nesting.
 /// The archive implementation backs this with the virtual file system, but the contract is deliberately
 /// generic (a feature could expose any container as a dynamic folder). Discovered by reflection, the same
-/// way <see cref="IFolderViewlet"/> is.
+/// way <see cref="Viewlets.IFolderViewlet"/> is.
 /// <para>
 /// This contract stays structural — purely "is this path a folder, and is expanding it the default
 /// action" — so <c>Features.Common</c> takes no dependency on the IO layer. Enumeration and reading of

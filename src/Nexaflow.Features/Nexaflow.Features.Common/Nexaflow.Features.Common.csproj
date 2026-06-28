@@ -7,6 +7,12 @@
     <UseWPF>true</UseWPF>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
+
+    <!-- This is the contract layer: generate the XML doc file so the compiler validates <see cref="…"/>
+         references (CS1574) and XML well-formedness (CS1570) — catching doc drift when a contract is
+         renamed/moved. We do NOT require a doc comment on every public member, so silence CS1591. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

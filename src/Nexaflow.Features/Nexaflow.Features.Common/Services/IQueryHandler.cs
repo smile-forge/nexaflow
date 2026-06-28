@@ -2,7 +2,7 @@ namespace Nexaflow.Features.Common;
 
 /// <summary>
 /// Implemented by classes that can handle shell input bar queries.
-/// Register globally via <see cref="FeatureManager.RegisterQueryHandler"/> for app-wide handling,
+/// Register globally via <c>FeatureManager.RegisterQueryHandler</c> for app-wide handling,
 /// or implement on a page's DataContext for tab-scoped handling.
 /// </summary>
 public interface IQueryHandler

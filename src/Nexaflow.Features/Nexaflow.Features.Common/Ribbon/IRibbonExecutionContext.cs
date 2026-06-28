@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace Nexaflow.Features.Common;
 
 /// <summary>
-/// Shell context provided to <see cref="IRibbonPinHandler.Execute"/> at button-click time.
+/// Shell context provided to <see cref="IRibbonItemExecutor.Execute"/> at button-click time.
 /// Abstracts current file selection, error display, and ribbon item removal.
 /// </summary>
 public interface IRibbonExecutionContext

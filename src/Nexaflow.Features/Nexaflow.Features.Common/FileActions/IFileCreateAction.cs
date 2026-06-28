@@ -4,7 +4,7 @@ namespace Nexaflow.Features.Common;
 
 /// <summary>
 /// Represents a "new file" action that creates a blank file of a given type
-/// in the current folder. Discovered by <see cref="FileActionManager"/> from
+/// in the current folder. Discovered by <c>FileSystemFeatureRegistry</c> from
 /// all registered feature assemblies.
 /// </summary>
 public interface IFileCreateAction

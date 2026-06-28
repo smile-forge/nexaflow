@@ -2,17 +2,17 @@ namespace Nexaflow.Features.Common;
 
 /// <summary>
 /// Implemented by each feature assembly to advertise one page kind that it can create.
-/// Instances are registered with <see cref="FeatureManager"/> at application startup so
+/// Instances are registered with <c>FeatureManager</c> at application startup so
 /// the shell never needs a direct reference to a feature's view or view-model types.
 /// </summary>
 public interface IPageRegistration
 {
     /// <summary>
     /// The stable string identifier for this page kind (e.g. <c>"Console"</c>).
-    /// Used as the key in <see cref="FeatureManager"/> and persisted in ribbon.json.
+    /// Used as the key in <c>FeatureManager</c> and persisted in ribbon.json.
     /// Each implementation must also expose a
     /// <c>public static string StaticPageKind { get; }</c> so that
-    /// <see cref="FeatureManager"/> can discover the page kind via reflection
+    /// <c>FeatureManager</c> can discover the page kind via reflection
     /// without instantiation.
     /// </summary>
     string PageKind { get; }
@@ -33,7 +33,7 @@ public interface IPageRegistration
     Page CreatePageDefinition(Dictionary<string, string>? pageParams = null);
 
     /// <summary>
-    /// The parameters this page kind accepts in <paramref name="pageParams"/>. Default: none.
+    /// The parameters this page kind accepts in its <c>pageParams</c> dictionary. Default: none.
     /// Override to advertise required/optional params so the shell can describe openable pages to
     /// the AI and other callers.
     /// </summary>

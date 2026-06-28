@@ -6,7 +6,7 @@ namespace Nexaflow.Features.Common;
 /// Snapshots a dragged tab into a ribbon button — e.g. baking the current folder, registry key or
 /// transform chain into the button so it always re-opens the exact state the user was viewing.
 /// Resolved by <see cref="TabPageKind"/> (a tab already has a clean internal kind), distinct from the
-/// drag-format matching used by <see cref="IRibbonPinHandler"/>. Auto-discovered by <see cref="FeatureManager"/>.
+/// drag-format matching used by <see cref="IRibbonPinHandler"/>. Auto-discovered by <c>FeatureManager</c>.
 /// </summary>
 public interface ITabPinHandler
 {

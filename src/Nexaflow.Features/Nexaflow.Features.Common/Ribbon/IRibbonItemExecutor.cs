@@ -5,7 +5,7 @@ namespace Nexaflow.Features.Common;
 /// <summary>
 /// Runs a ribbon button whose behaviour is something other than "open a tab" (e.g. a file action).
 /// Resolved at click time by <see cref="PageKind"/>; buttons with no matching executor simply open
-/// their page kind as a tab. Auto-discovered by <see cref="FeatureManager"/>.
+/// their page kind as a tab. Auto-discovered by <c>FeatureManager</c>.
 /// </summary>
 public interface IRibbonItemExecutor
 {

@@ -4,7 +4,7 @@ namespace Nexaflow.Features.Common;
 public interface IContext { }
 
 /// <summary>
-/// Context offered by a FileSystem tab via <see cref="IPageView.GetContextObject"/>.
+/// Context offered by a FileSystem tab via <see cref="IPageViewModel.GetContextObject"/>.
 /// Consumed by <c>WindowsSearchQueryHandler</c> to determine the search root and scope.
 /// </summary>
 public sealed class FileSystemContext : IContext

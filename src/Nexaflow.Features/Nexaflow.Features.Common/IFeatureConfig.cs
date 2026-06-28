@@ -2,8 +2,8 @@ namespace Nexaflow.Features.Common;
 
 /// <summary>
 /// Marks a plain POCO as a feature configuration section.
-/// <see cref="FeatureManager"/> discovers and instantiates implementors via reflection
-/// when <see cref="FeatureManager.Register(System.Type)"/> is called.
+/// <c>FeatureManager</c> discovers and instantiates implementors via reflection
+/// when <c>FeatureManager.Register(Type)</c> is called.
 /// </summary>
 public interface IFeatureConfig
 {
