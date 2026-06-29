@@ -71,6 +71,23 @@
            Text="Installer payload is incomplete: harvested @(_HarvestedProvider->Count()) provider DLL(s) from $(_CoreOutDir) but the solution has @(_ProviderProj->Count()) provider project(s). Core's output is stale — clean/rebuild Nexaflow.Core for $(Configuration), then rebuild the installer. Harvested: @(_HarvestedProvider->'%(Filename)', ', ')." />
 
     <!--
+      Same completeness check for the feature assemblies: every Nexaflow.Features.* project must have produced
+      a DLL in the payload. Catches a feature (or one of the Compressed backends) silently dropping out of the
+      harvest — the same class of bug as the missing Gemini provider, now covered for the whole feature set.
+    -->
+    <ItemGroup>
+      <!-- Match the real feature projects only; exclude the transient *_wpftmp.csproj files WPF spawns
+           during a markup-compile pass (which would otherwise inflate the count and false-trip the guard). -->
+      <_FeatureProj Include="$(MSBuildThisFileDirectory)..\src\Nexaflow.Features\**\Nexaflow.Features.*.csproj"
+                    Exclude="$(MSBuildThisFileDirectory)..\src\Nexaflow.Features\**\*_wpftmp.csproj" />
+      <_HarvestedFeature Include="@(_CoreFile)"
+          Condition="'%(Extension)' == '.dll' and $([System.String]::Copy('%(Filename)').StartsWith('Nexaflow.Features.'))" />
+    </ItemGroup>
+
+    <Error Condition="'@(_FeatureProj->Count())' != '@(_HarvestedFeature->Count())'"
+           Text="Installer payload is incomplete: harvested @(_HarvestedFeature->Count()) feature DLL(s) from $(_CoreOutDir) but the solution has @(_FeatureProj->Count()) feature project(s). Core's output is stale or a feature stopped propagating — clean/rebuild Nexaflow.Core for $(Configuration), then rebuild the installer. Harvested: @(_HarvestedFeature->'%(Filename)', ', ')." />
+
+    <!--
       Completeness guard: the libVLC native runtime (VideoLAN.LibVLC.Windows, via Nexaflow.Features.Video)
       ships under libvlc\win-x64\. The package drops it into the Video project's output but it does NOT flow
       through ProjectReference into Core's output, so Core's CopyLibVlc target copies it in explicitly. If it
