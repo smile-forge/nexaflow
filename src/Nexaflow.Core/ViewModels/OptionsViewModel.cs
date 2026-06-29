@@ -403,6 +403,11 @@ public partial class OptionsViewModel : ObservableObject
 
     public OptionsViewModel()
     {
+        // Options lists every feature's global config. With lazy feature loading a config is registered only
+        // when its assembly activates, so make sure they're all activated before reading the registry —
+        // otherwise the panel would be missing sections for features not yet warmed up.
+        FeatureCatalog.Instance.EnsureAllActivated();
+
         // Stable sort: keep registration order but always float "About" to the bottom.
         var configs = ConfigManager.Instance.GetAll().OfType<IFeatureConfig>()
             .OrderBy(c => c is AboutConfig ? 1 : 0);

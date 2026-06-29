@@ -22,6 +22,12 @@ internal interface IWindowHost
     void AddTab(Page tab);
 
     /// <summary>
+    /// Ensures the tab area is split and makes the second (right) pane the focused one, so the
+    /// next <see cref="AddTab"/> lands there. Splits off a new empty right pane if currently unsplit.
+    /// </summary>
+    void FocusSecondPane();
+
+    /// <summary>
     /// Removes the tab.  If it was active, activates the adjacent tab
     /// (or clears the page area if the window is now empty).
     /// </summary>

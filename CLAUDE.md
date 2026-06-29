@@ -78,7 +78,8 @@ Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI) and `Nexaflow.IO.Co
 |------|--------------------|
 | `src/Nexaflow.Core/ViewModels/ShellViewModel.cs` | Tab lifecycle, ribbon, AI routing — god object, be careful |
 | `src/Nexaflow.Core/Services/ShellServices.cs` | `IShellServices` implementation |
-| `src/Nexaflow.Core/FeatureManager.cs` | Reflection discovery + per-`Workspace` constructor injection for features (lives in **Core**, not Common); `EvictWorkspace` clears the cache on reconfigure |
+| `src/Nexaflow.Core/FeatureManager.cs` | Per-`Workspace` constructor injection for features (lives in **Core**, not Common); `EvictWorkspace` clears the cache on reconfigure. Discovery is delegated to `FeatureCatalog` |
+| `src/Nexaflow.Core/Services/FeatureCatalog.cs` | Disk-cached feature discovery index (`discovery/catalog.json`, app-version-stamped) → a normal launch loads **no** feature DLLs; assemblies load + activate lazily (first use or post-paint warm-up). Rebuilt only on an app update |
 | `src/Nexaflow.Core/Services/WorkspaceManager.cs` | The `Profiles` list (dropdown) + live `Workspace`s; create/switch/reconfigure/dispose lifecycle |
 | `src/Nexaflow.Core/Services/FileSystemFeatureRegistry.cs` | Discovery for the file-system contracts (`IFileAction`/`IFolderAction`/`IFileCreateAction`/`IFolderViewlet`) — NOT FeatureManager |
 | `src/Nexaflow.Features/Nexaflow.Features.Common/*.cs` | Contracts — changes here affect everything |
