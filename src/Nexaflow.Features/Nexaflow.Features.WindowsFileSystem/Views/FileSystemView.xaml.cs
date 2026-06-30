@@ -402,6 +402,33 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         }
     }
 
+    // Keep a tree item's ICON in view when it scrolls into focus — never scroll right to
+    // chase a long file name. Intercepts every bring-into-view request (manual selection
+    // scrolls AND framework-initiated ones) and constrains the target rect to the item's
+    // left edge: disclosure arrow + icon at the row's own indent. Reaching the end of a
+    // long name would otherwise push the icon off the left of the narrow tree pane.
+    private bool _suppressTreeBringIntoView;
+    private const double TreeIconAnchorWidth = 44;
+
+    private void DirectoryTree_RequestBringIntoView(object sender, RequestBringIntoViewEventArgs e)
+    {
+        if (_suppressTreeBringIntoView) return;
+        if (e.TargetObject is not TreeViewItem tvi) return;
+
+        e.Handled = true;
+        _suppressTreeBringIntoView = true;
+        try
+        {
+            // Anchor on the header row (RowBorder) so vertical scroll targets just the row —
+            // not the whole expanded subtree — and horizontal scroll stops at the icon.
+            if (tvi.Template?.FindName("RowBorder", tvi) is FrameworkElement { ActualHeight: > 0 } row)
+                row.BringIntoView(new Rect(0, 0, Math.Min(TreeIconAnchorWidth, row.ActualWidth), row.ActualHeight));
+            else
+                tvi.BringIntoView(new Rect(0, 0, TreeIconAnchorWidth, Math.Min(tvi.RenderSize.Height, 28)));
+        }
+        finally { _suppressTreeBringIntoView = false; }
+    }
+
     // ── Column header sorting ─────────────────────────────────────────────
     private void OnColumnHeaderClick(object sender, RoutedEventArgs e)
     {
@@ -532,9 +559,18 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         };
 
         var actions = ViewModel.BuildContextActions([entry]);
-        if (actions.Count == 0) return;
 
-        DirectoryTree.ContextMenu = BuildContextMenu(actions);
+        var menu = BuildContextMenu(actions);
+
+        // Shell-level pane action — not a file action, so it's appended here after a separator.
+        if (actions.Count > 0) menu.Items.Add(BuildMenuSeparator());
+        var paneItem = BuildMenuItem("◨", "Open in right pane", ViewModel.OpenInRightPaneCommand,
+            (Brush)Application.Current.Resources["TextBrush"],
+            (Brush)Application.Current.Resources["Surface2Brush"]);
+        paneItem.CommandParameter = node.FullPath;
+        menu.Items.Add(paneItem);
+
+        DirectoryTree.ContextMenu = menu;
         DirectoryTree.ContextMenu.IsOpen = true;
         e.Handled = true;
     }
@@ -682,6 +718,19 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
 
         item.Template = template;
         return item;
+    }
+
+    /// <summary>A themed 1px divider for the code-built context menus (the default Separator draws a
+    /// system-coloured line that clashes with the dark menu).</summary>
+    private static Separator BuildMenuSeparator()
+    {
+        var line = new FrameworkElementFactory(typeof(Border));
+        line.SetValue(Border.HeightProperty,     1d);
+        line.SetValue(Border.BackgroundProperty, (Brush)Application.Current.Resources["BorderBrush"]);
+        line.SetValue(Border.MarginProperty,     new Thickness(6, 4, 6, 4));
+
+        var template = new ControlTemplate(typeof(Separator)) { VisualTree = line };
+        return new Separator { Template = template };
     }
 
     private void InputPromptTextBox_GotFocus(object sender, RoutedEventArgs e)

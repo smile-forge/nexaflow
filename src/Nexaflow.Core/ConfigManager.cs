@@ -20,6 +20,11 @@ public sealed class ConfigManager
     private readonly HashSet<string> _defaultedConfigs = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _migratedConfigs  = new(StringComparer.OrdinalIgnoreCase);
 
+    // Guards all mutable state: feature-assembly activation registers configs on the background warm-up
+    // thread, while the UI thread registers/saves/reads concurrently. Reentrant (Monitor) so a method that
+    // calls another locked member on the same thread is safe.
+    private readonly object _gate = new();
+
     private bool _suppressWrites;
 
     private static readonly JsonSerializerOptions _opts = new()
@@ -76,45 +81,48 @@ public sealed class ConfigManager
     /// </summary>
     public object Register(object config, string configName)
     {
-        if (!_seen.Add(configName)) return _byName[configName];
-
-        var version = config.GetType().Assembly.GetName().Version ?? new Version(0, 0, 0, 0);
-        switch (LoadOrMigrate(config, BaseDir, configName, version))
+        lock (_gate)
         {
-            case LoadOutcome.Loaded:
-                IsFirstRun = false;
-                break;
-            case LoadOutcome.Migrated:
-                IsFirstRun = false;
-                _migratedConfigs.Add(configName);
-                break;
-            case LoadOutcome.None:
-                _defaultedConfigs.Add(configName);
-                break;
-        }
+            if (!_seen.Add(configName)) return _byName[configName];
 
-        _configs.Add(config);
-        _byName[configName] = config;
-        return config;
+            var version = config.GetType().Assembly.GetName().Version ?? new Version(0, 0, 0, 0);
+            switch (LoadOrMigrate(config, BaseDir, configName, version))
+            {
+                case LoadOutcome.Loaded:
+                    IsFirstRun = false;
+                    break;
+                case LoadOutcome.Migrated:
+                    IsFirstRun = false;
+                    _migratedConfigs.Add(configName);
+                    break;
+                case LoadOutcome.None:
+                    _defaultedConfigs.Add(configName);
+                    break;
+            }
+
+            _configs.Add(config);
+            _byName[configName] = config;
+            return config;
+        }
     }
 
     /// <summary>All registered config POCOs in registration order.</summary>
-    public IReadOnlyList<object> GetAll() => _configs.AsReadOnly();
+    public IReadOnlyList<object> GetAll() { lock (_gate) return _configs.ToList(); }
 
     /// <summary>
     /// Config names that had no file on disk for any version on load (brand-new config / first run),
     /// so the config was initialised with default values. An entry is removed once the config is saved.
     /// </summary>
-    public IReadOnlyList<string> GetDefaultedConfigs() =>
-        _defaultedConfigs.ToList().AsReadOnly();
+    public IReadOnlyList<string> GetDefaultedConfigs()
+    { lock (_gate) return _defaultedConfigs.ToList(); }
 
     /// <summary>
     /// Config names whose data was carried forward from an older on-disk version on load (migrated,
     /// not defaulted). Lets the setup wizard re-prompt only when migrated data is still incomplete.
     /// An entry is removed once the config is saved.
     /// </summary>
-    public IReadOnlyList<string> GetMigratedConfigs() =>
-        _migratedConfigs.ToList().AsReadOnly();
+    public IReadOnlyList<string> GetMigratedConfigs()
+    { lock (_gate) return _migratedConfigs.ToList(); }
 
     /// <summary>
     /// Persists <paramref name="config"/> to its versioned JSON file.
@@ -122,13 +130,16 @@ public sealed class ConfigManager
     /// </summary>
     public void Save(object config, string configName)
     {
-        if (_suppressWrites) return;
-        var version = config.GetType().Assembly.GetName().Version ?? new Version(0, 0, 0, 0);
-        var path    = GetPath(configName, version);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, JsonSerializer.Serialize(config, config.GetType(), _opts));
-        _defaultedConfigs.Remove(configName);
-        _migratedConfigs.Remove(configName);
+        lock (_gate)
+        {
+            if (_suppressWrites) return;
+            var version = config.GetType().Assembly.GetName().Version ?? new Version(0, 0, 0, 0);
+            var path    = GetPath(configName, version);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, JsonSerializer.Serialize(config, config.GetType(), _opts));
+            _defaultedConfigs.Remove(configName);
+            _migratedConfigs.Remove(configName);
+        }
     }
 
     /// <summary>
@@ -138,11 +149,14 @@ public sealed class ConfigManager
     /// </summary>
     public void SaveTo(string directory, object config, string configName)
     {
-        if (_suppressWrites) return;
-        var version = config.GetType().Assembly.GetName().Version ?? new Version(0, 0, 0, 0);
-        var path    = Path.Combine(directory, configName, $"config_{version}.json");
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, JsonSerializer.Serialize(config, config.GetType(), _opts));
+        lock (_gate)
+        {
+            if (_suppressWrites) return;
+            var version = config.GetType().Assembly.GetName().Version ?? new Version(0, 0, 0, 0);
+            var path    = Path.Combine(directory, configName, $"config_{version}.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, JsonSerializer.Serialize(config, config.GetType(), _opts));
+        }
     }
 
     /// <summary>
@@ -153,8 +167,11 @@ public sealed class ConfigManager
     /// </summary>
     public void LoadFrom(string directory, object config, string configName)
     {
-        var version = config.GetType().Assembly.GetName().Version ?? new Version(0, 0, 0, 0);
-        LoadOrMigrate(config, directory, configName, version);
+        lock (_gate)
+        {
+            var version = config.GetType().Assembly.GetName().Version ?? new Version(0, 0, 0, 0);
+            LoadOrMigrate(config, directory, configName, version);
+        }
     }
 
     /// <summary>Creates a deep clone of a config POCO via JSON round-trip.</summary>
