@@ -191,12 +191,16 @@ public sealed class FeatureCatalog
             if (typeof(IFeatureConfig).IsAssignableFrom(t))
             {
                 te.Scoped     = t.GetCustomAttribute<WorkspaceScopedConfigAttribute>() is not null;
-                te.ConfigName = TryInstantiate(t) is IFeatureConfig cfg ? cfg.ConfigName : null;
+                te.ConfigName = TryRead(() => (TryInstantiate(t) as IFeatureConfig)?.ConfigName);
             }
             if (typeof(IFileAction).IsAssignableFrom(t))
                 te.ExperienceId = StaticString(t, "StaticExperienceId");
-            if (typeof(IThemeContribution).IsAssignableFrom(t) && TryInstantiate(t) is IThemeContribution tc)
-                te.ThemeUris = tc.ResourceDictionaryUris.Select(u => u.ToString()).ToList();
+            if (typeof(IThemeContribution).IsAssignableFrom(t))
+                // The getter may build pack:// URIs, which throw in a headless scan (no WPF Application —
+                // e.g. under unit tests / CI). The real first-run/update scan runs with WPF up, so it
+                // captures them; headless just leaves them null (harmless — they're re-read at activation).
+                te.ThemeUris = TryRead(() => (TryInstantiate(t) as IThemeContribution)?.ResourceDictionaryUris
+                    .Select(u => u.ToString()).ToList());
 
             entry.Types.Add(te);
         }
@@ -223,6 +227,14 @@ public sealed class FeatureCatalog
     {
         try { return Activator.CreateInstance(t); }
         catch { return null; }
+    }
+
+    // Reads metadata that requires instantiating the type (config name, theme URIs); a getter that throws
+    // (e.g. a pack:// URI built in a headless scan) just yields null instead of aborting the whole index.
+    private static T? TryRead<T>(Func<T?> read)
+    {
+        try { return read(); }
+        catch { return default; }
     }
 
     // ── Lazy load + activation ────────────────────────────────────────────────
