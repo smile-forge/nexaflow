@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:Nexaflow.Features.Projects.ViewModels"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             AutomationProperties.AutomationId="ProjectDetailView"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
@@ -196,6 +197,7 @@
                             VerticalAlignment="Center" Margin="16,0,0,0">
                     <!-- Open Files -->
                     <Button Style="{StaticResource GhostButton}"
+                            AutomationProperties.AutomationId="Projects_Detail_OpenFiles"
                             Command="{Binding OpenFilesCommand}"
                             Margin="0,0,8,0">
                         <StackPanel Orientation="Horizontal">
@@ -205,6 +207,7 @@
                     </Button>
                     <!-- Refresh -->
                     <Button Style="{StaticResource GhostButton}"
+                            AutomationProperties.AutomationId="Projects_Detail_Refresh"
                             Command="{Binding RefreshCommand}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="↻" FontSize="13" Margin="0,0,6,0"/>
@@ -284,6 +287,7 @@
                             <TextBox Grid.Column="0"
                                      Text="{Binding NewTodoTitle, UpdateSourceTrigger=PropertyChanged}"
                                      Style="{StaticResource DarkTextBox}"
+                                     AutomationProperties.AutomationId="Projects_Detail_NewTodoTitle"
                                      Margin="0,0,8,0">
                                 <TextBox.InputBindings>
                                     <KeyBinding Key="Return" Command="{Binding AddTodoCommand}"/>
@@ -291,6 +295,7 @@
                             </TextBox>
                             <Button Grid.Column="1"
                                     Style="{StaticResource AccentButton}"
+                                    AutomationProperties.AutomationId="Projects_Detail_AddTodo"
                                     Command="{Binding AddTodoCommand}"
                                     Padding="12,7">
                                 <TextBlock Text="+ Add"/>
@@ -302,6 +307,7 @@
                     <ListView Grid.Row="1"
                               ItemsSource="{Binding Backlog}"
                               SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
+                              AutomationProperties.AutomationId="Projects_Detail_Backlog"
                               Background="Transparent"
                               BorderThickness="0"
                               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -459,6 +465,7 @@
                                 <Button Grid.Column="0"
                                         Style="{StaticResource AccentButton}"
                                         HorizontalAlignment="Left"
+                                        AutomationProperties.AutomationId="Projects_Detail_SaveItem"
                                         Command="{Binding DataContext.SaveItemCommand,
                                                   RelativeSource={RelativeSource AncestorType=UserControl}}">
                                     <StackPanel Orientation="Horizontal">
@@ -469,6 +476,7 @@
                                 <Button Grid.Column="1"
                                         Style="{StaticResource DangerButton}"
                                         HorizontalAlignment="Right"
+                                        AutomationProperties.AutomationId="Projects_Detail_DeleteTodo"
                                         Command="{Binding DataContext.DeleteTodoCommand,
                                                   RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         CommandParameter="{Binding DataContext.SelectedItem,

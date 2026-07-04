@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             AutomationProperties.AutomationId="Web_View"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
@@ -102,6 +103,7 @@
                             VerticalAlignment="Center" Margin="0,0,6,0">
                     <Button x:Name="BackButton"
                             Style="{StaticResource ToolbarBtnStyle}"
+                            AutomationProperties.AutomationId="Web_Back"
                             Click="Back_Click"
                             ToolTip="Back"
                             Margin="0,0,4,0">
@@ -110,6 +112,7 @@
                     </Button>
                     <Button x:Name="ForwardButton"
                             Style="{StaticResource ToolbarBtnStyle}"
+                            AutomationProperties.AutomationId="Web_Forward"
                             Click="Forward_Click"
                             ToolTip="Forward">
                         <TextBlock Text="▶" FontSize="11"
@@ -126,6 +129,7 @@
                         Padding="8,0"
                         Margin="0,6">
                     <TextBlock x:Name="UrlBar"
+                               AutomationProperties.AutomationId="Web_Address"
                                Text="{Binding CurrentUrl}"
                                Foreground="{StaticResource TextMutedBrush}"
                                FontSize="12"
@@ -137,12 +141,14 @@
                 <StackPanel Grid.Column="2" Orientation="Horizontal"
                             VerticalAlignment="Center" Margin="6,0,0,0">
                     <Button Style="{StaticResource ToolbarBtnStyle}"
+                            AutomationProperties.AutomationId="Web_Reload"
                             Click="Reload_Click"
                             ToolTip="Reload">
                         <TextBlock Text="↺" FontSize="14"
                                    Foreground="{StaticResource TextMutedBrush}"/>
                     </Button>
                     <Button Style="{StaticResource ToolbarBtnStyle}"
+                            AutomationProperties.AutomationId="Web_OpenExternal"
                             Click="OpenExternal_Click"
                             ToolTip="Open in your default browser"
                             Margin="6,0,0,0">

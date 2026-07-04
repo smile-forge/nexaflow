@@ -68,6 +68,13 @@ public partial class App : Application
     public static bool SkipSetup { get; private set; }
 
     /// <summary>
+    /// A page kind supplied via <c>--openTab &lt;PageKind&gt;</c>: after the shell's default tab opens, that
+    /// page is opened too. A ribbon-independent deep-link into any tab — used by UI tests to reach views
+    /// that aren't on the default ribbon (and by future taskbar/URI deep-linking).
+    /// </summary>
+    public static string? OpenTabKind { get; private set; }
+
+    /// <summary>
     /// True when launched with <c>--reset</c>: the relaunch issued by "Reset Config" (Options → About).
     /// <see cref="InitializeApp"/> deletes the whole app-data directory before initialising, so the run
     /// starts as a clean first-run. Set by the fresh process; the old one armed it before relaunching.
@@ -84,6 +91,9 @@ public partial class App : Application
         bool prestart = e.Args.Any(a => string.Equals(a, "--prestart", StringComparison.OrdinalIgnoreCase));
         SkipSetup = e.Args.Any(a => string.Equals(a, "--skipSetup", StringComparison.OrdinalIgnoreCase));
         _resetRequested = e.Args.Any(a => string.Equals(a, "--reset", StringComparison.OrdinalIgnoreCase));
+
+        var openTabIdx = Array.FindIndex(e.Args, a => string.Equals(a, "--openTab", StringComparison.OrdinalIgnoreCase));
+        OpenTabKind = openTabIdx >= 0 && openTabIdx + 1 < e.Args.Length ? e.Args[openTabIdx + 1] : null;
 
         // Opt-in startup profiling (see StartupTimings). --timing bypasses the single-instance guard and the
         // setup wizard so a harness can cold-start repeatedly, but does NOT force the eager feature load the

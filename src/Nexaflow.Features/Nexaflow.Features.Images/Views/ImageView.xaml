@@ -262,19 +262,22 @@
                     <DropShadowEffect BlurRadius="10" ShadowDepth="0" Opacity="0.4" Color="Black"/>
                 </Border.Effect>
                 <StackPanel Orientation="Horizontal" Margin="3">
-                    <Button Command="{Binding RotateLeftCommand}" ToolTip="Rotate 90° left" Style="{StaticResource FloatingToolButtonStyle}">
+                    <Button Command="{Binding RotateLeftCommand}" ToolTip="Rotate 90° left" Style="{StaticResource FloatingToolButtonStyle}"
+                            AutomationProperties.AutomationId="Image_RotateLeft">
                         <Grid Width="15" Height="15">
                             <Path Data="M 7,1 A 6,6 0 1 0 13,7" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" Fill="Transparent" StrokeEndLineCap="Round"/>
                             <Path Data="M 13,4 L 13,7 L 10,7" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" Fill="Transparent" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
                         </Grid>
                     </Button>
-                    <Button Command="{Binding RotateRightCommand}" ToolTip="Rotate 90° right" Style="{StaticResource FloatingToolButtonStyle}">
+                    <Button Command="{Binding RotateRightCommand}" ToolTip="Rotate 90° right" Style="{StaticResource FloatingToolButtonStyle}"
+                            AutomationProperties.AutomationId="Image_RotateRight">
                         <Grid Width="15" Height="15">
                             <Path Data="M 7,1 A 6,6 0 1 1 1,7" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" Fill="Transparent" StrokeEndLineCap="Round"/>
                             <Path Data="M 1,4 L 1,7 L 4,7" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" Fill="Transparent" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
                         </Grid>
                     </Button>
-                    <Button Command="{Binding ToggleFitCommand}" ToolTip="Toggle fit to window / actual size" Style="{StaticResource FloatingToolButtonStyle}">
+                    <Button Command="{Binding ToggleFitCommand}" ToolTip="Toggle fit to window / actual size" Style="{StaticResource FloatingToolButtonStyle}"
+                            AutomationProperties.AutomationId="Image_FitMode">
                         <Grid Width="15" Height="15">
                             <Path Data="M 6.5,1 A 5.5,5.5 0 1 0 6.5,12 A 5.5,5.5 0 1 0 6.5,1  M 10.5,10.5 L 14,14"
                                   StrokeThickness="1.5" Fill="Transparent" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round">
@@ -313,6 +316,7 @@
                         Visibility="{Binding HasMultiple, Converter={StaticResource BoolToVis}}">
                     <StackPanel Orientation="Horizontal">
                         <RadioButton GroupName="ImageSubView" Style="{StaticResource SegRadioStyle}" ToolTip="Carousel — one image at a time"
+                                     AutomationProperties.AutomationId="Image_ViewCarousel"
                                      IsChecked="{Binding ViewMode, Converter={StaticResource EnumToBool}, ConverterParameter=Carousel}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="▣" FontSize="13" VerticalAlignment="Center"/>
@@ -321,6 +325,7 @@
                         </RadioButton>
                         <Border Style="{StaticResource SegDivider}"/>
                         <RadioButton GroupName="ImageSubView" Style="{StaticResource SegRadioStyle}" ToolTip="Album — grid of thumbnails"
+                                     AutomationProperties.AutomationId="Image_ViewAlbum"
                                      IsChecked="{Binding ViewMode, Converter={StaticResource EnumToBool}, ConverterParameter=Album}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="▦" FontSize="13" VerticalAlignment="Center"/>
@@ -329,6 +334,7 @@
                         </RadioButton>
                         <Border Style="{StaticResource SegDivider}"/>
                         <RadioButton GroupName="ImageSubView" Style="{StaticResource SegRadioStyle}" ToolTip="Explore — thumbnails left, selected image right"
+                                     AutomationProperties.AutomationId="Image_ViewExplore"
                                      IsChecked="{Binding ViewMode, Converter={StaticResource EnumToBool}, ConverterParameter=Explore}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="◫" FontSize="13" VerticalAlignment="Center"/>
@@ -337,6 +343,7 @@
                         </RadioButton>
                         <Border Style="{StaticResource SegDivider}"/>
                         <RadioButton GroupName="ImageSubView" Style="{StaticResource SegRadioStyle}" ToolTip="Collage — scattered canvas (drag to pan, wheel to zoom)"
+                                     AutomationProperties.AutomationId="Image_ViewCollage"
                                      IsChecked="{Binding ViewMode, Converter={StaticResource EnumToBool}, ConverterParameter=Collage}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="❖" FontSize="13" VerticalAlignment="Center"/>
@@ -352,7 +359,8 @@
 
                 <!-- Playback controls (shown in every sub-view) -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <ToggleButton IsChecked="{Binding IsAuto, Mode=TwoWay}" ToolTip="Auto-advance the slideshow" Style="{StaticResource ToolbarToggleStyle}" Visibility="{Binding HasMultiple, Converter={StaticResource BoolToVis}}">
+                    <ToggleButton IsChecked="{Binding IsAuto, Mode=TwoWay}" ToolTip="Auto-advance the slideshow" Style="{StaticResource ToolbarToggleStyle}" Visibility="{Binding HasMultiple, Converter={StaticResource BoolToVis}}"
+                                  AutomationProperties.AutomationId="Image_AutoAdvance">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="▶" FontSize="11" VerticalAlignment="Center"/>
                             <TextBlock Text="Auto" Margin="6,0,0,0" VerticalAlignment="Center"/>
@@ -362,10 +370,12 @@
                         <Slider Width="92" Minimum="0" Maximum="2" Value="{Binding AutoSpeed, Mode=TwoWay}"
                                 IsSnapToTickEnabled="True" TickFrequency="1" TickPlacement="None"
                                 SmallChange="1" LargeChange="1" VerticalAlignment="Center"
+                                AutomationProperties.AutomationId="Image_AutoSpeed"
                                 ToolTip="Slideshow speed: Slow 10s · Medium 4s · Fast 1s"/>
                         <TextBlock Text="{Binding AutoSpeedLabel}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Width="46" Margin="6,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
-                    <Button Command="{Binding EnterFullScreenCommand}" ToolTip="View full screen (Esc to exit)" Style="{StaticResource ToolbarButtonStyle}">
+                    <Button Command="{Binding EnterFullScreenCommand}" ToolTip="View full screen (Esc to exit)" Style="{StaticResource ToolbarButtonStyle}"
+                            AutomationProperties.AutomationId="Image_FullScreen">
                         <!-- Distinct from the fit/scale glyph: two diagonal arrows expanding outward. -->
                         <Grid Width="15" Height="15">
                             <Path Data="M 6,2 L 2,2 L 2,6  M 2,2 L 7,7  M 9,13 L 13,13 L 13,9  M 13,13 L 8,8"
@@ -440,10 +450,12 @@
                     </ScrollViewer>
 
                     <!-- Prev / Next -->
-                    <Button Command="{Binding PreviousCommand}" Style="{StaticResource NavArrowStyle}" ToolTip="Previous image" HorizontalAlignment="Left" VerticalAlignment="Center" Height="60" Margin="10,0" Visibility="{Binding HasMultiple, Converter={StaticResource BoolToVis}}">
+                    <Button Command="{Binding PreviousCommand}" Style="{StaticResource NavArrowStyle}" ToolTip="Previous image" HorizontalAlignment="Left" VerticalAlignment="Center" Height="60" Margin="10,0" Visibility="{Binding HasMultiple, Converter={StaticResource BoolToVis}}"
+                            AutomationProperties.AutomationId="Image_Previous">
                         <Path Data="M 10 4 L 4 10 L 10 16" Stroke="{StaticResource TextBrush}" StrokeThickness="2" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="Transparent"/>
                     </Button>
-                    <Button Command="{Binding NextCommand}" Style="{StaticResource NavArrowStyle}" ToolTip="Next image" HorizontalAlignment="Right" VerticalAlignment="Center" Height="60" Margin="10,0" Visibility="{Binding HasMultiple, Converter={StaticResource BoolToVis}}">
+                    <Button Command="{Binding NextCommand}" Style="{StaticResource NavArrowStyle}" ToolTip="Next image" HorizontalAlignment="Right" VerticalAlignment="Center" Height="60" Margin="10,0" Visibility="{Binding HasMultiple, Converter={StaticResource BoolToVis}}"
+                            AutomationProperties.AutomationId="Image_Next">
                         <Path Data="M 4 4 L 10 10 L 4 16" Stroke="{StaticResource TextBrush}" StrokeThickness="2" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="Transparent"/>
                     </Button>
 
@@ -456,6 +468,7 @@
                             Visibility="{Binding HasMultiple, Converter={StaticResource BoolToVis}}">
                     <Button Command="{Binding PageDotsLeftCommand}" Style="{StaticResource ToolbarButtonStyle}" Padding="5,1" Margin="0,0,8,0"
                             ToolTip="Previous 20" Focusable="False"
+                            AutomationProperties.AutomationId="Image_DotsPageLeft"
                             Visibility="{Binding CanPageDotsLeft, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="‹" FontSize="13"/>
                     </Button>
@@ -505,6 +518,7 @@
                     </ItemsControl>
                     <Button Command="{Binding PageDotsRightCommand}" Style="{StaticResource ToolbarButtonStyle}" Padding="5,1" Margin="8,0,0,0"
                             ToolTip="Next 20" Focusable="False"
+                            AutomationProperties.AutomationId="Image_DotsPageRight"
                             Visibility="{Binding CanPageDotsRight, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="›" FontSize="13"/>
                     </Button>

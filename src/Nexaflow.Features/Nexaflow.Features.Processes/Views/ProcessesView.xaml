@@ -272,6 +272,7 @@
                                VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
                     <Grid Grid.Column="1">
                         <TextBox x:Name="SearchBox" Background="Transparent" BorderThickness="0" Padding="0,7"
+                                 AutomationProperties.AutomationId="Proc_Filter"
                                  Foreground="{StaticResource TextBrush}" CaretBrush="{StaticResource AccentBrush}"
                                  VerticalContentAlignment="Center" FontSize="13"
                                  Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"/>
@@ -280,6 +281,7 @@
                                    Visibility="{Binding FilterText, Converter={x:Static conv:EmptyToVisibleConverter.Instance}}"/>
                     </Grid>
                     <Button Grid.Column="2" Content="✕" Command="{Binding ClearFilterCommand}" Style="{StaticResource TbBtn}"
+                            AutomationProperties.AutomationId="Proc_ClearFilter"
                             Margin="0,0,4,0" Padding="6,2" FontSize="11"
                             Visibility="{Binding FilterText, Converter={x:Static conv:NonEmptyToVisibleConverter.Instance}}"/>
                 </Grid>
@@ -288,15 +290,20 @@
             <!-- View controls -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                 <ToggleButton Content="Tree" IsChecked="{Binding TreeMode}" Style="{StaticResource TbToggle}"
+                              AutomationProperties.AutomationId="Proc_ToggleTree"
                               ToolTip="Group processes by parent → child"/>
                 <Button Content="Expand all" Command="{Binding ExpandAllCommand}" Style="{StaticResource TbBtn}"
+                        AutomationProperties.AutomationId="Proc_ExpandAll"
                         Visibility="{Binding TreeMode, Converter={StaticResource BoolToVis}}"/>
                 <Button Content="Collapse all" Command="{Binding CollapseAllCommand}" Style="{StaticResource TbBtn}"
+                        AutomationProperties.AutomationId="Proc_CollapseAll"
                         Visibility="{Binding TreeMode, Converter={StaticResource BoolToVis}}"/>
                 <Separator Style="{StaticResource TbSep}"/>
                 <ToggleButton Content="● Live" IsChecked="{Binding AutoRefreshEnabled}" Style="{StaticResource TbToggle}"
+                              AutomationProperties.AutomationId="Proc_ToggleLive"
                               ToolTip="Auto-refresh once per second while this tab is active"/>
                 <Button Content="↻" Command="{Binding RefreshNowCommand}" Style="{StaticResource TbBtn}"
+                        AutomationProperties.AutomationId="Proc_Refresh"
                         FontSize="14" ToolTip="Refresh now"/>
             </StackPanel>
         </Grid>

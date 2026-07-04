@@ -35,7 +35,8 @@
 
                 <!-- Left: encoding selector -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <ComboBox ItemsSource="{Binding AvailableEncodings}"
+                    <ComboBox AutomationProperties.AutomationId="Text_Encoding"
+                              ItemsSource="{Binding AvailableEncodings}"
                               SelectedItem="{Binding SelectedEncoding}"
                               DisplayMemberPath="Name"
                               Width="110"
@@ -47,12 +48,14 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
 
                     <ToggleButton Style="{StaticResource TbToggle}"
+                                  AutomationProperties.AutomationId="Text_LineNumbers"
                                   IsChecked="{Binding ShowLineNumbers}"
                                   ToolTip="Toggle line numbers">
                         <TextBlock Text="≡#" FontSize="12"/>
                     </ToggleButton>
 
                     <ToggleButton Style="{StaticResource TbToggle}"
+                                  AutomationProperties.AutomationId="Text_WordWrap"
                                   IsChecked="{Binding WordWrap}"
                                   ToolTip="Toggle word wrap">
                         <TextBlock Text="⇔" FontSize="12"/>
@@ -60,19 +63,20 @@
 
                     <Separator Style="{StaticResource TbSep}"/>
 
-                    <Button x:Name="CutButton"   Style="{StaticResource TbBtn}" ToolTip="Cut (Ctrl+X)">
+                    <Button x:Name="CutButton"   Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="Text_Cut"   ToolTip="Cut (Ctrl+X)">
                         <TextBlock Text="✂" FontSize="12"/>
                     </Button>
-                    <Button x:Name="CopyButton"  Style="{StaticResource TbBtn}" ToolTip="Copy (Ctrl+C)">
+                    <Button x:Name="CopyButton"  Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="Text_Copy"  ToolTip="Copy (Ctrl+C)">
                         <TextBlock Text="⎘" FontSize="12"/>
                     </Button>
-                    <Button x:Name="PasteButton" Style="{StaticResource TbBtn}" ToolTip="Paste (Ctrl+V)">
+                    <Button x:Name="PasteButton" Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="Text_Paste" ToolTip="Paste (Ctrl+V)">
                         <TextBlock Text="📋" FontSize="11"/>
                     </Button>
 
                     <Separator Style="{StaticResource TbSep}"/>
 
                     <Button Style="{StaticResource TbBtn}"
+                            AutomationProperties.AutomationId="Text_Monitor"
                             Command="{Binding ToggleMonitoringCommand}"
                             ToolTip="Toggle file monitoring">
                         <StackPanel Orientation="Horizontal">
@@ -95,6 +99,7 @@
                     <Separator Style="{StaticResource TbSep}"/>
 
                     <Button Style="{StaticResource TbBtn}"
+                            AutomationProperties.AutomationId="Text_SplitToggle"
                             Command="{Binding ToggleSplitPanelCommand}"
                             ToolTip="Split this file into smaller files">
                         <StackPanel Orientation="Horizontal">

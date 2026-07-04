@@ -172,14 +172,17 @@
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="10,6">
             <Grid>
                 <ToggleButton Style="{StaticResource TbToggle}" Content="☰  Playlist" HorizontalAlignment="Left"
+                              AutomationProperties.AutomationId="Audio_PlaylistToggle"
                               Visibility="{Binding HasPlaylist, Converter={StaticResource BoolToVis}}"
                               Command="{Binding TogglePlaylistCommand}"
                               IsChecked="{Binding IsPlaylistOpen, Mode=OneWay}"/>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <ToggleButton Style="{StaticResource TbToggle}" Content="Tags"
+                                  AutomationProperties.AutomationId="Audio_TagsToggle"
                                   Command="{Binding TogglePanelCommand}" CommandParameter="Tags"
                                   IsChecked="{Binding IsTagsButtonActive, Mode=OneWay}"/>
                     <ToggleButton Style="{StaticResource TbToggle}" Content="Lyrics"
+                                  AutomationProperties.AutomationId="Audio_LyricsToggle"
                                   Command="{Binding TogglePanelCommand}" CommandParameter="Lyrics"
                                   IsChecked="{Binding IsLyricsButtonActive, Mode=OneWay}"/>
                 </StackPanel>
@@ -289,13 +292,17 @@
                 <Grid Grid.Row="3" Margin="0,12,0,0">
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                         <Button Style="{StaticResource TransportButton}" Content="⏮"
+                                AutomationProperties.AutomationId="Audio_Previous"
                                 Command="{Binding PreviousCommand}" ToolTip="Previous"
                                 Visibility="{Binding HasQueue, Converter={StaticResource BoolToVis}}"/>
                         <Button Style="{StaticResource TransportButton}" Content="{Binding PlayPauseGlyph}"
+                                AutomationProperties.AutomationId="Audio_PlayPause"
                                 Command="{Binding PlayPauseCommand}" FontSize="24" ToolTip="Play / Pause"/>
                         <Button Style="{StaticResource TransportButton}" Content="⏹"
+                                AutomationProperties.AutomationId="Audio_Stop"
                                 Command="{Binding StopCommand}" ToolTip="Stop"/>
                         <Button Style="{StaticResource TransportButton}" Content="⏭"
+                                AutomationProperties.AutomationId="Audio_Next"
                                 Command="{Binding NextCommand}" ToolTip="Next"
                                 Visibility="{Binding HasQueue, Converter={StaticResource BoolToVis}}"/>
                     </StackPanel>
@@ -304,6 +311,7 @@
                         <TextBlock Text="🔊" VerticalAlignment="Center" Margin="0,0,8,0"
                                    Foreground="{StaticResource TextMutedBrush}"/>
                         <Slider Style="{StaticResource VolumeSlider}" Width="120" Minimum="0" Maximum="1"
+                                AutomationProperties.AutomationId="Audio_Volume"
                                 VerticalAlignment="Center" Value="{Binding Volume, Mode=TwoWay}"/>
                     </StackPanel>
                 </Grid>
@@ -328,8 +336,8 @@
                                 <Image Source="{Binding ArtPreview}" Stretch="UniformToFill"/>
                             </Border>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                <Button Style="{StaticResource TbBtn}" Content="Change art…" Command="{Binding PickArtCommand}"/>
-                                <Button Style="{StaticResource TbBtn}" Content="Remove" Command="{Binding RemoveArtCommand}"/>
+                                <Button Style="{StaticResource TbBtn}" Content="Change art…" AutomationProperties.AutomationId="Audio_TagChangeArt" Command="{Binding PickArtCommand}"/>
+                                <Button Style="{StaticResource TbBtn}" Content="Remove" AutomationProperties.AutomationId="Audio_TagRemoveArt" Command="{Binding RemoveArtCommand}"/>
                             </StackPanel>
 
                             <TextBlock Text="Title" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,2"/>
@@ -360,6 +368,7 @@
                                      AcceptsReturn="True" TextWrapping="Wrap" MinHeight="48" Margin="0,0,0,12"/>
 
                             <Button Style="{StaticResource TbBtn}" Content="Save tags" HorizontalAlignment="Right"
+                                    AutomationProperties.AutomationId="Audio_TagSave"
                                     Command="{Binding SaveCommand}" IsEnabled="{Binding IsDirty}"/>
                         </StackPanel>
                     </ScrollViewer>
