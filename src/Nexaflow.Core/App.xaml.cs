@@ -201,6 +201,13 @@ public partial class App : Application
         // ── 4. WorkspaceManager — loads the profile list (no runtime workspaces yet) ──
         WorkspaceManager.Instance.Initialize(wcConfig);
 
+        // Quarantine workspace data folders orphaned by an older build's version-bump config reset (before
+        // forward-migration existed): the list is authoritative only when workcontexts.json actually
+        // loaded — a defaulted (missing/unreadable) list would make every folder look orphaned, so gate on it.
+        var listIsAuthoritative = !ConfigManager.Instance.GetDefaultedConfigs()
+            .Contains(wcConfig.ConfigName, StringComparer.OrdinalIgnoreCase);
+        WorkspaceManager.Instance.QuarantineOrphanedDataFolders(listIsAuthoritative);
+
         // A workspace rebuild (Configure panel) needs to create a replacement window for a fresh
         // workspace; hand WorkspaceManager the factory that knows how to build MainWindow.
         WorkspaceManager.Instance.WindowHostFactory = ws => CreateWorkspaceWindow(activityManager, ws);

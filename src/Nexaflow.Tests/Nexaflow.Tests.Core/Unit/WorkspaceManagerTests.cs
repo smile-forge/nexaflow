@@ -214,4 +214,84 @@ public class WorkspaceManagerTests
         Assert.AreEqual("#111111", one.Color);
         Assert.AreEqual("A",       one.Icon);
     }
+
+    // ── QuarantineOrphanedDataFolders ──
+
+    private string QuarantineDir => Path.Combine(_baseDir, "Contexts", WorkspaceManager.OrphanQuarantineDir);
+
+    [TestMethod]
+    public void QuarantineOrphanedDataFolders_MovesUnreferenced_KeepsLive_WhenAuthoritative()
+    {
+        var keep = new Profile { Name = "Keep" };
+        InitWith(keep);
+        Directory.CreateDirectory(keep.Dir);                        // referenced → survives
+
+        var orphan = WorkspaceManager.ProfileDir("GhostFromReset"); // no matching profile → quarantined
+        Directory.CreateDirectory(orphan);
+        File.WriteAllText(Path.Combine(orphan, "conv.json"), "{}");
+
+        var moved = WorkspaceManager.Instance.QuarantineOrphanedDataFolders(listIsAuthoritative: true);
+
+        Assert.IsTrue(Directory.Exists(keep.Dir), "A live profile's folder must never be moved.");
+        Assert.IsFalse(Directory.Exists(orphan),  "An unreferenced folder must leave its original location.");
+        CollectionAssert.AreEqual(new[] { "GhostFromReset" }, moved.ToArray());
+
+        // Data is preserved, not deleted — it (and its contents) sit in the quarantine bin.
+        var landed = Path.Combine(QuarantineDir, "GhostFromReset");
+        Assert.IsTrue(Directory.Exists(landed));
+        Assert.AreEqual("{}", File.ReadAllText(Path.Combine(landed, "conv.json")));
+    }
+
+    [TestMethod]
+    public void QuarantineOrphanedDataFolders_PreservesInPlace_WhenListNotAuthoritative()
+    {
+        var keep = new Profile { Name = "Keep" };
+        InitWith(keep);
+
+        var orphan = WorkspaceManager.ProfileDir("GhostFromReset");
+        Directory.CreateDirectory(orphan);
+
+        var moved = WorkspaceManager.Instance.QuarantineOrphanedDataFolders(listIsAuthoritative: false);
+
+        Assert.AreEqual(0, moved.Count);
+        Assert.IsTrue(Directory.Exists(orphan),
+            "A defaulted/untrusted list must never move folders — every folder looks orphaned then.");
+        Assert.IsFalse(Directory.Exists(QuarantineDir));
+    }
+
+    [TestMethod]
+    public void QuarantineOrphanedDataFolders_NoOp_WhenAllFoldersReferenced()
+    {
+        var a = new Profile { Name = "A" };
+        var b = new Profile { Name = "B" };
+        InitWith(a, b);
+        Directory.CreateDirectory(a.Dir);
+        Directory.CreateDirectory(b.Dir);
+
+        var moved = WorkspaceManager.Instance.QuarantineOrphanedDataFolders(listIsAuthoritative: true);
+
+        Assert.AreEqual(0, moved.Count);
+        Assert.IsTrue(Directory.Exists(a.Dir));
+        Assert.IsTrue(Directory.Exists(b.Dir));
+        Assert.IsFalse(Directory.Exists(QuarantineDir));
+    }
+
+    [TestMethod]
+    public void QuarantineOrphanedDataFolders_SkipsBin_AndDeDupesNameCollision()
+    {
+        var keep = new Profile { Name = "Keep" };
+        InitWith(keep);
+
+        // A prior quarantine already holds a "Ghost"; a fresh orphan of the same name must not collide.
+        Directory.CreateDirectory(Path.Combine(QuarantineDir, "Ghost"));
+        var orphan = WorkspaceManager.ProfileDir("Ghost");
+        Directory.CreateDirectory(orphan);
+
+        var moved = WorkspaceManager.Instance.QuarantineOrphanedDataFolders(listIsAuthoritative: true);
+
+        CollectionAssert.AreEqual(new[] { "Ghost" }, moved.ToArray());
+        Assert.IsFalse(Directory.Exists(orphan));
+        Assert.IsTrue(Directory.Exists(Path.Combine(QuarantineDir, "Ghost")),     "Pre-existing bin entry untouched.");
+        Assert.IsTrue(Directory.Exists(Path.Combine(QuarantineDir, "Ghost (2)")), "Collision gets a suffixed slot.");
+    }
 }

@@ -2,6 +2,7 @@ using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
 using Nexaflow.Features.Common;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 
@@ -63,6 +64,70 @@ public sealed class WorkspaceManager
             Profiles.Add(p);
 
         ProfilesRefreshed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>The reserved sub-folder of <c>Contexts\</c> that orphaned workspace data is moved into
+    /// (rather than deleted) so a mis-fire is recoverable by hand. Never itself treated as an orphan.</summary>
+    public const string OrphanQuarantineDir = "_orphaned";
+
+    /// <summary>
+    /// Quarantines data folders under <c>Contexts\</c> that no loaded profile references — leftovers from a
+    /// profile removed out-of-band, or (the reason this exists) folders orphaned when an older build reset
+    /// the profile list on a version bump before forward-migration existed. Nothing rebuilds the list from
+    /// these folders, so they are permanently unreachable dead weight. Instead of deleting, they are moved
+    /// into <see cref="OrphanQuarantineDir"/> so a wrong call is recoverable; the user can clear that bin.
+    ///
+    /// HARD-GATED on <paramref name="listIsAuthoritative"/>: the list is only trustworthy when it actually
+    /// loaded (or migrated) from disk. When it defaulted — missing or unreadable <c>workcontexts.json</c> —
+    /// EVERY folder looks orphaned, and moving them all would be the very data-loss this guards against, so
+    /// it is skipped entirely. Call once at startup, right after <see cref="Initialize"/>. Returns the
+    /// folder names quarantined (for logging / tests).
+    /// </summary>
+    public IReadOnlyList<string> QuarantineOrphanedDataFolders(bool listIsAuthoritative)
+    {
+        if (!listIsAuthoritative) return [];
+
+        var root = Path.Combine(ConfigManager.Instance.BaseDir, "Contexts");
+        if (!Directory.Exists(root)) return [];
+
+        // Folder name == profile Name (see ProfileDir); match case-insensitively like the filesystem.
+        var live       = Profiles.Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var quarantine = Path.Combine(root, OrphanQuarantineDir);
+        var moved      = new List<string>();
+
+        foreach (var dir in Directory.GetDirectories(root))
+        {
+            var name = Path.GetFileName(dir);
+            if (live.Contains(name)) continue;                                                  // a live profile's folder
+            if (string.Equals(name, OrphanQuarantineDir, StringComparison.OrdinalIgnoreCase))
+                continue;                                                                       // the quarantine bin itself
+            try
+            {
+                Directory.CreateDirectory(quarantine);
+                Directory.Move(dir, UniqueQuarantinePath(quarantine, name));
+                moved.Add(name);
+            }
+            catch (Exception ex)
+            {
+                // A locked file leaves the folder in place rather than crashing startup — retried next launch.
+                Debug.WriteLine($"[WorkspaceManager] orphan quarantine skipped '{name}': {ex.Message}");
+            }
+        }
+
+        if (moved.Count > 0)
+            Debug.WriteLine($"[WorkspaceManager] quarantined {moved.Count} orphaned workspace folder(s) into '{OrphanQuarantineDir}': {string.Join(", ", moved)}");
+
+        return moved;
+    }
+
+    /// <summary>A destination inside <paramref name="quarantine"/> for <paramref name="name"/> that doesn't
+    /// collide with one already quarantined under that name (appends " (2)", " (3)", …).</summary>
+    private static string UniqueQuarantinePath(string quarantine, string name)
+    {
+        var dest = Path.Combine(quarantine, name);
+        for (int i = 2; Directory.Exists(dest); i++)
+            dest = Path.Combine(quarantine, $"{name} ({i})");
+        return dest;
     }
 
     /// <summary>
