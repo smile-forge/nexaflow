@@ -1,5 +1,6 @@
 using ICSharpCode.AvalonEdit;
 using ICSharpCode.AvalonEdit.Document;
+using ICSharpCode.AvalonEdit.Editing;
 using ICSharpCode.AvalonEdit.Rendering;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Text.Rendering;
@@ -17,6 +18,8 @@ public partial class TextView : UserControl, IPageView
 {
     private readonly TextViewModel            _vm;
     private readonly SearchHighlightRenderer  _renderer = new();
+    private readonly IReadOnlySectionProvider _windowReadOnly;
+    private ScrollViewer? _sv;
 
     IPageViewModel? IPageView.ViewModel => _vm;
 
@@ -26,19 +29,33 @@ public partial class TextView : UserControl, IPageView
 
         _vm        = vm;
         DataContext = vm;
+        // Editable only while editing (and not mid-save); otherwise nothing is editable. AvalonEdit gates
+        // edits on this provider, so this — not IsReadOnly — is what makes the viewer read-only by default.
+        _windowReadOnly = new WindowReadOnlyProvider(EditableStart, EditableEnd);
 
         // Wire AvalonEdit after init — document is owned by the ViewModel
         Editor.Document = vm.Document;
-        // Give the ViewModel access to the visible text region (rendering-layer API)
-        vm.GetVisibleText = GetVisibleText;
+        // Edits are confined to the resident window (a small file's whole document is the window).
+        Editor.TextArea.ReadOnlySectionProvider = _windowReadOnly;
+        // Give the ViewModel access to the visible text region + first visible line (rendering-layer API)
+        vm.GetVisibleText      = GetVisibleText;
+        vm.GetFirstVisibleLine = GetFirstVisibleLine;
         Editor.TextArea.TextView.BackgroundRenderers.Add(_renderer);
         Editor.ShowLineNumbers = vm.ShowLineNumbers;
         Editor.WordWrap        = vm.WordWrap;
 
-        // Clipboard buttons delegate to AvalonEdit commands
-        CutButton.Click   += (_, _) => ApplicationCommands.Cut.Execute(null,   Editor.TextArea);
-        CopyButton.Click  += (_, _) => ApplicationCommands.Copy.Execute(null,  Editor.TextArea);
-        PasteButton.Click += (_, _) => ApplicationCommands.Paste.Execute(null, Editor.TextArea);
+        // Clipboard buttons bind to AvalonEdit's editing commands (targeting the TextArea, where the
+        // handlers live) so WPF drives their enabled state: Cut/Copy need a selection, Paste needs an
+        // editable target + clipboard content. Disabling whole-line cut/copy makes an empty selection
+        // disable Cut/Copy rather than acting on the current line.
+        Editor.Options.CutCopyWholeLine = false;
+        CutButton.Command   = ApplicationCommands.Cut;   CutButton.CommandTarget   = Editor.TextArea;
+        CopyButton.Command  = ApplicationCommands.Copy;  CopyButton.CommandTarget  = Editor.TextArea;
+        PasteButton.Command = ApplicationCommands.Paste; PasteButton.CommandTarget = Editor.TextArea;
+
+        // User edits flow to the ViewModel, which maps them to the overlay engine.
+        Editor.Document.Changed += (_, e) => _vm.OnUserEdit(e.Offset, e.RemovalLength, e.InsertedText.Text);
+        Editor.PreviewKeyDown   += OnEditorKeyDown;
 
         vm.PropertyChanged += OnVmPropertyChanged;
         Editor.TextArea.Caret.PositionChanged += (_, _) => vm.CurrentCaretOffset = Editor.CaretOffset;
@@ -48,16 +65,22 @@ public partial class TextView : UserControl, IPageView
         {
             await vm.LoadAsync(CancellationToken.None);
 
-            // Keep minimap bottom padding in sync with horizontal scrollbar visibility.
-            // When the horizontal scrollbar is shown it raises the bottom of the vertical
-            // scrollbar's thumb-travel region, so the minimap marks must shift up too.
-            var sv = FindDescendant<ScrollViewer>(Editor);
-            if (sv is not null)
+            _sv = FindDescendant<ScrollViewer>(Editor);
+            if (_sv is not null)
             {
-                SyncMinimapBottomPadding(sv);
-                sv.ScrollChanged += (_, _) => SyncMinimapBottomPadding(sv);
+                SyncMinimapBottomPadding(_sv);
+                _sv.ScrollChanged += (_, _) => SyncMinimapBottomPadding(_sv);
             }
         };
+    }
+
+    private void OnEditorKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.S && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            if (_vm.SaveCommand.CanExecute(null)) _vm.SaveCommand.Execute(null);
+            e.Handled = true;
+        }
     }
 
     private void SyncMinimapBottomPadding(ScrollViewer sv)
@@ -95,6 +118,12 @@ public partial class TextView : UserControl, IPageView
                 break;
         }
     }
+
+    // The editable span the read-only-section provider allows: the resident window while editing (and not
+    // mid-save), otherwise an empty span so the whole document is read-only.
+    private bool Editable => _vm.IsEditing && !_vm.IsBusy;
+    private int EditableStart() => Editable ? _vm.LoadedRealStart : 0;
+    private int EditableEnd()   => Editable ? _vm.LoadedRealEnd   : -1;
 
     private void ScrollToOffset(int offset)
     {
@@ -136,18 +165,25 @@ public partial class TextView : UserControl, IPageView
     {
         if (!_vm.IsLargeFile) return;
 
-        var sv = FindDescendant<ScrollViewer>(Editor);
+        var sv = _sv ??= FindDescendant<ScrollViewer>(Editor);
         if (sv is null) return;
 
         var lineHeight = Editor.TextArea.TextView.DefaultLineHeight;
         if (lineHeight <= 0) return;
 
-        // 1-based line number at the bottom of the current viewport
+        // 0-based file line numbers at the top and bottom of the current viewport (Document line == file line).
+        var topLine    = (int)(sv.VerticalOffset / lineHeight);
         var bottomLine = (int)Math.Ceiling((sv.VerticalOffset + sv.ViewportHeight) / lineHeight);
 
-        // Load chunks until real content covers the viewport (plus look-ahead buffer)
-        if (bottomLine >= _vm.LoadedLineCount)
-            await _vm.EnsureContentLoadedUpToLineAsync(bottomLine);
+        await _vm.EnsureWindowAsync(topLine, bottomLine);
+    }
+
+    private int GetFirstVisibleLine()
+    {
+        var sv = _sv ??= FindDescendant<ScrollViewer>(Editor);
+        var lineHeight = Editor.TextArea.TextView.DefaultLineHeight;
+        if (sv is null || lineHeight <= 0) return 1;
+        return (int)(sv.VerticalOffset / lineHeight) + 1; // 1-based
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -170,5 +206,4 @@ public partial class TextView : UserControl, IPageView
         if (startOffset >= endOffset) return string.Empty;
         return Editor.Document.GetText(startOffset, endOffset - startOffset);
     }
-
 }
