@@ -32,18 +32,11 @@ public sealed class ClaudeLlmProvider : ILlmProvider
         CancellationToken         ct = default)
     {
         // Claude's API separates the system prompt from the messages array
-        string? systemPrompt = null;
-        var start = 0;
-        if (messages.Count > 0 && messages[0].Role == LlmRole.System)
-        {
-            systemPrompt = messages[0].Text;
-            start        = 1;
-        }
+        var (systemPrompt, turns) = PromptComposer.SplitSystemPrompt(messages);
 
         var msgParams = new List<MessageParam>();
-        for (var i = start; i < messages.Count; i++)
+        foreach (var msg in turns)
         {
-            var msg     = messages[i];
             var content = msg.Role == LlmRole.User
                 ? BuildUserContent(msg.Text, msg.Attachments)
                 : new MessageParamContent(msg.Text);
@@ -135,12 +128,8 @@ public sealed class ClaudeLlmProvider : ILlmProvider
     /// </summary>
     private static MessageParamContent BuildUserContent(string prompt, IReadOnlyList<LlmAttachment>? attachments)
     {
-        if (attachments is null || attachments.Count == 0)
-            return new MessageParamContent(prompt);
-
-        var images = attachments.Where(a => a.IsImage).ToList();
-        var files  = attachments.Where(a => !a.IsImage).ToList();
-        var text   = files.Count == 0 ? prompt : AppendFileList(prompt, files);
+        var (images, files) = PromptComposer.PartitionAttachments(attachments);
+        var text = PromptComposer.AppendFileList(prompt, files);
 
         if (images.Count == 0)
             return new MessageParamContent(text);
@@ -157,17 +146,6 @@ public sealed class ClaudeLlmProvider : ILlmProvider
             });
 
         return blocks;   // implicit List<ContentBlockParam> -> MessageParamContent
-    }
-
-    private static string AppendFileList(string prompt, IReadOnlyList<LlmAttachment> files)
-    {
-        var sb = new StringBuilder(prompt);
-        sb.AppendLine();
-        sb.AppendLine();
-        sb.AppendLine("Attached files:");
-        foreach (var a in files)
-            sb.AppendLine($"  {a.FilePath}");
-        return sb.ToString();
     }
 
     private static MediaType ToMediaType(string mime) => mime switch

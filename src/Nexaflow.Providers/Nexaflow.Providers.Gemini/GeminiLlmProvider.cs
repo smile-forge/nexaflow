@@ -31,21 +31,14 @@ public sealed class GeminiLlmProvider : ILlmProvider
         CancellationToken         ct = default)
     {
         // Gemini separates system instructions from the conversation turns
-        Content? systemInstruction = null;
-        var start = 0;
-        if (messages.Count > 0 && messages[0].Role == LlmRole.System)
-        {
-            systemInstruction = new Content
-            {
-                Parts = [new Part { Text = messages[0].Text }]
-            };
-            start = 1;
-        }
+        var (systemText, turns) = PromptComposer.SplitSystemPrompt(messages);
+        Content? systemInstruction = systemText is null
+            ? null
+            : new Content { Parts = [new Part { Text = systemText }] };
 
         var contents = new List<Content>();
-        for (var i = start; i < messages.Count; i++)
+        foreach (var msg in turns)
         {
-            var msg = messages[i];
             List<Part> parts = msg.Role == LlmRole.User
                 ? BuildUserParts(msg.Text, msg.Attachments)
                 : [new Part { Text = msg.Text }];
@@ -130,12 +123,8 @@ public sealed class GeminiLlmProvider : ILlmProvider
     /// </summary>
     private static List<Part> BuildUserParts(string prompt, IReadOnlyList<LlmAttachment>? attachments)
     {
-        if (attachments is null || attachments.Count == 0)
-            return [new Part { Text = prompt }];
-
-        var images = attachments.Where(a => a.IsImage).ToList();
-        var files  = attachments.Where(a => !a.IsImage).ToList();
-        var text   = files.Count == 0 ? prompt : AppendFileList(prompt, files);
+        var (images, files) = PromptComposer.PartitionAttachments(attachments);
+        var text = PromptComposer.AppendFileList(prompt, files);
 
         var parts = new List<Part> { new Part { Text = text } };
         foreach (var img in images)
@@ -145,16 +134,5 @@ public sealed class GeminiLlmProvider : ILlmProvider
             });
 
         return parts;
-    }
-
-    private static string AppendFileList(string prompt, IReadOnlyList<LlmAttachment> files)
-    {
-        var sb = new StringBuilder(prompt);
-        sb.AppendLine();
-        sb.AppendLine();
-        sb.AppendLine("Attached files:");
-        foreach (var a in files)
-            sb.AppendLine($"  {a.FilePath}");
-        return sb.ToString();
     }
 }

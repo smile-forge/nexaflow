@@ -49,9 +49,11 @@
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.SystemInfo\Nexaflow.Features.SystemInfo.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Tabular\Nexaflow.Features.Tabular.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Text\Nexaflow.Features.Text.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Video\Nexaflow.Features.Video.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Web\Nexaflow.Features.Web.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.WindowsApps\Nexaflow.Features.WindowsApps.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.WindowsFileSystem\Nexaflow.Features.WindowsFileSystem.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.WindowsRegistry\Nexaflow.Features.WindowsRegistry.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.WindowsSearch\Nexaflow.Features.WindowsSearch.csproj" />
   </ItemGroup>
 

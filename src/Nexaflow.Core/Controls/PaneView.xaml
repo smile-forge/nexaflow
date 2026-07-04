@@ -26,6 +26,7 @@
 
                 <ctrl:BreadcrumbBar x:Name="BreadcrumbBarControl"
                                     Grid.Column="0"
+                                    AutomationProperties.AutomationId="Chrome_BreadcrumbBar"
                                     Segments="{Binding Pane.ActivePage.Breadcrumbs, ElementName=PaneRoot}"
                                     BorderBrush="{DynamicResource TabStrip.Border}"
                                     BorderThickness="0,0,1,0"/>

@@ -34,6 +34,13 @@ public abstract class UITestBase
 
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
 
+    /// <summary>
+    /// Override to a page kind (e.g. "SystemInfo") to have the app open that tab on launch via
+    /// <c>--openTab</c> — a ribbon-independent, deterministic way to reach any view, including those
+    /// that aren't on the default ribbon. Null (default) launches with just the default tabs.
+    /// </summary>
+    protected virtual string? LaunchTabKind => null;
+
     [TestInitialize]
     public void UISetup()
     {
@@ -44,6 +51,11 @@ public abstract class UITestBase
 
         var psi = new ProcessStartInfo(FindAppExe()) { UseShellExecute = false };
         psi.ArgumentList.Add("--skipSetup");                           // bypass the first-run wizard
+        if (LaunchTabKind is { Length: > 0 } kind)
+        {
+            psi.ArgumentList.Add("--openTab");
+            psi.ArgumentList.Add(kind);
+        }
         psi.EnvironmentVariables["NEXAFLOW_CONFIG_DIR"] = _configDir;   // isolated, fresh
         App = Application.Launch(psi);
 

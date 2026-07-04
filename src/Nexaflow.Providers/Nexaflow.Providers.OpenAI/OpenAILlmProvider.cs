@@ -108,12 +108,8 @@ public sealed class OpenAILlmProvider : ILlmProvider
     /// </summary>
     private static UserChatMessage BuildUserMessage(string prompt, IReadOnlyList<LlmAttachment>? attachments)
     {
-        if (attachments is null || attachments.Count == 0)
-            return new UserChatMessage(prompt);
-
-        var images = attachments.Where(a => a.IsImage).ToList();
-        var files  = attachments.Where(a => !a.IsImage).ToList();
-        var text   = files.Count == 0 ? prompt : AppendFileList(prompt, files);
+        var (images, files) = PromptComposer.PartitionAttachments(attachments);
+        var text = PromptComposer.AppendFileList(prompt, files);
 
         if (images.Count == 0)
             return new UserChatMessage(text);
@@ -124,16 +120,5 @@ public sealed class OpenAILlmProvider : ILlmProvider
                 BinaryData.FromBytes(img.ReadBytes()), img.ResolvedMimeType));
 
         return new UserChatMessage(parts);
-    }
-
-    private static string AppendFileList(string prompt, IReadOnlyList<LlmAttachment> files)
-    {
-        var sb = new StringBuilder(prompt);
-        sb.AppendLine();
-        sb.AppendLine();
-        sb.AppendLine("Attached files:");
-        foreach (var a in files)
-            sb.AppendLine($"  {a.FilePath}");
-        return sb.ToString();
     }
 }
