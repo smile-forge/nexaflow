@@ -37,7 +37,23 @@ internal sealed class VlcVideoSink : IDisposable
     private int _width, _height, _stride, _size;
     private bool _frameReady;
     private bool _disposed;
+    private bool _hasOutput;
     private WriteableBitmap? _bitmap;
+
+    // Signalled when libvlc has torn down the video output (Cleanup ran) — the point after which no decode
+    // thread touches the smem buffers again. Runs continuations off the signalling (native) thread.
+    private readonly TaskCompletionSource _outputStopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>True once libvlc has allocated output buffers (a video output exists) and not yet torn it
+    /// down. The owner uses this to decide whether teardown must wait for <see cref="OutputStopped"/>.</summary>
+    public bool HasOutput { get { lock (_sync) return _hasOutput; } }
+
+    /// <summary>Completes when libvlc's video output has been destroyed (its <see cref="Cleanup"/> callback
+    /// ran) — i.e. no decode thread will write into the smem buffers again — or on <see cref="Dispose"/> when
+    /// no output ever existed. The owner MUST await this before releasing the player and this sink; libvlc 4's
+    /// <c>Stop()</c> is asynchronous, so freeing the buffers/delegates without this barrier races the decode
+    /// thread and corrupts the heap.</summary>
+    public Task OutputStopped => _outputStopped.Task;
 
     public VlcVideoSink(VlcMediaPlayer mp, Func<Action, Task> runOnUi, Action<WriteableBitmap> onBitmapReady)
     {
@@ -76,6 +92,7 @@ internal sealed class VlcVideoSink : IDisposable
             _bufWrite  = Marshal.AllocHGlobal(_size);
             _bufRead   = Marshal.AllocHGlobal(_size);
             _frameReady = false;
+            _hasOutput  = true;
         }
 
         pitches = (uint)stride;
@@ -95,7 +112,8 @@ internal sealed class VlcVideoSink : IDisposable
 
     private void Cleanup(ref IntPtr opaque)
     {
-        lock (_sync) { FreeBuffers(); }
+        lock (_sync) { FreeBuffers(); _hasOutput = false; }
+        _outputStopped.TrySetResult();   // vout gone → owner may now safely release the player and this sink
     }
 
     private IntPtr Lock(IntPtr opaque, IntPtr planes)
@@ -167,8 +185,10 @@ internal sealed class VlcVideoSink : IDisposable
         lock (_sync)
         {
             _disposed = true;
-            FreeBuffers();
+            FreeBuffers();   // safe: the owner disposes this only after OutputStopped, so Cleanup already freed
             _bitmap = null;
+            _hasOutput = false;
         }
+        _outputStopped.TrySetResult();   // unblock a waiter even if no output was ever created
     }
 }
