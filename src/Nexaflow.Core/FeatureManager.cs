@@ -1,214 +1,175 @@
 using Nexaflow.Core.Models;
+using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Windows.Threading;
 
 namespace Nexaflow.Core;
 
 /// <summary>
-/// Singleton registry of feature-level tab factories, configs, query handlers,
-/// keyboard handlers, drop targets and ribbon-pin handlers. Call
-/// <see cref="RegisterFeatures"/> at startup to load every
-/// <c>Nexaflow.Features.*.dll</c> and record the relevant types without
-/// instantiation. Call <see cref="Instantiate"/> or the typed <c>Get*</c>
-/// helpers at runtime with a <see cref="Workspace"/> so each instance
-/// receives the correct scoped <see cref="IShellServices"/> and
-/// <see cref="IAIService"/>.
+/// Singleton registry of feature-level tab factories, configs, query handlers, keyboard handlers,
+/// drop targets and ribbon-pin handlers. Discovery is delegated to <see cref="FeatureCatalog"/>: call
+/// <see cref="RegisterFeatures"/> at startup to build the (cached) discovery index without eagerly loading
+/// every feature assembly. Feature assemblies load lazily — when <see cref="CreateTab"/> / the typed
+/// <c>Get*</c> helpers resolve a type, or during the post-paint background warm-up. Each assembly's first
+/// load runs <see cref="OnAssemblyActivated"/>, which registers that assembly's global configs / archive
+/// handlers / theme contributions (the work that used to happen eagerly at startup).
 ///
-/// File-system contracts (<c>IFileAction</c>, <c>IFolderAction</c>,
-/// <c>IFileCreateAction</c>, <c>IFolderViewlet</c>) are intentionally NOT
-/// managed here — they live in
-/// <see cref="Services.FileSystemFeatureRegistry"/>.
+/// File-system contracts (<c>IFileAction</c>, <c>IFolderAction</c>, <c>IFileCreateAction</c>,
+/// <c>IFolderViewlet</c>) are still discovered via <see cref="IShellServices.DiscoverImplementations{T}"/>
+/// (now catalog-backed) by <see cref="Services.FileSystemFeatureRegistry"/>, not here.
 /// </summary>
 public sealed class FeatureManager
 {
     public static FeatureManager Instance { get; } = new();
 
-    // ── Type registries ───────────────────────────────────────────────────
-
-    private readonly Dictionary<string, Type> _registrationTypes        = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<Type, List<Type>> _configToRegTypes     = new();
-    // Per-assembly GLOBAL config instances — populated during RegisterFeatures, never changed after.
-    private readonly Dictionary<Type, IFeatureConfig> _configs          = new();
-    // Config TYPES marked [WorkspaceScopedConfig]: never registered globally; one instance is built
-    // per profile (see Profile.WorkspaceConfigs) and injected from the owning workspace's profile.
-    private readonly List<Type> _workspaceScopedConfigTypes             = [];
+    // Per-assembly GLOBAL config instances — populated as assemblies activate (warm-up thread or UI thread).
+    private readonly ConcurrentDictionary<Type, IFeatureConfig> _configs = new();
 
     /// <summary>
-    /// Read-only view of the per-assembly <see cref="IFeatureConfig"/> instances
-    /// discovered during <see cref="RegisterFeatures"/>. Exposed for feature-scoped
-    /// registries (e.g. <see cref="Services.FileSystemFeatureRegistry"/>) that need
-    /// to resolve config types as constructor args without going through the shell.
+    /// Read-only view of the per-assembly global <see cref="IFeatureConfig"/> instances registered so far.
+    /// Exposed for feature-scoped registries (e.g. <see cref="Services.FileSystemFeatureRegistry"/>) that
+    /// need to resolve config types as constructor args without going through the shell.
     /// </summary>
     public IReadOnlyDictionary<Type, IFeatureConfig> Configs => _configs;
 
     /// <summary>
-    /// Config types marked <see cref="WorkspaceScopedConfigAttribute"/>. A <see cref="Profile"/>
-    /// instantiates one of each and loads it from its own folder; the per-workspace Configure panel
-    /// edits them. See <see cref="Models.Profile.WorkspaceConfigs"/>.
+    /// Workspace-scoped config types (marked <see cref="WorkspaceScopedConfigAttribute"/>), resolved from
+    /// the catalog. Accessing this loads every owning assembly, so it's only used by the Manage-AI /
+    /// Configure panels (which need every scoped config). Startup paths use the lazy
+    /// <see cref="Models.Profile.FindWorkspaceConfig"/> instead.
     /// </summary>
-    public IReadOnlyList<Type> WorkspaceScopedConfigTypes => _workspaceScopedConfigTypes;
+    public IReadOnlyList<Type> WorkspaceScopedConfigTypes => FeatureCatalog.Instance.ResolveWorkspaceScopedConfigTypes();
 
-    private readonly List<Type> _keyboardHandlerTypes   = [];
-    private readonly List<Type> _dropTargetTypes        = [];
-    private readonly List<Type> _queryHandlerTypes      = [];
-    private readonly List<Type> _ribbonPinHandlerTypes  = [];
-    private readonly List<Type> _tabPinHandlerTypes      = [];
-    private readonly List<Type> _ribbonItemExecutorTypes = [];
-    private readonly List<Type> _chatKeyHandlerTypes     = [];
-    private readonly List<Type> _chatDropHandlerTypes    = [];
-    private readonly List<Type> _chatInputPreviewTypes   = [];
+    /// <summary>Scoped config types whose assembly is already loaded — never forces a new load.</summary>
+    public IReadOnlyList<Type> LoadedWorkspaceScopedConfigTypes => FeatureCatalog.Instance.ResolveLoadedWorkspaceScopedConfigTypes();
 
-    // Theme resource dictionaries contributed by features (see IThemeContribution) — pack URIs only,
-    // gathered during RegisterFeatures so ThemeManager can merge them without Core referencing any feature.
-    private readonly List<Uri> _themeContributionUris = [];
+    /// <summary>True if <paramref name="configType"/> is a <c>[WorkspaceScopedConfig]</c> — index-only, no load.</summary>
+    public bool IsWorkspaceScopedConfig(Type configType)
+        => configType.FullName is { } n && FeatureCatalog.Instance.IsWorkspaceScopedConfig(n);
 
-    // ── Read-only type lists (for callers that need the raw types) ────────
+    // Theme resource dictionaries contributed by features, accumulated as assemblies activate.
+    private readonly HashSet<Uri> _themeContributionUris = [];
+    private readonly object _themeLock = new();
+    private Dispatcher? _ui;
+    private volatile bool _themeRefreshQueued;
+    private int _themeGen;        // bumped when new contribution URIs are added
+    private int _themeApplied;    // last generation merged into Application.Resources
 
-    public IReadOnlyList<Type> KeyboardHandlerTypes  => _keyboardHandlerTypes;
-    public IReadOnlyList<Type> DropTargetTypes       => _dropTargetTypes;
-
-    /// <summary>
-    /// Pack URIs of every feature-contributed theme <c>ResourceDictionary</c>, discovered by
-    /// reflection during <see cref="RegisterFeatures"/>. Passed to <c>ThemeManager.Apply</c> so the
-    /// dictionaries merge below the active theme (fallbacks a theme may override). Usually empty.
-    /// </summary>
-    public IReadOnlyList<Uri> ThemeContributionUris => _themeContributionUris;
+    /// <summary>Pack URIs of every feature-contributed theme <c>ResourceDictionary</c> activated so far.
+    /// Re-applied below the active theme on a theme switch (see ShellServices).</summary>
+    public IReadOnlyList<Uri> ThemeContributionUris { get { lock (_themeLock) return _themeContributionUris.ToList(); } }
 
     // ── Per-(Type, Workspace) instance cache ────────────────────────────
-
     private readonly Dictionary<Workspace, Dictionary<Type, object>> _cache = new();
     private readonly object _cacheLock = new();
 
     // ── Registration ──────────────────────────────────────────────────────
 
+    /// <summary>Builds the (cached) discovery index. No feature assemblies are loaded on the cache-hit path.</summary>
     public void RegisterFeatures()
     {
-        string exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
-        var featureDlls = Directory.GetFiles(exeDir, "Nexaflow.Features.*.dll");
-
-        foreach (var dll in featureDlls)
-        {
-            var asmName = AssemblyName.GetAssemblyName(dll);
-            if (!AppDomain.CurrentDomain.GetAssemblies().Any(a => a.GetName().Name == asmName.Name))
-                Assembly.LoadFrom(dll);
-        }
-
-        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            if (asm.GetName().Name!.StartsWith("Nexaflow.Features."))
-                Register(asm);
-        }
-
-        // Core itself contains action / handler / viewlet / page-registration implementations.
-        Register(typeof(FeatureManager).Assembly);
+        _ui = Dispatcher.CurrentDispatcher;   // captured on the UI thread for theme marshaling
+        FeatureCatalog.Instance.Initialize(OnAssemblyActivated);
     }
 
-    public void Register(Assembly asm)
-    {
-        var types = asm.GetTypes();
-
-        // 1. Discover IFeatureConfig types. Global ones are registered with ConfigManager and shared
-        //    across all profiles; [WorkspaceScopedConfig] ones are NOT registered globally — only their
-        //    type is recorded, so each Profile builds its own instance under Contexts\<name>\.
-        var localConfigs = new Dictionary<Type, IFeatureConfig>();
-        foreach (var t in types.Where(t => !t.IsAbstract && !t.IsInterface
-                                           && typeof(IFeatureConfig).IsAssignableFrom(t)))
-        {
-            if (t.GetCustomAttribute<WorkspaceScopedConfigAttribute>() is not null)
-            {
-                if (!_workspaceScopedConfigTypes.Contains(t))
-                    _workspaceScopedConfigTypes.Add(t);
-                continue;
-            }
-
-            var cfg = (IFeatureConfig)Activator.CreateInstance(t)!;
-            // Use the canonical instance ConfigManager holds — startup (App.xaml.cs) pre-registers
-            // some global configs (ExternalAppsConfig/FileMapConfig/TemplatedCreateConfig) to wire
-            // their runtime registries; Register then returns that original, not our throwaway, so
-            // feature ctors and the Options panel mutate/read the same object.
-            var canonical = (IFeatureConfig)ConfigManager.Instance.Register(cfg, cfg.ConfigName);
-            localConfigs[t]  = canonical;
-            _configs[t]      = canonical;
-        }
-
-        // 2. Discover IPageRegistration types and build config → reg-type mapping.
-        var registrationTypes = types
-            .Where(t => !t.IsAbstract && !t.IsInterface
-                        && typeof(IPageRegistration).IsAssignableFrom(t))
-            .ToList();
-
-        foreach (var regType in registrationTypes)
-        {
-            // Read the static PageKind via reflection — no instantiation needed.
-            var pageKind = regType
-                .GetProperty("StaticPageKind",
-                    BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
-                ?.GetValue(null) as string;
-            if (pageKind is null) continue;
-
-            _registrationTypes[pageKind] = regType;
-
-            // Build config → registration-type mapping by inspecting ctor parameters.
-            var ctor = BestConstructor(regType);
-            foreach (var p in ctor.GetParameters())
-            {
-                if (typeof(IFeatureConfig).IsAssignableFrom(p.ParameterType))
-                {
-                    if (!_configToRegTypes.TryGetValue(p.ParameterType, out var list))
-                    {
-                        list = [];
-                        _configToRegTypes[p.ParameterType] = list;
-                    }
-                    list.Add(regType);
-                }
-            }
-        }
-
-        RegisterTypes(asm, localConfigs);
-    }
+    private static readonly string ArchiveHandlerName = typeof(IArchiveHandler).FullName!;
+    private static readonly string StreamCodecName    = typeof(IStreamCodec).FullName!;
 
     /// <summary>
-    /// Scans <paramref name="asm"/> for all discoverable non-registration types and
-    /// appends them to the appropriate type lists. No instantiation occurs here.
+    /// Side-effects of loading a feature assembly, performed once on its first load: register its global
+    /// configs with <see cref="ConfigManager"/>, register its archive handlers / stream codecs into the VFS,
+    /// and fold its theme contributions into the active theme. Runs on whatever thread triggered the load
+    /// (the background warm-up or the UI thread); theme work is marshalled to the UI thread.
     /// </summary>
-    private void RegisterTypes(Assembly asm, Dictionary<Type, IFeatureConfig> localConfigs)
+    private void OnAssemblyActivated(Assembly asm, FeatureCatalog.AssemblyEntry entry)
     {
-        foreach (var t in asm.GetTypes().Where(t => !t.IsAbstract && !t.IsInterface))
-        {
-            if (typeof(IKeyboardHandler).IsAssignableFrom(t)) _keyboardHandlerTypes.Add(t);
-            if (typeof(IDropTarget).IsAssignableFrom(t))      _dropTargetTypes.Add(t);
-            if (typeof(IQueryHandler).IsAssignableFrom(t))    _queryHandlerTypes.Add(t);
-            if (typeof(IRibbonPinHandler).IsAssignableFrom(t))  _ribbonPinHandlerTypes.Add(t);
-            if (typeof(ITabPinHandler).IsAssignableFrom(t))      _tabPinHandlerTypes.Add(t);
-            if (typeof(IRibbonItemExecutor).IsAssignableFrom(t)) _ribbonItemExecutorTypes.Add(t);
-            if (typeof(IChatKeyHandler).IsAssignableFrom(t))     _chatKeyHandlerTypes.Add(t);
-            if (typeof(IChatDropHandler).IsAssignableFrom(t))    _chatDropHandlerTypes.Add(t);
-            if (typeof(IChatInputPreview).IsAssignableFrom(t))   _chatInputPreviewTypes.Add(t);
+        bool themeChanged = false;
 
-            // Theme contributions are read once, up front (no Workspace needed) — a feature opts in
-            // by advertising pack URIs of dictionaries to merge below the active theme.
-            if (typeof(IThemeContribution).IsAssignableFrom(t))
+        foreach (var te in entry.Types)
+        {
+            // Global feature configs (scoped ones are built per-profile by Profile, not here).
+            if (te.ConfigName is not null && !te.Scoped && asm.GetType(te.Name) is { } configType
+                && !_configs.ContainsKey(configType))
             {
                 try
                 {
-                    if (Activator.CreateInstance(t) is IThemeContribution contribution)
-                        _themeContributionUris.AddRange(contribution.ResourceDictionaryUris);
+                    var cfg = (IFeatureConfig)Activator.CreateInstance(configType)!;
+                    // ConfigManager.Register is first-wins and returns the canonical instance — startup may
+                    // have pre-registered some (e.g. FileMapConfig); use the canonical so all consumers share it.
+                    _configs[configType] = (IFeatureConfig)ConfigManager.Instance.Register(cfg, cfg.ConfigName);
                 }
                 catch { }
             }
+
+            // Archive backends ship in feature assemblies — register into the process-wide VFS so files
+            // inside archives browse/open like a folder.
+            if (te.Contracts.Contains(ArchiveHandlerName) && asm.GetType(te.Name) is { } at)
+                try { if (Activator.CreateInstance(at) is IArchiveHandler h) VirtualFileSystem.Instance.RegisterHandler(h); } catch { }
+            if (te.Contracts.Contains(StreamCodecName) && asm.GetType(te.Name) is { } ct)
+                try { if (Activator.CreateInstance(ct) is IStreamCodec c) VirtualFileSystem.Instance.RegisterCodec(c); } catch { }
+
+            // Theme contributions (pack URIs captured during the scan).
+            if (te.ThemeUris is { Count: > 0 } uris)
+                lock (_themeLock)
+                    foreach (var u in uris)
+                        if (Uri.TryCreate(u, UriKind.Absolute, out var uri) && _themeContributionUris.Add(uri))
+                            themeChanged = true;
         }
+
+        if (themeChanged)
+        {
+            lock (_themeLock) _themeGen++;
+            RequestThemeRefresh();
+        }
+    }
+
+    /// <summary>Synchronously folds any pending feature theme contributions into the active theme — called
+    /// from <see cref="CreateTab"/> (UI thread) so a feature whose tab is being opened has its theme
+    /// resources merged before its view loads, even if a background warm-up only just activated it and its
+    /// queued (async) theme refresh hasn't run yet.</summary>
+    private void EnsureThemeApplied()
+    {
+        if (_ui?.CheckAccess() == true) ApplyThemeNow();
+    }
+
+    // Re-merges the accumulated feature theme contributions below the active theme. On the UI thread this
+    // runs inline (so the first page's theme is ready before it renders); off-thread (warm-up) it is posted
+    // asynchronously and coalesced — never a synchronous Invoke, which would deadlock against an on-demand
+    // load holding the catalog lock on the UI thread.
+    private void RequestThemeRefresh()
+    {
+        var ui = _ui;
+        if (ui is null) return;
+        if (ui.CheckAccess()) { ApplyThemeNow(); return; }
+        if (_themeRefreshQueued) return;
+        _themeRefreshQueued = true;
+        ui.BeginInvoke(DispatcherPriority.Background, () => { _themeRefreshQueued = false; ApplyThemeNow(); });
+    }
+
+    private void ApplyThemeNow()
+    {
+        Uri[] uris; int gen;
+        lock (_themeLock)
+        {
+            gen = _themeGen;
+            if (gen == _themeApplied) return;   // nothing new since the last merge
+            uris = _themeContributionUris.ToArray();
+        }
+        ThemeManager.Apply(ThemeManager.Current, uris);
+        lock (_themeLock) _themeApplied = gen;
     }
 
     // ── Instantiation ─────────────────────────────────────────────────────
 
     /// <summary>
-    /// Creates (or returns a cached) instance of <paramref name="targetType"/>
-    /// with constructor args resolved from <paramref name="workspace"/> and
-    /// the per-assembly config instances discovered during <see cref="RegisterFeatures"/>.
-    /// Returns null when no satisfiable constructor is found.
+    /// Creates (or returns a cached) instance of <paramref name="targetType"/> with constructor args
+    /// resolved from <paramref name="workspace"/> and the registered global config instances. Returns null
+    /// when no satisfiable constructor is found.
     /// </summary>
     public object? Instantiate(Type targetType, Workspace workspace)
     {
@@ -231,9 +192,9 @@ public sealed class FeatureManager
     }
 
     /// <summary>
-    /// Drops all cached feature/handler instances built for <paramref name="workspace"/>. Called
-    /// when a Workspace is reconfigured (its AIService/providers were replaced) or disposed, so the
-    /// next request rebuilds handlers against the live services. See WorkspaceManager.
+    /// Drops all cached feature/handler instances built for <paramref name="workspace"/>. Called when a
+    /// Workspace is reconfigured (its AIService/providers were replaced) or disposed, so the next request
+    /// rebuilds handlers against the live services. See WorkspaceManager.
     /// </summary>
     public void EvictWorkspace(Workspace workspace)
     {
@@ -279,18 +240,21 @@ public sealed class FeatureManager
             {
                 args[i] = BuildScopedConfigView(workspace);
             }
-            else if (workspace?.Profile.FindWorkspaceConfig(pt) is { } scoped)
+            else if (typeof(IFeatureConfig).IsAssignableFrom(pt))
             {
-                args[i] = scoped;
-            }
-            else if (_workspaceScopedConfigTypes.Contains(pt))
-            {
-                // Scoped type that this (null/window-less) workspace can't supply — unsatisfiable.
-                return null;
-            }
-            else if (_configs.TryGetValue(pt, out var cfg))
-            {
-                args[i] = cfg;
+                // Scoped config: profile-specific instance (lazily materialized).
+                if (workspace?.Profile.FindWorkspaceConfig(pt) is { } scoped)
+                    args[i] = scoped;
+                else if (IsWorkspaceScopedConfig(pt))
+                    return null;   // scoped, but this (null/window-less) workspace can't supply it
+                else
+                {
+                    // Global config — ensure its owning assembly has been activated, then resolve.
+                    if (!_configs.ContainsKey(pt) && pt.FullName is { } fn)
+                        FeatureCatalog.Instance.ActivateAssemblyOwning(fn);
+                    if (_configs.TryGetValue(pt, out var cfg)) args[i] = cfg;
+                    else return null;
+                }
             }
             else if (parms[i].IsOptional)
             {
@@ -307,22 +271,22 @@ public sealed class FeatureManager
     // ── Typed Get* helpers ────────────────────────────────────────────────
 
     public IReadOnlyList<IQueryHandler> GetQueryHandlers(Workspace ctx)
-        => Instantiate<IQueryHandler>(_queryHandlerTypes, ctx);
+        => Instantiate<IQueryHandler>(FeatureCatalog.Instance.TypesImplementing<IQueryHandler>(), ctx);
 
     public IReadOnlyList<IRibbonPinHandler> GetRibbonPinHandlers(Workspace ctx)
-        => Instantiate<IRibbonPinHandler>(_ribbonPinHandlerTypes, ctx);
+        => Instantiate<IRibbonPinHandler>(FeatureCatalog.Instance.TypesImplementing<IRibbonPinHandler>(), ctx);
 
     /// <summary>Chat-bar key handlers (Up/Down history, Tab completion) for this workspace.</summary>
     public IReadOnlyList<IChatKeyHandler> GetChatKeyHandlers(Workspace ctx)
-        => Instantiate<IChatKeyHandler>(_chatKeyHandlerTypes, ctx);
+        => Instantiate<IChatKeyHandler>(FeatureCatalog.Instance.TypesImplementing<IChatKeyHandler>(), ctx);
 
     /// <summary>Chat-bar drop handlers (drag a file → insert its path) for this workspace.</summary>
     public IReadOnlyList<IChatDropHandler> GetChatDropHandlers(Workspace ctx)
-        => Instantiate<IChatDropHandler>(_chatDropHandlerTypes, ctx);
+        => Instantiate<IChatDropHandler>(FeatureCatalog.Instance.TypesImplementing<IChatDropHandler>(), ctx);
 
     /// <summary>Chat-bar input-preview handlers (live echo of what you're typing) for this workspace.</summary>
     public IReadOnlyList<IChatInputPreview> GetChatInputPreviews(Workspace ctx)
-        => Instantiate<IChatInputPreview>(_chatInputPreviewTypes, ctx);
+        => Instantiate<IChatInputPreview>(FeatureCatalog.Instance.TypesImplementing<IChatInputPreview>(), ctx);
 
     /// <summary>The foreign-drop handler that accepts <paramref name="format"/> (a WPF drag-data key), or null.</summary>
     public IRibbonPinHandler? GetRibbonPinHandlerForFormat(string format, Workspace ctx)
@@ -330,26 +294,25 @@ public sealed class FeatureManager
 
     /// <summary>The tab-pin handler that snapshots tabs of <paramref name="tabPageKind"/>, or null.</summary>
     public ITabPinHandler? GetTabPinHandler(string tabPageKind, Workspace ctx)
-        => Instantiate<ITabPinHandler>(_tabPinHandlerTypes, ctx)
+        => Instantiate<ITabPinHandler>(FeatureCatalog.Instance.TypesImplementing<ITabPinHandler>(), ctx)
             .FirstOrDefault(h => h.TabPageKind == tabPageKind);
 
     /// <summary>The click-time executor for ribbon buttons of <paramref name="pageKind"/>, or null
     /// (in which case the button simply opens that page kind as a tab).</summary>
     public IRibbonItemExecutor? GetRibbonItemExecutor(string pageKind, Workspace ctx)
-        => Instantiate<IRibbonItemExecutor>(_ribbonItemExecutorTypes, ctx)
+        => Instantiate<IRibbonItemExecutor>(FeatureCatalog.Instance.TypesImplementing<IRibbonItemExecutor>(), ctx)
             .FirstOrDefault(e => e.PageKind == pageKind);
 
     /// <summary>
-    /// Lightweight <see cref="Page"/> definitions for the page kinds that can be created without
-    /// specific context (<see cref="IPageRegistration.CanBeContextItem"/>) in this workspace — offered
-    /// in the AI conversation's "add context" menu. Content is not realized (the menu reads Title/Icon
-    /// from the definition); the chosen page is realized via <c>GetOrCreateContent</c> when pinned.
+    /// Lightweight <see cref="Page"/> definitions for the page kinds that can be created without specific
+    /// context (<see cref="IPageRegistration.CanBeContextItem"/>) in this workspace — offered in the AI
+    /// conversation's "add context" menu. Resolving each registration loads its feature assembly.
     /// </summary>
     public IReadOnlyList<Page> GetContextItemPages(Workspace ctx)
     {
         var pages = new List<Page>();
-        foreach (var (pageKind, regType) in _registrationTypes)
-            if (Instantiate(regType, ctx) is IPageRegistration { CanBeContextItem: true }
+        foreach (var pageKind in FeatureCatalog.Instance.PageKinds())
+            if (ResolveRegistration(pageKind, ctx) is { CanBeContextItem: true }
                 && CreateTab(pageKind, ctx) is { } page)
                 pages.Add(page);
         return pages;
@@ -358,17 +321,14 @@ public sealed class FeatureManager
     /// <summary>
     /// Page definitions offered in the ribbon editor's "add page" dropdown: every
     /// <see cref="IPageRegistration.CanBeContextItem"/> registration expanded via
-    /// <see cref="IPageRegistration.CreatePageDefinitions"/> — usually its single page, but several for
-    /// registrations that expose variants (e.g. the file browser's "This PC" + named Windows folders).
-    /// Cheap stubs — content is realized later when the ribbon button is clicked.
+    /// <see cref="IPageRegistration.CreatePageDefinitions"/>. Cheap stubs — content is realized later.
     /// </summary>
     public IReadOnlyList<Page> GetRibbonCatalogPages(Workspace ctx)
     {
         var pages = new List<Page>();
-        foreach (var (pageKind, regType) in _registrationTypes)
+        foreach (var pageKind in FeatureCatalog.Instance.PageKinds())
         {
-            if (Instantiate(regType, ctx) is not IPageRegistration { CanBeContextItem: true } reg) continue;
-
+            if (ResolveRegistration(pageKind, ctx) is not { CanBeContextItem: true } reg) continue;
             foreach (var page in reg.CreatePageDefinitions())
             {
                 page.PageKind ??= pageKind;
@@ -378,33 +338,32 @@ public sealed class FeatureManager
         return pages;
     }
 
-    private IReadOnlyList<T> Instantiate<T>(List<Type> types, Workspace ctx)
+    private IReadOnlyList<T> Instantiate<T>(IReadOnlyList<Type> types, Workspace ctx)
     {
         var result = new List<T>(types.Count);
         foreach (var t in types)
-        {
             if (Instantiate(t, ctx) is T instance)
                 result.Add(instance);
-        }
         return result;
     }
 
+    private IPageRegistration? ResolveRegistration(string pageKind, Workspace ctx)
+        => FeatureCatalog.Instance.TryGetPageRegistrationType(pageKind, out var regType) && regType is not null
+            ? Instantiate(regType, ctx) as IPageRegistration
+            : null;
+
     // ── Tab creation ──────────────────────────────────────────────────────
 
-    public bool IsRegistered(string pageKind) => _registrationTypes.ContainsKey(pageKind);
+    public bool IsRegistered(string pageKind) => FeatureCatalog.Instance.HasPageKind(pageKind);
 
     /// <summary>The version of the feature assembly that owns <paramref name="pageKind"/>, or null if unknown.</summary>
-    public string? GetPageKindVersion(string pageKind)
-        => _registrationTypes.TryGetValue(pageKind, out var t)
-            ? t.Assembly.GetName().Version?.ToString()
-            : null;
+    public string? GetPageKindVersion(string pageKind) => FeatureCatalog.Instance.GetPageKindVersion(pageKind);
 
     public Page? CreateTab(string pageKind, Workspace workspace,
                            Dictionary<string, string>? pageParams = null)
     {
-        if (!_registrationTypes.TryGetValue(pageKind, out var regType)) return null;
-        var reg = Instantiate(regType, workspace) as IPageRegistration;
-        if (reg is null) return null;
+        if (ResolveRegistration(pageKind, workspace) is not { } reg) return null;
+        EnsureThemeApplied();   // make sure this feature's theme contribution is merged before its view loads
         var tab = reg.CreatePageDefinition(pageParams);
         if (tab is not null)
         {
@@ -416,51 +375,37 @@ public sealed class FeatureManager
 
     /// <summary>
     /// The openable page kinds and the parameters each accepts (<see cref="IPageRegistration.Parameters"/>),
-    /// built per-workspace. Used to describe available pages to the AI.
+    /// built per-workspace. Used to describe available pages to the AI. Resolving loads the feature assemblies.
     /// </summary>
     public IReadOnlyList<(string PageKind, IReadOnlyList<PageParameter> Parameters)> GetPageCatalog(Workspace ctx)
     {
-        var result = new List<(string, IReadOnlyList<PageParameter>)>(_registrationTypes.Count);
-        foreach (var (pageKind, regType) in _registrationTypes)
-        {
-            if (Instantiate(regType, ctx) is IPageRegistration reg)
+        var result = new List<(string, IReadOnlyList<PageParameter>)>();
+        foreach (var pageKind in FeatureCatalog.Instance.PageKinds())
+            if (ResolveRegistration(pageKind, ctx) is { } reg)
                 result.Add((pageKind, reg.Parameters));
-        }
         return result;
     }
 
     public IReadOnlyList<string> GetPageKindsForConfig(Type configType, Workspace ctx)
     {
-        if (!_configToRegTypes.TryGetValue(configType, out var regTypes)) return [];
+        if (configType.FullName is not { } fn) return [];
+        var regTypes = FeatureCatalog.Instance.ResolvePageRegistrationsForConfig(fn);
         var pageKinds = new List<string>(regTypes.Count);
         foreach (var regType in regTypes)
-        {
             if (Instantiate(regType, ctx) is IPageRegistration reg)
                 pageKinds.Add(reg.PageKind);
-        }
         return pageKinds;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
 
-    private static ConstructorInfo BestConstructor(Type t)
-        => t.GetConstructors().OrderByDescending(c => c.GetParameters().Length).First();
-
     /// <summary>
-    /// The <see cref="IFeatureConfig"/> view handed to feature-scoped registries
-    /// (e.g. <see cref="Services.FileSystemFeatureRegistry"/>). For a live workspace this is the
-    /// global <see cref="_configs"/> overlaid with that workspace's profile's per-workspace scoped
-    /// instances, so a viewlet ctor that takes a scoped config (e.g. ProjectsConfig) resolves the
-    /// profile-specific instance. Falls back to the raw global map when there's no workspace.
+    /// The <see cref="IFeatureConfig"/> view handed to feature registrations and feature-scoped registries
+    /// (e.g. <see cref="Services.FileSystemFeatureRegistry"/>). It's a <b>live</b> read-through over the
+    /// global config map (which grows as feature assemblies activate lazily) plus the workspace's scoped
+    /// configs — never a snapshot, so a config registered while a registry is still discovering actions
+    /// across features (e.g. Git's config loaded mid-discovery) is visible when those actions construct.
     /// </summary>
     private IReadOnlyDictionary<Type, IFeatureConfig> BuildScopedConfigView(Workspace? workspace)
-    {
-        if (workspace?.Profile.WorkspaceConfigs is not { Count: > 0 } scoped)
-            return _configs;
-
-        var merged = new Dictionary<Type, IFeatureConfig>(_configs);
-        foreach (var cfg in scoped)
-            merged[cfg.GetType()] = cfg;
-        return merged;
-    }
+        => new LiveFeatureConfigView(_configs, workspace);
 }

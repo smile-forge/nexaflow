@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
+using Nexaflow.Core.ViewModels.Overlays;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Providers.Common;
@@ -43,6 +44,14 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     // tab follow the pane that owns it. This keeps ShellServices pane-agnostic — it deals in windows,
     // and the window resolves which of its panes the tab lives in.
     void IWindowHost.AddTab(Page tab) => FocusedPane.Add(tab);
+
+    // Split off (or focus the existing) right pane so the next AddTab lands there — backs "Open in
+    // right pane". SplitEmpty already creates the pane and focuses it; when already split we just refocus.
+    void IWindowHost.FocusSecondPane()
+    {
+        if (RootPaneNode is SplitPaneNode split) FocusedPane = split.Second;
+        else                                     SplitEmpty();
+    }
 
     void IWindowHost.RemoveTab(Page tab)
     {
@@ -267,6 +276,100 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
             Title = title, Body = message, Severity = MessageSeverity.Info, ShowToast = true,
         });
 
+    // ── Unified overlay host ──────────────────────────────────────────────
+    // One ContentControl in MainWindow renders whatever modal is active, picked by DataTemplate from the
+    // content's type — so each overlay's visual tree is built lazily, only when shown, and torn down on
+    // close. The legacy per-overlay flags below (OptionsOpen/ManageAiOpen/ConfirmationVisible/PromptVisible)
+    // remain the source of truth (they drive profile-switch gating, airspace coverage and deep-links);
+    // ActiveOverlay is *derived* from them, and the heavy panel VMs are built on demand here. Features push
+    // their own overlays via IShellServices.ShowOverlay (rendered by a DataTemplate they contribute).
+
+    /// <summary>The content view-model shown in the shell's overlay host, or null when nothing is open.</summary>
+    public object? ActiveOverlay { get; private set; }
+
+    private OptionsViewModel?  _optionsPanel;
+    private ManageAiViewModel? _manageAiPanel;
+    private object? _confirmationOverlay;
+    private object? _promptOverlay;
+    private object? _featureOverlay;
+
+    /// <summary>True while a feature-pushed overlay (not a built-in modal) is showing.</summary>
+    public bool HasFeatureOverlay => _featureOverlay is not null;
+
+    private void SyncActiveOverlay()
+    {
+        object? next =
+            _featureOverlay
+            ?? (OptionsOpen        ? _optionsPanel       : null)
+            ?? (ManageAiOpen       ? _manageAiPanel      : null)
+            ?? (ConfirmationVisible ? _confirmationOverlay : null)
+            ?? (PromptVisible      ? _promptOverlay      : null);
+
+        if (ReferenceEquals(next, ActiveOverlay)) return;
+        ActiveOverlay = next;
+        OnPropertyChanged(nameof(ActiveOverlay));
+    }
+
+    /// <summary>Shows a feature-supplied overlay view-model (rendered by a DataTemplate the feature ships
+    /// via its IThemeContribution). Backs <see cref="IShellServices.ShowOverlay"/>.</summary>
+    public void ShowOverlay(object overlayViewModel)
+    {
+        _featureOverlay = overlayViewModel;
+        SyncActiveOverlay();
+    }
+
+    /// <summary>Closes whatever overlay is currently active (feature overlay or the built-in modal).</summary>
+    public void CloseOverlay()
+    {
+        if (_featureOverlay is not null) { _featureOverlay = null; SyncActiveOverlay(); return; }
+        if (OptionsOpen)             OptionsOpen = false;
+        else if (ManageAiOpen)       ManageAiOpen = false;
+        else if (ConfirmationVisible) CancelShellConfirmation();
+        else if (PromptVisible)      CancelShellPrompt();
+    }
+
+    // Builds the Options panel VM on open and re-homes the wiring that used to live in MainWindow code-behind.
+    private OptionsViewModel BuildOptionsPanel()
+    {
+        var vm = new OptionsViewModel();
+        vm.SaveError           += ShowErrorToast;
+        vm.TabRefreshRequested += RefreshTabs;
+        vm.SaveCompleted       += () =>
+        {
+            OptionsOpen = false;
+            // A theme change can't live-reflow (StaticResource by design); restart this window in place,
+            // reopening the same tabs against the new theme.
+            if (ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault() is { } shell
+                && shell.Theme != ThemeManager.Current)
+                _shellServices.RestartWindowForTheme(this, shell.Theme);
+        };
+        if (RequestedOptionsSection is { } section)
+        {
+            vm.SelectSection(section);
+            RequestedOptionsSection = null;
+        }
+        return vm;
+    }
+
+    private ManageAiViewModel BuildManageAiPanel()
+    {
+        var profile = ConfigureTargetProfile ?? CurrentWorkspace.Profile;
+        var vm = new ManageAiViewModel(profile, _shellServices);
+        vm.ApplyError += ShowErrorToast;
+        if (RequestedConfigureSection is { } section)
+        {
+            vm.SelectSection(section);
+            RequestedConfigureSection = null;
+        }
+        return vm;
+    }
+
+    partial void OnOptionsOpenChanged(bool value)
+    {
+        _optionsPanel = value ? BuildOptionsPanel() : null;
+        SyncActiveOverlay();
+    }
+
     // ── Shell-level confirmation overlay ──────────────────────────────────
     // A modal yes/no overlay that lives at the window level (not inside any page).
     // Used by the ribbon's right-click Delete, and any other shell-side action that
@@ -304,6 +407,21 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         var cb = _confirmationOnCancel;
         _confirmationOnConfirm = _confirmationOnCancel = null;
         cb?.Invoke();
+    }
+
+    partial void OnConfirmationVisibleChanged(bool value)
+    {
+        // Title/Prompt are set before ConfirmationVisible flips true (see ShowConfirmation).
+        _confirmationOverlay = value
+            ? new ConfirmationOverlay
+              {
+                  Title          = ConfirmationTitle,
+                  Prompt         = ConfirmationPrompt,
+                  ConfirmCommand = ConfirmShellConfirmationCommand,
+                  CancelCommand  = CancelShellConfirmationCommand,
+              }
+            : null;
+        SyncActiveOverlay();
     }
 
     // ── Shell-level input prompt overlay ──────────────────────────────────
@@ -348,6 +466,21 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         _promptOnConfirm = null;
         _promptOnCancel  = null;
         cb?.Invoke();
+    }
+
+    partial void OnPromptVisibleChanged(bool value)
+    {
+        // The editable PromptValue stays on this VM; the template two-way-binds to it via the window.
+        _promptOverlay = value
+            ? new PromptOverlay
+              {
+                  Title          = PromptTitle,
+                  Label          = PromptLabel,
+                  ConfirmCommand = ConfirmShellPromptCommand,
+                  CancelCommand  = CancelShellPromptCommand,
+              }
+            : null;
+        SyncActiveOverlay();
     }
 
     /// <summary>
@@ -448,7 +581,28 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     partial void OnManageAiOpenChanged(bool value)
     {
-        if (!value) ConfigureTargetProfile = null;
+        if (value)
+        {
+            // ConfigureTargetProfile / RequestedConfigureSection were set just before this flipped true.
+            _manageAiPanel = BuildManageAiPanel();
+        }
+        else
+        {
+            // Closing: apply pending disk changes to the running workspace. If nothing changed and the
+            // panel was opened from the Options → Workspaces tab, bounce back to Options on that tab.
+            bool changed = _manageAiPanel?.Close() ?? false;
+            _manageAiPanel         = null;
+            ConfigureTargetProfile = null;
+
+            bool returnToOptions = ConfigureReturnToOptions;
+            ConfigureReturnToOptions = false;
+            if (!changed && returnToOptions)
+            {
+                RequestedOptionsSection = "workcontexts";   // WorkspacesConfig.ConfigName
+                OptionsOpen = true;
+            }
+        }
+        SyncActiveOverlay();
     }
 
     /// <summary>Opens the Configure panel for a profile chosen in the Options → Workspaces tab,

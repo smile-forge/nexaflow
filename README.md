@@ -17,7 +17,7 @@ The goal isn't to add more features. It's to reduce the friction between you and
 
 You know the feeling: you're in the middle of something, and you have to remember which window has the file, which terminal session is running in the right folder, which editor has the thing you were looking at twenty minutes ago. Half your cognitive overhead is just *orientation* — keeping track of where everything is so you can stay in flow.
 
-Nexaflow treats context as a first-class citizen. Open a file and it lands in the right tool automatically. Your AI assistant can see the same tab you can. Your project folders, yourotoolsur search history, your workspace layout — they're all there when you come back.
+Nexaflow treats context as a first-class citizen. Open a file and it lands in the right tool automatically. Your AI assistant can see the same tab you can. Your project folders, your tools, your search history, your workspace layout — they're all there when you come back.
 
 Power users shouldn't have to remember everything. They should be able to *build* a context and then get on with it.
 
@@ -61,8 +61,6 @@ An AI input bar on every window. A dedicated AI Chat tab with saved history. The
 
 Requires Windows 10 or 11. AI features are optional — use a local model via Ollama, or an API key for Claude, Gemini, or OpenAI.
 
-On first launch, Newizardxguidesayou toits Options panel so you can piefaultsck a provider and set your projects folder. Then just start opening tabs.
-
 On first launch, Nexaflow opens its Options panel so you can pick an AI provider and set your projects folder. That's it — start opening tabs.
 
 ---
@@ -93,7 +91,7 @@ The focus is straightforward: understand more of what you throw at it, give the 
 
 Concretely:
 
-- **More and better viewers** — more formats, richer understanding of the ones already there`
+- **More and better viewers** — more formats, richer understanding of the ones already there
 
 - **Deeper AI context** — giving the AI more of what it needs to be genuinely useful in the tab you're in, not just adjacent to it
 
@@ -103,13 +101,11 @@ Concretely:
 
 ## Contributing & community
 
-Contributions are welcome. Before starting significant work, open an issue so we can coordinate.
+Contributions are welcome — please open an issue before starting significant work so we can coordinate. The details:
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) — how to get set up and submit changes
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — community standards
 - [SECURITY.md](SECURITY.md) — how to report a security concern
-
-The short version: open an issue before starting significant work so we can coordinate.
 
 ---
 

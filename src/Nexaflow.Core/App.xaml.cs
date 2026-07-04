@@ -68,6 +68,13 @@ public partial class App : Application
     public static bool SkipSetup { get; private set; }
 
     /// <summary>
+    /// A page kind supplied via <c>--openTab &lt;PageKind&gt;</c>: after the shell's default tab opens, that
+    /// page is opened too. A ribbon-independent deep-link into any tab — used by UI tests to reach views
+    /// that aren't on the default ribbon (and by future taskbar/URI deep-linking).
+    /// </summary>
+    public static string? OpenTabKind { get; private set; }
+
+    /// <summary>
     /// True when launched with <c>--reset</c>: the relaunch issued by "Reset Config" (Options → About).
     /// <see cref="InitializeApp"/> deletes the whole app-data directory before initialising, so the run
     /// starts as a clean first-run. Set by the fresh process; the old one armed it before relaunching.
@@ -85,9 +92,21 @@ public partial class App : Application
         SkipSetup = e.Args.Any(a => string.Equals(a, "--skipSetup", StringComparison.OrdinalIgnoreCase));
         _resetRequested = e.Args.Any(a => string.Equals(a, "--reset", StringComparison.OrdinalIgnoreCase));
 
+        var openTabIdx = Array.FindIndex(e.Args, a => string.Equals(a, "--openTab", StringComparison.OrdinalIgnoreCase));
+        OpenTabKind = openTabIdx >= 0 && openTabIdx + 1 < e.Args.Length ? e.Args[openTabIdx + 1] : null;
+
+        // Opt-in startup profiling (see StartupTimings). --timing bypasses the single-instance guard and the
+        // setup wizard so a harness can cold-start repeatedly, but does NOT force the eager feature load the
+        // way --skipSetup does — so it measures the real lazy-startup path.
+        StartupTimings.Enabled = e.Args.Any(a => string.Equals(a, "--timing", StringComparison.OrdinalIgnoreCase))
+                                 || Environment.GetEnvironmentVariable("NEXAFLOW_STARTUP_TIMING") == "1";
+        StartupTimings.Mark("OnStartup");
+
 #if !DEBUG
-        // ── Single-instance guard ────────────────────────────────────────────
-        if (!_singleInstance.TryAcquire())
+        // ── Single-instance guard ──
+        // Skipped for a non-prestart timing run so the cold-start harness can loop; a --prestart --timing
+        // daemon still acquires it, so a later launch routes its open-window request here (daemon timing).
+        if (!(StartupTimings.Enabled && !prestart) && !_singleInstance.TryAcquire())
         {
             // A daemon (or an existing window) already owns the instance. A normal launch forwards a
             // new-window request (honouring --context "Name" from a taskbar JumpList); a --prestart
@@ -103,6 +122,7 @@ public partial class App : Application
 
         var activityManager = new BackgroundActivityManager();
         var voiceConfig = InitializeApp(activityManager);
+        StartupTimings.Mark("InitializeApp");
 
         // ── Main window — skipped in --prestart mode (windowless login daemon) ──
         // A --prestart daemon shows nothing now; the wizard runs the first time a window is actually
@@ -114,6 +134,12 @@ public partial class App : Application
                                  ?? WorkspaceManager.Instance.Profiles[0];
             EnsureConfiguredThenCreateWindow(activityManager, startupProfile, activate: false);
         }
+
+        // Feature warm-up — load + activate the remaining feature assemblies off the UI thread now that the
+        // first window is up, so deferred features (and their archive handlers / theme / configs) are ready
+        // within a second or two without ever blocking first paint. Archive backends go first so browsing
+        // into an archive works as early as possible.
+        Task.Run(() => FeatureCatalog.Instance.WarmUpAll(["Nexaflow.Features.Compressed"]));
 
         // Voice model download — background, kicked off only after the window is up (or after init in
         // prestart mode) so it never competes with window construction / first render.
@@ -185,6 +211,13 @@ public partial class App : Application
         // ── 4. WorkspaceManager — loads the profile list (no runtime workspaces yet) ──
         WorkspaceManager.Instance.Initialize(wcConfig);
 
+        // Quarantine workspace data folders orphaned by an older build's version-bump config reset (before
+        // forward-migration existed): the list is authoritative only when workcontexts.json actually
+        // loaded — a defaulted (missing/unreadable) list would make every folder look orphaned, so gate on it.
+        var listIsAuthoritative = !ConfigManager.Instance.GetDefaultedConfigs()
+            .Contains(wcConfig.ConfigName, StringComparer.OrdinalIgnoreCase);
+        WorkspaceManager.Instance.QuarantineOrphanedDataFolders(listIsAuthoritative);
+
         // A workspace rebuild (Configure panel) needs to create a replacement window for a fresh
         // workspace; hand WorkspaceManager the factory that knows how to build MainWindow.
         WorkspaceManager.Instance.WindowHostFactory = ws => CreateWorkspaceWindow(activityManager, ws);
@@ -208,15 +241,16 @@ public partial class App : Application
         TemplatedCreateRegistry.Instance.Initialize(templatedCreateConfig, ConfigManager.Instance.BaseDir);
 
         // ── 6. Feature system ────────────────────────────────────────────────
+        // Builds the (cached) discovery index — on a normal launch this loads NO feature assemblies.
+        // Each assembly is loaded + activated lazily (first page, handler query, or the post-paint warm-up
+        // kicked in OnStartup); activation registers that assembly's global configs, archive handlers /
+        // codecs (into the VFS) and theme contributions (folded below the active theme applied in step 1).
         FeatureManager.Instance.RegisterFeatures();
 
-        // Archive backends ship in feature assemblies (IArchiveHandler) and are discovered the same way;
-        // register them into the process-wide VFS so files inside archives browse/open like a folder.
-        RegisterArchiveHandlers();
-
-        // Re-apply the theme now that features are loaded, folding in any feature theme
-        // contributions (IThemeContribution) below the active theme. No-op when none contribute.
-        ThemeManager.Apply(shellConfig.Theme, FeatureManager.Instance.ThemeContributionUris);
+        // UI-test automation (--skipSetup) drives the app far faster than a human and would outrun the
+        // post-paint background warm-up, racing features that haven't loaded yet. Force every feature
+        // assembly to load + activate synchronously now so the whole app is ready before automation starts.
+        if (SkipSetup) FeatureCatalog.Instance.EnsureAllActivated();
 
         // ── 6a. Voice input — capability probe (model download starts later, off the show path) ──
         var voiceConfig = new VoiceConfig();
@@ -261,49 +295,6 @@ public partial class App : Application
         _singleInstance.StartListening(name => OpenNewWindow(activityManager, name));
 
         return voiceConfig;
-    }
-
-    /// <summary>
-    /// Discovers every <see cref="IArchiveHandler"/> across the loaded <c>Nexaflow.*</c> assemblies
-    /// (provider DLLs are named <c>Nexaflow.Features.Compressed.*</c> so they ride the feature glob) and
-    /// registers a stateless instance of each into <see cref="VirtualFileSystem.Instance"/>. Logs the
-    /// count — a zero here means a provider DLL was mis-named and silently never loaded.
-    /// </summary>
-    private static void RegisterArchiveHandlers()
-    {
-        int registered = 0;
-        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            var name = asm.GetName().Name;
-            if (name is null || !name.StartsWith("Nexaflow.", StringComparison.Ordinal)) continue;
-
-            System.Type[] types;
-            try { types = asm.GetTypes(); }
-            catch (System.Reflection.ReflectionTypeLoadException ex) { types = ex.Types.Where(t => t is not null).ToArray()!; }
-
-            foreach (var t in types)
-            {
-                if (t is null || t.IsAbstract || t.IsInterface) continue;
-                try
-                {
-                    if (typeof(IArchiveHandler).IsAssignableFrom(t) &&
-                        Activator.CreateInstance(t) is IArchiveHandler handler)
-                    {
-                        VirtualFileSystem.Instance.RegisterHandler(handler);
-                        registered++;
-                    }
-                    else if (typeof(IStreamCodec).IsAssignableFrom(t) &&
-                             Activator.CreateInstance(t) is IStreamCodec codec)
-                    {
-                        VirtualFileSystem.Instance.RegisterCodec(codec);
-                    }
-                }
-                catch { /* a backend needing ctor args / throwing — skip */ }
-            }
-        }
-        System.Diagnostics.Debug.WriteLine(
-            $"[Compressed] Registered {registered} archive handler(s) + {VirtualFileSystem.Instance.CodecCount} codec(s); " +
-            $"VFS handler count = {VirtualFileSystem.Instance.HandlerCount}.");
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -352,6 +343,7 @@ public partial class App : Application
     /// </summary>
     private static void OpenNewWindow(BackgroundActivityManager activityManager, string? contextName = null)
     {
+        StartupTimings.MarkWindowRequested();   // daemon click→window timing (no-op unless --timing)
         var profile = ResolveProfile(contextName) ?? WorkspaceManager.Instance.Profiles[0];
         EnsureConfiguredThenCreateWindow(activityManager, profile, activate: true);
     }
@@ -377,9 +369,9 @@ public partial class App : Application
         {
             _setupShown = true;
 
-            // --skipSetup bypasses the wizard entirely (UI tests); the run is still stamped so post-update
-            // detection stays consistent.
-            if (!SkipSetup)
+            // --skipSetup (UI tests) and --timing (profiling) bypass the wizard entirely; the run is still
+            // stamped so post-update detection stays consistent.
+            if (!SkipSetup && !StartupTimings.Enabled)
             {
                 var wizard = SetupWizardViewModel.Build(profile);
                 if (wizard is not null)
@@ -396,10 +388,13 @@ public partial class App : Application
 
         var ws = WorkspaceManager.Instance.CreateWorkspace(profile);
         ws.ShellServices!.CreateWindowFactory = MakeWindowFactory(activityManager, ws);
+        StartupTimings.Mark("WorkspaceBootstrapped");
 
         var win = new MainWindow(activityManager, ws);
+        StartupTimings.Mark("MainWindowBuilt");
         CenterOnMonitor(win, wizardMonitor);
         win.Show();
+        StartupTimings.Mark("WindowShown");
         if (activate) win.Activate();
         return win;
     }

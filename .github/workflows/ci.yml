@@ -1,0 +1,65 @@
+# Continuous integration: build, unit-test, and verify the installer payload on every push/PR to main.
+#
+# This is a pass/fail GATE, not an artifact factory. It proves the tree builds, the unit tests pass, and the
+# installer payload is complete (the check that would have caught 1.2's missing video engine before release).
+# It deliberately does NOT build the release bundle or publish anything: the bundle pulls in the ~60 MB .NET
+# runtime payload (no sense on every push), and releasing stays a manual gate you own — build the bundle,
+# rename it for the Updatum in-app updater, do a clean-install check, then upload. The MSI built here is just
+# a byproduct of running the guards and is thrown away.
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build, test & verify payload
+    runs-on: windows-latest   # WPF / net10.0-windows + WiX MSI need Windows
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Restores nuget.org + the VideoLAN preview feed (libVLC) per NuGet.config, for every project incl. WiX.
+      - name: Restore
+        run: dotnet restore Nexaflow.slnx
+
+      # The point of this step is the payload-completeness GUARDS, not the MSI. Building the installer builds
+      # Core -> every feature/provider/shared project, then asserts every provider DLL, every feature DLL and
+      # the libVLC native runtime made it into the payload. A DLL or native that fails to propagate fails here,
+      # loudly — instead of silently shipping (the bug that broke video in 1.2). The MSI itself is discarded.
+      - name: Verify installer payload is complete (Release, x64)
+        run: dotnet build nexaflowSetup/nexaflowSetup.wixproj -c Release -p:Platform=x64 --no-restore
+
+      - name: Build test projects (Release)
+        run: |
+          dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Core/Nexaflow.Tests.Core.csproj -c Release --no-restore
+          dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Features/Nexaflow.Tests.Features.csproj -c Release --no-restore
+
+      # UI tests (TestCategory=UI) drive the real app via FlaUI and need an interactive desktop session;
+      # skip them in CI. The MSTest/MTP test exes take --filter directly (see docs/testing.md).
+      - name: Run unit tests (non-UI)
+        shell: pwsh
+        run: |
+          $tfm = 'net10.0-windows10.0.19041.0'
+          $failed = $false
+          foreach ($proj in 'Nexaflow.Tests.Core', 'Nexaflow.Tests.Features') {
+            $exe = "src/Nexaflow.Tests/$proj/bin/Release/$tfm/$proj.exe"
+            Write-Host "::group::$proj"
+            & $exe --filter 'TestCategory!=UI'
+            if ($LASTEXITCODE -ne 0) { $failed = $true; Write-Host "::error::$proj failed (exit $LASTEXITCODE)" }
+            Write-Host '::endgroup::'
+          }
+          if ($failed) { exit 1 }

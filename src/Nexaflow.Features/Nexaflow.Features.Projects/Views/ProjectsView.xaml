@@ -4,6 +4,7 @@
              xmlns:vm="clr-namespace:Nexaflow.Features.Projects.ViewModels"
              xmlns:ctrl="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             AutomationProperties.AutomationId="ProjectsView"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
@@ -110,6 +111,7 @@
 
         <!-- ══ Feature disabled placeholder ════════════════════════════════ -->
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                    AutomationProperties.AutomationId="Projects_DisabledPlaceholder"
                     Visibility="{Binding IsEnabled, Converter={StaticResource InverseBoolVis}}">
             <TextBlock Text="🗂" FontSize="48" HorizontalAlignment="Center" Opacity="0.3"/>
             <TextBlock Text="Projects is disabled"
@@ -156,6 +158,7 @@
                     </StackPanel>
                     <Button HorizontalAlignment="Right"
                             Style="{StaticResource IconButton}"
+                            AutomationProperties.AutomationId="Projects_Refresh"
                             ToolTip="Refresh"
                             Command="{Binding RefreshCommand}">
                         <TextBlock Text="↻" FontSize="14"/>
@@ -172,6 +175,7 @@
 
                 <ListView ItemsSource="{Binding Projects}"
                           SelectedItem="{Binding SelectedProject, Mode=TwoWay}"
+                          AutomationProperties.AutomationId="Projects_List"
                           Background="Transparent"
                           BorderThickness="0"
                           ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -329,6 +333,7 @@
                 <!-- Row 3: action buttons -->
                 <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="32,0,32,28">
                     <Button Style="{StaticResource AccentButton}"
+                            AutomationProperties.AutomationId="Projects_OpenProject"
                             Command="{Binding OpenProjectCommand}"
                             CommandParameter="{Binding SelectedProject}"
                             Margin="0,0,10,0">
@@ -338,6 +343,7 @@
                         </StackPanel>
                     </Button>
                     <Button Style="{StaticResource GhostButton}"
+                            AutomationProperties.AutomationId="Projects_OpenFiles"
                             Command="{Binding OpenFilesCommand}"
                             CommandParameter="{Binding SelectedProject}">
                         <StackPanel Orientation="Horizontal">

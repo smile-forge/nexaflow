@@ -19,9 +19,14 @@ public interface IShellServices
     /// When a matching tab already exists in another window it is moved to
     /// the window that owns the <paramref name="caller"/> page; if caller is
     /// null the focused window is used.
+    /// <para>
+    /// When <paramref name="inRightPane"/> is true the tab area is split first if needed and a
+    /// <em>fresh</em> tab is always created in the window's second (right) pane — existing matching
+    /// tabs are not adopted, so the same location can sit side-by-side in both panes.
+    /// </para>
     /// </summary>
     void OpenTab(string pageKind, Dictionary<string, string>? pageParams = null,
-                 IPageView? caller = null);
+                 IPageView? caller = null, bool inRightPane = false);
 
     /// <summary>Closes and removes a tab from the global tab registry.</summary>
     void CloseTab(Page tab);
@@ -178,6 +183,19 @@ public interface IShellServices
     /// <c>[WorkspaceScopedConfig]</c>, which live in the Configure overlay rather than global Options.
     /// </summary>
     void OpenWorkspaceConfig(string configName);
+
+    /// <summary>
+    /// Shows <paramref name="overlayViewModel"/> as a shell-modal overlay in the focused window. The shell
+    /// renders it lazily via a <c>DataTemplate</c> matched on the VM's type — ship that template in a
+    /// <see cref="System.Windows.ResourceDictionary"/> advertised through your feature's
+    /// <see cref="IThemeContribution"/>. Implement <see cref="IShellOverlay"/> on the VM to opt into
+    /// backdrop-click dismissal. Dismiss via <see cref="CloseOverlay"/> or the VM's own command.
+    /// </summary>
+    void ShowOverlay(object overlayViewModel);
+
+    /// <summary>Closes the active shell overlay in the focused window (whatever <see cref="ShowOverlay"/>
+    /// last showed).</summary>
+    void CloseOverlay();
 
     /// <summary>
     /// Pins <paramref name="payload"/> to the focused window's ribbon using the

@@ -661,35 +661,55 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
 
         try { _cts.Cancel(); } catch { }
 
-        if (_mp is not null)
+        // Detach engine events synchronously so no more callbacks marshal into this VM after Dispose returns.
+        var mp = _mp;
+        if (mp is not null)
         {
-            _mp.TimeChanged      -= OnTimeChanged;
-            _mp.LengthChanged    -= OnLengthChanged;
-            _mp.Playing          -= OnPlaying;
-            _mp.Paused           -= OnPaused;
-            _mp.Stopped          -= OnStopped;
-            _mp.EncounteredError -= OnEncounteredError;
-            try { _mp.Stop(); } catch { }
-            try { _mp.Dispose(); } catch { }
-            _mp = null;
+            mp.TimeChanged      -= OnTimeChanged;
+            mp.LengthChanged    -= OnLengthChanged;
+            mp.Playing          -= OnPlaying;
+            mp.Paused           -= OnPaused;
+            mp.Stopped          -= OnStopped;
+            mp.EncounteredError -= OnEncounteredError;
         }
 
-        // Free the render buffers only after the player (and thus its decode callbacks) has stopped.
-        try { _sink?.Dispose(); } catch { }
-        _sink = null;
-
-        // The keyframe task may still be inside a native GenerateThumbnail call on _libVlc — freeing the
-        // engine under it would crash. Hand ownership to a continuation that waits for it (already cancelled).
-        var keyframeTask = _keyframeTask;
+        // Snapshot the native resources and drop the fields now (RenderTick → _sink?.Blit() becomes a no-op).
+        var sink         = _sink;
         var media        = _media;
         var libVlc       = _libVlc;
         var cts          = _cts;
-        _media  = null;
-        _libVlc = null;
+        var keyframeTask = _keyframeTask;
+        _mp = null; _sink = null; _media = null; _libVlc = null;
 
-        Task.Run(async () =>
+        // Release everything on a background thread, IN ORDER, and crucially wait for libvlc's video output
+        // to actually tear down before the smem buffers/callback delegates are freed. libvlc 4's Stop() is
+        // asynchronous, so the old "Stop(); Dispose(); free" ran the decode thread straight into freed heap →
+        // native heap corruption (APPCRASH 0xc0000374 in ntdll) on closing the tab. Doing it off the UI thread
+        // also avoids blocking the shell while the player winds down.
+        _ = Task.Run(async () =>
         {
+            if (mp is not null)
+            {
+                try { mp.Stop(); } catch { }
+
+                // Wait until the decode thread is provably done with the buffers (Cleanup callback), bounded
+                // so a stuck engine can't hang teardown. mp.Dispose() then destroys any residual output.
+                if (sink is { HasOutput: true })
+                {
+                    try { await Task.WhenAny(sink.OutputStopped, Task.Delay(TimeSpan.FromSeconds(3))).ConfigureAwait(false); }
+                    catch { }
+                }
+
+                try { mp.Dispose(); } catch { }
+            }
+
+            // Now safe: the video output is gone, so freeing the smem buffers/delegates can't race a write.
+            try { sink?.Dispose(); } catch { }
+
+            // The keyframe task may still be inside a native GenerateThumbnail on _libVlc — wait it out
+            // (already cancelled) before freeing the engine underneath it.
             try { if (keyframeTask is not null) await keyframeTask.ConfigureAwait(false); } catch { }
+
             try { media?.Dispose(); }  catch { }
             try { libVlc?.Dispose(); } catch { }
             try { cts.Dispose(); }     catch { }

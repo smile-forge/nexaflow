@@ -1126,6 +1126,11 @@ public partial class InlineMarkdownEditor : UserControl
         int focal     = _active;                            // the block being left — keep it pinned across the rebuild
         double offset = _rtb.VerticalOffset;
         double? focalY = focal >= 0 ? BlockTopY(focal) : null;
+        // Tear the speller down BEFORE swapping the document. WPF's Speller scans on a deferred OnIdle
+        // holding pointers into the current document; replacing the document while it is still attached
+        // lets a queued scan deref a stale text container and NRE (crash.log: Speller.OnIdle). No
+        // squiggles in the fully-rendered view either way.
+        SpellCheck.SetIsEnabled(_rtb, false);
         _suppress = true;
         try
         {
@@ -1137,7 +1142,6 @@ public partial class InlineMarkdownEditor : UserControl
             _rtb.Document = doc;
         }
         finally { _suppress = false; }
-        SpellCheck.SetIsEnabled(_rtb, false);   // no squiggles in the fully-rendered view
         AnchorScroll(offset, focal, focalY, keepCaretVisible: false);
         UpdatePlaceholder();
     }
@@ -1151,6 +1155,9 @@ public partial class InlineMarkdownEditor : UserControl
 
         double offset  = _rtb.VerticalOffset;
         double? targetY = anchorTopY ?? BlockTopY(index);   // pin the focal block to the mouse, else to where it is now
+        // Detach the speller before swapping the document (block→block navigation rebuilds while editing),
+        // then re-attach to the new document below — see the note in RenderAll.
+        SpellCheck.SetIsEnabled(_rtb, false);
         _suppress = true;
         try
         {

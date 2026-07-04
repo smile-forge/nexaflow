@@ -196,18 +196,7 @@ public sealed class OllamaLlmProvider : ILlmProvider
         }
     }
 
+    // Ollama is text-only: every attachment (image or not) is listed by path.
     private static string BuildUserContent(string prompt, IReadOnlyList<LlmAttachment>? attachments)
-    {
-        if (attachments is null || attachments.Count == 0)
-            return prompt;
-
-        var sb = new StringBuilder(prompt);
-        sb.AppendLine();
-        sb.AppendLine();
-        sb.AppendLine("Attached files:");
-        foreach (var a in attachments)
-            sb.AppendLine($"  {a.FilePath}");
-
-        return sb.ToString();
-    }
+        => PromptComposer.AppendFileList(prompt, attachments ?? []);
 }

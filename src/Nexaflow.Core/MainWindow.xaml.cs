@@ -24,7 +24,9 @@ public partial class MainWindow : Window
     public MainWindow(BackgroundActivityManager activityManager, Workspace workspace,
                       bool openDefaultTabs = true)
     {
+        Services.StartupTimings.Mark("MainWindow.ctor enter");
         InitializeComponent();
+        Services.StartupTimings.Mark("MainWindow.InitializeComponent");
 
         _shellServices = workspace.ShellServices!;
         _vm = new ShellViewModel(activityManager, workspace)
@@ -32,6 +34,7 @@ public partial class MainWindow : Window
             Window = this
         };
         DataContext = _vm;
+        Services.StartupTimings.Mark("MainWindow.ShellViewModel");
 
         if (openDefaultTabs)
         {
@@ -40,6 +43,20 @@ public partial class MainWindow : Window
             _shellServices.SetFocused(_vm);
 
             _shellServices.OpenTab("FileSystem", new() { ["mode"] = "thispc" });
+
+            // Ribbon-independent deep-link: --openTab <PageKind> opens that page too (used by UI tests to
+            // reach views that aren't on the default ribbon).
+            if (App.OpenTabKind is { Length: > 0 } openKind)
+                _shellServices.OpenTab(openKind, new());
+
+            // Startup profiling: the first window's first render is "time to first window". In timing mode
+            // we report and then shut down so a harness can cold-start the process repeatedly.
+            if (StartupTimings.Enabled)
+                ContentRendered += (_, _) =>
+                {
+                    StartupTimings.Report();
+                    Application.Current.Shutdown();
+                };
         }
         else
         {
@@ -50,108 +67,24 @@ public partial class MainWindow : Window
         FinishInit();
     }
 
-    // Set when Options is reopened to land on a specific tab (e.g. returning from Configure).
-    private string? _returnToOptionsSection;
-
-    private void WireOptionsPanel()
+    // Backdrop-click on the overlay host closes only overlays that opt in (feature overlays via
+    // IShellOverlay.DismissOnBackdrop); the built-in modals dismiss via their own buttons / Escape.
+    private void OverlayBackdrop_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        _vm.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(ShellViewModel.OptionsOpen) && _vm.OptionsOpen)
-                ResetOptionsPanel();
-        };
-        ResetOptionsPanel();
-    }
-
-    private void ResetOptionsPanel()
-    {
-        var optionsVm = new OptionsViewModel();
-        optionsVm.SaveError           += msg   => _vm.ShowErrorToast(msg);
-        optionsVm.TabRefreshRequested += kinds => _vm.RefreshTabs(kinds);
-        optionsVm.SaveCompleted       += ()    =>
-        {
-            _vm.OptionsOpen = false;
-            // A theme change can't live-reflow (StaticResource by design); restart this window in
-            // place, reopening the same tabs against the new theme.
-            if (ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault() is { } shell
-                && shell.Theme != ThemeManager.Current)
-                _shellServices.RestartWindowForTheme(_vm, shell.Theme);
-        };
-
-        // Section requested either by an internal return-trip (Configure → Options) or by a
-        // feature deep-link via IShellServices.OpenOptions.
-        var section = _returnToOptionsSection ?? _vm.RequestedOptionsSection;
-        if (section is not null)
-        {
-            optionsVm.SelectSection(section);
-            _returnToOptionsSection   = null;
-            _vm.RequestedOptionsSection = null;
-        }
-
-        OptionsPanelControl.DataContext = optionsVm;
-    }
-
-    private ManageAiViewModel? _manageAiVm;
-
-    private void WireManageAiPanel()
-    {
-        // Built lazily on open — the Configure panel loads config from disk and acquires a provider
-        // set, so there's no point doing that work at every window startup.
-        _vm.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName != nameof(ShellViewModel.ManageAiOpen)) return;
-            if (_vm.ManageAiOpen) { ResetManageAiPanel(); return; }
-
-            // Closing: apply pending disk changes to the running workspace. If nothing changed and the
-            // panel was opened from Options, bounce back to the Options popup — on the Workspaces tab.
-            bool changed = _manageAiVm?.Close() ?? false;
-            bool returnToOptions = _vm.ConfigureReturnToOptions;
-            _vm.ConfigureReturnToOptions = false;
-            if (!changed && returnToOptions)
-            {
-                _returnToOptionsSection = "workcontexts";   // WorkspacesConfig.ConfigName
-                _vm.OptionsOpen = true;
-            }
-        };
-    }
-
-    private void ResetManageAiPanel()
-    {
-        _manageAiVm?.Close();
-        var profile = _vm.ConfigureTargetProfile ?? _vm.CurrentWorkspace.Profile;
-        var manageAiVm = new ManageAiViewModel(profile, _shellServices);
-        manageAiVm.ApplyError += msg => _vm.ShowErrorToast(msg);
-
-        // Deep link: land on a requested section (e.g. the console page's Configure button → "console").
-        if (_vm.RequestedConfigureSection is { } section)
-        {
-            manageAiVm.SelectSection(section);
-            _vm.RequestedConfigureSection = null;
-        }
-
-        _manageAiVm = manageAiVm;
-        ManageAiPanelControl.DataContext = manageAiVm;
+        if (_vm.ActiveOverlay is IShellOverlay { DismissOnBackdrop: true })
+            _vm.CloseOverlay();
     }
 
     private void FinishInit()
     {
-        WireOptionsPanel();
-        WireManageAiPanel();
+        // Overlay content (Options / Manage-AI / confirmation / prompt) is built lazily in ShellViewModel
+        // when the corresponding flag flips, and rendered by the OverlayHost's DataTemplates — no per-panel
+        // wiring is needed here any more. Prompt-textbox autofocus lives in the template (FocusOnLoad).
 
         _vm.Ribbon = RibbonControl.ViewModel;
 
         // ShellServices is stable for the life of the window: switching profiles reconfigures the
         // Workspace in place (same ShellServices), so no resync is needed here.
-
-        _vm.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(ShellViewModel.PromptVisible) && _vm.PromptVisible)
-                Dispatcher.BeginInvoke(() =>
-                {
-                    PromptTextBox.Focus();
-                    PromptTextBox.SelectAll();
-                });
-        };
 
         Activated   += (_, _) => _shellServices.SetFocused(_vm);
         Deactivated += (_, _) => _shellServices.ClearFocused(_vm);
@@ -161,6 +94,7 @@ public partial class MainWindow : Window
         {
             if (e.Key == Key.Escape)
             {
+                if (_vm.HasFeatureOverlay) { _vm.CloseOverlay(); return; }
                 _vm.OptionsOpen            = false;
                 _vm.ManageAiOpen           = false;
                 _vm.NotificationsOpen      = false;

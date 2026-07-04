@@ -32,10 +32,12 @@
                 <!-- Template actions, pinned to the right -->
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button x:Name="TemplateThisButton" Content="Template This"
+                            AutomationProperties.AutomationId="Tabular_TemplateThis"
                             Style="{StaticResource TbBtn}"
                             Command="{Binding OpenTemplateThisCommand}"
                             ToolTip="Save the current column layout as a reusable template"/>
                     <Button Content="Apply Template"
+                            AutomationProperties.AutomationId="Tabular_ApplyTemplate"
                             Style="{StaticResource TbBtn}"
                             Command="{Binding OpenTemplatePanelCommand}"
                             ToolTip="Apply a saved template to this file"/>
@@ -43,6 +45,7 @@
                 <!-- Descriptor, fills the left -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="{Binding DetectedShapeLabel}"
+                               AutomationProperties.AutomationId="Tabular_ShapeLabel"
                                Foreground="{StaticResource TextMutedBrush}"
                                VerticalAlignment="Center" Margin="2,0,12,0"
                                FontSize="11"/>
@@ -148,6 +151,7 @@
                         <TextBlock Text="Templates" FontWeight="SemiBold"
                                    Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"/>
                         <Button Content="✕" HorizontalAlignment="Right" Style="{StaticResource TbBtn}"
+                                AutomationProperties.AutomationId="Tabular_TemplatePanelClose"
                                 Command="{Binding CloseTemplatePanelCommand}" ToolTip="Close"/>
                     </Grid>
 
@@ -155,6 +159,7 @@
                                 Visibility="{Binding IsChooseMode, Converter={StaticResource InvBoolVis}}"
                                 ToolTip="Only list templates whose original shape matches this file">
                         <ToggleButton Style="{StaticResource ToggleSwitch}" VerticalAlignment="Center"
+                                      AutomationProperties.AutomationId="Tabular_ShowOnlyCompatible"
                                       IsChecked="{Binding ShowOnlyCompatible}"/>
                         <TextBlock Text="Show only compatible" Margin="8,0,0,0" VerticalAlignment="Center"
                                    Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>

@@ -37,11 +37,10 @@ public sealed class FileSystemQueryHandler : IQueryHandler
         if (Path.IsPathRooted(trimmed))
             return IsAcceptableDrive(trimmed, fs) ? 0.9f : 0f;
 
-        // Relative path — only useful when rooted in a folder
-        if (!fs.IsThisPcMode && !string.IsNullOrEmpty(fs.RootPath) && !trimmed.Contains(' '))
-            return 0.6f;
-
-        return 0f;
+        // Relative path — accept only when it resolves to a directory that actually exists under the
+        // current/root folder. Existence is the signal, not a no-spaces heuristic (which both rejected
+        // real folders like "Program Files" and falsely claimed any single word).
+        return ResolveRelative(trimmed, fs) is not null ? 0.6f : 0f;
     }
 
     public Task<string?> ProcessAsync(string input, IPageViewModel? pageVm = null)
@@ -62,25 +61,39 @@ public sealed class FileSystemQueryHandler : IQueryHandler
             return Task.FromResult<string?>($"Path not found: {expanded}");
         }
 
-        if (!fs.IsThisPcMode && !string.IsNullOrEmpty(fs.RootPath))
+        if (ResolveRelative(trimmed, fs) is { } dir)
         {
-            var candidates = new[]
-            {
-                string.IsNullOrEmpty(fs.CurrentPath) ? null
-                    : Path.GetFullPath(Path.Combine(fs.CurrentPath, trimmed)),
-                Path.GetFullPath(Path.Combine(fs.RootPath, trimmed))
-            };
-            foreach (var candidate in candidates)
-            {
-                if (candidate is not null && Directory.Exists(candidate))
-                {
-                    fs.NavigateTo(candidate);
-                    return Task.FromResult<string?>(null);
-                }
-            }
+            fs.NavigateTo(dir);
+            return Task.FromResult<string?>(null);
         }
 
         return Task.FromResult<string?>($"Path not found: {trimmed}");
+    }
+
+    // Resolves a relative path against the current folder, then the root, returning the first existing
+    // directory — or null when not rooted in a folder, or neither candidate exists. Shared by CanProcess
+    // (to gate on existence) and ProcessAsync (to navigate).
+    private static string? ResolveRelative(string relative, FileSystemViewModel fs)
+    {
+        if (fs.IsThisPcMode || string.IsNullOrEmpty(fs.RootPath)) return null;
+
+        string?[] candidates =
+        [
+            string.IsNullOrEmpty(fs.CurrentPath) ? null : SafeFullPath(fs.CurrentPath, relative),
+            SafeFullPath(fs.RootPath, relative),
+        ];
+        foreach (var candidate in candidates)
+            if (candidate is not null && Directory.Exists(candidate))
+                return candidate;
+        return null;
+    }
+
+    // Combine + normalise, returning null instead of throwing on invalid input — safe to call from
+    // CanProcess on every keystroke.
+    private static string? SafeFullPath(string basePath, string relative)
+    {
+        try { return Path.GetFullPath(Path.Combine(basePath, relative)); }
+        catch { return null; }
     }
 
     // Absolute path is acceptable when:

@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:Nexaflow.Features.Scratchpad.Converters"
              xmlns:local="clr-namespace:Nexaflow.Features.Scratchpad.Views"
+             AutomationProperties.AutomationId="ScratchpadView"
              Background="{StaticResource BgBrush}"
              Focusable="True">
 
@@ -270,8 +271,10 @@
                 <!-- Left: New + Zoom to Fit -->
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
                     <Button Content="＋ New" Style="{StaticResource TbBtn}"
+                            AutomationProperties.AutomationId="Scratchpad_AddNote"
                             Click="AddNote_Click" ToolTip="Add a new post-it (or double-click canvas)"/>
                     <Button Content="⤡ Fit" Style="{StaticResource TbBtn}"
+                            AutomationProperties.AutomationId="Scratchpad_ZoomToFit"
                             Click="ZoomToFit_Click" ToolTip="Zoom to fit all notes"/>
                 </StackPanel>
 
@@ -279,7 +282,8 @@
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
 
                     <!-- Left part: toggle bin view -->
-                    <Button Click="ToggleBin_Click" ToolTip="View / hide Recycle Bin" Padding="8,5" Cursor="Hand" Margin="0">
+                    <Button Click="ToggleBin_Click" ToolTip="View / hide Recycle Bin" Padding="8,5" Cursor="Hand" Margin="0"
+                            AutomationProperties.AutomationId="Scratchpad_RecycleBin">
                         <Button.Style>
                             <Style TargetType="Button">
                                 <Setter Property="Background"      Value="Transparent"/>
@@ -318,6 +322,7 @@
 
                     <!-- Right part: dropdown arrow (ContextMenu stays within window bounds) -->
                     <Button x:Name="BinDropBtn" Style="{StaticResource SplitArrowBtn}"
+                            AutomationProperties.AutomationId="Scratchpad_BinOptions"
                             Content="▾" Click="BinDrop_Click" ToolTip="Recycle bin options">
                         <Button.ContextMenu>
                             <ContextMenu>
@@ -528,6 +533,7 @@
 
                 <!-- Zoom %: click to pick a preset (left side, gapped from the note count) -->
                 <TextBlock x:Name="ZoomLabel"
+                           AutomationProperties.AutomationId="Scratchpad_ZoomLabel"
                            DockPanel.Dock="Left"
                            Foreground="{StaticResource TextMutedBrush}"
                            FontSize="11"
