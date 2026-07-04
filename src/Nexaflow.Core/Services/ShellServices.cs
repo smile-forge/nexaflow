@@ -137,6 +137,7 @@ public sealed class ShellServices : IShellServices
         {
             tab.RaiseClosed();
             _tabToWindow.Remove(tab);
+            DisposePage(tab);
         }
     }
 
@@ -275,6 +276,29 @@ public sealed class ShellServices : IShellServices
         tab.RaiseClosed();
         _tabToWindow.Remove(tab);
         host.RemoveTab(tab);
+        DisposePage(tab);
+    }
+
+    /// <summary>
+    /// Central teardown safety net: disposes a closed tab's materialized content view and its view-model
+    /// when they implement <see cref="IDisposable"/>, so a feature that forgets to wire
+    /// <c>page.Closed += vm.Dispose()</c> still can't leak native handles (file watchers, PTYs, media
+    /// engines, …). Called from the two genuine-close paths (<see cref="CloseTab"/> and
+    /// <see cref="CloseWindowTabs"/>) after <see cref="Page.RaiseClosed"/> — so a feature that DID wire its
+    /// own teardown has already run and this is an idempotent second Dispose (per the IDisposable contract,
+    /// which this file already relies on for double-fired Closed). Tear-off / move re-key the registry and
+    /// never reach here, so a still-live tab is never disposed. Skips a tab never activated (no content).
+    /// Never throws — teardown must not break tab/window close.
+    /// </summary>
+    private static void DisposePage(Page tab)
+    {
+        if (tab.Content is not { } content) return;   // never activated → nothing was created to dispose
+
+        if (content is IPageView { ViewModel: IDisposable vm })
+            try { vm.Dispose(); } catch { }
+
+        if (content is IDisposable view)
+            try { view.Dispose(); } catch { }
     }
 
     /// <summary>
