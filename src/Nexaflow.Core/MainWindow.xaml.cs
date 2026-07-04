@@ -40,6 +40,11 @@ public partial class MainWindow : Window
             _shellServices.SetFocused(_vm);
 
             _shellServices.OpenTab("FileSystem", new() { ["mode"] = "thispc" });
+
+            // Ribbon-independent deep-link: --openTab <PageKind> opens that page too (used by UI tests to
+            // reach views that aren't on the default ribbon).
+            if (App.OpenTabKind is { Length: > 0 } openKind)
+                _shellServices.OpenTab(openKind, new());
         }
         else
         {

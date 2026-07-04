@@ -38,6 +38,7 @@
                                Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
                     <Button HorizontalAlignment="Right" VerticalAlignment="Center"
                             Style="{StaticResource TbBtn}"
+                            AutomationProperties.AutomationId="Code_MapToggle"
                             Command="{Binding TogglePanelCommand}"
                             ToolTip="Hide the code map">
                         <TextBlock Text="⟩" FontSize="12"/>
@@ -57,6 +58,7 @@
         <Button x:Name="ReopenButton" Grid.Column="2"
                 HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,0,0"
                 Style="{StaticResource TbBtn}"
+                AutomationProperties.AutomationId="Code_MapReopen"
                 Command="{Binding TogglePanelCommand}"
                 ToolTip="Show the code map"
                 Visibility="Collapsed">

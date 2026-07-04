@@ -20,12 +20,15 @@
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="8,6">
             <DockPanel>
                 <ToggleButton DockPanel.Dock="Right" Style="{StaticResource TbToggle}" Content="Inspector"
+                              AutomationProperties.AutomationId="Model3D_InspectorToggle"
                               IsChecked="{Binding ShowInspector}" ToolTip="Show materials and details"
                               Visibility="{Binding HasInspectorContent, Converter={StaticResource BoolToVis}}"/>
                 <StackPanel Orientation="Horizontal">
                     <ToggleButton Style="{StaticResource TbToggle}" Content="Wireframe"
+                                  AutomationProperties.AutomationId="Model3D_Wireframe"
                                   IsChecked="{Binding ShowWireframe}" ToolTip="Toggle wireframe rendering"/>
                     <Button Style="{StaticResource TbBtn}" Content="Reset view" Click="OnResetClick"
+                            AutomationProperties.AutomationId="Model3D_ResetView"
                             ToolTip="Fit the model to the viewport"/>
                     <TextBlock Text="Alt + right-drag to turn (green axis)" VerticalAlignment="Center" Margin="10,0,0,0"
                                FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>

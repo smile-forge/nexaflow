@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:m="clr-namespace:Nexaflow.Visuals.Terminal.Models"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             AutomationProperties.AutomationId="ConsoleView"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
@@ -206,6 +207,7 @@
             <DockPanel VerticalAlignment="Center" Margin="14,0,8,0" LastChildFill="False">
                 <!-- Right: deep link to this shell's environments in the workspace Configure overlay -->
                 <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}"
+                        AutomationProperties.AutomationId="Console_Configure"
                         VerticalAlignment="Center" Padding="6,2"
                         Command="{Binding ConfigureCommand}"
                         ToolTip="Configure console environments"
@@ -246,8 +248,10 @@
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="0,0,1,0">
                 <TabControl Style="{StaticResource TerminalTabControl}"
+                            AutomationProperties.AutomationId="Console_SidePanelTabs"
                             ItemContainerStyle="{StaticResource TerminalTabItem}">
-                    <TabItem Header="Files">
+                    <TabItem Header="Files"
+                             AutomationProperties.AutomationId="Console_FilesTab">
                         <ListBox x:Name="FilesList"
                                  ItemsSource="{Binding Files}"
                                  ItemTemplate="{StaticResource FsEntryTemplate}"
@@ -259,7 +263,8 @@
                                  PreviewMouseMove="FilesList_PreviewMouseMove"
                                  Padding="6,6"/>
                     </TabItem>
-                    <TabItem Header="Environment">
+                    <TabItem Header="Environment"
+                             AutomationProperties.AutomationId="Console_EnvironmentTab">
                         <DockPanel>
                             <Grid DockPanel.Dock="Top" Margin="6,6,6,4">
                                 <Grid.ColumnDefinitions>
@@ -268,10 +273,12 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBox Grid.Column="0"
                                          Style="{StaticResource OverlayTextBox}"
+                                         AutomationProperties.AutomationId="Console_EnvFilter"
                                          Text="{Binding EnvFilter, UpdateSourceTrigger=PropertyChanged}"
                                          ToolTip="Filter variables"/>
                                 <Button Grid.Column="1" Content="＋" Margin="4,0,0,0"
                                         Style="{StaticResource SurfaceButton}" Padding="8,4"
+                                        AutomationProperties.AutomationId="Console_AddEnvVar"
                                         ToolTip="Add a variable"
                                         Command="{Binding AddEnvVarCommand}"/>
                             </Grid>
@@ -366,8 +373,10 @@
                                       Margin="0,0,0,16" FontSize="12"/>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                 <Button Content="Cancel" Style="{StaticResource SurfaceButton}"
+                                        AutomationProperties.AutomationId="Console_EnvEditCancel"
                                         Margin="0,0,8,0" Command="{Binding CancelEnvEditCommand}"/>
                                 <Button Content="Save" Style="{StaticResource AccentButton}"
+                                        AutomationProperties.AutomationId="Console_EnvEditSave"
                                         Command="{Binding ConfirmEnvEditCommand}"/>
                             </StackPanel>
                         </StackPanel>

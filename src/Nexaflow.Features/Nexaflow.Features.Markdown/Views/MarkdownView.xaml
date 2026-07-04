@@ -47,12 +47,14 @@
                               Margin="0,0,6,0"
                               Content="&lt;/&gt; Source"
                               ToolTip="Edit raw markdown source"
+                              AutomationProperties.AutomationId="Markdown_SourceToggle"
                               IsChecked="{Binding SourceOnly, Mode=TwoWay}"/>
 
                 <!-- Save button (greyed out when clean) -->
                 <Button Grid.Column="2"
                         Style="{StaticResource TbBtn}"
                         ToolTip="Save (Ctrl+S)"
+                        AutomationProperties.AutomationId="Markdown_Save"
                         Command="{Binding SaveCommand}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="💾" FontSize="12" Margin="0,0,4,0"/>
@@ -72,11 +74,13 @@
             <md:InlineMarkdownEditor x:Name="Editor"
                                      Margin="40,24,40,48"
                                      EditOnDoubleClick="True"
+                                     AutomationProperties.AutomationId="Markdown_Editor"
                                      Visibility="{Binding SourceOnly, Converter={StaticResource InvBoolVis}}"
                                      Markdown="{Binding Markdown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
 
             <!-- Source-only: the whole document as raw markdown -->
             <TextBox x:Name="SourceBox"
+                     AutomationProperties.AutomationId="Markdown_SourceBox"
                      Visibility="{Binding SourceOnly, Converter={StaticResource BoolVis}}"
                      Text="{Binding Markdown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                      AcceptsReturn="True"

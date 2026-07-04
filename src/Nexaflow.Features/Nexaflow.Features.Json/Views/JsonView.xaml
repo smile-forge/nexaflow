@@ -58,18 +58,21 @@
                 <!-- Left: view mode toggles (apply to selected node) -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <ToggleButton Style="{StaticResource TbToggle}"
+                                  AutomationProperties.AutomationId="Json_TreeMode"
                                   IsChecked="{Binding IsTreeModeActive, Mode=OneWay}"
                                   Command="{Binding SetTreeModeCommand}"
                                   ToolTip="Tree view (selected node)">
                         <TextBlock Text="⊞" FontSize="12"/>
                     </ToggleButton>
                     <ToggleButton Style="{StaticResource TbToggle}"
+                                  AutomationProperties.AutomationId="Json_TextMode"
                                   IsChecked="{Binding IsTextModeActive, Mode=OneWay}"
                                   Command="{Binding SetTextModeCommand}"
                                   ToolTip="Raw JSON text (selected node)">
                         <TextBlock Text="{}{  }" FontSize="11"/>
                     </ToggleButton>
                     <ToggleButton Style="{StaticResource TbToggle}"
+                                  AutomationProperties.AutomationId="Json_TableMode"
                                   IsChecked="{Binding IsTableModeActive, Mode=OneWay}"
                                   IsEnabled="{Binding IsTableModeAvailable}"
                                   Command="{Binding SetTableModeCommand}"
@@ -81,6 +84,7 @@
                 <!-- Right: format + save -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Style="{StaticResource TbBtn}"
+                            AutomationProperties.AutomationId="Json_Format"
                             Command="{Binding FormatJsonCommand}"
                             ToolTip="Format JSON (re-indent)">
                         <TextBlock Text="{}{ }" FontSize="11"/>
@@ -88,6 +92,7 @@
                     <Separator Style="{StaticResource TbSep}"
                                Visibility="{Binding IsModified, Converter={StaticResource BoolVis}}"/>
                     <Button Style="{StaticResource TbBtn}"
+                            AutomationProperties.AutomationId="Json_Save"
                             Command="{Binding SaveCommand}"
                             Visibility="{Binding IsModified, Converter={StaticResource BoolVis}}"
                             ToolTip="Save (Ctrl+S)">

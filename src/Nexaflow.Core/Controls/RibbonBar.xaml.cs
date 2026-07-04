@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -649,6 +650,7 @@ public partial class RibbonBar : UserControl
             Margin   = new Thickness(2, 0, 2, 0),
             MinWidth = 45
         };
+        AutomationProperties.SetAutomationId(btn, "Ribbon_" + item.Label);
         btn.ContextMenu = BuildItemContextMenu(item, btn);
         btn.Click += FullBtn_Click;
         return btn;
@@ -687,6 +689,7 @@ public partial class RibbonBar : UserControl
             MinWidth          = 45,
             VerticalAlignment = VerticalAlignment.Top
         };
+        AutomationProperties.SetAutomationId(btn, "Ribbon_" + item.Label);
         btn.ContextMenu = BuildItemContextMenu(item, btn);
         btn.Click += FullBtn_Click;
         return btn;
@@ -705,6 +708,7 @@ public partial class RibbonBar : UserControl
             Tag     = item,
             Padding = new Thickness(8, 6, 8, 6)
         };
+        AutomationProperties.SetAutomationId(btn, "Ribbon_" + item.Label);
         btn.Click += (_, _) =>
         {
             OverflowPopup.IsOpen = false;

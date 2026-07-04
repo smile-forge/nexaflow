@@ -216,7 +216,7 @@ public sealed partial class HexViewModel : ObservableObject, IPageViewModel, IDi
         SyncBufferState();
     }
 
-    [RelayCommand(CanExecute = nameof(CanUndo))]
+    [RelayCommand(CanExecute = nameof(CanRedo))]
     private void Redo()
     {
         Buffer.Redo();

@@ -211,6 +211,7 @@
                     <!-- Options button -->
                     <Button Style="{StaticResource TopBarAction}"
                             Command="{Binding ToggleOptionsCommand}"
+                            AutomationProperties.AutomationId="Chrome_OptionsButton"
                             HorizontalAlignment="Right"
                             Margin="0,0,0,6">
                         <TextBlock Text="Options" Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
@@ -489,6 +490,7 @@
                 MouseDown="NotificationScrim_MouseDown"/>
         <Border Grid.Row="0" Grid.RowSpan="5"
                 Visibility="{Binding NotificationsOpen, Converter={StaticResource BoolVis}}"
+                AutomationProperties.AutomationId="Chrome_NotificationsPanel"
                 HorizontalAlignment="Right" VerticalAlignment="Top"
                 Margin="0,87,0,0" Width="640"
                 Style="{StaticResource PopupBorder}"
@@ -737,7 +739,8 @@
                 <Border Grid.Row="1" Grid.Column="1"
                         MinWidth="720" MinHeight="460" MaxWidth="1400" MaxHeight="1000"
                         Style="{StaticResource PopupBorder}">
-                    <ctrl:OptionsPanel x:Name="OptionsPanelControl"/>
+                    <ctrl:OptionsPanel x:Name="OptionsPanelControl"
+                                       AutomationProperties.AutomationId="Chrome_OptionsPanel"/>
                 </Border>
             </Grid>
         </Border>
@@ -760,6 +763,7 @@
              ═══════════════════════════════════════════════════════════ -->
         <ctrl:RibbonEditor
                 Grid.Row="0" Grid.RowSpan="5"
+                AutomationProperties.AutomationId="Chrome_RibbonEditor"
                 Visibility="{Binding ViewModel.IsEditOpen, ElementName=RibbonControl, Converter={StaticResource BoolVis}}"
                 Panel.ZIndex="60"
                 RibbonWidth="{Binding ActualWidth, ElementName=RibbonControl}"

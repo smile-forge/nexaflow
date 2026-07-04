@@ -73,6 +73,7 @@
         <!-- Edit-ribbon toggle — full-height, right edge, arrow pinned to bottom -->
         <Button x:Name="EditBtn"
                 Grid.Column="2"
+                AutomationProperties.AutomationId="Chrome_RibbonEdit"
                 VerticalAlignment="Stretch"
                 ToolTip="Customise ribbon"
                 Width="28" Padding="0"

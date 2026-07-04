@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:Nexaflow.Features.WindowsRegistry.ViewModels"
+             AutomationProperties.AutomationId="RegistryView"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
@@ -197,6 +198,7 @@
                 <ComboBox Width="200" ItemsSource="{Binding Hives}"
                           SelectedItem="{Binding SelectedHive}"
                           DisplayMemberPath="DisplayName"
+                          AutomationProperties.AutomationId="Registry_RootSelector"
                           Style="{StaticResource DarkComboBox}"
                           ItemContainerStyle="{StaticResource DarkComboBoxItem}"/>
 
@@ -221,6 +223,7 @@
             <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
                 <TreeView x:Name="KeyTree" ItemsSource="{Binding TreeRoots}"
+                          AutomationProperties.AutomationId="Registry_KeyTree"
                           Background="Transparent" BorderThickness="0"
                           ItemContainerStyle="{StaticResource RegTreeItemStyle}"
                           VirtualizingStackPanel.IsVirtualizing="True"
@@ -255,6 +258,7 @@
 
             <!-- Value list -->
             <ListView Grid.Column="2" x:Name="ValueList" ItemsSource="{Binding Values}"
+                      AutomationProperties.AutomationId="Registry_ValueList"
                       Background="{StaticResource BgBrush}" BorderThickness="0"
                       Foreground="{StaticResource TextBrush}"
                       SelectionMode="Single"

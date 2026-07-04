@@ -62,6 +62,7 @@
 
                     <!-- Level highlight toggles (each has a coloured dot indicator) -->
                     <ToggleButton Style="{StaticResource TbToggle}"
+                                  AutomationProperties.AutomationId="Log_HighlightFatal"
                                   IsChecked="{Binding HighlightFatal}"
                                   ToolTip="Highlight FATAL lines">
                         <StackPanel Orientation="Horizontal">
@@ -71,6 +72,7 @@
                     </ToggleButton>
 
                     <ToggleButton Style="{StaticResource TbToggle}"
+                                  AutomationProperties.AutomationId="Log_HighlightError"
                                   IsChecked="{Binding HighlightError}"
                                   ToolTip="Highlight ERROR lines">
                         <StackPanel Orientation="Horizontal">
@@ -80,6 +82,7 @@
                     </ToggleButton>
 
                     <ToggleButton Style="{StaticResource TbToggle}"
+                                  AutomationProperties.AutomationId="Log_HighlightWarning"
                                   IsChecked="{Binding HighlightWarning}"
                                   ToolTip="Highlight WARN lines">
                         <StackPanel Orientation="Horizontal">
@@ -89,6 +92,7 @@
                     </ToggleButton>
 
                     <ToggleButton Style="{StaticResource TbToggle}"
+                                  AutomationProperties.AutomationId="Log_HighlightInfo"
                                   IsChecked="{Binding HighlightInfo}"
                                   ToolTip="Highlight INFO lines">
                         <StackPanel Orientation="Horizontal">
@@ -98,6 +102,7 @@
                     </ToggleButton>
 
                     <ToggleButton Style="{StaticResource TbToggle}"
+                                  AutomationProperties.AutomationId="Log_HighlightDebug"
                                   IsChecked="{Binding HighlightDebug}"
                                   ToolTip="Highlight DEBUG/TRACE lines">
                         <StackPanel Orientation="Horizontal">
@@ -110,6 +115,7 @@
 
                     <!-- Custom highlight term -->
                     <TextBox x:Name="HighlightTermBox"
+                             AutomationProperties.AutomationId="Log_HighlightTerm"
                              Text="{Binding CustomHighlightTerm, UpdateSourceTrigger=PropertyChanged}"
                              MinWidth="100"
                              ToolTip="Highlight all occurrences of this term">
@@ -138,12 +144,14 @@
 
                     <!-- Monitoring controls -->
                     <ToggleButton Style="{StaticResource TbToggle}"
+                                  AutomationProperties.AutomationId="Log_Pause"
                                   IsChecked="{Binding IsPaused}"
                                   ToolTip="Pause / resume auto-update from file">
                         <TextBlock Text="⏸ Pause"/>
                     </ToggleButton>
 
                     <ToggleButton Style="{StaticResource TbToggle}"
+                                  AutomationProperties.AutomationId="Log_Follow"
                                   IsChecked="{Binding IsAutoScrolling}"
                                   ToolTip="Auto-scroll to bottom on new content">
                         <TextBlock Text="↓ Follow"/>
@@ -153,6 +161,7 @@
 
                     <!-- Line selection actions -->
                     <Button Style="{StaticResource TbBtn}"
+                            AutomationProperties.AutomationId="Log_CopySelected"
                             Command="{Binding CopySelectedLinesCommand}"
                             ToolTip="Copy selected lines to clipboard">
                         <StackPanel Orientation="Horizontal">
@@ -165,7 +174,8 @@
                     <Separator Style="{StaticResource TbSep}"/>
 
                     <!-- Encoding selector -->
-                    <ComboBox ItemsSource="{Binding AvailableEncodings}"
+                    <ComboBox AutomationProperties.AutomationId="Log_Encoding"
+                              ItemsSource="{Binding AvailableEncodings}"
                               SelectedItem="{Binding SelectedEncoding}"
                               VerticalAlignment="Center"
                               Padding="6,4"
@@ -220,6 +230,7 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <TextBox Grid.Column="0"
+                                     AutomationProperties.AutomationId="Log_FilterRegex"
                                      Text="{Binding FilterRegex, UpdateSourceTrigger=PropertyChanged}"
                                      ToolTip="Fade lines not matching this regex">
                                 <TextBox.Style>
