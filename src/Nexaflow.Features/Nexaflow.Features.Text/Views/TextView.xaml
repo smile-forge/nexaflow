@@ -47,6 +47,58 @@
                 <!-- Right: tool buttons -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
 
+                    <Button Command="{Binding ToggleEditingCommand}"
+                            IsEnabled="{Binding CanEdit}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource TbBtn}">
+                                <Setter Property="ToolTip" Value="Enable editing"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                        <Setter Property="ToolTip" Value="Stop editing"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock FontSize="12" Margin="0,0,4,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="✎"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                <Setter Property="Text" Value="🔓"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock FontSize="11">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="Edit"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                <Setter Property="Text" Value="Editing"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Button>
+
+                    <Button Style="{StaticResource TbBtn}"
+                            Command="{Binding SaveCommand}"
+                            Visibility="{Binding IsEditing, Converter={StaticResource BoolVis}}"
+                            ToolTip="Save (Ctrl+S)">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="💾" FontSize="11" Margin="0,0,4,0"/>
+                            <TextBlock Text="Save" FontSize="11"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Separator Style="{StaticResource TbSep}"/>
+
                     <ToggleButton Style="{StaticResource TbToggle}"
                                   AutomationProperties.AutomationId="Text_LineNumbers"
                                   IsChecked="{Binding ShowLineNumbers}"
@@ -63,13 +115,18 @@
 
                     <Separator Style="{StaticResource TbSep}"/>
 
-                    <Button x:Name="CutButton"   Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="Text_Cut"   ToolTip="Cut (Ctrl+X)">
+                    <!-- Cut/Paste only make sense while editing; Copy works in the read-only viewer too.
+                         Command binding (wired in code-behind to the editor) auto-disables Cut/Copy when
+                         there's no selection and Paste when there's nothing to paste. -->
+                    <Button x:Name="CutButton"   Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="Text_Cut" ToolTip="Cut (Ctrl+X)"
+                            Visibility="{Binding IsEditing, Converter={StaticResource BoolVis}}">
                         <TextBlock Text="✂" FontSize="12"/>
                     </Button>
                     <Button x:Name="CopyButton"  Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="Text_Copy"  ToolTip="Copy (Ctrl+C)">
                         <TextBlock Text="⎘" FontSize="12"/>
                     </Button>
-                    <Button x:Name="PasteButton" Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="Text_Paste" ToolTip="Paste (Ctrl+V)">
+                    <Button x:Name="PasteButton" Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="Text_Paste" ToolTip="Paste (Ctrl+V)"
+                            Visibility="{Binding IsEditing, Converter={StaticResource BoolVis}}">
                         <TextBlock Text="📋" FontSize="11"/>
                     </Button>
 
@@ -171,7 +228,6 @@
 
             <avalon:TextEditor x:Name="Editor"
                                Grid.Column="0"
-                               IsReadOnly="True"
                                FontFamily="Cascadia Code, Consolas, Courier New, monospace"
                                FontSize="13"
                                Margin="3,3,0,0"

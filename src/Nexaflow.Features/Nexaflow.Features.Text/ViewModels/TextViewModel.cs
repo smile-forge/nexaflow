@@ -3,12 +3,12 @@ using CommunityToolkit.Mvvm.Input;
 using ICSharpCode.AvalonEdit.Document;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.Text.ClientTools;
 using Nexaflow.Features.Text.Services;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
 using System.IO;
 using System.Text;
-using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Windows;
 
@@ -27,7 +27,9 @@ public sealed record SplitModeOption(SplitMode Mode, string Label)
 public sealed partial class TextViewModel : ObservableObject, IDisposable, IPageViewModel
 {
     private const long SmallFileSizeLimit = 100 * 1024; // 100 KB
-    private const int  ChunkSize          = 100 * 1024; // bytes per sliding-window chunk
+    private const int  LinesPerPage       = 2000;        // page granularity for the line index
+    private const int  WindowLines        = 4000;        // real lines kept resident in the editor
+    private const int  SlideMargin        = 800;         // slide when the viewport nears a window edge
 
     // ── File info ─────────────────────────────────────────────────────────────
 
@@ -40,6 +42,22 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     // ── Document (owned here; code-behind sets Editor.Document = this.Document) ──
 
     public TextDocument Document { get; } = new TextDocument();
+
+    // ── Editing ─────────────────────────────────────────────────────────────────
+
+    [ObservableProperty] private bool _isEditing;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    private bool _isDirty;
+
+    [ObservableProperty] private bool _isBusy; // a streaming save is running — editor is held read-only
+
+    /// <summary>Raised whenever <see cref="IsDirty"/> changes, so the page registration can mark the tab.</summary>
+    public event Action<bool>? DirtyChanged;
+
+    /// <summary>True when this file can be edited: any small file, or a large file on a real (non-archive) path.</summary>
+    public bool CanEdit => !IsLargeFile || VirtualFileSystem.Instance.SplitOutermostContainer(FilePath).Inner is null;
 
     // ── Encoding ──────────────────────────────────────────────────────────────
 
@@ -88,8 +106,6 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     // -1 means "not yet navigated"; code-behind watches this to trigger centering
     [ObservableProperty] private int _scrollToOffset = -1;
 
-    private int _currentMatchIndex = -1;
-
     private IReadOnlyList<(int offset, int length)> _searchHighlights = [];
     private IReadOnlyList<double>                   _miniMapMarks     = [];
 
@@ -105,19 +121,17 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         private set { _miniMapMarks = value; OnPropertyChanged(); }
     }
 
-    // ── Large-file state ──────────────────────────────────────────────────────
+    // ── Large-file windowing ────────────────────────────────────────────────────
 
-    private Stream? _fileStream;   // a VFS stream: a real FileStream, or a seekable temp for an in-archive file
-    private long        _loadedByteEnd;
-    private bool        _moreDataAvailable;
-    private bool        _isLoadingChunk;
-    private string      _loadedText     = string.Empty; // decoded text of the loaded byte range
-    private long[]      _lineByteStarts = [];            // byte offset of each line start (pre-scan)
-    private int         _fileLineCount;                  // total lines from pre-scan
-
-    // Number of document lines backed by real file content (not placeholder newlines).
-    // Updated after each chunk; code-behind compares this against the viewport bottom line.
-    public int LoadedLineCount { get; private set; }
+    private OverlayTextFile? _file;        // the overlay engine (windowed reads + edits + save)
+    private long   _winStartLine;          // first real line in the resident window
+    private long   _winStartByte;          // current byte offset of the window start
+    private string _winText = string.Empty;// exact decoded text of the window (mirrors Document's real region)
+    private int    _winDocOffset;          // Document offset where the window's real text begins
+    private bool   _suppressDocChanges;    // guards programmatic Document mutations from the edit pipeline
+    private bool   _slidingWindow;         // re-entrancy guard for slides
+    private string AddBufferPath => Path.Combine(
+        Path.GetDirectoryName(FilePath) ?? string.Empty, "." + FileName + ".nexedit");
 
     // ── Monitoring ────────────────────────────────────────────────────────────
 
@@ -127,19 +141,13 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     // ── Search cancellation ───────────────────────────────────────────────────
 
     private CancellationTokenSource? _searchCts;
-
-    // ── Last search (for re-running after reload) ─────────────────────────────
-
     private Func<CancellationToken, Task>? _lastSearch;
 
-    // ── Active search state (used for navigation and incremental highlighting) ─
-
     // All line numbers (0-based) across the full file that contain at least one match.
-    // Populated by streaming scan; used by FindNext/FindPrevious to navigate beyond
-    // the loaded portion without relying on SearchHighlights.
-    private int[]  _matchingLineNumbers  = [];
-    private Regex? _activeRegex;                         // set when search is regex mode
-    private string _activeSearchPattern  = string.Empty; // set when search is conventional mode
+    private long[]  _matchingLineNumbers  = [];
+    private Regex? _activeRegex;
+    private string _activeSearchPattern  = string.Empty;
+    private int    _currentMatchIndex     = -1;
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -152,6 +160,8 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         FileName = Path.GetFileName(filePath);
     }
 
+    partial void OnIsDirtyChanged(bool value) => DirtyChanged?.Invoke(value);
+
     // ── Loading ───────────────────────────────────────────────────────────────
 
     public async Task LoadAsync(CancellationToken ct)
@@ -163,28 +173,24 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
             long length  = VirtualFileSystem.Instance.GetLength(FilePath);
             FileSizeText = FormatSize(length);
             IsLargeFile  = length >= SmallFileSizeLimit;
+            OnPropertyChanged(nameof(CanEdit));
 
             if (!IsLargeFile)
             {
                 using var smallStream = VirtualFileSystem.Instance.OpenRead(FilePath);
                 using var smallReader = new StreamReader(smallStream, SelectedEncoding.Encoding);
+                _suppressDocChanges = true;
                 Document.Text = await smallReader.ReadToEndAsync(ct);
+                _suppressDocChanges = false;
                 LineCount     = Document.LineCount;
             }
             else
             {
-                _fileStream?.Dispose();
-                _fileStream    = VirtualFileSystem.Instance.OpenRead(FilePath);
-                _loadedByteEnd = 0;
-                _loadedText    = string.Empty;
-                Document.Text  = string.Empty;
-
-                // Pre-scan for exact line count so the scrollbar and minimap share the
-                // same coordinate space from the very first chunk.
-                await PreScanAsync(ct);
-                LineCount = _fileLineCount;
-
-                await LoadNextChunkCoreAsync(ct);
+                _file?.Dispose();
+                _file = await OverlayTextFile.OpenAsync(FilePath, SelectedEncoding.Encoding, LinesPerPage, AddBufferPath, ct);
+                LineCount = (int)Math.Min(int.MaxValue, _file.TotalLines);
+                _winStartLine = 0;
+                await SlideWindowAsync(0);
             }
 
             if (IsMonitoring) StartMonitoring();
@@ -192,146 +198,214 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
+            _suppressDocChanges = true;
             Document.Text = $"Error loading file: {ex.Message}";
+            _suppressDocChanges = false;
         }
     }
 
-    private async Task PreScanAsync(CancellationToken ct)
+    // ── Sliding window (large files) ─────────────────────────────────────────────
+
+    // Called by code-behind when the viewport's visible lines move. Slides the resident window if the
+    // viewport nears (or passes) a window edge, keeping only the window's real text in the Document.
+    public async Task EnsureWindowAsync(int topVisibleLine, int bottomVisibleLine)
     {
-        var starts = new List<long> { 0L };
-        long pos   = 0;
-        using var stream = VirtualFileSystem.Instance.OpenRead(FilePath);
-        var buffer = new byte[65536];
-        int read;
-        while ((read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), ct)) > 0)
-        {
-            ct.ThrowIfCancellationRequested();
-            for (var i = 0; i < read; i++)
-                if (buffer[i] == '\n') starts.Add(pos + i + 1);
-            pos += read;
-        }
-        _lineByteStarts = starts.ToArray();
-        _fileLineCount  = _lineByteStarts.Length; // one entry per line start = line count
+        if (!IsLargeFile || _file is null || _slidingWindow) return;
+
+        long winEnd = _winStartLine + CountNewlines(_winText);
+        bool nearTop    = _winStartLine > 0 && topVisibleLine - _winStartLine < SlideMargin;
+        bool nearBottom = winEnd < _file.TotalLines && winEnd - bottomVisibleLine < SlideMargin;
+        bool outside    = topVisibleLine < _winStartLine || bottomVisibleLine > winEnd;
+        if (!nearTop && !nearBottom && !outside) return;
+
+        long desiredStart = Math.Max(0, topVisibleLine - SlideMargin);
+        await SlideWindowAsync(desiredStart);
     }
 
-    private async Task LoadNextChunkCoreAsync(CancellationToken ct)
+    private async Task SlideWindowAsync(long desiredStart)
     {
-        if (_fileStream is null) return;
-
-        var buffer = new byte[ChunkSize];
-        _fileStream.Seek(_loadedByteEnd, SeekOrigin.Begin);
-        var read = await _fileStream.ReadAsync(buffer.AsMemory(0, ChunkSize), ct);
-        if (read == 0) { _moreDataAvailable = false; return; }
-
-        var oldLoadedLen = _loadedText.Length;   // where real content currently ends in Document
-        var oldDocLen    = Document.TextLength;  // includes old sep + old placeholder
-
-        var newChunk = SelectedEncoding.Encoding.GetString(buffer, 0, read);
-        _loadedText    += newChunk;
-        _loadedByteEnd += read;
-        _moreDataAvailable = _loadedByteEnd < _fileStream.Length;
-
-        // Binary-search line starts to find how many lines are now backed by real content.
-        var idx = Array.BinarySearch(_lineByteStarts, _loadedByteEnd);
-        if (idx < 0) idx = ~idx;
-        LoadedLineCount = idx;
-
-        // Replace everything from oldLoadedLen to end of document with:
-        //   newChunk  +  separator (if loaded text doesn't end with \n)  +  placeholder newlines
-        // This uses AvalonEdit's O(log N) rope Replace — no full-string rebuild.
-        var suffix = BuildPlaceholderSuffix();
-        Document.Replace(oldLoadedLen, oldDocLen - oldLoadedLen, newChunk + suffix);
-
-        // Append highlights for the newly loaded content so the renderer keeps up.
-        AppendHighlightsForChunk(oldLoadedLen, newChunk);
-    }
-
-    private void AppendHighlightsForChunk(int chunkDocOffset, string chunk)
-    {
-        if (!IsSearchActive) return;
-
-        var additions = new List<(int, int)>();
-        if (_activeRegex is not null)
-        {
-            foreach (Match m in _activeRegex.Matches(chunk))
-                additions.Add((chunkDocOffset + m.Index, m.Length));
-        }
-        else if (!string.IsNullOrEmpty(_activeSearchPattern))
-        {
-            var cmp   = StringComparison.OrdinalIgnoreCase;
-            var start = 0;
-            while (true)
-            {
-                var i = chunk.IndexOf(_activeSearchPattern, start, cmp);
-                if (i < 0) break;
-                additions.Add((chunkDocOffset + i, _activeSearchPattern.Length));
-                start = i + _activeSearchPattern.Length;
-            }
-        }
-
-        if (additions.Count > 0)
-        {
-            var merged = new List<(int, int)>(SearchHighlights);
-            merged.AddRange(additions);
-            SearchHighlights = merged;
-        }
-    }
-
-    // Returns the separator + placeholder block that follows the loaded text in the document.
-    // The result keeps Document.LineCount == _fileLineCount while content loads incrementally.
-    private string BuildPlaceholderSuffix()
-    {
-        if (!_moreDataAvailable) return string.Empty;
-
-        var loadedNl  = 0;
-        foreach (var c in _loadedText) if (c == '\n') loadedNl++;
-
-        var remaining = _fileLineCount - 1 - loadedNl;
-        if (remaining <= 0) return string.Empty;
-
-        // If loaded text doesn't end with \n, add one so placeholders start on a fresh line.
-        var needsNl = _loadedText.Length > 0 && _loadedText[^1] != '\n';
-        if (needsNl) remaining--;
-
-        var sb = new StringBuilder((needsNl ? 1 : 0) + Math.Max(0, remaining));
-        if (needsNl) sb.Append('\n');
-        if (remaining > 0) sb.Append('\n', remaining);
-        return sb.ToString();
-    }
-
-    // Called by code-behind whenever the viewport bottom line advances into the placeholder
-    // region. Loads chunks in sequence (concurrency-guarded) until real content covers
-    // `targetLine` plus a look-ahead buffer.
-    public async Task EnsureContentLoadedUpToLineAsync(int targetLine)
-    {
-        if (_isLoadingChunk || !_moreDataAvailable) return;
-        _isLoadingChunk = true;
+        if (_file is null) return;
+        _slidingWindow = true;
         try
         {
-            const int LookAhead = 200; // lines of buffer past the viewport bottom
-            while (_moreDataAvailable && LoadedLineCount < targetLine + LookAhead)
-                await LoadNextChunkCoreAsync(CancellationToken.None);
+            long start = Math.Max(0, Math.Min(desiredStart, Math.Max(0, _file.TotalLines - 1)));
+            var win = await _file.ReadWindowAsync(start, WindowLines, CancellationToken.None);
+            _winStartLine = win.StartLine;
+            _winStartByte = win.StartByteOffset;
+            _winText      = win.Text;
+            LineCount     = (int)Math.Min(int.MaxValue, _file.TotalLines);
+            ComposeDocument();
+            RefreshWindowHighlights();
         }
-        finally { _isLoadingChunk = false; }
+        finally { _slidingWindow = false; }
     }
 
-    // ── Encoding change ───────────────────────────────────────────────────────
-
-    partial void OnSelectedEncodingChanged(EncodingOption value)
+    // Builds the full Document text = top placeholders + window real text + bottom placeholders, keeping
+    // Document.LineCount == TotalLines so the scrollbar coordinate space spans the whole file.
+    private void ComposeDocument()
     {
-        // Re-read the file when the user changes encoding
-        _ = ReloadAsync();
+        long total = _file?.TotalLines ?? 1;
+        long nwin  = CountNewlines(_winText);
+        long bottom = (total - 1) - _winStartLine - nwin;
+
+        var sb = new StringBuilder();
+        if (_winStartLine > 0) sb.Append('\n', checked((int)_winStartLine));
+        _winDocOffset = (int)_winStartLine;
+        sb.Append(_winText);
+        if (bottom > 0)
+        {
+            if (_winText.Length > 0 && _winText[^1] != '\n') { sb.Append('\n'); bottom--; }
+            if (bottom > 0) sb.Append('\n', checked((int)bottom));
+        }
+
+        _suppressDocChanges = true;
+        Document.Text = sb.ToString();
+        _suppressDocChanges = false;
     }
+
+    /// <summary>Document offset where the editable (real, resident) text begins.</summary>
+    public int LoadedRealStart => IsLargeFile ? _winDocOffset : 0;
+
+    /// <summary>Document offset just past the editable text (placeholders begin here).</summary>
+    public int LoadedRealEnd => IsLargeFile ? _winDocOffset + _winText.Length : Document.TextLength;
+
+    // ── User edits (forwarded from the view's Document.Changed) ───────────────────
+
+    public void OnUserEdit(int docOffset, int removalLength, string insertedText)
+    {
+        if (_suppressDocChanges || !IsEditing) return;
+        IsDirty = true;
+
+        if (!IsLargeFile || _file is null) return; // small files persist the whole Document on save
+
+        int inWin = docOffset - _winDocOffset;
+        if (inWin < 0 || inWin > _winText.Length) return; // outside the resident window (guarded read-only)
+
+        string removed = removalLength > 0 && inWin + removalLength <= _winText.Length
+            ? _winText.Substring(inWin, removalLength)
+            : string.Empty;
+
+        long curByte      = _winStartByte + SelectedEncoding.Encoding.GetByteCount(_winText.AsSpan(0, inWin));
+        long bytesRemoved = SelectedEncoding.Encoding.GetByteCount(removed);
+        _file.ApplyEdit(curByte, bytesRemoved, insertedText);
+
+        // Keep the window shadow in sync with the Document the user just mutated.
+        _winText = string.Concat(_winText.AsSpan(0, inWin), insertedText, _winText.AsSpan(inWin + removed.Length));
+        LineCount = (int)Math.Min(int.MaxValue, _file.TotalLines);
+    }
+
+    // ── Editing toggle ───────────────────────────────────────────────────────────
+
+    [RelayCommand]
+    private async Task ToggleEditing()
+    {
+        if (IsEditing)
+        {
+            if (IsDirty)
+            {
+                var discard = await _shell.ConfirmAsync("Discard changes?",
+                    "You have unsaved edits. Discard them and stop editing?");
+                if (!discard) return;
+                await DiscardAsync();
+            }
+            IsEditing = false;
+            if (_watch is not null) _watch.Enabled = IsMonitoring;
+            return;
+        }
+
+        if (!CanEdit)
+        {
+            _shell.ShowError(IsLargeFile
+                ? "Large files inside archives can't be edited in place — extract or split first."
+                : "This file can't be edited.");
+            return;
+        }
+
+        if (_watch is not null) _watch.Enabled = false; // hold reloads while editing
+        IsEditing = true;
+    }
+
+    private async Task DiscardAsync()
+    {
+        IsDirty = false;
+        await ReloadAsync(); // rebuild the overlay/window from the on-disk original
+    }
+
+    // ── Save ─────────────────────────────────────────────────────────────────────
+
+    [RelayCommand(CanExecute = nameof(IsDirty))]
+    private async Task Save()
+    {
+        if (!IsDirty) return;
+        try
+        {
+            IsBusy = true;
+            if (_watch is not null) _watch.Enabled = false;
+
+            if (!IsLargeFile || _file is null)
+            {
+                VirtualFileSystem.Instance.WriteAllText(FilePath, Document.Text, SelectedEncoding.Encoding);
+                IsDirty = false;
+            }
+            else
+            {
+                var tmp = FilePath + ".nexsave.tmp";
+                await using (var outStream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16, useAsync: true))
+                    await _file.SaveAsync(outStream, CancellationToken.None);
+
+                // Release the original's file handle so the atomic replace can swap it in.
+                long keepLine = _winStartLine;
+                _file.Dispose();
+                _file = null;
+
+                if (File.Exists(FilePath)) File.Replace(tmp, FilePath, null);
+                else File.Move(tmp, FilePath);
+
+                IsDirty = false;
+
+                // Re-open the overlay over the saved file (the add-buffer is consumed) but DON'T rebuild the
+                // document — the on-screen content is identical to what was just saved, so leaving it as-is
+                // keeps the viewport exactly where the user was.
+                _file = await OverlayTextFile.OpenAsync(FilePath, SelectedEncoding.Encoding, LinesPerPage, AddBufferPath, CancellationToken.None);
+                LineCount = (int)Math.Min(int.MaxValue, _file.TotalLines);
+                var w = await _file.ReadWindowAsync(keepLine, 0, CancellationToken.None); // just to recompute the window's byte offset
+                _winStartByte = w.StartByteOffset;
+            }
+
+            _shell.ShowNotification($"Saved {FileName}.");
+        }
+        catch (Exception ex)
+        {
+            _shell.ShowError($"Could not save '{FileName}': {ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+            if (_watch is not null) _watch.Enabled = IsMonitoring;
+        }
+    }
+
+    // ── Reload (encoding change / monitor / post-save) ────────────────────────────
 
     private async Task ReloadAsync()
     {
         _searchCts?.Cancel();
-        _fileStream?.Dispose();
-        _fileStream   = null;
-        _loadedText   = string.Empty;
+        _file?.Dispose();
+        _file = null;
+        _winText = string.Empty;
+        _winStartLine = 0;
+        _winStartByte = 0;
+        _suppressDocChanges = true;
         Document.Text = string.Empty;
+        _suppressDocChanges = false;
         await LoadAsync(CancellationToken.None);
         if (IsSearchActive) await ReRunSearchAsync();
+    }
+
+    partial void OnSelectedEncodingChanged(EncodingOption value)
+    {
+        if (IsEditing) return; // encoding is locked while editing (combo is disabled in the view)
+        _ = ReloadAsync();
     }
 
     // ── File monitoring ───────────────────────────────────────────────────────
@@ -340,21 +414,16 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     {
         _watch?.Dispose();
         if (!VirtualFileSystem.Instance.Exists(FilePath)) return;
-
         _watch = _shell.WatchFile(FilePath, OnFileChanged);
+        if (IsEditing || IsBusy) _watch.Enabled = false;
     }
 
-    // Invoked by the shell on this workspace's UI thread when the watched file changes.
     private async void OnFileChanged()
     {
+        if (IsEditing || IsBusy) return; // our own writes / an active edit session — ignore
         FileChangedMessage         = "File changed on disk — reloading…";
         FileChangedBannerVisible   = true;
-        _fileStream?.Dispose();
-        _fileStream   = null;
-        _loadedText   = string.Empty;
-        Document.Text = string.Empty;
-        await LoadAsync(CancellationToken.None);
-        if (IsSearchActive) await ReRunSearchAsync();
+        await ReloadAsync();
         await Task.Delay(3000);
         FileChangedBannerVisible = false;
     }
@@ -441,20 +510,18 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
             try   { regex = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled); }
             catch { IsSearchRunning = false; return; }
 
-            var (highlights, marks, count) = IsLargeFile
-                ? await ScanFileForRegexAsync(regex, ct)
-                : ScanDocumentForRegex(regex);
-
-            _activeRegex          = regex;
-            _activeSearchPattern  = string.Empty;
+            _activeRegex         = regex;
+            _activeSearchPattern = string.Empty;
+            var (lines, count)   = await ScanAsync(regex, null, ct);
+            _matchingLineNumbers = lines;
 
             CurrentSearchTerm  = $"/{pattern}/";
-            SearchHighlights   = highlights;
-            MiniMapMarks       = marks;
+            MiniMapMarks       = MarksFor(lines);
             SearchMatchCount   = count;
             IsSearchActive     = count > 0;
-            _currentMatchIndex = highlights.Count > 0 ? 0 : -1;
-            ScrollToOffset     = highlights.Count > 0 ? highlights[0].Item1 : -1;
+            _currentMatchIndex = count > 0 ? 0 : -1;
+            RefreshWindowHighlights();
+            if (count > 0) await NavigateToMatchLineAsync(lines[0]);
         }
         catch (OperationCanceledException) { }
         finally { IsSearchRunning = false; }
@@ -472,144 +539,92 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         IsSearchRunning = true;
         try
         {
-            var (highlights, marks, count) = IsLargeFile
-                ? await ScanFileConventionalAsync(query, ct)
-                : ScanDocumentConventional(query);
-
             _activeRegex         = null;
             _activeSearchPattern = query;
+            var (lines, count)   = await ScanAsync(null, query, ct);
+            _matchingLineNumbers = lines;
 
             CurrentSearchTerm  = query;
-            SearchHighlights   = highlights;
-            MiniMapMarks       = marks;
+            MiniMapMarks       = MarksFor(lines);
             SearchMatchCount   = count;
             IsSearchActive     = count > 0;
-            _currentMatchIndex = highlights.Count > 0 ? 0 : -1;
-            ScrollToOffset     = highlights.Count > 0 ? highlights[0].Item1 : -1;
+            _currentMatchIndex = count > 0 ? 0 : -1;
+            RefreshWindowHighlights();
+            if (count > 0) await NavigateToMatchLineAsync(lines[0]);
         }
         catch (OperationCanceledException) { }
         finally { IsSearchRunning = false; }
     }
 
+    // Scans the CURRENT content (overlay-aware for large files) for matching line numbers + total count.
+    private async Task<(long[] lines, int count)> ScanAsync(Regex? regex, string? query, CancellationToken ct)
+    {
+        var matchingLines = new List<long>();
+        var total         = 0;
+
+        if (IsLargeFile && _file is not null)
+        {
+            await foreach (var (line, text, _) in _file.EnumerateLinesAsync(ct))
+            {
+                bool hit = regex is not null ? regex.IsMatch(text)
+                    : !string.IsNullOrEmpty(query) && text.Contains(query, StringComparison.OrdinalIgnoreCase);
+                if (hit) { matchingLines.Add(line); total++; }
+            }
+        }
+        else
+        {
+            var docLines = Document.Text.Split('\n');
+            for (var i = 0; i < docLines.Length; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                var text = docLines[i];
+                bool hit = regex is not null ? regex.IsMatch(text)
+                    : !string.IsNullOrEmpty(query) && text.Contains(query, StringComparison.OrdinalIgnoreCase);
+                if (hit) { matchingLines.Add(i); total++; }
+            }
+        }
+        return (matchingLines.ToArray(), total);
+    }
+
+    private IReadOnlyList<double> MarksFor(long[] lines)
+    {
+        long total = Math.Max(1, LineCount);
+        var marks  = new List<double>(lines.Length);
+        foreach (var l in lines) marks.Add((double)l / total);
+        return marks;
+    }
+
+    // Computes search highlights for the resident window only (Document offsets), called after a search
+    // and after every slide. Highlights outside the window aren't drawn (those lines are placeholders).
+    private void RefreshWindowHighlights()
+    {
+        if (!IsSearchActive) { SearchHighlights = []; return; }
+
+        var text    = IsLargeFile ? _winText : Document.Text;
+        var baseOff = IsLargeFile ? _winDocOffset : 0;
+        var result  = new List<(int, int)>();
+
+        if (_activeRegex is not null)
+        {
+            foreach (Match m in _activeRegex.Matches(text))
+                result.Add((baseOff + m.Index, m.Length));
+        }
+        else if (!string.IsNullOrEmpty(_activeSearchPattern))
+        {
+            var cmp = StringComparison.OrdinalIgnoreCase;
+            var start = 0;
+            while (true)
+            {
+                var i = text.IndexOf(_activeSearchPattern, start, cmp);
+                if (i < 0) break;
+                result.Add((baseOff + i, _activeSearchPattern.Length));
+                start = i + _activeSearchPattern.Length;
+            }
+        }
+        SearchHighlights = result;
+    }
+
     private Task ReRunSearchAsync() => _lastSearch?.Invoke(CancellationToken.None) ?? Task.CompletedTask;
-
-    // Small-file search (operates on loaded DocumentText)
-
-    private (IReadOnlyList<(int, int)> highlights, IReadOnlyList<double> marks, int count)
-        ScanDocumentForRegex(Regex regex)
-    {
-        var highlights = new List<(int, int)>();
-        var marks      = new List<double>();
-        var lineNums   = new List<int>();
-        var text       = Document.Text;
-        var totalLines = Math.Max(1, LineCount);
-        var prevLine   = -1;
-
-        foreach (Match m in regex.Matches(text))
-        {
-            highlights.Add((m.Index, m.Length));
-            var line = CountLines(text[..m.Index]); // 1-based
-            marks.Add((double)line / totalLines);
-            if (line - 1 != prevLine) { lineNums.Add(line - 1); prevLine = line - 1; }
-        }
-        _matchingLineNumbers = lineNums.ToArray();
-        return (highlights, marks, highlights.Count);
-    }
-
-    private (IReadOnlyList<(int, int)> highlights, IReadOnlyList<double> marks, int count)
-        ScanDocumentConventional(string query)
-    {
-        var highlights = new List<(int, int)>();
-        var marks      = new List<double>();
-        var lineNums   = new List<int>();
-        var text       = Document.Text;
-        var totalLines = Math.Max(1, LineCount);
-        var comparison = StringComparison.OrdinalIgnoreCase;
-        var start      = 0;
-        var prevLine   = -1;
-
-        while (true)
-        {
-            var idx = text.IndexOf(query, start, comparison);
-            if (idx < 0) break;
-            highlights.Add((idx, query.Length));
-            var line = CountLines(text[..idx]); // 1-based
-            marks.Add((double)line / totalLines);
-            if (line - 1 != prevLine) { lineNums.Add(line - 1); prevLine = line - 1; }
-            start = idx + query.Length;
-        }
-        _matchingLineNumbers = lineNums.ToArray();
-        return (highlights, marks, highlights.Count);
-    }
-
-    // Large-file streaming search
-    // Strategy: stream the whole file for accurate minimap marks (line positions),
-    // but compute highlights only against the loaded DocumentText (avoids line-ending
-    // offset drift that occurs when reconstructing character offsets from a StreamReader).
-
-    private async Task<(IReadOnlyList<(int, int)> highlights, IReadOnlyList<double> marks, int count)>
-        ScanFileForRegexAsync(Regex regex, CancellationToken ct)
-    {
-        var matchingLines = new List<int>();
-        long totalLines   = 0;
-
-        using (var reader = new StreamReader(VirtualFileSystem.Instance.OpenRead(FilePath), SelectedEncoding.Encoding))
-        {
-            string? line;
-            while ((line = await reader.ReadLineAsync(ct)) is not null)
-            {
-                ct.ThrowIfCancellationRequested();
-                if (regex.IsMatch(line)) matchingLines.Add((int)totalLines);
-                totalLines++;
-            }
-        }
-
-        totalLines = Math.Max(1, totalLines);
-        var marks  = matchingLines.Select(n => (double)n / totalLines).ToList();
-
-        // Pass 2: highlights from loaded text — offsets are exact within the sparse document.
-        var highlights = new List<(int, int)>();
-        foreach (Match m in regex.Matches(_loadedText))
-            highlights.Add((m.Index, m.Length));
-
-        _matchingLineNumbers = matchingLines.ToArray(); // only set on full completion (not if cancelled)
-        return (highlights, marks, matchingLines.Count);
-    }
-
-    private async Task<(IReadOnlyList<(int, int)> highlights, IReadOnlyList<double> marks, int count)>
-        ScanFileConventionalAsync(string query, CancellationToken ct)
-    {
-        var comparison    = StringComparison.OrdinalIgnoreCase;
-        var matchingLines = new List<int>();
-        long totalLines   = 0;
-
-        using (var reader = new StreamReader(VirtualFileSystem.Instance.OpenRead(FilePath), SelectedEncoding.Encoding))
-        {
-            string? line;
-            while ((line = await reader.ReadLineAsync(ct)) is not null)
-            {
-                ct.ThrowIfCancellationRequested();
-                if (line.Contains(query, comparison)) matchingLines.Add((int)totalLines);
-                totalLines++;
-            }
-        }
-
-        totalLines = Math.Max(1, totalLines);
-        var marks  = matchingLines.Select(n => (double)n / totalLines).ToList();
-
-        var highlights = new List<(int, int)>();
-        var start      = 0;
-        while (true)
-        {
-            var idx = _loadedText.IndexOf(query, start, comparison);
-            if (idx < 0) break;
-            highlights.Add((idx, query.Length));
-            start = idx + query.Length;
-        }
-
-        _matchingLineNumbers = matchingLines.ToArray();
-        return (highlights, marks, matchingLines.Count);
-    }
 
     [RelayCommand]
     private void CancelSearch()
@@ -628,21 +643,15 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         _activeSearchPattern = string.Empty;
     }
 
-    // Set by code-behind on every caret move so navigation is relative to cursor position.
     public int CurrentCaretOffset { get; set; }
 
     [RelayCommand]
     private async Task FindNext()
     {
         if (_matchingLineNumbers.Length == 0) return;
-
         var caretLine = GetCaretLine();
-
-        // First matching line strictly after the caret line; wrap to 0 if none.
-        var idx = Array.BinarySearch(_matchingLineNumbers, caretLine + 1);
-        if (idx < 0) idx = ~idx; // insertion point = first element > caretLine
+        var idx = LowerBound(_matchingLineNumbers, caretLine + 1);
         if (idx >= _matchingLineNumbers.Length) idx = 0;
-
         _currentMatchIndex = idx;
         await NavigateToMatchLineAsync(_matchingLineNumbers[idx]);
     }
@@ -651,39 +660,48 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     private async Task FindPrevious()
     {
         if (_matchingLineNumbers.Length == 0) return;
-
         var caretLine = GetCaretLine();
-
-        // Last matching line strictly before the caret line; wrap to last if none.
-        var idx = Array.BinarySearch(_matchingLineNumbers, caretLine);
-        idx = idx >= 0 ? idx - 1 : ~idx - 1; // step behind the insertion/found point
+        var idx = LowerBound(_matchingLineNumbers, caretLine) - 1;
         if (idx < 0) idx = _matchingLineNumbers.Length - 1;
-
         _currentMatchIndex = idx;
         await NavigateToMatchLineAsync(_matchingLineNumbers[idx]);
     }
 
-    private int GetCaretLine()
+    // First index whose value is >= target.
+    private static int LowerBound(long[] arr, long target)
     {
-        try { return Document.GetLineByOffset(Math.Clamp(CurrentCaretOffset, 0, Document.TextLength)).LineNumber - 1; }
-        catch { return 0; }
+        int lo = 0, hi = arr.Length;
+        while (lo < hi) { int mid = (lo + hi) >> 1; if (arr[mid] < target) lo = mid + 1; else hi = mid; }
+        return lo;
     }
 
-    private async Task NavigateToMatchLineAsync(int lineNumber) // 0-based
-    {
-        if (lineNumber >= LoadedLineCount)
-            await EnsureContentLoadedUpToLineAsync(lineNumber);
-
-        var offset = FindMatchOffsetOnLine(lineNumber);
-        if (offset >= 0)
-            ScrollToOffset = offset;
-    }
-
-    private int FindMatchOffsetOnLine(int lineNumber) // 0-based
+    private long GetCaretLine()
     {
         try
         {
-            var docLine  = Document.GetLineByNumber(lineNumber + 1); // TextDocument is 1-based
+            return Document.GetLineByOffset(Math.Clamp(CurrentCaretOffset, 0, Document.TextLength)).LineNumber - 1;
+        }
+        catch { return 0; }
+    }
+
+    private async Task NavigateToMatchLineAsync(long lineNumber) // 0-based file line
+    {
+        if (IsLargeFile && _file is not null)
+        {
+            long winEnd = _winStartLine + CountNewlines(_winText);
+            if (lineNumber < _winStartLine || lineNumber >= winEnd)
+                await SlideWindowAsync(Math.Max(0, lineNumber - SlideMargin));
+        }
+
+        var offset = FindMatchOffsetOnLine(lineNumber);
+        if (offset >= 0) ScrollToOffset = offset;
+    }
+
+    private int FindMatchOffsetOnLine(long lineNumber) // 0-based
+    {
+        try
+        {
+            var docLine  = Document.GetLineByNumber((int)lineNumber + 1);
             var lineText = Document.GetText(docLine.Offset, docLine.Length);
 
             if (_activeRegex is not null)
@@ -709,60 +727,197 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static int CountLines(string text)
+    private static long CountNewlines(string text)
     {
-        if (string.IsNullOrEmpty(text)) return 0;
-        var count = 1;
-        foreach (var c in text)
-            if (c == '\n') count++;
-        return count;
+        long n = 0;
+        foreach (var c in text) if (c == '\n') n++;
+        return n;
     }
 
     private static string FormatSize(long bytes) => SizeFormatter.FormatBytes(bytes);
 
+    // ── AI surface helpers (used by the client tools) ────────────────────────────
+
+    internal IShellServices Shell => _shell;
+    internal OverlayTextFile? Engine => _file;
+
+    /// <summary>Reads up to <paramref name="count"/> lines starting at <paramref name="startLine"/>
+    /// (1-based), overlay-aware, each prefixed with its 1-based line number.</summary>
+    internal async Task<string> ReadNumberedLinesAsync(int startLine, int count, CancellationToken ct)
+    {
+        startLine = Math.Max(1, startLine);
+        if (IsLargeFile && _file is not null)
+        {
+            var win = await _file.ReadWindowAsync(startLine - 1, count, ct);
+            var sb = new StringBuilder();
+            var lines = win.Text.Split('\n');
+            int n = startLine;
+            for (int i = 0; i < lines.Length && i < count; i++)
+                sb.Append(n++).Append('\t').Append(lines[i].TrimEnd('\r')).Append('\n');
+            return sb.ToString();
+        }
+
+        return await _shell.RunOnUiAsync(() =>
+        {
+            var sb = new StringBuilder();
+            var lines = Document.Text.Split('\n');
+            for (int i = startLine - 1; i < lines.Length && i < startLine - 1 + count; i++)
+                sb.Append(i + 1).Append('\t').Append(lines[i].TrimEnd('\r')).Append('\n');
+            return Task.FromResult(sb.ToString());
+        });
+    }
+
+    /// <summary>Finds <paramref name="query"/> over current content (overlay-aware), returns a numbered
+    /// summary for the AI, and drives the on-screen search so the user sees the same hits.</summary>
+    internal async Task<string> ToolFindAsync(string query, bool regex, bool caseSensitive, int max, CancellationToken ct)
+    {
+        // Drive the visible search (highlights + minimap) on the UI thread (fire-and-forget the highlight).
+        await _shell.RunOnUiAsync(() => { if (regex) _ = SearchRegexAsync(query); else _ = SearchConventionalAsync(query); });
+
+        var sb = new StringBuilder();
+        int shown = 0;
+        if (IsLargeFile && _file is not null)
+        {
+            var matches = await _file.FindAsync(query, regex, caseSensitive, 0, _file.TotalLines, max, ct);
+            foreach (var m in matches)
+            {
+                sb.Append("line ").Append(m.Line + 1).Append(": ").Append(m.Preview).Append('\n');
+                shown++;
+            }
+        }
+        else
+        {
+            var (lines, _) = await ScanAsync(regex ? SafeRegex(query, caseSensitive) : null, regex ? null : query, ct);
+            foreach (var l in lines)
+            {
+                if (shown >= max) break;
+                var text = await _shell.RunOnUiAsync(() => Task.FromResult(LineText((int)l)));
+                sb.Append("line ").Append(l + 1).Append(": ").Append(text).Append('\n');
+                shown++;
+            }
+        }
+        return shown == 0 ? "No matches." : $"{SearchMatchCount} match(es). Showing {shown}:\n{sb}";
+
+        static Regex? SafeRegex(string p, bool cs) { try { return new Regex(p, cs ? RegexOptions.None : RegexOptions.IgnoreCase); } catch { return null; } }
+    }
+
+    private string LineText(int line0)
+    {
+        try { var l = Document.GetLineByNumber(line0 + 1); return Document.GetText(l.Offset, l.Length); }
+        catch { return string.Empty; }
+    }
+
+    /// <summary>Ensures an edit session is active so a (permission-approved) AI edit can be applied.</summary>
+    internal void EnsureEditing()
+    {
+        if (IsEditing) return;
+        if (_watch is not null) _watch.Enabled = false;
+        IsEditing = true;
+    }
+
+    /// <summary>Replaces lines [startLine, endLine] (0-based, inclusive) with <paramref name="newText"/>,
+    /// refreshing the viewport + dirty state on the UI thread. Works for small and large files.</summary>
+    internal async Task ApplyAiLineEditAsync(long startLine, long endLine, string newText, CancellationToken ct)
+    {
+        if (IsLargeFile && _file is not null)
+        {
+            await _file.ReplaceLinesAsync(startLine, endLine, newText, ct);
+            await AfterAiEditAsync();
+            return;
+        }
+
+        await _shell.RunOnUiAsync(() =>
+        {
+            EnsureEditing();
+            int s = Math.Clamp((int)startLine + 1, 1, Document.LineCount);
+            int e = Math.Clamp((int)endLine + 1, s, Document.LineCount);
+            var startOff = Document.GetLineByNumber(s).Offset;
+            var endObj   = Document.GetLineByNumber(e);
+            var endOff   = Math.Min(endObj.Offset + endObj.TotalLength, Document.TextLength);
+            Document.Replace(startOff, endOff - startOff, newText);
+            IsDirty = true;
+        });
+    }
+
+    internal async Task<int> ApplyAiReplaceAsync(string pattern, string replacement, bool regex, bool caseSensitive,
+        long fromLine, long toLine, CancellationToken ct)
+    {
+        if (IsLargeFile && _file is not null)
+        {
+            int n = await _file.ReplaceAsync(pattern, replacement, regex, caseSensitive, fromLine, toLine, ct);
+            if (n > 0) await AfterAiEditAsync();
+            return n;
+        }
+
+        int hits = 0;
+        await _shell.RunOnUiAsync(() =>
+        {
+            EnsureEditing();
+            var rx  = regex ? new Regex(pattern, caseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase) : null;
+            var cmp = caseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+            var lines = Document.Text.Split('\n');
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (i < fromLine || i > toLine) continue;
+                if (rx is not null)
+                {
+                    int c = rx.Matches(lines[i]).Count;
+                    if (c > 0) { lines[i] = rx.Replace(lines[i], replacement); hits += c; }
+                }
+                else lines[i] = ReplaceAllPlain(lines[i], pattern, replacement, cmp, ref hits);
+            }
+            if (hits > 0) { Document.Text = string.Join('\n', lines); IsDirty = true; }
+        });
+        return hits;
+    }
+
+    private static string ReplaceAllPlain(string text, string find, string repl, StringComparison cmp, ref int hits)
+    {
+        if (string.IsNullOrEmpty(find)) return text;
+        var sb = new StringBuilder();
+        int idx = 0, prev = 0, n = 0;
+        while ((idx = text.IndexOf(find, idx, cmp)) >= 0) { sb.Append(text, prev, idx - prev).Append(repl); idx += find.Length; prev = idx; n++; }
+        if (n == 0) return text;
+        sb.Append(text, prev, text.Length - prev);
+        hits += n;
+        return sb.ToString();
+    }
+
+    private async Task AfterAiEditAsync()
+    {
+        IsDirty = true;
+        await _shell.RunOnUiAsync(() => SlideWindowAsync(_winStartLine)); // re-read the resident window so the edit shows
+    }
+
+    internal async Task SaveFromToolAsync()
+    {
+        if (SaveCommand.CanExecute(null))
+            await _shell.RunOnUiAsync(() => SaveCommand.ExecuteAsync(null));
+    }
+
     // ── IPageViewModel ────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Set by the View after construction to give the ViewModel access to the
-    /// currently visible text (a rendering-layer concept).
-    /// </summary>
     internal Func<string> GetVisibleText { get; set; } = () => string.Empty;
+    internal Func<int>    GetFirstVisibleLine { get; set; } = () => 1;
 
     public string GetContext()
     {
-        var fileName = FilePath is not null ? Path.GetFileName(FilePath) : "Untitled";
-        var path     = FilePath ?? string.Empty;
+        var fileName = Path.GetFileName(FilePath);
+        var dirty    = IsDirty ? " (unsaved edits)" : IsEditing ? " (editing)" : string.Empty;
         var visible  = GetVisibleText();
-        return $"Text file: '{fileName}' at '{path}'\nVisible text:\n{visible}";
+        var first    = GetFirstVisibleLine();
+
+        var numbered = new StringBuilder();
+        var lines    = visible.Replace("\r", string.Empty).Split('\n');
+        for (int i = 0; i < lines.Length; i++)
+            numbered.Append(first + i).Append('\t').Append(lines[i]).Append('\n');
+
+        return $"Text file: '{fileName}' at '{FilePath}'{dirty}\n" +
+               $"Encoding: {SelectedEncoding.Name}. Total lines: {LineCount}.\n" +
+               $"Showing lines {first}-{first + Math.Max(0, lines.Length - 1)} of {LineCount}:\n{numbered}";
     }
 
-    public IReadOnlyList<IClientTool> GetClientTools() =>
-    [
-        new DelegateClientTool(
-            "copy_visible_text",
-            "Copy the text currently visible in the editor to the clipboard.",
-            [],
-            ToolSafety.ReadOnly,
-            (arguments, ct) =>
-            {
-                Clipboard.SetText(GetVisibleText());
-                return Task.FromResult(ToolResult.Ok("copied", "Copied the visible text to the clipboard."));
-            }),
-        new DelegateClientTool(
-            "find",
-            "Find text within the editor.",
-            [new ClientToolParameter("search_term", "The text to search for.")],
-            ToolSafety.ReadOnly,
-            (arguments, ct) =>
-            {
-                var term = arguments["search_term"]?.GetValue<string>();
-                if (string.IsNullOrWhiteSpace(term))
-                    return Task.FromResult(ToolResult.Error("No search term provided."));
-
-                _ = SearchConventionalAsync(term);
-                return Task.FromResult(ToolResult.Ok($"finding {term}", $"Searching for '{term}'."));
-            })
-    ];
+    public IReadOnlyList<IClientTool> GetClientTools() => TextEditorTools.For(this);
 
     public IContext? GetContextObject()
     {
@@ -777,12 +932,18 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         };
     }
 
+    public string? GetAiSystemPromptGuidance() =>
+        "This is a text file viewer/editor. Use read_lines to page through the file, find_text to search " +
+        "(results reflect unsaved edits). To change the file, use edit_lines, replace_in_range or " +
+        "replace_all (these require approval), then save_file to persist.";
+
     // ── Dispose ───────────────────────────────────────────────────────────────
 
     public void Dispose()
     {
         _watch?.Dispose();
         _searchCts?.Cancel();
-        _fileStream?.Dispose();
+        _file?.Dispose();
+        try { if (File.Exists(FilePath + ".nexsave.tmp")) File.Delete(FilePath + ".nexsave.tmp"); } catch { }
     }
 }

@@ -15,13 +15,16 @@ public sealed class TextTabRegistration(IShellServices shell) : IPageRegistratio
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
         var title = string.IsNullOrEmpty(path) ? "Text" : Path.GetFileName(path);
 
+        // One VM per page (the factory runs once) so the dirty marker can ride on the tab title.
+        var vm = new TextViewModel(path, shell);
         var page = new Page
         {
             Title       = title,
             Icon        = "📄",
-            ContentFactory = () => new TextView(new TextViewModel(path, shell)),
+            ContentFactory = () => new TextView(vm),
         };
         page.SetFileBreadcrumbs(path, title);
+        vm.DirtyChanged += dirty => page.Title = dirty ? "● " + title : title;
         return page;
     }
 }
