@@ -236,11 +236,12 @@
                       ItemContainerStyle="{StaticResource TreeItemStyle}"
                       SelectedItemChanged="DirectoryTree_SelectedItemChanged"
                       PreviewMouseRightButtonDown="DirectoryTree_PreviewMouseRightButtonDown"
+                      RequestBringIntoView="DirectoryTree_RequestBringIntoView"
                       Padding="8"
                       ScrollViewer.HorizontalScrollBarVisibility="Auto"
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling"
-                      VirtualizingPanel.ScrollUnit="Pixel">
+                      VirtualizingPanel.ScrollUnit="Item">
                 <TreeView.ItemTemplate>
                     <HierarchicalDataTemplate DataType="{x:Type vm:FileSystemTreeNode}"
                                               ItemsSource="{Binding Children}">

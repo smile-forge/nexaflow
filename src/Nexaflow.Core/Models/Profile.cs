@@ -44,15 +44,53 @@ public sealed partial class Profile : ObservableObject
     [JsonIgnore] public IReadOnlyList<IProviderConfig> ProviderConfigs { get; private set; } = [];
 
     /// <summary>
-    /// Per-workspace feature configs (one instance per <see cref="WorkspaceScopedConfigAttribute"/>
-    /// type) loaded from this profile's folder — mirrors <see cref="ProviderConfigs"/>. Injected into
-    /// features via <c>FeatureManager.TryResolveArgs</c> for the owning workspace.
+    /// Per-workspace feature configs (one instance per <see cref="WorkspaceScopedConfigAttribute"/> type)
+    /// loaded from this profile's folder — mirrors <see cref="ProviderConfigs"/>. Materialized lazily so a
+    /// feature whose only footprint is a scoped config isn't force-loaded at startup; this returns whatever
+    /// has been materialized so far. Injected into features via <c>FeatureManager.TryResolveArgs</c>.
     /// </summary>
-    [JsonIgnore] public IReadOnlyList<IFeatureConfig> WorkspaceConfigs { get; private set; } = [];
+    [JsonIgnore] public IReadOnlyList<IFeatureConfig> WorkspaceConfigs
+    { get { lock (_scopedLock) return _scoped.Values.ToList(); } }
 
-    /// <summary>The per-workspace feature config of the given concrete type, or null.</summary>
+    private readonly Dictionary<Type, IFeatureConfig> _scoped = new();
+    private readonly object _scopedLock = new();
+
+    /// <summary>The per-workspace feature config of the given concrete type, materializing (and loading from
+    /// disk) on first request. Null when <paramref name="t"/> isn't a scoped config type. The owning
+    /// assembly is already loaded by the time a feature ctor asks for its scoped config, so this never
+    /// forces a deferred feature to load.</summary>
     public IFeatureConfig? FindWorkspaceConfig(Type t)
-        => WorkspaceConfigs.FirstOrDefault(c => c.GetType() == t);
+    {
+        lock (_scopedLock)
+        {
+            if (_scoped.TryGetValue(t, out var existing)) return existing;
+            if (!FeatureManager.Instance.IsWorkspaceScopedConfig(t)) return null;
+            try
+            {
+                var cfg = (IFeatureConfig)Activator.CreateInstance(t)!;
+                ConfigManager.Instance.LoadFrom(Dir, cfg, cfg.ConfigName);
+                _scoped[t] = cfg;
+                return cfg;
+            }
+            catch { return null; }
+        }
+    }
+
+    /// <summary>Materializes scoped configs for already-loaded feature assemblies (no new loads). Called
+    /// before a feature's merged config view is built, so a loaded feature's scoped config is included.</summary>
+    internal void MaterializeLoadedScopedConfigs()
+    {
+        foreach (var t in FeatureManager.Instance.LoadedWorkspaceScopedConfigTypes)
+            FindWorkspaceConfig(t);
+    }
+
+    /// <summary>Materializes every scoped config, loading the owning assemblies. Used by the Configure /
+    /// Manage-AI panels and on reload, which need the full set.</summary>
+    internal void MaterializeAllScopedConfigs()
+    {
+        foreach (var t in FeatureManager.Instance.WorkspaceScopedConfigTypes)
+            FindWorkspaceConfig(t);
+    }
 
     [JsonIgnore] public string Dir => WorkspaceManager.ProfileDir(Name);
     [JsonIgnore] public string ConversationsDir => Path.Combine(Dir, "Conversations");
@@ -76,7 +114,8 @@ public sealed partial class Profile : ObservableObject
         ConfigManager.Instance.LoadFrom(Dir, Persona, Persona.ConfigName);
         RibbonService    = new RibbonLayoutService(Dir);
         ProviderConfigs  = ProviderManager.Instance.LoadProviderConfigs(Dir);
-        WorkspaceConfigs = LoadWorkspaceConfigs();
+        // Scoped feature configs are materialized lazily (see FindWorkspaceConfig) so a feature whose only
+        // footprint here is a scoped config isn't force-loaded at startup.
     }
 
     /// <summary>
@@ -88,7 +127,10 @@ public sealed partial class Profile : ObservableObject
 
     /// <summary>Re-reads the per-workspace feature configs from this profile's folder.</summary>
     internal void ReloadWorkspaceConfigs()
-        => WorkspaceConfigs = LoadWorkspaceConfigs();
+    {
+        lock (_scopedLock) _scoped.Clear();
+        MaterializeAllScopedConfigs();
+    }
 
     /// <summary>
     /// Re-reads ALL shared config (ability grid, persona, provider + per-workspace feature configs)
@@ -101,19 +143,8 @@ public sealed partial class Profile : ObservableObject
     {
         ConfigManager.Instance.LoadFrom(Dir, AiConfig, AiConfig.ConfigName);
         ConfigManager.Instance.LoadFrom(Dir, Persona, Persona.ConfigName);
-        ProviderConfigs  = ProviderManager.Instance.LoadProviderConfigs(Dir);
-        WorkspaceConfigs = LoadWorkspaceConfigs();
-    }
-
-    private List<IFeatureConfig> LoadWorkspaceConfigs()
-    {
-        var configs = new List<IFeatureConfig>();
-        foreach (var t in FeatureManager.Instance.WorkspaceScopedConfigTypes)
-        {
-            var cfg = (IFeatureConfig)Activator.CreateInstance(t)!;
-            ConfigManager.Instance.LoadFrom(Dir, cfg, cfg.ConfigName);
-            configs.Add(cfg);
-        }
-        return configs;
+        ProviderConfigs = ProviderManager.Instance.LoadProviderConfigs(Dir);
+        lock (_scopedLock) _scoped.Clear();
+        MaterializeAllScopedConfigs();
     }
 }

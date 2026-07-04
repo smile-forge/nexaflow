@@ -90,7 +90,8 @@ The model has two halves: a **`Profile`** is the saved, shared configuration sho
 | `ProviderManager` | Loads provider **assemblies** by file name; records provider/config **types**; owns the shared `ActivityManager`; owns the **global ref-counted provider instance pool** (`AcquireProviderSet`/`ReleaseProviderSet`). Each `ILlmProvider` is **model-bound** (model injected via `ProviderModel`): one *capability* instance per (type+config) for model enumeration, plus one *execution* instance per (type+config+**model**) the grid assigns — warmed on first acquire, cooled on last release | Holds provider **configs** — those live on the `Profile` |
 | `BackgroundActivityManager` | The one activity/notification surface (passed to ProviderManager, every window, every ShellServices) | — |
 | `WorkspaceManager` | The `Profiles` list (dropdown source) + the live `Workspace`s; create/switch/reconfigure/dispose lifecycle | — |
-| `FeatureManager` | Reflection discovery of feature **types** once at startup; builds feature instances **per (Type, Workspace)** on demand; `EvictWorkspace` drops them on reconfigure/dispose | File-system contracts (those go to `FileSystemFeatureRegistry`) |
+| `FeatureManager` | Consumes the cached discovery index (`FeatureCatalog`); builds feature instances **per (Type, Workspace)** on demand; `EvictWorkspace` drops them on reconfigure/dispose | File-system contracts (those go to `FileSystemFeatureRegistry`) |
+| `FeatureCatalog` | The discovery engine: a **disk-cached** index of which feature type implements which contract, so a normal launch loads **no** feature DLLs; assemblies load + activate **lazily** (first use or post-paint background warm-up). Cache is stamped with the app version and rebuilt only on an update | — |
 | `FileMapManager`, `ExternalAppRegistry`, `WhisperModelManager`, `HostCapabilityService`, `MessageCenter`, `JumpListService` | Misc app-wide services | — |
 
 **Global configs** (registered app-level, shared by every profile): `ShellConfig` (theme), **`AiPersonaConfig` (assistant name + system prompt)**, `WorkspacesConfig` (the profile-list metadata; `ConfigName` is `"workcontexts"` on disk), `FileMapConfig`, `ExternalAppsConfig`, `VoiceConfig`.
@@ -139,7 +140,7 @@ The `IShellServices` / `IAIService` injected into a feature are the **active wor
 
 ### Per-feature (assembly)
 
-- An **`IFeatureConfig`** is a **single, app-level instance per assembly** — discovered once in `RegisterFeatures`, never rebuilt. **Feature settings are global, not per-profile** (persisted at `…\Smile\nexaflow\<ConfigName>\`, outside `Contexts\`). Contrast `AiConfig`, which *is* per-profile. There is no per-profile feature-config mechanism today — adding one would be new work, not a config-path change.
+- An **`IFeatureConfig`** is a **single, app-level instance per assembly** — registered with `ConfigManager` when its owning assembly is first **activated** (lazily, on first use or during warm-up), then never rebuilt. **Feature settings are global, not per-profile** (persisted at `…\Smile\nexaflow\<ConfigName>\`, outside `Contexts\`). Contrast `AiConfig`, which *is* per-profile. There is no per-profile feature-config mechanism today — adding one would be new work, not a config-path change.
 
 ---
 
@@ -162,7 +163,9 @@ The shell host. Owns the window chrome, tab strip, ribbon bar, breadcrumb bar, a
 | `MainWindow.xaml.cs` | Wires shell commands; creates `ShellViewModel`; handles ESC/breadcrumb clicks |
 | `ViewModels/ShellViewModel.cs` | Tab lifecycle, ribbon lifecycle, notifications, AI routing, background tasks; `SelectProfile` (in-place switch, blocked while a modal overlay is open) |
 | `Services/ShellServices.cs` | `IShellServices` impl — **per-Workspace** (not an app-level singleton). Owns that workspace's window + tab registry |
-| `FeatureManager.cs` | Singleton (`FeatureManager.Instance`). Reflection-loads every `Nexaflow.Features.*.dll` at startup, records `IPageRegistration`/config/handler **types** without instantiating, then builds instances per `Workspace` with scoped `IShellServices` + `IAIService` (`EvictWorkspace` drops them on reconfigure). File-system contracts are **not** here (see below) |
+| `FeatureManager.cs` | Singleton (`FeatureManager.Instance`). Delegates discovery to `FeatureCatalog` (a disk-cached index — **no** eager DLL loads on the common launch); resolves `IPageRegistration`/config/handler **types** lazily and builds instances per `Workspace` with scoped `IShellServices` + `IAIService` (`EvictWorkspace` drops them on reconfigure). File-system contracts are **not** here (see below) |
+| `Services/FeatureCatalog.cs` | The discovery engine behind `FeatureManager`. Persists the per-assembly type index to `…\Smile\nexaflow\discovery\catalog.json` (stamped with the app version); a version match is trusted with no assembly loads, a mismatch (an app update) triggers one full rescan. Resolving a type loads + **activates** its assembly on demand (registering that assembly's global configs / archive handlers / theme contributions). A post-paint background warm-up activates the rest |
+| `Services/StartupTimings.cs` | Opt-in startup profiler (`--timing` flag / `NEXAFLOW_STARTUP_TIMING=1`); writes a milestone breakdown + `FIRST_WINDOW_MS` / `WINDOW_ON_DEMAND_MS` to stderr. Zero cost when off |
 | `Services/FileSystemFeatureRegistry.cs` | Discovery + matching for `IFileAction`/`IFolderAction`/`IFileCreateAction`/`IFolderViewlet` (deliberately split out of `FeatureManager`) |
 | `Services/RibbonLayoutService.cs` | Serialize/deserialize ribbon items — **per-profile** (constructed with the profile's own folder, shared by its workspaces), not a single global `ribbon.json` |
 | `Services/WindowManager.cs` | Multi-window registry; tab tearoff; cross-window drag-transfer; DPI maths |
@@ -185,7 +188,7 @@ The contract layer. Every feature depends on this; nothing else does.
 | `OpenPageRequest.cs` | `(PageKind, PageParams)` carrier for shell-level open commands (breadcrumb follow-links). Core-internal MVVM glue — `arch_improvements.md` proposes relocating it to Core |
 | `IPageView.cs` | Thin shell-lifecycle contract implemented by tab `UserControl`s: exposes `IPageViewModel? ViewModel` and `Reinitialize` |
 | `IPageViewModel.cs` | AI pipeline contract implemented by ViewModels: `GetContext`, `GetClientTools`, `GetContextObject` |
-| `IShellServices.cs` (under `Services/`) | The **active Workspace's** shell handle injected into feature code (one impl per workspace, not an app singleton): `OpenTab`/`CloseTab`/`FindTab`, `QueueBackgroundTask`, `ShowError`/`ShowNotification`/`ShowPrompt`/`ShowConfirmation`, `PinToRibbon`, `DiscoverImplementations<T>`. Owns UI-thread access for features: `WatchFile(path, onChanged)` (shared, deduped, UI-marshalled, lifecycle-managed file watching → `IFileWatch`) and `RunOnUiAsync(...)` (marshal work to the workspace UI thread). Features use these instead of `Application.Current.Dispatcher` |
+| `IShellServices.cs` (under `Services/`) | The **active Workspace's** shell handle injected into feature code (one impl per workspace, not an app singleton): `OpenTab`/`CloseTab`/`FindTab`, `QueueBackgroundTask`, `ShowError`/`ShowNotification`/`ShowPrompt`/`ShowConfirmation`, `ShowOverlay`/`CloseOverlay` (feature-defined shell-modal overlays), `PinToRibbon`, `DiscoverImplementations<T>`. Owns UI-thread access for features: `WatchFile(path, onChanged)` (shared, deduped, UI-marshalled, lifecycle-managed file watching → `IFileWatch`) and `RunOnUiAsync(...)` (marshal work to the workspace UI thread). Features use these instead of `Application.Current.Dispatcher` |
 | `IFileWatch.cs` (under `Services/`) | Handle from `WatchFile`: `Enabled` (hold + coalesce while false, flush on re-enable), `Dispose` to unwatch |
 | `IAIService.cs` | Per-`Workspace` AI service: handler scoring/disambiguation, the `RunAgentAsync` agent loop, conversation load/save, analysis + artifacts |
 | `IBackgroundTask.cs` | Self-contained background work (`Description` + `RunAsync`) handed to `IShellServices.QueueBackgroundTask` |
@@ -278,7 +281,7 @@ ConversationRecord
 
 ### `IPageRegistration` — Adding a new page kind
 
-Implement in your feature assembly. `FeatureManager.RegisterFeatures()` discovers it **automatically by reflection** at startup. It injects constructor dependencies per `Workspace`: any `IFeatureConfig` declared in the same assembly, the scoped `IShellServices`, and `IAIService`. Expose a `static string StaticPageKind` so discovery can read the page kind without instantiating.
+Implement in your feature assembly. `FeatureManager` discovers it **automatically** via the cached `FeatureCatalog` index (no code-registration step); its assembly is loaded and the registration built **lazily** on first use. It injects constructor dependencies per `Workspace`: any `IFeatureConfig` declared in the same assembly, the scoped `IShellServices`, and `IAIService`. Expose a `static string StaticPageKind` — the catalog reads the page kind from it without instantiating (and caches it).
 
 `CreatePageDefinition` must stay **cheap and side-effect-free** — callers build a definition speculatively just to read its `Title`/`Icon` (e.g. for a menu) and may discard it. Construct the view-model and view **inside the `ContentFactory` closure** so they're built only when the tab is first shown. Optionally advertise `Parameters` (so the shell/AI can describe how to open the page) and set `CanBeContextItem`/`CreatePageDefinitions` for pages offered in the AI "add context" and ribbon-editor menus.
 
@@ -421,13 +424,16 @@ shellServices.ShowNotification("Done");
 shellServices.ShowPrompt("Rename", "New name", current, onConfirm: name => …, onCancel: () => …);
 shellServices.ShowConfirmation("Delete?", "This cannot be undone.", onConfirm: () => …, onCancel: () => …);
 shellServices.QueueBackgroundTask(myBackgroundTask, onComplete: ok => …);
+shellServices.ShowOverlay(new MyOverlayVm());   // feature-defined shell-modal overlay; CloseOverlay() to dismiss
 ```
+
+A feature can show its own **shell-modal overlay**: pass any view-model to `ShowOverlay`, and the single overlay host in `MainWindow` renders it via a `DataTemplate` matched on the VM's type — ship that template in a `ResourceDictionary` advertised through your `IThemeContribution`. Implement `IShellOverlay` on the VM to opt into backdrop-click dismissal. The built-in modals (Options, Manage-AI, confirmation, prompt) ride the same host.
 
 ---
 
 ### `IFeatureConfig` — Persisted settings
 
-Implement a plain POCO. `FeatureManager` discovers it during `RegisterFeatures()`, instantiates it, and makes it available for injection into `IPageRegistration` constructors. The Options panel renders a property grid for free using reflection and the config attributes.
+Implement a plain POCO. `FeatureManager` discovers it via the cached `FeatureCatalog` index and instantiates + registers it when its owning assembly is first **activated** (lazily, or during the post-paint warm-up), making it available for injection into `IPageRegistration` constructors. The Options panel renders a property grid for free using reflection and the config attributes. (Because the panel lists **every** feature's config, opening it forces a full activation of any not-yet-loaded features.)
 
 ```csharp
 public sealed class MyConfig : IFeatureConfig
@@ -495,8 +501,9 @@ App.OnStartup
       → ProviderManager.LoadConfigured(⋃ AssemblyFileName across all profiles' AiConfigs)
       → WorkspaceManager.Initialize(wcConfig)               ← loads the Profiles list ONLY (no runtime workspaces)
       → FileMapManager / ExternalAppRegistry init
-      → FeatureManager.RegisterFeatures()                   ← reflection-load Nexaflow.Features.*.dll,
-            record IPageRegistration / IFeatureConfig / handler TYPES (no instances yet)
+      → FeatureManager.RegisterFeatures()                   ← FeatureCatalog.Initialize: load the cached
+            discovery index (no feature DLLs loaded) or, after an app update, one full rescan. Feature
+            assemblies load + activate lazily later (first use, or the post-paint background warm-up)
       → WhisperModelManager + HostCapability probe, JumpList, single-instance IPC listener
   → pick startup Profile (Profiles[0], or the one named by --context "Name")
   → WorkspaceManager.CreateWorkspace(profile)               ← profile.EnsureSharedServicesLoaded +

@@ -184,7 +184,7 @@ public sealed class ShellServices : IShellServices
 
         // Reopen in reverse (Pane.Add prepends) so the original left-to-right order is preserved.
         for (int i = snapshot.Count - 1; i >= 0; i--)
-            OpenTabCore(snapshot[i].Kind, snapshot[i].PageParams, null);
+            OpenTabCore(snapshot[i].Kind, snapshot[i].PageParams, null, inRightPane: false);
 
         var active = snapshot.FirstOrDefault(s => s.IsActive);
         if (active.Kind is not null && FindTabCore(active.Kind, active.PageParams) is { } activeTab)
@@ -206,15 +206,15 @@ public sealed class ShellServices : IShellServices
     // ── IShellServices ────────────────────────────────────────────────────
 
     public void OpenTab(string pageKind, Dictionary<string, string>? pageParams = null,
-                        IPageView? caller = null)
+                        IPageView? caller = null, bool inRightPane = false)
     {
-        _ui.Invoke(() => OpenTabCore(pageKind, pageParams, caller));
+        _ui.Invoke(() => OpenTabCore(pageKind, pageParams, caller, inRightPane));
     }
 
-    private void OpenTabCore(string pageKind, Dictionary<string, string>? pageParams,
-                             IPageView? caller)
+    /// <summary>Resolves the window a tab open should target: the one owning <paramref name="caller"/>,
+    /// else the focused window, else the first.</summary>
+    private IWindowHost? ResolveTargetWindow(IPageView? caller)
     {
-        // 1. Resolve target window from caller page or focused window
         IWindowHost? targetWindow = null;
 
         if (caller is UserControl callerControl)
@@ -224,8 +224,27 @@ public sealed class ShellServices : IShellServices
                 _tabToWindow.TryGetValue(callerTab, out targetWindow);
         }
 
-        targetWindow ??= _focused ?? _windows.FirstOrDefault();
+        return targetWindow ?? _focused ?? _windows.FirstOrDefault();
+    }
+
+    private void OpenTabCore(string pageKind, Dictionary<string, string>? pageParams,
+                             IPageView? caller, bool inRightPane)
+    {
+        // 1. Resolve target window from caller page or focused window
+        var targetWindow = ResolveTargetWindow(caller);
         if (targetWindow is null) return;
+
+        // Right-pane open: split off (or focus the existing) right pane and always create a fresh
+        // tab there — skip the global find-and-move so the same location can sit in both panes.
+        if (inRightPane)
+        {
+            targetWindow.FocusSecondPane();
+            var fresh = CreateTab(pageKind, pageParams);
+            if (fresh is null) return;
+            _tabToWindow[fresh] = targetWindow;
+            targetWindow.AddTab(fresh);
+            return;
+        }
 
         // 2. Search globally for a matching tab
         var existing = FindTabCore(pageKind, pageParams);
@@ -682,7 +701,7 @@ public sealed class ShellServices : IShellServices
         // Workspace-scoped configs are persisted per-profile under Contexts\<name>\ (the same place the
         // Configure panel loads them from); global feature configs go in the shared config root. Routing
         // a scoped config through the global Save would write where nothing reads it back.
-        if (FeatureManager.Instance.WorkspaceScopedConfigTypes.Contains(config.GetType()))
+        if (FeatureManager.Instance.IsWorkspaceScopedConfig(config.GetType()))
             ConfigManager.Instance.SaveTo(_workspace.Profile.Dir, config, config.ConfigName);
         else
             ConfigManager.Instance.Save(config, config.ConfigName);
@@ -703,6 +722,20 @@ public sealed class ShellServices : IShellServices
             // Deep-link the Configure overlay to this workspace's profile, on the named section.
             if ((_focused ?? _windows.FirstOrDefault()) is ShellViewModel vm)
                 vm.OpenConfigureAt(_workspace.Profile, configName);
+        });
+
+    void IShellServices.ShowOverlay(object overlayViewModel)
+        => _ui.Invoke(() =>
+        {
+            if ((_focused ?? _windows.FirstOrDefault()) is ShellViewModel vm)
+                vm.ShowOverlay(overlayViewModel);
+        });
+
+    void IShellServices.CloseOverlay()
+        => _ui.Invoke(() =>
+        {
+            if ((_focused ?? _windows.FirstOrDefault()) is ShellViewModel vm)
+                vm.CloseOverlay();
         });
 
     void IShellServices.PinToRibbon(string format, object payload)
@@ -727,27 +760,11 @@ public sealed class ShellServices : IShellServices
         return false;
     }
 
+    // Index-backed (FeatureCatalog): returns every implementation regardless of whether the owning feature
+    // assembly has been warmed up yet — resolving each one loads + activates its assembly on demand. This is
+    // what keeps the first FileSystem page's action set complete before the background warm-up finishes.
     public IEnumerable<Type> DiscoverImplementations<TInterface>()
-    {
-        var target = typeof(TInterface);
-        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            var name = asm.GetName().Name;
-            if (name is null) continue;
-            if (!name.StartsWith("Nexaflow.", StringComparison.Ordinal)) continue;
-
-            Type[] types;
-            try { types = asm.GetTypes(); }
-            catch (System.Reflection.ReflectionTypeLoadException ex) { types = ex.Types.Where(t => t is not null).ToArray()!; }
-
-            foreach (var t in types)
-            {
-                if (t is null) continue;
-                if (t.IsAbstract || t.IsInterface) continue;
-                if (target.IsAssignableFrom(t)) yield return t;
-            }
-        }
-    }
+        => FeatureCatalog.Instance.TypesImplementing<TInterface>();
 
     // ── Window positioning (tearoff) ──────────────────────────────────────
 

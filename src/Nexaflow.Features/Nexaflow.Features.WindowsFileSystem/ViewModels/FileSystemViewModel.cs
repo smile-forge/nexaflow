@@ -888,6 +888,22 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
             NavigateTo(node.FullPath);
     }
 
+    /// <summary>Opens <paramref name="folderPath"/> as a new File Explorer tab in the window's right
+    /// pane, splitting the tab area first if it isn't already split. Backs the tree's
+    /// "Open in right pane" context-menu item.</summary>
+    [RelayCommand]
+    private void OpenInRightPane(string? folderPath)
+    {
+        if (string.IsNullOrEmpty(folderPath)) return;
+        var name = Path.GetFileName(folderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        _shell.OpenTab("FileSystem", new()
+        {
+            ["mode"]  = "path",
+            ["path"]  = folderPath,
+            ["label"] = string.IsNullOrEmpty(name) ? folderPath : name,
+        }, inRightPane: true);
+    }
+
     /// <summary>
     /// Switches to "This PC" mode: refreshes the right-panel drive list and
     /// updates the breadcrumb, exactly as NavigateTo does for a real path.
