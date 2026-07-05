@@ -17,7 +17,7 @@ public class CompoundExtensionMatchTests
     public static void Init(TestContext _)
     {
         var dir = Path.Combine(Path.GetTempPath(), "nexa-filemap-" + Guid.NewGuid().ToString("N"));
-        FileMapManager.Instance.Initialize(useRegistryMapping: false, baseDir: dir);
+        FileMapManager.Instance.Initialize(baseDir: dir);
         FileMapManager.Instance.SaveMapping(new ExperienceMapping
         {
             ExperienceId = Exp,

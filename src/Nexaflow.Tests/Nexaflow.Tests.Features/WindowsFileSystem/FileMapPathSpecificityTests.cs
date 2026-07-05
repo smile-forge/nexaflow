@@ -16,7 +16,7 @@ public class FileMapPathSpecificityTests
     {
         _dir = Path.Combine(Path.GetTempPath(), "nexaflow-filemap-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dir);
-        FileMapManager.Instance.Initialize(useRegistryMapping: false, baseDir: _dir);
+        FileMapManager.Instance.Initialize(baseDir: _dir);
     }
 
     [TestCleanup]

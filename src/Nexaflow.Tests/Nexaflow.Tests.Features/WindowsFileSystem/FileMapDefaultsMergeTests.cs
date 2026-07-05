@@ -28,7 +28,7 @@ public class FileMapDefaultsMergeTests
         _dir = Path.Combine(Path.GetTempPath(), "nexaflow-filemap-merge-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dir);
         // No bundled default-filemap.json in the test output, so this is an empty, isolated seed.
-        FileMapManager.Instance.Initialize(useRegistryMapping: false, baseDir: _dir);
+        FileMapManager.Instance.Initialize(baseDir: _dir);
         _filemapDir = Path.Combine(_dir, "filemap");
     }
 

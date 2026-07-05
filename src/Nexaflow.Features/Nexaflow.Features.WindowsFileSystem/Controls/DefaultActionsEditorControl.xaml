@@ -1,0 +1,104 @@
+<UserControl x:Class="Nexaflow.Features.WindowsFileSystem.Controls.DefaultActionsEditorControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common">
+
+    <UserControl.Resources>
+        <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
+        <cv:InverseBoolToVisibilityConverter x:Key="InverseBoolVis"/>
+    </UserControl.Resources>
+
+    <Grid Margin="12">
+
+        <!-- ── List view: configured overrides ─────────────────────────────── -->
+        <DockPanel Visibility="{Binding IsAdding, RelativeSource={RelativeSource AncestorType=UserControl},
+                                        Converter={StaticResource InverseBoolVis}}">
+            <TextBlock DockPanel.Dock="Top" Text="Default double-click actions"
+                       Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" FontSize="13"/>
+            <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,4,0,10"
+                       Foreground="{StaticResource TextMutedBrush}" FontSize="11"
+                       Text="Override which registered action opens a file type on double-click. Types with no override use Nexaflow's automatic choice. Add as many as you like — changes are committed when you click Save."/>
+
+            <Button DockPanel.Dock="Top" HorizontalAlignment="Left" Content="+ Add default"
+                    MinWidth="110" Margin="0,0,0,8" Style="{StaticResource IconButton}" Click="Add_Click"/>
+
+            <TextBlock DockPanel.Dock="Top" Text="No overrides yet — every type uses its automatic default."
+                       Foreground="{StaticResource TextMutedBrush}" FontSize="11"
+                       Visibility="{Binding HasNoOverrides, RelativeSource={RelativeSource AncestorType=UserControl},
+                                            Converter={StaticResource BoolVis}}"/>
+
+            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                    Visibility="{Binding HasNoOverrides, RelativeSource={RelativeSource AncestorType=UserControl},
+                                         Converter={StaticResource InverseBoolVis}}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl x:Name="SummaryList" Margin="2">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="2,3">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding Extension}" VerticalAlignment="Center"
+                                               Foreground="{StaticResource TextBrush}" FontSize="12"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Label}" VerticalAlignment="Center"
+                                               Foreground="{StaticResource TextMutedBrush}" FontSize="12"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <Button Grid.Column="2" Content="Edit" Margin="4,0,0,0"
+                                            Style="{StaticResource IconButton}" Tag="{Binding}" Click="Edit_Click"/>
+                                    <Button Grid.Column="3" Margin="4,0,0,0" ToolTip="Remove"
+                                            Style="{StaticResource IconButton}" Tag="{Binding}" Click="Remove_Click">
+                                        <TextBlock Text="✕" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                                    </Button>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
+        </DockPanel>
+
+        <!-- ── Add / edit view ──────────────────────────────────────────────── -->
+        <DockPanel Visibility="{Binding IsAdding, RelativeSource={RelativeSource AncestorType=UserControl},
+                                        Converter={StaticResource BoolVis}}">
+            <TextBlock x:Name="AddTitle" DockPanel.Dock="Top" Text="Add a default action"
+                       Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" FontSize="13"/>
+
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,8,0,8">
+                <TextBlock Text="Extension" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,8,0"/>
+                <TextBox x:Name="ExtBox" Width="160" Style="{StaticResource DarkTextBox}" FontSize="12"
+                         TextChanged="ExtBox_TextChanged" ToolTip="e.g. .pdf or pdf"/>
+            </StackPanel>
+
+            <TextBlock x:Name="CurrentExtLabel" DockPanel.Dock="Top" Text="Enter an extension above."
+                       Foreground="{StaticResource TextBrush}" FontSize="12" Margin="0,0,0,4"/>
+
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                        HorizontalAlignment="Right" Margin="0,8,0,0">
+                <Button Content="Cancel" MinWidth="80" Margin="0,0,8,0"
+                        Style="{StaticResource IconButton}" Click="Cancel_Click"/>
+                <Button Content="Confirm" MinWidth="90" Style="{StaticResource IconButton}" Click="Confirm_Click"
+                        IsEnabled="{Binding CanConfirm, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+            </StackPanel>
+
+            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                <ListBox x:Name="CandidateList" Background="Transparent" BorderThickness="0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="2">
+                                <TextBlock Text="{Binding Label}"
+                                           Foreground="{StaticResource TextBrush}" FontSize="12"/>
+                                <TextBlock Text="{Binding Group}"
+                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10"
+                                           Visibility="{Binding HasGroup, Converter={StaticResource BoolVis}}"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+        </DockPanel>
+    </Grid>
+</UserControl>

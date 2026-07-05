@@ -1,4 +1,3 @@
-using Microsoft.Win32;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.IO.Common;
 using System;
@@ -10,7 +9,6 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace Nexaflow.Features.WindowsFileSystem.Services;
 
@@ -43,7 +41,6 @@ public sealed class FileMapManager
 
     private readonly Dictionary<string, ExperienceMapping> _mappings = new(StringComparer.OrdinalIgnoreCase);
     private volatile ReverseIndex _index = new();
-    private bool _useRegistryMapping;
 
     private static readonly JsonSerializerOptions _jsonOpts = new()
     {
@@ -54,12 +51,15 @@ public sealed class FileMapManager
 
     // ── Public API ───────────────────────────────────────────────────────────
 
-    public void Initialize(bool useRegistryMapping, string baseDir)
+    public void Initialize(string baseDir)
     {
-        _useRegistryMapping = useRegistryMapping;
         _filemapDir = Path.Combine(baseDir, "filemap");
 
         Directory.CreateDirectory(_filemapDir);
+
+        // Drop leftover /registry/.ext entries from the retired HKCR scan (some may have been promoted to
+        // User-source by the old "disable registry mapping" path and would otherwise pollute the tree).
+        bool cleaned = CleanupLegacyRegistryMappings();
 
         // Seed / merge bundled default mappings, preserving user customizations.
         bool defaultsChanged = SyncBundledDefaults();
@@ -67,13 +67,28 @@ public sealed class FileMapManager
         // Load all per-mapping JSON files
         LoadMappings();
 
-        // Fast startup: reuse the pre-built index unless the defaults just changed.
-        if (defaultsChanged || !TryLoadIndex())
+        // Fast startup: reuse the pre-built index unless the defaults just changed / cleanup ran.
+        if (defaultsChanged || cleaned || !TryLoadIndex())
             RebuildIndex();
+    }
 
-        // Background: refresh registry-derived entries and update index
-        if (useRegistryMapping)
-            Task.Run(ScanHkcrAsync);
+    /// <summary>
+    /// Deletes any <c>registry_*.json</c> mapping files left over from the retired HKCR scan. Returns
+    /// true when at least one was removed (so the caller rebuilds the index). The <c>/registry/.ext</c>
+    /// namespace was synthetic and matched no action; these files only ever cluttered the Options tree.
+    /// </summary>
+    private bool CleanupLegacyRegistryMappings()
+    {
+        bool removed = false;
+        try
+        {
+            foreach (var file in Directory.GetFiles(_filemapDir, "registry_*.json"))
+            {
+                try { File.Delete(file); removed = true; } catch { }
+            }
+        }
+        catch { }
+        return removed;
     }
 
     /// <summary>
@@ -140,24 +155,6 @@ public sealed class FileMapManager
 
         string path = MappingFilePath(experienceId);
         if (File.Exists(path)) File.Delete(path);
-        RebuildIndex();
-    }
-
-    /// <summary>
-    /// Converts all Registry-source mappings to User-source (called when the
-    /// user turns off registry-based mapping).
-    /// </summary>
-    public void ConvertRegistryMappingsToUser()
-    {
-        List<ExperienceMapping> toUpdate;
-        lock (_mappings)
-            toUpdate = [.. _mappings.Values.Where(m => m.Source == MappingSource.Registry)];
-
-        foreach (var m in toUpdate)
-        {
-            m.Source = MappingSource.User;
-            WriteMapping(m);
-        }
         RebuildIndex();
     }
 
@@ -525,81 +522,6 @@ public sealed class FileMapManager
             return true;
         }
         catch { return false; }
-    }
-
-    // ── Background HKCR scan ──────────────────────────────────────────────────
-
-    private async Task ScanHkcrAsync()
-    {
-        await Task.Yield();   // ensure we're truly off the UI thread
-
-        bool dirty = false;
-        try
-        {
-            using var hkcr = Registry.ClassesRoot;
-            foreach (var name in hkcr.GetSubKeyNames())
-            {
-                if (!name.StartsWith('.')) continue;
-
-                var info = ShellTypeResolver.Resolve(name);
-                if (info is null) continue;
-
-                bool hasContent   = !string.IsNullOrEmpty(info.ContentType);
-                bool hasPerceived = !string.IsNullOrEmpty(info.PerceivedType);
-                if (!hasContent && !hasPerceived) continue;
-
-                // Find the experience IDs that already cover this extension via User entries
-                var covered = GetExperiencesForFile(new FileInfo($"dummy{name}"));
-
-                // Determine which registry-derived criteria would add new coverage
-                var newCriteria = new List<FileSelectionCriteria>();
-                if (hasPerceived && !covered.Any(id => _mappings.TryGetValue(id, out var m) &&
-                        m.Source == MappingSource.User &&
-                        m.Criteria.Any(c => c.Type == CriteriaType.PerceivedType &&
-                            string.Equals(c.Value, info.PerceivedType, StringComparison.OrdinalIgnoreCase))))
-                {
-                    newCriteria.Add(new FileSelectionCriteria { Type = CriteriaType.PerceivedType, Value = info.PerceivedType });
-                }
-                if (hasContent && !covered.Any(id => _mappings.TryGetValue(id, out var m) &&
-                        m.Source == MappingSource.User &&
-                        m.Criteria.Any(c => c.Type == CriteriaType.ContentType &&
-                            string.Equals(c.Value, info.ContentType, StringComparison.OrdinalIgnoreCase))))
-                {
-                    newCriteria.Add(new FileSelectionCriteria { Type = CriteriaType.ContentType, Value = info.ContentType });
-                }
-
-                if (newCriteria.Count == 0) continue;
-
-                // Upsert into a Registry-source mapping for this extension
-                string expId = $"/registry{name}";    // e.g. /registry/.docx
-                lock (_mappings)
-                {
-                    if (_mappings.TryGetValue(expId, out var existing) && existing.Source == MappingSource.User)
-                        continue;   // user has taken over this entry
-
-                    var m = existing ?? new ExperienceMapping { ExperienceId = expId, Source = MappingSource.Registry };
-                    foreach (var c in newCriteria)
-                        if (!m.Criteria.Any(x => x.Type == c.Type && x.Value == c.Value))
-                            m.Criteria.Add(c);
-
-                    _mappings[expId] = m;
-                }
-                dirty = true;
-            }
-        }
-        catch { }
-
-        if (dirty)
-        {
-            IReadOnlyList<ExperienceMapping> registryMappings;
-            lock (_mappings)
-                registryMappings = [.. _mappings.Values.Where(m => m.Source == MappingSource.Registry)];
-
-            foreach (var m in registryMappings)
-                WriteMapping(m);
-
-            RebuildIndex();
-        }
     }
 
     // ── Default-action specificity ────────────────────────────────────────────
