@@ -47,6 +47,13 @@ public sealed class DefaultFileOpener
             return (actions, openVerb);
         });
 
+        // An explicit per-extension default (Options → Default Actions) wins over automatic resolution.
+        // A stale override (removed viewer/app, failed verb) returns false so we fall through below.
+        var overrideEntry = DefaultActionRegistry.Instance.Resolve(fileInfo);
+        if (overrideEntry is not null &&
+            TryPerformOverride(overrideEntry, filePath, internalActions, out bool overrideRefresh))
+            return overrideRefresh;
+
         // Pick the highest match-specificity; break ties by the deeper experience so the specific viewer
         // wins over a broader ancestor (e.g. "As Code"/"As Markdown" at "/text/…" beat "As Text" at "/text",
         // which the file also matches at extension level via ancestor propagation).
@@ -89,6 +96,44 @@ public sealed class DefaultFileOpener
             catch { }
         }
         return false;
+    }
+
+    /// <summary>
+    /// Runs an explicit Default Actions override. Returns false (so the caller falls back to automatic
+    /// resolution) when the target no longer applies: a removed viewer/app or a shell verb that failed.
+    /// </summary>
+    private static bool TryPerformOverride(
+        DefaultActionOverride ov, string filePath,
+        IReadOnlyList<IFileAction> internalActions, out bool requiresRefresh)
+    {
+        requiresRefresh = false;
+        switch (ov.Kind)
+        {
+            case DefaultActionKind.InternalViewer:
+                var action = internalActions.FirstOrDefault(a =>
+                    string.Equals(a.ExperienceId, ov.TargetId, System.StringComparison.OrdinalIgnoreCase));
+                if (action is null) return false;
+                action.PerformAction(filePath);
+                requiresRefresh = action.RequiresRefresh;
+                return true;
+
+            case DefaultActionKind.ExternalApp:
+                var def = ExternalAppRegistry.Instance.FindById(ov.TargetId);
+                if (def is null) return false;
+                new CustomAction(def, ExternalAppRegistry.ResolveIcon(def)).PerformAction(filePath);
+                return true;
+
+            case DefaultActionKind.WindowsVerb:
+                try
+                {
+                    Process.Start(new ProcessStartInfo(filePath) { Verb = ov.TargetId, UseShellExecute = true });
+                    return true;
+                }
+                catch { return false; }
+
+            default:
+                return false;
+        }
     }
 
     /// <summary>Number of path segments in a hierarchical experience id ("/text/code" → 2, "/text" → 1,

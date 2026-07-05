@@ -27,6 +27,23 @@ public sealed class ExternalAppRegistry
 
     public bool UseRegistryMapping => _config.UseRegistryMapping;
 
+    /// <summary>Looks up a held app by its stable <see cref="ExternalAppDefinition.Id"/>, or null.</summary>
+    public ExternalAppDefinition? FindById(string id) =>
+        string.IsNullOrEmpty(id) ? null : _config.Apps.FirstOrDefault(a => a.Id == id);
+
+    /// <summary>
+    /// Assigns a stable <see cref="ExternalAppDefinition.Id"/> to any held app missing one. Returns true
+    /// when at least one was assigned so the caller persists the config — Default Action overrides
+    /// reference apps by id, so the ids must survive restarts. Idempotent.
+    /// </summary>
+    public bool BackfillIds()
+    {
+        bool changed = false;
+        foreach (var app in _config.Apps)
+            if (string.IsNullOrEmpty(app.Id)) { app.Id = Guid.NewGuid().ToString("N"); changed = true; }
+        return changed;
+    }
+
     /// <summary>
     /// Returns a fresh <see cref="CustomAction"/> for each definition whose
     /// extension matches every file in <paramref name="selected"/> and whose

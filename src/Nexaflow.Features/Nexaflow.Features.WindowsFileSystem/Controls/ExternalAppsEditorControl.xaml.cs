@@ -110,6 +110,10 @@ public partial class ExternalAppsEditorControl : UserControl, ICustomConfigApply
         public static IReadOnlyList<string> MultiFileOptions { get; } =
             Enum.GetNames<MultiFileMode>();
 
+        /// <summary>Stable identity carried through edits so Default Action overrides keep referencing
+        /// this app. Set on creation / import / load; a new one is minted on save if still empty.</summary>
+        public string Id { get; set; } = string.Empty;
+
         private string _displayName = string.Empty;
         private string _applicationPath = string.Empty;
         private string _arguments = string.Empty;
@@ -137,6 +141,7 @@ public partial class ExternalAppsEditorControl : UserControl, ICustomConfigApply
 
         public ExternalAppDefinition ToDefinition() => new()
         {
+            Id               = string.IsNullOrEmpty(Id) ? Guid.NewGuid().ToString("N") : Id,
             Extension        = string.Empty,   // legacy field retired — matching is criteria-only
             DisplayName      = DisplayName,
             ApplicationPath  = ApplicationPath,
@@ -154,6 +159,7 @@ public partial class ExternalAppsEditorControl : UserControl, ICustomConfigApply
         {
             var row = new AppRow
             {
+                Id               = d.Id,
                 DisplayName      = d.DisplayName,
                 ApplicationPath  = d.ApplicationPath,
                 Arguments        = d.Arguments,
@@ -277,7 +283,7 @@ public partial class ExternalAppsEditorControl : UserControl, ICustomConfigApply
 
     private void AddApp_Click(object sender, RoutedEventArgs e)
     {
-        var row = new AppRow { DisplayName = "New App" };
+        var row = new AppRow { DisplayName = "New App", Id = Guid.NewGuid().ToString("N") };
         row.CriteriaRows.Add(new CriterionRow());   // one empty extension rule to fill in
         row.PropertyChanged += OnRowPropertyChanged;
         _rows.Add(row);
@@ -356,25 +362,80 @@ public partial class ExternalAppsEditorControl : UserControl, ICustomConfigApply
 
     // ── Registry toggle ──────────────────────────────────────────────────────
 
-    private void RegistryToggle_Unchecked(object sender, RoutedEventArgs e)
+    private async void RegistryToggle_Unchecked(object sender, RoutedEventArgs e)
     {
+        // OnLoaded pushes cfg.UseRegistryMapping onto the bound ToggleButton; when the stored value is
+        // false that programmatic flip raises Unchecked. Without this guard, merely opening Options while
+        // registry handlers are off pops the dialog on load. Only react to a genuine user toggle.
+        if (_suppressDirty) return;
+
+        // Turning the toggle off just stops the live "Open with"/New-menu entries — fully reversible.
+        // Offer to keep the current handlers by importing them as editable External Apps.
         var result = MessageBox.Show(
-            "This will convert all registry-derived mappings to user-managed mappings. " +
-            "They will no longer be updated automatically.\n\nProceed?",
-            "Disable Registry Mapping",
-            MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            "Turn off Windows-registered handlers?\n\n" +
+            "The live \"Open with\" buttons and New-menu entries will stop appearing (re-enable any time).\n\n" +
+            "Import your current Windows \"Open with\" apps into the External Apps list so you keep them " +
+            "as buttons? You can edit or remove them afterwards.",
+            "Windows-registered handlers",
+            MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+
+        if (result == MessageBoxResult.Cancel)
+        {
+            UseRegistryMapping = true;   // re-check; the DP callback restores cfg.UseRegistryMapping
+            return;
+        }
 
         if (result == MessageBoxResult.Yes)
+            await ImportRegistryHandlersAsync();
+
+        if (DataContext is ExternalAppsConfig cfg) cfg.UseRegistryMapping = false;
+        MarkDirty();
+    }
+
+    /// <summary>Enumerates HKCR "open" handlers (background) and merges them into the app list, deduping
+    /// by executable — a slow one-shot registry sweep, so show a wait cursor.</summary>
+    private async System.Threading.Tasks.Task ImportRegistryHandlersAsync()
+    {
+        System.Windows.Input.Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
+        try
         {
-            FileMapManager.Instance.ConvertRegistryMappingsToUser();
-            if (DataContext is ExternalAppsConfig cfg) cfg.UseRegistryMapping = false;
-            MarkDirty();
+            var defs = await System.Threading.Tasks.Task.Run(RegistryHandlerImport.EnumerateOpenHandlers);
+            MergeImported(defs);
         }
-        else
+        finally { System.Windows.Input.Mouse.OverrideCursor = null; }
+    }
+
+    /// <summary>Adds each imported definition as a new app, or unions its extensions into an existing app
+    /// with the same executable path.</summary>
+    private void MergeImported(IReadOnlyList<ExternalAppDefinition> defs)
+    {
+        foreach (var def in defs)
         {
-            UseRegistryMapping = true;
-            if (DataContext is ExternalAppsConfig cfg) cfg.UseRegistryMapping = true;
+            var existing = _rows.FirstOrDefault(r =>
+                string.Equals(r.ApplicationPath, def.ApplicationPath, StringComparison.OrdinalIgnoreCase));
+            if (existing is not null)
+            {
+                foreach (var c in def.Criteria)
+                {
+                    bool already = existing.CriteriaRows.Any(cr =>
+                        cr.TypeName == nameof(CriteriaType.Extension) &&
+                        string.Equals(cr.Value, c.Value, StringComparison.OrdinalIgnoreCase));
+                    if (!already)
+                        existing.CriteriaRows.Add(new CriterionRow
+                        {
+                            TypeName = nameof(CriteriaType.Extension),
+                            Value    = c.Value,
+                        });
+                }
+            }
+            else
+            {
+                var row = AppRow.FromDefinition(def);
+                row.PropertyChanged += OnRowPropertyChanged;
+                _rows.Add(row);
+            }
         }
+        MarkDirty();
     }
 
     private static void OnUseRegistryMappingChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)

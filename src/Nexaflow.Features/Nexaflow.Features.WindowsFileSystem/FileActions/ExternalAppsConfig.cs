@@ -23,6 +23,14 @@ public sealed class ExternalAppsConfig : IFeatureConfig
 public sealed class ExternalAppDefinition
 {
     /// <summary>
+    /// Stable identity used to reference this app from a Default Action override
+    /// (<c>DefaultActionKind.ExternalApp</c>). Assigned on first save/import and backfilled for
+    /// pre-existing apps at startup (<see cref="Services.ExternalAppRegistry.BackfillIds"/>), so a
+    /// reference survives display-name/path edits. Empty only for a definition never yet persisted.
+    /// </summary>
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>
     /// Legacy single-extension match (e.g. ".jpg"; "*"/empty = any). Superseded by
     /// <see cref="Criteria"/>: the Options editor migrates a non-empty value into an
     /// <see cref="CriteriaType.Extension"/> criterion on load and writes this blank thereafter.

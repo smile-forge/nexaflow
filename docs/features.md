@@ -126,6 +126,15 @@ every feature. Viewer-opener actions live in the owning feature; system actions 
   optional match-percentage), not by experience id.
 - Canonical examples: `Nexaflow.Features.Images/FileActions/` — `ShowImageAction` (file),
   `ImageFolderAction` (folder).
+- **Double-click ("default") action** is resolved by `DefaultFileOpener`: the highest match-specificity
+  internal action, else the Windows shell `open` verb (internal beats shell at the same specificity).
+  A user can override this per extension in **Options → Default Actions** (internal viewer / external app /
+  Windows verb), stored in `DefaultActionsConfig` and consulted first via `DefaultActionRegistry`.
+- **External "Open with" apps** are user-defined launch buttons (`ExternalAppsConfig` / `ExternalAppRegistry`,
+  edited in Options → External Apps). Windows-registered handlers surface as live `ShellVerbAction`s while the
+  "Show Windows-registered handlers" toggle is on; turning it off can import them (deduped by exe) into the
+  External Apps list. There is no HKCR file-map scan — internal viewers match by PerceivedType/ContentType
+  live via `ShellTypeResolver`.
 
 ---
 

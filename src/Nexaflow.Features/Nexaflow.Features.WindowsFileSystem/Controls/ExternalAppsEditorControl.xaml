@@ -94,10 +94,11 @@
                 <ToggleButton Style="{StaticResource ToggleSwitch}"
                               IsChecked="{Binding UseRegistryMapping, RelativeSource={RelativeSource AncestorType=UserControl}}"
                               Unchecked="RegistryToggle_Unchecked"/>
-                <TextBlock Text="Use registry-based file type mapping"
+                <TextBlock Text="Show Windows-registered handlers (Open with &amp; New menu)"
                            Foreground="{StaticResource TextBrush}"
                            FontSize="12" VerticalAlignment="Center"
-                           Margin="10,0,0,0"/>
+                           Margin="10,0,0,0"
+                           ToolTip="When on, files show their Windows &quot;Open with&quot; apps and the New menu lists Windows file types. Turning it off can import those apps into your External Apps list."/>
             </StackPanel>
 
             <Border Grid.Column="1"

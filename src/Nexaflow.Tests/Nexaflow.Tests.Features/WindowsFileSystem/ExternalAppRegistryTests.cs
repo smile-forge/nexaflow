@@ -20,6 +20,34 @@ public class ExternalAppRegistryTests
         return ExternalAppRegistry.Instance.Resolve(selected).Count;
     }
 
+    [TestCleanup]
+    public void Cleanup() => ExternalAppRegistry.Instance.Update(new ExternalAppsConfig());
+
+    [TestMethod]
+    public void BackfillIds_AssignsMissing_PreservesExisting_Idempotent()
+    {
+        var withId = new ExternalAppDefinition { Id = "keep-me", DisplayName = "A" };
+        var noId   = new ExternalAppDefinition { DisplayName = "B" };
+        ExternalAppRegistry.Instance.Update(new ExternalAppsConfig { Apps = [withId, noId] });
+
+        Assert.IsTrue(ExternalAppRegistry.Instance.BackfillIds(), "an app was missing an id");
+        Assert.AreEqual("keep-me", withId.Id);
+        Assert.IsFalse(string.IsNullOrEmpty(noId.Id), "missing id should have been assigned");
+
+        Assert.IsFalse(ExternalAppRegistry.Instance.BackfillIds(), "second call has nothing to assign");
+    }
+
+    [TestMethod]
+    public void FindById_ReturnsMatch_ElseNull()
+    {
+        var a = new ExternalAppDefinition { Id = "app-1", DisplayName = "One" };
+        ExternalAppRegistry.Instance.Update(new ExternalAppsConfig { Apps = [a] });
+
+        Assert.AreSame(a, ExternalAppRegistry.Instance.FindById("app-1"));
+        Assert.IsNull(ExternalAppRegistry.Instance.FindById("missing"));
+        Assert.IsNull(ExternalAppRegistry.Instance.FindById(""));
+    }
+
     [TestMethod]
     public void LegacyExtension_MatchesThatExtensionOnly()
     {

@@ -226,13 +226,22 @@ public partial class App : Application
         var fileMapConfig = new FileMapConfig();
         ConfigManager.Instance.Register(fileMapConfig, fileMapConfig.ConfigName);
 
-        var externalAppsConfig = new ExternalAppsConfig();
-        ConfigManager.Instance.Register(externalAppsConfig, externalAppsConfig.ConfigName);
+        var externalAppsConfig = (ExternalAppsConfig)ConfigManager.Instance.Register(
+            new ExternalAppsConfig(), new ExternalAppsConfig().ConfigName);
         ExternalAppRegistry.Instance.Initialize(externalAppsConfig);
 
-        FileMapManager.Instance.Initialize(externalAppsConfig.UseRegistryMapping, ConfigManager.Instance.BaseDir);
+        // Give pre-Id apps a stable identity (referenced by Default Action overrides); persist once.
+        if (ExternalAppRegistry.Instance.BackfillIds())
+            ConfigManager.Instance.Save(externalAppsConfig, externalAppsConfig.ConfigName);
 
-        // ShellNew create-file entries from HKCR — gated on the same registry-mapping option.
+        FileMapManager.Instance.Initialize(ConfigManager.Instance.BaseDir);
+
+        // Per-extension double-click overrides (Options → Default Actions), consulted by DefaultFileOpener.
+        var defaultActionsConfig = (DefaultActionsConfig)ConfigManager.Instance.Register(
+            new DefaultActionsConfig(), new DefaultActionsConfig().ConfigName);
+        DefaultActionRegistry.Instance.Initialize(defaultActionsConfig);
+
+        // ShellNew create-file entries from HKCR — gated on the registry-handlers toggle.
         ShellNewRegistry.Instance.Initialize(externalAppsConfig.UseRegistryMapping);
 
         // Templated-create (user templates) — global config + its appdata template store.
