@@ -614,10 +614,14 @@ public sealed class ShellServices : IShellServices
             ?.ShowConfirmation(title, message, onConfirm, onCancel);
 
     public Task<bool> ConfirmAsync(string title, string message, CancellationToken ct = default)
+        => ConfirmAsync(title, message, confirmLabel: null, cancelLabel: null, ct);
+
+    public Task<bool> ConfirmAsync(string title, string message, string? confirmLabel, string? cancelLabel,
+                                   CancellationToken ct = default)
     {
         var dispatcher = _ui;
         if (dispatcher is not null && !dispatcher.CheckAccess())
-            return dispatcher.Invoke(() => ConfirmAsync(title, message, ct));
+            return dispatcher.Invoke(() => ConfirmAsync(title, message, confirmLabel, cancelLabel, ct));
 
         var host = _focused ?? _windows.FirstOrDefault();
         if (host is null) return Task.FromResult(false);
@@ -626,7 +630,8 @@ public sealed class ShellServices : IShellServices
         ct.Register(() => tcs.TrySetResult(false));
         host.ShowConfirmation(title, message,
             onConfirm: () => tcs.TrySetResult(true),
-            onCancel:  () => tcs.TrySetResult(false));
+            onCancel:  () => tcs.TrySetResult(false),
+            confirmLabel: confirmLabel, cancelLabel: cancelLabel);
         return tcs.Task;
     }
 

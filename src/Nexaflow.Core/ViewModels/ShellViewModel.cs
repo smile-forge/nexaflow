@@ -72,8 +72,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     void IWindowHost.ShowError(string message) => ShowError("Error", message);
     void IWindowHost.ShowNotification(string message)
         => MessageCenter.Instance.Post(new NotificationItem { Title = "Info", Body = message });
-    void IWindowHost.ShowConfirmation(string title, string prompt, Action onConfirm, Action? onCancel)
-        => ShowConfirmation(title, prompt, onConfirm, onCancel);
+    void IWindowHost.ShowConfirmation(string title, string prompt, Action onConfirm, Action? onCancel,
+                                      string? confirmLabel, string? cancelLabel)
+        => ShowConfirmation(title, prompt, onConfirm, onCancel, confirmLabel, cancelLabel);
 
     void IWindowHost.ShowPrompt(string title, string label, string initialValue,
                                 Action<string> onConfirm, Action? onCancel)
@@ -381,14 +382,19 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     private Action? _confirmationOnConfirm;
     private Action? _confirmationOnCancel;
+    private string  _confirmationConfirmLabel = "Confirm";
+    private string  _confirmationCancelLabel  = "Cancel";
 
-    public void ShowConfirmation(string title, string prompt, Action onConfirm, Action? onCancel = null)
+    public void ShowConfirmation(string title, string prompt, Action onConfirm, Action? onCancel = null,
+                                 string? confirmLabel = null, string? cancelLabel = null)
     {
-        ConfirmationTitle      = title;
-        ConfirmationPrompt     = prompt;
-        _confirmationOnConfirm = onConfirm;
-        _confirmationOnCancel  = onCancel;
-        ConfirmationVisible    = true;
+        ConfirmationTitle         = title;
+        ConfirmationPrompt        = prompt;
+        _confirmationConfirmLabel = string.IsNullOrWhiteSpace(confirmLabel) ? "Confirm" : confirmLabel!;
+        _confirmationCancelLabel  = string.IsNullOrWhiteSpace(cancelLabel)  ? "Cancel"  : cancelLabel!;
+        _confirmationOnConfirm    = onConfirm;
+        _confirmationOnCancel     = onCancel;
+        ConfirmationVisible       = true;
     }
 
     [RelayCommand]
@@ -411,7 +417,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     partial void OnConfirmationVisibleChanged(bool value)
     {
-        // Title/Prompt are set before ConfirmationVisible flips true (see ShowConfirmation).
+        // Title/Prompt/labels are set before ConfirmationVisible flips true (see ShowConfirmation).
         _confirmationOverlay = value
             ? new ConfirmationOverlay
               {
@@ -419,6 +425,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
                   Prompt         = ConfirmationPrompt,
                   ConfirmCommand = ConfirmShellConfirmationCommand,
                   CancelCommand  = CancelShellConfirmationCommand,
+                  ConfirmLabel   = _confirmationConfirmLabel,
+                  CancelLabel    = _confirmationCancelLabel,
               }
             : null;
         SyncActiveOverlay();

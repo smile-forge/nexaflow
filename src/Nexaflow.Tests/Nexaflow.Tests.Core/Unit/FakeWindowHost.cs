@@ -25,7 +25,8 @@ internal sealed class FakeWindowHost : IWindowHost
     public void SetActiveTab(Page tab) { }
     public void ShowError(string message) { }
     public void ShowNotification(string message) { }
-    public void ShowConfirmation(string title, string prompt, Action onConfirm, Action? onCancel = null) { }
+    public void ShowConfirmation(string title, string prompt, Action onConfirm, Action? onCancel = null,
+                                 string? confirmLabel = null, string? cancelLabel = null) { }
     public void ShowPrompt(string title, string label, string initialValue, Action<string> onConfirm, Action? onCancel = null) { }
     public void AddRibbonPin(RibbonPinRequest request) { }
     public void InsertChatInput(string text) { }

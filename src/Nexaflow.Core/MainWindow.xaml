@@ -47,8 +47,8 @@
                     <TextBlock Text="{Binding Prompt}" TextWrapping="Wrap"
                                Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,18"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="Cancel" Command="{Binding CancelCommand}"
-                                Width="90" Height="32" Margin="0,0,8,0" FontSize="12" Cursor="Hand"
+                        <Button Content="{Binding CancelLabel}" Command="{Binding CancelCommand}"
+                                MinWidth="90" Height="32" Margin="0,0,8,0" FontSize="12" Cursor="Hand"
                                 Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}"
                                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
                             <Button.Template>
@@ -67,8 +67,8 @@
                                 </ControlTemplate>
                             </Button.Template>
                         </Button>
-                        <Button Content="Confirm" Command="{Binding ConfirmCommand}"
-                                Width="90" Height="32" FontSize="12" Cursor="Hand"
+                        <Button Content="{Binding ConfirmLabel}" Command="{Binding ConfirmCommand}"
+                                MinWidth="90" Height="32" FontSize="12" Cursor="Hand"
                                 Background="{StaticResource AccentBrush}" Foreground="White"
                                 BorderThickness="0" FontWeight="SemiBold">
                             <Button.Template>

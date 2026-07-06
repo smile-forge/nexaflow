@@ -130,6 +130,13 @@ public interface IShellServices
     Task<bool> ConfirmAsync(string title, string message, CancellationToken ct = default);
 
     /// <summary>
+    /// Overload of <see cref="ConfirmAsync(string,string,CancellationToken)"/> with custom button captions
+    /// (e.g. <c>"Import"</c> / <c>"Do not Import"</c>). Null/blank falls back to "Confirm" / "Cancel".
+    /// </summary>
+    Task<bool> ConfirmAsync(string title, string message, string? confirmLabel, string? cancelLabel,
+                            CancellationToken ct = default);
+
+    /// <summary>
     /// Shows the shell's file picker and returns the chosen existing file's full path, or null if
     /// cancelled. Reuses the shell's themed picker window — features must use this rather than a
     /// <c>Microsoft.Win32</c> dialog. <paramref name="extensions"/> (e.g. <c>[".reg"]</c>) limits the
