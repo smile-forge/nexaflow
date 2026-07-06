@@ -176,14 +176,42 @@
                                    FontSize="11" Margin="0,2,0,0"/>
                     </StackPanel>
 
-                    <!-- Add criterion button -->
-                    <Button DockPanel.Dock="Bottom"
-                            Content="+ Add Criterion"
-                            HorizontalAlignment="Left"
-                            MinWidth="120"
-                            Margin="0,6,0,0"
-                            Style="{StaticResource IconButton}"
-                            Click="AddCriterion_Click"/>
+                    <!-- Bottom bar: add a criterion / reset to bundled default, with an inline confirm step
+                         (a shell confirmation overlay can't stack above the Options panel). -->
+                    <Grid DockPanel.Dock="Bottom" Margin="0,6,0,0">
+                        <!-- Normal actions -->
+                        <Grid Visibility="{Binding ResetConfirmPending,
+                                  RelativeSource={RelativeSource AncestorType=UserControl},
+                                  Converter={StaticResource InverseBoolVis}}">
+                            <Button Content="+ Add Criterion"
+                                    HorizontalAlignment="Left"
+                                    MinWidth="120"
+                                    Style="{StaticResource IconButton}"
+                                    Click="AddCriterion_Click"/>
+                            <Button Content="↺ Reset to Default"
+                                    HorizontalAlignment="Right"
+                                    MinWidth="120"
+                                    Style="{StaticResource IconButton}"
+                                    Click="ResetToDefault_Click"
+                                    ToolTip="Discard customizations and restore this experience's bundled default matching criteria"
+                                    Visibility="{Binding CanResetToDefault,
+                                        RelativeSource={RelativeSource AncestorType=UserControl},
+                                        Converter={StaticResource BoolVis}}"/>
+                        </Grid>
+                        <!-- Inline confirm -->
+                        <DockPanel LastChildFill="True"
+                                   Visibility="{Binding ResetConfirmPending,
+                                       RelativeSource={RelativeSource AncestorType=UserControl},
+                                       Converter={StaticResource BoolVis}}">
+                            <Button DockPanel.Dock="Right" Content="Cancel" MinWidth="72" Margin="4,0,0,0"
+                                    Style="{StaticResource IconButton}" Click="ResetCancel_Click"/>
+                            <Button DockPanel.Dock="Right" Content="Reset" MinWidth="72"
+                                    Style="{StaticResource IconButton}" Click="ResetConfirm_Click"/>
+                            <TextBlock Text="Discard your customizations and restore the default criteria?"
+                                       VerticalAlignment="Center" TextWrapping="Wrap"
+                                       Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
+                        </DockPanel>
+                    </Grid>
 
                     <!-- Criteria list -->
                     <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"

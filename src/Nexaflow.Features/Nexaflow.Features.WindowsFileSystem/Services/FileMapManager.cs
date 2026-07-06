@@ -158,6 +158,45 @@ public sealed class FileMapManager
         RebuildIndex();
     }
 
+    /// <summary>
+    /// The bundled default mapping for <paramref name="experienceId"/>, or null when the id has no
+    /// bundled default (a user-created experience). Backs the File Type Actions "Reset to Default" button.
+    /// </summary>
+    public ExperienceMapping? GetBundledDefault(string experienceId) =>
+        BundledDefaults().FirstOrDefault(m =>
+            string.Equals(m.ExperienceId, experienceId, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Restores <paramref name="experienceId"/> to its bundled default criteria — discarding any user
+    /// customization — and re-marks it unmodified in the defaults manifest so a future bundled-default
+    /// change auto-refreshes it again. No-op (returns null) when the id has no bundled default.
+    /// </summary>
+    public ExperienceMapping? ResetToDefault(string experienceId)
+    {
+        var def = GetBundledDefault(experienceId);
+        if (def is null) return null;
+
+        var reset = CloneMapping(def);
+        SaveMapping(reset);   // writes the mapping file + rebuilds the index
+
+        // Re-baseline: an experience the user has explicitly restored to default should track future
+        // default changes, exactly as an untouched one does.
+        var manifest = LoadDefaultsManifest();
+        if (manifest is not null)
+        {
+            manifest.Mappings[experienceId] = HashMapping(reset);
+            SaveDefaultsManifest(manifest);
+        }
+        return reset;
+    }
+
+    private static ExperienceMapping CloneMapping(ExperienceMapping m) => new()
+    {
+        ExperienceId = m.ExperienceId,
+        Source       = m.Source,
+        Criteria     = [.. m.Criteria.Select(c => new FileSelectionCriteria { Type = c.Type, Value = c.Value })],
+    };
+
     /// <summary>Candidate extensions for a file name, longest (most-specific) first:
     /// <c>foo.tar.gz</c> → <c>.tar.gz</c>, <c>.gz</c>. Lets compound extensions match.</summary>
     private static IEnumerable<string> ExtensionCandidates(string fileName)
@@ -171,7 +210,12 @@ public sealed class FileMapManager
     /// Returns all experience IDs that apply to the given file, including
     /// all ancestor IDs (hierarchical propagation).
     /// </summary>
-    public IReadOnlyList<string> GetExperiencesForFile(FileInfo file)
+    /// <param name="includeOptional">
+    /// When true (the default — action strip, Default-Actions candidates) experiences claimed only via
+    /// <see cref="CriteriaType.OptionalExtension"/> are included. Pass false for the right-click menu so a
+    /// secondary capability (e.g. inspecting a <c>*.docx</c> as an archive) doesn't clutter it.
+    /// </param>
+    public IReadOnlyList<string> GetExperiencesForFile(FileInfo file, bool includeOptional = true)
     {
         var idx = _index;
         var ext = file.Extension.ToLowerInvariant();
@@ -180,10 +224,16 @@ public sealed class FileMapManager
 
         // 1. Extension lookup — try compound extensions (.tar.gz) as well as the bare one (.gz).
         foreach (var cand in ExtensionCandidates(file.Name))
+        {
             if (idx.ByExtension.TryGetValue(cand, out var byExt))
                 foreach (var id in byExt) matched.Add(id);
+            if (includeOptional && idx.ByOptionalExtension.TryGetValue(cand, out var byOpt))
+                foreach (var id in byOpt) matched.Add(id);
+        }
         if (idx.ByExtension.TryGetValue("*", out var universal))
             foreach (var id in universal) matched.Add(id);
+        if (includeOptional && idx.ByOptionalExtension.TryGetValue("*", out var universalOpt))
+            foreach (var id in universalOpt) matched.Add(id);
 
         // 2. PerceivedType
         if (!string.IsNullOrEmpty(ext))
@@ -262,13 +312,35 @@ public sealed class FileMapManager
     /// </summary>
     private bool SyncBundledDefaults()
     {
-        string bundled = Path.Combine(
-            AppContext.BaseDirectory, "FileActions", "default-filemap.json");
-        if (!File.Exists(bundled)) return false;
+        if (!File.Exists(BundledDefaultMapPath)) return false;
 
-        string bundleText = File.ReadAllText(bundled);
+        string bundleText = File.ReadAllText(BundledDefaultMapPath);
         var defaults = JsonSerializer.Deserialize<List<ExperienceMapping>>(bundleText, _jsonOpts);
-        return defaults is not null && ApplyBundledDefaults(defaults, Hash(bundleText));
+        if (defaults is null) return false;
+
+        _bundledDefaults = defaults;   // warm the cache used by GetBundledDefault / ResetToDefault
+        return ApplyBundledDefaults(defaults, Hash(bundleText));
+    }
+
+    /// <summary>Path to the read-only bundled mapping seed shipped with the app.</summary>
+    private static string BundledDefaultMapPath =>
+        Path.Combine(AppContext.BaseDirectory, "FileActions", "default-filemap.json");
+
+    private List<ExperienceMapping>? _bundledDefaults;
+
+    /// <summary>The bundled default mappings (from <c>default-filemap.json</c>), loaded once. Empty when
+    /// the seed is missing.</summary>
+    private IReadOnlyList<ExperienceMapping> BundledDefaults()
+    {
+        if (_bundledDefaults is not null) return _bundledDefaults;
+        try
+        {
+            if (File.Exists(BundledDefaultMapPath))
+                _bundledDefaults = JsonSerializer.Deserialize<List<ExperienceMapping>>(
+                    File.ReadAllText(BundledDefaultMapPath), _jsonOpts);
+        }
+        catch { }
+        return _bundledDefaults ??= [];
     }
 
     /// <summary>
@@ -412,6 +484,9 @@ public sealed class FileMapManager
     private sealed class ReverseIndex
     {
         public Dictionary<string, List<string>> ByExtension      { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Extension → experiences claimed via <see cref="CriteriaType.OptionalExtension"/> — action-strip
+        /// availability only; deliberately excluded from <see cref="GetMatchSpecificity"/> and the right-click menu.</summary>
+        public Dictionary<string, List<string>> ByOptionalExtension { get; init; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, List<string>> ByPerceivedType  { get; init; } = new(StringComparer.OrdinalIgnoreCase);
         public List<(string Pattern, string Id)> ContentTypeRules { get; init; } = [];
         public List<(string Pattern, string Id)> PathPatternRules { get; init; } = [];
@@ -434,15 +509,11 @@ public sealed class FileMapManager
                 switch (c.Type)
                 {
                     case CriteriaType.Extension:
-                    {
-                        string key = c.Value == "*.*"         ? "*"
-                                   : c.Value.StartsWith("*.") ? c.Value[1..].ToLowerInvariant()
-                                   : c.Value.ToLowerInvariant();
-                        idx.ByExtension.TryGetValue(key, out var list);
-                        if (list is null) { list = []; idx.ByExtension[key] = list; }
-                        list.Add(id);
+                        AddToDict(idx.ByExtension, ExtensionKey(c.Value), id);
                         break;
-                    }
+                    case CriteriaType.OptionalExtension:
+                        AddToDict(idx.ByOptionalExtension, ExtensionKey(c.Value), id);
+                        break;
                     case CriteriaType.PerceivedType:
                         AddToDict(idx.ByPerceivedType, c.Value.ToLowerInvariant(), id);
                         break;
@@ -471,11 +542,19 @@ public sealed class FileMapManager
         list.Add(value);
     }
 
+    /// <summary>Reverse-index key for an extension criterion: <c>*.*</c> → <c>*</c>, <c>*.gz</c> → <c>.gz</c>,
+    /// bare <c>.gz</c> → <c>.gz</c>. Shared by the Extension and OptionalExtension index passes.</summary>
+    private static string ExtensionKey(string value) =>
+        value == "*.*"         ? "*"
+      : value.StartsWith("*.") ? value[1..].ToLowerInvariant()
+      :                          value.ToLowerInvariant();
+
     // ── Index serialisation ───────────────────────────────────────────────────
 
     private sealed class IndexDto
     {
-        public Dictionary<string, List<string>>     ByExtension      { get; set; } = [];
+        public Dictionary<string, List<string>>     ByExtension        { get; set; } = [];
+        public Dictionary<string, List<string>>     ByOptionalExtension { get; set; } = [];
         public Dictionary<string, List<string>>     ByPerceivedType  { get; set; } = [];
         public List<string[]>                        ContentTypeRules { get; set; } = [];
         public List<string[]>                        PathPatternRules { get; set; } = [];
@@ -489,7 +568,8 @@ public sealed class FileMapManager
         {
             var dto = new IndexDto
             {
-                ByExtension     = new(idx.ByExtension,     StringComparer.OrdinalIgnoreCase),
+                ByExtension         = new(idx.ByExtension,         StringComparer.OrdinalIgnoreCase),
+                ByOptionalExtension = new(idx.ByOptionalExtension, StringComparer.OrdinalIgnoreCase),
                 ByPerceivedType = new(idx.ByPerceivedType, StringComparer.OrdinalIgnoreCase),
                 ContentTypeRules = [.. idx.ContentTypeRules.Select(r => new[] { r.Pattern, r.Id })],
                 PathPatternRules = [.. idx.PathPatternRules.Select(r => new[] { r.Pattern, r.Id })],
@@ -511,7 +591,8 @@ public sealed class FileMapManager
 
             var idx = new ReverseIndex
             {
-                ByExtension      = new(dto.ByExtension,     StringComparer.OrdinalIgnoreCase),
+                ByExtension         = new(dto.ByExtension,         StringComparer.OrdinalIgnoreCase),
+                ByOptionalExtension = new(dto.ByOptionalExtension, StringComparer.OrdinalIgnoreCase),
                 ByPerceivedType  = new(dto.ByPerceivedType, StringComparer.OrdinalIgnoreCase),
                 ContentTypeRules = [.. dto.ContentTypeRules.Select(r => (r[0], r[1]))],
                 PathPatternRules = [.. dto.PathPatternRules.Select(r => (r[0], r[1]))],

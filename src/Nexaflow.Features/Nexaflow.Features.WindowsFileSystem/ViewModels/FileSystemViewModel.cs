@@ -410,7 +410,9 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
 
         IReadOnlyList<IFileAction> applicable = useFolderActions
             ? FilterForVirtual(_actionRegistry.FilterFolderActions(entries, canPerform.Folder, CurrentPath), CurrentPath)
-            : _actionRegistry.FilterActions(entries, canPerform.File);
+            // Right-click menu: hide OptionalExtension experiences (a secondary capability like inspecting a
+            // *.docx as an archive) — they stay on the action strip via the default-true FilterActions.
+            : _actionRegistry.FilterActions(entries, canPerform.File, includeOptional: false);
 
         var paths = entries.Count > 0
             ? entries.Select(e => e.FullPath).ToList()

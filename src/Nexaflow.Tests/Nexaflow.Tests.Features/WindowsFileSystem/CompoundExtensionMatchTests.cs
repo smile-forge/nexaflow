@@ -9,6 +9,7 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem;
 /// <summary>A compound-extension criterion like <c>*.tar.gz</c> must match <c>file.tar.gz</c> — the file
 /// map used to look only at the last extension (<c>.gz</c>), so "As Archive" never appeared for it.</summary>
 [TestClass]
+[DoNotParallelize]   // mutates the process-wide FileMapManager.Instance
 public class CompoundExtensionMatchTests
 {
     private const string Exp = "/test-compound-archive";
