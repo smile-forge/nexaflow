@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -37,9 +38,21 @@ public partial class GothicScene : UserControl
         set => SetValue(VariantProperty, value);
     }
 
+    // Frame-rate cap for the *ambient* layers only — the big, (near-)stationary decorative fills.
+    // Halving their update rate is a real saving on those large blended surfaces yet imperceptible,
+    // since the eye doesn't track them. Travelling sprites are NOT capped: DesiredFrameRate decouples a
+    // clock from vsync, so any sub-refresh rate reads as judder on motion the eye follows.
+    private const int AmbientFrameRate = 30;
+
     private readonly Random _rng = new();
     private bool _built;
     private readonly DispatcherTimer _resizeDebounce;
+
+    // Every animation runs through a controllable clock we retain, so a rebuild can stop the previous
+    // set (otherwise the cleared elements' Forever clocks keep ticking on the UI thread until GC) and so
+    // the whole scene can be paused when the host window is minimised.
+    private readonly List<ClockController> _clocks = new();
+    private Window? _host;
 
     public GothicScene()
     {
@@ -47,7 +60,48 @@ public partial class GothicScene : UserControl
         _resizeDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
         _resizeDebounce.Tick += (_, _) => { _resizeDebounce.Stop(); Build(); };
         SizeChanged += OnSizeChanged;
-        Unloaded    += (_, _) => { _resizeDebounce.Stop(); _built = false; Layer.Children.Clear(); };
+        Loaded      += OnLoaded;
+        Unloaded    += OnUnloaded;
+    }
+
+    // Pause the scene only when the window is genuinely hidden (minimised) — NOT merely unfocused, so a
+    // window parked on a second monitor keeps animating while the user works elsewhere.
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        _host = Window.GetWindow(this);
+        if (_host is null) return;
+        _host.StateChanged -= OnHostStateChanged;   // idempotent across Loaded/Unloaded cycles
+        _host.StateChanged += OnHostStateChanged;
+        ApplyPauseState();
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        _resizeDebounce.Stop();
+        if (_host is not null) _host.StateChanged -= OnHostStateChanged;
+        _host = null;
+        StopClocks();
+        _built = false;
+        Layer.Children.Clear();
+    }
+
+    private void OnHostStateChanged(object? sender, EventArgs e) => ApplyPauseState();
+
+    private void ApplyPauseState()
+    {
+        bool minimised = _host?.WindowState == WindowState.Minimized;
+        foreach (var c in _clocks)
+        {
+            if (minimised) c.Pause();
+            else           c.Resume();
+        }
+    }
+
+    // Detach every live clock so the TimeManager stops ticking them immediately.
+    private void StopClocks()
+    {
+        foreach (var c in _clocks) c.Remove();
+        _clocks.Clear();
     }
 
     // First layout builds immediately; later resizes rebuild once the size settles, so the
@@ -65,6 +119,7 @@ public partial class GothicScene : UserControl
         _built = true;
 
         double w = ActualWidth, h = ActualHeight;
+        StopClocks();
         Layer.Children.Clear();
 
         // The moon anchors the composition up in the right sky; the tower rises beneath it on the left
@@ -94,6 +149,8 @@ public partial class GothicScene : UserControl
             AddStars(w, h, 18);
             AddBats(w, h, 3);
         }
+
+        ApplyPauseState();   // a rebuild starts clocks running; honour minimise if we're hidden
     }
 
     // ── Moon: a pale disc behind a broad lilac halo, breathing slowly ──────────
@@ -110,13 +167,14 @@ public partial class GothicScene : UserControl
         halo.GradientStops.Add(new GradientStop(Color.FromArgb(150, 0xCB, 0xBE, 0xF0), 0));
         halo.GradientStops.Add(new GradientStop(Color.FromArgb(60, 0x8E, 0x76, 0xC8), 0.4));
         halo.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0x6E, 0x58, 0xA8), 1));
+        halo.Freeze();
 
         double hd = r * 7;
         var bloom = new Ellipse { Width = hd, Height = hd, Fill = halo };
         Canvas.SetLeft(bloom, cx - hd / 2);
         Canvas.SetTop(bloom, cy - hd / 2);
         Layer.Children.Add(bloom);
-        Loop(bloom, OpacityProperty, 0.55, 0.9, 9, 0);
+        Loop(bloom, OpacityProperty, 0.55, 0.9, 9, 0, AmbientFrameRate);
 
         // Disc — lit from the upper-left, cool and bone-pale.
         var disc = new RadialGradientBrush
@@ -129,6 +187,7 @@ public partial class GothicScene : UserControl
         disc.GradientStops.Add(new GradientStop(Color.FromRgb(0xF4, 0xEE, 0xFF), 0));
         disc.GradientStops.Add(new GradientStop(Color.FromRgb(0xDE, 0xD3, 0xF2), 0.7));
         disc.GradientStops.Add(new GradientStop(Color.FromRgb(0xBE, 0xB0, 0xDE), 1));
+        disc.Freeze();
 
         var moon = new Ellipse { Width = r * 2, Height = r * 2, Fill = disc };
         Canvas.SetLeft(moon, cx - r);
@@ -147,7 +206,7 @@ public partial class GothicScene : UserControl
         {
             Width  = rr * 2,
             Height = rr * 2,
-            Fill   = new SolidColorBrush(Color.FromArgb(40, 0x9A, 0x8C, 0xBE)),
+            Fill   = Frozen(new SolidColorBrush(Color.FromArgb(40, 0x9A, 0x8C, 0xBE))),
         };
         Canvas.SetLeft(crater, cx - rr);
         Canvas.SetTop(crater, cy - rr);
@@ -164,14 +223,14 @@ public partial class GothicScene : UserControl
             {
                 Width   = size,
                 Height  = size,
-                Fill    = new SolidColorBrush(Color.FromArgb(235, 0xEC, 0xE6, 0xFF)),
+                Fill    = Frozen(new SolidColorBrush(Color.FromArgb(235, 0xEC, 0xE6, 0xFF))),
                 Opacity = 0,
             };
             Canvas.SetLeft(star, _rng.NextDouble() * w);
             Canvas.SetTop(star, _rng.NextDouble() * h * 0.62);   // keep clear of the tower mass below
             Layer.Children.Add(star);
 
-            Loop(star, OpacityProperty, 0.1, 0.85, 1.4 + _rng.NextDouble() * 2.6, _rng.NextDouble() * 3);
+            Loop(star, OpacityProperty, 0.1, 0.85, 1.4 + _rng.NextDouble() * 2.6, _rng.NextDouble() * 3, AmbientFrameRate);
         }
     }
 
@@ -181,19 +240,20 @@ public partial class GothicScene : UserControl
         var rg = new RadialGradientBrush { Center = new Point(0.5, 0.5), GradientOrigin = new Point(0.5, 0.5), RadiusX = 0.5, RadiusY = 0.5 };
         rg.GradientStops.Add(new GradientStop(Color.FromArgb(120, 0x6E, 0x46, 0xB4), 0));
         rg.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0x4A, 0x2C, 0x80), 1));
+        rg.Freeze();
 
         double gw = w * 0.6, gh = h * 0.7;
         var glow = new Ellipse { Width = gw, Height = gh, Fill = rg };
         Canvas.SetLeft(glow, w * 0.42 - gw / 2);
         Canvas.SetTop(glow, h - gh * 0.78);
         Layer.Children.Add(glow);
-        Loop(glow, OpacityProperty, 0.5, 0.85, 11, 0);
+        Loop(glow, OpacityProperty, 0.5, 0.85, 11, 0, AmbientFrameRate);
     }
 
     // ── Skyline: low blunt towers in the distance for depth, anchored to the floor ──
     private void AddSkyline(double w, double h)
     {
-        var fill = new SolidColorBrush(Color.FromRgb(0x08, 0x05, 0x12));
+        var fill = Frozen(new SolidColorBrush(Color.FromRgb(0x08, 0x05, 0x12)));
         int n = Math.Clamp((int)(w / 200.0), 4, 9);
         for (int i = 0; i < n; i++)
         {
@@ -216,8 +276,8 @@ public partial class GothicScene : UserControl
     //    and a few lit lancet windows ──────────────────────────────────────────
     private void AddTower(double w, double h)
     {
-        var stone = new SolidColorBrush(Color.FromRgb(0x05, 0x03, 0x0C));   // near-black silhouette
-        var rim   = new SolidColorBrush(Color.FromArgb(90, 0x4A, 0x32, 0x78)); // faint moonlit edge
+        var stone = Frozen(new SolidColorBrush(Color.FromRgb(0x05, 0x03, 0x0C)));   // near-black silhouette
+        var rim   = Frozen(new SolidColorBrush(Color.FromArgb(90, 0x4A, 0x32, 0x78))); // faint moonlit edge
 
         double cx = w * 0.42;
         double bw = Math.Clamp(w * 0.11, 70, 150);     // body width
@@ -319,6 +379,7 @@ public partial class GothicScene : UserControl
         var halo = new RadialGradientBrush { Center = new Point(0.5, 0.5), GradientOrigin = new Point(0.5, 0.5), RadiusX = 0.5, RadiusY = 0.5 };
         halo.GradientStops.Add(new GradientStop(Color.FromArgb(150, light.R, light.G, light.B), 0));
         halo.GradientStops.Add(new GradientStop(Color.FromArgb(0, light.R, light.G, light.B), 1));
+        halo.Freeze();
         double hd = Math.Max(ww, wh) * 2.6;
         var bloom = new Ellipse { Width = hd, Height = hd, Fill = halo, Opacity = 0 };
         Canvas.SetLeft(bloom, left + ww / 2 - hd / 2);
@@ -328,14 +389,14 @@ public partial class GothicScene : UserControl
         // The lit pane itself: a rectangle topped by a pointed arch.
         var pane = new Path
         {
-            Data = Geometry.Parse(
+            Data = Frozen(Geometry.Parse(
                 $"M0,{archH.ToString(System.Globalization.CultureInfo.InvariantCulture)} " +
                 $"L0,{(archH + wh).ToString(System.Globalization.CultureInfo.InvariantCulture)} " +
                 $"L{ww.ToString(System.Globalization.CultureInfo.InvariantCulture)},{(archH + wh).ToString(System.Globalization.CultureInfo.InvariantCulture)} " +
                 $"L{ww.ToString(System.Globalization.CultureInfo.InvariantCulture)},{archH.ToString(System.Globalization.CultureInfo.InvariantCulture)} " +
                 $"Q{(ww / 2).ToString(System.Globalization.CultureInfo.InvariantCulture)},{(-archH * 0.4).ToString(System.Globalization.CultureInfo.InvariantCulture)} " +
-                $"0,{archH.ToString(System.Globalization.CultureInfo.InvariantCulture)} Z"),
-            Fill    = new SolidColorBrush(Color.FromArgb(220, light.R, light.G, light.B)),
+                $"0,{archH.ToString(System.Globalization.CultureInfo.InvariantCulture)} Z")),
+            Fill    = Frozen(new SolidColorBrush(Color.FromArgb(220, light.R, light.G, light.B))),
             Opacity = 0,
         };
         Canvas.SetLeft(pane, left);
@@ -345,8 +406,8 @@ public partial class GothicScene : UserControl
         // Independent slow flicker — the halo and pane share a rhythm but never quite go dark.
         double period = 3.5 + _rng.NextDouble() * 3.5;
         double phase  = _rng.NextDouble() * 2;
-        Loop(bloom, OpacityProperty, 0.30, 0.75, period, phase);
-        Loop(pane,  OpacityProperty, 0.55, 1.0, period, phase);
+        Loop(bloom, OpacityProperty, 0.30, 0.75, period, phase, AmbientFrameRate);
+        Loop(pane,  OpacityProperty, 0.55, 1.0, period, phase, AmbientFrameRate);
     }
 
     // ── Clouds: pale moonlit wisps drifting across the upper sky at varied heights ──
@@ -377,7 +438,7 @@ public partial class GothicScene : UserControl
                 RepeatBehavior = RepeatBehavior.Forever,
                 BeginTime      = TimeSpan.FromSeconds(_rng.NextDouble() * dur),
             };
-            move.BeginAnimation(TranslateTransform.XProperty, drift);
+            Animate(move, TranslateTransform.XProperty, drift, AmbientFrameRate);
         }
     }
 
@@ -394,6 +455,7 @@ public partial class GothicScene : UserControl
             rg.GradientStops.Add(new GradientStop(Color.FromArgb(72, 0x6E, 0x5C, 0x92), 0));
             rg.GradientStops.Add(new GradientStop(Color.FromArgb(40, 0x52, 0x42, 0x78), 0.6));
             rg.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0x40, 0x32, 0x60), 1));
+            rg.Freeze();
             var puff = new Ellipse { Width = pw, Height = ph, Fill = rg };
             Canvas.SetLeft(puff, i * 34 - 10 + _rng.Next(18));
             Canvas.SetTop(puff, (70 - ph) * 0.5 + _rng.Next(14) - 7);
@@ -412,14 +474,15 @@ public partial class GothicScene : UserControl
             var rg = new RadialGradientBrush { Center = new Point(0.5, 0.5), GradientOrigin = new Point(0.5, 0.5), RadiusX = 0.5, RadiusY = 0.5 };
             rg.GradientStops.Add(new GradientStop(Color.FromArgb(120, 0x40, 0x32, 0x64), 0));
             rg.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0x36, 0x2A, 0x56), 1));
+            rg.Freeze();
 
             var bank = new Ellipse { Width = fw, Height = fh, Fill = rg, Opacity = 0, RenderTransform = new TranslateTransform() };
             Canvas.SetLeft(bank, w * (0.05 + 0.9 * i / Math.Max(1, n - 1)) - fw / 2);
             Canvas.SetTop(bank, h - fh * 0.5);
             Layer.Children.Add(bank);
 
-            Loop(bank, OpacityProperty, 0.3, 0.8, 6 + _rng.Next(4), i * 0.7);
-            Loop(bank.RenderTransform, TranslateTransform.XProperty, -30, 30, 16 + _rng.Next(10), i * 0.9);
+            Loop(bank, OpacityProperty, 0.3, 0.8, 6 + _rng.Next(4), i * 0.7, AmbientFrameRate);
+            Loop(bank.RenderTransform, TranslateTransform.XProperty, -30, 30, 16 + _rng.Next(10), i * 0.9, AmbientFrameRate);
         }
     }
 
@@ -460,7 +523,7 @@ public partial class GothicScene : UserControl
                 RepeatBehavior = RepeatBehavior.Forever,
                 BeginTime      = TimeSpan.FromSeconds(_rng.NextDouble() * dur),
             };
-            move.BeginAnimation(TranslateTransform.XProperty, cross);
+            Animate(move, TranslateTransform.XProperty, cross);
 
             // Erratic flight bob — swoopers dip far, cruisers barely waver.
             double amp = swooper ? 40 + _rng.Next(40) : 10 + _rng.Next(12);
@@ -473,8 +536,8 @@ public partial class GothicScene : UserControl
         // Near-black silhouette — reads as a true shadow against the moon and the now-lighter moonlit
         // clouds, which give it a paler backdrop to cross even away from the disc. Only the faintest
         // violet rim, so it stays a shadow rather than a drawn shape.
-        var brush  = new SolidColorBrush(Color.FromArgb(238, 0x0C, 0x06, 0x14));
-        var stroke = new SolidColorBrush(Color.FromArgb(70, 0x3A, 0x26, 0x60));
+        var brush  = Frozen(new SolidColorBrush(Color.FromArgb(238, 0x0C, 0x06, 0x14)));
+        var stroke = Frozen(new SolidColorBrush(Color.FromArgb(70, 0x3A, 0x26, 0x60)));
         var bat    = new Canvas { Width = 30, Height = 14 };
 
         // Wings live in their own canvas so a vertical squash animates a believable flap.
@@ -529,18 +592,36 @@ public partial class GothicScene : UserControl
             RepeatBehavior = RepeatBehavior.Forever,
             EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
         };
-        flap.BeginAnimation(ScaleTransform.ScaleYProperty, beat);
+        Animate(flap, ScaleTransform.ScaleYProperty, beat);
         return bat;
     }
 
     // ── Shared: a forever, auto-reversing eased oscillation ────────────────────
-    private static void Loop(IAnimatable target, DependencyProperty prop,
-                             double from, double to, double seconds, double beginSeconds)
-        => target.BeginAnimation(prop, new DoubleAnimation(from, to, new Duration(TimeSpan.FromSeconds(seconds)))
+    private void Loop(IAnimatable target, DependencyProperty prop,
+                      double from, double to, double seconds, double beginSeconds, int? fps = null)
+        => Animate(target, prop, new DoubleAnimation(from, to, new Duration(TimeSpan.FromSeconds(seconds)))
         {
             AutoReverse    = true,
             RepeatBehavior = RepeatBehavior.Forever,
             BeginTime      = TimeSpan.FromSeconds(beginSeconds),
             EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
-        });
+        }, fps);
+
+    // Start the animation through a controllable clock (retained so the scene can be stopped on rebuild
+    // or paused on minimise). An optional fps caps the update rate — passed only for ambient layers.
+    private void Animate(IAnimatable target, DependencyProperty prop, AnimationTimeline anim, int? fps = null)
+    {
+        if (fps is int rate) Timeline.SetDesiredFrameRate(anim, rate);
+        var clock = anim.CreateClock();
+        target.ApplyAnimationClock(prop, clock);
+        if (clock.Controller is { } controller) _clocks.Add(controller);
+    }
+
+    // Freeze a set-once brush/geometry so WPF can share it with the render thread and skip change
+    // tracking. Everything here is immutable after creation (only opacity/transforms animate).
+    private static T Frozen<T>(T freezable) where T : Freezable
+    {
+        if (freezable.CanFreeze) freezable.Freeze();
+        return freezable;
+    }
 }
