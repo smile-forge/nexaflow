@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -28,9 +29,21 @@ public partial class SunnyScene : UserControl
         Color.FromRgb(0xFF, 0x7E, 0xB6), // pink
     ];
 
+    // Frame-rate cap for the *ambient* layers only — the big, (near-)stationary decorative fills.
+    // Halving their update rate is a real saving on those large blended surfaces yet imperceptible,
+    // since the eye doesn't track them. Travelling sprites are NOT capped: DesiredFrameRate decouples a
+    // clock from vsync, so any sub-refresh rate reads as judder on motion the eye follows.
+    private const int AmbientFrameRate = 30;
+
     private readonly Random _rng = new();
     private bool _built;
     private readonly DispatcherTimer _resizeDebounce;
+
+    // Every animation runs through a controllable clock we retain, so a rebuild can stop the previous
+    // set (otherwise the cleared elements' Forever clocks keep ticking on the UI thread until GC) and so
+    // the whole scene can be paused when the host window is minimised.
+    private readonly List<ClockController> _clocks = new();
+    private Window? _host;
 
     public SunnyScene()
     {
@@ -38,7 +51,48 @@ public partial class SunnyScene : UserControl
         _resizeDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
         _resizeDebounce.Tick += (_, _) => { _resizeDebounce.Stop(); Build(); };
         SizeChanged += OnSizeChanged;
-        Unloaded    += (_, _) => { _resizeDebounce.Stop(); _built = false; Layer.Children.Clear(); };
+        Loaded      += OnLoaded;
+        Unloaded    += OnUnloaded;
+    }
+
+    // Pause the scene only when the window is genuinely hidden (minimised) — NOT merely unfocused, so a
+    // window parked on a second monitor keeps animating while the user works elsewhere.
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        _host = Window.GetWindow(this);
+        if (_host is null) return;
+        _host.StateChanged -= OnHostStateChanged;   // idempotent across Loaded/Unloaded cycles
+        _host.StateChanged += OnHostStateChanged;
+        ApplyPauseState();
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        _resizeDebounce.Stop();
+        if (_host is not null) _host.StateChanged -= OnHostStateChanged;
+        _host = null;
+        StopClocks();
+        _built = false;
+        Layer.Children.Clear();
+    }
+
+    private void OnHostStateChanged(object? sender, EventArgs e) => ApplyPauseState();
+
+    private void ApplyPauseState()
+    {
+        bool minimised = _host?.WindowState == WindowState.Minimized;
+        foreach (var c in _clocks)
+        {
+            if (minimised) c.Pause();
+            else           c.Resume();
+        }
+    }
+
+    // Detach every live clock so the TimeManager stops ticking them immediately.
+    private void StopClocks()
+    {
+        foreach (var c in _clocks) c.Remove();
+        _clocks.Clear();
     }
 
     // First layout builds immediately; later resizes rebuild once the size settles, so the
@@ -56,12 +110,15 @@ public partial class SunnyScene : UserControl
         _built = true;
 
         double w = ActualWidth, h = ActualHeight, area = w * h;
+        StopClocks();
         Layer.Children.Clear();
 
         AddSun(w, h);
         AddClouds(w, h, Math.Clamp((int)(w / 520.0), 2, 4));
         AddConfetti(w, h, Math.Clamp((int)(area / 45_000.0), 18, 40));
         AddBalloons(w, h, Math.Clamp((int)(area / 120_000.0), 8, 16));
+
+        ApplyPauseState();
     }
 
     // ── Sun: a warm glow in the corner that gently breathes ────────────────────
@@ -72,12 +129,13 @@ public partial class SunnyScene : UserControl
         rg.GradientStops.Add(new GradientStop(Color.FromArgb(235, 0xFF, 0xF4, 0xC2), 0));
         rg.GradientStops.Add(new GradientStop(Color.FromArgb(120, 0xFF, 0xE6, 0x8C), 0.32));
         rg.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0xFF, 0xE6, 0x8C), 1));
+        rg.Freeze();
 
         var sun = new Ellipse { Width = d, Height = d, Fill = rg };
         Canvas.SetLeft(sun, w - d * 0.62);
         Canvas.SetTop(sun, -d * 0.34);
         Layer.Children.Add(sun);
-        Loop(sun, OpacityProperty, 0.82, 1.0, 6, 0);
+        Loop(sun, OpacityProperty, 0.82, 1.0, 6, 0, AmbientFrameRate);
     }
 
     // ── Clouds: soft white puffs drifting slowly across ───────────────────────
@@ -93,6 +151,7 @@ public partial class SunnyScene : UserControl
                 rg.GradientStops.Add(new GradientStop(Color.FromArgb(235, 0xFF, 0xFF, 0xFF), 0));
                 rg.GradientStops.Add(new GradientStop(Color.FromArgb(180, 0xFF, 0xFF, 0xFF), 0.6));
                 rg.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0xFF, 0xFF, 0xFF), 1));
+                rg.Freeze();
                 var e = new Ellipse { Width = r * 2, Height = r * 2, Fill = rg };
                 Canvas.SetLeft(e, cx - r);
                 Canvas.SetTop(e, cy - r);
@@ -116,7 +175,7 @@ public partial class SunnyScene : UserControl
                 RepeatBehavior = RepeatBehavior.Forever,
                 BeginTime      = TimeSpan.FromSeconds(_rng.NextDouble() * dur),
             };
-            tt.BeginAnimation(TranslateTransform.XProperty, drift);
+            Animate(tt, TranslateTransform.XProperty, drift, AmbientFrameRate);
         }
     }
 
@@ -131,7 +190,7 @@ public partial class SunnyScene : UserControl
                 Width   = size,
                 Height  = size * (0.5 + _rng.NextDouble() * 0.6),
                 RadiusX = 1.5, RadiusY = 1.5,
-                Fill    = new SolidColorBrush(Playful[_rng.Next(Playful.Length)]),
+                Fill    = Frozen(new SolidColorBrush(Playful[_rng.Next(Playful.Length)])),
                 Opacity = 0,
             };
             var rot = new RotateTransform(_rng.Next(360), fleck.Width / 2, fleck.Height / 2);
@@ -148,19 +207,19 @@ public partial class SunnyScene : UserControl
                 RepeatBehavior = RepeatBehavior.Forever,
                 BeginTime      = begin,
             };
-            tt.BeginAnimation(TranslateTransform.YProperty, fall);
+            Animate(tt, TranslateTransform.YProperty, fall);
             Loop(tt, TranslateTransform.XProperty, -16, 16, 2.5 + _rng.NextDouble() * 2, _rng.NextDouble());
 
             var spin = new DoubleAnimation(0, 360, new Duration(TimeSpan.FromSeconds(1.5 + _rng.NextDouble() * 2)))
             { RepeatBehavior = RepeatBehavior.Forever };
-            rot.BeginAnimation(RotateTransform.AngleProperty, spin);
+            Animate(rot, RotateTransform.AngleProperty, spin);
 
             var fade = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, BeginTime = begin, Duration = new Duration(TimeSpan.FromSeconds(dur)) };
             fade.KeyFrames.Add(new LinearDoubleKeyFrame(0.0, KeyTime.FromPercent(0.0)));
             fade.KeyFrames.Add(new LinearDoubleKeyFrame(0.85, KeyTime.FromPercent(0.12)));
             fade.KeyFrames.Add(new LinearDoubleKeyFrame(0.85, KeyTime.FromPercent(0.82)));
             fade.KeyFrames.Add(new LinearDoubleKeyFrame(0.0, KeyTime.FromPercent(1.0)));
-            fleck.BeginAnimation(OpacityProperty, fade);
+            Animate(fleck, OpacityProperty, fade);
         }
     }
 
@@ -186,7 +245,7 @@ public partial class SunnyScene : UserControl
                 RepeatBehavior = RepeatBehavior.Forever,
                 BeginTime      = begin,
             };
-            move.BeginAnimation(TranslateTransform.YProperty, rise);
+            Animate(move, TranslateTransform.YProperty, rise);
             Loop(move, TranslateTransform.XProperty, -14, 14, 3 + _rng.NextDouble() * 2.5, _rng.NextDouble());
 
             var fade = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, BeginTime = begin, Duration = new Duration(TimeSpan.FromSeconds(dur)) };
@@ -194,7 +253,7 @@ public partial class SunnyScene : UserControl
             fade.KeyFrames.Add(new LinearDoubleKeyFrame(0.92, KeyTime.FromPercent(0.12)));
             fade.KeyFrames.Add(new LinearDoubleKeyFrame(0.92, KeyTime.FromPercent(0.8)));
             fade.KeyFrames.Add(new LinearDoubleKeyFrame(0.0, KeyTime.FromPercent(1.0)));
-            balloon.BeginAnimation(OpacityProperty, fade);
+            Animate(balloon, OpacityProperty, fade);
         }
     }
 
@@ -206,6 +265,7 @@ public partial class SunnyScene : UserControl
         body.GradientStops.Add(new GradientStop(Lighten(color, 0.45), 0));
         body.GradientStops.Add(new GradientStop(color, 0.6));
         body.GradientStops.Add(new GradientStop(Darken(color, 0.12), 1));
+        body.Freeze();
 
         var bulb = new Ellipse { Width = 36, Height = 44, Fill = body };
         Canvas.SetLeft(bulb, 2);
@@ -214,15 +274,15 @@ public partial class SunnyScene : UserControl
         var knot = new Polygon
         {
             Points = [new Point(20, 44), new Point(16, 50), new Point(24, 50)],
-            Fill   = new SolidColorBrush(Darken(color, 0.1)),
+            Fill   = Frozen(new SolidColorBrush(Darken(color, 0.1))),
         };
         var stringLine = new Path
         {
-            Data = Geometry.Parse("M20,50 Q24,56 19,60"),
-            Stroke = new SolidColorBrush(Color.FromArgb(120, 0x55, 0x55, 0x55)),
+            Data = Frozen(Geometry.Parse("M20,50 Q24,56 19,60")),
+            Stroke = Frozen(new SolidColorBrush(Color.FromArgb(120, 0x55, 0x55, 0x55))),
             StrokeThickness = 1,
         };
-        var shine = new Ellipse { Width = 8, Height = 12, Fill = new SolidColorBrush(Color.FromArgb(150, 0xFF, 0xFF, 0xFF)) };
+        var shine = new Ellipse { Width = 8, Height = 12, Fill = Frozen(new SolidColorBrush(Color.FromArgb(150, 0xFF, 0xFF, 0xFF))) };
         Canvas.SetLeft(shine, 10);
         Canvas.SetTop(shine, 9);
 
@@ -244,13 +304,31 @@ public partial class SunnyScene : UserControl
         (byte)Math.Clamp(c.B * (1 - f), 0, 255));
 
     // ── Shared: a forever, auto-reversing eased oscillation ────────────────────
-    private static void Loop(IAnimatable target, DependencyProperty prop,
-                             double from, double to, double seconds, double beginSeconds)
-        => target.BeginAnimation(prop, new DoubleAnimation(from, to, new Duration(TimeSpan.FromSeconds(seconds)))
+    private void Loop(IAnimatable target, DependencyProperty prop,
+                      double from, double to, double seconds, double beginSeconds, int? fps = null)
+        => Animate(target, prop, new DoubleAnimation(from, to, new Duration(TimeSpan.FromSeconds(seconds)))
         {
             AutoReverse    = true,
             RepeatBehavior = RepeatBehavior.Forever,
             BeginTime      = TimeSpan.FromSeconds(beginSeconds),
             EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
-        });
+        }, fps);
+
+    // Start the animation through a controllable clock (retained so the scene can be stopped on rebuild
+    // or paused on minimise). An optional fps caps the update rate — passed only for ambient layers.
+    private void Animate(IAnimatable target, DependencyProperty prop, AnimationTimeline anim, int? fps = null)
+    {
+        if (fps is int rate) Timeline.SetDesiredFrameRate(anim, rate);
+        var clock = anim.CreateClock();
+        target.ApplyAnimationClock(prop, clock);
+        if (clock.Controller is { } controller) _clocks.Add(controller);
+    }
+
+    // Freeze a set-once brush/geometry so WPF can share it with the render thread and skip change
+    // tracking. Everything here is immutable after creation (only opacity/transforms animate).
+    private static T Frozen<T>(T freezable) where T : Freezable
+    {
+        if (freezable.CanFreeze) freezable.Freeze();
+        return freezable;
+    }
 }

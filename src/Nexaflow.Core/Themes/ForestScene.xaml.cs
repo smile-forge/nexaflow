@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -18,9 +19,21 @@ namespace Nexaflow.Core.Themes;
 /// </summary>
 public partial class ForestScene : UserControl
 {
+    // Frame-rate cap for the *ambient* layers only — the big, (near-)stationary decorative fills.
+    // Halving their update rate is a real saving on those large blended surfaces yet imperceptible,
+    // since the eye doesn't track them. Travelling sprites are NOT capped: DesiredFrameRate decouples a
+    // clock from vsync, so any sub-refresh rate reads as judder on motion the eye follows.
+    private const int AmbientFrameRate = 30;
+
     private readonly Random _rng = new();
     private bool _built;
     private readonly DispatcherTimer _resizeDebounce;
+
+    // Every animation runs through a controllable clock we retain, so a rebuild can stop the previous
+    // set (otherwise the cleared elements' Forever clocks keep ticking on the UI thread until GC) and so
+    // the whole scene can be paused when the host window is minimised.
+    private readonly List<ClockController> _clocks = new();
+    private Window? _host;
 
     public ForestScene()
     {
@@ -28,7 +41,48 @@ public partial class ForestScene : UserControl
         _resizeDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
         _resizeDebounce.Tick += (_, _) => { _resizeDebounce.Stop(); Build(); };
         SizeChanged += OnSizeChanged;
-        Unloaded    += (_, _) => { _resizeDebounce.Stop(); _built = false; Layer.Children.Clear(); };
+        Loaded      += OnLoaded;
+        Unloaded    += OnUnloaded;
+    }
+
+    // Pause the scene only when the window is genuinely hidden (minimised) — NOT merely unfocused, so a
+    // window parked on a second monitor keeps animating while the user works elsewhere.
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        _host = Window.GetWindow(this);
+        if (_host is null) return;
+        _host.StateChanged -= OnHostStateChanged;   // idempotent across Loaded/Unloaded cycles
+        _host.StateChanged += OnHostStateChanged;
+        ApplyPauseState();
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        _resizeDebounce.Stop();
+        if (_host is not null) _host.StateChanged -= OnHostStateChanged;
+        _host = null;
+        StopClocks();
+        _built = false;
+        Layer.Children.Clear();
+    }
+
+    private void OnHostStateChanged(object? sender, EventArgs e) => ApplyPauseState();
+
+    private void ApplyPauseState()
+    {
+        bool minimised = _host?.WindowState == WindowState.Minimized;
+        foreach (var c in _clocks)
+        {
+            if (minimised) c.Pause();
+            else           c.Resume();
+        }
+    }
+
+    // Detach every live clock so the TimeManager stops ticking them immediately.
+    private void StopClocks()
+    {
+        foreach (var c in _clocks) c.Remove();
+        _clocks.Clear();
     }
 
     // First layout builds immediately; later resizes rebuild once the size settles, so the
@@ -46,6 +100,7 @@ public partial class ForestScene : UserControl
         _built = true;
 
         double w = ActualWidth, h = ActualHeight, area = w * h;
+        StopClocks();
         Layer.Children.Clear();
 
         AddSunWash(w, h);
@@ -56,6 +111,8 @@ public partial class ForestScene : UserControl
         AddMotes(w, h, Math.Clamp((int)(area / 20_000.0), 28, 58));
         AddButterflies(w, h, Math.Clamp((int)(w / 360.0), 2, 5));
         AddBird(w, h);
+
+        ApplyPauseState();   // a rebuild starts clocks running; honour minimise if we're hidden
     }
 
     // ── Sun wash: warm light pooling in from the canopy above ──────────────────
@@ -71,10 +128,11 @@ public partial class ForestScene : UserControl
         rg.GradientStops.Add(new GradientStop(Color.FromArgb(150, 0xFF, 0xF1, 0xC4), 0));
         rg.GradientStops.Add(new GradientStop(Color.FromArgb(44, 0xF2, 0xDE, 0x92), 0.5));
         rg.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0xF2, 0xDE, 0x92), 0.82));
+        rg.Freeze();
 
         var wash = new Rectangle { Width = w, Height = h, Fill = rg };
         Layer.Children.Add(wash);
-        Loop(wash, OpacityProperty, 0.65, 1.0, 8, 0);
+        Loop(wash, OpacityProperty, 0.65, 1.0, 8, 0, AmbientFrameRate);
     }
 
     // ── God rays: warm shafts of sunlight slanting down through the trees ───────
@@ -91,6 +149,7 @@ public partial class ForestScene : UserControl
             fill.GradientStops.Add(new GradientStop(Color.FromArgb(135, 0xFF, 0xF2, 0xC8), 0));
             fill.GradientStops.Add(new GradientStop(Color.FromArgb(54, 0xFF, 0xE6, 0xA4), 0.45));
             fill.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0xFF, 0xE6, 0xA4), 1));
+            fill.Freeze();
 
             var ray = new Polygon
             {
@@ -107,8 +166,8 @@ public partial class ForestScene : UserControl
             };
             Layer.Children.Add(ray);
 
-            Loop(ray, OpacityProperty, 0.16, 0.5, 6 + _rng.Next(4), i * 0.7);
-            Loop(ray.RenderTransform, TranslateTransform.XProperty, -26, 26, 9 + _rng.Next(5), i * 0.5);
+            Loop(ray, OpacityProperty, 0.16, 0.5, 6 + _rng.Next(4), i * 0.7, AmbientFrameRate);
+            Loop(ray.RenderTransform, TranslateTransform.XProperty, -26, 26, 9 + _rng.Next(5), i * 0.5, AmbientFrameRate);
         }
     }
 
@@ -123,6 +182,7 @@ public partial class ForestScene : UserControl
             fill.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0x12, 0x20, 0x14), 0));
             fill.GradientStops.Add(new GradientStop(Color.FromArgb(120, 0x10, 0x1E, 0x12), 0.5));
             fill.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0x12, 0x20, 0x14), 1));
+            fill.Freeze();
 
             var trunk = new Rectangle { Width = tw, Height = h, Fill = fill };
             Canvas.SetLeft(trunk, w * fx - tw / 2);
@@ -146,14 +206,15 @@ public partial class ForestScene : UserControl
             rg.GradientStops.Add(new GradientStop(Color.FromArgb(a, 0xFF, 0xEC, 0xA6), 0));
             rg.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(a / 4), 0xFF, 0xE2, 0x8E), 0.55));
             rg.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0xFF, 0xE2, 0x8E), 1));
+            rg.Freeze();
 
             var dapple = new Ellipse { Width = cw, Height = ch, Fill = rg, Opacity = 0, RenderTransform = new TranslateTransform() };
             Canvas.SetLeft(dapple, _rng.NextDouble() * w - cw / 2);
             Canvas.SetTop(dapple, h * (0.12 + 0.8 * _rng.NextDouble()) - ch / 2);
             Layer.Children.Add(dapple);
 
-            Loop(dapple, OpacityProperty, bright ? 0.3 : 0.2, bright ? 0.85 : 0.6, 3.5 + _rng.Next(4), i * 0.45);
-            Loop(dapple.RenderTransform, TranslateTransform.XProperty, -24, 24, 9 + _rng.Next(6), i * 0.6);
+            Loop(dapple, OpacityProperty, bright ? 0.3 : 0.2, bright ? 0.85 : 0.6, 3.5 + _rng.Next(4), i * 0.45, AmbientFrameRate);
+            Loop(dapple.RenderTransform, TranslateTransform.XProperty, -24, 24, 9 + _rng.Next(6), i * 0.6, AmbientFrameRate);
         }
     }
 
@@ -173,9 +234,9 @@ public partial class ForestScene : UserControl
 
             var fern = new Path
             {
-                Data = Geometry.Parse(
-                    "M25,100 L25,30 M25,44 L11,36 M25,44 L39,36 M25,58 L9,52 M25,58 L41,52 M25,72 L11,67 M25,72 L39,67 M25,86 L14,82 M25,86 L36,82"),
-                Stroke             = new SolidColorBrush(greens[i % greens.Length]),
+                Data = Frozen(Geometry.Parse(
+                    "M25,100 L25,30 M25,44 L11,36 M25,44 L39,36 M25,58 L9,52 M25,58 L41,52 M25,72 L11,67 M25,72 L39,67 M25,86 L14,82 M25,86 L36,82")),
+                Stroke             = Frozen(new SolidColorBrush(greens[i % greens.Length])),
                 StrokeThickness    = 5,
                 StrokeStartLineCap = PenLineCap.Round,
                 StrokeEndLineCap   = PenLineCap.Round,
@@ -188,7 +249,7 @@ public partial class ForestScene : UserControl
             Canvas.SetTop(fern, h - fh);
             Layer.Children.Add(fern);
 
-            Loop(fern.RenderTransform, SkewTransform.AngleXProperty, -4, 4, 4 + _rng.Next(3), i * 0.4);
+            Loop(fern.RenderTransform, SkewTransform.AngleXProperty, -4, 4, 4 + _rng.Next(3), i * 0.4, AmbientFrameRate);
         }
     }
 
@@ -202,7 +263,7 @@ public partial class ForestScene : UserControl
             {
                 Width           = size,
                 Height          = size,
-                Fill            = new SolidColorBrush(Color.FromArgb(230, 0xFF, 0xF4, 0xCE)),
+                Fill            = Frozen(new SolidColorBrush(Color.FromArgb(230, 0xFF, 0xF4, 0xCE))),
                 Opacity         = 0,
                 RenderTransform = new TranslateTransform(),
             };
@@ -210,9 +271,9 @@ public partial class ForestScene : UserControl
             Canvas.SetTop(mote, _rng.NextDouble() * h);
             Layer.Children.Add(mote);
 
-            Loop(mote.RenderTransform, TranslateTransform.YProperty, -16, 16, 6 + _rng.Next(7), _rng.NextDouble() * 3);
-            Loop(mote.RenderTransform, TranslateTransform.XProperty, -12, 12, 5 + _rng.Next(6), _rng.NextDouble() * 3);
-            Loop(mote, OpacityProperty, 0.15, 0.9, 1.4 + _rng.NextDouble() * 2.2, _rng.NextDouble() * 3);
+            Loop(mote.RenderTransform, TranslateTransform.YProperty, -16, 16, 6 + _rng.Next(7), _rng.NextDouble() * 3, AmbientFrameRate);
+            Loop(mote.RenderTransform, TranslateTransform.XProperty, -12, 12, 5 + _rng.Next(6), _rng.NextDouble() * 3, AmbientFrameRate);
+            Loop(mote, OpacityProperty, 0.15, 0.9, 1.4 + _rng.NextDouble() * 2.2, _rng.NextDouble() * 3, AmbientFrameRate);
         }
     }
 
@@ -251,7 +312,7 @@ public partial class ForestScene : UserControl
                 RepeatBehavior = RepeatBehavior.Forever,
                 BeginTime      = TimeSpan.FromSeconds(_rng.NextDouble() * dur),
             };
-            move.BeginAnimation(TranslateTransform.XProperty, cross);
+            Animate(move, TranslateTransform.XProperty, cross);
             // Bobbing flight path — larger, more erratic than a fish.
             Loop(move, TranslateTransform.YProperty, -26, 26, 1.8 + _rng.NextDouble() * 1.6, _rng.NextDouble());
         }
@@ -259,8 +320,8 @@ public partial class ForestScene : UserControl
 
     private FrameworkElement MakeButterfly(Color color)
     {
-        var brush = new SolidColorBrush(color);
-        var edge  = new SolidColorBrush(Color.FromArgb(120, 0x20, 0x18, 0x10));
+        var brush = Frozen(new SolidColorBrush(color));
+        var edge  = Frozen(new SolidColorBrush(Color.FromArgb(120, 0x20, 0x18, 0x10)));
         var fly   = new Canvas { Width = 20, Height = 16 };
 
         // Wing group scales horizontally about the body to "flap".
@@ -280,7 +341,7 @@ public partial class ForestScene : UserControl
         Wing(10.5, 1.5, 9, 7);   // upper-right
         Wing(10.5, 7.5, 7, 6);   // lower-right
 
-        var body = new Ellipse { Width = 2, Height = 12, Fill = new SolidColorBrush(Color.FromArgb(235, 0x25, 0x1C, 0x12)) };
+        var body = new Ellipse { Width = 2, Height = 12, Fill = Frozen(new SolidColorBrush(Color.FromArgb(235, 0x25, 0x1C, 0x12))) };
         Canvas.SetLeft(body, 9);
         Canvas.SetTop(body, 2);
 
@@ -292,7 +353,7 @@ public partial class ForestScene : UserControl
             AutoReverse    = true,
             RepeatBehavior = RepeatBehavior.Forever,
         };
-        flap.BeginAnimation(ScaleTransform.ScaleXProperty, flapAnim);
+        Animate(flap, ScaleTransform.ScaleXProperty, flapAnim);
         return fly;
     }
 
@@ -301,8 +362,8 @@ public partial class ForestScene : UserControl
     {
         var bird = new Path
         {
-            Data            = Geometry.Parse("M0,6 Q7,0 14,6 Q21,0 28,6"),
-            Stroke          = new SolidColorBrush(Color.FromArgb(150, 0x14, 0x22, 0x16)),
+            Data            = Frozen(Geometry.Parse("M0,6 Q7,0 14,6 Q21,0 28,6")),
+            Stroke          = Frozen(new SolidColorBrush(Color.FromArgb(150, 0x14, 0x22, 0x16))),
             StrokeThickness = 2,
             StrokeStartLineCap = PenLineCap.Round,
             StrokeEndLineCap   = PenLineCap.Round,
@@ -319,19 +380,37 @@ public partial class ForestScene : UserControl
         cross.KeyFrames.Add(new LinearDoubleKeyFrame(-40, KeyTime.FromPercent(0.0)));
         cross.KeyFrames.Add(new LinearDoubleKeyFrame(w + 40, KeyTime.FromPercent(0.45)));
         cross.KeyFrames.Add(new LinearDoubleKeyFrame(w + 40, KeyTime.FromPercent(1.0)));
-        move.BeginAnimation(TranslateTransform.XProperty, cross);
+        Animate(move, TranslateTransform.XProperty, cross);
         Loop(move, TranslateTransform.YProperty, -10, 10, 5, 0);
         Loop(beat, ScaleTransform.ScaleYProperty, 0.5, 1.0, 0.4, 0);
     }
 
     // ── Shared: a forever, auto-reversing eased oscillation ────────────────────
-    private static void Loop(IAnimatable target, DependencyProperty prop,
-                             double from, double to, double seconds, double beginSeconds)
-        => target.BeginAnimation(prop, new DoubleAnimation(from, to, new Duration(TimeSpan.FromSeconds(seconds)))
+    private void Loop(IAnimatable target, DependencyProperty prop,
+                      double from, double to, double seconds, double beginSeconds, int? fps = null)
+        => Animate(target, prop, new DoubleAnimation(from, to, new Duration(TimeSpan.FromSeconds(seconds)))
         {
             AutoReverse    = true,
             RepeatBehavior = RepeatBehavior.Forever,
             BeginTime      = TimeSpan.FromSeconds(beginSeconds),
             EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
-        });
+        }, fps);
+
+    // Start the animation through a controllable clock (retained so the scene can be stopped on rebuild
+    // or paused on minimise). An optional fps caps the update rate — passed only for ambient layers.
+    private void Animate(IAnimatable target, DependencyProperty prop, AnimationTimeline anim, int? fps = null)
+    {
+        if (fps is int rate) Timeline.SetDesiredFrameRate(anim, rate);
+        var clock = anim.CreateClock();
+        target.ApplyAnimationClock(prop, clock);
+        if (clock.Controller is { } controller) _clocks.Add(controller);
+    }
+
+    // Freeze a set-once brush/geometry so WPF can share it with the render thread and skip change
+    // tracking. Everything here is immutable after creation (only opacity/transforms animate).
+    private static T Frozen<T>(T freezable) where T : Freezable
+    {
+        if (freezable.CanFreeze) freezable.Freeze();
+        return freezable;
+    }
 }

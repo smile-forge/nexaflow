@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -35,9 +36,22 @@ public partial class OceanReefScene : UserControl
         set => SetValue(VariantProperty, value);
     }
 
+    // Frame-rate cap for the *ambient* layers only — the big, (near-)stationary translucent fills
+    // (sun glow, god rays, floor caustics, coral sway). Halving their update rate is a real saving on
+    // those large blended surfaces yet imperceptible, since the eye doesn't track them. The travelling
+    // sprites (fish, turtle, bubbles) are deliberately NOT capped: DesiredFrameRate decouples a clock
+    // from vsync, so any sub-refresh rate reads as judder on motion the eye follows.
+    private const int AmbientFrameRate = 30;
+
     private readonly Random _rng = new();
     private bool _built;
     private readonly DispatcherTimer _resizeDebounce;
+
+    // Every animation runs through a controllable clock we retain, so a rebuild can *stop* the previous
+    // set — otherwise the cleared elements' Forever clocks keep ticking on the UI thread until GC — and
+    // so the whole reef can be paused when the host window is minimised.
+    private readonly List<ClockController> _clocks = new();
+    private Window? _host;
 
     public OceanReefScene()
     {
@@ -45,7 +59,50 @@ public partial class OceanReefScene : UserControl
         _resizeDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
         _resizeDebounce.Tick += (_, _) => { _resizeDebounce.Stop(); Build(); };
         SizeChanged += OnSizeChanged;
-        Unloaded    += (_, _) => { _resizeDebounce.Stop(); _built = false; Layer.Children.Clear(); };
+        Loaded      += OnLoaded;
+        Unloaded    += OnUnloaded;
+    }
+
+    // Pause the reef only when the window is genuinely hidden (minimised) — NOT merely unfocused, so a
+    // window parked on a second monitor keeps its fish swimming while the user works elsewhere. (Full
+    // occlusion by another window isn't detectable without fragile Win32 region polling, so we don't.)
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        _host = Window.GetWindow(this);
+        if (_host is null) return;
+        _host.StateChanged -= OnHostStateChanged;   // idempotent across Loaded/Unloaded cycles
+        _host.StateChanged += OnHostStateChanged;
+        ApplyPauseState();
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        _resizeDebounce.Stop();
+        if (_host is not null) _host.StateChanged -= OnHostStateChanged;
+        _host = null;
+        StopClocks();
+        _built = false;
+        Layer.Children.Clear();
+    }
+
+    private void OnHostStateChanged(object? sender, EventArgs e) => ApplyPauseState();
+
+    private void ApplyPauseState()
+    {
+        bool minimised = _host?.WindowState == WindowState.Minimized;
+        foreach (var c in _clocks)
+        {
+            if (minimised) c.Pause();
+            else           c.Resume();
+        }
+    }
+
+    // Detach every live clock so the TimeManager stops ticking them immediately, rather than waiting
+    // for the cleared elements to be garbage-collected.
+    private void StopClocks()
+    {
+        foreach (var c in _clocks) c.Remove();
+        _clocks.Clear();
     }
 
     // First layout builds immediately; later resizes rebuild once the size settles, so the
@@ -63,6 +120,7 @@ public partial class OceanReefScene : UserControl
         _built = true;
 
         double w = ActualWidth, h = ActualHeight;
+        StopClocks();
         Layer.Children.Clear();
 
         if (Variant == OceanSceneVariant.Full)
@@ -86,6 +144,8 @@ public partial class OceanReefScene : UserControl
             AddGodRays(w, h, 3);
             AddBubbles(w, h, count: 10);
         }
+
+        ApplyPauseState();   // a rebuild starts clocks running; honour minimise if we're hidden
     }
 
     // ── Sun glow: bright caustic light pouring in from the surface above ───────
@@ -101,10 +161,11 @@ public partial class OceanReefScene : UserControl
         rg.GradientStops.Add(new GradientStop(Color.FromArgb(150, 0xE1, 0xFF, 0xF5), 0));
         rg.GradientStops.Add(new GradientStop(Color.FromArgb(46, 0x96, 0xE6, 0xEB), 0.5));
         rg.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0x96, 0xE6, 0xEB), 0.78));
+        rg.Freeze();
 
         var glow = new Rectangle { Width = w, Height = h, Fill = rg };
         Layer.Children.Add(glow);
-        Loop(glow, OpacityProperty, 0.7, 1.0, 7, 0);
+        Loop(glow, OpacityProperty, 0.7, 1.0, 7, 0, AmbientFrameRate);
     }
 
     // ── God rays: bright shafts streaming down from the surface, drifting + breathing ─
@@ -121,6 +182,7 @@ public partial class OceanReefScene : UserControl
             fill.GradientStops.Add(new GradientStop(Color.FromArgb(150, 0xEA, 0xFF, 0xFF), 0));
             fill.GradientStops.Add(new GradientStop(Color.FromArgb(64, 0xCD, 0xFA, 0xFF), 0.45));
             fill.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0xC8, 0xFF, 0xF6), 1));
+            fill.Freeze();
 
             var ray = new Polygon
             {
@@ -137,8 +199,8 @@ public partial class OceanReefScene : UserControl
             };
             Layer.Children.Add(ray);
 
-            Loop(ray, OpacityProperty, 0.2, 0.6, 5 + _rng.Next(4), i * 0.7);
-            Loop(ray.RenderTransform, TranslateTransform.XProperty, -30, 30, 8 + _rng.Next(5), i * 0.5);
+            Loop(ray, OpacityProperty, 0.2, 0.6, 5 + _rng.Next(4), i * 0.7, AmbientFrameRate);
+            Loop(ray.RenderTransform, TranslateTransform.XProperty, -30, 30, 8 + _rng.Next(5), i * 0.5, AmbientFrameRate);
         }
     }
 
@@ -158,8 +220,8 @@ public partial class OceanReefScene : UserControl
             double rh = 55 + _rng.Next(80);
             var rock = new Path
             {
-                Data    = Geometry.Parse("M0,1 C0.12,0.12 0.4,0 0.55,0.05 C0.78,0.12 0.9,0.2 1,1 Z"),
-                Fill    = new SolidColorBrush(greys[i % greys.Length]),
+                Data    = Frozen(Geometry.Parse("M0,1 C0.12,0.12 0.4,0 0.55,0.05 C0.78,0.12 0.9,0.2 1,1 Z")),
+                Fill    = Frozen(new SolidColorBrush(greys[i % greys.Length])),
                 Stretch = Stretch.Fill,
                 Width   = rw,
                 Height  = rh,
@@ -180,13 +242,14 @@ public partial class OceanReefScene : UserControl
             var rg = new RadialGradientBrush();
             rg.GradientStops.Add(new GradientStop(Color.FromArgb(95, 0xFF, 0xFF, 0xF0), 0));
             rg.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0xFF, 0xFF, 0xF0), 1));
+            rg.Freeze();
 
             var pool = new Ellipse { Width = cw, Height = ch, Fill = rg, Opacity = 0 };
             Canvas.SetLeft(pool, w * (0.05 + 0.9 * i / Math.Max(1, n - 1)) - cw / 2);
             Canvas.SetTop(pool, h - ch * 0.7);
             Layer.Children.Add(pool);
 
-            Loop(pool, OpacityProperty, 0.15, 0.55, 3 + _rng.Next(3), i * 0.6);
+            Loop(pool, OpacityProperty, 0.15, 0.55, 3 + _rng.Next(3), i * 0.6, AmbientFrameRate);
         }
     }
 
@@ -208,9 +271,9 @@ public partial class OceanReefScene : UserControl
 
             var coral = new Path
             {
-                Data = Geometry.Parse(
-                    "M25,100 L25,52 C25,38 12,38 12,20 M25,60 C25,48 40,46 40,26 M25,70 C25,62 8,58 8,42"),
-                Stroke             = new SolidColorBrush(tints[i % tints.Length]),
+                Data = Frozen(Geometry.Parse(
+                    "M25,100 L25,52 C25,38 12,38 12,20 M25,60 C25,48 40,46 40,26 M25,70 C25,62 8,58 8,42")),
+                Stroke             = Frozen(new SolidColorBrush(tints[i % tints.Length])),
                 StrokeThickness    = 7,
                 StrokeStartLineCap = PenLineCap.Round,
                 StrokeEndLineCap   = PenLineCap.Round,
@@ -223,7 +286,7 @@ public partial class OceanReefScene : UserControl
             Canvas.SetTop(coral, h - ch);
             Layer.Children.Add(coral);
 
-            Loop(coral.RenderTransform, SkewTransform.AngleXProperty, -3.5, 3.5, 4 + _rng.Next(3), i * 0.4);
+            Loop(coral.RenderTransform, SkewTransform.AngleXProperty, -3.5, 3.5, 4 + _rng.Next(3), i * 0.4, AmbientFrameRate);
         }
     }
 
@@ -272,16 +335,16 @@ public partial class OceanReefScene : UserControl
                 RepeatBehavior = RepeatBehavior.Forever,
                 BeginTime      = TimeSpan.FromSeconds(_rng.NextDouble() * dur),
             };
-            move.BeginAnimation(TranslateTransform.XProperty, cross);
+            Animate(move, TranslateTransform.XProperty, cross);
             Loop(move, TranslateTransform.YProperty, -10, 10, 2.4 + _rng.NextDouble() * 2, _rng.NextDouble());
         }
     }
 
     private static FrameworkElement MakeFish(Color color)
     {
-        var brush  = new SolidColorBrush(color);
+        var brush  = Frozen(new SolidColorBrush(color));
         // A soft darker outline keeps a bright fish legible over the bright reef.
-        var stroke = new SolidColorBrush(Color.FromArgb(70, 0x06, 0x2A, 0x34));
+        var stroke = Frozen(new SolidColorBrush(Color.FromArgb(70, 0x06, 0x2A, 0x34)));
         var fish   = new Canvas { Width = 36, Height = 16 };
 
         var tail = new Polygon
@@ -355,24 +418,24 @@ public partial class OceanReefScene : UserControl
         cross.KeyFrames.Add(new LinearDoubleKeyFrame(0,             KeyTime.FromPercent(0)));
         cross.KeyFrames.Add(new LinearDoubleKeyFrame(endX - startX, KeyTime.FromPercent(crossFr)));
         cross.KeyFrames.Add(new LinearDoubleKeyFrame(endX - startX, KeyTime.FromPercent(1)));
-        move.BeginAnimation(TranslateTransform.XProperty, cross);
+        Animate(move, TranslateTransform.XProperty, cross);
 
         Loop(move, TranslateTransform.YProperty, -8, 8, 3.6 + _rng.NextDouble() * 2, _rng.NextDouble());
     }
 
     private FrameworkElement MakeTurtle(Color shell)
     {
-        var shellBrush = new SolidColorBrush(shell);
+        var shellBrush = Frozen(new SolidColorBrush(shell));
         // Head & near flippers a shade lighter/greyer so they read against the carapace…
         var limbC      = Color.FromArgb(shell.A,
             (byte)Math.Min(255, shell.R + 28), (byte)Math.Min(255, shell.G + 26), (byte)Math.Min(255, shell.B + 22));
-        var limbBrush  = new SolidColorBrush(limbC);
+        var limbBrush  = Frozen(new SolidColorBrush(limbC));
         // …and the far-side pair darker, so they sit visually behind the body.
-        var limbFar    = new SolidColorBrush(Color.FromArgb(shell.A,
-            (byte)(limbC.R * 0.72), (byte)(limbC.G * 0.72), (byte)(limbC.B * 0.72)));
-        var stroke     = new SolidColorBrush(Color.FromArgb(90, 0x05, 0x24, 0x2C));
-        var scute      = new SolidColorBrush(Color.FromArgb(120,
-            (byte)(shell.R * 0.6), (byte)(shell.G * 0.6), (byte)(shell.B * 0.6)));
+        var limbFar    = Frozen(new SolidColorBrush(Color.FromArgb(shell.A,
+            (byte)(limbC.R * 0.72), (byte)(limbC.G * 0.72), (byte)(limbC.B * 0.72))));
+        var stroke     = Frozen(new SolidColorBrush(Color.FromArgb(90, 0x05, 0x24, 0x2C)));
+        var scute      = Frozen(new SolidColorBrush(Color.FromArgb(120,
+            (byte)(shell.R * 0.6), (byte)(shell.G * 0.6), (byte)(shell.B * 0.6))));
 
         var turtle = new Canvas { Width = 56, Height = 34 };   // built facing right
 
@@ -415,7 +478,7 @@ public partial class OceanReefScene : UserControl
         // Scute ridges across the shell.
         turtle.Children.Add(new Path
         {
-            Data               = Geometry.Parse("M25,5 L25,27 M17,7 L18,26 M33,7 L32,26"),
+            Data               = Frozen(Geometry.Parse("M25,5 L25,27 M17,7 L18,26 M33,7 L32,26")),
             Stroke             = scute,
             StrokeThickness    = 1,
             StrokeStartLineCap = PenLineCap.Round,
@@ -423,7 +486,7 @@ public partial class OceanReefScene : UserControl
         });
 
         // Soft top highlight.
-        var hi = new Ellipse { Width = 14, Height = 6, Fill = new SolidColorBrush(Color.FromArgb(56, 0xFF, 0xFF, 0xFF)) };
+        var hi = new Ellipse { Width = 14, Height = 6, Fill = Frozen(new SolidColorBrush(Color.FromArgb(56, 0xFF, 0xFF, 0xFF))) };
         Canvas.SetLeft(hi, 12); Canvas.SetTop(hi, 8);
         turtle.Children.Add(hi);
 
@@ -460,12 +523,13 @@ public partial class OceanReefScene : UserControl
             fill.GradientStops.Add(new GradientStop(Color.FromArgb(235, 0xFF, 0xFF, 0xFF), 0));
             fill.GradientStops.Add(new GradientStop(Color.FromArgb(55, 0xBE, 0xEF, 0xF4), 0.6));
             fill.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0xBE, 0xEF, 0xF4), 1));
+            fill.Freeze();
 
             var bubble = new Ellipse
             {
                 Width           = size,
                 Height          = size,
-                Stroke          = new SolidColorBrush(Color.FromArgb(150, 0xE6, 0xFF, 0xFF)),
+                Stroke          = Frozen(new SolidColorBrush(Color.FromArgb(150, 0xE6, 0xFF, 0xFF))),
                 StrokeThickness = 1,
                 Fill            = fill,
                 Opacity         = 0,
@@ -483,7 +547,7 @@ public partial class OceanReefScene : UserControl
                 RepeatBehavior = RepeatBehavior.Forever,
                 BeginTime      = begin,
             };
-            bubble.RenderTransform.BeginAnimation(TranslateTransform.YProperty, rise);
+            Animate(bubble.RenderTransform, TranslateTransform.YProperty, rise);
             Loop(bubble.RenderTransform, TranslateTransform.XProperty, -6, 6, 1.4 + _rng.NextDouble() * 1.6, _rng.NextDouble());
 
             var fade = new DoubleAnimationUsingKeyFrames
@@ -496,18 +560,38 @@ public partial class OceanReefScene : UserControl
             fade.KeyFrames.Add(new LinearDoubleKeyFrame(0.9, KeyTime.FromPercent(0.15)));
             fade.KeyFrames.Add(new LinearDoubleKeyFrame(0.9, KeyTime.FromPercent(0.75)));
             fade.KeyFrames.Add(new LinearDoubleKeyFrame(0.0, KeyTime.FromPercent(1.0)));
-            bubble.BeginAnimation(OpacityProperty, fade);
+            Animate(bubble, OpacityProperty, fade);
         }
     }
 
     // ── Shared: a forever, auto-reversing eased oscillation ────────────────────
-    private static void Loop(IAnimatable target, DependencyProperty prop,
-                             double from, double to, double seconds, double beginSeconds)
-        => target.BeginAnimation(prop, new DoubleAnimation(from, to, new Duration(TimeSpan.FromSeconds(seconds)))
+    private void Loop(IAnimatable target, DependencyProperty prop,
+                      double from, double to, double seconds, double beginSeconds, int? fps = null)
+        => Animate(target, prop, new DoubleAnimation(from, to, new Duration(TimeSpan.FromSeconds(seconds)))
         {
             AutoReverse    = true,
             RepeatBehavior = RepeatBehavior.Forever,
             BeginTime      = TimeSpan.FromSeconds(beginSeconds),
             EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
-        });
+        }, fps);
+
+    // Start the animation through a controllable clock (retained so the reef can be stopped on rebuild
+    // or paused on minimise). An optional fps caps the update rate — passed only for ambient layers;
+    // travelling sprites omit it and run at the display refresh so tracked motion stays smooth.
+    private void Animate(IAnimatable target, DependencyProperty prop, AnimationTimeline anim, int? fps = null)
+    {
+        if (fps is int rate) Timeline.SetDesiredFrameRate(anim, rate);
+        var clock = anim.CreateClock();
+        target.ApplyAnimationClock(prop, clock);
+        if (clock.Controller is { } controller) _clocks.Add(controller);
+    }
+
+    // Freeze a set-once brush/geometry so WPF can share it with the render thread and skip change
+    // tracking. Everything the reef builds is immutable after creation (only element opacity and
+    // transforms animate), so all of it is freezable.
+    private static T Frozen<T>(T freezable) where T : Freezable
+    {
+        if (freezable.CanFreeze) freezable.Freeze();
+        return freezable;
+    }
 }
