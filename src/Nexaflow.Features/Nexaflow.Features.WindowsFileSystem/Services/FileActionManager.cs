@@ -73,9 +73,15 @@ public sealed class FileActionManager
     /// Step 2 — safe to call on any thread.
     /// Applies file-action filtering rules using the pre-computed <paramref name="canPerform"/> array.
     /// </summary>
+    /// <param name="includeOptional">
+    /// When true (default — the action strip), experiences claimed only via
+    /// <see cref="FileActions.CriteriaType.OptionalExtension"/> are offered. Pass false for the
+    /// right-click menu so a secondary capability (e.g. "As Archive" on a <c>*.docx</c>) is hidden there.
+    /// </param>
     public IReadOnlyList<IFileAction> FilterActions(
         IReadOnlyList<FileSystemEntry> selected,
-        bool[]                         canPerform)
+        bool[]                         canPerform,
+        bool                           includeOptional = true)
     {
         if (selected.Count == 0) return [];
 
@@ -87,7 +93,7 @@ public sealed class FileActionManager
         for (int i = 0; i < file.Count; i++)
         {
             if (!canPerform[i]) continue;
-            if (FileMatches(file[i], selected, anyDrives, multipleFiles))
+            if (FileMatches(file[i], selected, anyDrives, multipleFiles, includeOptional))
                 filtered.Add(file[i]);
         }
         return filtered;
@@ -147,7 +153,8 @@ public sealed class FileActionManager
         IFileAction                    action,
         IReadOnlyList<FileSystemEntry> selected,
         bool                           anyDrives,
-        bool                           multipleFiles)
+        bool                           multipleFiles,
+        bool                           includeOptional)
     {
         if (multipleFiles && !action.SupportsMultipleFiles) return false;
         if (anyDrives) return false;  // drives use folder actions (IFolderAction.AppliesToDrives)
@@ -158,7 +165,7 @@ public sealed class FileActionManager
 
         foreach (var entry in files)
         {
-            var experiences = FileMapManager.Instance.GetExperiencesForFile(new FileInfo(entry.FullPath));
+            var experiences = FileMapManager.Instance.GetExperiencesForFile(new FileInfo(entry.FullPath), includeOptional);
             if (!experiences.Contains(action.ExperienceId, System.StringComparer.OrdinalIgnoreCase))
                 return false;
         }
