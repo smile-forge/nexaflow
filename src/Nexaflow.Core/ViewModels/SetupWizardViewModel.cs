@@ -397,6 +397,10 @@ public partial class SetupWizardViewModel : ObservableObject
     {
         ProviderManager.Instance.DiscoverAll();
         workspace.ReloadProviderConfigs();
+        // Materialize every workspace-scoped config so a [MandatorySetup] one (e.g. Projects) gets a wizard
+        // step. WorkspaceConfigs otherwise returns only configs already lazily materialized, so on first run
+        // the scoped Projects config is absent and its step silently never shows.
+        workspace.MaterializeAllScopedConfigs();
 
         var ctx = new WorkspaceSetupContext
         {

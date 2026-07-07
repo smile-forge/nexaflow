@@ -48,7 +48,16 @@ public class SetupWizardTests
     {
         try { _app?.Kill(); } catch { /* already exited */ }
         _automation?.Dispose();
+
+        // Surface any unhandled UI-thread exception the wizard logged (crash.log lives in the isolated dir).
+        string? crash = null;
+        var crashLog = Path.Combine(_configDir, "crash.log");
+        try { if (File.Exists(crashLog)) crash = File.ReadAllText(crashLog); } catch { }
+
         try { if (Directory.Exists(_configDir)) Directory.Delete(_configDir, recursive: true); } catch { }
+
+        if (!string.IsNullOrWhiteSpace(crash))
+            Assert.Fail($"The app logged an unhandled exception during the setup wizard:{Environment.NewLine}{crash}");
     }
 
     [TestMethod]
