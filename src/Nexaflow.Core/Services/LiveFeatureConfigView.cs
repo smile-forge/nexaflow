@@ -8,7 +8,7 @@ namespace Nexaflow.Core.Services;
 
 /// <summary>
 /// A <b>live</b>, read-through view of the feature configs available to a workspace: the global config map
-/// (which grows as feature assemblies are lazily activated) overlaid with the workspace's per-profile
+/// (which grows as feature assemblies are lazily activated) overlaid with the workspace's per-workspace
 /// scoped configs (materialized on demand). Handed to feature registrations and
 /// <see cref="FileSystemFeatureRegistry"/> instead of a point-in-time snapshot — because with lazy feature
 /// loading a config is registered only when its owning assembly activates, which can happen <i>after</i> the
@@ -30,7 +30,7 @@ internal sealed class LiveFeatureConfigView : IReadOnlyDictionary<Type, IFeature
     {
         // Global first (cheap concurrent lookup); only scoped configs miss here, then materialize on demand.
         if (_global.TryGetValue(key, out value!)) return true;
-        if (_workspace?.Profile.FindWorkspaceConfig(key) is { } scoped) { value = scoped; return true; }
+        if (_workspace?.Workspace.FindWorkspaceConfig(key) is { } scoped) { value = scoped; return true; }
         value = null!;
         return false;
     }
@@ -45,7 +45,7 @@ internal sealed class LiveFeatureConfigView : IReadOnlyDictionary<Type, IFeature
     {
         var d = new Dictionary<Type, IFeatureConfig>(_global);
         if (_workspace is not null)
-            foreach (var c in _workspace.Profile.WorkspaceConfigs)
+            foreach (var c in _workspace.Workspace.WorkspaceConfigs)
                 d[c.GetType()] = c;
         return d;
     }

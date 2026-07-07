@@ -6,9 +6,9 @@ using System.Windows.Threading;
 namespace Nexaflow.Core.Services;
 
 /// <summary>
-/// Builds and applies the Windows taskbar JumpList — one task per <see cref="Models.Profile"/>,
-/// each launching the app with <c>--context "Name"</c> so it opens straight into that profile.
-/// Rebuilt whenever the profile list changes (e.g. the user edits profiles in Options).
+/// Builds and applies the Windows taskbar JumpList — one task per <see cref="Models.Workspace"/>,
+/// each launching the app with <c>--context "Name"</c> so it opens straight into that workspace.
+/// Rebuilt whenever the workspace list changes (e.g. the user edits workspaces in Options).
 /// </summary>
 public static class JumpListService
 {
@@ -23,10 +23,10 @@ public static class JumpListService
     /// </summary>
     public static void Initialize()
     {
-        // Captured on the UI thread (this runs during App.InitializeApp); the profile-list change can
+        // Captured on the UI thread (this runs during App.InitializeApp); the workspace-list change can
         // arrive on any thread, so marshal the rebuild back onto it.
         var ui = Dispatcher.CurrentDispatcher;
-        WorkspaceManager.Instance.ProfilesRefreshed += (_, _) => ui.Invoke(Refresh);
+        WorkspaceManager.Instance.WorkspacesRefreshed += (_, _) => ui.Invoke(Refresh);
         Refresh();
     }
 
@@ -40,7 +40,7 @@ public static class JumpListService
 
         var jumpList = new JumpList { ShowRecentCategory = false, ShowFrequentCategory = false };
 
-        foreach (var cfg in WorkspaceManager.Instance.Profiles)
+        foreach (var cfg in WorkspaceManager.Instance.Workspaces)
             jumpList.JumpItems.Add(new JumpTask
             {
                 Title            = cfg.Name,

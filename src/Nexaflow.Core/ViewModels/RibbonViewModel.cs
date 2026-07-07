@@ -13,15 +13,15 @@ namespace Nexaflow.Core.ViewModels;
 
 /// <summary>
 /// Owns one window's ribbon <see cref="Items"/> collection. The ribbon LAYOUT is owned by the
-/// <see cref="Profile"/> (shared by every Workspace on it): edits persist through the profile's
-/// <see cref="RibbonLayoutService"/> and raise <see cref="Models.Profile.RibbonChanged"/>, which
-/// every other window/Workspace on the same profile observes to reload its own items live.
+/// <see cref="Workspace"/> (shared by every WorkspaceRuntime on it): edits persist through the workspace's
+/// <see cref="RibbonLayoutService"/> and raise <see cref="Models.Workspace.RibbonChanged"/>, which
+/// every other window/Workspace on the same workspace observes to reload its own items live.
 /// The <see cref="WorkspaceRuntime"/> is held separately, only to resolve per-Workspace pin handlers.
 /// </summary>
 public partial class RibbonViewModel : ObservableObject
 {
-    private WorkspaceRuntime? _workspace;
-    private Profile?   _profile;
+    private WorkspaceRuntime? _runtime;
+    private Workspace?   _workspace;
 
     // The UI dispatcher this view-model was created on; marshal background callbacks through it.
     private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
@@ -55,30 +55,30 @@ public partial class RibbonViewModel : ObservableObject
         Items.CollectionChanged += OnItemsCollectionChanged;
     }
 
-    public Profile? Profile => _profile;
+    public Workspace? Workspace => _workspace;
 
     /// <summary>The Workspace this ribbon belongs to — used only to resolve pin handlers.</summary>
-    public void SetWorkspace(WorkspaceRuntime? workspace) => _workspace = workspace;
+    public void SetRuntime(WorkspaceRuntime? workspace) => _runtime = workspace;
 
     /// <summary>
-    /// Swap to a new profile: unhook the old profile's live-sync, clear, load the incoming layout.
+    /// Swap to a new workspace: unhook the old workspace's live-sync, clear, load the incoming layout.
     /// Persistence is immediate per-edit, so there's nothing to flush on the way out.
     /// </summary>
-    public void SetProfile(Profile? profile)
+    public void SetWorkspace(Workspace? workspace)
     {
-        if (ReferenceEquals(profile, _profile)) return;
+        if (ReferenceEquals(workspace, _workspace)) return;
 
         _reloading = true;
         try
         {
-            if (_profile is not null) _profile.RibbonChanged -= OnProfileRibbonChanged;
+            if (_workspace is not null) _workspace.RibbonChanged -= OnWorkspaceRibbonChanged;
 
             foreach (var item in Items)
                 item.PropertyChanged -= OnItemChanged;
             Items.Clear();
 
-            _profile = profile;
-            if (_profile is not null) _profile.RibbonChanged += OnProfileRibbonChanged;
+            _workspace = workspace;
+            if (_workspace is not null) _workspace.RibbonChanged += OnWorkspaceRibbonChanged;
 
             LoadOrBuildItems();
 
@@ -95,10 +95,10 @@ public partial class RibbonViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Another window on the same profile changed the ribbon — reload our items from disk so the
+    /// Another window on the same workspace changed the ribbon — reload our items from disk so the
     /// edit shows live. Skipped on the window that originated the change (its items are already current).
     /// </summary>
-    private void OnProfileRibbonChanged(object? sender, EventArgs e)
+    private void OnWorkspaceRibbonChanged(object? sender, EventArgs e)
     {
         if (_isSaving) return;
         _ui.Invoke(ReloadFromDisk);
@@ -157,13 +157,13 @@ public partial class RibbonViewModel : ObservableObject
     [RelayCommand]
     public void Save()
     {
-        if (_reloading || _profile?.RibbonService is null) return;
+        if (_reloading || _workspace?.RibbonService is null) return;
 
         _isSaving = true;
         try
         {
-            _profile.RibbonService.Save(Items);
-            _profile.RaiseRibbonChanged();   // live-reload other windows/Workspaces on this profile
+            _workspace.RibbonService.Save(Items);
+            _workspace.RaiseRibbonChanged();   // live-reload other windows/Workspaces on this workspace
         }
         finally
         {
@@ -173,7 +173,7 @@ public partial class RibbonViewModel : ObservableObject
 
     private void LoadOrBuildItems()
     {
-        var saved = _profile?.RibbonService?.Load();
+        var saved = _workspace?.RibbonService?.Load();
         if (saved is { Count: > 0 })
         {
             foreach (var item in saved)
@@ -213,14 +213,14 @@ public partial class RibbonViewModel : ObservableObject
     private void RefreshAvailablePages()
     {
         AvailablePages.Clear();
-        if (_workspace is null) return;
+        if (_runtime is null) return;
 
         bool AlreadyInRibbon(string pageKind, Dictionary<string, string>? prms) =>
             Items.Any(r => r.Kind == RibbonItemKind.Button
                 && r.PageKind == pageKind
                 && ParamsEqual(r.PageParams, prms));
 
-        var entries = FeatureManager.Instance.GetRibbonCatalogPages(_workspace)
+        var entries = FeatureManager.Instance.GetRibbonCatalogPages(_runtime)
             .Where(p => !string.IsNullOrEmpty(p.PageKind))
             .Where(p => !AlreadyInRibbon(p.PageKind!, p.PageParams))
             .Select(p => new RibbonCatalogEntry(p.Title, p.Icon, p.PageKind!, p.PageParams))
@@ -240,8 +240,8 @@ public partial class RibbonViewModel : ObservableObject
         var (tab, insertIndex) = request;
         if (string.IsNullOrEmpty(tab.PageKind)) return;
 
-        var handler = _workspace is not null
-            ? FeatureManager.Instance.GetTabPinHandler(tab.PageKind, _workspace)
+        var handler = _runtime is not null
+            ? FeatureManager.Instance.GetTabPinHandler(tab.PageKind, _runtime)
             : null;
 
         var result = handler is not null ? handler.Pin(tab, insertIndex) : TabMetadataResult(tab);
@@ -257,8 +257,8 @@ public partial class RibbonViewModel : ObservableObject
     [RelayCommand]
     public void PinFromHandler(RibbonPinRequest request)
     {
-        if (_workspace is null) return;
-        var handler = FeatureManager.Instance.GetRibbonPinHandlerForFormat(request.Format, _workspace);
+        if (_runtime is null) return;
+        var handler = FeatureManager.Instance.GetRibbonPinHandlerForFormat(request.Format, _runtime);
         if (handler is null) return;
 
         var result = handler.Pin(request.Payload, request.InsertIndex);

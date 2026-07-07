@@ -281,7 +281,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     // One ContentControl in MainWindow renders whatever modal is active, picked by DataTemplate from the
     // content's type — so each overlay's visual tree is built lazily, only when shown, and torn down on
     // close. The legacy per-overlay flags below (OptionsOpen/WorkspaceConfigOpen/ConfirmationVisible/PromptVisible)
-    // remain the source of truth (they drive profile-switch gating, airspace coverage and deep-links);
+    // remain the source of truth (they drive workspace-switch gating, airspace coverage and deep-links);
     // ActiveOverlay is *derived* from them, and the heavy panel VMs are built on demand here. Features push
     // their own overlays via IShellServices.ShowOverlay (rendered by a DataTemplate they contribute).
 
@@ -354,8 +354,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     private WorkspaceConfigViewModel BuildWorkspaceConfigPanel()
     {
-        var profile = ConfigureTargetProfile ?? CurrentWorkspace.Profile;
-        var vm = new WorkspaceConfigViewModel(profile, _shellServices);
+        var workspace = ConfigureTargetWorkspace ?? CurrentRuntime.Workspace;
+        var vm = new WorkspaceConfigViewModel(workspace, _shellServices);
         vm.ApplyError += ShowErrorToast;
         if (RequestedConfigureSection is { } section)
         {
@@ -509,42 +509,42 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         }
     }
 
-    // ── Profiles / workspace ──────────────────────────────────────────────
-    [ObservableProperty] private WorkspaceRuntime _currentWorkspace = null!;
+    // ── Workspaces / workspace ──────────────────────────────────────────────
+    [ObservableProperty] private WorkspaceRuntime _currentRuntime = null!;
 
-    /// <summary>The saved profiles shown in the dropdown.</summary>
-    public ObservableCollection<Profile> Profiles => WorkspaceManager.Instance.Profiles;
+    /// <summary>The saved workspaces shown in the dropdown.</summary>
+    public ObservableCollection<Workspace> Workspaces => WorkspaceManager.Instance.Workspaces;
 
-    /// <summary>False while a modal overlay (Options / Manage-AI) is open — blocks profile switching.</summary>
-    public bool CanSwitchProfile => !OptionsOpen && !WorkspaceConfigOpen;
+    /// <summary>False while a modal overlay (Options / Manage-AI) is open — blocks workspace switching.</summary>
+    public bool CanSwitchWorkspace => !OptionsOpen && !WorkspaceConfigOpen;
 
     [RelayCommand]
-    private void SelectProfile(Profile profile)
+    private void SelectWorkspace(Workspace workspace)
     {
-        // Modal overlays block switching (their edits target the active workspace/profile).
-        if (!CanSwitchProfile) return;
-        if (ReferenceEquals(profile, CurrentWorkspace?.Profile)) return;
+        // Modal overlays block switching (their edits target the active workspace/workspace).
+        if (!CanSwitchWorkspace) return;
+        if (ReferenceEquals(workspace, CurrentRuntime?.Workspace)) return;
 
         // Cancel any in-flight AI send before the workspace is reconfigured under it.
         _aiSendCts?.Cancel();
 
         // Collapse the workspace to this window: the others would otherwise be left empty (their
-        // tabs close on reconfigure) and still showing the old profile's ribbon.
+        // tabs close on reconfigure) and still showing the old workspace's ribbon.
         _shellServices.CloseOtherWindows(this);
 
-        // In-place: keep this Workspace object, reconfigure it for the new profile (tabs close,
+        // In-place: keep this Workspace object, reconfigure it for the new workspace (tabs close,
         // providers/AIService rebuilt). ShellServices/windows reference the Workspace, which is
         // unchanged — only its internals swap — so no window fix-up is needed.
-        WorkspaceManager.Instance.SwitchProfile(CurrentWorkspace!, profile);
+        WorkspaceManager.Instance.SwitchWorkspace(CurrentRuntime!, workspace);
 
-        // Same Workspace reference; re-raise so the ribbon (bound to CurrentWorkspace.Profile)
-        // and the selector reload for the new profile.
-        OnPropertyChanged(nameof(CurrentWorkspace));
+        // Same Workspace reference; re-raise so the ribbon (bound to CurrentRuntime.Workspace)
+        // and the selector reload for the new workspace.
+        OnPropertyChanged(nameof(CurrentRuntime));
     }
 
     // ── Options overlay ───────────────────────────────────────────────────
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanSwitchProfile))]
+    [NotifyPropertyChangedFor(nameof(CanSwitchWorkspace))]
     private bool _optionsOpen;
 
     /// <summary>Section (config name) the Options panel should land on next time it (re)builds.
@@ -560,25 +560,25 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     // ── Manage AI / Configure overlay ─────────────────────────────────────
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanSwitchProfile))]
+    [NotifyPropertyChangedFor(nameof(CanSwitchWorkspace))]
     private bool _workspaceConfigOpen;
 
     /// <summary>
-    /// The profile the Configure (Manage-AI) overlay targets — set by <see cref="ConfigureProfile"/>
-    /// right before the overlay opens. Null means the active workspace's profile. Cleared on close.
+    /// The workspace the Configure (Manage-AI) overlay targets — set by <see cref="ConfigureWorkspace"/>
+    /// right before the overlay opens. Null means the active workspace. Cleared on close.
     /// </summary>
-    public Profile? ConfigureTargetProfile { get; private set; }
+    public Workspace? ConfigureTargetWorkspace { get; private set; }
 
     /// <summary>Section (config name) the Configure overlay should land on when it next builds.
     /// Set via <see cref="OpenConfigureAt"/>; consumed and cleared by the window.</summary>
     public string? RequestedConfigureSection { get; set; }
 
-    /// <summary>Opens the Configure overlay for <paramref name="profile"/> on the section for
+    /// <summary>Opens the Configure overlay for <paramref name="workspace"/> on the section for
     /// <paramref name="configName"/> (a deep link, e.g. from the console page's Configure button).</summary>
-    public void OpenConfigureAt(Profile? profile, string configName)
+    public void OpenConfigureAt(Workspace? workspace, string configName)
     {
         RequestedConfigureSection = configName;
-        ConfigureProfile(profile);
+        ConfigureWorkspace(workspace);
     }
 
     /// <summary>
@@ -591,7 +591,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     {
         if (value)
         {
-            // ConfigureTargetProfile / RequestedConfigureSection were set just before this flipped true.
+            // ConfigureTargetWorkspace / RequestedConfigureSection were set just before this flipped true.
             _workspaceConfigPanel = BuildWorkspaceConfigPanel();
         }
         else
@@ -600,7 +600,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
             // panel was opened from the Options → Workspaces tab, bounce back to Options on that tab.
             bool changed = _workspaceConfigPanel?.Close() ?? false;
             _workspaceConfigPanel         = null;
-            ConfigureTargetProfile = null;
+            ConfigureTargetWorkspace = null;
 
             bool returnToOptions = ConfigureReturnToOptions;
             ConfigureReturnToOptions = false;
@@ -613,13 +613,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         SyncActiveOverlay();
     }
 
-    /// <summary>Opens the Configure panel for a profile chosen in the Options → Workspaces tab,
+    /// <summary>Opens the Configure panel for a workspace chosen in the Options → Workspaces tab,
     /// remembering to return to Options if nothing is changed.</summary>
-    public void OpenConfigureFromOptions(Profile profile)
+    public void OpenConfigureFromOptions(Workspace workspace)
     {
         OptionsOpen = false;
         ConfigureReturnToOptions = true;
-        ConfigureProfile(profile);
+        ConfigureWorkspace(workspace);
     }
 
     /// <summary>
@@ -696,7 +696,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         // NB: AiIsBusy is NOT coupled to background activity — the AI bar locks only while an actual
         // AI run is in flight (driven by SendAiMessage). Background tasks (NuGet checks, downloads,
         // conversation analysis) report through the activity ticker without blocking AI input.
-        _currentWorkspace = workspace;
+        _currentRuntime = workspace;
         _shellServices = workspace.ShellServices!;
         Ai = new ShellAIResponseHandler(this);
 
@@ -711,18 +711,18 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
         WireRootPane();
 
-        // If this workspace's profile was removed in the Options panel, switch to the first available.
-        WorkspaceManager.Instance.ProfilesRefreshed += (_, _) =>
+        // If this workspace was removed in the Options panel, switch to the first available.
+        WorkspaceManager.Instance.WorkspacesRefreshed += (_, _) =>
         {
-            if (CurrentWorkspace is null
-                || !WorkspaceManager.Instance.Profiles.Contains(CurrentWorkspace.Profile))
+            if (CurrentRuntime is null
+                || !WorkspaceManager.Instance.Workspaces.Contains(CurrentRuntime.Workspace))
             {
-                var fallback = WorkspaceManager.Instance.Profiles.FirstOrDefault();
+                var fallback = WorkspaceManager.Instance.Workspaces.FirstOrDefault();
                 if (fallback is not null)
                     _ui.Invoke(() =>
                     {
-                        WorkspaceManager.Instance.SwitchProfile(CurrentWorkspace!, fallback);
-                        OnPropertyChanged(nameof(CurrentWorkspace));
+                        WorkspaceManager.Instance.SwitchWorkspace(CurrentRuntime!, fallback);
+                        OnPropertyChanged(nameof(CurrentRuntime));
                     });
             }
         };
@@ -951,7 +951,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     {
         if (item.PageKind is not null)
         {
-            var executor = FeatureManager.Instance.GetRibbonItemExecutor(item.PageKind, CurrentWorkspace);
+            var executor = FeatureManager.Instance.GetRibbonItemExecutor(item.PageKind, CurrentRuntime);
             if (executor is not null)
             {
                 var paths = (CurrentPage as ISelectionProvider)?.SelectedFilePaths
@@ -977,7 +977,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     {
         if (item.PageKind is null) return;
 
-        var executor = FeatureManager.Instance.GetRibbonItemExecutor(item.PageKind, CurrentWorkspace);
+        var executor = FeatureManager.Instance.GetRibbonItemExecutor(item.PageKind, CurrentRuntime);
         if (executor is not null)
         {
             // Create the new window first so any OpenTab calls inside the executor land there.
@@ -1047,18 +1047,18 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     [RelayCommand]
     private void CloseWorkspaceConfig() => WorkspaceConfigOpen = false;
 
-    /// <summary>Opens the per-workspace Configure panel for a specific profile (may be non-active).</summary>
+    /// <summary>Opens the per-workspace Configure panel for a specific workspace (may be non-active).</summary>
     [RelayCommand]
-    private void ConfigureProfile(Profile? profile)
+    private void ConfigureWorkspace(Workspace? workspace)
     {
-        if (profile is null) return;
-        ConfigureTargetProfile = profile;
+        if (workspace is null) return;
+        ConfigureTargetWorkspace = workspace;
         WorkspaceConfigOpen = true;
     }
 
     /// <summary>Right-click entry point: configure the currently active workspace.</summary>
     [RelayCommand]
-    private void ConfigureCurrentWorkspace() => ConfigureProfile(CurrentWorkspace?.Profile);
+    private void ConfigureCurrentWorkspace() => ConfigureWorkspace(CurrentRuntime?.Workspace);
 
     /// <summary>
     /// Right-click entry point: create a new workspace by cloning the current one (settings copied,
@@ -1068,13 +1068,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     [RelayCommand]
     private void NewWorkspace()
     {
-        if (CurrentWorkspace?.Profile is not { } source) return;
+        if (CurrentRuntime?.Workspace is not { } source) return;
 
         var mgr   = WorkspaceManager.Instance;
-        var clone = mgr.CloneProfile(source, mgr.UniqueProfileName($"{source.Name} copy"));
-        mgr.SaveProfiles();        // persist the new profile in the dropdown list immediately
+        var clone = mgr.CloneWorkspace(source, mgr.UniqueWorkspaceName($"{source.Name} copy"));
+        mgr.SaveWorkspaces();        // persist the new workspace in the dropdown list immediately
 
-        ConfigureProfile(clone);   // open Configure on its identity page
+        ConfigureWorkspace(clone);   // open Configure on its identity page
     }
 
     /// <summary>
@@ -1086,11 +1086,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     [RelayCommand]
     private void UseTabsetAsDefault()
     {
-        if (CurrentWorkspace?.Profile is not { } profile) return;
+        if (CurrentRuntime?.Workspace is not { } workspace) return;
 
         var tabs = CaptureLayout();
-        profile.DefaultTabs = tabs;
-        WorkspaceManager.Instance.SaveProfiles();
+        workspace.DefaultTabs = tabs;
+        WorkspaceManager.Instance.SaveWorkspaces();
 
         ShowInfoToast("Default tabs set",
             tabs.Count == 0
@@ -1127,39 +1127,39 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     IReadOnlyList<DefaultTabDescriptor> IWindowHost.CaptureTabLayout() => CaptureLayout();
 
     /// <summary>
-    /// Configure panel's "Delete Workspace": confirms, then permanently deletes the profile (config +
+    /// Configure panel's "Delete Workspace": confirms, then permanently deletes the workspace (config +
     /// every conversation). Refuses the last remaining workspace (the button is also disabled then).
     /// A deletable workspace may be the active one or one open elsewhere: its windows are closed first
     /// (collapsing the current one to a single instance), the data is deleted, then the remaining
     /// window closes — removing the workspace from active memory.
     /// </summary>
-    public void RequestDeleteWorkspace(Profile profile)
+    public void RequestDeleteWorkspace(Workspace workspace)
     {
         var mgr = WorkspaceManager.Instance;
-        if (mgr.Profiles.Count <= 1) { ShowErrorToast("The last workspace can't be deleted."); return; }
+        if (mgr.Workspaces.Count <= 1) { ShowErrorToast("The last workspace can't be deleted."); return; }
 
-        var liveWs = mgr.FindLiveWorkspace(profile);
+        var liveWs = mgr.FindLiveWorkspace(workspace);
 
         var message = liveWs is not null
-            ? $"Delete “{profile.Name}”?\n\nThis is irreversible: it permanently deletes the workspace and every "
+            ? $"Delete “{workspace.Name}”?\n\nThis is irreversible: it permanently deletes the workspace and every "
               + "conversation in it, and closes all of its open windows."
-            : $"Delete “{profile.Name}”?\n\nThis is irreversible: it permanently deletes the workspace and every "
+            : $"Delete “{workspace.Name}”?\n\nThis is irreversible: it permanently deletes the workspace and every "
               + "conversation in it.";
 
-        ShowConfirmation("Delete workspace", message, onConfirm: () => DeleteWorkspace(profile, liveWs));
+        ShowConfirmation("Delete workspace", message, onConfirm: () => DeleteWorkspace(workspace, liveWs));
     }
 
-    private void DeleteWorkspace(Profile profile, WorkspaceRuntime? liveWs)
+    private void DeleteWorkspace(Workspace workspace, WorkspaceRuntime? liveWs)
     {
         var mgr = WorkspaceManager.Instance;
 
-        if (ReferenceEquals(liveWs, CurrentWorkspace))
+        if (ReferenceEquals(liveWs, CurrentRuntime))
         {
             // The current workspace: collapse to this window, delete the data while a window is still
             // alive, then close this last window — its close removes the workspace from active memory
             // (and quits the app if no other window remains).
             _shellServices.CloseOtherWindows(this);
-            mgr.DeleteProfile(profile, force: true);
+            mgr.DeleteWorkspace(workspace, force: true);
             _shellServices.CloseAllWindows();
             return;
         }
@@ -1168,13 +1168,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         {
             // A different live workspace: tear down its windows (last close disposes it), then delete.
             liveWs.ShellServices?.CloseAllWindows();
-            mgr.DeleteProfile(profile, force: true);
+            mgr.DeleteWorkspace(workspace, force: true);
             WorkspaceConfigOpen = false;
             return;
         }
 
-        // An inactive profile: straightforward delete; close the Configure overlay.
-        mgr.DeleteProfile(profile);
+        // An inactive workspace: straightforward delete; close the Configure overlay.
+        mgr.DeleteWorkspace(workspace);
         WorkspaceConfigOpen = false;
     }
 
@@ -1221,7 +1221,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     private void EvaluateHandlers(string text, CancellationToken token)
     {
         var pageVm               = (CurrentPage as IPageView)?.ViewModel;
-        var (_, clearWinner, _)  = CurrentWorkspace.AiService!.ScoreHandlers(text, pageVm);
+        var (_, clearWinner, _)  = CurrentRuntime.AiService!.ScoreHandlers(text, pageVm);
 
         if (clearWinner?.Symbol is not null)
         {
@@ -1269,7 +1269,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
                                        string text, int caretIndex)
     {
         var pageVm = (CurrentPage as IPageView)?.ViewModel;
-        foreach (var h in FeatureManager.Instance.GetChatKeyHandlers(CurrentWorkspace))
+        foreach (var h in FeatureManager.Instance.GetChatKeyHandlers(CurrentRuntime))
         {
             if (!h.CanHandle(pageVm)) continue;
             var result = h.HandleKey(key, modifiers, text, caretIndex, pageVm);
@@ -1282,7 +1282,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     public bool CanHandleChatDrop(IDataObject data)
     {
         var pageVm = (CurrentPage as IPageView)?.ViewModel;
-        return FeatureManager.Instance.GetChatDropHandlers(CurrentWorkspace)
+        return FeatureManager.Instance.GetChatDropHandlers(CurrentRuntime)
             .Any(h => h.CanHandle(pageVm) && h.AcceptedFormats.Any(data.GetDataPresent));
     }
 
@@ -1290,7 +1290,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     public string? BuildChatDropText(IDataObject data)
     {
         var pageVm = (CurrentPage as IPageView)?.ViewModel;
-        foreach (var h in FeatureManager.Instance.GetChatDropHandlers(CurrentWorkspace))
+        foreach (var h in FeatureManager.Instance.GetChatDropHandlers(CurrentRuntime))
         {
             if (!h.CanHandle(pageVm) || !h.AcceptedFormats.Any(data.GetDataPresent)) continue;
             var text = h.BuildInsertText(data, pageVm);
@@ -1302,7 +1302,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     private void PushInputPreview(string text)
     {
         var pageVm = (CurrentPage as IPageView)?.ViewModel;
-        foreach (var p in FeatureManager.Instance.GetChatInputPreviews(CurrentWorkspace))
+        foreach (var p in FeatureManager.Instance.GetChatInputPreviews(CurrentRuntime))
             if (p.CanPreview(pageVm)) p.OnInputChanged(text, pageVm);
     }
 
@@ -1394,7 +1394,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         }
 
         var pageVm = (CurrentPage as IPageView)?.ViewModel;
-        var svc    = CurrentWorkspace.AiService!;
+        var svc    = CurrentRuntime.AiService!;
 
         // Pick the response surface: a page that renders AI itself (e.g. the conversation) uses its own;
         // a page that hosts the shared inline banner (IChatEngagement, e.g. the console) gets that banner;

@@ -3,10 +3,10 @@ using System.Collections.Generic;
 namespace Nexaflow.Core.Models;
 
 /// <summary>
-/// One tab in a workspace's saved startup layout (<see cref="Profile.DefaultTabs"/>). Carries just
+/// One tab in a workspace's saved startup layout (<see cref="Workspace.DefaultTabs"/>). Carries just
 /// enough to recreate the tab via <c>IShellServices.OpenTab</c> (<see cref="PageKind"/> +
 /// <see cref="PageParams"/>) plus which pane it belongs to and a display <see cref="Title"/> for the
-/// Configure panel's list. Serialized inline in the profile list (workcontexts.json).
+/// Configure panel's list. Serialized inline in the workspace list (workcontexts.json).
 /// </summary>
 public sealed class DefaultTabDescriptor
 {
@@ -26,7 +26,7 @@ public sealed class DefaultTabDescriptor
     public bool IsActive { get; set; }
 
     /// <summary>The out-of-the-box startup tab: the file explorer showing "This PC". Used to seed a
-    /// profile that has never had its tabset configured, so <see cref="Profile.DefaultTabs"/> is never empty
+    /// workspace that has never had its tabset configured, so <see cref="Workspace.DefaultTabs"/> is never empty
     /// by accident (an empty list is an explicit user choice to start with no tabs).</summary>
     public static DefaultTabDescriptor ThisPc() => new()
     {

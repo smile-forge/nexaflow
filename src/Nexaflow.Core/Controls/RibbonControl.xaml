@@ -16,20 +16,20 @@
         <Border VerticalAlignment="Top" Height="10"
                 Background="{DynamicResource Chrome.Panel}"/>
 
-        <!-- Profile accent: first 240 px of bevel in profile colour -->
+        <!-- Workspace accent: first 240 px of bevel in workspace colour -->
         <Border VerticalAlignment="Top" HorizontalAlignment="Left"
                 Width="240" Height="10"
-                Background="{Binding Profile.Color, ElementName=Root,
+                Background="{Binding Workspace.Color, ElementName=Root,
                              Converter={StaticResource ColorStringToBrush}}"/>
 
-        <!-- Profile selector: 48 px wide rectangle + popup -->
+        <!-- Workspace selector: 48 px wide rectangle + popup -->
         <ctrl:WorkspaceSelectorControl
                 HorizontalAlignment="Left" Width="42"
-                CurrentProfile="{Binding Profile, ElementName=Root}"
-                Profiles="{Binding Profiles, ElementName=Root}"
-                CanSwitch="{Binding CanSwitchProfile, ElementName=Root}"
-                SelectProfileCommand="{Binding SelectProfileCommand, ElementName=Root}"
-                ConfigureCommand="{Binding ConfigureProfileCommand, ElementName=Root}"
+                CurrentWorkspace="{Binding Workspace, ElementName=Root}"
+                Workspaces="{Binding Workspaces, ElementName=Root}"
+                CanSwitch="{Binding CanSwitchWorkspace, ElementName=Root}"
+                SelectWorkspaceCommand="{Binding SelectWorkspaceCommand, ElementName=Root}"
+                ConfigureCommand="{Binding ConfigureWorkspaceCommand, ElementName=Root}"
                 NewWorkspaceCommand="{Binding NewWorkspaceCommand, ElementName=Root}"
                 UseTabsetAsDefaultCommand="{Binding UseTabsetAsDefaultCommand, ElementName=Root}"/>
 
@@ -44,6 +44,6 @@
                         OpenInNewWindowCommand="{Binding InternalOpenInNewWindowCommand, ElementName=Root}"
                         DeleteItemCommand="{Binding InternalDeleteCommand, ElementName=Root}"
                         Shell="{Binding Shell, ElementName=Root}"
-                        Workspace="{Binding Workspace, ElementName=Root}"/>
+                        Runtime="{Binding Runtime, ElementName=Root}"/>
     </Grid>
 </UserControl>

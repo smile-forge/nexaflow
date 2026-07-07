@@ -10,13 +10,13 @@ namespace Nexaflow.Core.Models;
 
 /// <summary>
 /// A saved, shared workspace configuration — the thing listed in the context dropdown. Owns
-/// identity (<see cref="Name"/>/<see cref="Color"/>/<see cref="Icon"/>) AND the shared per-profile
+/// identity (<see cref="Name"/>/<see cref="Color"/>/<see cref="Icon"/>) AND the shared per-workspace
 /// config: the AI ability grid (<see cref="AiConfig"/>), the ribbon layout
 /// (<see cref="RibbonService"/>), the provider configs (API keys etc.), and the conversations
-/// directory. One Profile can back many <see cref="WorkspaceRuntime"/> runtimes; its shared config is
+/// directory. One Workspace can back many <see cref="WorkspaceRuntime"/> runtimes; its shared config is
 /// loaded once and seen live by all of them.
 /// </summary>
-public sealed partial class Profile : ObservableObject
+public sealed partial class Workspace : ObservableObject
 {
     // Observable so the options editor's hex box, colour preview and swatch picker update live when
     // any one of them changes the value. Serialised by name (Name/Color/Icon) exactly as before.
@@ -25,11 +25,11 @@ public sealed partial class Profile : ObservableObject
     [ObservableProperty] private string _icon  = "⬡";
 
     /// <summary>
-    /// The tabs (grouped by pane) opened when a fresh window starts for this profile. Always configured:
-    /// a new/never-configured profile is seeded with the default "This PC" file view, and legacy profiles
+    /// The tabs (grouped by pane) opened when a fresh window starts for this workspace. Always configured:
+    /// a new/never-configured workspace is seeded with the default "This PC" file view, and legacy workspaces
     /// (no value in workcontexts.json) fall back to that same seed on load. Set explicitly via the
     /// workspace's "Use Tabset as Default" action or edited in the Configure panel — an explicit empty
-    /// list is honoured (start with no tabs). Serialized inline in the profile list; the setter re-seeds a
+    /// list is honoured (start with no tabs). Serialized inline in the workspace list; the setter re-seeds a
     /// stray null (e.g. a hand-edited config) back to the default so this is never unconfigured.
     /// </summary>
     private List<DefaultTabDescriptor> _defaultTabs = [DefaultTabDescriptor.ThisPc()];
@@ -41,10 +41,10 @@ public sealed partial class Profile : ObservableObject
 
     /// <summary>UI-only, transient: set by the Workspaces editor on each row copy to mark whether the
     /// workspace is currently live (its Delete button is hidden — a running workspace can't be removed).
-    /// Never serialised; false on the saved profiles.</summary>
+    /// Never serialised; false on the saved workspaces.</summary>
     [JsonIgnore] public bool IsInUse { get; set; }
 
-    // ── Shared per-profile state (runtime; lazily loaded, never serialised inline) ──
+    // ── Shared per-workspace state (runtime; lazily loaded, never serialised inline) ──
 
     /// <summary>Ability grid (Columns + Assignments). Persisted to <c>Contexts/&lt;name&gt;/ai-abilities</c>.</summary>
     [JsonIgnore] public AiConfig AiConfig { get; } = new();
@@ -52,7 +52,7 @@ public sealed partial class Profile : ObservableObject
     /// <summary>Assistant persona (name + system prompt). Persisted to <c>Contexts/&lt;name&gt;/ai-persona</c>.</summary>
     [JsonIgnore] public AiPersonaConfig Persona { get; } = new();
 
-    /// <summary>Stateless disk layer for this profile's ribbon layout.</summary>
+    /// <summary>Stateless disk layer for this workspace's ribbon layout.</summary>
     [JsonIgnore] public RibbonLayoutService? RibbonService { get; private set; }
 
     /// <summary>Provider configs (API keys etc.) — one instance per discovered config type.</summary>
@@ -60,7 +60,7 @@ public sealed partial class Profile : ObservableObject
 
     /// <summary>
     /// Per-workspace feature configs (one instance per <see cref="WorkspaceScopedConfigAttribute"/> type)
-    /// loaded from this profile's folder — mirrors <see cref="ProviderConfigs"/>. Materialized lazily so a
+    /// loaded from this workspace's folder — mirrors <see cref="ProviderConfigs"/>. Materialized lazily so a
     /// feature whose only footprint is a scoped config isn't force-loaded at startup; this returns whatever
     /// has been materialized so far. Injected into features via <c>FeatureManager.TryResolveArgs</c>.
     /// </summary>
@@ -107,20 +107,20 @@ public sealed partial class Profile : ObservableObject
             FindWorkspaceConfig(t);
     }
 
-    [JsonIgnore] public string Dir => WorkspaceManager.ProfileDir(Name);
+    [JsonIgnore] public string Dir => WorkspaceManager.WorkspaceDir(Name);
     [JsonIgnore] public string ConversationsDir => Path.Combine(Dir, "Conversations");
 
     // ── Live shared-ribbon sync ──
     /// <summary>
     /// Raised after any <see cref="WorkspaceRuntime"/>'s ribbon is persisted, so every other window/Workspace
-    /// bound to this profile reloads its ribbon items live. See RibbonViewModel.
+    /// bound to this workspace reloads its ribbon items live. See RibbonViewModel.
     /// </summary>
     public event EventHandler? RibbonChanged;
     public void RaiseRibbonChanged() => RibbonChanged?.Invoke(this, EventArgs.Empty);
 
     /// <summary>
-    /// Idempotently loads this profile's shared services from its folder. Called the first time a
-    /// Workspace is created for the profile (and on switch). Safe to call repeatedly.
+    /// Idempotently loads this workspace's shared services from its folder. Called the first time a
+    /// Workspace is created for the workspace (and on switch). Safe to call repeatedly.
     /// </summary>
     internal void EnsureSharedServicesLoaded()
     {
@@ -140,7 +140,7 @@ public sealed partial class Profile : ObservableObject
     internal void ReloadProviderConfigs()
         => ProviderConfigs = ProviderManager.Instance.LoadProviderConfigs(Dir);
 
-    /// <summary>Re-reads the per-workspace feature configs from this profile's folder.</summary>
+    /// <summary>Re-reads the per-workspace feature configs from this workspace's folder.</summary>
     internal void ReloadWorkspaceConfigs()
     {
         lock (_scopedLock) _scoped.Clear();

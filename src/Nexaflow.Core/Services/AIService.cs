@@ -72,7 +72,7 @@ public sealed class AIService : IAIService
     public ConversationRecord? ActiveConversation { get; }
 
     /// <param name="workspace">The owning Workspace — used to resolve query handlers via FeatureManager.</param>
-    /// <param name="conversationsDir">Full path to the directory where this profile's conversations are stored.</param>
+    /// <param name="conversationsDir">Full path to the directory where this workspace's conversations are stored.</param>
     public AIService(WorkspaceRuntime workspace, string conversationsDir)
     {
         _workspace = workspace;
@@ -685,7 +685,7 @@ public sealed class AIService : IAIService
 
     private string BuildSystemPrompt(IPageViewModel? page, string context, IReadOnlyList<IClientTool> tools)
     {
-        var persona = _workspace.Profile.Persona;
+        var persona = _workspace.Workspace.Persona;
         var aiName  = string.IsNullOrWhiteSpace(persona?.Name) ? "Aria" : persona!.Name!.Trim();
 
         var sb = new StringBuilder();

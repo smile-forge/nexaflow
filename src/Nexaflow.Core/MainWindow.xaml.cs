@@ -42,7 +42,7 @@ public partial class MainWindow : Window
             _shellServices.RegisterWindow(_vm);
             _shellServices.SetFocused(_vm);
 
-            _shellServices.OpenDefaultTabs(workspace.Profile.DefaultTabs);
+            _shellServices.OpenDefaultTabs(workspace.Workspace.DefaultTabs);
 
             // Ribbon-independent deep-link: --openTab <PageKind> opens that page too (used by UI tests to
             // reach views that aren't on the default ribbon).
@@ -83,7 +83,7 @@ public partial class MainWindow : Window
 
         _vm.Ribbon = RibbonControl.ViewModel;
 
-        // ShellServices is stable for the life of the window: switching profiles reconfigures the
+        // ShellServices is stable for the life of the window: switching workspaces reconfigures the
         // Workspace in place (same ShellServices), so no resync is needed here.
 
         Activated   += (_, _) => _shellServices.SetFocused(_vm);

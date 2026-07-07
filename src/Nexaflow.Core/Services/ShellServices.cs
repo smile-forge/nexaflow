@@ -271,14 +271,14 @@ public sealed class ShellServices : IShellServices
     }
 
     // ── Default-tab restore (debounced) ───────────────────────────────────
-    // Startup and reconfigure open the profile's saved tabset. Deferred a beat (Background priority) so the
+    // Startup and reconfigure open the workspace's saved tabset. Deferred a beat (Background priority) so the
     // window frame paints before potentially heavy tabs load, and debounced so an open-then-reconfigure
     // pair collapses to a single restore.
     private DispatcherTimer? _defaultTabsTimer;
     private IReadOnlyList<DefaultTabDescriptor>? _pendingDefaultTabs;
 
     /// <summary>
-    /// Opens <paramref name="tabs"/> — the profile's saved startup layout — into the focused window, on a
+    /// Opens <paramref name="tabs"/> — the workspace's saved startup layout — into the focused window, on a
     /// short debounce so the frame renders first. Left-pane tabs (<see cref="DefaultTabDescriptor.Pane"/> 0)
     /// open first, then right-pane tabs (1) which force the split; within each pane the active tab opens
     /// last so it ends up selected. An empty list opens nothing (a valid "start blank" choice).
@@ -358,7 +358,7 @@ public sealed class ShellServices : IShellServices
 
     /// <summary>
     /// Closes every tab across all of this workspace's windows (windows stay open). Used when the
-    /// workspace is reconfigured for a new profile — open pages captured the now-replaced services.
+    /// workspace is reconfigured for a new workspace — open pages captured the now-replaced services.
     /// </summary>
     internal void CloseAllTabs()
     {
@@ -367,9 +367,9 @@ public sealed class ShellServices : IShellServices
     }
 
     /// <summary>
-    /// Closes every window in this workspace except <paramref name="keep"/>. Used on a profile
+    /// Closes every window in this workspace except <paramref name="keep"/>. Used on a workspace
     /// switch so the change collapses to the acting window instead of leaving the others empty and
-    /// showing the old profile.
+    /// showing the old workspace.
     /// </summary>
     internal void CloseOtherWindows(IWindowHost keep)
     {
@@ -782,11 +782,11 @@ public sealed class ShellServices : IShellServices
 
     void IShellServices.SaveFeatureConfig(IFeatureConfig config)
     {
-        // Workspace-scoped configs are persisted per-profile under Contexts\<name>\ (the same place the
+        // Workspace-scoped configs are persisted per-workspace under Contexts\<name>\ (the same place the
         // Configure panel loads them from); global feature configs go in the shared config root. Routing
         // a scoped config through the global Save would write where nothing reads it back.
         if (FeatureManager.Instance.IsWorkspaceScopedConfig(config.GetType()))
-            ConfigManager.Instance.SaveTo(_workspace.Profile.Dir, config, config.ConfigName);
+            ConfigManager.Instance.SaveTo(_workspace.Workspace.Dir, config, config.ConfigName);
         else
             ConfigManager.Instance.Save(config, config.ConfigName);
     }
@@ -803,9 +803,9 @@ public sealed class ShellServices : IShellServices
     void IShellServices.OpenWorkspaceConfig(string configName)
         => _ui.Invoke(() =>
         {
-            // Deep-link the Configure overlay to this workspace's profile, on the named section.
+            // Deep-link the Configure overlay to this workspace, on the named section.
             if ((_focused ?? _windows.FirstOrDefault()) is ShellViewModel vm)
-                vm.OpenConfigureAt(_workspace.Profile, configName);
+                vm.OpenConfigureAt(_workspace.Workspace, configName);
         });
 
     void IShellServices.ShowOverlay(object overlayViewModel)

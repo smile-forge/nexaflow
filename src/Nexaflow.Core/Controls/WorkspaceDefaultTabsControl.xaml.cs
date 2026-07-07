@@ -10,9 +10,9 @@ namespace Nexaflow.Core.Controls;
 
 /// <summary>
 /// The "Default tabs" page of the Configure panel: lists the tabs a fresh window opens for this workspace
-/// (<see cref="Profile.DefaultTabs"/>) and lets the user delete them. Defining a tabset happens elsewhere
+/// (<see cref="Workspace.DefaultTabs"/>) and lets the user delete them. Defining a tabset happens elsewhere
 /// (right-click the workspace icon → "Use Tabset as Default"); this page only prunes. Edits an in-memory
-/// copy of the list and writes it back to the live profile + disk on <see cref="Apply"/>, so closing the
+/// copy of the list and writes it back to the live workspace + disk on <see cref="Apply"/>, so closing the
 /// panel without applying discards the deletions — matching the panel's per-section Apply model.
 /// </summary>
 public partial class WorkspaceDefaultTabsControl : UserControl, IConfigChangeTracker, ICustomConfigApply
@@ -26,7 +26,7 @@ public partial class WorkspaceDefaultTabsControl : UserControl, IConfigChangeTra
 
     public ObservableCollection<TabRow> Rows { get; } = [];
 
-    private Profile? _target;
+    private Workspace? _target;
     private bool _dirty;
 
     public WorkspaceDefaultTabsControl()
@@ -38,7 +38,7 @@ public partial class WorkspaceDefaultTabsControl : UserControl, IConfigChangeTra
 
     private void OnTargetChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
-        if (e.NewValue is not Profile p) return;
+        if (e.NewValue is not Workspace p) return;
         _target = p;
         LoadRows();
     }
@@ -77,12 +77,12 @@ public partial class WorkspaceDefaultTabsControl : UserControl, IConfigChangeTra
     public bool HasChanges => _dirty;
     public event EventHandler? HasChangesChanged;
 
-    // ── ICustomConfigApply: commit the pruned list to the live profile + disk ──
+    // ── ICustomConfigApply: commit the pruned list to the live workspace + disk ──
     public void Apply()
     {
         if (_target is null || !_dirty) return;
         _target.DefaultTabs = Rows.Select(r => r.Source).ToList();
-        WorkspaceManager.Instance.SaveProfiles();
+        WorkspaceManager.Instance.SaveWorkspaces();
         _dirty = false;
         HasChangesChanged?.Invoke(this, EventArgs.Empty);
     }

@@ -35,7 +35,7 @@ public interface IShellServices
     /// Lightweight <see cref="Page"/> definitions for the pages that can be created without specific
     /// context (<see cref="IPageRegistration.CanBeContextItem"/>) in this workspace — surfaced in the
     /// AI conversation's "add context" menu, which reads each page's Title/Icon. Built per-workspace,
-    /// so it reflects the active profile's enablement (e.g. Projects only when enabled). Content is not
+    /// so it reflects the active workspace's enablement (e.g. Projects only when enabled). Content is not
     /// realized; pin a chosen page by calling <c>GetOrCreateContent</c> on it.
     /// </summary>
     IReadOnlyList<Page> GetContextItemPages();
@@ -184,7 +184,7 @@ public interface IShellServices
     void OpenOptions(string configName);
 
     /// <summary>
-    /// Opens the per-workspace Configure overlay for this workspace's profile, landing on the section
+    /// Opens the per-workspace Configure overlay for this workspace, landing on the section
     /// whose <see cref="IFeatureConfig.ConfigName"/> matches <paramref name="configName"/> (e.g.
     /// <c>"console"</c>). The workspace-scoped sibling of <see cref="OpenOptions"/> — for configs marked
     /// <c>[WorkspaceScopedConfig]</c>, which live in the Configure overlay rather than global Options.

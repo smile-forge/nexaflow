@@ -12,11 +12,11 @@ using System.ComponentModel;
 namespace Nexaflow.Core.ViewModels;
 
 /// <summary>
-/// The per-workspace "Configure" panel. Drives a <see cref="Profile"/> (which may have no live
+/// The per-workspace "Configure" panel. Drives a <see cref="Workspace"/> (which may have no live
 /// <see cref="WorkspaceRuntime"/>). To avoid disrupting a running workspace mid-edit, the panel works on a
-/// SEPARATE set of config instances loaded from the profile's folder — <see cref="Apply"/> writes
+/// SEPARATE set of config instances loaded from the workspace's folder — <see cref="Apply"/> writes
 /// them to disk only; the live instances are untouched. If anything was applied, <see cref="Close"/>
-/// reloads the profile from disk and rebuilds the live workspace once (no per-apply popup).
+/// reloads the workspace from disk and rebuilds the live workspace once (no per-apply popup).
 /// </summary>
 public partial class WorkspaceConfigViewModel : ObservableObject
 {
@@ -33,13 +33,13 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     /// <summary>The identity (name/symbol/colour) page — persists itself, so it's special-cased in Apply.</summary>
     private ConfigEditViewModel? _identitySection;
 
-    /// <summary>The default-tabs page — edits the live profile's tabset and persists itself (SaveProfiles),
+    /// <summary>The default-tabs page — edits the live workspace's tabset and persists itself (SaveWorkspaces),
     /// so like the identity page it's special-cased in Apply (no per-folder config file).</summary>
     private ConfigEditViewModel? _defaultTabsSection;
 
-    private readonly Profile _profile;
+    private readonly Workspace _workspace;
 
-    // Disk-backed EDITING copies — independent of the profile's live instances.
+    // Disk-backed EDITING copies — independent of the workspace's live instances.
     private readonly AiConfig                       _aiConfig;
     private readonly AiPersonaConfig                _persona;
     private IReadOnlyList<IProviderConfig>          _providerConfigs;
@@ -55,17 +55,17 @@ public partial class WorkspaceConfigViewModel : ObservableObject
 
     private readonly Nexaflow.Features.Common.IShellServices? _shell;
 
-    public WorkspaceConfigViewModel(Profile profile, Nexaflow.Features.Common.IShellServices? shell = null)
+    public WorkspaceConfigViewModel(Workspace workspace, Nexaflow.Features.Common.IShellServices? shell = null)
     {
-        _profile = profile;
+        _workspace = workspace;
         _shell   = shell;
-        _title   = $"Configure Workspace — {profile.Name}";
+        _title   = $"Configure Workspace — {workspace.Name}";
 
-        // Discover provider plugins, then make sure the profile's folder + scoped-type list exist.
+        // Discover provider plugins, then make sure the workspace's folder + scoped-type list exist.
         ProviderManager.Instance.DiscoverAll();
-        profile.EnsureSharedServicesLoaded();
+        workspace.EnsureSharedServicesLoaded();
 
-        var dir = profile.Dir;
+        var dir = workspace.Dir;
 
         _aiConfig = new AiConfig();
         ConfigManager.Instance.LoadFrom(dir, _aiConfig, _aiConfig.ConfigName);
@@ -95,14 +95,14 @@ public partial class WorkspaceConfigViewModel : ObservableObject
 
     private void BuildSections()
     {
-        // First page: the workspace identity (name/symbol/colour). The control edits the live profile
+        // First page: the workspace identity (name/symbol/colour). The control edits the live workspace
         // directly on Apply, so it carries no per-folder config (special-cased in Apply below).
-        var identityControl = new WorkspaceIdentityControl { DataContext = _profile };
+        var identityControl = new WorkspaceIdentityControl { DataContext = _workspace };
         _identitySection = ConfigEditViewModel.ForCustomControl(identityControl, "workspace-identity", "Workspace");
         Sections.Add(_identitySection);
 
         // Startup tabset editor (delete-only; captured via the workspace icon's "Use Tabset as Default").
-        var defaultTabsControl = new WorkspaceDefaultTabsControl { DataContext = _profile };
+        var defaultTabsControl = new WorkspaceDefaultTabsControl { DataContext = _workspace };
         _defaultTabsSection = ConfigEditViewModel.ForCustomControl(defaultTabsControl, "workspace-default-tabs", "Default tabs");
         Sections.Add(_defaultTabsSection);
 
@@ -127,7 +127,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Releases the editing provider set and, if anything was applied, reloads the profile from disk
+    /// Releases the editing provider set and, if anything was applied, reloads the workspace from disk
     /// and rebuilds the live workspace once. Called by the host when the panel closes. Returns true
     /// when changes were applied (so the host knows not to bounce back to the Options popup).
     /// </summary>
@@ -143,9 +143,9 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         if (!_dirty) return false;
         _dirty = false;
 
-        // Pull the just-saved values into the live profile, then rebuild the running workspace (if any).
-        _profile.ReloadSharedConfigs();
-        if (WorkspaceManager.Instance.FindLiveWorkspace(_profile) is { } ws)
+        // Pull the just-saved values into the live workspace, then rebuild the running workspace (if any).
+        _workspace.ReloadSharedConfigs();
+        if (WorkspaceManager.Instance.FindLiveWorkspace(_workspace) is { } ws)
             WorkspaceManager.Instance.RestartWorkspace(ws);
         return true;
     }
@@ -182,22 +182,22 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         if (SelectedSection is null) return;
         var section = SelectedSection;
 
-        // The identity page edits the live profile directly (name/symbol/colour) and persists itself
-        // (profile list + on-disk folder move), so it skips the per-folder disk-save the config sections
+        // The identity page edits the live workspace directly (name/symbol/colour) and persists itself
+        // (workspace list + on-disk folder move), so it skips the per-folder disk-save the config sections
         // take. A rename moved the data folder, so a live workspace must rebuild (its AIService captured
         // the old conversations path) — flag it dirty so Close() rebuilds; colour/symbol update live.
         if (ReferenceEquals(section, _identitySection))
         {
-            var oldName = _profile.Name;
+            var oldName = _workspace.Name;
             section.ApplyToReal();
             section.ResetChanges();
-            Title = $"Configure Workspace — {_profile.Name}";
-            if (!string.Equals(oldName, _profile.Name, StringComparison.Ordinal))
+            Title = $"Configure Workspace — {_workspace.Name}";
+            if (!string.Equals(oldName, _workspace.Name, StringComparison.Ordinal))
                 _dirty = true;
             return;
         }
 
-        // The default-tabs page also edits the live profile and persists itself (SaveProfiles). Its change
+        // The default-tabs page also edits the live workspace and persists itself (SaveWorkspaces). Its change
         // only affects future window startups, so it needs neither a per-folder disk save nor a workspace
         // rebuild — apply and return without touching _dirty.
         if (ReferenceEquals(section, _defaultTabsSection))
@@ -207,11 +207,11 @@ public partial class WorkspaceConfigViewModel : ObservableObject
             return;
         }
 
-        section.ApplyToReal();   // clone -> editing instance (NOT the live profile instance)
+        section.ApplyToReal();   // clone -> editing instance (NOT the live workspace instance)
 
         try
         {
-            ConfigManager.Instance.SaveTo(_profile.Dir, section.RealConfig, section.ConfigName);
+            ConfigManager.Instance.SaveTo(_workspace.Dir, section.RealConfig, section.ConfigName);
             section.ResetChanges();
             _dirty = true;
 

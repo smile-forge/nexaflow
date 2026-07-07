@@ -130,9 +130,9 @@ public partial class App : Application
         if (!prestart)
         {
             // Honour --context "Name" from a taskbar JumpList.
-            var startupProfile = ResolveProfile(ParseContextArg(e.Args))
-                                 ?? WorkspaceManager.Instance.Profiles[0];
-            EnsureConfiguredThenCreateWindow(activityManager, startupProfile, activate: false);
+            var startupWorkspace = ResolveWorkspace(ParseContextArg(e.Args))
+                                 ?? WorkspaceManager.Instance.Workspaces[0];
+            EnsureConfiguredThenCreateWindow(activityManager, startupWorkspace, activate: false);
         }
 
         // Feature warm-up — load + activate the remaining feature assemblies off the UI thread now that the
@@ -187,28 +187,28 @@ public partial class App : Application
         var securityConfig = new SecurityConfig();
         ConfigManager.Instance.Register(securityConfig, securityConfig.ConfigName);
 
-        // ── 2. Workspaces config (profiles) — must come before providers so we know
-        //       which provider assemblies each profile needs ───────────────────
+        // ── 2. Workspaces config (workspaces) — must come before providers so we know
+        //       which provider assemblies each workspace needs ───────────────────
         var wcConfig = new WorkspacesConfig();
         ConfigManager.Instance.Register(wcConfig, wcConfig.ConfigName);
 
-        // ── 3. Providers — union of all assembly file names across profiles ──
+        // ── 3. Providers — union of all assembly file names across workspaces ──
         ProviderManager.Instance.Initialize(activityManager);
 
-        // Load each profile's AI config (stored per-profile on disk) to discover which provider
-        // assemblies are needed before loading them. Profile has no runtime fields yet, so use a
+        // Load each workspace's AI config (stored per-workspace on disk) to discover which provider
+        // assemblies are needed before loading them. Workspace has no runtime fields yet, so use a
         // temporary AiConfig per entry.
         var allProviderFiles = wcConfig.Contexts
-            .SelectMany(profile =>
+            .SelectMany(workspace =>
             {
                 var ai = new AiConfig();
-                ConfigManager.Instance.LoadFrom(WorkspaceManager.ProfileDir(profile.Name), ai, ai.ConfigName);
+                ConfigManager.Instance.LoadFrom(WorkspaceManager.WorkspaceDir(workspace.Name), ai, ai.ConfigName);
                 return ai.Columns.Select(p => p.AssemblyFileName);
             })
             .Distinct();
         ProviderManager.Instance.LoadConfigured(allProviderFiles);
 
-        // ── 4. WorkspaceManager — loads the profile list (no runtime workspaces yet) ──
+        // ── 4. WorkspaceManager — loads the workspace list (no runtime workspaces yet) ──
         WorkspaceManager.Instance.Initialize(wcConfig);
 
         // Quarantine workspace data folders orphaned by an older build's version-bump config reset (before
@@ -353,21 +353,21 @@ public partial class App : Application
     private static void OpenNewWindow(BackgroundActivityManager activityManager, string? contextName = null)
     {
         StartupTimings.MarkWindowRequested();   // daemon click→window timing (no-op unless --timing)
-        var profile = ResolveProfile(contextName) ?? WorkspaceManager.Instance.Profiles[0];
-        EnsureConfiguredThenCreateWindow(activityManager, profile, activate: true);
+        var workspace = ResolveWorkspace(contextName) ?? WorkspaceManager.Instance.Workspaces[0];
+        EnsureConfiguredThenCreateWindow(activityManager, workspace, activate: true);
     }
 
     /// <summary>Tracks whether the first window of this process has already run the setup check.</summary>
     private static bool _setupShown;
 
     /// <summary>
-    /// Creates a shell window for <paramref name="profile"/>, running the first-run / post-update
+    /// Creates a shell window for <paramref name="workspace"/>, running the first-run / post-update
     /// wizard first the very first time a window is due (so a <c>--prestart</c> daemon shows nothing
     /// until its first real window). Skipping or finishing the wizard always proceeds to the window;
     /// committed steps persist either way.
     /// </summary>
     private static MainWindow EnsureConfiguredThenCreateWindow(
-        BackgroundActivityManager activityManager, Profile profile, bool activate)
+        BackgroundActivityManager activityManager, Workspace workspace, bool activate)
     {
         // The wizard honours CenterScreen and lands on the active monitor; capture that monitor's work
         // area so the main window opens on the SAME monitor (it otherwise takes the OS default
@@ -382,7 +382,7 @@ public partial class App : Application
             // stamped so post-update detection stays consistent.
             if (!SkipSetup && !StartupTimings.Enabled)
             {
-                var wizard = SetupWizardViewModel.Build(profile);
+                var wizard = SetupWizardViewModel.Build(workspace);
                 if (wizard is not null)
                 {
                     var wizardWin = new SetupWizardWindow(wizard);
@@ -395,7 +395,7 @@ public partial class App : Application
             StampLastRunVersion();
         }
 
-        var ws = WorkspaceManager.Instance.CreateWorkspace(profile);
+        var ws = WorkspaceManager.Instance.CreateWorkspace(workspace);
         ws.ShellServices!.CreateWindowFactory = MakeWindowFactory(activityManager, ws);
         StartupTimings.Mark("WorkspaceBootstrapped");
 
@@ -508,11 +508,11 @@ public partial class App : Application
         return null;
     }
 
-    /// <summary>Resolves a profile name to a saved <see cref="Profile"/>, or null.</summary>
-    private static Profile? ResolveProfile(string? name)
+    /// <summary>Resolves a workspace name to a saved <see cref="Workspace"/>, or null.</summary>
+    private static Workspace? ResolveWorkspace(string? name)
         => string.IsNullOrEmpty(name)
             ? null
-            : WorkspaceManager.Instance.Profiles.FirstOrDefault(
+            : WorkspaceManager.Instance.Workspaces.FirstOrDefault(
                 p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
 
     private async Task CheckForUpdates()

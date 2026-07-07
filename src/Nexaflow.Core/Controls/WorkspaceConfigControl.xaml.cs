@@ -14,26 +14,26 @@ namespace Nexaflow.Core.Controls;
 
 public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply
 {
-    private ObservableCollection<Profile>? _editProfiles;
+    private ObservableCollection<Workspace>? _editWorkspaces;
     private WorkspacesConfig?              _config;
 
     private static readonly Random _rng = new();
 
     // The shared categorical bank (Tokens.xaml / per-theme overrides), resolved to brushes + hex for
-    // the per-profile colour picker. Same source the ribbon picker and project pie draw from.
+    // the per-workspace colour picker. Same source the ribbon picker and project pie draw from.
     public IReadOnlyList<SwatchOption> Swatches { get; } = WorkspaceSwatches.Build();
 
     /// <summary>Random colour from the swatch bank (falls back to the legacy palette if unresolved).</summary>
     private string RandomSwatchColor()
         => Swatches.Count > 0 ? Swatches[_rng.Next(Swatches.Count)].Hex : WorkspaceStyle.Random().Color;
 
-    // Maps each editable copy back to the original profile so Apply can write the edited
+    // Maps each editable copy back to the original workspace so Apply can write the edited
     // Name/Color/Icon onto the original without disturbing live workspaces.
-    private readonly Dictionary<Profile, Profile> _editToOriginal = [];
+    private readonly Dictionary<Workspace, Workspace> _editToOriginal = [];
 
-    // Maps an editable copy that represents an unsaved CLONE to the source profile it should be
+    // Maps an editable copy that represents an unsaved CLONE to the source workspace it should be
     // cloned from at Apply time (copying its AiConfig + provider configs).
-    private readonly Dictionary<Profile, Profile> _editCloneSource = [];
+    private readonly Dictionary<Workspace, Workspace> _editCloneSource = [];
 
     public WorkspaceConfigControl()
     {
@@ -41,52 +41,52 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply
 
         // List-level drag-over drives the ghost-frame position (tunnels, so it fires wherever the
         // cursor is within the list, not only over an item).
-        ProfileItems.AllowDrop = true;
-        ProfileItems.PreviewDragOver += OnListPreviewDragOver;
+        WorkspaceItems.AllowDrop = true;
+        WorkspaceItems.PreviewDragOver += OnListPreviewDragOver;
 
         DataContextChanged += (_, e) =>
         {
             if (e.NewValue is WorkspacesConfig cfg)
             {
                 _config = cfg;
-                RebuildEditProfiles();
+                RebuildEditWorkspaces();
             }
         };
     }
 
     /// <summary>(Re)builds the editable row copies from <see cref="_config"/>'s current contexts.</summary>
-    private void RebuildEditProfiles()
+    private void RebuildEditWorkspaces()
     {
         if (_config is null) return;
         _editToOriginal.Clear();
         _editCloneSource.Clear();
-        _editProfiles = [];
+        _editWorkspaces = [];
         foreach (var p in _config.Contexts)
         {
-            var edit = new Profile
+            var edit = new Workspace
             {
                 Name    = p.Name,
                 Color   = p.Color,
                 Icon    = p.Icon,
-                IsInUse = WorkspaceManager.Instance.IsProfileInUse(p),   // hides Delete on the live workspace
+                IsInUse = WorkspaceManager.Instance.IsWorkspaceInUse(p),   // hides Delete on the live workspace
             };
             _editToOriginal[edit] = p;
-            _editProfiles.Add(edit);
+            _editWorkspaces.Add(edit);
         }
-        ProfileItems.ItemsSource = _editProfiles;
+        WorkspaceItems.ItemsSource = _editWorkspaces;
     }
 
     public void Apply()
     {
-        if (_config is null || _editProfiles is null) return;
+        if (_config is null || _editWorkspaces is null) return;
 
         var mgr       = WorkspaceManager.Instance;
-        var survivors = new HashSet<Profile>();
-        var ordered   = new List<Profile>();
+        var survivors = new HashSet<Workspace>();
+        var ordered   = new List<Workspace>();
 
-        foreach (var edit in _editProfiles)
+        foreach (var edit in _editWorkspaces)
         {
-            Profile original;
+            Workspace original;
             if (_editToOriginal.TryGetValue(edit, out var existing))
             {
                 existing.Name  = edit.Name;
@@ -96,7 +96,7 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply
             }
             else if (_editCloneSource.TryGetValue(edit, out var source))
             {
-                original = mgr.CloneProfile(source, edit.Name);
+                original = mgr.CloneWorkspace(source, edit.Name);
                 original.Color = edit.Color;
                 original.Icon  = edit.Icon;
                 _editToOriginal[edit] = original;   // now a saved row (lets Configure resolve it)
@@ -104,7 +104,7 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply
             }
             else
             {
-                original = mgr.AddProfile(edit.Name);
+                original = mgr.AddWorkspace(edit.Name);
                 original.Color = edit.Color;
                 original.Icon  = edit.Icon;
                 _editToOriginal[edit] = original;
@@ -113,20 +113,20 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply
             ordered.Add(original);
         }
 
-        // Remove profiles the user deleted — but never one a live workspace is using, and never the last.
-        foreach (var profile in mgr.Profiles.ToList())
-            if (!survivors.Contains(profile) && !mgr.IsProfileInUse(profile))
-                mgr.RemoveProfile(profile);
+        // Remove workspaces the user deleted — but never one a live workspace is using, and never the last.
+        foreach (var workspace in mgr.Workspaces.ToList())
+            if (!survivors.Contains(workspace) && !mgr.IsWorkspaceInUse(workspace))
+                mgr.RemoveWorkspace(workspace);
 
-        // Sync the live Profiles order to the edited order (drag-reorder), so the dropdown and the
-        // persisted list match. SaveProfiles rebuilds Contexts from Profiles, so order must live here.
+        // Sync the live Workspaces order to the edited order (drag-reorder), so the dropdown and the
+        // persisted list match. SaveWorkspaces rebuilds Contexts from Workspaces, so order must live here.
         for (int i = 0; i < ordered.Count; i++)
         {
-            int cur = mgr.Profiles.IndexOf(ordered[i]);
-            if (cur >= 0 && cur != i) mgr.Profiles.Move(cur, i);
+            int cur = mgr.Workspaces.IndexOf(ordered[i]);
+            if (cur >= 0 && cur != i) mgr.Workspaces.Move(cur, i);
         }
 
-        _config.Contexts = ordered.Count > 0 ? ordered : [.. mgr.Profiles];
+        _config.Contexts = ordered.Count > 0 ? ordered : [.. mgr.Workspaces];
     }
 
     // Add Workspace: commit any pending edits, create the new workspace, then run the workspace-setup
@@ -140,42 +140,42 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply
         var (icon, _) = WorkspaceStyle.Random();
         // Unique name => a fresh, empty config folder (avoids a re-used "New Workspace" dir picking up
         // a previous workspace's saved provider/model).
-        var profile = WorkspaceManager.Instance.AddProfile(
-            WorkspaceManager.Instance.UniqueProfileName("New Workspace"));
-        profile.Icon  = icon;
-        profile.Color = RandomSwatchColor();
-        WorkspaceManager.Instance.Profiles.Move(WorkspaceManager.Instance.Profiles.Count - 1, 0);
-        WorkspaceManager.Instance.SaveProfiles();
+        var workspace = WorkspaceManager.Instance.AddWorkspace(
+            WorkspaceManager.Instance.UniqueWorkspaceName("New Workspace"));
+        workspace.Icon  = icon;
+        workspace.Color = RandomSwatchColor();
+        WorkspaceManager.Instance.Workspaces.Move(WorkspaceManager.Instance.Workspaces.Count - 1, 0);
+        WorkspaceManager.Instance.SaveWorkspaces();
 
-        var wizard = SetupWizardViewModel.BuildWorkspaceSetup(profile);
+        var wizard = SetupWizardViewModel.BuildWorkspaceSetup(workspace);
         new SetupWizardWindow(wizard) { Owner = Window.GetWindow(this) }.ShowDialog();
 
-        RebuildEditProfiles();
+        RebuildEditWorkspaces();
     }
 
-    // Click a swatch → set the colour of the profile that owns this row. Profile is observable, so the
-    // hex box and colour preview update live. The owning profile is the nearest DataContext up the tree
+    // Click a swatch → set the colour of the workspace that owns this row. Workspace is observable, so the
+    // hex box and colour preview update live. The owning workspace is the nearest DataContext up the tree
     // (the swatch button's own DataContext is the SwatchOption).
     private void OnSwatchClick(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { Tag: string hex } fe) return;
         for (DependencyObject? d = fe; d is not null; d = VisualTreeHelper.GetParent(d))
-            if (d is FrameworkElement { DataContext: Profile p })
+            if (d is FrameworkElement { DataContext: Workspace p })
             {
                 p.Color = hex;
                 return;
             }
     }
 
-    // Configure the workspace for this row. Commits ALL pending profile edits first (so a brand-new or
+    // Configure the workspace for this row. Commits ALL pending workspace edits first (so a brand-new or
     // cloned row is materialised on disk and other renames/reorders/deletes aren't lost), then closes
-    // Options and opens the per-workspace Configure panel for the resolved profile.
+    // Options and opens the per-workspace Configure panel for the resolved workspace.
     private void OnConfigureClick(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { Tag: Profile edit } || _config is null) return;
+        if (sender is not Button { Tag: Workspace edit } || _config is null) return;
 
-        Apply();                                    // create/update profiles + sync order
-        WorkspaceManager.Instance.SaveProfiles();   // persist now (we bypass the Options Save button)
+        Apply();                                    // create/update workspaces + sync order
+        WorkspaceManager.Instance.SaveWorkspaces();   // persist now (we bypass the Options Save button)
 
         if (!_editToOriginal.TryGetValue(edit, out var original)) return;
 
@@ -185,31 +185,31 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply
 
     private void OnCloneClick(object sender, RoutedEventArgs e)
     {
-        if (_editProfiles is null) return;
-        if (sender is not Button { Tag: Profile edit }) return;
+        if (_editWorkspaces is null) return;
+        if (sender is not Button { Tag: Workspace edit }) return;
 
         var source = _editToOriginal.TryGetValue(edit, out var original) ? original
                    : _editCloneSource.TryGetValue(edit, out var src)     ? src
                    : null;
-        if (source is null) return;   // a brand-new unsaved profile has no persisted settings to copy
+        if (source is null) return;   // a brand-new unsaved workspace has no persisted settings to copy
 
         var (icon, _) = WorkspaceStyle.Random();
-        var clone = new Profile { Name = edit.Name + " copy", Color = RandomSwatchColor(), Icon = icon };
+        var clone = new Workspace { Name = edit.Name + " copy", Color = RandomSwatchColor(), Icon = icon };
         _editCloneSource[clone] = source;
 
-        _editProfiles.Insert(_editProfiles.IndexOf(edit) + 1, clone);
+        _editWorkspaces.Insert(_editWorkspaces.IndexOf(edit) + 1, clone);
     }
 
     private void OnRemoveClick(object sender, RoutedEventArgs e)
     {
-        if (_editProfiles is null || _editProfiles.Count <= 1) return;
-        if (sender is not Button { Tag: Profile edit }) return;
+        if (_editWorkspaces is null || _editWorkspaces.Count <= 1) return;
+        if (sender is not Button { Tag: Workspace edit }) return;
 
         var shell = Window.GetWindow(this)?.DataContext as ShellViewModel;
 
-        // Cannot delete a profile a live workspace is using (incl. the active one).
+        // Cannot delete a workspace a live workspace is using (incl. the active one).
         if (_editToOriginal.TryGetValue(edit, out var original)
-            && WorkspaceManager.Instance.IsProfileInUse(original))
+            && WorkspaceManager.Instance.IsWorkspaceInUse(original))
         {
             shell?.ShowErrorToast("This workspace is open and can't be removed.");
             return;
@@ -218,21 +218,21 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply
         // Confirm via the in-shell overlay (above the Options popup), never an OS MessageBox.
         if (shell is not null)
             shell.ShowConfirmation("Remove workspace", $"Remove workspace “{edit.Name}”?",
-                () => _editProfiles.Remove(edit), null);
+                () => _editWorkspaces.Remove(edit), null);
         else
-            _editProfiles.Remove(edit);
+            _editWorkspaces.Remove(edit);
     }
 
     // ── Drag-to-reorder ───────────────────────────────────────────────────────
 
-    private Profile?      _dragItem;
+    private Workspace?      _dragItem;
     private DragAdorner?  _dragAdorner;
     private AdornerLayer? _adornerLayer;
     private Point         _dragGrab;   // cursor offset within the dragged row, so the ghost tracks it
 
     private void OnDragHandleMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (sender is FrameworkElement { DataContext: Profile p }) _dragItem = p;
+        if (sender is FrameworkElement { DataContext: Workspace p }) _dragItem = p;
     }
 
     private void OnDragHandleMouseMove(object sender, MouseEventArgs e)
@@ -241,13 +241,13 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply
             || sender is not FrameworkElement fe) return;
 
         // Ghost frame of the dragged row, following the cursor (positioned in OnListPreviewDragOver).
-        if (ProfileItems.ItemContainerGenerator.ContainerFromItem(_dragItem) is FrameworkElement container)
+        if (WorkspaceItems.ItemContainerGenerator.ContainerFromItem(_dragItem) is FrameworkElement container)
         {
             _dragGrab = e.GetPosition(container);   // where within the row the user grabbed
-            _adornerLayer = AdornerLayer.GetAdornerLayer(ProfileItems);
+            _adornerLayer = AdornerLayer.GetAdornerLayer(WorkspaceItems);
             if (_adornerLayer is not null)
             {
-                _dragAdorner = new DragAdorner(ProfileItems, container,
+                _dragAdorner = new DragAdorner(WorkspaceItems, container,
                     new Size(container.ActualWidth, container.ActualHeight));
                 _adornerLayer.Add(_dragAdorner);
             }
@@ -270,7 +270,7 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply
     {
         if (_dragAdorner is not null)
         {
-            var p = e.GetPosition(ProfileItems);
+            var p = e.GetPosition(WorkspaceItems);
             // Anchor the ghost so the grab point stays under the cursor.
             _dragAdorner.SetOffset(new Point(p.X - _dragGrab.X, p.Y - _dragGrab.Y));
         }
@@ -280,14 +280,14 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply
 
     private void OnItemDrop(object sender, DragEventArgs e)
     {
-        if (_editProfiles is null) return;
-        if (e.Data.GetData(typeof(Profile)) is not Profile dragged) return;
-        if (sender is not FrameworkElement { DataContext: Profile target }) return;
+        if (_editWorkspaces is null) return;
+        if (e.Data.GetData(typeof(Workspace)) is not Workspace dragged) return;
+        if (sender is not FrameworkElement { DataContext: Workspace target }) return;
         if (ReferenceEquals(dragged, target)) return;
 
-        int from = _editProfiles.IndexOf(dragged);
-        int to   = _editProfiles.IndexOf(target);
+        int from = _editWorkspaces.IndexOf(dragged);
+        int to   = _editWorkspaces.IndexOf(target);
         if (from < 0 || to < 0) return;
-        _editProfiles.Move(from, to);
+        _editWorkspaces.Move(from, to);
     }
 }

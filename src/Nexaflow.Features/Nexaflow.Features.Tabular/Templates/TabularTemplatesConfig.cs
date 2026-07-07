@@ -6,7 +6,7 @@ namespace Nexaflow.Features.Tabular.Templates;
 
 /// <summary>
 /// Global feature config holding the user's saved tabular templates. Discovered by reflection and
-/// shared across profiles (templates describe file <em>shapes</em>, not a profile). Managed primarily
+/// shared across workspaces (templates describe file <em>shapes</em>, not a workspace). Managed primarily
 /// from the Tabular viewer (Template This / Apply Template); the Options section
 /// (<see cref="TabularTemplatesEditorControl"/>) is a central rename/delete surface. The
 /// <c>[CustomControl]</c> is required because a bare <see cref="Templates"/> list would render as a

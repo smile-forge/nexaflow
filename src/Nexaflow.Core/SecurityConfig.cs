@@ -14,7 +14,7 @@ public enum WindowAccessOption
 }
 
 /// <summary>
-/// Security/privacy settings. Global (one instance, shared by all profiles). Registered in
+/// Security/privacy settings. Global (one instance, shared by all workspaces). Registered in
 /// App.xaml.cs alongside <see cref="ShellConfig"/>; surfaced as a "Security" section in Options.
 /// </summary>
 public sealed class SecurityConfig : IFeatureConfig

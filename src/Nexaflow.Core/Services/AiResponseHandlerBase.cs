@@ -168,7 +168,7 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
         };
         record.DeriveTitle();
 
-        try { await _shell.CurrentWorkspace.AiService!.SaveConversationAsync(record); }
+        try { await _shell.CurrentRuntime.AiService!.SaveConversationAsync(record); }
         catch { /* persistence failures shouldn't block opening the tab */ }
 
         _shell.ShellServices.OpenTab("Conversation", new Dictionary<string, string>
@@ -197,7 +197,7 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
 
     private void SyncAiName()
     {
-        var persona = _shell.CurrentWorkspace?.Profile?.Persona;
+        var persona = _shell.CurrentRuntime?.Workspace?.Persona;
         AiResponseAiName = string.IsNullOrWhiteSpace(persona?.Name) ? "Aria" : persona!.Name!.Trim();
     }
 

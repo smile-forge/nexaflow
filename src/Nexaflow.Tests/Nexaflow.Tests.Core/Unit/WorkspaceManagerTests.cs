@@ -31,7 +31,7 @@ public class WorkspaceManagerTests
         _origBaseDir = ConfigManager.Instance.BaseDir;
         _baseDir     = Path.Combine(Path.GetTempPath(), "nexaflow-ws-" + Guid.NewGuid().ToString("N"));
         ConfigManager.Instance.Initialize(_baseDir);
-        WorkspaceManager.Instance.Initialize(new WorkspacesConfig());   // baseline: one default profile
+        WorkspaceManager.Instance.Initialize(new WorkspacesConfig());   // baseline: one default workspace
     }
 
     [TestCleanup]
@@ -42,38 +42,38 @@ public class WorkspaceManagerTests
         catch { /* best effort */ }
     }
 
-    // Initialise the manager with a known set of profiles (each carries its own on-disk folder under temp).
-    private static void InitWith(params Profile[] profiles)
-        => WorkspaceManager.Instance.Initialize(new WorkspacesConfig { Contexts = [.. profiles] });
+    // Initialise the manager with a known set of workspaces (each carries its own on-disk folder under temp).
+    private static void InitWith(params Workspace[] workspaces)
+        => WorkspaceManager.Instance.Initialize(new WorkspacesConfig { Contexts = [.. workspaces] });
 
-    // Reads back the persisted workspaces list straight from disk to verify what SaveProfiles wrote.
+    // Reads back the persisted workspaces list straight from disk to verify what SaveWorkspaces wrote.
     private WorkspacesConfig LoadPersisted()
     {
         var file = Directory.GetFiles(Path.Combine(_baseDir, "workcontexts"), "config_*.json").Single();
         return JsonSerializer.Deserialize<WorkspacesConfig>(File.ReadAllText(file))!;
     }
 
-    // Skips disk-loading of shared services so a profile's hand-set AiConfig/Persona survive into CloneProfile.
-    private static void StubSharedServices(Profile p)
-        => typeof(Profile).GetProperty(nameof(Profile.RibbonService))!
+    // Skips disk-loading of shared services so a workspace's hand-set AiConfig/Persona survive into CloneWorkspace.
+    private static void StubSharedServices(Workspace p)
+        => typeof(Workspace).GetProperty(nameof(Workspace.RibbonService))!
             .SetValue(p, new RibbonLayoutService(p.Dir));
 
-    // ── UniqueProfileName ──
+    // ── UniqueWorkspaceName ──
 
     [TestMethod]
-    public void UniqueProfileName_AppendsSuffixOnCollision()
+    public void UniqueWorkspaceName_AppendsSuffixOnCollision()
     {
-        InitWith(new Profile { Name = "Dev" });
-        Assert.AreEqual("New",   WorkspaceManager.Instance.UniqueProfileName("New"));
-        Assert.AreEqual("Dev 2", WorkspaceManager.Instance.UniqueProfileName("Dev"));
+        InitWith(new Workspace { Name = "Dev" });
+        Assert.AreEqual("New",   WorkspaceManager.Instance.UniqueWorkspaceName("New"));
+        Assert.AreEqual("Dev 2", WorkspaceManager.Instance.UniqueWorkspaceName("Dev"));
     }
 
-    // ── CloneProfile ──
+    // ── CloneWorkspace ──
 
     [TestMethod]
-    public void CloneProfile_CopiesConfig_RoundTrips_AndExcludesConversations()
+    public void CloneWorkspace_CopiesConfig_RoundTrips_AndExcludesConversations()
     {
-        var source = new Profile { Name = "Source" };
+        var source = new Workspace { Name = "Source" };
         source.AiConfig.Columns.Add(new ProviderModelPair { Id = "c1", ProviderName = "Prov", Model = "m1" });
         source.AiConfig.Assignments["Conversation"] = "c1";
         source.Persona.Name         = "TestPersona";
@@ -84,9 +84,9 @@ public class WorkspaceManagerTests
         ConversationStore.Save(source.ConversationsDir,
             new ConversationRecord { Id = "conv", Title = "secret" });
 
-        WorkspaceManager.Instance.CloneProfile(source, "Clone");
+        WorkspaceManager.Instance.CloneWorkspace(source, "Clone");
 
-        var destDir = WorkspaceManager.ProfileDir("Clone");
+        var destDir = WorkspaceManager.WorkspaceDir("Clone");
 
         var ai = new AiConfig();
         ConfigManager.Instance.LoadFrom(destDir, ai, ai.ConfigName);
@@ -103,18 +103,18 @@ public class WorkspaceManagerTests
             "Clone must not copy the source's conversations.");
     }
 
-    // ── RenameProfile ──
+    // ── RenameWorkspace ──
 
     [TestMethod]
-    public void RenameProfile_MovesDataFolder_AndPersistsNewName()
+    public void RenameWorkspace_MovesDataFolder_AndPersistsNewName()
     {
-        var p = new Profile { Name = "Original" };
+        var p = new Workspace { Name = "Original" };
         InitWith(p);
         Directory.CreateDirectory(p.Dir);
         File.WriteAllText(Path.Combine(p.Dir, "marker.txt"), "payload");
         var oldDir = p.Dir;
 
-        WorkspaceManager.Instance.RenameProfile(p, "Renamed");
+        WorkspaceManager.Instance.RenameWorkspace(p, "Renamed");
 
         Assert.AreEqual("Renamed", p.Name);
         Assert.IsFalse(Directory.Exists(oldDir), "Old folder should be gone after the move.");
@@ -125,88 +125,88 @@ public class WorkspaceManagerTests
     }
 
     [TestMethod]
-    public void RenameProfile_SameName_StillPersists()
+    public void RenameWorkspace_SameName_StillPersists()
     {
-        var p = new Profile { Name = "Keep", Color = "#222222" };
+        var p = new Workspace { Name = "Keep", Color = "#222222" };
         InitWith(p);
 
-        WorkspaceManager.Instance.RenameProfile(p, "Keep");   // no folder move, but must save
+        WorkspaceManager.Instance.RenameWorkspace(p, "Keep");   // no folder move, but must save
 
         var saved = LoadPersisted();
         Assert.AreEqual("Keep",    saved.Contexts.Single().Name);
         Assert.AreEqual("#222222", saved.Contexts.Single().Color);
     }
 
-    // ── DeleteProfile ──
+    // ── DeleteWorkspace ──
 
     [TestMethod]
-    public void DeleteProfile_RemovesFolderConversations_AndList_AndPersists()
+    public void DeleteWorkspace_RemovesFolderConversations_AndList_AndPersists()
     {
-        var keep   = new Profile { Name = "Keep" };
-        var doomed = new Profile { Name = "Doomed" };
+        var keep   = new Workspace { Name = "Keep" };
+        var doomed = new Workspace { Name = "Doomed" };
         InitWith(keep, doomed);
 
         ConversationStore.Save(doomed.ConversationsDir,
             new ConversationRecord { Id = "conv1", Title = "t" });
         Assert.IsTrue(Directory.Exists(doomed.Dir));
 
-        Assert.IsTrue(WorkspaceManager.Instance.DeleteProfile(doomed));
+        Assert.IsTrue(WorkspaceManager.Instance.DeleteWorkspace(doomed));
 
         Assert.IsFalse(Directory.Exists(doomed.Dir), "Folder + conversations must be deleted.");
-        Assert.IsFalse(WorkspaceManager.Instance.Profiles.Contains(doomed));
-        Assert.IsTrue(WorkspaceManager.Instance.Profiles.Contains(keep));
+        Assert.IsFalse(WorkspaceManager.Instance.Workspaces.Contains(doomed));
+        Assert.IsTrue(WorkspaceManager.Instance.Workspaces.Contains(keep));
         CollectionAssert.AreEqual(new[] { "Keep" }, LoadPersisted().Contexts.Select(c => c.Name).ToArray());
     }
 
     [TestMethod]
-    public void DeleteProfile_LastRemaining_IsRefused()
+    public void DeleteWorkspace_LastRemaining_IsRefused()
     {
-        var only = new Profile { Name = "Only" };
+        var only = new Workspace { Name = "Only" };
         InitWith(only);
         Directory.CreateDirectory(only.Dir);
 
-        Assert.IsFalse(WorkspaceManager.Instance.DeleteProfile(only));
+        Assert.IsFalse(WorkspaceManager.Instance.DeleteWorkspace(only));
         Assert.IsTrue(Directory.Exists(only.Dir));
-        Assert.IsTrue(WorkspaceManager.Instance.Profiles.Contains(only));
+        Assert.IsTrue(WorkspaceManager.Instance.Workspaces.Contains(only));
     }
 
     [TestMethod]
-    public void DeleteProfile_Force_StillRefusesLastRemaining()
+    public void DeleteWorkspace_Force_StillRefusesLastRemaining()
     {
         // force bypasses the in-use guard, but never the last-remaining guard.
-        var only = new Profile { Name = "Only" };
+        var only = new Workspace { Name = "Only" };
         InitWith(only);
         Directory.CreateDirectory(only.Dir);
 
-        Assert.IsFalse(WorkspaceManager.Instance.DeleteProfile(only, force: true));
+        Assert.IsFalse(WorkspaceManager.Instance.DeleteWorkspace(only, force: true));
         Assert.IsTrue(Directory.Exists(only.Dir));
     }
 
-    // ── RemoveProfile (Options batch path) ──
+    // ── RemoveWorkspace (Options batch path) ──
 
     [TestMethod]
-    public void RemoveProfile_DeletesDataFolder_AndList()
+    public void RemoveWorkspace_DeletesDataFolder_AndList()
     {
-        var a = new Profile { Name = "A" };
-        var b = new Profile { Name = "B" };
+        var a = new Workspace { Name = "A" };
+        var b = new Workspace { Name = "B" };
         InitWith(a, b);
         Directory.CreateDirectory(b.Dir);
         File.WriteAllText(Path.Combine(b.Dir, "x.txt"), "1");
 
-        Assert.IsTrue(WorkspaceManager.Instance.RemoveProfile(b));
+        Assert.IsTrue(WorkspaceManager.Instance.RemoveWorkspace(b));
         Assert.IsFalse(Directory.Exists(b.Dir));
-        Assert.IsFalse(WorkspaceManager.Instance.Profiles.Contains(b));
+        Assert.IsFalse(WorkspaceManager.Instance.Workspaces.Contains(b));
     }
 
-    // ── SaveProfiles ──
+    // ── SaveWorkspaces ──
 
     [TestMethod]
-    public void SaveProfiles_PersistsNameColourIcon()
+    public void SaveWorkspaces_PersistsNameColourIcon()
     {
-        InitWith(new Profile { Name = "One", Color = "#111111", Icon = "A" });
-        WorkspaceManager.Instance.AddProfile("Two");
+        InitWith(new Workspace { Name = "One", Color = "#111111", Icon = "A" });
+        WorkspaceManager.Instance.AddWorkspace("Two");
 
-        WorkspaceManager.Instance.SaveProfiles();
+        WorkspaceManager.Instance.SaveWorkspaces();
 
         var saved = LoadPersisted();
         CollectionAssert.AreEqual(new[] { "One", "Two" }, saved.Contexts.Select(c => c.Name).ToArray());
@@ -222,17 +222,17 @@ public class WorkspaceManagerTests
     [TestMethod]
     public void QuarantineOrphanedDataFolders_MovesUnreferenced_KeepsLive_WhenAuthoritative()
     {
-        var keep = new Profile { Name = "Keep" };
+        var keep = new Workspace { Name = "Keep" };
         InitWith(keep);
         Directory.CreateDirectory(keep.Dir);                        // referenced → survives
 
-        var orphan = WorkspaceManager.ProfileDir("GhostFromReset"); // no matching profile → quarantined
+        var orphan = WorkspaceManager.WorkspaceDir("GhostFromReset"); // no matching workspace → quarantined
         Directory.CreateDirectory(orphan);
         File.WriteAllText(Path.Combine(orphan, "conv.json"), "{}");
 
         var moved = WorkspaceManager.Instance.QuarantineOrphanedDataFolders(listIsAuthoritative: true);
 
-        Assert.IsTrue(Directory.Exists(keep.Dir), "A live profile's folder must never be moved.");
+        Assert.IsTrue(Directory.Exists(keep.Dir), "A live workspace's folder must never be moved.");
         Assert.IsFalse(Directory.Exists(orphan),  "An unreferenced folder must leave its original location.");
         CollectionAssert.AreEqual(new[] { "GhostFromReset" }, moved.ToArray());
 
@@ -245,10 +245,10 @@ public class WorkspaceManagerTests
     [TestMethod]
     public void QuarantineOrphanedDataFolders_PreservesInPlace_WhenListNotAuthoritative()
     {
-        var keep = new Profile { Name = "Keep" };
+        var keep = new Workspace { Name = "Keep" };
         InitWith(keep);
 
-        var orphan = WorkspaceManager.ProfileDir("GhostFromReset");
+        var orphan = WorkspaceManager.WorkspaceDir("GhostFromReset");
         Directory.CreateDirectory(orphan);
 
         var moved = WorkspaceManager.Instance.QuarantineOrphanedDataFolders(listIsAuthoritative: false);
@@ -262,8 +262,8 @@ public class WorkspaceManagerTests
     [TestMethod]
     public void QuarantineOrphanedDataFolders_NoOp_WhenAllFoldersReferenced()
     {
-        var a = new Profile { Name = "A" };
-        var b = new Profile { Name = "B" };
+        var a = new Workspace { Name = "A" };
+        var b = new Workspace { Name = "B" };
         InitWith(a, b);
         Directory.CreateDirectory(a.Dir);
         Directory.CreateDirectory(b.Dir);
@@ -279,12 +279,12 @@ public class WorkspaceManagerTests
     [TestMethod]
     public void QuarantineOrphanedDataFolders_SkipsBin_AndDeDupesNameCollision()
     {
-        var keep = new Profile { Name = "Keep" };
+        var keep = new Workspace { Name = "Keep" };
         InitWith(keep);
 
         // A prior quarantine already holds a "Ghost"; a fresh orphan of the same name must not collide.
         Directory.CreateDirectory(Path.Combine(QuarantineDir, "Ghost"));
-        var orphan = WorkspaceManager.ProfileDir("Ghost");
+        var orphan = WorkspaceManager.WorkspaceDir("Ghost");
         Directory.CreateDirectory(orphan);
 
         var moved = WorkspaceManager.Instance.QuarantineOrphanedDataFolders(listIsAuthoritative: true);

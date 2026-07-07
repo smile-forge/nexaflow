@@ -19,7 +19,7 @@
                     Click="OnAddClick"/>
 
             <!-- Workspace list -->
-            <ItemsControl x:Name="ProfileItems">
+            <ItemsControl x:Name="WorkspaceItems">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <!-- Thin border separates each workspace -->

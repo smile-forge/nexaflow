@@ -63,7 +63,7 @@
         </Style>
     </UserControl.Resources>
 
-    <!-- DataContext of this panel is set in code-behind to an editing copy of the profile; the swatch
+    <!-- DataContext of this panel is set in code-behind to an editing copy of the workspace; the swatch
          list pulls from the control itself (ElementName=Root). -->
     <StackPanel x:Name="EditPanel" MaxWidth="540" HorizontalAlignment="Left">
 

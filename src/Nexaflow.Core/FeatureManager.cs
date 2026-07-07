@@ -41,7 +41,7 @@ public sealed class FeatureManager
     /// Workspace-scoped config types (marked <see cref="WorkspaceScopedConfigAttribute"/>), resolved from
     /// the catalog. Accessing this loads every owning assembly, so it's only used by the Manage-AI /
     /// Configure panels (which need every scoped config). Startup paths use the lazy
-    /// <see cref="Models.Profile.FindWorkspaceConfig"/> instead.
+    /// <see cref="Models.Workspace.FindWorkspaceConfig"/> instead.
     /// </summary>
     public IReadOnlyList<Type> WorkspaceScopedConfigTypes => FeatureCatalog.Instance.ResolveWorkspaceScopedConfigTypes();
 
@@ -92,7 +92,7 @@ public sealed class FeatureManager
 
         foreach (var te in entry.Types)
         {
-            // Global feature configs (scoped ones are built per-profile by Profile, not here).
+            // Global feature configs (scoped ones are built per-workspace by Workspace, not here).
             if (te.ConfigName is not null && !te.Scoped && asm.GetType(te.Name) is { } configType
                 && !_configs.ContainsKey(configType))
             {
@@ -242,8 +242,8 @@ public sealed class FeatureManager
             }
             else if (typeof(IFeatureConfig).IsAssignableFrom(pt))
             {
-                // Scoped config: profile-specific instance (lazily materialized).
-                if (workspace?.Profile.FindWorkspaceConfig(pt) is { } scoped)
+                // Scoped config: workspace-specific instance (lazily materialized).
+                if (workspace?.Workspace.FindWorkspaceConfig(pt) is { } scoped)
                     args[i] = scoped;
                 else if (IsWorkspaceScopedConfig(pt))
                     return null;   // scoped, but this (null/window-less) workspace can't supply it

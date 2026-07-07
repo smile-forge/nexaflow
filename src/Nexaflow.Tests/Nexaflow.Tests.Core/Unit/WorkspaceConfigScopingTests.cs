@@ -50,7 +50,7 @@ public class WorkspaceConfigScopingTests
         Assert.IsNull(typeof(ConsoleConfig).GetCustomAttribute<Nexaflow.Features.Common.MandatorySetupAttribute>());
     }
 
-    // ── A3: per-profile storage round-trips via SaveTo/LoadFrom under an explicit folder ──
+    // ── A3: per-workspace storage round-trips via SaveTo/LoadFrom under an explicit folder ──
 
     [TestMethod]
     public void SaveTo_ThenLoadFrom_RoundTripsScopedConfig()
@@ -61,7 +61,7 @@ public class WorkspaceConfigScopingTests
             var saved = new ProjectsConfig { ProjectDirectory = @"X:\Custom\Projects" };
             ConfigManager.Instance.SaveTo(dir, saved, saved.ConfigName);
 
-            // The file lands under <dir>\<ConfigName>\, mirroring Contexts\<profile>\projects\.
+            // The file lands under <dir>\<ConfigName>\, mirroring Contexts\<workspace>\projects\.
             Assert.IsTrue(Directory.Exists(Path.Combine(dir, saved.ConfigName)));
 
             var loaded = new ProjectsConfig();
@@ -75,10 +75,10 @@ public class WorkspaceConfigScopingTests
     }
 
     // The launch picker's "always use this environment for this location" writes a folder binding through
-    // the per-profile store (Contexts\<profile>\console\), the same place the Configure panel reads it
+    // the per-workspace store (Contexts\<workspace>\console\), the same place the Configure panel reads it
     // back from — so a saved binding must survive a SaveTo/LoadFrom round-trip to show up in Options.
     [TestMethod]
-    public void ConsoleConfig_FolderBindings_RoundTripPerProfile()
+    public void ConsoleConfig_FolderBindings_RoundTripPerWorkspace()
     {
         var dir = Path.Combine(Path.GetTempPath(), "nexaflow-test-" + Guid.NewGuid().ToString("N"));
         try
@@ -118,19 +118,19 @@ public class WorkspaceConfigScopingTests
         Assert.IsTrue(ConfigEditViewModel.AreRequiredPropertiesSatisfied(new FakeProviderConfig { ApiKey = "sk-123" }));
     }
 
-    // ── Wizard predicate: is the startup profile usable as-is? ──
+    // ── Wizard predicate: is the startup workspace usable as-is? ──
 
     [TestMethod]
     public void IsWorkspaceConfigured_NoAssignments_False()
     {
-        var p = new Profile();
+        var p = new Workspace();
         Assert.IsFalse(SetupWizardViewModel.IsWorkspaceConfigured(p));
     }
 
     [TestMethod]
     public void IsWorkspaceConfigured_AssignedButNoProviderConfig_False()
     {
-        var p = new Profile();
+        var p = new Workspace();
         var col = new ProviderModelPair { Id = "c1", ProviderName = "FakeProv", Model = "m" };
         p.AiConfig.Columns = new List<ProviderModelPair> { col };
         p.AiConfig.Assignments["Disambiguation"] = "c1";
@@ -141,7 +141,7 @@ public class WorkspaceConfigScopingTests
     [TestMethod]
     public void IsWorkspaceConfigured_AssignedWithSatisfiedProvider_True()
     {
-        var p = new Profile();
+        var p = new Workspace();
         var col = new ProviderModelPair { Id = "c1", ProviderName = "FakeProv", Model = "m" };
         p.AiConfig.Columns = new List<ProviderModelPair> { col };
         p.AiConfig.Assignments["Disambiguation"] = "c1";
@@ -153,7 +153,7 @@ public class WorkspaceConfigScopingTests
     [TestMethod]
     public void IsWorkspaceConfigured_AssignedButProviderMissingKey_False()
     {
-        var p = new Profile();
+        var p = new Workspace();
         var col = new ProviderModelPair { Id = "c1", ProviderName = "FakeProv", Model = "m" };
         p.AiConfig.Columns = new List<ProviderModelPair> { col };
         p.AiConfig.Assignments["Disambiguation"] = "c1";
@@ -162,8 +162,8 @@ public class WorkspaceConfigScopingTests
         Assert.IsFalse(SetupWizardViewModel.IsWorkspaceConfigured(p));
     }
 
-    // Profile.ProviderConfigs is loaded from disk in production; set it directly here.
-    private static void SetProviderConfigs(Profile p, params IProviderConfig[] configs)
-        => typeof(Profile).GetProperty(nameof(Profile.ProviderConfigs))!
+    // Workspace.ProviderConfigs is loaded from disk in production; set it directly here.
+    private static void SetProviderConfigs(Workspace p, params IProviderConfig[] configs)
+        => typeof(Workspace).GetProperty(nameof(Workspace.ProviderConfigs))!
             .SetValue(p, (IReadOnlyList<IProviderConfig>)configs);
 }

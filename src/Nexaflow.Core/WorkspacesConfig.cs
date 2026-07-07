@@ -11,5 +11,5 @@ public sealed class WorkspacesConfig : IFeatureConfig
     public string ConfigName   => "workcontexts";
     public string FriendlyName => "Workspaces";
 
-    public List<Profile> Contexts { get; set; } = [new Profile()];
+    public List<Workspace> Contexts { get; set; } = [new Workspace()];
 }

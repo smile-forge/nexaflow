@@ -8,16 +8,16 @@ namespace Nexaflow.Core.Controls;
 
 public partial class WorkspaceSelectorControl : UserControl
 {
-    public static readonly DependencyProperty CurrentProfileProperty =
-        DependencyProperty.Register(nameof(CurrentProfile), typeof(Profile),
+    public static readonly DependencyProperty CurrentWorkspaceProperty =
+        DependencyProperty.Register(nameof(CurrentWorkspace), typeof(Workspace),
             typeof(WorkspaceSelectorControl), new PropertyMetadata(null));
 
-    public static readonly DependencyProperty ProfilesProperty =
-        DependencyProperty.Register(nameof(Profiles), typeof(ObservableCollection<Profile>),
+    public static readonly DependencyProperty WorkspacesProperty =
+        DependencyProperty.Register(nameof(Workspaces), typeof(ObservableCollection<Workspace>),
             typeof(WorkspaceSelectorControl), new PropertyMetadata(null));
 
-    public static readonly DependencyProperty SelectProfileCommandProperty =
-        DependencyProperty.Register(nameof(SelectProfileCommand), typeof(ICommand),
+    public static readonly DependencyProperty SelectWorkspaceCommandProperty =
+        DependencyProperty.Register(nameof(SelectWorkspaceCommand), typeof(ICommand),
             typeof(WorkspaceSelectorControl), new PropertyMetadata(null));
 
     /// <summary>True when switching is allowed (no modal overlay open).</summary>
@@ -40,22 +40,22 @@ public partial class WorkspaceSelectorControl : UserControl
         DependencyProperty.Register(nameof(UseTabsetAsDefaultCommand), typeof(ICommand),
             typeof(WorkspaceSelectorControl), new PropertyMetadata(null));
 
-    public Profile? CurrentProfile
+    public Workspace? CurrentWorkspace
     {
-        get => (Profile?)GetValue(CurrentProfileProperty);
-        set => SetValue(CurrentProfileProperty, value);
+        get => (Workspace?)GetValue(CurrentWorkspaceProperty);
+        set => SetValue(CurrentWorkspaceProperty, value);
     }
 
-    public ObservableCollection<Profile>? Profiles
+    public ObservableCollection<Workspace>? Workspaces
     {
-        get => (ObservableCollection<Profile>?)GetValue(ProfilesProperty);
-        set => SetValue(ProfilesProperty, value);
+        get => (ObservableCollection<Workspace>?)GetValue(WorkspacesProperty);
+        set => SetValue(WorkspacesProperty, value);
     }
 
-    public ICommand? SelectProfileCommand
+    public ICommand? SelectWorkspaceCommand
     {
-        get => (ICommand?)GetValue(SelectProfileCommandProperty);
-        set => SetValue(SelectProfileCommandProperty, value);
+        get => (ICommand?)GetValue(SelectWorkspaceCommandProperty);
+        set => SetValue(SelectWorkspaceCommandProperty, value);
     }
 
     public bool CanSwitch
@@ -126,9 +126,9 @@ public partial class WorkspaceSelectorControl : UserControl
 
     private void OnContextItemClick(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: Profile profile })
+        if (sender is Button { Tag: Workspace workspace })
         {
-            SelectProfileCommand?.Execute(profile);
+            SelectWorkspaceCommand?.Execute(workspace);
             ContextPopup.IsOpen = false;
         }
     }

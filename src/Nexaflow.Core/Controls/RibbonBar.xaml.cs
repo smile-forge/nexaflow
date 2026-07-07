@@ -49,8 +49,8 @@ public partial class RibbonBar : UserControl
         DependencyProperty.Register(nameof(PinFromHandlerCommand),
             typeof(ICommand), typeof(RibbonBar));
 
-    public static readonly DependencyProperty WorkspaceProperty =
-        DependencyProperty.Register(nameof(Workspace),
+    public static readonly DependencyProperty RuntimeProperty =
+        DependencyProperty.Register(nameof(Runtime),
             typeof(WorkspaceRuntime), typeof(RibbonBar));
 
     public static readonly DependencyProperty ShellProperty =
@@ -87,10 +87,10 @@ public partial class RibbonBar : UserControl
         get => (ICommand?)GetValue(DeleteItemCommandProperty);
         set => SetValue(DeleteItemCommandProperty, value);
     }
-    public WorkspaceRuntime? Workspace
+    public WorkspaceRuntime? Runtime
     {
-        get => (WorkspaceRuntime?)GetValue(WorkspaceProperty);
-        set => SetValue(WorkspaceProperty, value);
+        get => (WorkspaceRuntime?)GetValue(RuntimeProperty);
+        set => SetValue(RuntimeProperty, value);
     }
     public ICommand? PinFromHandlerCommand
     {
@@ -326,7 +326,7 @@ public partial class RibbonBar : UserControl
             return;
         }
 
-        if (Workspace is { } ctx)
+        if (Runtime is { } ctx)
         {
             foreach (var h in FeatureManager.Instance.GetRibbonPinHandlers(ctx))
                 foreach (var fmt in h.AcceptedFormats)
@@ -353,7 +353,7 @@ public partial class RibbonBar : UserControl
             return;
         }
 
-        if (Workspace is { } dropCtx)
+        if (Runtime is { } dropCtx)
         {
             foreach (var h in FeatureManager.Instance.GetRibbonPinHandlers(dropCtx))
                 foreach (var fmt in h.AcceptedFormats)

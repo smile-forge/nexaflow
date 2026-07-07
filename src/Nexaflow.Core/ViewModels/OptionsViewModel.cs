@@ -284,7 +284,7 @@ public partial class ConfigEditViewModel : ObservableObject
     // Explicit-control section: an already-instantiated custom control (not discovered from a
     // [CustomControl] attribute). The control owns its own editing state + persistence (its
     // ICustomConfigApply.Apply), so there's no reflected property grid. Used for the workspace-identity
-    // page, whose editor targets a Profile that can't carry a Core control reference.
+    // page, whose editor targets a Workspace that can't carry a Core control reference.
     private ConfigEditViewModel(System.Windows.FrameworkElement control, string configName, string friendlyName)
     {
         RealConfig   = control;
