@@ -274,19 +274,27 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     }
 
     /// <summary>
-    /// A viewlet reports the current folder may be gone (e.g. the Git viewlet just deleted this worktree).
-    /// If it no longer exists, walk up to the nearest surviving ancestor and navigate there in this same tab
-    /// (falling back to This PC), so the user isn't stranded on a dead location. No-op if it still exists.
+    /// A viewlet reports it mutated the current folder (e.g. the Git viewlet removed this worktree).
+    /// If the folder is now gone, walk up to the nearest surviving ancestor and navigate there in this same
+    /// tab (falling back to This PC) so the user isn't stranded. If it still exists, refresh its contents and
+    /// rebuild the viewlets in place — the mutation may have changed which viewlets apply.
     /// </summary>
     private void InvalidateCurrentLocation()
     {
         var path = ViewModel.CurrentPath;
-        if (string.IsNullOrEmpty(path) || System.IO.Directory.Exists(path)) return;
 
-        if (FileSystemViewModel.NearestExistingAncestor(path) is { } ancestor)
-            ViewModel.NavigateTo(ancestor);
-        else
-            ViewModel.GoToThisPc(rebuildTree: true);   // even the drive is gone — fall back to This PC
+        if (!string.IsNullOrEmpty(path) && !System.IO.Directory.Exists(path))
+        {
+            if (FileSystemViewModel.NearestExistingAncestor(path) is { } ancestor)
+                ViewModel.NavigateTo(ancestor);            // navigation rebuilds contents + viewlets
+            else
+                ViewModel.GoToThisPc(rebuildTree: true);   // even the drive is gone — fall back to This PC
+            return;
+        }
+
+        // Still there: refresh contents, then tear down + reinit the viewlets for the (possibly changed) folder.
+        ViewModel.Refresh();
+        RefreshViewlets(path, ViewModel.IsThisPcMode);
     }
 
     private void ApplyViewletLayout()
