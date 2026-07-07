@@ -276,9 +276,10 @@ public sealed class ShellServices : IShellServices
     }
 
     // ── Default-tab restore (debounced) ───────────────────────────────────
-    // Startup and reconfigure open the workspace's saved tabset. Deferred a beat (Background priority) so the
-    // window frame paints before potentially heavy tabs load, and debounced so an open-then-reconfigure
-    // pair collapses to a single restore.
+    // Startup and reconfigure open the workspace's saved tabset. Deferred a beat at Background priority — a
+    // small interval that (being below Render) still lets the window frame paint before the tabs load, so
+    // it stays snappy — and debounced so an open-then-reconfigure pair collapses to a single restore. The
+    // tabs + page content ease in (PaneView / TabStrip) so this reads as a settle rather than a hard pop.
     private DispatcherTimer? _defaultTabsTimer;
     private IReadOnlyList<DefaultTabDescriptor>? _pendingDefaultTabs;
 
@@ -292,7 +293,7 @@ public sealed class ShellServices : IShellServices
     {
         _pendingDefaultTabs = tabs;
         _defaultTabsTimer ??= new DispatcherTimer(
-            TimeSpan.FromMilliseconds(120), DispatcherPriority.Background, OnDefaultTabsTick, _ui);
+            TimeSpan.FromMilliseconds(40), DispatcherPriority.Background, OnDefaultTabsTick, _ui);
         _defaultTabsTimer.Stop();
         _defaultTabsTimer.Start();
     }

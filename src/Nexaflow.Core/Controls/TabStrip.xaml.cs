@@ -8,6 +8,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
@@ -176,7 +177,24 @@ public partial class TabStrip : UserControl
         foreach (var tab in Tabs)
             VisiblePanel.Children.Add(BuildTabElement(tab));
 
+        AnimateStripInIfFirst();
+
         Dispatcher.InvokeAsync(MeasureOverflow, System.Windows.Threading.DispatcherPriority.Render);
+    }
+
+    // Fades the strip in the first time it populates (workspace open / session restore), not on every
+    // incremental add/remove. Animating the panel — rather than each tab — survives the wholesale rebuild
+    // burst a multi-tab open triggers, so the tabs ease in together instead of popping. Resets when the
+    // strip empties, so the next open animates again. Opacity only: never affects overflow measurement.
+    private bool _tabsAnimatedIn;
+    private void AnimateStripInIfFirst()
+    {
+        if (VisiblePanel.Children.Count == 0) { _tabsAnimatedIn = false; return; }
+        if (_tabsAnimatedIn) return;
+        _tabsAnimatedIn = true;
+        VisiblePanel.BeginAnimation(OpacityProperty,
+            new DoubleAnimation(0.0, 1.0, TimeSpan.FromMilliseconds(200))
+            { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
     }
 
     private void VisiblePanel_SizeChanged(object sender, SizeChangedEventArgs e) { /* unused — we use UserControl SizeChanged */ }
