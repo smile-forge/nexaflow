@@ -1,4 +1,5 @@
 using LibGit2Sharp;
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.Git.ClientTools;
@@ -16,13 +17,16 @@ namespace Nexaflow.Features.Git.Viewlets;
 
 public partial class GitViewletView : UserControl, IViewletAiSurface
 {
-    private readonly GitOptions         _options;
-    private readonly string             _folderPath;
-    private readonly IViewletController _controller;
-    private readonly GitService         _git;
+    private readonly GitOptions          _options;
+    private readonly IShellServices      _shell;
+    private readonly string              _folderPath;
+    private readonly IViewletController  _controller;
+    private readonly GitService          _git;
+    private readonly GitWorktreeService  _worktreeService;
 
-    private string       _currentBranch = string.Empty;
-    private List<string> _localBranches = [];
+    private string            _currentBranch = string.Empty;
+    private List<string>      _localBranches = [];
+    private GitWorktreeInfo?  _worktree;
 
     // Colours used in the inline status line — resolved from the active theme; throw (no silent literal
     // fallback) if a token is missing so a mis-themed reference surfaces immediately.
@@ -33,13 +37,15 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
     private static Brush ModifiedBrush => ThemeBrush("WarningBrush");
     private static Brush ErrorBrush    => ThemeBrush("DangerBrush");
 
-    public GitViewletView(GitOptions options, string folderPath, IViewletController controller)
+    public GitViewletView(GitOptions options, IShellServices shell, string folderPath, IViewletController controller)
     {
         InitializeComponent();
-        _options    = options;
-        _folderPath = folderPath;
-        _controller = controller;
-        _git        = new GitService(folderPath);
+        _options         = options;
+        _shell           = shell;
+        _folderPath      = folderPath;
+        _controller      = controller;
+        _git             = new GitService(folderPath);
+        _worktreeService = new GitWorktreeService(folderPath);
 
         GitManagerButton.Visibility = string.IsNullOrWhiteSpace(options.GitManagerPath)
             ? Visibility.Collapsed
@@ -56,8 +62,9 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
         PullButton.IsEnabled   = false;
         try
         {
-            var info = await Task.Run(_git.GetStatus);
+            var (info, worktree) = await Task.Run(() => (_git.GetStatus(), _worktreeService.GetInfo()));
             ApplyInfo(info);
+            ApplyWorktree(worktree);
         }
         catch (RepositoryNotFoundException)
         {
@@ -125,6 +132,117 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
                 : $"{info.LastCommitHash}  {msg}  ·  {timeAgo}";
             LastCommitLine.Text = display;
         }
+    }
+
+    // ── Worktree state ────────────────────────────────────────────────────
+    // Shown only when the folder is a linked worktree: a "worktree" badge, the merge/push state appended
+    // to the status line, and the Remove control. ApplyInfo has already rebuilt StatusLine, so we append.
+
+    private void ApplyWorktree(GitWorktreeInfo? wt)
+    {
+        _worktree = wt;
+
+        var visible = wt is not null ? Visibility.Visible : Visibility.Collapsed;
+        WorktreeBadge.Visibility        = visible;
+        RemoveWorktreeButton.Visibility = visible;
+
+        if (wt is null) return;
+
+        void AddRun(string text, Brush brush)
+        {
+            StatusLine.Inlines.Add(new Run("  ") { Foreground = (Brush)FindResource("TextMutedBrush") });
+            StatusLine.Inlines.Add(new Run(text) { Foreground = brush });
+        }
+
+        // Merge state vs the mainline target.
+        if (wt.MergeTargetBranch is { } target)
+            AddRun(wt.IsMerged ? $"merged into {target}" : $"unmerged vs {target}",
+                   wt.IsMerged ? StagedBrush : ModifiedBrush);
+
+        // Remote (pushed) state.
+        if (!wt.HasUpstream)
+            AddRun("no upstream", (Brush)FindResource("TextMutedBrush"));
+        else if (wt.IsPushed)
+            AddRun("pushed", (Brush)FindResource("TextMutedBrush"));
+        else
+            AddRun(wt.AheadOfRemote > 0 ? $"unpushed ↑{wt.AheadOfRemote}" : "unpushed", ModifiedBrush);
+
+        WorktreeBadge.ToolTip = BuildWorktreeTooltip(wt);
+    }
+
+    private static string BuildWorktreeTooltip(GitWorktreeInfo wt)
+    {
+        var sb = new StringBuilder("Linked git worktree\n");
+        sb.Append("Branch: ").Append(wt.Branch).Append('\n');
+        sb.Append(wt.MergeTargetBranch is { } t
+            ? (wt.IsMerged ? $"Merged into {t}" : $"Not merged into {t}")
+            : "Merge target unknown").Append('\n');
+        sb.Append(!wt.HasUpstream ? "No upstream configured"
+            : wt.IsPushed ? $"Pushed to {wt.Upstream}"
+            : $"{wt.AheadOfRemote} commit(s) not on {wt.Upstream}");
+        if (wt.HasUncommittedChanges)
+            sb.Append($"\n{wt.StagedCount + wt.ModifiedCount} uncommitted change(s)");
+        return sb.ToString();
+    }
+
+    // ── Worktree removal ──────────────────────────────────────────────────
+
+    private async void RemoveWorktreeButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_worktree is not { } wt) return;
+
+        // A merged worktree with no uncommitted work is safe to drop (its commits live on in the mainline),
+        // so it removes without a prompt. Anything unmerged or dirty confirms first.
+        if (!wt.CanRemoveWithoutConfirmation)
+        {
+            var confirmed = await _shell.ConfirmAsync("Remove worktree?", BuildRemovalPrompt(wt),
+                                                      "Remove", "Cancel");
+            if (!confirmed) return;
+        }
+
+        RemoveWorktreeButton.IsEnabled = false;
+        RemoveWorktreeButton.Content   = "···";
+
+        var result = await Task.Run(_worktreeService.Remove);
+
+        if (result.Success)
+        {
+            _shell.ShowNotification(result.Message);
+            // The current folder is gone — move the browser to the removed worktree's parent.
+            if (result.NavigateTo is { } parent)
+                _shell.OpenTab("FileSystem", new() { ["mode"] = "path", ["path"] = parent });
+        }
+        else
+        {
+            ShowActionResult(result.Message, false);
+            RemoveWorktreeButton.Content   = "Remove";
+            RemoveWorktreeButton.IsEnabled = true;
+        }
+    }
+
+    /// <summary>The confirmation body shown for an unmerged / dirty worktree — spells out exactly what is
+    /// lost so the user can make an informed call.</summary>
+    private static string BuildRemovalPrompt(GitWorktreeInfo wt)
+    {
+        var sb = new StringBuilder($"Permanently remove worktree '{wt.DisplayName}'?\n\n");
+
+        if (!wt.IsMerged)
+            sb.Append(wt.MergeTargetBranch is { } t
+                ? $"• Branch '{wt.Branch}' is not merged into {t}.\n"
+                : $"• Branch '{wt.Branch}' has no known merge target.\n");
+
+        if (!wt.HasUpstream)
+            sb.Append("• The branch has never been pushed — its commits exist only here.\n");
+        else if (!wt.IsPushed)
+            sb.Append($"• {wt.AheadOfRemote} commit(s) are not on the remote and will be lost.\n");
+
+        if (wt.HasUncommittedChanges)
+            sb.Append($"• {wt.StagedCount + wt.ModifiedCount} uncommitted change(s) will be lost.\n");
+
+        sb.Append($"\nThis deletes the folder");
+        sb.Append(wt.IsDetached ? "." : $" and the branch '{wt.Branch}'.");
+        sb.Append(" This cannot be undone.");
+        return sb.ToString();
     }
 
     // ── Branch switching ──────────────────────────────────────────────────
@@ -328,6 +446,17 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
 
             if (s.LastCommitHash is not null)
                 sb.Append($" Last commit {s.LastCommitHash} \"{s.LastCommitSubject}\".");
+
+            if (_worktreeService.GetInfo() is { } wt)
+            {
+                sb.Append(" This is a linked worktree");
+                sb.Append(wt.MergeTargetBranch is { } t
+                    ? (wt.IsMerged ? $", merged into {t}" : $", not yet merged into {t}")
+                    : "");
+                sb.Append(!wt.HasUpstream ? ", never pushed."
+                    : wt.IsPushed ? ", pushed to its remote."
+                    : $", {wt.AheadOfRemote} commit(s) unpushed.");
+            }
             return sb.ToString();
         }
         catch

@@ -627,6 +627,12 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
 
     private int _selectedCount;
 
+    // Folder/file totals kept in step with the footer labels by the sink below. GetContext reads these
+    // instead of enumerating the live Entries collection, which the background loader mutates on its own
+    // thread (see UpdateEntryCountLabel / GetContext).
+    private int _folderCount;
+    private int _fileCount;
+
     /// <summary>Recomputes folder/file counts from the current <see cref="Entries"/>.</summary>
     private void UpdateEntryCountLabel(int selectedCount = 0)
         => UpdateEntryCountLabel(Entries.Count(e => e.IsDirectory),
@@ -638,6 +644,8 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     private void UpdateEntryCountLabel(int folders, int files, int selectedCount)
     {
         _selectedCount = selectedCount;
+        _folderCount   = folders;
+        _fileCount     = files;
 
         HasFolders         = folders > 0;
         HasFiles           = files   > 0;
@@ -1099,8 +1107,12 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
         if (string.IsNullOrEmpty(CurrentPath))
             return "File browser — no location selected.";
 
-        var folders = Entries.Count(e => e.IsDirectory);
-        var files   = Entries.Count - folders;
+        // Use the tracked counts (kept current by the load pipeline) rather than enumerating the live
+        // Entries collection: the background loader adds to it on its own thread, so enumerating here
+        // races that writer (InvalidOperationException: Collection was modified). Int reads are atomic,
+        // and these already back the folder/file footer labels, so the numbers stay consistent with them.
+        var folders = _folderCount;
+        var files   = _fileCount;
         var sb = new StringBuilder(
             $"File browser at '{CurrentPath}' — {folders} folder{(folders == 1 ? "" : "s")}, " +
             $"{files} file{(files == 1 ? "" : "s")}");
