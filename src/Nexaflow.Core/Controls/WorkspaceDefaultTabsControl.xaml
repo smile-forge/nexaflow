@@ -1,0 +1,68 @@
+<UserControl x:Class="Nexaflow.Core.Controls.WorkspaceDefaultTabsControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>  <!-- heading + instructions -->
+            <RowDefinition Height="Auto"/>  <!-- empty state -->
+            <RowDefinition Height="*"/>     <!-- tab list -->
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Default tabs" FontSize="15" FontWeight="SemiBold"
+                       Foreground="{StaticResource TextBrush}" Margin="0,0,0,6"/>
+            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TextMutedBrush}"
+                       Text="These tabs open when a new window starts for this workspace. To define them, open the tabs and panes you want, then right-click the workspace icon and choose &#x201C;Use Tabset as Default&#x201D;. You can remove tabs here."/>
+        </StackPanel>
+
+        <TextBlock x:Name="EmptyText" Grid.Row="1" Margin="0,4,0,0"
+                   FontSize="12" FontStyle="Italic" Foreground="{StaticResource TextMutedBrush}"
+                   Visibility="Collapsed"
+                   Text="No startup tabs — this workspace opens with none."/>
+
+        <ScrollViewer Grid.Row="2" Margin="0,6,0,0" VerticalScrollBarVisibility="Auto">
+            <ItemsControl x:Name="RowsList">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Background="{StaticResource Surface2Brush}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                CornerRadius="6" Padding="10,7" Margin="0,0,0,6">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Display}" VerticalAlignment="Center"
+                                           FontSize="13" Foreground="{StaticResource TextBrush}"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <Button Grid.Column="1" Content="✕" Tag="{Binding}"
+                                        Click="Remove_Click" Cursor="Hand"
+                                        Width="26" Height="26" FontSize="12"
+                                        ToolTip="Remove this startup tab"
+                                        Background="Transparent" Foreground="{StaticResource TextMutedBrush}"
+                                        BorderThickness="0">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="root" Background="{TemplateBinding Background}"
+                                                    CornerRadius="5">
+                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                  VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="root" Property="Background"
+                                                            Value="{StaticResource DangerBrush}"/>
+                                                    <Setter Property="Foreground" Value="White"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

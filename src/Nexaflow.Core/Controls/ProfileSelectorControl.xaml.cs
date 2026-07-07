@@ -35,6 +35,11 @@ public partial class ProfileSelectorControl : UserControl
         DependencyProperty.Register(nameof(NewWorkspaceCommand), typeof(ICommand),
             typeof(ProfileSelectorControl), new PropertyMetadata(null));
 
+    /// <summary>Right-click action: save the current window's tabs/panes as this workspace's startup tabset.</summary>
+    public static readonly DependencyProperty UseTabsetAsDefaultCommandProperty =
+        DependencyProperty.Register(nameof(UseTabsetAsDefaultCommand), typeof(ICommand),
+            typeof(ProfileSelectorControl), new PropertyMetadata(null));
+
     public Profile? CurrentProfile
     {
         get => (Profile?)GetValue(CurrentProfileProperty);
@@ -71,6 +76,12 @@ public partial class ProfileSelectorControl : UserControl
         set => SetValue(NewWorkspaceCommandProperty, value);
     }
 
+    public ICommand? UseTabsetAsDefaultCommand
+    {
+        get => (ICommand?)GetValue(UseTabsetAsDefaultCommandProperty);
+        set => SetValue(UseTabsetAsDefaultCommandProperty, value);
+    }
+
     public ProfileSelectorControl()
     {
         InitializeComponent();
@@ -92,6 +103,7 @@ public partial class ProfileSelectorControl : UserControl
 
         var menu = new ContextMenu { PlacementTarget = (UIElement)sender };
         AddMenuItem(menu, "Configure workspace…", ConfigureCommand);
+        AddMenuItem(menu, "Use Tabset as Default", UseTabsetAsDefaultCommand);
         if (menu.Items.Count > 0 && NewWorkspaceCommand is not null)
             menu.Items.Add(new Separator());
         AddMenuItem(menu, "New workspace…", NewWorkspaceCommand);

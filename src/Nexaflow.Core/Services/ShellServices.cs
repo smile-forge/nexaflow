@@ -270,6 +270,53 @@ public sealed class ShellServices : IShellServices
         targetWindow.AddTab(tab);
     }
 
+    // ── Default-tab restore (debounced) ───────────────────────────────────
+    // Startup and reconfigure open the profile's saved tabset. Deferred a beat (Background priority) so the
+    // window frame paints before potentially heavy tabs load, and debounced so an open-then-reconfigure
+    // pair collapses to a single restore.
+    private DispatcherTimer? _defaultTabsTimer;
+    private IReadOnlyList<DefaultTabDescriptor>? _pendingDefaultTabs;
+
+    /// <summary>
+    /// Opens <paramref name="tabs"/> — the profile's saved startup layout — into the focused window, on a
+    /// short debounce so the frame renders first. Left-pane tabs (<see cref="DefaultTabDescriptor.Pane"/> 0)
+    /// open first, then right-pane tabs (1) which force the split; within each pane the active tab opens
+    /// last so it ends up selected. An empty list opens nothing (a valid "start blank" choice).
+    /// </summary>
+    public void OpenDefaultTabs(IReadOnlyList<DefaultTabDescriptor> tabs)
+    {
+        _pendingDefaultTabs = tabs;
+        _defaultTabsTimer ??= new DispatcherTimer(
+            TimeSpan.FromMilliseconds(120), DispatcherPriority.Background, OnDefaultTabsTick, _ui);
+        _defaultTabsTimer.Stop();
+        _defaultTabsTimer.Start();
+    }
+
+    private void OnDefaultTabsTick(object? sender, EventArgs e)
+    {
+        _defaultTabsTimer?.Stop();
+        var tabs = _pendingDefaultTabs;
+        _pendingDefaultTabs = null;
+        if (tabs is null) return;
+
+        // Open each pane's active tab last (AddTab makes the newest tab active) so selection is restored.
+        static IEnumerable<DefaultTabDescriptor> ActiveLast(IEnumerable<DefaultTabDescriptor> src)
+            => src.OrderBy(t => t.IsActive ? 1 : 0);
+
+        var left  = ActiveLast(tabs.Where(t => t.Pane <= 0)).ToList();
+        var right = ActiveLast(tabs.Where(t => t.Pane == 1)).ToList();
+
+        // A right-only layout collapses to a single pane rather than splitting off an empty left one.
+        if (left.Count == 0 && right.Count > 0) { left = right; right = []; }
+
+        foreach (var t in left)  OpenTab(t.PageKind, CloneParams(t.PageParams), inRightPane: false);
+        foreach (var t in right) OpenTab(t.PageKind, CloneParams(t.PageParams), inRightPane: true);
+    }
+
+    // Fresh dict per open so a page mutating its PageParams can't corrupt the shared saved descriptor.
+    private static Dictionary<string, string>? CloneParams(Dictionary<string, string>? p)
+        => p is null ? null : new Dictionary<string, string>(p);
+
     public void CloseTab(Page tab)
     {
         if (!_tabToWindow.TryGetValue(tab, out var host)) return;

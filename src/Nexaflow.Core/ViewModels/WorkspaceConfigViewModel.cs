@@ -18,7 +18,7 @@ namespace Nexaflow.Core.ViewModels;
 /// them to disk only; the live instances are untouched. If anything was applied, <see cref="Close"/>
 /// reloads the profile from disk and rebuilds the live workspace once (no per-apply popup).
 /// </summary>
-public partial class ManageAiViewModel : ObservableObject
+public partial class WorkspaceConfigViewModel : ObservableObject
 {
     public ObservableCollection<ConfigEditViewModel> Sections { get; } = [];
 
@@ -32,6 +32,10 @@ public partial class ManageAiViewModel : ObservableObject
 
     /// <summary>The identity (name/symbol/colour) page — persists itself, so it's special-cased in Apply.</summary>
     private ConfigEditViewModel? _identitySection;
+
+    /// <summary>The default-tabs page — edits the live profile's tabset and persists itself (SaveProfiles),
+    /// so like the identity page it's special-cased in Apply (no per-folder config file).</summary>
+    private ConfigEditViewModel? _defaultTabsSection;
 
     private readonly Profile _profile;
 
@@ -51,7 +55,7 @@ public partial class ManageAiViewModel : ObservableObject
 
     private readonly Nexaflow.Features.Common.IShellServices? _shell;
 
-    public ManageAiViewModel(Profile profile, Nexaflow.Features.Common.IShellServices? shell = null)
+    public WorkspaceConfigViewModel(Profile profile, Nexaflow.Features.Common.IShellServices? shell = null)
     {
         _profile = profile;
         _shell   = shell;
@@ -96,6 +100,11 @@ public partial class ManageAiViewModel : ObservableObject
         var identityControl = new WorkspaceIdentityControl { DataContext = _profile };
         _identitySection = ConfigEditViewModel.ForCustomControl(identityControl, "workspace-identity", "Workspace");
         Sections.Add(_identitySection);
+
+        // Startup tabset editor (delete-only; captured via the workspace icon's "Use Tabset as Default").
+        var defaultTabsControl = new WorkspaceDefaultTabsControl { DataContext = _profile };
+        _defaultTabsSection = ConfigEditViewModel.ForCustomControl(defaultTabsControl, "workspace-default-tabs", "Default tabs");
+        Sections.Add(_defaultTabsSection);
 
         Sections.Add(new ConfigEditViewModel(_aiConfig, _aiConfig.ConfigName, _aiConfig.FriendlyName));
         Sections.Add(new ConfigEditViewModel(_persona, _persona.ConfigName, _persona.FriendlyName));
@@ -185,6 +194,16 @@ public partial class ManageAiViewModel : ObservableObject
             Title = $"Configure Workspace — {_profile.Name}";
             if (!string.Equals(oldName, _profile.Name, StringComparison.Ordinal))
                 _dirty = true;
+            return;
+        }
+
+        // The default-tabs page also edits the live profile and persists itself (SaveProfiles). Its change
+        // only affects future window startups, so it needs neither a per-folder disk save nor a workspace
+        // rebuild — apply and return without touching _dirty.
+        if (ReferenceEquals(section, _defaultTabsSection))
+        {
+            section.ApplyToReal();
+            section.ResetChanges();
             return;
         }
 

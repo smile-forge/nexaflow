@@ -184,8 +184,8 @@ public sealed class WorkspaceManager
         //    and register the execution instances into the new AIService.
         AcquireAndRegister(ws);
 
-        // 5. Reopen the default tab so the windows aren't left empty.
-        ws.ShellServices?.OpenTab("FileSystem", new() { ["mode"] = "thispc" });
+        // 5. Reopen the profile's saved startup tabs so the windows aren't left empty.
+        ws.ShellServices?.OpenDefaultTabs(profile.DefaultTabs);
     }
 
     /// <summary>

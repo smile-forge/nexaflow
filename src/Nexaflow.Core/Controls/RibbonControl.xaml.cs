@@ -44,6 +44,10 @@ public partial class RibbonControl : UserControl
     public static readonly DependencyProperty NewWorkspaceCommandProperty =
         DependencyProperty.Register(nameof(NewWorkspaceCommand), typeof(ICommand), typeof(RibbonControl));
 
+    /// <summary>Right-click "Use Tabset as Default" — saves the current tabs/panes as the workspace's startup tabset.</summary>
+    public static readonly DependencyProperty UseTabsetAsDefaultCommandProperty =
+        DependencyProperty.Register(nameof(UseTabsetAsDefaultCommand), typeof(ICommand), typeof(RibbonControl));
+
     public static readonly DependencyProperty CanSwitchProfileProperty =
         DependencyProperty.Register(nameof(CanSwitchProfile), typeof(bool), typeof(RibbonControl),
             new PropertyMetadata(true));
@@ -94,6 +98,12 @@ public partial class RibbonControl : UserControl
     {
         get => (ICommand?)GetValue(NewWorkspaceCommandProperty);
         set => SetValue(NewWorkspaceCommandProperty, value);
+    }
+
+    public ICommand? UseTabsetAsDefaultCommand
+    {
+        get => (ICommand?)GetValue(UseTabsetAsDefaultCommandProperty);
+        set => SetValue(UseTabsetAsDefaultCommandProperty, value);
     }
 
     public bool CanSwitchProfile

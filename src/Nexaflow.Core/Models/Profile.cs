@@ -24,6 +24,21 @@ public sealed partial class Profile : ObservableObject
     [ObservableProperty] private string _color = "#5B8CFF";
     [ObservableProperty] private string _icon  = "⬡";
 
+    /// <summary>
+    /// The tabs (grouped by pane) opened when a fresh window starts for this profile. Always configured:
+    /// a new/never-configured profile is seeded with the default "This PC" file view, and legacy profiles
+    /// (no value in workcontexts.json) fall back to that same seed on load. Set explicitly via the
+    /// workspace's "Use Tabset as Default" action or edited in the Configure panel — an explicit empty
+    /// list is honoured (start with no tabs). Serialized inline in the profile list; the setter re-seeds a
+    /// stray null (e.g. a hand-edited config) back to the default so this is never unconfigured.
+    /// </summary>
+    private List<DefaultTabDescriptor> _defaultTabs = [DefaultTabDescriptor.ThisPc()];
+    public List<DefaultTabDescriptor> DefaultTabs
+    {
+        get => _defaultTabs;
+        set => _defaultTabs = value ?? [DefaultTabDescriptor.ThisPc()];
+    }
+
     /// <summary>UI-only, transient: set by the Workspaces editor on each row copy to mark whether the
     /// workspace is currently live (its Delete button is hidden — a running workspace can't be removed).
     /// Never serialised; false on the saved profiles.</summary>

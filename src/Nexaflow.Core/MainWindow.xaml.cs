@@ -42,7 +42,7 @@ public partial class MainWindow : Window
             _shellServices.RegisterWindow(_vm);
             _shellServices.SetFocused(_vm);
 
-            _shellServices.OpenTab("FileSystem", new() { ["mode"] = "thispc" });
+            _shellServices.OpenDefaultTabs(workspace.Profile.DefaultTabs);
 
             // Ribbon-independent deep-link: --openTab <PageKind> opens that page too (used by UI tests to
             // reach views that aren't on the default ribbon).
@@ -96,7 +96,7 @@ public partial class MainWindow : Window
             {
                 if (_vm.HasFeatureOverlay) { _vm.CloseOverlay(); return; }
                 _vm.OptionsOpen            = false;
-                _vm.ManageAiOpen           = false;
+                _vm.WorkspaceConfigOpen    = false;
                 _vm.NotificationsOpen      = false;
                 _vm.Ai.AiResponseOverlayOpen = false;
                 RibbonControl.ViewModel.IsEditOpen = false;

@@ -280,7 +280,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     // ── Unified overlay host ──────────────────────────────────────────────
     // One ContentControl in MainWindow renders whatever modal is active, picked by DataTemplate from the
     // content's type — so each overlay's visual tree is built lazily, only when shown, and torn down on
-    // close. The legacy per-overlay flags below (OptionsOpen/ManageAiOpen/ConfirmationVisible/PromptVisible)
+    // close. The legacy per-overlay flags below (OptionsOpen/WorkspaceConfigOpen/ConfirmationVisible/PromptVisible)
     // remain the source of truth (they drive profile-switch gating, airspace coverage and deep-links);
     // ActiveOverlay is *derived* from them, and the heavy panel VMs are built on demand here. Features push
     // their own overlays via IShellServices.ShowOverlay (rendered by a DataTemplate they contribute).
@@ -289,7 +289,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     public object? ActiveOverlay { get; private set; }
 
     private OptionsViewModel?  _optionsPanel;
-    private ManageAiViewModel? _manageAiPanel;
+    private WorkspaceConfigViewModel? _workspaceConfigPanel;
     private object? _confirmationOverlay;
     private object? _promptOverlay;
     private object? _featureOverlay;
@@ -302,7 +302,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         object? next =
             _featureOverlay
             ?? (OptionsOpen        ? _optionsPanel       : null)
-            ?? (ManageAiOpen       ? _manageAiPanel      : null)
+            ?? (WorkspaceConfigOpen       ? _workspaceConfigPanel      : null)
             ?? (ConfirmationVisible ? _confirmationOverlay : null)
             ?? (PromptVisible      ? _promptOverlay      : null);
 
@@ -324,7 +324,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     {
         if (_featureOverlay is not null) { _featureOverlay = null; SyncActiveOverlay(); return; }
         if (OptionsOpen)             OptionsOpen = false;
-        else if (ManageAiOpen)       ManageAiOpen = false;
+        else if (WorkspaceConfigOpen)       WorkspaceConfigOpen = false;
         else if (ConfirmationVisible) CancelShellConfirmation();
         else if (PromptVisible)      CancelShellPrompt();
     }
@@ -352,10 +352,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         return vm;
     }
 
-    private ManageAiViewModel BuildManageAiPanel()
+    private WorkspaceConfigViewModel BuildWorkspaceConfigPanel()
     {
         var profile = ConfigureTargetProfile ?? CurrentWorkspace.Profile;
-        var vm = new ManageAiViewModel(profile, _shellServices);
+        var vm = new WorkspaceConfigViewModel(profile, _shellServices);
         vm.ApplyError += ShowErrorToast;
         if (RequestedConfigureSection is { } section)
         {
@@ -516,7 +516,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     public ObservableCollection<Profile> Profiles => WorkspaceManager.Instance.Profiles;
 
     /// <summary>False while a modal overlay (Options / Manage-AI) is open — blocks profile switching.</summary>
-    public bool CanSwitchProfile => !OptionsOpen && !ManageAiOpen;
+    public bool CanSwitchProfile => !OptionsOpen && !WorkspaceConfigOpen;
 
     [RelayCommand]
     private void SelectProfile(Profile profile)
@@ -561,7 +561,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     // ── Manage AI / Configure overlay ─────────────────────────────────────
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSwitchProfile))]
-    private bool _manageAiOpen;
+    private bool _workspaceConfigOpen;
 
     /// <summary>
     /// The profile the Configure (Manage-AI) overlay targets — set by <see cref="ConfigureProfile"/>
@@ -587,19 +587,19 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     /// </summary>
     public bool ConfigureReturnToOptions { get; set; }
 
-    partial void OnManageAiOpenChanged(bool value)
+    partial void OnWorkspaceConfigOpenChanged(bool value)
     {
         if (value)
         {
             // ConfigureTargetProfile / RequestedConfigureSection were set just before this flipped true.
-            _manageAiPanel = BuildManageAiPanel();
+            _workspaceConfigPanel = BuildWorkspaceConfigPanel();
         }
         else
         {
             // Closing: apply pending disk changes to the running workspace. If nothing changed and the
             // panel was opened from the Options → Workspaces tab, bounce back to Options on that tab.
-            bool changed = _manageAiPanel?.Close() ?? false;
-            _manageAiPanel         = null;
+            bool changed = _workspaceConfigPanel?.Close() ?? false;
+            _workspaceConfigPanel         = null;
             ConfigureTargetProfile = null;
 
             bool returnToOptions = ConfigureReturnToOptions;
@@ -658,12 +658,12 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     /// <summary>True when any window-modal overlay currently covers the page content area.</summary>
     private bool AnyOverlayCoversPage =>
-        OptionsOpen || ManageAiOpen || ConfirmationVisible || PromptVisible || NotificationsOpen
+        OptionsOpen || WorkspaceConfigOpen || ConfirmationVisible || PromptVisible || NotificationsOpen
         || Ai.AiResponseOverlayOpen || _ribbon?.IsEditOpen == true;
 
     private void OnShellPropertyChangedForOverlay(object? _, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(OptionsOpen) or nameof(ManageAiOpen) or nameof(ConfirmationVisible)
+        if (e.PropertyName is nameof(OptionsOpen) or nameof(WorkspaceConfigOpen) or nameof(ConfirmationVisible)
             or nameof(PromptVisible) or nameof(NotificationsOpen))
             RefreshOverlayCoverage();
     }
@@ -1045,7 +1045,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     // ── Configure (per-workspace) ─────────────────────────────────────────
 
     [RelayCommand]
-    private void CloseManageAi() => ManageAiOpen = false;
+    private void CloseWorkspaceConfig() => WorkspaceConfigOpen = false;
 
     /// <summary>Opens the per-workspace Configure panel for a specific profile (may be non-active).</summary>
     [RelayCommand]
@@ -1053,7 +1053,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     {
         if (profile is null) return;
         ConfigureTargetProfile = profile;
-        ManageAiOpen = true;
+        WorkspaceConfigOpen = true;
     }
 
     /// <summary>Right-click entry point: configure the currently active workspace.</summary>
@@ -1075,6 +1075,45 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         mgr.SaveProfiles();        // persist the new profile in the dropdown list immediately
 
         ConfigureProfile(clone);   // open Configure on its identity page
+    }
+
+    /// <summary>
+    /// Right-click entry point: capture this window's current tabs — grouped by pane, so a left/right split
+    /// is reproduced — as the active workspace's startup tabset, and persist it. Tabs that can't be
+    /// recreated (no PageKind) are skipped; capturing nothing is valid (the workspace then starts blank).
+    /// Order within a pane isn't guaranteed on restore.
+    /// </summary>
+    [RelayCommand]
+    private void UseTabsetAsDefault()
+    {
+        if (CurrentWorkspace?.Profile is not { } profile) return;
+
+        var tabs = new List<DefaultTabDescriptor>();
+        int paneIndex = 0;
+        foreach (var pane in LeafPanes)
+        {
+            foreach (var page in pane.Pages)
+            {
+                if (string.IsNullOrEmpty(page.PageKind)) continue;   // unrestorable (e.g. placeholder) — skip
+                tabs.Add(new DefaultTabDescriptor
+                {
+                    PageKind   = page.PageKind!,
+                    PageParams = page.PageParams is null ? null : new Dictionary<string, string>(page.PageParams),
+                    Pane       = paneIndex,
+                    Title      = page.Title,
+                    IsActive   = ReferenceEquals(page, pane.ActivePage),
+                });
+            }
+            paneIndex++;
+        }
+
+        profile.DefaultTabs = tabs;
+        WorkspaceManager.Instance.SaveProfiles();
+
+        ShowInfoToast("Default tabs set",
+            tabs.Count == 0
+                ? "This workspace will start with no tabs open."
+                : $"Saved {tabs.Count} tab{(tabs.Count == 1 ? "" : "s")} as this workspace's startup layout.");
     }
 
     /// <summary>
@@ -1120,13 +1159,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
             // A different live workspace: tear down its windows (last close disposes it), then delete.
             liveWs.ShellServices?.CloseAllWindows();
             mgr.DeleteProfile(profile, force: true);
-            ManageAiOpen = false;
+            WorkspaceConfigOpen = false;
             return;
         }
 
         // An inactive profile: straightforward delete; close the Configure overlay.
         mgr.DeleteProfile(profile);
-        ManageAiOpen = false;
+        WorkspaceConfigOpen = false;
     }
 
     // ── AI ────────────────────────────────────────────────────────────────

@@ -168,10 +168,10 @@
             </Grid>
         </DataTemplate>
 
-        <DataTemplate DataType="{x:Type vm:ManageAiViewModel}">
+        <DataTemplate DataType="{x:Type vm:WorkspaceConfigViewModel}">
             <Border HorizontalAlignment="Center" VerticalAlignment="Center"
                     Width="960" Height="600" Style="{StaticResource PopupBorder}">
-                <ctrl:ManageAiPanel/>
+                <ctrl:WorkspaceConfigPanel/>
             </Border>
         </DataTemplate>
 
@@ -337,6 +337,7 @@
                                     SelectProfileCommand="{Binding SelectProfileCommand}"
                                     ConfigureProfileCommand="{Binding ConfigureCurrentWorkspaceCommand}"
                                     NewWorkspaceCommand="{Binding NewWorkspaceCommand}"
+                                    UseTabsetAsDefaultCommand="{Binding UseTabsetAsDefaultCommand}"
                                     OpenPageCommand="{Binding OpenRibbonItemCommand}"
                                     OpenPageInNewWindowCommand="{Binding OpenRibbonItemInNewWindowCommand}"
                                     Shell="{Binding ShellServices}"/>
