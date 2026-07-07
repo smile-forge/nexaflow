@@ -114,7 +114,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
         SuggestedModels.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasModelSuggestions));
 
         // Provider plugins are loaded and this context's provider set is (re)built by
-        // ManageAiViewModel before the grid is shown; we read it via _config.Providers.
+        // WorkspaceConfigViewModel before the grid is shown; we read it via _config.Providers.
         RebuildAvailableProviders();
 
         // Build column list: None first, then saved pairs
@@ -320,7 +320,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
         foreach (var row in Rows)
             _config.Assignments[row.Ability.ToString()] = row.SelectedColumnId;
 
-        // Note: the AIService reload is handled by ManageAiViewModel.Apply() after this control's
+        // Note: the AIService reload is handled by WorkspaceConfigViewModel.Apply() after this control's
         // ICustomConfigApply.Apply() has written back to the config object.
         RecheckChanges(); // resets HasChanges since _config now matches current state
     }

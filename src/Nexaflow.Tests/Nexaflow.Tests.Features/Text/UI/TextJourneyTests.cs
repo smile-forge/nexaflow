@@ -31,11 +31,12 @@ public class TextJourneyTests : UiJourneyTestBase
         CheckInvoke("Line-numbers toggle", "Text_LineNumbers");
         CheckInvoke("Word-wrap toggle",    "Text_WordWrap");
 
-        // Clipboard buttons — delegate to AvalonEdit commands against a read-only editor;
-        // with no selection they are safe no-ops (no file mutation).
-        CheckInvoke("Cut",   "Text_Cut");
-        CheckInvoke("Copy",  "Text_Copy");
-        CheckInvoke("Paste", "Text_Paste");
+        // Clipboard buttons in the read-only viewer: only Copy is shown (Cut/Paste are edit-only, hidden
+        // via IsEditing). Copy binds to ApplicationCommands.Copy, which is disabled without a selection, so
+        // assert it's present rather than invoking it — and verify the edit-only buttons are correctly hidden.
+        CheckPresent("Copy button", "Text_Copy");
+        Check("Cut/Paste hidden in the read-only viewer",
+              () => WaitForId("Text_Cut", 1) is null && WaitForId("Text_Paste", 1) is null);
 
         // Monitoring toggle — safe to flip.
         CheckInvoke("Monitor toggle", "Text_Monitor");

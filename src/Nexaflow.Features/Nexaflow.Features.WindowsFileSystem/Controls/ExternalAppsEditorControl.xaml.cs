@@ -14,7 +14,7 @@ using System.Windows.Controls;
 
 namespace Nexaflow.Features.WindowsFileSystem.Controls;
 
-public partial class ExternalAppsEditorControl : UserControl, ICustomConfigApply, IConfigChangeTracker, IConfigValidation
+public partial class ExternalAppsEditorControl : UserControl, ICustomConfigApply, IConfigChangeTracker, IConfigValidation, IShellAware
 {
     // ── Dependency properties ────────────────────────────────────────────────
 
@@ -223,6 +223,7 @@ public partial class ExternalAppsEditorControl : UserControl, ICustomConfigApply
     private readonly ObservableCollection<AppRow> _rows = [];
     private bool _suppressDirty;
     private bool _hasChanges;
+    private IShellServices? _shell;
 
     public bool HasChanges => _hasChanges;
     public event EventHandler? HasChangesChanged;
@@ -235,6 +236,9 @@ public partial class ExternalAppsEditorControl : UserControl, ICustomConfigApply
         Loaded += OnLoaded;
         _rows.CollectionChanged += OnRowsChanged;
     }
+
+    // The Options / Configure host injects the shell so the registry toggle can raise a themed confirmation.
+    public void AttachShell(IShellServices shell) => _shell = shell;
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
@@ -369,24 +373,21 @@ public partial class ExternalAppsEditorControl : UserControl, ICustomConfigApply
         // registry handlers are off pops the dialog on load. Only react to a genuine user toggle.
         if (_suppressDirty) return;
 
-        // Turning the toggle off just stops the live "Open with"/New-menu entries — fully reversible.
-        // Offer to keep the current handlers by importing them as editable External Apps.
-        var result = MessageBox.Show(
-            "Turn off Windows-registered handlers?\n\n" +
-            "The live \"Open with\" buttons and New-menu entries will stop appearing (re-enable any time).\n\n" +
-            "Import your current Windows \"Open with\" apps into the External Apps list so you keep them " +
-            "as buttons? You can edit or remove them afterwards.",
-            "Windows-registered handlers",
-            MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
-
-        if (result == MessageBoxResult.Cancel)
+        // Turning the toggle off just stops the live "Open with"/New-menu entries — fully reversible, so
+        // there's no cancel-and-revert path; the only choice is whether to keep the current handlers by
+        // importing them as editable External Apps. Native MessageBox is banned → themed confirmation
+        // with "Import" / "Do not Import" captions. Either choice turns the handlers off.
+        if (_shell is not null)
         {
-            UseRegistryMapping = true;   // re-check; the DP callback restores cfg.UseRegistryMapping
-            return;
+            bool import = await _shell.ConfirmAsync(
+                "Turn off Windows-registered handlers?",
+                "The live \"Open with\" buttons and New-menu entries will stop appearing (re-enable any time).\n\n" +
+                "Keep your current Windows \"Open with\" apps by importing them into the External Apps list as " +
+                "editable buttons first?",
+                confirmLabel: "Import", cancelLabel: "Do not Import");
+            if (import)
+                await ImportRegistryHandlersAsync();
         }
-
-        if (result == MessageBoxResult.Yes)
-            await ImportRegistryHandlersAsync();
 
         if (DataContext is ExternalAppsConfig cfg) cfg.UseRegistryMapping = false;
         MarkDirty();

@@ -6,7 +6,7 @@ using Nexaflow.Features.Common.ClientTools;
 namespace Nexaflow.Core.Services.ShellAi;
 
 /// <summary>Lists the user's ribbon buttons — label, the page each opens, and any params.</summary>
-public sealed class GetRibbonButtonsTool(Workspace workspace) : IClientTool
+public sealed class GetRibbonButtonsTool(WorkspaceRuntime workspace) : IClientTool
 {
     public string Name => "get_ribbon_buttons";
     public string Description => "List the user's ribbon buttons: each button's label, the page it opens, and its parameters.";
@@ -16,8 +16,8 @@ public sealed class GetRibbonButtonsTool(Workspace workspace) : IClientTool
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        workspace.Profile.EnsureSharedServicesLoaded();
-        var items = workspace.Profile.RibbonService?.Load() ?? RibbonLayoutService.LoadDefaults();
+        workspace.Workspace.EnsureSharedServicesLoaded();
+        var items = workspace.Workspace.RibbonService?.Load() ?? RibbonLayoutService.LoadDefaults();
 
         var sb    = new StringBuilder("Ribbon buttons:\n");
         var count = 0;

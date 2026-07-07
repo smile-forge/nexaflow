@@ -6,51 +6,56 @@ using System.Windows.Input;
 
 namespace Nexaflow.Core.Controls;
 
-public partial class ProfileSelectorControl : UserControl
+public partial class WorkspaceSelectorControl : UserControl
 {
-    public static readonly DependencyProperty CurrentProfileProperty =
-        DependencyProperty.Register(nameof(CurrentProfile), typeof(Profile),
-            typeof(ProfileSelectorControl), new PropertyMetadata(null));
+    public static readonly DependencyProperty CurrentWorkspaceProperty =
+        DependencyProperty.Register(nameof(CurrentWorkspace), typeof(Workspace),
+            typeof(WorkspaceSelectorControl), new PropertyMetadata(null));
 
-    public static readonly DependencyProperty ProfilesProperty =
-        DependencyProperty.Register(nameof(Profiles), typeof(ObservableCollection<Profile>),
-            typeof(ProfileSelectorControl), new PropertyMetadata(null));
+    public static readonly DependencyProperty WorkspacesProperty =
+        DependencyProperty.Register(nameof(Workspaces), typeof(ObservableCollection<Workspace>),
+            typeof(WorkspaceSelectorControl), new PropertyMetadata(null));
 
-    public static readonly DependencyProperty SelectProfileCommandProperty =
-        DependencyProperty.Register(nameof(SelectProfileCommand), typeof(ICommand),
-            typeof(ProfileSelectorControl), new PropertyMetadata(null));
+    public static readonly DependencyProperty SelectWorkspaceCommandProperty =
+        DependencyProperty.Register(nameof(SelectWorkspaceCommand), typeof(ICommand),
+            typeof(WorkspaceSelectorControl), new PropertyMetadata(null));
 
     /// <summary>True when switching is allowed (no modal overlay open).</summary>
     public static readonly DependencyProperty CanSwitchProperty =
         DependencyProperty.Register(nameof(CanSwitch), typeof(bool),
-            typeof(ProfileSelectorControl), new PropertyMetadata(true));
+            typeof(WorkspaceSelectorControl), new PropertyMetadata(true));
 
     /// <summary>Right-click action: configure the current workspace (no parameter).</summary>
     public static readonly DependencyProperty ConfigureCommandProperty =
         DependencyProperty.Register(nameof(ConfigureCommand), typeof(ICommand),
-            typeof(ProfileSelectorControl), new PropertyMetadata(null));
+            typeof(WorkspaceSelectorControl), new PropertyMetadata(null));
 
     /// <summary>Right-click action: clone the current workspace into a new one and configure it.</summary>
     public static readonly DependencyProperty NewWorkspaceCommandProperty =
         DependencyProperty.Register(nameof(NewWorkspaceCommand), typeof(ICommand),
-            typeof(ProfileSelectorControl), new PropertyMetadata(null));
+            typeof(WorkspaceSelectorControl), new PropertyMetadata(null));
 
-    public Profile? CurrentProfile
+    /// <summary>Right-click action: save the current window's tabs/panes as this workspace's startup tabset.</summary>
+    public static readonly DependencyProperty UseTabsetAsDefaultCommandProperty =
+        DependencyProperty.Register(nameof(UseTabsetAsDefaultCommand), typeof(ICommand),
+            typeof(WorkspaceSelectorControl), new PropertyMetadata(null));
+
+    public Workspace? CurrentWorkspace
     {
-        get => (Profile?)GetValue(CurrentProfileProperty);
-        set => SetValue(CurrentProfileProperty, value);
+        get => (Workspace?)GetValue(CurrentWorkspaceProperty);
+        set => SetValue(CurrentWorkspaceProperty, value);
     }
 
-    public ObservableCollection<Profile>? Profiles
+    public ObservableCollection<Workspace>? Workspaces
     {
-        get => (ObservableCollection<Profile>?)GetValue(ProfilesProperty);
-        set => SetValue(ProfilesProperty, value);
+        get => (ObservableCollection<Workspace>?)GetValue(WorkspacesProperty);
+        set => SetValue(WorkspacesProperty, value);
     }
 
-    public ICommand? SelectProfileCommand
+    public ICommand? SelectWorkspaceCommand
     {
-        get => (ICommand?)GetValue(SelectProfileCommandProperty);
-        set => SetValue(SelectProfileCommandProperty, value);
+        get => (ICommand?)GetValue(SelectWorkspaceCommandProperty);
+        set => SetValue(SelectWorkspaceCommandProperty, value);
     }
 
     public bool CanSwitch
@@ -71,7 +76,13 @@ public partial class ProfileSelectorControl : UserControl
         set => SetValue(NewWorkspaceCommandProperty, value);
     }
 
-    public ProfileSelectorControl()
+    public ICommand? UseTabsetAsDefaultCommand
+    {
+        get => (ICommand?)GetValue(UseTabsetAsDefaultCommandProperty);
+        set => SetValue(UseTabsetAsDefaultCommandProperty, value);
+    }
+
+    public WorkspaceSelectorControl()
     {
         InitializeComponent();
     }
@@ -92,6 +103,7 @@ public partial class ProfileSelectorControl : UserControl
 
         var menu = new ContextMenu { PlacementTarget = (UIElement)sender };
         AddMenuItem(menu, "Configure workspace…", ConfigureCommand);
+        AddMenuItem(menu, "Use Tabset as Default", UseTabsetAsDefaultCommand);
         if (menu.Items.Count > 0 && NewWorkspaceCommand is not null)
             menu.Items.Add(new Separator());
         AddMenuItem(menu, "New workspace…", NewWorkspaceCommand);
@@ -114,9 +126,9 @@ public partial class ProfileSelectorControl : UserControl
 
     private void OnContextItemClick(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: Profile profile })
+        if (sender is Button { Tag: Workspace workspace })
         {
-            SelectProfileCommand?.Execute(profile);
+            SelectWorkspaceCommand?.Execute(workspace);
             ContextPopup.IsOpen = false;
         }
     }

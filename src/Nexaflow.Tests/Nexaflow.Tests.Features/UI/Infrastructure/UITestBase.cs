@@ -76,7 +76,19 @@ public abstract class UITestBase
     {
         try { App?.Kill(); } catch { /* already exited */ }
         Automation?.Dispose();
+
+        // The app writes any unhandled UI-thread exception to crash.log in its (isolated) config dir; the
+        // handler marks it handled so the app stays up, making the log the only trail. Opening/clicking
+        // around the app must not trigger one — surface it as a test failure rather than a silent log.
+        string? crash = null;
+        var crashLog = Path.Combine(_configDir, "crash.log");
+        try { if (File.Exists(crashLog)) crash = File.ReadAllText(crashLog); } catch { }
+
         try { if (Directory.Exists(_configDir)) Directory.Delete(_configDir, recursive: true); } catch { }
+
+        if (!string.IsNullOrWhiteSpace(crash))
+            Assert.Fail("The app logged an unhandled exception during this UI test — opening/clicking " +
+                        $"triggered a crash:{Environment.NewLine}{crash}");
     }
 
     /// <summary>

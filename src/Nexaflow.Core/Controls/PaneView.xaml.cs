@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
 
@@ -186,6 +188,22 @@ public partial class PaneView : UserControl
         // split) before adopting, so re-parenting never throws.
         DetachFromParent(content);
         ContentHost.Content = content;
+        if (content is not null) AnimateContentIn();
+    }
+
+    // Subtle settle-in on the page host so a freshly-shown page eases in rather than popping — smooths both
+    // the debounced startup load and ordinary tab switches. Opacity + transform are GPU-composited, so this
+    // stays cheap even for a heavy feature page.
+    private void AnimateContentIn()
+    {
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        ContentHost.BeginAnimation(OpacityProperty,
+            new DoubleAnimation(0.0, 1.0, TimeSpan.FromMilliseconds(160)) { EasingFunction = ease });
+
+        var slide = new TranslateTransform();
+        ContentHost.RenderTransform = slide;
+        slide.BeginAnimation(TranslateTransform.YProperty,
+            new DoubleAnimation(6.0, 0.0, TimeSpan.FromMilliseconds(190)) { EasingFunction = ease });
     }
 
     private static void DetachFromParent(UIElement? element)

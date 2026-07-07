@@ -21,20 +21,20 @@ namespace Nexaflow.Core.Services;
 
 /// <summary>
 /// Per-Workspace shell service that owns that workspace's tab + window registry.
-/// One instance per <see cref="Workspace"/> (created by <see cref="WorkspaceManager"/>
+/// One instance per <see cref="WorkspaceRuntime"/> (created by <see cref="WorkspaceManager"/>
 /// during bootstrap, before any window); each <see cref="MainWindow"/> showing this
 /// workspace registers its <see cref="IWindowHost"/> on activation and unregisters on close.
 /// </summary>
 public sealed class ShellServices : IShellServices
 {
-    private readonly Workspace _workspace;
+    private readonly WorkspaceRuntime _workspace;
     private readonly IBackgroundActivityManager? _activity;
     private readonly Elevation.ElevatedBridgeLauncher _elevation = new();
 
     // This workspace's UI dispatcher, captured on the thread that bootstraps it (the UI thread).
     private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
 
-    public ShellServices(Workspace workspace, IBackgroundActivityManager? activity = null)
+    public ShellServices(WorkspaceRuntime workspace, IBackgroundActivityManager? activity = null)
     {
         _workspace = workspace;
         _activity  = activity;
@@ -105,6 +105,11 @@ public sealed class ShellServices : IShellServices
 
     internal void UnregisterWindow(IWindowHost host)
     {
+        // The workspace's last window closing on a genuine user close (programmatic teardown goes through
+        // CloseAllWindows, which suppresses this): record the visible tabs as the restorable last session.
+        if (!_suppressSessionCapture && _windows.Count == 1 && ReferenceEquals(_windows[0], host))
+            CaptureLastSession(host);
+
         CloseWindowTabs(host);
 
         _windows.Remove(host);
@@ -270,6 +275,129 @@ public sealed class ShellServices : IShellServices
         targetWindow.AddTab(tab);
     }
 
+    // ── Default-tab restore (debounced) ───────────────────────────────────
+    // Startup and reconfigure open the workspace's saved tabset. Deferred a beat at Background priority — a
+    // small interval that (being below Render) still lets the window frame paint before the tabs load, so
+    // it stays snappy — and debounced so an open-then-reconfigure pair collapses to a single restore. The
+    // tabs + page content ease in (PaneView / TabStrip) so this reads as a settle rather than a hard pop.
+    private DispatcherTimer? _defaultTabsTimer;
+    private IReadOnlyList<DefaultTabDescriptor>? _pendingDefaultTabs;
+
+    /// <summary>
+    /// Opens <paramref name="tabs"/> — the workspace's saved startup layout — into the focused window, on a
+    /// short debounce so the frame renders first. Left-pane tabs (<see cref="DefaultTabDescriptor.Pane"/> 0)
+    /// open first, then right-pane tabs (1) which force the split; within each pane the active tab opens
+    /// last so it ends up selected. An empty list opens nothing (a valid "start blank" choice).
+    /// </summary>
+    public void OpenDefaultTabs(IReadOnlyList<DefaultTabDescriptor> tabs)
+    {
+        _pendingDefaultTabs = tabs;
+        _defaultTabsTimer ??= new DispatcherTimer(
+            TimeSpan.FromMilliseconds(40), DispatcherPriority.Background, OnDefaultTabsTick, _ui);
+        _defaultTabsTimer.Stop();
+        _defaultTabsTimer.Start();
+    }
+
+    /// <summary>Synchronously restores a captured pane layout (see <see cref="IWindowHost.CaptureTabLayout"/>)
+    /// into the focused window. Used by a workspace restart, which creates + places the replacement window
+    /// itself and needs the tabs present immediately (no debounce/flash).</summary>
+    public void RestoreTabLayout(IReadOnlyList<DefaultTabDescriptor> tabs) => OpenLayout(tabs);
+
+    private void OnDefaultTabsTick(object? sender, EventArgs e)
+    {
+        _defaultTabsTimer?.Stop();
+        var tabs = _pendingDefaultTabs;
+        _pendingDefaultTabs = null;
+        if (tabs is not null) OpenLayout(tabs);
+        OfferSessionRestore();   // default tabs are up — offer to swap in the recorded last session
+    }
+
+    private void OpenLayout(IReadOnlyList<DefaultTabDescriptor> tabs)
+    {
+        // Open each pane's active tab last (AddTab makes the newest tab active) so selection is restored.
+        static IEnumerable<DefaultTabDescriptor> ActiveLast(IEnumerable<DefaultTabDescriptor> src)
+            => src.OrderBy(t => t.IsActive ? 1 : 0);
+
+        var left  = ActiveLast(tabs.Where(t => t.Pane <= 0)).ToList();
+        var right = ActiveLast(tabs.Where(t => t.Pane == 1)).ToList();
+
+        // A right-only layout collapses to a single pane rather than splitting off an empty left one.
+        if (left.Count == 0 && right.Count > 0) { left = right; right = []; }
+
+        foreach (var t in left)  OpenTab(t.PageKind, CloneParams(t.PageParams), inRightPane: false);
+        foreach (var t in right) OpenTab(t.PageKind, CloneParams(t.PageParams), inRightPane: true);
+    }
+
+    // Fresh dict per open so a page mutating its PageParams can't corrupt the shared saved descriptor.
+    private static Dictionary<string, string>? CloneParams(Dictionary<string, string>? p)
+        => p is null ? null : new Dictionary<string, string>(p);
+
+    // ── Last-session capture + restore offer ──────────────────────────────
+    // On the last window's genuine close (see UnregisterWindow) — or on a switch away (WorkspaceManager) —
+    // the visible tabs are recorded as the workspace's restorable last session when they differ from its
+    // default; on the next open a toast offers to swap them in. Programmatic teardown suppresses the capture.
+    private bool _suppressSessionCapture;
+
+    /// <summary>Records the focused (or given) window's tab layout on this workspace as its restorable last
+    /// session — or clears it when the layout matches the default (there's nothing worth restoring).</summary>
+    internal void CaptureLastSession(IWindowHost? host = null)
+    {
+        var target = host ?? FocusedWindow;
+        if (target is null) return;
+
+        var layout = target.CaptureTabLayout();
+        var ws = _workspace.Workspace;
+        ws.LastSessionTabs = layout.Count > 0 && !TabsetsEquivalent(layout, ws.DefaultTabs)
+            ? layout.ToList()
+            : null;
+        WorkspaceManager.Instance.SaveWorkspaces();
+    }
+
+    /// <summary>Once the default tabs are up, offers a one-click restore of the recorded last session.</summary>
+    private void OfferSessionRestore()
+    {
+        if (_workspace.Workspace.LastSessionTabs is not { Count: > 0 } session) return;
+
+        NotificationItem? note = null;
+        var restore = new RelayCommand(() =>
+        {
+            RestoreSession(session);
+            if (note is not null) MessageCenter.Instance.Remove(note);   // clear the toast + its inbox entry
+        });
+        note = new NotificationItem
+        {
+            Title         = "Restore last session?",
+            Body          = "Reopen the tabs you had open when you last closed this workspace.",
+            Severity      = MessageSeverity.Info,
+            ToastDuration = TimeSpan.FromSeconds(12),
+            Actions       = [new MessageAction("Restore", restore, IsPrimary: true)],
+        };
+        MessageCenter.Instance.Post(note);
+    }
+
+    private void RestoreSession(IReadOnlyList<DefaultTabDescriptor> session)
+    {
+        CloseAllTabs();
+        RestoreTabLayout(session);
+        _workspace.Workspace.LastSessionTabs = null;   // consumed — don't offer it again
+        WorkspaceManager.Instance.SaveWorkspaces();
+    }
+
+    /// <summary>Order-independent (per pane) equality of two tabsets by pane + kind + params (ignores the
+    /// display Title and which tab was active — a different active tab isn't a different session).</summary>
+    private static bool TabsetsEquivalent(IReadOnlyList<DefaultTabDescriptor> a, IReadOnlyList<DefaultTabDescriptor> b)
+    {
+        if (a.Count != b.Count) return false;
+        static string Key(DefaultTabDescriptor d)
+        {
+            var p = d.PageParams is null || d.PageParams.Count == 0
+                ? ""
+                : string.Join(";", d.PageParams.OrderBy(k => k.Key).Select(k => $"{k.Key}={k.Value}"));
+            return $"{d.Pane}{d.PageKind}{p}";
+        }
+        return a.Select(Key).OrderBy(s => s).SequenceEqual(b.Select(Key).OrderBy(s => s));
+    }
+
     public void CloseTab(Page tab)
     {
         if (!_tabToWindow.TryGetValue(tab, out var host)) return;
@@ -303,7 +431,7 @@ public sealed class ShellServices : IShellServices
 
     /// <summary>
     /// Closes every tab across all of this workspace's windows (windows stay open). Used when the
-    /// workspace is reconfigured for a new profile — open pages captured the now-replaced services.
+    /// workspace is reconfigured for a new workspace — open pages captured the now-replaced services.
     /// </summary>
     internal void CloseAllTabs()
     {
@@ -312,9 +440,9 @@ public sealed class ShellServices : IShellServices
     }
 
     /// <summary>
-    /// Closes every window in this workspace except <paramref name="keep"/>. Used on a profile
+    /// Closes every window in this workspace except <paramref name="keep"/>. Used on a workspace
     /// switch so the change collapses to the acting window instead of leaving the others empty and
-    /// showing the old profile.
+    /// showing the old workspace.
     /// </summary>
     internal void CloseOtherWindows(IWindowHost keep)
     {
@@ -330,6 +458,7 @@ public sealed class ShellServices : IShellServices
     /// </summary>
     internal void CloseAllWindows()
     {
+        _suppressSessionCapture = true;   // rebuild/delete teardown — not a user closing the workspace
         foreach (var host in _windows.ToList())
             host.Window.Close();
         DisposeAllWatches();
@@ -614,10 +743,14 @@ public sealed class ShellServices : IShellServices
             ?.ShowConfirmation(title, message, onConfirm, onCancel);
 
     public Task<bool> ConfirmAsync(string title, string message, CancellationToken ct = default)
+        => ConfirmAsync(title, message, confirmLabel: null, cancelLabel: null, ct);
+
+    public Task<bool> ConfirmAsync(string title, string message, string? confirmLabel, string? cancelLabel,
+                                   CancellationToken ct = default)
     {
         var dispatcher = _ui;
         if (dispatcher is not null && !dispatcher.CheckAccess())
-            return dispatcher.Invoke(() => ConfirmAsync(title, message, ct));
+            return dispatcher.Invoke(() => ConfirmAsync(title, message, confirmLabel, cancelLabel, ct));
 
         var host = _focused ?? _windows.FirstOrDefault();
         if (host is null) return Task.FromResult(false);
@@ -626,7 +759,8 @@ public sealed class ShellServices : IShellServices
         ct.Register(() => tcs.TrySetResult(false));
         host.ShowConfirmation(title, message,
             onConfirm: () => tcs.TrySetResult(true),
-            onCancel:  () => tcs.TrySetResult(false));
+            onCancel:  () => tcs.TrySetResult(false),
+            confirmLabel: confirmLabel, cancelLabel: cancelLabel);
         return tcs.Task;
     }
 
@@ -722,11 +856,11 @@ public sealed class ShellServices : IShellServices
 
     void IShellServices.SaveFeatureConfig(IFeatureConfig config)
     {
-        // Workspace-scoped configs are persisted per-profile under Contexts\<name>\ (the same place the
+        // Workspace-scoped configs are persisted per-workspace under Contexts\<name>\ (the same place the
         // Configure panel loads them from); global feature configs go in the shared config root. Routing
         // a scoped config through the global Save would write where nothing reads it back.
         if (FeatureManager.Instance.IsWorkspaceScopedConfig(config.GetType()))
-            ConfigManager.Instance.SaveTo(_workspace.Profile.Dir, config, config.ConfigName);
+            ConfigManager.Instance.SaveTo(_workspace.Workspace.Dir, config, config.ConfigName);
         else
             ConfigManager.Instance.Save(config, config.ConfigName);
     }
@@ -743,9 +877,9 @@ public sealed class ShellServices : IShellServices
     void IShellServices.OpenWorkspaceConfig(string configName)
         => _ui.Invoke(() =>
         {
-            // Deep-link the Configure overlay to this workspace's profile, on the named section.
+            // Deep-link the Configure overlay to this workspace, on the named section.
             if ((_focused ?? _windows.FirstOrDefault()) is ShellViewModel vm)
-                vm.OpenConfigureAt(_workspace.Profile, configName);
+                vm.OpenConfigureAt(_workspace.Workspace, configName);
         });
 
     void IShellServices.ShowOverlay(object overlayViewModel)

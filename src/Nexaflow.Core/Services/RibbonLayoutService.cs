@@ -7,8 +7,8 @@ using Nexaflow.Core.Models;
 namespace Nexaflow.Core.Services;
 
 ///<summary>
-/// Persists and restores the ribbon layout for a single Profile to/from
-/// <c>{profileDir}\ribbon.json</c>. One instance is shared by every Workspace on the profile.
+/// Persists and restores the ribbon layout for a single Workspace to/from
+/// <c>{workspaceDir}\ribbon.json</c>. One instance is shared by every WorkspaceRuntime on the workspace.
 ///
 /// This class is intentionally a pure data layer — it only handles serialisation of
 /// <see cref="RibbonItem"/> metadata (label, icon, kind, page-kind, page-params). Persisted items
@@ -25,9 +25,9 @@ public sealed class RibbonLayoutService
         Converters    = { new JsonStringEnumConverter() }
     };
 
-    public RibbonLayoutService(string profileDir)
+    public RibbonLayoutService(string workspaceDir)
     {
-        _path = Path.Combine(profileDir, "ribbon.json");
+        _path = Path.Combine(workspaceDir, "ribbon.json");
     }
 
     // ── Public API ────────────────────────────────────────────────────────

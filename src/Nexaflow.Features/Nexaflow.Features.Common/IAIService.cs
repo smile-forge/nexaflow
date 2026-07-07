@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using Nexaflow.Features.Common.ClientTools;
@@ -10,7 +10,7 @@ namespace Nexaflow.Features.Common
     /// <see cref="IShellServices"/>). It owns the client-side agent loop
     /// (<see cref="RunAgentAsync"/>), query-handler scoring/disambiguation for the AI input bar,
     /// conversation load/save plus its context pages and artifacts, and one-shot analysis/disambiguation
-    /// completions. Resolves each ability through the active profile's model assignments and the
+    /// completions. Resolves each ability through the active workspace's model assignments and the
     /// workspace's acquired providers, so a feature never talks to a provider directly.
     /// </summary>
     public interface IAIService

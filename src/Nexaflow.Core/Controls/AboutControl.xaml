@@ -79,7 +79,7 @@
                            Foreground="{StaticResource DangerBrush}"/>
                 <TextBlock Margin="0,4,0,10" FontSize="12" TextWrapping="Wrap"
                            Foreground="{StaticResource TextBrush}"
-                           Text="Deletes every setting, workspace, provider and conversation for all profiles, then restarts. This cannot be undone."/>
+                           Text="Deletes every setting, workspace, provider and conversation for all workspaces, then restarts. This cannot be undone."/>
                 <Button Content="Reset Config…" HorizontalAlignment="Left"
                         Padding="14,6" Cursor="Hand" BorderThickness="0"
                         Background="{StaticResource DangerBrush}"

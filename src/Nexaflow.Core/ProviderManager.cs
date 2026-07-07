@@ -23,7 +23,7 @@ namespace Nexaflow.Core;
 /// lifetime and instance lifetime are one and the same.</item>
 /// </list>
 /// </para>
-/// Provider <em>configs</em> live on the owning <see cref="Models.Profile"/>.
+/// Provider <em>configs</em> live on the owning <see cref="Models.Workspace"/>.
 /// </summary>
 public sealed class ProviderManager
 {
@@ -94,7 +94,7 @@ public sealed class ProviderManager
 
     /// <summary>
     /// Instantiates each discovered config type and loads it from <paramref name="dir"/>, returning
-    /// one config instance per type. These live on the owning <see cref="Models.Profile"/> and are
+    /// one config instance per type. These live on the owning <see cref="Models.Workspace"/> and are
     /// shared by all its Workspaces. Providers in assemblies not yet loaded are absent (call
     /// <see cref="DiscoverAll"/> first to include them).
     /// </summary>
@@ -120,7 +120,7 @@ public sealed class ProviderManager
     /// Call <see cref="ReleaseProviderSet"/> when the Workspace is reconfigured or disposed.
     /// </summary>
     public ProviderSet AcquireProviderSet(
-        IReadOnlyList<IProviderConfig> profileConfigs,
+        IReadOnlyList<IProviderConfig> workspaceConfigs,
         IReadOnlyList<ProviderModelPair> columns)
     {
         var capability  = new Dictionary<string, ILlmProvider>(StringComparer.OrdinalIgnoreCase);
@@ -140,9 +140,9 @@ public sealed class ProviderManager
             foreach (var desc in _descriptors)
                 foreach (var (type, ctor) in desc.Providers)
                 {
-                    var cfgKey = ConfigKey(ctor, profileConfigs);
+                    var cfgKey = ConfigKey(ctor, workspaceConfigs);
                     var key    = $"{type.FullName}|cap|{cfgKey}";
-                    var entry  = Acquire(key, ctor, profileConfigs, model: "", desc.FileName, toWarm);
+                    var entry  = Acquire(key, ctor, workspaceConfigs, model: "", desc.FileName, toWarm);
 
                     capability[entry.Provider.Name]  = entry.Provider;
                     assemblyMap[entry.Provider.Name] = desc.FileName;
@@ -157,7 +157,7 @@ public sealed class ProviderManager
                 if (!byName.TryGetValue(col.ProviderName, out var t)) continue;   // provider not available
 
                 var key   = $"{t.Ctor.DeclaringType!.FullName}|exec|{col.Model}|{t.ConfigKey}";
-                var entry = Acquire(key, t.Ctor, profileConfigs, col.Model, t.AssemblyFile, toWarm);
+                var entry = Acquire(key, t.Ctor, workspaceConfigs, col.Model, t.AssemblyFile, toWarm);
 
                 execution[col.Id] = entry.Provider;
                 poolKeys.Add(key);
@@ -166,7 +166,7 @@ public sealed class ProviderManager
 
         foreach (var p in toWarm) _ = WarmCoolSafe(p.WarmupAsync());
 
-        return new ProviderSet(capability, execution, profileConfigs, assemblyMap, poolKeys);
+        return new ProviderSet(capability, execution, workspaceConfigs, assemblyMap, poolKeys);
     }
 
     /// <summary>Gets or creates a pooled instance for <paramref name="key"/>, incrementing its ref-count.

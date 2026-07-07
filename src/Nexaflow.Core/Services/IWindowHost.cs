@@ -13,6 +13,11 @@ internal interface IWindowHost
 {
     IReadOnlyList<Page> Tabs { get; }
 
+    /// <summary>Snapshots the window's tabs grouped by pane (0 = primary/left, 1 = the right split) with
+    /// each pane's active tab flagged — the shape restored by <see cref="ShellServices.RestoreTabLayout"/>
+    /// (or saved as a workspace default). Skips tabs that can't be recreated (no PageKind).</summary>
+    IReadOnlyList<DefaultTabDescriptor> CaptureTabLayout();
+
     bool IsFocused { get; set; }
 
     /// <summary>The underlying WPF window — used for point-in-window hit testing.</summary>
@@ -45,8 +50,11 @@ internal interface IWindowHost
     /// <summary>Adds a persistent notification in this window.</summary>
     void ShowNotification(string message);
 
-    /// <summary>Shows the window-level confirmation overlay (independent of any page).</summary>
-    void ShowConfirmation(string title, string prompt, System.Action onConfirm, System.Action? onCancel = null);
+    /// <summary>Shows the window-level confirmation overlay (independent of any page).
+    /// <paramref name="confirmLabel"/>/<paramref name="cancelLabel"/> override the button captions
+    /// (null/blank → "Confirm"/"Cancel").</summary>
+    void ShowConfirmation(string title, string prompt, System.Action onConfirm, System.Action? onCancel = null,
+                          string? confirmLabel = null, string? cancelLabel = null);
 
     /// <summary>Shows the window-level text-input prompt overlay (independent of any page).</summary>
     void ShowPrompt(string title, string label, string initialValue,

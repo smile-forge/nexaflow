@@ -8,7 +8,7 @@ public sealed record SwatchOption(string Hex, Brush Brush);
 
 /// <summary>
 /// The shared categorical swatch bank (Tokens.xaml / per-theme overrides) resolved to brush+hex pairs.
-/// Every per-profile colour picker draws from it — the Options workspaces list and the Configure
+/// Every per-workspace colour picker draws from it — the Options workspaces list and the Configure
 /// panel's identity page — so they offer the same palette the ribbon picker and project pie use.
 /// </summary>
 public static class WorkspaceSwatches

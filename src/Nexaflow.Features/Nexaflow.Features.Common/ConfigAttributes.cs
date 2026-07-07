@@ -82,9 +82,9 @@ public sealed class CustomControlAttribute(Type controlType) : Attribute
 /// <summary>
 /// Applied to an <see cref="IFeatureConfig"/> class to mark it as <b>per-workspace</b> rather than
 /// global. A scoped config is never registered with the global <c>ConfigManager</c>; instead one
-/// instance is created per profile and stored under <c>Contexts\&lt;name&gt;\&lt;ConfigName&gt;</c>
+/// instance is created per workspace and stored under <c>Contexts\&lt;name&gt;\&lt;ConfigName&gt;</c>
 /// (exactly like a provider config), edited from the per-workspace Configure panel, and injected
-/// into features from the owning workspace's profile. Default (no attribute) = global.
+/// into features from the owning workspace. Default (no attribute) = global.
 /// A feature needing both scopes ships two config classes — one annotated, one not.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class)]

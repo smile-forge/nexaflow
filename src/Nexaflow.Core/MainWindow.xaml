@@ -47,8 +47,8 @@
                     <TextBlock Text="{Binding Prompt}" TextWrapping="Wrap"
                                Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,18"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="Cancel" Command="{Binding CancelCommand}"
-                                Width="90" Height="32" Margin="0,0,8,0" FontSize="12" Cursor="Hand"
+                        <Button Content="{Binding CancelLabel}" Command="{Binding CancelCommand}"
+                                MinWidth="90" Height="32" Margin="0,0,8,0" FontSize="12" Cursor="Hand"
                                 Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}"
                                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
                             <Button.Template>
@@ -67,8 +67,8 @@
                                 </ControlTemplate>
                             </Button.Template>
                         </Button>
-                        <Button Content="Confirm" Command="{Binding ConfirmCommand}"
-                                Width="90" Height="32" FontSize="12" Cursor="Hand"
+                        <Button Content="{Binding ConfirmLabel}" Command="{Binding ConfirmCommand}"
+                                MinWidth="90" Height="32" FontSize="12" Cursor="Hand"
                                 Background="{StaticResource AccentBrush}" Foreground="White"
                                 BorderThickness="0" FontWeight="SemiBold">
                             <Button.Template>
@@ -168,10 +168,10 @@
             </Grid>
         </DataTemplate>
 
-        <DataTemplate DataType="{x:Type vm:ManageAiViewModel}">
+        <DataTemplate DataType="{x:Type vm:WorkspaceConfigViewModel}">
             <Border HorizontalAlignment="Center" VerticalAlignment="Center"
                     Width="960" Height="600" Style="{StaticResource PopupBorder}">
-                <ctrl:ManageAiPanel/>
+                <ctrl:WorkspaceConfigPanel/>
             </Border>
         </DataTemplate>
 
@@ -330,13 +330,14 @@
                     BorderThickness="0,1,0,0">
                 <ctrl:RibbonControl x:Name="RibbonControl"
                                     AutomationProperties.AutomationId="RibbonControl"
-                                    Workspace="{Binding CurrentWorkspace}"
-                                    Profile="{Binding CurrentWorkspace.Profile}"
-                                    Profiles="{Binding Profiles}"
-                                    CanSwitchProfile="{Binding CanSwitchProfile}"
-                                    SelectProfileCommand="{Binding SelectProfileCommand}"
-                                    ConfigureProfileCommand="{Binding ConfigureCurrentWorkspaceCommand}"
+                                    Runtime="{Binding CurrentRuntime}"
+                                    Workspace="{Binding CurrentRuntime.Workspace}"
+                                    Workspaces="{Binding Workspaces}"
+                                    CanSwitchWorkspace="{Binding CanSwitchWorkspace}"
+                                    SelectWorkspaceCommand="{Binding SelectWorkspaceCommand}"
+                                    ConfigureWorkspaceCommand="{Binding ConfigureCurrentWorkspaceCommand}"
                                     NewWorkspaceCommand="{Binding NewWorkspaceCommand}"
+                                    UseTabsetAsDefaultCommand="{Binding UseTabsetAsDefaultCommand}"
                                     OpenPageCommand="{Binding OpenRibbonItemCommand}"
                                     OpenPageInNewWindowCommand="{Binding OpenRibbonItemInNewWindowCommand}"
                                     Shell="{Binding ShellServices}"/>

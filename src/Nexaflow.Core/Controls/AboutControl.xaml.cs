@@ -58,7 +58,7 @@ public partial class AboutControl : UserControl
         shell?.ShowConfirmation(
             "Reset configuration?",
             "This permanently deletes every Nexaflow setting, workspace, provider and conversation " +
-            "for all profiles, then restarts the app. This cannot be undone.",
+            "for all workspaces, then restarts the app. This cannot be undone.",
             App.ResetAndRestart,
             () => { });
     }

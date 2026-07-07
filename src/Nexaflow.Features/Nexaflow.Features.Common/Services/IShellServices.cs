@@ -35,7 +35,7 @@ public interface IShellServices
     /// Lightweight <see cref="Page"/> definitions for the pages that can be created without specific
     /// context (<see cref="IPageRegistration.CanBeContextItem"/>) in this workspace — surfaced in the
     /// AI conversation's "add context" menu, which reads each page's Title/Icon. Built per-workspace,
-    /// so it reflects the active profile's enablement (e.g. Projects only when enabled). Content is not
+    /// so it reflects the active workspace's enablement (e.g. Projects only when enabled). Content is not
     /// realized; pin a chosen page by calling <c>GetOrCreateContent</c> on it.
     /// </summary>
     IReadOnlyList<Page> GetContextItemPages();
@@ -130,6 +130,13 @@ public interface IShellServices
     Task<bool> ConfirmAsync(string title, string message, CancellationToken ct = default);
 
     /// <summary>
+    /// Overload of <see cref="ConfirmAsync(string,string,CancellationToken)"/> with custom button captions
+    /// (e.g. <c>"Import"</c> / <c>"Do not Import"</c>). Null/blank falls back to "Confirm" / "Cancel".
+    /// </summary>
+    Task<bool> ConfirmAsync(string title, string message, string? confirmLabel, string? cancelLabel,
+                            CancellationToken ct = default);
+
+    /// <summary>
     /// Shows the shell's file picker and returns the chosen existing file's full path, or null if
     /// cancelled. Reuses the shell's themed picker window — features must use this rather than a
     /// <c>Microsoft.Win32</c> dialog. <paramref name="extensions"/> (e.g. <c>[".reg"]</c>) limits the
@@ -177,7 +184,7 @@ public interface IShellServices
     void OpenOptions(string configName);
 
     /// <summary>
-    /// Opens the per-workspace Configure overlay for this workspace's profile, landing on the section
+    /// Opens the per-workspace Configure overlay for this workspace, landing on the section
     /// whose <see cref="IFeatureConfig.ConfigName"/> matches <paramref name="configName"/> (e.g.
     /// <c>"console"</c>). The workspace-scoped sibling of <see cref="OpenOptions"/> — for configs marked
     /// <c>[WorkspaceScopedConfig]</c>, which live in the Configure overlay rather than global Options.

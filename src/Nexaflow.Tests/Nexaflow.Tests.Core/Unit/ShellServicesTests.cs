@@ -12,7 +12,7 @@ namespace Nexaflow.Tests.Core.Unit;
 [TestClass]
 public class ShellServicesTests
 {
-    private static ShellServices CreateSvc() => new(new Workspace());
+    private static ShellServices CreateSvc() => new(new WorkspaceRuntime());
 
     /// <summary>
     /// Seeds a page directly into ShellServices' private tab registry.

@@ -13,6 +13,10 @@ public sealed class ConfirmationOverlay
     public required string  Prompt         { get; init; }
     public required ICommand ConfirmCommand { get; init; }
     public required ICommand CancelCommand  { get; init; }
+
+    /// <summary>Confirm/cancel button captions; default to the generic pair when a caller doesn't override.</summary>
+    public string ConfirmLabel { get; init; } = "Confirm";
+    public string CancelLabel  { get; init; } = "Cancel";
 }
 
 /// <summary>

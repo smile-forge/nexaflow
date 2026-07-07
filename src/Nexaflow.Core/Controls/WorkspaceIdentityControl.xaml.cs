@@ -11,8 +11,8 @@ namespace Nexaflow.Core.Controls;
 
 /// <summary>
 /// The workspace-identity editor — the first page of the Configure (Manage-AI) panel. Edits a
-/// <see cref="Profile"/>'s Name / Symbol / Colour against an in-memory copy and only writes back to the
-/// live profile on <see cref="Apply"/> (which moves the on-disk data folder when the name changes), so
+/// <see cref="Workspace"/>'s Name / Symbol / Colour against an in-memory copy and only writes back to the
+/// live workspace on <see cref="Apply"/> (which moves the on-disk data folder when the name changes), so
 /// closing the panel without applying discards the edits — matching the panel's per-section Apply model.
 /// </summary>
 public partial class WorkspaceIdentityControl : UserControl, IConfigChangeTracker, IConfigValidation, ICustomConfigApply
@@ -20,28 +20,28 @@ public partial class WorkspaceIdentityControl : UserControl, IConfigChangeTracke
     /// <summary>Shared categorical bank for the colour picker (same source as the Options list).</summary>
     public IReadOnlyList<SwatchOption> Swatches { get; } = WorkspaceSwatches.Build();
 
-    // The live profile being configured (set via DataContext by the host) and the bound editing copy.
-    private Profile? _target;
-    private readonly Profile _edit = new();
+    // The live workspace being configured (set via DataContext by the host) and the bound editing copy.
+    private Workspace? _target;
+    private readonly Workspace _edit = new();
 
     public WorkspaceIdentityControl()
     {
         InitializeComponent();
-        EditPanel.DataContext = _edit;            // fields/preview bind to the editing copy, not the live profile
+        EditPanel.DataContext = _edit;            // fields/preview bind to the editing copy, not the live workspace
         _edit.PropertyChanged += OnEditChanged;
         DataContextChanged    += OnTargetChanged;
     }
 
     private void OnTargetChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
-        if (e.NewValue is not Profile p) return;
+        if (e.NewValue is not Workspace p) return;
         _target     = p;
         _edit.Name  = p.Name;
         _edit.Color = p.Color;
         _edit.Icon  = p.Icon;
 
         // The last remaining workspace can't be deleted — disable the button rather than fail on click.
-        bool canDelete       = WorkspaceManager.Instance.Profiles.Count > 1;
+        bool canDelete       = WorkspaceManager.Instance.Workspaces.Count > 1;
         DeleteButton.IsEnabled = canDelete;
         DeleteButton.ToolTip   = canDelete ? null : "The last workspace can't be deleted.";
 
@@ -55,7 +55,7 @@ public partial class WorkspaceIdentityControl : UserControl, IConfigChangeTracke
         RaiseChanged();
     }
 
-    // ── IConfigChangeTracker: enables the panel's Apply button while the copy differs from the profile ──
+    // ── IConfigChangeTracker: enables the panel's Apply button while the copy differs from the workspace ──
     public bool HasChanges =>
         _target is not null &&
         (_edit.Name != _target.Name || _edit.Color != _target.Color || _edit.Icon != _target.Icon);
@@ -76,20 +76,20 @@ public partial class WorkspaceIdentityControl : UserControl, IConfigChangeTracke
     }
 
     private bool NameCollides(string name)
-        => WorkspaceManager.Instance.Profiles.Any(
+        => WorkspaceManager.Instance.Workspaces.Any(
                p => !ReferenceEquals(p, _target)
                  && string.Equals(p.Name, name.Trim(), StringComparison.OrdinalIgnoreCase));
 
-    // ── ICustomConfigApply: commit the edits to the live profile + disk ──
+    // ── ICustomConfigApply: commit the edits to the live workspace + disk ──
     public void Apply()
     {
         if (_target is null || !HasChanges || !IsValid) return;
 
         _target.Color = _edit.Color;
         _target.Icon  = _edit.Icon;
-        // Renames the profile and moves its data folder so the cloned/edited config follows; persists
-        // the profile list (incl. the colour/icon just set, even when the name is unchanged).
-        WorkspaceManager.Instance.RenameProfile(_target, _edit.Name.Trim());
+        // Renames the workspace and moves its data folder so the cloned/edited config follows; persists
+        // the workspace list (incl. the colour/icon just set, even when the name is unchanged).
+        WorkspaceManager.Instance.RenameWorkspace(_target, _edit.Name.Trim());
 
         _edit.Name = _target.Name;   // resnapshot to the committed (trimmed) name → HasChanges back to false
         RaiseChanged();

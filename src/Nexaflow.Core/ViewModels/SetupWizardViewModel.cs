@@ -50,7 +50,7 @@ public sealed partial class WizardModelPickContent : ObservableObject
 
 internal sealed class WorkspaceSetupContext
 {
-    public required Profile Profile;
+    public required Workspace Workspace;
     public IReadOnlyList<IProviderConfig> AvailableProviders = [];
     public IProviderConfig? ChosenProvider;
     public ProviderSet?     ProviderSet;   // acquired after the provider config is saved (for model listing)
@@ -159,11 +159,11 @@ internal sealed partial class ProviderConfigStep : ObservableObject, IWizardStep
     {
         if (_editor is null || _ctx.ChosenProvider is null) return;
         _editor.ApplyToReal();
-        ConfigManager.Instance.SaveTo(_ctx.Profile.Dir, _ctx.ChosenProvider, _ctx.ChosenProvider.ConfigName);
+        ConfigManager.Instance.SaveTo(_ctx.Workspace.Dir, _ctx.ChosenProvider, _ctx.ChosenProvider.ConfigName);
 
         // (Re)acquire a provider set from the now-saved configs so the model step can enumerate models.
         if (_ctx.ProviderSet is not null) ProviderManager.Instance.ReleaseProviderSet(_ctx.ProviderSet);
-        _ctx.ProviderSet = ProviderManager.Instance.AcquireProviderSet(_ctx.Profile.ProviderConfigs, []);
+        _ctx.ProviderSet = ProviderManager.Instance.AcquireProviderSet(_ctx.Workspace.ProviderConfigs, []);
     }
 }
 
@@ -229,13 +229,13 @@ internal sealed class ModelPickStep : ObservableObject, IWizardStep
             AssemblyFileName = _ctx.ProviderSet?.GetAssemblyFileName(name) ?? string.Empty,
         };
 
-        _ctx.Profile.AiConfig.Columns = [pair];
-        _ctx.Profile.AiConfig.Assignments.Clear();
+        _ctx.Workspace.AiConfig.Columns = [pair];
+        _ctx.Workspace.AiConfig.Assignments.Clear();
         foreach (AiAbility ability in Enum.GetValues<AiAbility>())
-            _ctx.Profile.AiConfig.Assignments[ability.ToString()] = pair.Id;
+            _ctx.Workspace.AiConfig.Assignments[ability.ToString()] = pair.Id;
 
-        WorkspaceManager.Instance.SaveProfileAiConfig(_ctx.Profile);
-        WorkspaceManager.Instance.SaveProfiles();
+        WorkspaceManager.Instance.SaveWorkspaceAiConfig(_ctx.Workspace);
+        WorkspaceManager.Instance.SaveWorkspaces();
     }
 }
 
@@ -335,12 +335,12 @@ public partial class SetupWizardViewModel : ObservableObject
     // ── Build ────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Builds the wizard for <paramref name="startupProfile"/>, or returns null when nothing needs
+    /// Builds the wizard for <paramref name="startupWorkspace"/>, or returns null when nothing needs
     /// configuring (App then launches the window directly). Steps: optional What's-New (after an
-    /// update) → each unconfigured GLOBAL feature config → first-workspace setup (if the profile has
+    /// update) → each unconfigured GLOBAL feature config → first-workspace setup (if the workspace has
     /// no usable AI assignment).
     /// </summary>
-    public static SetupWizardViewModel? Build(Profile startupProfile)
+    public static SetupWizardViewModel? Build(Workspace startupWorkspace)
     {
         var steps = new List<IWizardStep>();
 
@@ -369,39 +369,43 @@ public partial class SetupWizardViewModel : ObservableObject
                 e => ConfigManager.Instance.Save(e.RealConfig, e.ConfigName)));
         }
 
-        // 3. First-workspace setup, only if the startup profile has no usable AI assignment.
-        startupProfile.EnsureSharedServicesLoaded();
+        // 3. First-workspace setup, only if the startup workspace has no usable AI assignment.
+        startupWorkspace.EnsureSharedServicesLoaded();
         WorkspaceSetupContext? ctx = null;
-        if (!IsWorkspaceConfigured(startupProfile))
-            ctx = AppendWorkspaceSetupSteps(steps, startupProfile);
+        if (!IsWorkspaceConfigured(startupWorkspace))
+            ctx = AppendWorkspaceSetupSteps(steps, startupWorkspace);
 
         return steps.Count == 0 ? null : new SetupWizardViewModel(steps, ctx);
     }
 
     /// <summary>
     /// Builds a wizard containing ONLY the workspace-setup steps (provider → key → model, plus any
-    /// [MandatorySetup] persona / per-workspace configs) for <paramref name="profile"/>. Used by the
+    /// [MandatorySetup] persona / per-workspace configs) for <paramref name="workspace"/>. Used by the
     /// Workspaces tab's "Add Workspace" to configure a freshly-created workspace.
     /// </summary>
-    public static SetupWizardViewModel BuildWorkspaceSetup(Profile profile)
+    public static SetupWizardViewModel BuildWorkspaceSetup(Workspace workspace)
     {
-        profile.EnsureSharedServicesLoaded();
+        workspace.EnsureSharedServicesLoaded();
         var steps = new List<IWizardStep>();
-        var ctx   = AppendWorkspaceSetupSteps(steps, profile);
+        var ctx   = AppendWorkspaceSetupSteps(steps, workspace);
         return new SetupWizardViewModel(steps, ctx);
     }
 
     /// <summary>Appends provider-pick → provider-config → model-pick (+ mandatory persona/scoped
-    /// configs) for <paramref name="profile"/>; returns the shared setup context.</summary>
-    private static WorkspaceSetupContext AppendWorkspaceSetupSteps(List<IWizardStep> steps, Profile profile)
+    /// configs) for <paramref name="workspace"/>; returns the shared setup context.</summary>
+    private static WorkspaceSetupContext AppendWorkspaceSetupSteps(List<IWizardStep> steps, Workspace workspace)
     {
         ProviderManager.Instance.DiscoverAll();
-        profile.ReloadProviderConfigs();
+        workspace.ReloadProviderConfigs();
+        // Materialize every workspace-scoped config so a [MandatorySetup] one (e.g. Projects) gets a wizard
+        // step. WorkspaceConfigs otherwise returns only configs already lazily materialized, so on first run
+        // the scoped Projects config is absent and its step silently never shows.
+        workspace.MaterializeAllScopedConfigs();
 
         var ctx = new WorkspaceSetupContext
         {
-            Profile            = profile,
-            AvailableProviders = profile.ProviderConfigs,
+            Workspace            = workspace,
+            AvailableProviders = workspace.ProviderConfigs,
         };
 
         // Essential AI bootstrap — always runs.
@@ -410,24 +414,24 @@ public partial class SetupWizardViewModel : ObservableObject
         steps.Add(new ModelPickStep(ctx));
 
         // Persona + per-workspace feature configs only when they opt in via [MandatorySetup].
-        var persona = profile.Persona;
+        var persona = workspace.Persona;
         if (IsMandatory(persona))
             steps.Add(new ConfigEditStep(persona.FriendlyName,
                 new ConfigEditViewModel(persona, persona.ConfigName, persona.FriendlyName),
-                _ => WorkspaceManager.Instance.SaveProfilePersona(profile)));
+                _ => WorkspaceManager.Instance.SaveWorkspacePersona(workspace)));
 
-        foreach (var wc in profile.WorkspaceConfigs)
+        foreach (var wc in workspace.WorkspaceConfigs)
             if (IsMandatory(wc))
                 steps.Add(new ConfigEditStep(wc.FriendlyName,
                     new ConfigEditViewModel(wc, wc.ConfigName, wc.FriendlyName),
-                    e => WorkspaceManager.Instance.SaveProfileWorkspaceConfig(profile, (IFeatureConfig)e.RealConfig)));
+                    e => WorkspaceManager.Instance.SaveWorkspaceScopedConfig(workspace, (IFeatureConfig)e.RealConfig)));
 
         return ctx;
     }
 
-    /// <summary>True when the profile has at least one ability assigned to a provider whose required
+    /// <summary>True when the workspace has at least one ability assigned to a provider whose required
     /// config (e.g. API key) is satisfied.</summary>
-    public static bool IsWorkspaceConfigured(Profile p)
+    public static bool IsWorkspaceConfigured(Workspace p)
     {
         var ai = p.AiConfig;
         if (ai.Assignments.Values.All(string.IsNullOrEmpty)) return false;
