@@ -11,7 +11,7 @@ namespace Nexaflow.Core.Models;
 /// <see cref="ProviderManager"/>). Created fresh on every app/IPC launch; disposed when its last
 /// window closes. Switching the dropdown reconfigures this object in place (see WorkspaceManager).
 /// </summary>
-public sealed class Workspace
+public sealed class WorkspaceRuntime
 {
     public Profile Profile { get; private set; }
 
@@ -30,10 +30,10 @@ public sealed class Workspace
     public AIService?     AiService     { get; internal set; }
     public ShellServices? ShellServices { get; internal set; }
 
-    public Workspace(Profile profile) => Profile = profile;
+    public WorkspaceRuntime(Profile profile) => Profile = profile;
 
     /// <summary>Convenience constructor for tests and defaults.</summary>
-    public Workspace() : this(new Profile()) { }
+    public WorkspaceRuntime() : this(new Profile()) { }
 
     internal void RepointProfile(Profile profile) => Profile = profile;
 }

@@ -21,20 +21,20 @@ namespace Nexaflow.Core.Services;
 
 /// <summary>
 /// Per-Workspace shell service that owns that workspace's tab + window registry.
-/// One instance per <see cref="Workspace"/> (created by <see cref="WorkspaceManager"/>
+/// One instance per <see cref="WorkspaceRuntime"/> (created by <see cref="WorkspaceManager"/>
 /// during bootstrap, before any window); each <see cref="MainWindow"/> showing this
 /// workspace registers its <see cref="IWindowHost"/> on activation and unregisters on close.
 /// </summary>
 public sealed class ShellServices : IShellServices
 {
-    private readonly Workspace _workspace;
+    private readonly WorkspaceRuntime _workspace;
     private readonly IBackgroundActivityManager? _activity;
     private readonly Elevation.ElevatedBridgeLauncher _elevation = new();
 
     // This workspace's UI dispatcher, captured on the thread that bootstraps it (the UI thread).
     private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
 
-    public ShellServices(Workspace workspace, IBackgroundActivityManager? activity = null)
+    public ShellServices(WorkspaceRuntime workspace, IBackgroundActivityManager? activity = null)
     {
         _workspace = workspace;
         _activity  = activity;

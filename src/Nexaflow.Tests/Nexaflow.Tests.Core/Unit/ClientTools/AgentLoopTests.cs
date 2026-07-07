@@ -153,7 +153,7 @@ public class AgentLoopTests
     // Conversation on c1, a distinct image-recognition model on c2.
     private static AIService BuildServiceWithImageModel(ILlmProvider conversation, ILlmProvider image)
     {
-        var svc = new AIService(new Workspace(), Path.GetTempPath());
+        var svc = new AIService(new WorkspaceRuntime(), Path.GetTempPath());
         svc.Register("c1", conversation);
         svc.Register("c2", image);
         svc.LoadAbilityConfig(new AiConfig
@@ -167,7 +167,7 @@ public class AgentLoopTests
 
     private static AIService BuildService(ILlmProvider provider)
     {
-        var svc = new AIService(new Workspace(), Path.GetTempPath());
+        var svc = new AIService(new WorkspaceRuntime(), Path.GetTempPath());
         svc.Register("c1", provider);   // execution instances are keyed by column id
         svc.LoadAbilityConfig(new AiConfig
         {

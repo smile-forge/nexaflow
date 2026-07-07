@@ -18,9 +18,9 @@ namespace Nexaflow.Core.Services;
 internal sealed class LiveFeatureConfigView : IReadOnlyDictionary<Type, IFeatureConfig>
 {
     private readonly IReadOnlyDictionary<Type, IFeatureConfig> _global;   // FeatureManager._configs (live)
-    private readonly Workspace? _workspace;
+    private readonly WorkspaceRuntime? _workspace;
 
-    public LiveFeatureConfigView(IReadOnlyDictionary<Type, IFeatureConfig> global, Workspace? workspace)
+    public LiveFeatureConfigView(IReadOnlyDictionary<Type, IFeatureConfig> global, WorkspaceRuntime? workspace)
     {
         _global    = global;
         _workspace = workspace;

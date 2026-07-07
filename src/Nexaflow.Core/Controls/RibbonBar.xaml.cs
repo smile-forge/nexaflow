@@ -51,7 +51,7 @@ public partial class RibbonBar : UserControl
 
     public static readonly DependencyProperty WorkspaceProperty =
         DependencyProperty.Register(nameof(Workspace),
-            typeof(Workspace), typeof(RibbonBar));
+            typeof(WorkspaceRuntime), typeof(RibbonBar));
 
     public static readonly DependencyProperty ShellProperty =
         DependencyProperty.Register(nameof(Shell),
@@ -87,9 +87,9 @@ public partial class RibbonBar : UserControl
         get => (ICommand?)GetValue(DeleteItemCommandProperty);
         set => SetValue(DeleteItemCommandProperty, value);
     }
-    public Workspace? Workspace
+    public WorkspaceRuntime? Workspace
     {
-        get => (Workspace?)GetValue(WorkspaceProperty);
+        get => (WorkspaceRuntime?)GetValue(WorkspaceProperty);
         set => SetValue(WorkspaceProperty, value);
     }
     public ICommand? PinFromHandlerCommand

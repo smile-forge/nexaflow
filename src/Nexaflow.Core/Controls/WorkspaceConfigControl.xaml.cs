@@ -12,7 +12,7 @@ using System.Windows.Media;
 
 namespace Nexaflow.Core.Controls;
 
-public partial class ProfilesConfigControl : UserControl, ICustomConfigApply
+public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply
 {
     private ObservableCollection<Profile>? _editProfiles;
     private WorkspacesConfig?              _config;
@@ -25,7 +25,7 @@ public partial class ProfilesConfigControl : UserControl, ICustomConfigApply
 
     /// <summary>Random colour from the swatch bank (falls back to the legacy palette if unresolved).</summary>
     private string RandomSwatchColor()
-        => Swatches.Count > 0 ? Swatches[_rng.Next(Swatches.Count)].Hex : ProfileStyle.Random().Color;
+        => Swatches.Count > 0 ? Swatches[_rng.Next(Swatches.Count)].Hex : WorkspaceStyle.Random().Color;
 
     // Maps each editable copy back to the original profile so Apply can write the edited
     // Name/Color/Icon onto the original without disturbing live workspaces.
@@ -35,7 +35,7 @@ public partial class ProfilesConfigControl : UserControl, ICustomConfigApply
     // cloned from at Apply time (copying its AiConfig + provider configs).
     private readonly Dictionary<Profile, Profile> _editCloneSource = [];
 
-    public ProfilesConfigControl()
+    public WorkspaceConfigControl()
     {
         InitializeComponent();
 
@@ -137,7 +137,7 @@ public partial class ProfilesConfigControl : UserControl, ICustomConfigApply
 
         Apply();   // materialise existing edit rows first so nothing is lost
 
-        var (icon, _) = ProfileStyle.Random();
+        var (icon, _) = WorkspaceStyle.Random();
         // Unique name => a fresh, empty config folder (avoids a re-used "New Workspace" dir picking up
         // a previous workspace's saved provider/model).
         var profile = WorkspaceManager.Instance.AddProfile(
@@ -193,7 +193,7 @@ public partial class ProfilesConfigControl : UserControl, ICustomConfigApply
                    : null;
         if (source is null) return;   // a brand-new unsaved profile has no persisted settings to copy
 
-        var (icon, _) = ProfileStyle.Random();
+        var (icon, _) = WorkspaceStyle.Random();
         var clone = new Profile { Name = edit.Name + " copy", Color = RandomSwatchColor(), Icon = icon };
         _editCloneSource[clone] = source;
 

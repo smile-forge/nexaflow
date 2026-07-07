@@ -22,7 +22,7 @@ public partial class RibbonControl : UserControl
     // ── Public DPs (the shell's interface to the ribbon) ───────────────────
 
     public static readonly DependencyProperty WorkspaceProperty =
-        DependencyProperty.Register(nameof(Workspace), typeof(Workspace), typeof(RibbonControl),
+        DependencyProperty.Register(nameof(Workspace), typeof(WorkspaceRuntime), typeof(RibbonControl),
             new PropertyMetadata(null, OnWorkspaceChanged));
 
     /// <summary>The active workspace's profile — drives the shared ribbon layout + live-sync.</summary>
@@ -64,9 +64,9 @@ public partial class RibbonControl : UserControl
     public static readonly DependencyProperty PinFromHandlerCommandProperty =
         DependencyProperty.Register(nameof(PinFromHandlerCommand), typeof(ICommand), typeof(RibbonControl));
 
-    public Workspace? Workspace
+    public WorkspaceRuntime? Workspace
     {
-        get => (Workspace?)GetValue(WorkspaceProperty);
+        get => (WorkspaceRuntime?)GetValue(WorkspaceProperty);
         set => SetValue(WorkspaceProperty, value);
     }
 
@@ -185,7 +185,7 @@ public partial class RibbonControl : UserControl
     }
 
     private static void OnWorkspaceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        => ((RibbonControl)d).ViewModel.SetWorkspace(e.NewValue as Workspace);
+        => ((RibbonControl)d).ViewModel.SetWorkspace(e.NewValue as WorkspaceRuntime);
 
     private static void OnProfileChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         => ((RibbonControl)d).ViewModel.SetProfile(e.NewValue as Profile);

@@ -9,7 +9,7 @@ namespace Nexaflow.Core.Services.ShellAi;
 /// page's). Gives the AI ambient awareness — local time, workspace, theme, open windows/tabs, the
 /// catalogue of openable pages — plus shell tools (ribbon, open-page, open-windows).
 /// </summary>
-public sealed class ShellAiContext(Workspace workspace)
+public sealed class ShellAiContext(WorkspaceRuntime workspace)
 {
     /// <summary>The shell context block (plain text) prepended to the page context.</summary>
     public string BuildContext()

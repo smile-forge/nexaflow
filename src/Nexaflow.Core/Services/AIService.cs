@@ -64,7 +64,7 @@ public sealed class AIService : IAIService
 
     // ── Persistence ───────────────────────────────────────────────────────
 
-    private readonly Workspace _workspace;
+    private readonly WorkspaceRuntime _workspace;
     private readonly string _baseDir;
 
     private List<ConversationRecord> _conversations = [];
@@ -73,7 +73,7 @@ public sealed class AIService : IAIService
 
     /// <param name="workspace">The owning Workspace — used to resolve query handlers via FeatureManager.</param>
     /// <param name="conversationsDir">Full path to the directory where this profile's conversations are stored.</param>
-    public AIService(Workspace workspace, string conversationsDir)
+    public AIService(WorkspaceRuntime workspace, string conversationsDir)
     {
         _workspace = workspace;
         _baseDir   = conversationsDir;

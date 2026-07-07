@@ -22,7 +22,7 @@ public sealed class WorkspaceManager
     /// Live runtime workspaces. One is created per app/IPC launch; removed when its last window
     /// closes. Not exposed publicly — callers use <see cref="CreateWorkspace"/> / <see cref="SwitchProfile"/>.
     /// </summary>
-    private readonly List<Workspace> _workspaces = [];
+    private readonly List<WorkspaceRuntime> _workspaces = [];
 
     /// <summary>
     /// Fired after <see cref="Initialize"/> or when profiles are added/removed, so listeners
@@ -31,7 +31,7 @@ public sealed class WorkspaceManager
     public event EventHandler? ProfilesRefreshed;
 
     /// <summary>The first live workspace, or null when no windows are open (e.g. daemon mode).</summary>
-    public Workspace? FirstActive => _workspaces.FirstOrDefault();
+    public WorkspaceRuntime? FirstActive => _workspaces.FirstOrDefault();
 
     /// <summary>True when at least one window is open across all live workspaces.</summary>
     internal bool AnyWindowsOpen
@@ -40,18 +40,18 @@ public sealed class WorkspaceManager
     private WorkspacesConfig? _savedConfig;
 
     /// <summary>
-    /// Set by <c>App</c> at startup. Given a freshly-created <see cref="Workspace"/>, builds (but does
+    /// Set by <c>App</c> at startup. Given a freshly-created <see cref="WorkspaceRuntime"/>, builds (but does
     /// not show) its first window host and wires the tear-off factory — the same logic App uses on
     /// launch. Lets <see cref="RestartWorkspace"/> spin up a new workspace+window without Core.Services
     /// referencing <c>MainWindow</c>.
     /// </summary>
-    internal Func<Workspace, IWindowHost>? WindowHostFactory { get; set; }
+    internal Func<WorkspaceRuntime, IWindowHost>? WindowHostFactory { get; set; }
 
     private WorkspaceManager() { }
 
     /// <summary>
     /// Loads workspace configurations (profiles) from <paramref name="config"/>. Does NOT create
-    /// any runtime <see cref="Workspace"/> objects — those are created lazily when windows open.
+    /// any runtime <see cref="WorkspaceRuntime"/> objects — those are created lazily when windows open.
     /// Must be called AFTER <see cref="ProviderManager"/> has loaded its assemblies.
     /// </summary>
     public void Initialize(WorkspacesConfig config)
@@ -131,14 +131,14 @@ public sealed class WorkspaceManager
     }
 
     /// <summary>
-    /// Creates a brand-new runtime <see cref="Workspace"/> for <paramref name="profile"/> with
+    /// Creates a brand-new runtime <see cref="WorkspaceRuntime"/> for <paramref name="profile"/> with
     /// fully-bootstrapped per-Workspace services. Always returns a fresh instance — used on every
     /// app/IPC launch (launching the app N times ⇒ N Workspaces, possibly all on one profile).
     /// </summary>
-    public Workspace CreateWorkspace(Profile profile)
+    public WorkspaceRuntime CreateWorkspace(Profile profile)
     {
         profile.EnsureSharedServicesLoaded();
-        var ws = new Workspace(profile);
+        var ws = new WorkspaceRuntime(profile);
         BootstrapServices(ws);
         _workspaces.Add(ws);
         return ws;
@@ -149,7 +149,7 @@ public sealed class WorkspaceManager
     /// repoints the profile and reconfigures the runtime (providers + AIService), closing the
     /// Workspace's tabs. Other Workspaces (incl. ones still on the old profile) are untouched.
     /// </summary>
-    public void SwitchProfile(Workspace ws, Profile target)
+    public void SwitchProfile(WorkspaceRuntime ws, Profile target)
     {
         if (ReferenceEquals(ws.Profile, target)) return;
         target.EnsureSharedServicesLoaded();
@@ -164,7 +164,7 @@ public sealed class WorkspaceManager
     /// now-unused ones), and rebuilds the AIService. Reopens a default tab in the focused window.
     /// Called by <see cref="SwitchProfile"/> and by the Manage-AI panel after a provider-config change.
     /// </summary>
-    public void ReconfigureWorkspace(Workspace ws)
+    public void ReconfigureWorkspace(WorkspaceRuntime ws)
     {
         var profile = ws.Profile;
 
@@ -192,7 +192,7 @@ public sealed class WorkspaceManager
     /// Called by <see cref="ShellServices.UnregisterWindow"/> when a window closes. When the
     /// Workspace has no more windows, releases its providers, drops its feature cache, and removes it.
     /// </summary>
-    public void NotifyWindowClosed(Workspace ws)
+    public void NotifyWindowClosed(WorkspaceRuntime ws)
     {
         if (ws.ShellServices is { HasWindows: true }) return;
 
@@ -208,7 +208,7 @@ public sealed class WorkspaceManager
     /// configs so newly discovered providers appear) and re-registers the execution instances into its
     /// AIService. Called when the AI options panel opens.
     /// </summary>
-    public void RefreshProviders(Workspace ws)
+    public void RefreshProviders(WorkspaceRuntime ws)
     {
         ws.Profile.ReloadProviderConfigs();
         AcquireAndRegister(ws);
@@ -219,12 +219,12 @@ public sealed class WorkspaceManager
     /// touching tabs) and re-registers the execution instances. Called after the ability grid is edited
     /// so newly-assigned models get an execution instance (and are warmed) and dropped ones are cooled.
     /// </summary>
-    public void SyncProviders(Workspace ws) => AcquireAndRegister(ws);
+    public void SyncProviders(WorkspaceRuntime ws) => AcquireAndRegister(ws);
 
     /// <summary>Adds a new profile with a random icon/colour to <see cref="Profiles"/>.</summary>
     public Profile AddProfile(string name)
     {
-        var (icon, color) = ProfileStyle.Random();
+        var (icon, color) = WorkspaceStyle.Random();
         var profile = new Profile { Name = name, Icon = icon, Color = color };
         Profiles.Add(profile);
         ProfilesRefreshed?.Invoke(this, EventArgs.Empty);
@@ -237,7 +237,7 @@ public sealed class WorkspaceManager
     /// </summary>
     public Profile CloneProfile(Profile source, string name)
     {
-        var (icon, color) = ProfileStyle.Random();
+        var (icon, color) = WorkspaceStyle.Random();
         var profile = new Profile { Name = name, Icon = icon, Color = color };
         var destDir = ProfileDir(name);
 
@@ -335,7 +335,7 @@ public sealed class WorkspaceManager
         => _workspaces.Any(w => ReferenceEquals(w.Profile, profile));
 
     /// <summary>The live workspace running <paramref name="profile"/>, or null when none is open.</summary>
-    public Workspace? FindLiveWorkspace(Profile profile)
+    public WorkspaceRuntime? FindLiveWorkspace(Profile profile)
         => _workspaces.FirstOrDefault(w => ReferenceEquals(w.Profile, profile));
 
     /// <summary>
@@ -348,7 +348,7 @@ public sealed class WorkspaceManager
     /// swapping the whole workspace. Falls back to <see cref="ReconfigureWorkspace"/> if no window
     /// factory is wired (e.g. headless).
     /// </summary>
-    internal void RestartWorkspace(Workspace old)
+    internal void RestartWorkspace(WorkspaceRuntime old)
     {
         var acting = old.ShellServices?.FocusedWindow;
         if (acting is null || WindowHostFactory is null) { ReconfigureWorkspace(old); return; }
@@ -410,7 +410,7 @@ public sealed class WorkspaceManager
     /// columns, swaps it in (acquire-before-release, so the pool warms newly-needed models and cools
     /// dropped ones), and re-registers the execution instances into the AIService keyed by column id.
     /// </summary>
-    private static void AcquireAndRegister(Workspace ws)
+    private static void AcquireAndRegister(WorkspaceRuntime ws)
     {
         var profile = ws.Profile;
 
@@ -436,7 +436,7 @@ public sealed class WorkspaceManager
         return [.. cfg.Columns.Where(c => assigned.Contains(c.Id))];
     }
 
-    private static void BootstrapServices(Workspace ws)
+    private static void BootstrapServices(WorkspaceRuntime ws)
     {
         var profile = ws.Profile;
 

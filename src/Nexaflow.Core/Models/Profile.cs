@@ -13,7 +13,7 @@ namespace Nexaflow.Core.Models;
 /// identity (<see cref="Name"/>/<see cref="Color"/>/<see cref="Icon"/>) AND the shared per-profile
 /// config: the AI ability grid (<see cref="AiConfig"/>), the ribbon layout
 /// (<see cref="RibbonService"/>), the provider configs (API keys etc.), and the conversations
-/// directory. One Profile can back many <see cref="Workspace"/> runtimes; its shared config is
+/// directory. One Profile can back many <see cref="WorkspaceRuntime"/> runtimes; its shared config is
 /// loaded once and seen live by all of them.
 /// </summary>
 public sealed partial class Profile : ObservableObject
@@ -112,7 +112,7 @@ public sealed partial class Profile : ObservableObject
 
     // ── Live shared-ribbon sync ──
     /// <summary>
-    /// Raised after any <see cref="Workspace"/>'s ribbon is persisted, so every other window/Workspace
+    /// Raised after any <see cref="WorkspaceRuntime"/>'s ribbon is persisted, so every other window/Workspace
     /// bound to this profile reloads its ribbon items live. See RibbonViewModel.
     /// </summary>
     public event EventHandler? RibbonChanged;

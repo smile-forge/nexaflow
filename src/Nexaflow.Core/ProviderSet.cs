@@ -3,7 +3,7 @@ using Nexaflow.Providers.Common;
 namespace Nexaflow.Core;
 
 /// <summary>
-/// A bundle of live provider instances handed to one <see cref="Models.Workspace"/>, together with
+/// A bundle of live provider instances handed to one <see cref="Models.WorkspaceRuntime"/>, together with
 /// the profile-owned configs they were built from. The instances are NOT owned outright — they come
 /// from <see cref="ProviderManager"/>'s global ref-counted pool. <see cref="PoolKeys"/> records the
 /// pool entries this set acquired so <see cref="ProviderManager.ReleaseProviderSet"/> can decrement them.

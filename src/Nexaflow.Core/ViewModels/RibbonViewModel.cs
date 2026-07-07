@@ -16,11 +16,11 @@ namespace Nexaflow.Core.ViewModels;
 /// <see cref="Profile"/> (shared by every Workspace on it): edits persist through the profile's
 /// <see cref="RibbonLayoutService"/> and raise <see cref="Models.Profile.RibbonChanged"/>, which
 /// every other window/Workspace on the same profile observes to reload its own items live.
-/// The <see cref="Workspace"/> is held separately, only to resolve per-Workspace pin handlers.
+/// The <see cref="WorkspaceRuntime"/> is held separately, only to resolve per-Workspace pin handlers.
 /// </summary>
 public partial class RibbonViewModel : ObservableObject
 {
-    private Workspace? _workspace;
+    private WorkspaceRuntime? _workspace;
     private Profile?   _profile;
 
     // The UI dispatcher this view-model was created on; marshal background callbacks through it.
@@ -58,7 +58,7 @@ public partial class RibbonViewModel : ObservableObject
     public Profile? Profile => _profile;
 
     /// <summary>The Workspace this ribbon belongs to — used only to resolve pin handlers.</summary>
-    public void SetWorkspace(Workspace? workspace) => _workspace = workspace;
+    public void SetWorkspace(WorkspaceRuntime? workspace) => _workspace = workspace;
 
     /// <summary>
     /// Swap to a new profile: unhook the old profile's live-sync, clear, load the incoming layout.

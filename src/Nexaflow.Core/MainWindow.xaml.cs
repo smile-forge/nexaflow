@@ -9,7 +9,7 @@ using Nexaflow.Core.Views;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common;
 using TaskStatus = Nexaflow.Core.Models.TaskStatus;
-using Workspace = Nexaflow.Core.Models.Workspace;
+using WorkspaceRuntime = Nexaflow.Core.Models.WorkspaceRuntime;
 
 namespace Nexaflow.Core;
 
@@ -21,7 +21,7 @@ public partial class MainWindow : Window
 
     public ShellViewModel ViewModel => _vm;
 
-    public MainWindow(BackgroundActivityManager activityManager, Workspace workspace,
+    public MainWindow(BackgroundActivityManager activityManager, WorkspaceRuntime workspace,
                       bool openDefaultTabs = true)
     {
         Services.StartupTimings.Mark("MainWindow.ctor enter");

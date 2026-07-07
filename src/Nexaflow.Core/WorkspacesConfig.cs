@@ -4,7 +4,7 @@ using Nexaflow.Features.Common;
 
 namespace Nexaflow.Core;
 
-[CustomControl(typeof(ProfilesConfigControl))]
+[CustomControl(typeof(WorkspaceConfigControl))]
 public sealed class WorkspacesConfig : IFeatureConfig
 {
     // Kept as "workcontexts" / "Contexts" so existing on-disk config (workcontexts.json) still loads.

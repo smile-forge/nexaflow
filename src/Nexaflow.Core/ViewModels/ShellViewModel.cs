@@ -510,7 +510,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     }
 
     // ── Profiles / workspace ──────────────────────────────────────────────
-    [ObservableProperty] private Workspace _currentWorkspace = null!;
+    [ObservableProperty] private WorkspaceRuntime _currentWorkspace = null!;
 
     /// <summary>The saved profiles shown in the dropdown.</summary>
     public ObservableCollection<Profile> Profiles => WorkspaceManager.Instance.Profiles;
@@ -690,7 +690,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     }
 
     public ShellViewModel(BackgroundActivityManager activityManager,
-                          Workspace workspace)
+                          WorkspaceRuntime workspace)
     {
         _activityManager = activityManager;
         // NB: AiIsBusy is NOT coupled to background activity — the AI bar locks only while an actual
@@ -1149,7 +1149,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         ShowConfirmation("Delete workspace", message, onConfirm: () => DeleteWorkspace(profile, liveWs));
     }
 
-    private void DeleteWorkspace(Profile profile, Workspace? liveWs)
+    private void DeleteWorkspace(Profile profile, WorkspaceRuntime? liveWs)
     {
         var mgr = WorkspaceManager.Instance;
 

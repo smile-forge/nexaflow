@@ -479,7 +479,7 @@ public partial class App : Application
     /// Returns a factory that creates torn-off / "open in new window" shells in the SAME
     /// <paramref name="owner"/> workspace (so extra windows share its tab registry and services).
     /// </summary>
-    private static Func<IWindowHost> MakeWindowFactory(BackgroundActivityManager activityManager, Workspace owner)
+    private static Func<IWindowHost> MakeWindowFactory(BackgroundActivityManager activityManager, WorkspaceRuntime owner)
         => () =>
         {
             var win = new MainWindow(activityManager, owner, openDefaultTabs: false);
@@ -492,7 +492,7 @@ public partial class App : Application
     /// workspace rebuild (Configure panel) can spin up a replacement window without Core.Services
     /// referencing <see cref="MainWindow"/>.
     /// </summary>
-    private static IWindowHost CreateWorkspaceWindow(BackgroundActivityManager activityManager, Workspace ws)
+    private static IWindowHost CreateWorkspaceWindow(BackgroundActivityManager activityManager, WorkspaceRuntime ws)
     {
         ws.ShellServices!.CreateWindowFactory = MakeWindowFactory(activityManager, ws);
         var win = new MainWindow(activityManager, ws, openDefaultTabs: false);

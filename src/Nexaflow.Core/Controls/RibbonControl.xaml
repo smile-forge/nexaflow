@@ -23,7 +23,7 @@
                              Converter={StaticResource ColorStringToBrush}}"/>
 
         <!-- Profile selector: 48 px wide rectangle + popup -->
-        <ctrl:ProfileSelectorControl
+        <ctrl:WorkspaceSelectorControl
                 HorizontalAlignment="Left" Width="42"
                 CurrentProfile="{Binding Profile, ElementName=Root}"
                 Profiles="{Binding Profiles, ElementName=Root}"

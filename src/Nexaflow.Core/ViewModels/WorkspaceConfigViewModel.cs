@@ -13,7 +13,7 @@ namespace Nexaflow.Core.ViewModels;
 
 /// <summary>
 /// The per-workspace "Configure" panel. Drives a <see cref="Profile"/> (which may have no live
-/// <see cref="Workspace"/>). To avoid disrupting a running workspace mid-edit, the panel works on a
+/// <see cref="WorkspaceRuntime"/>). To avoid disrupting a running workspace mid-edit, the panel works on a
 /// SEPARATE set of config instances loaded from the profile's folder — <see cref="Apply"/> writes
 /// them to disk only; the live instances are untouched. If anything was applied, <see cref="Close"/>
 /// reloads the profile from disk and rebuilds the live workspace once (no per-apply popup).
