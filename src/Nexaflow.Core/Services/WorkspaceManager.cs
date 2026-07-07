@@ -152,6 +152,7 @@ public sealed class WorkspaceManager
     public void SwitchWorkspace(WorkspaceRuntime ws, Workspace target)
     {
         if (ReferenceEquals(ws.Workspace, target)) return;
+        ws.ShellServices?.CaptureLastSession();   // record the outgoing workspace's session before we leave it
         target.EnsureSharedServicesLoaded();
         ws.RepointWorkspace(target);
         ReconfigureWorkspace(ws);

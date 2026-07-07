@@ -105,6 +105,11 @@ public sealed class ShellServices : IShellServices
 
     internal void UnregisterWindow(IWindowHost host)
     {
+        // The workspace's last window closing on a genuine user close (programmatic teardown goes through
+        // CloseAllWindows, which suppresses this): record the visible tabs as the restorable last session.
+        if (!_suppressSessionCapture && _windows.Count == 1 && ReferenceEquals(_windows[0], host))
+            CaptureLastSession(host);
+
         CloseWindowTabs(host);
 
         _windows.Remove(host);
@@ -303,6 +308,7 @@ public sealed class ShellServices : IShellServices
         var tabs = _pendingDefaultTabs;
         _pendingDefaultTabs = null;
         if (tabs is not null) OpenLayout(tabs);
+        OfferSessionRestore();   // default tabs are up — offer to swap in the recorded last session
     }
 
     private void OpenLayout(IReadOnlyList<DefaultTabDescriptor> tabs)
@@ -324,6 +330,72 @@ public sealed class ShellServices : IShellServices
     // Fresh dict per open so a page mutating its PageParams can't corrupt the shared saved descriptor.
     private static Dictionary<string, string>? CloneParams(Dictionary<string, string>? p)
         => p is null ? null : new Dictionary<string, string>(p);
+
+    // ── Last-session capture + restore offer ──────────────────────────────
+    // On the last window's genuine close (see UnregisterWindow) — or on a switch away (WorkspaceManager) —
+    // the visible tabs are recorded as the workspace's restorable last session when they differ from its
+    // default; on the next open a toast offers to swap them in. Programmatic teardown suppresses the capture.
+    private bool _suppressSessionCapture;
+
+    /// <summary>Records the focused (or given) window's tab layout on this workspace as its restorable last
+    /// session — or clears it when the layout matches the default (there's nothing worth restoring).</summary>
+    internal void CaptureLastSession(IWindowHost? host = null)
+    {
+        var target = host ?? FocusedWindow;
+        if (target is null) return;
+
+        var layout = target.CaptureTabLayout();
+        var ws = _workspace.Workspace;
+        ws.LastSessionTabs = layout.Count > 0 && !TabsetsEquivalent(layout, ws.DefaultTabs)
+            ? layout.ToList()
+            : null;
+        WorkspaceManager.Instance.SaveWorkspaces();
+    }
+
+    /// <summary>Once the default tabs are up, offers a one-click restore of the recorded last session.</summary>
+    private void OfferSessionRestore()
+    {
+        if (_workspace.Workspace.LastSessionTabs is not { Count: > 0 } session) return;
+
+        NotificationItem? note = null;
+        var restore = new RelayCommand(() =>
+        {
+            RestoreSession(session);
+            if (note is not null) MessageCenter.Instance.Remove(note);   // clear the toast + its inbox entry
+        });
+        note = new NotificationItem
+        {
+            Title         = "Restore last session?",
+            Body          = "Reopen the tabs you had open when you last closed this workspace.",
+            Severity      = MessageSeverity.Info,
+            ToastDuration = TimeSpan.FromSeconds(12),
+            Actions       = [new MessageAction("Restore", restore, IsPrimary: true)],
+        };
+        MessageCenter.Instance.Post(note);
+    }
+
+    private void RestoreSession(IReadOnlyList<DefaultTabDescriptor> session)
+    {
+        CloseAllTabs();
+        RestoreTabLayout(session);
+        _workspace.Workspace.LastSessionTabs = null;   // consumed — don't offer it again
+        WorkspaceManager.Instance.SaveWorkspaces();
+    }
+
+    /// <summary>Order-independent (per pane) equality of two tabsets by pane + kind + params (ignores the
+    /// display Title and which tab was active — a different active tab isn't a different session).</summary>
+    private static bool TabsetsEquivalent(IReadOnlyList<DefaultTabDescriptor> a, IReadOnlyList<DefaultTabDescriptor> b)
+    {
+        if (a.Count != b.Count) return false;
+        static string Key(DefaultTabDescriptor d)
+        {
+            var p = d.PageParams is null || d.PageParams.Count == 0
+                ? ""
+                : string.Join(";", d.PageParams.OrderBy(k => k.Key).Select(k => $"{k.Key}={k.Value}"));
+            return $"{d.Pane}{d.PageKind}{p}";
+        }
+        return a.Select(Key).OrderBy(s => s).SequenceEqual(b.Select(Key).OrderBy(s => s));
+    }
 
     public void CloseTab(Page tab)
     {
@@ -385,6 +457,7 @@ public sealed class ShellServices : IShellServices
     /// </summary>
     internal void CloseAllWindows()
     {
+        _suppressSessionCapture = true;   // rebuild/delete teardown — not a user closing the workspace
         foreach (var host in _windows.ToList())
             host.Window.Close();
         DisposeAllWatches();

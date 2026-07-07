@@ -39,6 +39,14 @@ public sealed partial class Workspace : ObservableObject
         set => _defaultTabs = value ?? [DefaultTabDescriptor.ThisPc()];
     }
 
+    /// <summary>
+    /// The tabs (grouped by pane) that were open when this workspace's last window closed, recorded only
+    /// when they differed from <see cref="DefaultTabs"/>. On the workspace's next open a toast offers to
+    /// restore them in one click; null means the last session matched the default (nothing to restore).
+    /// Serialized inline so the offer survives an app restart.
+    /// </summary>
+    public List<DefaultTabDescriptor>? LastSessionTabs { get; set; }
+
     /// <summary>UI-only, transient: set by the Workspaces editor on each row copy to mark whether the
     /// workspace is currently live (its Delete button is hidden — a running workspace can't be removed).
     /// Never serialised; false on the saved workspaces.</summary>
