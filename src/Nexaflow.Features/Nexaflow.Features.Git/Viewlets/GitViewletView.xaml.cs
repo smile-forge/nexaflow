@@ -60,17 +60,25 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
     {
         BranchButton.IsEnabled = false;
         PullButton.IsEnabled   = false;
+
+        // Worktree info is fetched independently and is resilient — a remnant with a dangling .git link
+        // returns a broken record rather than throwing, so the Remove button stays available to clean it up
+        // even when the repo itself won't open below.
+        GitWorktreeInfo? worktree = null;
+        try { worktree = await Task.Run(_worktreeService.GetInfo); } catch { }
+
         try
         {
-            var (info, worktree) = await Task.Run(() => (_git.GetStatus(), _worktreeService.GetInfo()));
+            var info = await Task.Run(_git.GetStatus);
             ApplyInfo(info);
-            ApplyWorktree(worktree);
         }
         catch (RepositoryNotFoundException)
         {
-            BranchName.Text = "not a repo";
-            StatusLine.Text = string.Empty;
-            ShowActionResult("The .git file is broken", false);
+            StatusLine.Inlines.Clear();
+            LastCommitLine.Text = string.Empty;
+            BranchName.Text = worktree is { IsBroken: true } ? "broken worktree" : "not a repo";
+            if (worktree is not { IsBroken: true })
+                ShowActionResult("The .git file is broken", false);
         }
         catch(Exception ex)
         {
@@ -80,6 +88,7 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
         }
         finally
         {
+            ApplyWorktree(worktree);
             BranchButton.IsEnabled = true;
             PullButton.IsEnabled   = true;
         }
@@ -154,6 +163,15 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
             StatusLine.Inlines.Add(new Run(text) { Foreground = brush });
         }
 
+        // A remnant: the repo won't open, so there's no merge/push state to show — just flag it for cleanup.
+        if (wt.IsBroken)
+        {
+            AddRun("broken remnant — Remove to clean up", ErrorBrush);
+            WorktreeBadge.ToolTip = $"Broken git worktree remnant\nIts .git link is dangling — the linked " +
+                                    $"repository is gone.\nUse Remove to delete the leftover folder.";
+            return;
+        }
+
         // Merge state vs the mainline target.
         if (wt.MergeTargetBranch is { } target)
             AddRun(wt.IsMerged ? $"merged into {target}" : $"unmerged vs {target}",
@@ -224,10 +242,15 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
         }
     }
 
-    /// <summary>The confirmation body shown for an unmerged / dirty worktree — spells out exactly what is
-    /// lost so the user can make an informed call.</summary>
+    /// <summary>The confirmation body shown for an unmerged / dirty / broken worktree — spells out exactly
+    /// what is lost so the user can make an informed call.</summary>
     private static string BuildRemovalPrompt(GitWorktreeInfo wt)
     {
+        if (wt.IsBroken)
+            return $"Remove broken worktree remnant '{wt.DisplayName}'?\n\n" +
+                   "Its .git link is dangling — the linked repository is gone, so this can't be opened as a " +
+                   "worktree. Removing deletes the leftover folder. This cannot be undone.";
+
         var sb = new StringBuilder($"Permanently remove worktree '{wt.DisplayName}'?\n\n");
 
         if (!wt.IsMerged)
@@ -453,13 +476,18 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
 
             if (_worktreeService.GetInfo() is { } wt)
             {
-                sb.Append(" This is a linked worktree");
-                sb.Append(wt.MergeTargetBranch is { } t
-                    ? (wt.IsMerged ? $", merged into {t}" : $", not yet merged into {t}")
-                    : "");
-                sb.Append(!wt.HasUpstream ? ", never pushed."
-                    : wt.IsPushed ? ", pushed to its remote."
-                    : $", {wt.AheadOfRemote} commit(s) unpushed.");
+                if (wt.IsBroken)
+                    sb.Append(" This is a broken worktree remnant (dangling .git link).");
+                else
+                {
+                    sb.Append(" This is a linked worktree");
+                    sb.Append(wt.MergeTargetBranch is { } t
+                        ? (wt.IsMerged ? $", merged into {t}" : $", not yet merged into {t}")
+                        : "");
+                    sb.Append(!wt.HasUpstream ? ", never pushed."
+                        : wt.IsPushed ? ", pushed to its remote."
+                        : $", {wt.AheadOfRemote} commit(s) unpushed.");
+                }
             }
             return sb.ToString();
         }

@@ -21,16 +21,17 @@ public sealed record GitWorktreeInfo(
     string? MergeTargetBranch,    // branch merged-state is tested against (e.g. "main" / "origin/main")
     bool    IsMerged,             // the worktree's tip is fully contained in the merge target
     int     StagedCount,
-    int     ModifiedCount)
+    int     ModifiedCount,
+    bool    IsBroken = false)     // a remnant: the .git link is dangling and the repo won't open
 {
     public bool HasUncommittedChanges => StagedCount > 0 || ModifiedCount > 0;
 
     /// <summary>
     /// Removing a merged worktree with no uncommitted tracked changes is non-destructive (its commits live
     /// on in the mainline), so the viewlet skips the confirmation prompt in exactly that case. Anything
-    /// unmerged, or with staged/modified work, prompts first.
+    /// unmerged, dirty, or broken (state unknown) prompts first.
     /// </summary>
-    public bool CanRemoveWithoutConfirmation => IsMerged && !HasUncommittedChanges;
+    public bool CanRemoveWithoutConfirmation => IsMerged && !HasUncommittedChanges && !IsBroken;
 }
 
 /// <summary>The outcome of a worktree removal: whether it fully succeeded, a user-facing message, and the
@@ -50,13 +51,39 @@ public sealed class GitWorktreeService(string folderPath)
     /// <summary>True when <c>folderPath</c> is a linked worktree (its <c>.git</c> is a pointer file).</summary>
     public bool IsWorktree() => File.Exists(Path.Combine(folderPath, ".git"));
 
-    /// <summary>Worktree merge/push/dirty state, or null when the folder is not a linked worktree.</summary>
+    /// <summary>
+    /// Worktree merge/push/dirty state, or null when the folder is not a linked worktree. A remnant whose
+    /// <c>.git</c> link is dangling (the repo won't open) returns a record with <see cref="GitWorktreeInfo.IsBroken"/>
+    /// set — so the viewlet can still offer to remove the leftover rather than just showing "broken".
+    /// </summary>
     public GitWorktreeInfo? GetInfo()
     {
         if (!IsWorktree()) return null;
 
-        using var repo = new Repository(folderPath);
+        Repository repo;
+        try { repo = new Repository(folderPath); }
+        catch { return BrokenInfo(); }   // dangling .git pointer — a remnant to be cleaned up
+        using (repo)
+            return ReadInfo(repo);
+    }
 
+    private GitWorktreeInfo BrokenInfo() => new(
+        DisplayName:       new DirectoryInfo(folderPath).Name,
+        WorktreeName:      ResolveWorktreeName() ?? new DirectoryInfo(folderPath).Name,
+        Branch:            "(unknown)",
+        IsDetached:        false,
+        Upstream:          null,
+        HasUpstream:       false,
+        AheadOfRemote:     0,
+        IsPushed:          false,
+        MergeTargetBranch: null,
+        IsMerged:          false,
+        StagedCount:       0,
+        ModifiedCount:     0,
+        IsBroken:          true);
+
+    private GitWorktreeInfo ReadInfo(Repository repo)
+    {
         var head      = repo.Head;
         var tip       = head.Tip;
         var detached  = repo.Info.IsHeadDetached;
@@ -129,22 +156,21 @@ public sealed class GitWorktreeService(string folderPath)
         if (!IsWorktree())
             return new(false, "This folder is not a git worktree.", null);
 
-        string? branch;
-        bool    detached;
-        string  worktreeName;
-        string  commonGitDir;
+        // Read what we can. A broken remnant (dangling .git link) won't open as a repository — that's fine:
+        // we can still delete the leftover folder and prune a dangling registration. Only a valid worktree
+        // yields a branch to delete; name/common-dir come from parsing the .git file, which needs no repo.
+        string? branch = null;
+        bool    detached = false;
         try
         {
             using var repo = new Repository(folderPath);
-            detached     = repo.Info.IsHeadDetached;
-            branch       = detached ? null : repo.Head.FriendlyName;
-            worktreeName = ResolveWorktreeName() ?? new DirectoryInfo(folderPath).Name;
-            commonGitDir = ResolveCommonGitDir();
+            detached = repo.Info.IsHeadDetached;
+            branch   = detached ? null : repo.Head.FriendlyName;
         }
-        catch (Exception ex)
-        {
-            return new(false, $"Could not read the worktree: {ex.Message}", null);
-        }
+        catch { /* broken worktree — no branch to delete */ }
+
+        var worktreeName = ResolveWorktreeName();
+        var commonGitDir = TryResolveCommonGitDir();
 
         var basePath = folderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         var name     = new DirectoryInfo(basePath).Name;
@@ -170,13 +196,18 @@ public sealed class GitWorktreeService(string folderPath)
         var problems = new List<string>();
 
         // 2. Drop the worktree registration — deleting .git/worktrees/<name> is exactly `git worktree prune`
-        //    for this worktree, and frees the branch to be deleted.
-        var admin = Path.Combine(commonGitDir, "worktrees", worktreeName);
-        if (Directory.Exists(admin))
-            try { ForceDeleteDirectory(admin); } catch (Exception ex) { problems.Add($"registration ({ex.Message})"); }
+        //    for this worktree, and frees the branch to be deleted. (For a broken remnant this is usually
+        //    already gone, which is why it was broken.)
+        if (commonGitDir is not null && worktreeName is not null)
+        {
+            var admin = Path.Combine(commonGitDir, "worktrees", worktreeName);
+            if (Directory.Exists(admin))
+                try { ForceDeleteDirectory(admin); } catch (Exception ex) { problems.Add($"registration ({ex.Message})"); }
+        }
 
-        // 3. Delete the now-free branch (a fresh handle re-reads worktree state).
-        if (!detached && branch is not null)
+        // 3. Delete the now-free branch (a fresh handle re-reads worktree state). Only when the repo opened
+        //    and gave us a branch name — a broken remnant's branch, if any, is no longer linked to it.
+        if (!detached && branch is not null && commonGitDir is not null)
         {
             try
             {
@@ -190,9 +221,10 @@ public sealed class GitWorktreeService(string folderPath)
         //    itself is already cleanly gone and git is consistent.
         try { ForceDeleteDirectory(stash); } catch { /* clearly-named remnant; not a broken worktree */ }
 
+        var what = branch is not null ? $"worktree '{name}' and branch '{branch}'." : $"worktree remnant '{name}'.";
         return problems.Count == 0
-            ? new(true, $"Removed worktree '{name}'" + (branch is not null ? $" and branch '{branch}'." : "."), parent)
-            : new(true, $"Removed worktree '{name}', but some git cleanup failed: {string.Join(", ", problems)}.", parent);
+            ? new(true, $"Removed {what}", parent)
+            : new(true, $"Removed {what.TrimEnd('.')}, but some git cleanup failed: {string.Join(", ", problems)}.", parent);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
@@ -234,19 +266,22 @@ public sealed class GitWorktreeService(string folderPath)
     }
 
     /// <summary>git's internal name for this worktree — the folder name under <c>.git/worktrees/</c>,
-    /// read from the <c>.git</c> pointer file. Null if it can't be resolved.</summary>
+    /// read from the <c>.git</c> pointer file. Null if the file is missing/malformed. Works for a broken
+    /// remnant too (the admin dir need not still exist — this parses the path, not the directory).</summary>
     private string? ResolveWorktreeName()
     {
-        var admin = ReadAdminDir();
+        var admin = ReadAdminDirPath();
         return admin is null ? null
             : new DirectoryInfo(admin.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)).Name;
     }
 
-    /// <summary>The shared <c>.git</c> directory of the main repository (the worktree's <c>commondir</c>).</summary>
-    private string ResolveCommonGitDir()
+    /// <summary>The shared <c>.git</c> directory of the main repository (the worktree's <c>commondir</c>), or
+    /// null when the <c>.git</c> pointer is missing/malformed. Resolves from the parsed path, so it still
+    /// works for a broken remnant whose admin directory has already been pruned.</summary>
+    private string? TryResolveCommonGitDir()
     {
-        var admin = ReadAdminDir()
-            ?? throw new InvalidOperationException("Could not resolve the worktree's git directory.");
+        var admin = ReadAdminDirPath();
+        if (admin is null) return null;
 
         var commonFile = Path.Combine(admin, "commondir");
         if (File.Exists(commonFile))
@@ -258,9 +293,10 @@ public sealed class GitWorktreeService(string folderPath)
         return Path.GetFullPath(Path.Combine(admin, "..", ".."));
     }
 
-    /// <summary>Resolves the per-worktree admin directory from the <c>.git</c> pointer file
-    /// (<c>gitdir: &lt;path&gt;</c>). Returns null if the file is missing or malformed.</summary>
-    private string? ReadAdminDir()
+    /// <summary>Parses the per-worktree admin directory path from the <c>.git</c> pointer file
+    /// (<c>gitdir: &lt;path&gt;</c>). Returns the path whether or not it still exists on disk (a broken
+    /// remnant's may be gone); null only if the file is missing or malformed.</summary>
+    private string? ReadAdminDirPath()
     {
         var dotGit = Path.Combine(folderPath, ".git");
         if (!File.Exists(dotGit)) return null;
@@ -270,8 +306,8 @@ public sealed class GitWorktreeService(string folderPath)
         if (!line.StartsWith(prefix, StringComparison.Ordinal)) return null;
 
         var target = line[prefix.Length..].Trim();
-        var admin  = Path.GetFullPath(Path.IsPathRooted(target) ? target : Path.Combine(folderPath, target));
-        return Directory.Exists(admin) ? admin : null;
+        if (target.Length == 0) return null;
+        return Path.GetFullPath(Path.IsPathRooted(target) ? target : Path.Combine(folderPath, target));
     }
 
     /// <summary>Recursively deletes a directory, clearing read-only attributes first (git pack/object files

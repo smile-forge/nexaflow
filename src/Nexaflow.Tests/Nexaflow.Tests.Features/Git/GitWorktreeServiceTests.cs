@@ -56,6 +56,17 @@ public class GitWorktreeServiceTests
         repo.Commit(message, Sig, Sig);
     }
 
+    /// <summary>Turns a valid worktree into a remnant: deletes its admin registration under the main repo so
+    /// the worktree's <c>.git</c> pointer dangles (folder + <c>.git</c> file remain, repo no longer opens).</summary>
+    private static void BreakWorktree(string mainDir, string worktreeName)
+    {
+        var admin = Path.Combine(mainDir, ".git", "worktrees", worktreeName);
+        if (!Directory.Exists(admin)) return;
+        foreach (var f in Directory.EnumerateFiles(admin, "*", SearchOption.AllDirectories))
+            File.SetAttributes(f, FileAttributes.Normal);
+        Directory.Delete(admin, recursive: true);
+    }
+
     [TestCleanup]
     public void Cleanup()
     {
@@ -223,5 +234,34 @@ public class GitWorktreeServiceTests
         Assert.IsTrue(new GitWorktreeService(wt).IsWorktree(), "must still open as a worktree");
         using var repo = new Repository(main);
         Assert.IsNotNull(repo.Branches["feat"], "branch must remain");
+    }
+
+    // ── Broken remnants (dangling .git link) ─────────────────────────────────────
+
+    [TestMethod]
+    public void GetInfo_DanglingGitLink_ReturnsBrokenRemnant()
+    {
+        var main = InitRepoWithMain();
+        var wt   = AddWorktree(main, "feat", "feat-wt");
+        BreakWorktree(main, "feat-wt");   // repo can no longer open, but folder + .git file remain
+
+        var info = new GitWorktreeService(wt).GetInfo();
+
+        Assert.IsNotNull(info, "a remnant is still surfaced (so it can be removed), not treated as a non-worktree");
+        Assert.IsTrue(info!.IsBroken);
+        Assert.IsFalse(info.CanRemoveWithoutConfirmation, "broken state is unknown → always confirm");
+    }
+
+    [TestMethod]
+    public void Remove_BrokenRemnant_DeletesLeftoverFolder()
+    {
+        var main = InitRepoWithMain();
+        var wt   = AddWorktree(main, "feat", "feat-wt");
+        BreakWorktree(main, "feat-wt");
+
+        var result = new GitWorktreeService(wt).Remove();
+
+        Assert.IsTrue(result.Success, result.Message);
+        Assert.IsFalse(Directory.Exists(wt), "the leftover remnant folder should be deleted");
     }
 }
