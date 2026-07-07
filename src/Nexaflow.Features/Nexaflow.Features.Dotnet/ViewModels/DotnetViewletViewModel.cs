@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -96,6 +97,22 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanRun))] private Task Run()     => RunVerbAsync("run");
     [RelayCommand(CanExecute = nameof(CanRun))] private Task Test()    => RunVerbAsync("test");
     [RelayCommand(CanExecute = nameof(CanRun))] private Task Clean()   => RunVerbAsync("clean");
+
+    /// <summary>Opens the selected target (solution/project) file with its default OS handler
+    /// (e.g. Visual Studio for a <c>.sln</c>/<c>.slnx</c>).</summary>
+    [RelayCommand]
+    private void OpenTarget()
+    {
+        if (SelectedTarget is not { } target) return;
+        try
+        {
+            Process.Start(new ProcessStartInfo(target.Path) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            _shell.ShowError($"Couldn't open {target.DisplayName}: {ex.Message}");
+        }
+    }
 
     /// <summary>
     /// Runs a dotnet verb against the selected target and returns the captured result — or null when

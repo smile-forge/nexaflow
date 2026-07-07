@@ -4,6 +4,19 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolVis"/>
 
+        <!-- Target label rendered as a link: accent-coloured, underline on hover, hand cursor.
+             Overrides the default Hyperlink template's hard-coded hover colour to stay theme-correct. -->
+        <Style x:Key="TargetLink" TargetType="Hyperlink">
+            <Setter Property="Foreground"      Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="TextDecorations" Value="{x:Null}"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="TextDecorations" Value="Underline"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
         <Style x:Key="FlatBtn" TargetType="Button">
             <Setter Property="Background"      Value="Transparent"/>
             <Setter Property="Foreground"      Value="{DynamicResource TextBrush}"/>
@@ -65,29 +78,41 @@
                 <ColumnDefinition Width="Auto"/>  <!-- caution -->
             </Grid.ColumnDefinitions>
 
-            <!-- Target picker (multiple targets) -->
-            <ComboBox Grid.Column="0"
-                      VerticalAlignment="Center"
-                      MinWidth="120" MaxWidth="220"
-                      Margin="0,0,8,0"
-                      ItemsSource="{Binding Targets}"
-                      SelectedItem="{Binding SelectedTarget}"
-                      DisplayMemberPath="DisplayName"
-                      ToolTip="Target solution / project"
-                      Visibility="{Binding ShowTargetPicker, Converter={StaticResource BoolVis}}"/>
+            <!-- Target picker (multiple targets) + open button for the selected file -->
+            <StackPanel Grid.Column="0"
+                        Orientation="Horizontal"
+                        VerticalAlignment="Center"
+                        Margin="0,0,8,0"
+                        Visibility="{Binding ShowTargetPicker, Converter={StaticResource BoolVis}}">
+                <ComboBox VerticalAlignment="Center"
+                          MinWidth="120" MaxWidth="220"
+                          ItemsSource="{Binding Targets}"
+                          SelectedItem="{Binding SelectedTarget}"
+                          DisplayMemberPath="DisplayName"
+                          ToolTip="Target solution / project"/>
+                <Button Style="{StaticResource FlatBtn}"
+                        Content="↗"
+                        FontSize="13"
+                        Margin="2,0,0,0"
+                        Command="{Binding OpenTargetCommand}"
+                        ToolTip="{Binding SelectedTarget.Path}"/>
+            </StackPanel>
 
-            <!-- Target label (single target) -->
+            <!-- Target label (single target) — a link that opens the file with its default OS handler -->
             <TextBlock Grid.Column="0"
                        VerticalAlignment="Center"
                        Margin="0,0,8,0"
                        FontSize="11"
                        FontWeight="SemiBold"
-                       Foreground="{DynamicResource TextBrush}"
                        TextTrimming="CharacterEllipsis"
                        MaxWidth="220"
-                       Text="{Binding SelectedTarget.DisplayName}"
-                       ToolTip="{Binding SelectedTarget.DisplayName}"
-                       Visibility="{Binding ShowTargetLabel, Converter={StaticResource BoolVis}}"/>
+                       Visibility="{Binding ShowTargetLabel, Converter={StaticResource BoolVis}}">
+                <Hyperlink Style="{StaticResource TargetLink}"
+                           Command="{Binding OpenTargetCommand}"
+                           ToolTip="{Binding SelectedTarget.Path}">
+                    <Run Text="{Binding SelectedTarget.DisplayName}"/>
+                </Hyperlink>
+            </TextBlock>
 
             <!-- Verb buttons -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
