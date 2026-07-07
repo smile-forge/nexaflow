@@ -322,8 +322,10 @@ public partial class App : Application
     {
         try
         {
-            var dir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Smile", "nexaflow");
+            // Write into the active config root (honours NEXAFLOW_CONFIG_DIR) so an isolated run — e.g. a
+            // UI test — logs to its own dir instead of the developer's real %APPDATA%, and its teardown can
+            // assert the log stayed empty.
+            var dir = ConfigManager.Instance.BaseDir;
             Directory.CreateDirectory(dir);
             File.AppendAllText(Path.Combine(dir, "crash.log"),
                 $"[{DateTimeOffset.Now:O}] {e.Exception}{Environment.NewLine}{Environment.NewLine}");
