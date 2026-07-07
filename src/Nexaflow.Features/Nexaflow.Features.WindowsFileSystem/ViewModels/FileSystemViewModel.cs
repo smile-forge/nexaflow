@@ -397,6 +397,50 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
         return null;
     }
 
+    // ── Folder-busy state ──────────────────────────────────────────────────────
+    // When another part of the app is mid-mutation on this folder (e.g. deleting this worktree), the shell
+    // marks it busy; we show a "please wait" panel in place of the file list until it clears, then the view
+    // re-evaluates the folder. The subscription is attached only while the view is loaded (the shell outlives
+    // the tab), so it can't leak the VM.
+
+    /// <summary>True while a long mutation is in flight on the current folder — the view shows a wait panel.</summary>
+    [ObservableProperty] private bool   _isFolderBusy;
+    [ObservableProperty] private string _folderBusyMessage = string.Empty;
+
+    /// <summary>Raised when a mutation on the current folder finishes (its busy mark cleared), so the view can
+    /// refresh or re-home. Runs on the UI thread.</summary>
+    public event Action? FolderBusyCleared;
+
+    /// <summary>Begins observing the shell's folder-busy signal and syncs the current state. Called by the
+    /// view on load.</summary>
+    public void AttachBusyTracking()
+    {
+        _shell.FolderBusyChanged += OnShellFolderBusyChanged;
+        RefreshBusyState();
+    }
+
+    /// <summary>Stops observing the shell's folder-busy signal. Called by the view on unload so the long-lived
+    /// shell doesn't retain this VM.</summary>
+    public void DetachBusyTracking() => _shell.FolderBusyChanged -= OnShellFolderBusyChanged;
+
+    private void OnShellFolderBusyChanged() => RefreshBusyState();
+
+    /// <summary>Re-reads whether the current folder is busy; shows/hides the wait panel and, on a
+    /// busy→idle transition, fires <see cref="FolderBusyCleared"/> so the view re-evaluates the folder.</summary>
+    private void RefreshBusyState()
+    {
+        var message = string.IsNullOrEmpty(CurrentPath) ? null : _shell.GetFolderBusyMessage(CurrentPath);
+        var nowBusy = !string.IsNullOrEmpty(message);   // empty message ⇒ not busy
+        var wasBusy = IsFolderBusy;
+
+        FolderBusyMessage = message ?? string.Empty;
+        IsFolderBusy      = nowBusy;
+
+        if (wasBusy && !nowBusy) FolderBusyCleared?.Invoke();
+    }
+
+    partial void OnCurrentPathChanged(string value) => RefreshBusyState();
+
     /// <summary>
     /// Returns a list of applicable <see cref="FileActionViewModel"/>s for the
     /// given entries, suitable for use in a context menu.
@@ -1427,6 +1471,10 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     private async Task RefreshEntriesAsync()
     {
         var path = CurrentPath;
+
+        // A mutation is in flight on this folder (e.g. it's being deleted): don't enumerate it — the view
+        // shows the "please wait" panel and we reload once the shell clears the busy mark.
+        if (IsFolderBusy) { Entries.Clear(); UpdateEntryCountLabel(0, 0, 0); IsLoadingEntries = false; return; }
 
         // Inside an archive (or on an archive file itself): the VFS enumerates the entries in one shot.
         if (!Directory.Exists(path) && Vfs.IsDirectory(path)) { LoadVirtualEntries(path); return; }

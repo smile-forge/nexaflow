@@ -21,13 +21,4 @@ public interface IViewletController
     /// no viewlet is holding a handle or running a child process against the folder. Best-effort.
     /// </summary>
     Task QuiesceFolderAsync(CancellationToken ct = default);
-
-    /// <summary>
-    /// Tells the host to re-evaluate the displayed folder after a mutation the caller performed (e.g. the Git
-    /// viewlet removing a worktree). If the folder is now gone, the file browser walks up to the nearest
-    /// surviving ancestor — keeping the user in the <em>same</em> tab rather than stranding it on a dead
-    /// location. If it still exists, the browser refreshes the folder contents and tears down + rebuilds the
-    /// viewlets in place (the mutation may have changed which viewlets apply, e.g. a <c>.git</c> that's gone).
-    /// </summary>
-    void InvalidateLocation();
 }

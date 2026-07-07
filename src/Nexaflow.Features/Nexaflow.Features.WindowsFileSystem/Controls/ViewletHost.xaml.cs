@@ -21,10 +21,6 @@ public partial class ViewletHost : UserControl, IViewletController
     /// <see cref="IViewletController.QuiesceFolderAsync"/> routes here so one viewlet can quiesce them all.</summary>
     public Func<CancellationToken, Task>? QuiesceFolderHandler { get; set; }
 
-    /// <summary>Set by the file browser to its "re-home the tab if the folder vanished" handler. A viewlet's
-    /// <see cref="IViewletController.InvalidateLocation"/> routes here.</summary>
-    public Action? InvalidateLocationHandler { get; set; }
-
     public ViewletDisplayMode CurrentMode => _mode;
 
     /// <summary>The hosted viewlet's AI surface, if its view exposes one — its context line and
@@ -37,8 +33,6 @@ public partial class ViewletHost : UserControl, IViewletController
 
     Task IViewletController.QuiesceFolderAsync(CancellationToken ct)
         => QuiesceFolderHandler?.Invoke(ct) ?? Task.CompletedTask;
-
-    void IViewletController.InvalidateLocation() => InvalidateLocationHandler?.Invoke();
 
     public ViewletHost(IFolderViewlet viewlet, string folderPath)
     {

@@ -269,27 +269,28 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
 
     /// <summary>
     /// Releases this viewlet's hold on the folder before it's mutated/deleted: kills the running
-    /// <c>dotnet list --outdated</c> process tree (whose working directory is the folder) and awaits its
-    /// exit, then cancels the pending check. The kill happens <em>before</em> the cancel so the runner
-    /// doesn't dispose the process out from under us — cancelling this check only abandons it, it never
-    /// kills. Best-effort; never throws.
+    /// <c>dotnet list --outdated</c> process tree (whose working directory is the folder) and awaits its exit,
+    /// then cancels the pending check.
+    /// <para>
+    /// The kill runs <em>off the UI thread</em> — walking and tearing down a dotnet/MSBuild tree is slow and
+    /// throws a first-chance exception per already-gone child, which would otherwise stall the UI. And it
+    /// happens <em>before</em> the cancel: cancelling this check only abandons the process (it never kills)
+    /// and would let the runner dispose it out from under us while it still holds the folder's lock.
+    /// Best-effort; never throws.
+    /// </para>
     /// </summary>
     public async Task QuiesceAsync(CancellationToken ct)
     {
         var proc = Interlocked.Exchange(ref _nugetProcess, null);
-        if (proc is not null)
+        if (proc is null) { _nugetCts?.Cancel(); return; }
+
+        await Task.Run(() =>
         {
-            try { if (!proc.HasExited) proc.Kill(entireProcessTree: true); }
-            catch { /* already exited / disposed — its lock is gone either way */ }
-        }
+            try { if (!proc.HasExited) proc.Kill(entireProcessTree: true); } catch { /* already gone */ }
+            try { proc.WaitForExit(); } catch { /* exited/disposed — the working-directory lock is released */ }
+        }, CancellationToken.None);
 
         _nugetCts?.Cancel();
-
-        if (proc is not null)
-        {
-            try { await proc.WaitForExitAsync(ct); }
-            catch { /* exited/disposed/cancelled — the working-directory lock is released */ }
-        }
     }
 
     private void ApplyUpdates(IReadOnlyList<NugetUpdateChecker.PackageUpdate> updates)

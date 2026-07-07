@@ -219,26 +219,28 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
         }
 
         RemoveWorktreeButton.IsEnabled = false;
-        RemoveWorktreeButton.Content   = "···";
 
-        // Ask the host to quiesce every viewlet on this folder first — e.g. the .NET viewlet's NuGet scan
-        // runs `dotnet` with the folder as its working directory and would otherwise lock it against deletion.
-        try { await _controller.QuiesceFolderAsync(); } catch { /* best-effort; removal is fail-safe anyway */ }
+        // Removal (quiescing the .NET scan, killing its dotnet tree, deleting the folder) can take a while, so
+        // run it off the UI thread. Marking the folder busy makes the browser show a "please wait" panel and
+        // refresh/re-home when it clears — the user can keep working and even queue more removals meanwhile.
+        var busy = _shell.MarkFolderBusy(_folderPath, $"Removing worktree '{wt.DisplayName}'…");
+        _ = RunRemovalAsync(busy);
+    }
 
-        var result = await Task.Run(_worktreeService.Remove);
-
-        if (result.Success)
+    private async Task RunRemovalAsync(IDisposable busy)
+    {
+        try
         {
-            _shell.ShowNotification(result.Message);
-            // The current folder is gone — have the file browser re-home this same tab to a surviving ancestor.
-            _controller.InvalidateLocation();
+            // Quiesce every viewlet on this folder first — e.g. the .NET viewlet's NuGet scan runs `dotnet`
+            // with the folder as its working directory and would otherwise lock it against deletion.
+            try { await _controller.QuiesceFolderAsync(); } catch { /* best-effort; removal is fail-safe anyway */ }
+
+            var result = await Task.Run(_worktreeService.Remove);
+            if (result.Success) _shell.ShowNotification(result.Message);
+            else                _shell.ShowError(result.Message);
         }
-        else
-        {
-            ShowActionResult(result.Message, false);
-            RemoveWorktreeButton.Content   = "Remove";
-            RemoveWorktreeButton.IsEnabled = true;
-        }
+        catch (Exception ex) { _shell.ShowError($"Worktree removal failed: {ex.Message}"); }
+        finally { busy.Dispose(); }   // clears the busy mark → the browser refreshes / re-homes
     }
 
     /// <summary>The confirmation body shown for an unmerged / dirty / broken worktree — spells out exactly

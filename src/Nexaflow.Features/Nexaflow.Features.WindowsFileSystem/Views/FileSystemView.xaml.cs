@@ -63,8 +63,14 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         DataContext = viewModel;
         ViewModel.NavigationChanged += OnViewModelNavigationChanged;
         ViewModel.PropertyChanged   += OnViewModelPropertyChanged;
+        ViewModel.FolderBusyCleared += ReEvaluateCurrentFolder;   // a mutation on this folder finished
         WireDragDrop();
         WireActionStripDrag();
+
+        // The VM subscribes to the shell's folder-busy signal only while this view is loaded (the shell
+        // outlives the tab, so a permanent subscription would leak the VM); re-sync on each load.
+        Loaded   += (_, _) => ViewModel.AttachBusyTracking();
+        Unloaded += (_, _) => ViewModel.DetachBusyTracking();
 
         // Column-header sorting. GridViewColumnHeader is a ButtonBase that captures the
         // mouse on press, so a Button inside the header template never sees the click —
@@ -244,7 +250,6 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
             host.ViewletViewRequested      += OnViewletViewRequested;
             host.SwitchFullViewletRequested += OnSwitchFullViewletRequested;
             host.QuiesceFolderHandler       = QuiesceActiveFolderAsync;
-            host.InvalidateLocationHandler  = InvalidateCurrentLocation;
             _activeViewletHosts.Add(host);
         }
 
@@ -274,12 +279,13 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     }
 
     /// <summary>
-    /// A viewlet reports it mutated the current folder (e.g. the Git viewlet removed this worktree).
-    /// If the folder is now gone, walk up to the nearest surviving ancestor and navigate there in this same
-    /// tab (falling back to This PC) so the user isn't stranded. If it still exists, refresh its contents and
-    /// rebuild the viewlets in place — the mutation may have changed which viewlets apply.
+    /// Re-evaluates the current folder after a mutation finished (the shell cleared its busy mark — e.g. a
+    /// worktree deletion completed). If the folder is now gone, walk up to the nearest surviving ancestor and
+    /// navigate there in this same tab (falling back to This PC) so the user isn't stranded. If it still
+    /// exists, refresh its contents and rebuild the viewlets in place — the mutation may have changed which
+    /// viewlets apply.
     /// </summary>
-    private void InvalidateCurrentLocation()
+    private void ReEvaluateCurrentFolder()
     {
         var path = ViewModel.CurrentPath;
 

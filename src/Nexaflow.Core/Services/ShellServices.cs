@@ -34,10 +34,14 @@ public sealed class ShellServices : IShellServices
     // This workspace's UI dispatcher, captured on the thread that bootstraps it (the UI thread).
     private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
 
+    // Folders with an in-flight mutation; browsers show "please wait" for these until they clear.
+    private readonly FolderBusyTracker _busyFolders = new();
+
     public ShellServices(WorkspaceRuntime workspace, IBackgroundActivityManager? activity = null)
     {
         _workspace = workspace;
         _activity  = activity;
+        _busyFolders.Changed += () => _ui.InvokeAsync(() => FolderBusyChanged?.Invoke());
     }
 
     /// <summary>
@@ -853,6 +857,16 @@ public sealed class ShellServices : IShellServices
                 view.Reinitialize(active.PageParams ?? []);
         });
     }
+
+    // ── Folder-busy tracking (long mutations run off the UI thread) ─────────────
+
+    public event Action? FolderBusyChanged;
+
+    IDisposable IShellServices.MarkFolderBusy(string folderPath, string message)
+        => _busyFolders.Mark(folderPath, message);
+
+    string? IShellServices.GetFolderBusyMessage(string folderPath)
+        => _busyFolders.MessageFor(folderPath);
 
     void IShellServices.SaveFeatureConfig(IFeatureConfig config)
     {
