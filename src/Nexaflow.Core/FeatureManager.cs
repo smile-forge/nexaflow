@@ -113,8 +113,25 @@ public sealed class FeatureManager
             if (te.Contracts.Contains(StreamCodecName) && asm.GetType(te.Name) is { } ct)
                 try { if (Activator.CreateInstance(ct) is IStreamCodec c) VirtualFileSystem.Instance.RegisterCodec(c); } catch { }
 
-            // Theme contributions (pack URIs captured during the scan).
-            if (te.ThemeUris is { Count: > 0 } uris)
+            // Theme contributions. Fast path: the pack:// URIs captured during a WPF-up scan. Fallback: a
+            // scan that ran WITHOUT a WPF Application (e.g. a unit-test run that rebuilt the shared catalog)
+            // can't build pack:// URIs, so ThemeUris is null — re-read them from the freshly-loaded live
+            // type here, where WPF is up. Without this a headless-built catalog silently drops every
+            // feature's theme resources (PostIt.* / Product.Status.* missing → gray, or a converter throws
+            // mid-layout and takes the app down).
+            var uris = te.ThemeUris;
+            if ((uris is null || uris.Count == 0)
+                && asm.GetType(te.Name) is { } themeType
+                && typeof(IThemeContribution).IsAssignableFrom(themeType))
+            {
+                try
+                {
+                    uris = (Activator.CreateInstance(themeType) as IThemeContribution)?
+                        .ResourceDictionaryUris.Select(u => u.ToString()).ToList();
+                }
+                catch { /* a contribution that can't be instantiated just contributes nothing */ }
+            }
+            if (uris is { Count: > 0 })
                 lock (_themeLock)
                     foreach (var u in uris)
                         if (Uri.TryCreate(u, UriKind.Absolute, out var uri) && _themeContributionUris.Add(uri))
