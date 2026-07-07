@@ -34,9 +34,9 @@ public sealed record GitWorktreeInfo(
     public bool CanRemoveWithoutConfirmation => IsMerged && !HasUncommittedChanges && !IsBroken;
 }
 
-/// <summary>The outcome of a worktree removal: whether it fully succeeded, a user-facing message, and the
-/// folder to navigate to afterwards (the removed worktree's parent).</summary>
-public sealed record GitWorktreeRemovalResult(bool Success, string Message, string? NavigateTo);
+/// <summary>The outcome of a worktree removal: whether it fully succeeded and a user-facing message. Where
+/// the browser re-homes afterwards is the file view's job (see <c>IViewletController.InvalidateLocation</c>).</summary>
+public sealed record GitWorktreeRemovalResult(bool Success, string Message);
 
 /// <summary>
 /// Detects whether a folder is a linked git worktree and, if so, reports its merge/push state and performs
@@ -154,7 +154,7 @@ public sealed class GitWorktreeService(string folderPath)
     public GitWorktreeRemovalResult Remove()
     {
         if (!IsWorktree())
-            return new(false, "This folder is not a git worktree.", null);
+            return new(false, "This folder is not a git worktree.");
 
         // Read what we can. A broken remnant (dangling .git link) won't open as a repository — that's fine:
         // we can still delete the leftover folder and prune a dangling registration. Only a valid worktree
@@ -174,7 +174,6 @@ public sealed class GitWorktreeService(string folderPath)
 
         var basePath = folderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         var name     = new DirectoryInfo(basePath).Name;
-        var parent   = Directory.GetParent(basePath)?.FullName;
 
         // 1. Vacate the working tree by an atomic same-volume rename. A locked/in-use file makes this fail as
         //    a unit, with the worktree still fully intact at its original path — a clean, recoverable failure.
@@ -188,8 +187,7 @@ public sealed class GitWorktreeService(string folderPath)
         {
             return new(false,
                 "Couldn't remove the worktree — a file inside it is in use. Close anything open under it " +
-                $"(and don't run the app from the worktree you're deleting), then try again. ({ex.Message})",
-                null);
+                $"(and don't run the app from the worktree you're deleting), then try again. ({ex.Message})");
         }
 
         // The worktree path is now gone. From here every step is git bookkeeping the rename already made safe.
@@ -223,8 +221,8 @@ public sealed class GitWorktreeService(string folderPath)
 
         var what = branch is not null ? $"worktree '{name}' and branch '{branch}'." : $"worktree remnant '{name}'.";
         return problems.Count == 0
-            ? new(true, $"Removed {what}", parent)
-            : new(true, $"Removed {what.TrimEnd('.')}, but some git cleanup failed: {string.Join(", ", problems)}.", parent);
+            ? new(true, $"Removed {what}")
+            : new(true, $"Removed {what.TrimEnd('.')}, but some git cleanup failed: {string.Join(", ", problems)}.");
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────

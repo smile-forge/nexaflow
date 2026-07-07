@@ -244,6 +244,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
             host.ViewletViewRequested      += OnViewletViewRequested;
             host.SwitchFullViewletRequested += OnSwitchFullViewletRequested;
             host.QuiesceFolderHandler       = QuiesceActiveFolderAsync;
+            host.InvalidateLocationHandler  = InvalidateCurrentLocation;
             _activeViewletHosts.Add(host);
         }
 
@@ -270,6 +271,22 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
             try { await quiescible.QuiesceAsync(ct); }
             catch { /* best-effort — a viewlet's own failure must not block the mutation */ }
         }
+    }
+
+    /// <summary>
+    /// A viewlet reports the current folder may be gone (e.g. the Git viewlet just deleted this worktree).
+    /// If it no longer exists, walk up to the nearest surviving ancestor and navigate there in this same tab
+    /// (falling back to This PC), so the user isn't stranded on a dead location. No-op if it still exists.
+    /// </summary>
+    private void InvalidateCurrentLocation()
+    {
+        var path = ViewModel.CurrentPath;
+        if (string.IsNullOrEmpty(path) || System.IO.Directory.Exists(path)) return;
+
+        if (FileSystemViewModel.NearestExistingAncestor(path) is { } ancestor)
+            ViewModel.NavigateTo(ancestor);
+        else
+            ViewModel.GoToThisPc(rebuildTree: true);   // even the drive is gone — fall back to This PC
     }
 
     private void ApplyViewletLayout()

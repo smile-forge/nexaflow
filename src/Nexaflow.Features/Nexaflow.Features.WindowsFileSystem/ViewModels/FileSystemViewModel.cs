@@ -383,6 +383,20 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     /// host before a viewlet mutates/deletes the current folder (see the folder-quiesce fan-out).</summary>
     public void CancelEntryLoad() => _loadCts?.Cancel();
 
+    /// <summary>The nearest ancestor of <paramref name="path"/> that still exists on disk, or null if none
+    /// does (the caller then falls back to This PC). Used to re-home a tab after its folder is deleted —
+    /// walk up until something is displayable. Assumes <paramref name="path"/> itself is already gone.</summary>
+    public static string? NearestExistingAncestor(string path)
+    {
+        for (var ancestor = Path.GetDirectoryName(path);
+             !string.IsNullOrEmpty(ancestor);
+             ancestor = Path.GetDirectoryName(ancestor))
+        {
+            if (Directory.Exists(ancestor)) return ancestor;
+        }
+        return null;
+    }
+
     /// <summary>
     /// Returns a list of applicable <see cref="FileActionViewModel"/>s for the
     /// given entries, suitable for use in a context menu.

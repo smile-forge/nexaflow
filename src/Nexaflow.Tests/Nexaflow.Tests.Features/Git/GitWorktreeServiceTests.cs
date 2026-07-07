@@ -186,19 +186,6 @@ public class GitWorktreeServiceTests
     }
 
     [TestMethod]
-    public void Remove_NavigateToIsWorktreeParent()
-    {
-        var main = InitRepoWithMain();
-        var wt   = AddWorktree(main, "feat", "feat-wt");
-        var expectedParent = Directory.GetParent(wt)!.FullName;
-
-        var result = new GitWorktreeService(wt).Remove();
-
-        Assert.IsTrue(result.Success, result.Message);
-        Assert.AreEqual(expectedParent, result.NavigateTo);
-    }
-
-    [TestMethod]
     public void Remove_OnMainCheckout_Fails()
     {
         var main = InitRepoWithMain();

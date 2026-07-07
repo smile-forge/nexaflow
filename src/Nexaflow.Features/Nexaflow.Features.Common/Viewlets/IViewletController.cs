@@ -21,4 +21,12 @@ public interface IViewletController
     /// no viewlet is holding a handle or running a child process against the folder. Best-effort.
     /// </summary>
     Task QuiesceFolderAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Tells the host the displayed folder may no longer exist (e.g. the Git viewlet just deleted this
+    /// worktree). The file browser re-checks the current path and, if it's gone, walks up to the nearest
+    /// surviving ancestor — keeping the user in the <em>same</em> tab rather than stranding it on a dead
+    /// location. A no-op when the folder still exists.
+    /// </summary>
+    void InvalidateLocation();
 }

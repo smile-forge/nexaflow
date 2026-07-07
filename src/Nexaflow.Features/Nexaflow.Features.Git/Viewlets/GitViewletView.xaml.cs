@@ -230,9 +230,8 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
         if (result.Success)
         {
             _shell.ShowNotification(result.Message);
-            // The current folder is gone — move the browser to the removed worktree's parent.
-            if (result.NavigateTo is { } parent)
-                _shell.OpenTab("FileSystem", new() { ["mode"] = "path", ["path"] = parent });
+            // The current folder is gone — have the file browser re-home this same tab to a surviving ancestor.
+            _controller.InvalidateLocation();
         }
         else
         {
