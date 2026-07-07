@@ -111,10 +111,18 @@ public sealed class GitWorktreeService(string folderPath)
     // ── Removal ───────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Fully removes the worktree: deletes the working-tree folder, prunes the worktree registration from
-    /// the main repository, and deletes the (now-unused) branch. Driven from the main repository so the
-    /// branch is no longer checked out anywhere by the time we delete it. Best-effort and self-reporting —
-    /// never throws for an expected failure.
+    /// Fully removes the worktree: deletes the working-tree folder, drops the worktree registration from the
+    /// main repository, and deletes the (now-unused) branch. Best-effort and self-reporting — never throws
+    /// for an expected failure.
+    /// <para>
+    /// Ordering is deliberately fail-safe. The folder is vacated FIRST, by an <em>atomic rename</em> out of
+    /// the way: if any file inside is in use (e.g. an app still running from the worktree) the rename fails
+    /// as a whole and the worktree is left completely intact and recoverable — no git surgery has run, so we
+    /// never leave a half-removed folder with its <c>.git</c> pointer destroyed. Only once the path is
+    /// confirmed vacated do we drop the registration and branch. (An earlier design pruned via LibGit2Sharp
+    /// first, which deletes the <c>.git</c> pointer + working tree up front and, on a locked file, orphaned
+    /// the folder and branch — hence the rename-first approach.)
+    /// </para>
     /// </summary>
     public GitWorktreeRemovalResult Remove()
     {
@@ -138,42 +146,36 @@ public sealed class GitWorktreeService(string folderPath)
             return new(false, $"Could not read the worktree: {ex.Message}", null);
         }
 
-        var name   = new DirectoryInfo(folderPath).Name;
-        var parent = Directory.GetParent(folderPath.TrimEnd(Path.DirectorySeparatorChar,
-                                                             Path.AltDirectorySeparatorChar))?.FullName;
-        var problems = new List<string>();
+        var basePath = folderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var name     = new DirectoryInfo(basePath).Name;
+        var parent   = Directory.GetParent(basePath)?.FullName;
 
-        // 1. Prune the worktree from the main repository. This must happen while the working directory still
-        //    exists — libgit2 can't resolve the worktree handle once its folder is gone. A successful prune
-        //    removes BOTH the working-tree folder and the .git/worktrees/<name> registration.
+        // 1. Vacate the working tree by an atomic same-volume rename. A locked/in-use file makes this fail as
+        //    a unit, with the worktree still fully intact at its original path — a clean, recoverable failure.
+        //    Nothing in git is touched until this succeeds.
+        var stash = basePath + ".removing-" + Guid.NewGuid().ToString("N");
         try
         {
-            using var main = new Repository(commonGitDir);
-            var wt = main.Worktrees[worktreeName];
-            if (wt is not null)
-            {
-                if (wt.IsLocked) wt.Unlock();
-                main.Worktrees.Prune(wt);
-            }
-        }
-        catch (Exception ex) { problems.Add($"prune ({ex.Message})"); }
-
-        // 2. Safety net — if the prune didn't run or left remnants, delete the folder and the orphaned
-        //    registration directly (the equivalent of `git worktree prune`).
-        try
-        {
-            ForceDeleteDirectory(folderPath);
+            Directory.Move(basePath, stash);
         }
         catch (Exception ex)
         {
-            return new(false, $"Could not delete the worktree folder: {ex.Message}", null);
+            return new(false,
+                "Couldn't remove the worktree — a file inside it is in use. Close anything open under it " +
+                $"(and don't run the app from the worktree you're deleting), then try again. ({ex.Message})",
+                null);
         }
+
+        // The worktree path is now gone. From here every step is git bookkeeping the rename already made safe.
+        var problems = new List<string>();
+
+        // 2. Drop the worktree registration — deleting .git/worktrees/<name> is exactly `git worktree prune`
+        //    for this worktree, and frees the branch to be deleted.
         var admin = Path.Combine(commonGitDir, "worktrees", worktreeName);
         if (Directory.Exists(admin))
             try { ForceDeleteDirectory(admin); } catch (Exception ex) { problems.Add($"registration ({ex.Message})"); }
 
-        // 3. Delete the now-free branch. A fresh repository handle re-reads worktree state so the branch is
-        //    no longer seen as checked-out.
+        // 3. Delete the now-free branch (a fresh handle re-reads worktree state).
         if (!detached && branch is not null)
         {
             try
@@ -184,9 +186,13 @@ public sealed class GitWorktreeService(string folderPath)
             catch (Exception ex) { problems.Add($"branch '{branch}' ({ex.Message})"); }
         }
 
+        // 4. Best-effort delete the stashed copy. Any leftover here is harmless throwaway — the worktree path
+        //    itself is already cleanly gone and git is consistent.
+        try { ForceDeleteDirectory(stash); } catch { /* clearly-named remnant; not a broken worktree */ }
+
         return problems.Count == 0
             ? new(true, $"Removed worktree '{name}'" + (branch is not null ? $" and branch '{branch}'." : "."), parent)
-            : new(true, $"Removed worktree '{name}', but some cleanup failed: {string.Join(", ", problems)}.", parent);
+            : new(true, $"Removed worktree '{name}', but some git cleanup failed: {string.Join(", ", problems)}.", parent);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────

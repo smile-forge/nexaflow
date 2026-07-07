@@ -197,4 +197,31 @@ public class GitWorktreeServiceTests
         Assert.IsFalse(result.Success);
         Assert.IsTrue(Directory.Exists(main), "a non-worktree must not be touched");
     }
+
+    [TestMethod]
+    public void Remove_WithFileInUse_FailsCleanlyLeavingWorktreeIntact()
+    {
+        var main = InitRepoWithMain();
+        var wt   = AddWorktree(main, "feat", "feat-wt");
+
+        var locked = Path.Combine(wt, "locked.bin");
+        File.WriteAllText(locked, "x");
+
+        // Hold an exclusive handle so the folder can't be renamed/deleted — the same situation as an app
+        // running from the worktree. Removal must bail before touching git.
+        using (new FileStream(locked, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            var result = new GitWorktreeService(wt).Remove();
+            Assert.IsFalse(result.Success, "removal must fail while a file is in use");
+        }
+
+        // Fail-safe: the worktree is still completely valid — no half-removed state.
+        Assert.IsTrue(Directory.Exists(wt), "folder must remain");
+        Assert.IsTrue(File.Exists(Path.Combine(wt, ".git")), ".git pointer must remain");
+        Assert.IsTrue(Directory.Exists(Path.Combine(main, ".git", "worktrees", "feat-wt")),
+                      "registration must remain");
+        Assert.IsTrue(new GitWorktreeService(wt).IsWorktree(), "must still open as a worktree");
+        using var repo = new Repository(main);
+        Assert.IsNotNull(repo.Branches["feat"], "branch must remain");
+    }
 }
