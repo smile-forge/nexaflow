@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using Nexaflow.IO.Common;
@@ -11,6 +12,13 @@ public sealed class ParsedQuery
     public bool   IsGlob      { get; init; }
     /// <summary>OLE DB SQL WHERE fragment (without the SCOPE clause).</summary>
     public string WhereClause { get; init; } = string.Empty;
+    /// <summary>
+    /// Evaluates the query against a single file/folder for a live filesystem walk —
+    /// used for globs (which never need the index) and as an off-index fallback.
+    /// Matches on what a walk can see (name, size, modified); it cannot see file
+    /// content, so content terms degrade to a filename match.
+    /// </summary>
+    public Func<FileProbe, bool> Matches { get; init; } = static _ => false;
 }
 
 /// <summary>Converts a raw user query into an OLE DB SQL WHERE clause for SystemIndex.</summary>
@@ -41,7 +49,8 @@ public static class SearchQueryParser
                 RawInput    = raw,
                 IsGlob      = false,
                 WhereClause = $"CONTAINS(System.Search.Contents,'{EscapeSql(term)}')" +
-                              $" OR System.FileName LIKE '%{EscapeLike(term)}%'"
+                              $" OR System.FileName LIKE '%{EscapeLike(term)}%'",
+                Matches     = p => NameHas(p, term)
             };
         }
 
@@ -52,7 +61,8 @@ public static class SearchQueryParser
             {
                 RawInput    = raw,
                 IsGlob      = true,
-                WhereClause = $"System.FileName LIKE '{Glob.ToSqlLike(trimmed)}'"
+                WhereClause = $"System.FileName LIKE '{Glob.ToSqlLike(trimmed)}'",
+                Matches     = p => Glob.IsMatch(p.Name, trimmed)
             };
         }
 
@@ -61,31 +71,46 @@ public static class SearchQueryParser
         {
             var parts   = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             var clauses = new List<string>();
+            var preds   = new List<Func<FileProbe, bool>>();
             foreach (var p in parts)
             {
                 if (p.StartsWith('+') && p.Length > 1)
-                    clauses.Add($"System.FileName LIKE '%{EscapeLike(p[1..])}%'");
+                {
+                    var term = p[1..];
+                    clauses.Add($"System.FileName LIKE '%{EscapeLike(term)}%'");
+                    preds.Add(fp => NameHas(fp, term));
+                }
                 else if (p.StartsWith('-') && p.Length > 1)
-                    clauses.Add($"System.FileName NOT LIKE '%{EscapeLike(p[1..])}%'");
+                {
+                    var term = p[1..];
+                    clauses.Add($"System.FileName NOT LIKE '%{EscapeLike(term)}%'");
+                    preds.Add(fp => !NameHas(fp, term));
+                }
                 else
+                {
                     clauses.Add($"System.FileName LIKE '%{EscapeLike(p)}%'");
+                    preds.Add(fp => NameHas(fp, p));
+                }
             }
             return new ParsedQuery
             {
                 RawInput    = raw,
                 IsGlob      = false,
-                WhereClause = string.Join(" AND ", clauses)
+                WhereClause = string.Join(" AND ", clauses),
+                Matches     = fp => preds.All(f => f(fp))
             };
         }
 
         // ── Filter criteria (size:, date:, etc.) ─────────────────────────────
         if (FilterKeyword.IsMatch(trimmed))
         {
+            var (where, match) = BuildFilter(trimmed);
             return new ParsedQuery
             {
                 RawInput    = raw,
                 IsGlob      = false,
-                WhereClause = BuildFilterClauses(trimmed)
+                WhereClause = where,
+                Matches     = match
             };
         }
 
@@ -100,7 +125,9 @@ public static class SearchQueryParser
         {
             RawInput    = raw,
             IsGlob      = false,
-            WhereClause = string.Join(" AND ", termClauses)
+            WhereClause = string.Join(" AND ", termClauses),
+            Matches     = p => terms.All(t =>
+                Glob.ContainsGlobChars(t) ? Glob.IsMatch(p.Name, t) : NameHas(p, t))
         };
     }
 
@@ -113,7 +140,8 @@ public static class SearchQueryParser
         {
             RawInput    = $"{first.RawInput.Trim()} {second.RawInput.Trim()}",
             IsGlob      = false,
-            WhereClause = $"({first.WhereClause}) AND ({second.WhereClause})"
+            WhereClause = $"({first.WhereClause}) AND ({second.WhereClause})",
+            Matches     = p => first.Matches(p) && second.Matches(p)
         };
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -123,9 +151,33 @@ public static class SearchQueryParser
                                                     .Replace("%", "[%]")
                                                     .Replace("_", "[_]");
 
-    private static string BuildFilterClauses(string input)
+    private static bool NameHas(FileProbe p, string sub) =>
+        p.Name.Contains(sub, StringComparison.OrdinalIgnoreCase);
+
+    private static bool CompareLong(long actual, string op, long expected) => op switch
+    {
+        ">"  => actual >  expected,
+        "<"  => actual <  expected,
+        ">=" => actual >= expected,
+        "<=" => actual <= expected,
+        _    => actual == expected,
+    };
+
+    private static bool CompareDate(DateTime actual, string op, DateTime expected) => op switch
+    {
+        "<"  => actual <  expected,
+        ">=" => actual >= expected,
+        "<=" => actual <= expected,
+        "="  => actual.Date == expected.Date,
+        _    => actual >  expected,   // default '>' mirrors the SQL date default
+    };
+
+    /// <summary>Builds the SQL WHERE fragment and the parallel filesystem predicate
+    /// for a size:/date:/… filter query. The two are kept in lockstep.</summary>
+    private static (string Where, Func<FileProbe, bool> Match) BuildFilter(string input)
     {
         var clauses = new List<string>();
+        var preds   = new List<Func<FileProbe, bool>>();
 
         foreach (Match m in SizeFilter.Matches(input))
         {
@@ -137,6 +189,8 @@ public static class SearchQueryParser
             if (keyword == "larger")  op = ">";
             if (keyword == "smaller") op = "<";
             clauses.Add($"System.Size {op} {bytes}");
+            var o = op; var b = bytes;
+            preds.Add(p => !p.IsDirectory && CompareLong(p.Size, o, b));
         }
 
         foreach (Match m in DateFilter.Matches(input))
@@ -148,6 +202,8 @@ public static class SearchQueryParser
             if (keyword == "after")  op = ">";
             var iso = date.Length == 4 ? $"{date}-01-01" : date.Length == 7 ? $"{date}-01" : date;
             clauses.Add($"System.DateModified {op} '{iso}'");
+            var o = op; var when = DateTime.Parse(iso, CultureInfo.InvariantCulture);
+            preds.Add(p => CompareDate(p.Modified, o, when));
         }
 
         // Any remaining plain tokens outside filter keywords
@@ -155,9 +211,17 @@ public static class SearchQueryParser
         if (!string.IsNullOrWhiteSpace(stripped))
         {
             foreach (var t in stripped.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            {
                 clauses.Add($"System.FileName LIKE '%{EscapeLike(t)}%'");
+                var term = t;
+                preds.Add(p => NameHas(p, term));
+            }
         }
 
-        return clauses.Count > 0 ? string.Join(" AND ", clauses) : "1=1";
+        var where = clauses.Count > 0 ? string.Join(" AND ", clauses) : "1=1";
+        Func<FileProbe, bool> match = preds.Count > 0
+            ? p => preds.All(f => f(p))
+            : static _ => true;   // matched the SQL "1=1"
+        return (where, match);
     }
 }

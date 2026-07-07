@@ -214,4 +214,86 @@ public class SearchQueryParserTests
 
         Assert.IsFalse(merged.IsGlob);
     }
+
+    // ── Filesystem-walk predicate (Matches) ───────────────────────────────────
+    // Mirrors each WhereClause branch for off-index locations.
+
+    private static FileProbe Probe(string name, long size = 10, int year = 2024)
+        => new(name, size, new DateTime(year, 1, 1));
+
+    [TestMethod]
+    public void Matches_StarGlob_MatchesByExtension()
+    {
+        var q = SearchQueryParser.Parse("*.json");
+
+        Assert.IsTrue(q.Matches(Probe("data.json")));
+        Assert.IsFalse(q.Matches(Probe("data.txt")));
+    }
+
+    [TestMethod]
+    public void Matches_QuestionMarkGlob_MatchesSingleChar()
+    {
+        var q = SearchQueryParser.Parse("report?.pdf");
+
+        Assert.IsTrue(q.Matches(Probe("report1.pdf")));
+        Assert.IsFalse(q.Matches(Probe("report12.pdf")));
+    }
+
+    [TestMethod]
+    public void Matches_QuotedTerm_MatchesFilenameSubstring()
+    {
+        var q = SearchQueryParser.Parse("\"budget\"");
+
+        Assert.IsTrue(q.Matches(Probe("q4-budget.xlsx")));
+        Assert.IsFalse(q.Matches(Probe("revenue.xlsx")));
+    }
+
+    [TestMethod]
+    public void Matches_PlusMinus_IncludesAndExcludes()
+    {
+        var q = SearchQueryParser.Parse("+report -draft");
+
+        Assert.IsTrue(q.Matches(Probe("report-final.doc")));
+        Assert.IsFalse(q.Matches(Probe("report-draft.doc")));
+        Assert.IsFalse(q.Matches(Probe("summary.doc")));
+    }
+
+    [TestMethod]
+    public void Matches_PlainTerms_RequireEveryTermInName()
+    {
+        var q = SearchQueryParser.Parse("error log");
+
+        Assert.IsTrue(q.Matches(Probe("error-log.txt")));
+        Assert.IsFalse(q.Matches(Probe("error.txt")));
+    }
+
+    [TestMethod]
+    public void Matches_SizeFilter_ComparesBytes()
+    {
+        var q = SearchQueryParser.Parse("larger:100kb");
+
+        Assert.IsTrue(q.Matches(Probe("big.bin", size: 200 * 1024)));
+        Assert.IsFalse(q.Matches(Probe("small.bin", size: 50 * 1024)));
+    }
+
+    [TestMethod]
+    public void Matches_DateFilter_ComparesModified()
+    {
+        var q = SearchQueryParser.Parse("after:2024-01-01");
+
+        Assert.IsTrue(q.Matches(Probe("recent.txt", year: 2025)));
+        Assert.IsFalse(q.Matches(Probe("old.txt", year: 2023)));
+    }
+
+    [TestMethod]
+    public void Matches_Merge_AndsBothPredicates()
+    {
+        var merged = SearchQueryParser.Merge(
+            SearchQueryParser.Parse("*.log"),
+            SearchQueryParser.Parse("larger:1kb"));
+
+        Assert.IsTrue(merged.Matches(Probe("app.log", size: 4096)));
+        Assert.IsFalse(merged.Matches(Probe("app.log", size: 100)));
+        Assert.IsFalse(merged.Matches(Probe("app.txt", size: 4096)));
+    }
 }

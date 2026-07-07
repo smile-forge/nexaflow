@@ -1,9 +1,11 @@
 using System.Data.OleDb;
+using System.IO;
 
 namespace Nexaflow.Features.WindowsSearch.Services;
 
 /// <summary>
-/// Queries the Windows Search index via OLE DB.
+/// Queries the Windows Search index via OLE DB, with a live-filesystem fallback for
+/// locations the index doesn't cover (e.g. a data folder on a secondary drive).
 /// Requires the Windows Search service to be running (enabled by default on Windows 10/11).
 /// All database work runs on a Task.Run thread — OleDbConnection is not thread-safe and
 /// must be created and consumed on the same thread.
@@ -12,6 +14,15 @@ public static class WindowsSearchService
 {
     private const string ConnectionString =
         "Provider=Search.CollatorDSO.1;Extended Properties='Application=Windows'";
+
+    // Recurse the tree; skip what the index also ignores and reparse points (junctions)
+    // so a symlink loop can't spin the walk forever.
+    private static readonly EnumerationOptions WalkOptions = new()
+    {
+        RecurseSubdirectories = true,
+        IgnoreInaccessible    = true,
+        AttributesToSkip      = FileAttributes.Hidden | FileAttributes.System | FileAttributes.ReparsePoint,
+    };
 
     /// <summary>
     /// Searches the Windows Search index for <paramref name="query"/> under
@@ -32,7 +43,7 @@ public static class WindowsSearchService
         string rootPath,
         CancellationToken ct,
         int maxResults = 500)
-        => Task.Run(() => Search(parsed, rootPath, maxResults, ct), ct);
+        => Task.Run(() => Search(parsed, rootPath, maxResults, allowWalk: true, ct), ct);
 
     public static async Task<IReadOnlyList<SearchResultEntry>> SearchAcrossAsync(
         ParsedQuery parsed,
@@ -40,7 +51,10 @@ public static class WindowsSearchService
         CancellationToken ct,
         int maxResults = 500)
     {
-        var tasks   = roots.Select(r => SearchAsync(parsed, r, ct, maxResults));
+        // "This PC" (all drives) stays index-only: a live walk of entire drives is
+        // impractical, and the index is exactly what a whole-machine search is for.
+        var tasks   = roots.Select(r =>
+            Task.Run(() => Search(parsed, r, maxResults, allowWalk: false, ct), ct));
         var results = await Task.WhenAll(tasks);
         return results
             .SelectMany(r => r)
@@ -49,7 +63,35 @@ public static class WindowsSearchService
             .ToList();
     }
 
+    /// <summary>
+    /// Routes a scoped search: filename globs go straight to a filesystem walk (they
+    /// never need the index and must work on non-indexed locations); everything else
+    /// hits the index and falls back to a walk when the index is empty or unavailable
+    /// under a real local directory.
+    /// </summary>
     private static IReadOnlyList<SearchResultEntry> Search(
+        ParsedQuery parsed, string rootPath, int maxResults, bool allowWalk, CancellationToken ct)
+    {
+        if (allowWalk && parsed.IsGlob)
+            return Walk(parsed, rootPath, maxResults, ct);
+
+        IReadOnlyList<SearchResultEntry> indexed;
+        try
+        {
+            indexed = SearchIndex(parsed, rootPath, maxResults, ct);
+        }
+        catch (OleDbException) when (allowWalk && Directory.Exists(rootPath))
+        {
+            return Walk(parsed, rootPath, maxResults, ct);
+        }
+
+        if (allowWalk && indexed.Count == 0 && Directory.Exists(rootPath))
+            return Walk(parsed, rootPath, maxResults, ct);
+
+        return indexed;
+    }
+
+    private static IReadOnlyList<SearchResultEntry> SearchIndex(
         ParsedQuery parsed, string rootPath, int maxResults, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
@@ -105,6 +147,52 @@ public static class WindowsSearchService
             });
         }
 
+        return results;
+    }
+
+    /// <summary>
+    /// Walks the filesystem under <paramref name="rootPath"/> and returns entries the
+    /// query's <see cref="ParsedQuery.Matches"/> predicate accepts — index-free, so it
+    /// works regardless of Windows Search index coverage. Most-recent first.
+    /// </summary>
+    private static IReadOnlyList<SearchResultEntry> Walk(
+        ParsedQuery parsed, string rootPath, int maxResults, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        var results = new List<SearchResultEntry>();
+        if (!Directory.Exists(rootPath)) return results;
+
+        var rootLen = rootPath.Length;
+        foreach (var info in new DirectoryInfo(rootPath).EnumerateFileSystemInfos("*", WalkOptions))
+        {
+            ct.ThrowIfCancellationRequested();
+
+            FileProbe probe;
+            try   { probe = new FileProbe(info); }
+            catch { continue; }                       // vanished mid-walk — skip
+
+            if (!parsed.Matches(probe)) continue;
+
+            var absDir = System.IO.Path.GetDirectoryName(info.FullName) ?? string.Empty;
+            var relDir = absDir.StartsWith(rootPath, StringComparison.OrdinalIgnoreCase)
+                ? absDir[rootLen..].TrimStart('\\', '/', ' ')
+                : absDir;
+
+            results.Add(new SearchResultEntry
+            {
+                FilePath  = info.FullName,
+                FileName  = info.Name,
+                Directory = relDir,
+                SizeBytes = probe.IsDirectory ? null : probe.Size,
+                Modified  = probe.Modified,
+                Kind      = probe.IsDirectory ? "folder" : string.Empty
+            });
+
+            if (results.Count >= maxResults) break;
+        }
+
+        results.Sort((a, b) => Nullable.Compare(b.Modified, a.Modified));
         return results;
     }
 }
