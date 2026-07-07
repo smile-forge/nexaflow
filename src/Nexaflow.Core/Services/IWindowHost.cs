@@ -13,6 +13,11 @@ internal interface IWindowHost
 {
     IReadOnlyList<Page> Tabs { get; }
 
+    /// <summary>Snapshots the window's tabs grouped by pane (0 = primary/left, 1 = the right split) with
+    /// each pane's active tab flagged — the shape restored by <see cref="ShellServices.RestoreTabLayout"/>
+    /// (or saved as a workspace default). Skips tabs that can't be recreated (no PageKind).</summary>
+    IReadOnlyList<DefaultTabDescriptor> CaptureTabLayout();
+
     bool IsFocused { get; set; }
 
     /// <summary>The underlying WPF window — used for point-in-window hit testing.</summary>

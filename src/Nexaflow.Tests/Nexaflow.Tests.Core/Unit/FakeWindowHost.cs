@@ -15,6 +15,7 @@ internal sealed class FakeWindowHost : IWindowHost
     private readonly List<Page> _tabs = [];
 
     public IReadOnlyList<Page> Tabs => _tabs;
+    public IReadOnlyList<Nexaflow.Core.Models.DefaultTabDescriptor> CaptureTabLayout() => [];
     public bool IsFocused { get; set; }
     public Window Window => null!;
 

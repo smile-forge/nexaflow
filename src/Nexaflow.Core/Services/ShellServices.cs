@@ -292,13 +292,21 @@ public sealed class ShellServices : IShellServices
         _defaultTabsTimer.Start();
     }
 
+    /// <summary>Synchronously restores a captured pane layout (see <see cref="IWindowHost.CaptureTabLayout"/>)
+    /// into the focused window. Used by a workspace restart, which creates + places the replacement window
+    /// itself and needs the tabs present immediately (no debounce/flash).</summary>
+    public void RestoreTabLayout(IReadOnlyList<DefaultTabDescriptor> tabs) => OpenLayout(tabs);
+
     private void OnDefaultTabsTick(object? sender, EventArgs e)
     {
         _defaultTabsTimer?.Stop();
         var tabs = _pendingDefaultTabs;
         _pendingDefaultTabs = null;
-        if (tabs is null) return;
+        if (tabs is not null) OpenLayout(tabs);
+    }
 
+    private void OpenLayout(IReadOnlyList<DefaultTabDescriptor> tabs)
+    {
         // Open each pane's active tab last (AddTab makes the newest tab active) so selection is restored.
         static IEnumerable<DefaultTabDescriptor> ActiveLast(IEnumerable<DefaultTabDescriptor> src)
             => src.OrderBy(t => t.IsActive ? 1 : 0);

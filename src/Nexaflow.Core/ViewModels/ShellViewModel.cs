@@ -1088,6 +1088,21 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     {
         if (CurrentWorkspace?.Profile is not { } profile) return;
 
+        var tabs = CaptureLayout();
+        profile.DefaultTabs = tabs;
+        WorkspaceManager.Instance.SaveProfiles();
+
+        ShowInfoToast("Default tabs set",
+            tabs.Count == 0
+                ? "This workspace will start with no tabs open."
+                : $"Saved {tabs.Count} tab{(tabs.Count == 1 ? "" : "s")} as this workspace's startup layout.");
+    }
+
+    /// <summary>Snapshots the current tabs grouped by pane (index 0 = left/primary, 1 = the right split),
+    /// each pane's active tab flagged. Shared by "Use Tabset as Default" and the pane-aware restart snapshot
+    /// (<see cref="IWindowHost.CaptureTabLayout"/>). Skips tabs that can't be recreated (no PageKind).</summary>
+    private List<DefaultTabDescriptor> CaptureLayout()
+    {
         var tabs = new List<DefaultTabDescriptor>();
         int paneIndex = 0;
         foreach (var pane in LeafPanes)
@@ -1106,15 +1121,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
             }
             paneIndex++;
         }
-
-        profile.DefaultTabs = tabs;
-        WorkspaceManager.Instance.SaveProfiles();
-
-        ShowInfoToast("Default tabs set",
-            tabs.Count == 0
-                ? "This workspace will start with no tabs open."
-                : $"Saved {tabs.Count} tab{(tabs.Count == 1 ? "" : "s")} as this workspace's startup layout.");
+        return tabs;
     }
+
+    IReadOnlyList<DefaultTabDescriptor> IWindowHost.CaptureTabLayout() => CaptureLayout();
 
     /// <summary>
     /// Configure panel's "Delete Workspace": confirms, then permanently deletes the profile (config +

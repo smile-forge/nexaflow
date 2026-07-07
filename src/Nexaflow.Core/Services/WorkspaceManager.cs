@@ -353,11 +353,8 @@ public sealed class WorkspaceManager
         var acting = old.ShellServices?.FocusedWindow;
         if (acting is null || WindowHostFactory is null) { ReconfigureWorkspace(old); return; }
 
-        // Snapshot the acting window's tabs (kind/params/active) and its placement.
-        var snapshot = acting.Tabs
-            .Where(t => !string.IsNullOrEmpty(t.PageKind))
-            .Select(t => (Kind: t.PageKind!, t.PageParams, t.IsActive))
-            .ToList();
+        // Snapshot the acting window's tabs grouped by pane (so a left/right split survives) and its placement.
+        var snapshot  = acting.CaptureTabLayout();
         var src       = acting.Window;
         bool maximized = src.WindowState == WindowState.Maximized;
         var bounds    = maximized ? src.RestoreBounds
@@ -378,13 +375,8 @@ public sealed class WorkspaceManager
         // Tear down the old workspace's windows (last close releases its providers + evicts caches).
         old.ShellServices?.CloseAllWindows();
 
-        // Reopen in reverse (AddTab prepends) so the original left-to-right order is preserved.
-        for (int i = snapshot.Count - 1; i >= 0; i--)
-            fresh.ShellServices!.OpenTab(snapshot[i].Kind, snapshot[i].PageParams);
-
-        var active = snapshot.FirstOrDefault(s => s.IsActive);
-        if (active.Kind is not null && fresh.ShellServices!.FindTab(active.Kind, active.PageParams) is { } activeTab)
-            freshHost.SetActiveTab(activeTab);
+        // Restore the captured pane layout (split + each pane's tabs + active tab) into the fresh window.
+        fresh.ShellServices!.RestoreTabLayout(snapshot);
     }
 
     /// <summary>Per-profile data folder: <c>%AppData%\…\Contexts\&lt;name&gt;</c> (folder name kept for compat).</summary>
