@@ -42,12 +42,14 @@ public partial class MainWindow : Window
             _shellServices.RegisterWindow(_vm);
             _shellServices.SetFocused(_vm);
 
-            _shellServices.OpenDefaultTabs(workspace.Workspace.DefaultTabs);
-
-            // Ribbon-independent deep-link: --openTab <PageKind> opens that page too (used by UI tests to
-            // reach views that aren't on the default ribbon).
+            // Ribbon-independent deep-link: --openTab <PageKind> launches straight into that page (used by
+            // UI tests to reach views off the default ribbon, and by jump-list / file-association launches).
+            // When deep-linking we open ONLY that tab — the default tabs would otherwise open (deferred) on
+            // top and bury it — otherwise open the workspace's saved default tabs.
             if (App.OpenTabKind is { Length: > 0 } openKind)
                 _shellServices.OpenTab(openKind, new());
+            else
+                _shellServices.OpenDefaultTabs(workspace.Workspace.DefaultTabs);
 
             // Startup profiling: the first window's first render is "time to first window". In timing mode
             // we report and then shut down so a harness can cold-start the process repeatedly.
