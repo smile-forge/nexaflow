@@ -401,7 +401,7 @@ public partial class OptionsViewModel : ObservableObject
     public event Action<string>?              SaveError;
     public event Action<IEnumerable<string>>? TabRefreshRequested;
 
-    public OptionsViewModel()
+    public OptionsViewModel(Nexaflow.Features.Common.IShellServices? shell = null)
     {
         // Options lists every feature's global config. With lazy feature loading a config is registered only
         // when its assembly activates, so make sure they're all activated before reading the registry —
@@ -416,7 +416,9 @@ public partial class OptionsViewModel : ObservableObject
             string friendlyName = config.FriendlyName;
             string configName   = config.ConfigName;
 
-            var section = new ConfigEditViewModel(config, configName, friendlyName);
+            // Pass the shell so IShellAware custom controls (e.g. the File Type Actions editor's themed
+            // confirmation, file/folder pickers) get AttachShell'd.
+            var section = new ConfigEditViewModel(config, configName, friendlyName, shell);
             section.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName == nameof(ConfigEditViewModel.IsValid))

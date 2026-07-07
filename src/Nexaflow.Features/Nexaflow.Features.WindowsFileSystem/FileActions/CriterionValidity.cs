@@ -14,7 +14,8 @@ public static class CriterionValidity
     {
         if (string.IsNullOrWhiteSpace(value)) return true;
 
-        if (string.Equals(typeName, nameof(CriteriaType.Extension), StringComparison.Ordinal))
+        if (string.Equals(typeName, nameof(CriteriaType.Extension), StringComparison.Ordinal) ||
+            string.Equals(typeName, nameof(CriteriaType.OptionalExtension), StringComparison.Ordinal))
             return !value.Contains('\\') && !value.Contains('/') && !value.Contains("**");
 
         return true;   // PathPattern and the registry-derived types accept any non-empty value

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -18,9 +19,21 @@ namespace Nexaflow.Core.Themes;
 /// </summary>
 public partial class SandstoneWall : UserControl
 {
+    // Frame-rate cap for the *ambient* layers only — the big, (near-)stationary decorative fills.
+    // Halving their update rate is a real saving on those large blended surfaces yet imperceptible,
+    // since the eye doesn't track them. Travelling sprites are NOT capped: DesiredFrameRate decouples a
+    // clock from vsync, so any sub-refresh rate reads as judder on motion the eye follows.
+    private const int AmbientFrameRate = 30;
+
     private readonly Random _rng = new();
     private bool _built;
     private readonly DispatcherTimer _resizeDebounce;
+
+    // Every animation runs through a controllable clock we retain, so a rebuild can stop the previous
+    // set (otherwise the cleared elements' Forever clocks keep ticking on the UI thread until GC) and so
+    // the whole scene can be paused when the host window is minimised.
+    private readonly List<ClockController> _clocks = new();
+    private Window? _host;
 
     public SandstoneWall()
     {
@@ -28,7 +41,48 @@ public partial class SandstoneWall : UserControl
         _resizeDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
         _resizeDebounce.Tick += (_, _) => { _resizeDebounce.Stop(); Build(); };
         SizeChanged += OnSizeChanged;
-        Unloaded    += (_, _) => { _resizeDebounce.Stop(); _built = false; Layer.Children.Clear(); };
+        Loaded      += OnLoaded;
+        Unloaded    += OnUnloaded;
+    }
+
+    // Pause the scene only when the window is genuinely hidden (minimised) — NOT merely unfocused, so a
+    // window parked on a second monitor keeps animating while the user works elsewhere.
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        _host = Window.GetWindow(this);
+        if (_host is null) return;
+        _host.StateChanged -= OnHostStateChanged;   // idempotent across Loaded/Unloaded cycles
+        _host.StateChanged += OnHostStateChanged;
+        ApplyPauseState();
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        _resizeDebounce.Stop();
+        if (_host is not null) _host.StateChanged -= OnHostStateChanged;
+        _host = null;
+        StopClocks();
+        _built = false;
+        Layer.Children.Clear();
+    }
+
+    private void OnHostStateChanged(object? sender, EventArgs e) => ApplyPauseState();
+
+    private void ApplyPauseState()
+    {
+        bool minimised = _host?.WindowState == WindowState.Minimized;
+        foreach (var c in _clocks)
+        {
+            if (minimised) c.Pause();
+            else           c.Resume();
+        }
+    }
+
+    // Detach every live clock so the TimeManager stops ticking them immediately.
+    private void StopClocks()
+    {
+        foreach (var c in _clocks) c.Remove();
+        _clocks.Clear();
     }
 
     // First layout builds immediately; later resizes rebuild once the size settles, so the
@@ -46,18 +100,21 @@ public partial class SandstoneWall : UserControl
         _built = true;
 
         double w = ActualWidth, h = ActualHeight;
+        StopClocks();
         Layer.Children.Clear();
 
         AddBlocks(w, h);
         AddSunSweep(w, h);
         AddShadowPlay(w, h);
+
+        ApplyPauseState();
     }
 
     // ── Masonry: courses of tone-varied ashlar blocks, recessed joints, lit top edges ─
     private void AddBlocks(double w, double h)
     {
-        var mortar    = new SolidColorBrush(Color.FromArgb(165, 0x5A, 0x46, 0x30));
-        var highlight = new SolidColorBrush(Color.FromArgb(70, 0xFF, 0xF2, 0xD4));
+        var mortar    = Frozen(new SolidColorBrush(Color.FromArgb(165, 0x5A, 0x46, 0x30)));
+        var highlight = Frozen(new SolidColorBrush(Color.FromArgb(70, 0xFF, 0xF2, 0xD4)));
         const double courseH = 78;
         int row = 0;
 
@@ -78,7 +135,7 @@ public partial class SandstoneWall : UserControl
                 {
                     Width  = bw + 1.5,
                     Height = courseH + 1.5,
-                    Fill   = new SolidColorBrush(fill),
+                    Fill   = Frozen(new SolidColorBrush(fill)),
                     Stroke = mortar,
                     StrokeThickness = 1.5,
                 };
@@ -110,6 +167,7 @@ public partial class SandstoneWall : UserControl
         rg.GradientStops.Add(new GradientStop(Color.FromArgb(155, 0xFF, 0xE7, 0xB0), 0));
         rg.GradientStops.Add(new GradientStop(Color.FromArgb(52, 0xFF, 0xD7, 0x8E), 0.5));
         rg.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0xFF, 0xD7, 0x8E), 1));
+        rg.Freeze();
 
         var sun = new Rectangle { Width = w * 0.95, Height = h * 1.3, Fill = rg, RenderTransform = new TranslateTransform() };
         Canvas.SetLeft(sun, 0);
@@ -123,8 +181,8 @@ public partial class SandstoneWall : UserControl
             RepeatBehavior = RepeatBehavior.Forever,
             EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
         };
-        sun.RenderTransform.BeginAnimation(TranslateTransform.XProperty, sweep);
-        Loop(sun, OpacityProperty, 0.72, 1.0, 19, 0);
+        Animate(sun.RenderTransform, TranslateTransform.XProperty, sweep, AmbientFrameRate);
+        Loop(sun, OpacityProperty, 0.72, 1.0, 19, 0, AmbientFrameRate);
     }
 
     // ── Shadow play: a few soft shadows drifting slowly over the stone ─────────
@@ -135,6 +193,7 @@ public partial class SandstoneWall : UserControl
             var rg = new RadialGradientBrush();
             rg.GradientStops.Add(new GradientStop(Color.FromArgb(70, 0x28, 0x1B, 0x0F), 0));
             rg.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0x28, 0x1B, 0x0F), 1));
+            rg.Freeze();
 
             double sw = w * (0.42 + _rng.NextDouble() * 0.3), sh = h * (0.42 + _rng.NextDouble() * 0.3);
             var shade = new Ellipse { Width = sw, Height = sh, Fill = rg, Opacity = 0, RenderTransform = new TranslateTransform() };
@@ -142,22 +201,40 @@ public partial class SandstoneWall : UserControl
             Canvas.SetTop(shade, _rng.NextDouble() * h - sh / 2);
             Layer.Children.Add(shade);
 
-            Loop(shade, OpacityProperty, 0.1, 0.42, 12 + _rng.Next(8), i * 3);
-            Loop(shade.RenderTransform, TranslateTransform.XProperty, -w * 0.12, w * 0.12, 32 + _rng.Next(20), i * 4);
-            Loop(shade.RenderTransform, TranslateTransform.YProperty, -h * 0.06, h * 0.06, 26 + _rng.Next(16), i * 5);
+            Loop(shade, OpacityProperty, 0.1, 0.42, 12 + _rng.Next(8), i * 3, AmbientFrameRate);
+            Loop(shade.RenderTransform, TranslateTransform.XProperty, -w * 0.12, w * 0.12, 32 + _rng.Next(20), i * 4, AmbientFrameRate);
+            Loop(shade.RenderTransform, TranslateTransform.YProperty, -h * 0.06, h * 0.06, 26 + _rng.Next(16), i * 5, AmbientFrameRate);
         }
     }
 
     private static byte Clamp(int v) => (byte)Math.Clamp(v, 0, 255);
 
     // ── Shared: a forever, auto-reversing eased oscillation ────────────────────
-    private static void Loop(IAnimatable target, DependencyProperty prop,
-                             double from, double to, double seconds, double beginSeconds)
-        => target.BeginAnimation(prop, new DoubleAnimation(from, to, new Duration(TimeSpan.FromSeconds(seconds)))
+    private void Loop(IAnimatable target, DependencyProperty prop,
+                      double from, double to, double seconds, double beginSeconds, int? fps = null)
+        => Animate(target, prop, new DoubleAnimation(from, to, new Duration(TimeSpan.FromSeconds(seconds)))
         {
             AutoReverse    = true,
             RepeatBehavior = RepeatBehavior.Forever,
             BeginTime      = TimeSpan.FromSeconds(beginSeconds),
             EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
-        });
+        }, fps);
+
+    // Start the animation through a controllable clock (retained so the scene can be stopped on rebuild
+    // or paused on minimise). An optional fps caps the update rate — passed only for ambient layers.
+    private void Animate(IAnimatable target, DependencyProperty prop, AnimationTimeline anim, int? fps = null)
+    {
+        if (fps is int rate) Timeline.SetDesiredFrameRate(anim, rate);
+        var clock = anim.CreateClock();
+        target.ApplyAnimationClock(prop, clock);
+        if (clock.Controller is { } controller) _clocks.Add(controller);
+    }
+
+    // Freeze a set-once brush/geometry so WPF can share it with the render thread and skip change
+    // tracking. Everything here is immutable after creation (only opacity/transforms animate).
+    private static T Frozen<T>(T freezable) where T : Freezable
+    {
+        if (freezable.CanFreeze) freezable.Freeze();
+        return freezable;
+    }
 }

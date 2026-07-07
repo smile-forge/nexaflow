@@ -35,6 +35,31 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply, ICo
         private set => SetValue(HasSelectedMappingProperty, value);
     }
 
+    public static readonly DependencyProperty CanResetToDefaultProperty =
+        DependencyProperty.Register(nameof(CanResetToDefault), typeof(bool),
+            typeof(FileMapEditorControl), new PropertyMetadata(false));
+
+    /// <summary>True when the selected experience has a bundled default <em>and</em> its current criteria
+    /// differ from it — i.e. a reset would actually change something. Drives the "Reset to Default" button's
+    /// visibility so it doesn't show when there's nothing to revert.</summary>
+    public bool CanResetToDefault
+    {
+        get => (bool)GetValue(CanResetToDefaultProperty);
+        private set => SetValue(CanResetToDefaultProperty, value);
+    }
+
+    public static readonly DependencyProperty ResetConfirmPendingProperty =
+        DependencyProperty.Register(nameof(ResetConfirmPending), typeof(bool),
+            typeof(FileMapEditorControl), new PropertyMetadata(false));
+
+    /// <summary>True while the inline "reset to default?" confirm step is showing. Inline rather than a shell
+    /// confirmation overlay, which can't stack above the Options panel that hosts this control.</summary>
+    public bool ResetConfirmPending
+    {
+        get => (bool)GetValue(ResetConfirmPendingProperty);
+        private set => SetValue(ResetConfirmPendingProperty, value);
+    }
+
     /// <summary>When set before the Options panel opens (via the file browser's "Modify" command),
     /// the editor selects this experience on load, then clears it.</summary>
     public static string? PendingExperienceId { get; set; }
@@ -112,8 +137,30 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply, ICo
         if (e.NewItems is not null) foreach (CriterionRow r in e.NewItems) r.PropertyChanged += OnCriterionChanged;
         if (e.OldItems is not null) foreach (CriterionRow r in e.OldItems) r.PropertyChanged -= OnCriterionChanged;
         RaiseValidity();
+        UpdateCanReset();
     }
-    private void OnCriterionChanged(object? s, PropertyChangedEventArgs e) => RaiseValidity();
+    private void OnCriterionChanged(object? s, PropertyChangedEventArgs e) { RaiseValidity(); UpdateCanReset(); }
+
+    /// <summary>Shows the "Reset to Default" button only when the current (live) criteria differ from the
+    /// selected experience's bundled default. Blank-value rows are ignored (they don't affect matching).</summary>
+    private void UpdateCanReset()
+    {
+        var def = SelectedMapping is null
+            ? null
+            : FileMapManager.Instance.GetBundledDefault(SelectedMapping.ExperienceId);
+        CanResetToDefault = def is not null && !CurrentCriteriaMatch(def);
+    }
+
+    private bool CurrentCriteriaMatch(ExperienceMapping def)
+    {
+        static IEnumerable<string> Normalize(IEnumerable<(string Type, string Value)> items) =>
+            items.Where(i => !string.IsNullOrWhiteSpace(i.Value))
+                 .Select(i => i.Type + "|" + i.Value.Trim().ToLowerInvariant())
+                 .OrderBy(s => s, StringComparer.Ordinal);
+
+        return Normalize(_criteria.Select(r => (r.TypeName, r.Value)))
+            .SequenceEqual(Normalize(def.Criteria.Select(c => (c.Type.ToString(), c.Value))));
+    }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
@@ -207,7 +254,8 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply, ICo
     private void RefreshCriteriaList()
     {
         _criteria.Clear();
-        if (SelectedMapping is null) return;
+        ResetConfirmPending = false;   // a pending confirm doesn't carry across experiences
+        if (SelectedMapping is null) { CanResetToDefault = false; return; }
 
         ExperienceIdLabel.Text   = SelectedMapping.ExperienceId;
         ExperienceDescLabel.Text = SelectedMapping.Source == MappingSource.Registry
@@ -216,6 +264,8 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply, ICo
 
         foreach (var c in SelectedMapping.Criteria)
             _criteria.Add(new CriterionRow { TypeName = c.Type.ToString(), Value = c.Value });
+
+        UpdateCanReset();   // reflect the just-loaded (persisted) state
     }
 
     // ── Save ─────────────────────────────────────────────────────────────────
@@ -237,6 +287,27 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply, ICo
 
     private void AddCriterion_Click(object sender, RoutedEventArgs e)
         => _criteria.Add(new CriterionRow());
+
+    // "Reset to Default" shows an inline confirm step (below) rather than a shell confirmation overlay,
+    // which can't render above the Options panel that hosts this control.
+    private void ResetToDefault_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedMapping is not null) ResetConfirmPending = true;
+    }
+
+    private void ResetCancel_Click(object sender, RoutedEventArgs e) => ResetConfirmPending = false;
+
+    /// <summary>Restores the selected experience's bundled default criteria and reloads the editor rows.
+    /// Persists immediately — like leaving a node, this control saves eagerly.</summary>
+    private void ResetConfirm_Click(object sender, RoutedEventArgs e)
+    {
+        ResetConfirmPending = false;
+        if (SelectedMapping is null) return;
+        var id = SelectedMapping.ExperienceId;
+        if (FileMapManager.Instance.ResetToDefault(id) is null) return;
+        // Reload the freshly-reset mapping so the criteria rows refresh (and aren't re-saved stale).
+        SelectedMapping = FileMapManager.Instance.GetMapping(id);
+    }
 
     private void RemoveCriterion_Click(object sender, RoutedEventArgs e)
     {
