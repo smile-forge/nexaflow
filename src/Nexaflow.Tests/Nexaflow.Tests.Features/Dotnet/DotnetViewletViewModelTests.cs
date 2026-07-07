@@ -92,13 +92,15 @@ public class DotnetViewletViewModelTests
         CollectionAssert.DoesNotContain(names, "dotnet_run");
     }
 
-    // ── Tail ──────────────────────────────────────────────────────────────────
+    // ── Quiesce ─────────────────────────────────────────────────────────────────
 
     [TestMethod]
-    public void Tail_LongOutput_KeepsLastLines()
+    public async Task QuiesceAsync_NoRunningCheck_CompletesWithoutThrowing()
     {
-        var tail = DotnetViewletViewModel.Tail("a\nb\nc\nd", maxLines: 2);
+        // Idle path (the common case: the scan already finished / was a cache hit) — no process to kill,
+        // so quiesce must be a safe no-op rather than null-ref.
+        var vm = Vm(TempDir("Foo.csproj"));
 
-        Assert.AreEqual("c\nd", tail.Replace("\r\n", "\n"));
+        await vm.QuiesceAsync(CancellationToken.None);
     }
 }

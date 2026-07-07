@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -241,6 +243,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
             host.FileViewRequested         += OnFileViewRequested;
             host.ViewletViewRequested      += OnViewletViewRequested;
             host.SwitchFullViewletRequested += OnSwitchFullViewletRequested;
+            host.QuiesceFolderHandler       = QuiesceActiveFolderAsync;
             _activeViewletHosts.Add(host);
         }
 
@@ -250,6 +253,23 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
             _activeViewletHosts.Select(h => h.AiSurface).OfType<IViewletAiSurface>().ToList());
 
         ApplyViewletLayout();
+    }
+
+    /// <summary>
+    /// Quiesces the current folder before a viewlet mutates it (e.g. the Git viewlet removing a worktree):
+    /// stops the browser's own in-flight enumeration, then asks each active viewlet that holds handles /
+    /// runs child processes against the folder to release them (see <see cref="IViewletQuiescible"/>).
+    /// Best-effort and awaited, so on return nothing here is locking the folder.
+    /// </summary>
+    private async Task QuiesceActiveFolderAsync(CancellationToken ct)
+    {
+        ViewModel.CancelEntryLoad();   // drop any directory handle held by a streaming load
+
+        foreach (var quiescible in _activeViewletHosts.Select(h => h.Quiescible).OfType<IViewletQuiescible>())
+        {
+            try { await quiescible.QuiesceAsync(ct); }
+            catch { /* best-effort — a viewlet's own failure must not block the mutation */ }
+        }
     }
 
     private void ApplyViewletLayout()

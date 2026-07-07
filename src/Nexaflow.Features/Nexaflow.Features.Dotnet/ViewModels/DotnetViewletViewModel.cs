@@ -28,6 +28,10 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
     private readonly string _folderPath;
     private CancellationTokenSource? _nugetCts;
 
+    // The live `dotnet list … --outdated` process, if a check is running. It runs with the folder as its
+    // working directory (locking it on Windows), so QuiesceAsync must kill it before the folder is mutated.
+    private Process? _nugetProcess;
+
     public ObservableCollection<DotnetTarget> Targets { get; } = [];
 
     public bool ShowTargetPicker => Targets.Count > 1;
@@ -243,9 +247,11 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
         try { await Task.Delay(1500, token); }
         catch (OperationCanceledException) { return; }
 
-        var task = new NugetUpdateCheckTask(target, _folderPath);
+        var task = new NugetUpdateCheckTask(target, _folderPath,
+            onStarted: p => Interlocked.Exchange(ref _nugetProcess, p));
         _shell.QueueBackgroundTask(task, onComplete: _ =>
         {
+            Interlocked.Exchange(ref _nugetProcess, null);
             // onComplete runs on the UI thread; ignore a result whose target is no longer selected.
             if (!ReferenceEquals(task.Target, SelectedTarget)) return;
             // Only a real result (the command ran) is cached/applied — a "not restored yet" failure is
@@ -260,6 +266,31 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
 
     /// <summary>Aborts any in-flight NuGet check; called when the viewlet's view unloads (folder change).</summary>
     public void CancelPending() => _nugetCts?.Cancel();
+
+    /// <summary>
+    /// Releases this viewlet's hold on the folder before it's mutated/deleted: kills the running
+    /// <c>dotnet list --outdated</c> process tree (whose working directory is the folder) and awaits its
+    /// exit, then cancels the pending check. The kill happens <em>before</em> the cancel so the runner
+    /// doesn't dispose the process out from under us — cancelling this check only abandons it, it never
+    /// kills. Best-effort; never throws.
+    /// </summary>
+    public async Task QuiesceAsync(CancellationToken ct)
+    {
+        var proc = Interlocked.Exchange(ref _nugetProcess, null);
+        if (proc is not null)
+        {
+            try { if (!proc.HasExited) proc.Kill(entireProcessTree: true); }
+            catch { /* already exited / disposed — its lock is gone either way */ }
+        }
+
+        _nugetCts?.Cancel();
+
+        if (proc is not null)
+        {
+            try { await proc.WaitForExitAsync(ct); }
+            catch { /* exited/disposed/cancelled — the working-directory lock is released */ }
+        }
+    }
 
     private void ApplyUpdates(IReadOnlyList<NugetUpdateChecker.PackageUpdate> updates)
     {

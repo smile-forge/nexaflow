@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Dotnet.Models;
@@ -28,9 +29,9 @@ public static class NugetUpdateChecker
     }
 
     public static async Task<CheckResult> CheckAsync(
-        DotnetTarget target, string workingDir, CancellationToken ct)
+        DotnetTarget target, string workingDir, CancellationToken ct, Action<Process>? onStarted = null)
     {
-        var result = await DotnetCli.RunListOutdatedAsync(target, workingDir, ct);
+        var result = await DotnetCli.RunListOutdatedAsync(target, workingDir, ct, onStarted);
         if (!result.Succeeded)
             return CheckResult.NotChecked;
 

@@ -1,4 +1,6 @@
 using Nexaflow.Features.Common.Viewlets;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -15,11 +17,22 @@ public partial class ViewletHost : UserControl, IViewletController
     public event EventHandler? ViewletViewRequested;
     public event EventHandler? SwitchFullViewletRequested;
 
+    /// <summary>Set by the file browser to its folder-wide quiesce fan-out. A viewlet's
+    /// <see cref="IViewletController.QuiesceFolderAsync"/> routes here so one viewlet can quiesce them all.</summary>
+    public Func<CancellationToken, Task>? QuiesceFolderHandler { get; set; }
+
     public ViewletDisplayMode CurrentMode => _mode;
 
     /// <summary>The hosted viewlet's AI surface, if its view exposes one — its context line and
     /// tools are merged into the file browser's AI context. Null when the viewlet contributes nothing.</summary>
     public IViewletAiSurface? AiSurface => ViewletContentArea.Content as IViewletAiSurface;
+
+    /// <summary>The hosted viewlet's quiesce surface, if its view exposes one (see
+    /// <see cref="IViewletQuiescible"/>). Null when it holds nothing that needs releasing before a mutation.</summary>
+    public IViewletQuiescible? Quiescible => ViewletContentArea.Content as IViewletQuiescible;
+
+    Task IViewletController.QuiesceFolderAsync(CancellationToken ct)
+        => QuiesceFolderHandler?.Invoke(ct) ?? Task.CompletedTask;
 
     public ViewletHost(IFolderViewlet viewlet, string folderPath)
     {

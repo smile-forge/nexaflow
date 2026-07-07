@@ -379,6 +379,10 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
         }
     }
 
+    /// <summary>Cancels any in-flight directory enumeration so no folder handle is held open — called by the
+    /// host before a viewlet mutates/deletes the current folder (see the folder-quiesce fan-out).</summary>
+    public void CancelEntryLoad() => _loadCts?.Cancel();
+
     /// <summary>
     /// Returns a list of applicable <see cref="FileActionViewModel"/>s for the
     /// given entries, suitable for use in a context menu.

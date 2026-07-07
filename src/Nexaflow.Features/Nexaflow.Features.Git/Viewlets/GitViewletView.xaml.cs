@@ -203,6 +203,10 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
         RemoveWorktreeButton.IsEnabled = false;
         RemoveWorktreeButton.Content   = "···";
 
+        // Ask the host to quiesce every viewlet on this folder first — e.g. the .NET viewlet's NuGet scan
+        // runs `dotnet` with the folder as its working directory and would otherwise lock it against deletion.
+        try { await _controller.QuiesceFolderAsync(); } catch { /* best-effort; removal is fail-safe anyway */ }
+
         var result = await Task.Run(_worktreeService.Remove);
 
         if (result.Success)

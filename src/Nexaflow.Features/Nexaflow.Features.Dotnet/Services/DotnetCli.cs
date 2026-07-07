@@ -52,17 +52,22 @@ public static class DotnetCli
     /// and side-effect-free, so on cancellation it is abandoned (left to exit on its own) rather than
     /// force-killed — a tree-kill here runs synchronously on the caller's (UI) thread and stalls folder
     /// navigation, and throws a flurry of first-chance Win32Exceptions for transient child processes.</summary>
+    /// <param name="onStarted">Invoked with the started process so a caller can force-kill it out of band
+    /// (the viewlet quiesce path does this — cancellation alone abandons rather than kills this check, so its
+    /// working-directory lock would otherwise linger).</param>
     public static Task<Result> RunListOutdatedAsync(
-        DotnetTarget target, string workingDir, CancellationToken ct = default)
+        DotnetTarget target, string workingDir, CancellationToken ct = default,
+        Action<Process>? onStarted = null)
         => RunRawAsync(["list", target.Path, "package", "--outdated"], workingDir, onLine: null, ct,
-                       killTreeOnCancel: false);
+                       killTreeOnCancel: false, onStarted);
 
     /// <param name="killTreeOnCancel">When true (build/run/test/clean), cancelling <paramref name="ct"/>
     /// force-kills the process tree. When false, cancellation just stops waiting and the process is left
     /// to exit naturally — see <see cref="RunListOutdatedAsync"/>.</param>
+    /// <param name="onStarted">Invoked with the process immediately after it starts.</param>
     private static async Task<Result> RunRawAsync(
         IReadOnlyList<string> args, string workingDir, IProgress<string>? onLine, CancellationToken ct,
-        bool killTreeOnCancel = true)
+        bool killTreeOnCancel = true, Action<Process>? onStarted = null)
     {
         var psi = new ProcessStartInfo("dotnet")
         {
@@ -93,6 +98,7 @@ public static class DotnetCli
         try
         {
             proc.Start();
+            onStarted?.Invoke(proc);
             proc.BeginOutputReadLine();
             proc.BeginErrorReadLine();
         }

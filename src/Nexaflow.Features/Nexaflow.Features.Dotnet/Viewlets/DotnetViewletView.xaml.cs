@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using Nexaflow.Features.Common;
@@ -10,7 +12,7 @@ using Nexaflow.Features.Dotnet.ViewModels;
 
 namespace Nexaflow.Features.Dotnet.Viewlets;
 
-public partial class DotnetViewletView : UserControl, IViewletAiSurface
+public partial class DotnetViewletView : UserControl, IViewletAiSurface, IViewletQuiescible
 {
     private readonly DotnetViewletViewModel _vm;
     private readonly DispatcherTimer _ellipsisTimer;
@@ -58,4 +60,7 @@ public partial class DotnetViewletView : UserControl, IViewletAiSurface
     // ── IViewletAiSurface — delegate to the VM, which owns the target + verb runner ──────────────
     string? IViewletAiSurface.GetContext() => _vm.GetContext();
     IReadOnlyList<IClientTool> IViewletAiSurface.GetClientTools() => _vm.GetClientTools();
+
+    // ── IViewletQuiescible — kill the NuGet-scan process (it locks the folder) before it's mutated ──
+    Task IViewletQuiescible.QuiesceAsync(CancellationToken ct) => _vm.QuiesceAsync(ct);
 }
