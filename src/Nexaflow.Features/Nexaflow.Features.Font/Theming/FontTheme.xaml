@@ -1,0 +1,105 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:vm="clr-namespace:Nexaflow.Features.Font.ViewModels">
+
+    <!-- ════ Font-picker overlay ════
+         Rendered by the shell's ActiveOverlay ContentControl, matched to FontPickerViewModel by type
+         (this dictionary is merged at theme layer 3 via FontThemeContribution : IThemeContribution).
+         Theme keys are referenced with StaticResource per docs/theming.md — the shared control styles
+         (PopupBorder/DarkTextBox/… from Styles.xaml, layer 5) resolve because this template is deferred
+         DataTemplate content, resolved at instantiation (overlay show) when all theme layers are merged,
+         exactly like the built-in Confirmation/Prompt overlays in MainWindow.xaml. -->
+
+    <BooleanToVisibilityConverter x:Key="Font.BoolToVis"/>
+
+    <!-- A full-width, clickable installed-font row (name + self-rendered sample). -->
+    <Style x:Key="Font.PickerRowButton" TargetType="Button">
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="Transparent" CornerRadius="6" Padding="10,7">
+                        <ContentPresenter/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Surface2Brush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <DataTemplate DataType="{x:Type vm:FontPickerViewModel}">
+        <!-- Fixed size so the overlay doesn't resize as the search filters the list. -->
+        <Border Style="{StaticResource PopupBorder}" Width="560" Height="640"
+                HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Grid Margin="20">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Header -->
+                <StackPanel Grid.Row="0" Margin="0,0,0,12">
+                    <TextBlock Text="Add a font" FontSize="16" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextBrush}"/>
+                    <TextBlock Text="Pick from installed fonts, or load a font file."
+                               Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,3,0,0"/>
+                </StackPanel>
+
+                <!-- Search -->
+                <TextBox Grid.Row="1" Style="{StaticResource DarkTextBox}" Margin="0,0,0,10"
+                         AutomationProperties.AutomationId="FontPickerSearch"
+                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <!-- Installed-font list (virtualized) -->
+                <Grid Grid.Row="2">
+                    <ListBox ItemsSource="{Binding FontsView}"
+                             AutomationProperties.AutomationId="FontPickerList"
+                             Style="{StaticResource DarkListBox}"
+                             ItemContainerStyle="{StaticResource DarkListBoxItem}"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             VirtualizingPanel.IsVirtualizing="True"
+                             VirtualizingPanel.VirtualizationMode="Recycling">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Button Style="{StaticResource Font.PickerRowButton}"
+                                        Command="{Binding DataContext.PickCommand,
+                                                  RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                        CommandParameter="{Binding}">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding DisplayName}" FontSize="12"
+                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                        <TextBlock Text="Aa Bb Cc  Gg Qq  0123"
+                                                   FontFamily="{Binding FontFamily}" FontSize="21"
+                                                   Foreground="{StaticResource TextBrush}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <TextBlock Text="Loading installed fonts…"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               Visibility="{Binding IsLoading, Converter={StaticResource Font.BoolToVis}}"/>
+                </Grid>
+
+                <!-- Footer -->
+                <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+                    <Button Content="Load from file…" Command="{Binding LoadFromFileCommand}"
+                            Style="{StaticResource TbBtn}" Height="32" Padding="14,0" Margin="0,0,8,0"/>
+                    <Button Content="Cancel" Command="{Binding CancelCommand}"
+                            Style="{StaticResource TbBtn}" Height="32" Padding="14,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </DataTemplate>
+
+</ResourceDictionary>

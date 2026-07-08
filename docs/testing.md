@@ -24,7 +24,7 @@ test exe dragging in another (and without pulling Core's x64 RID into the Featur
 ```powershell
 # Build + run a project's tests (MSTest runner exe):
 dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Features/Nexaflow.Tests.Features.csproj
-$exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.Features.exe"
+$exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/x64/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.Features.exe"
 
 & $exe --filter "TestCategory!=UI"                       # everything except UI (CI-safe, headless)
 & $exe --filter "TestCategory=UI"                        # UI tests — needs an interactive desktop

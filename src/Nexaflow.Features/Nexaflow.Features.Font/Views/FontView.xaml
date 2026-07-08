@@ -1,0 +1,324 @@
+<UserControl x:Class="Nexaflow.Features.Font.Views.FontView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             AutomationProperties.AutomationId="FontView"
+             Background="{StaticResource BgBrush}">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <conv:InverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
+        <conv:NullToVisibilityConverter x:Key="NullToVis"/>
+        <conv:NullToCollapsedConverter x:Key="NullToCollapsed"/>
+
+        <!-- One details row: a group header, or a label → value pair. -->
+        <DataTemplate x:Key="DetailRowTemplate">
+            <Grid>
+                <TextBlock Text="{Binding Label}" FontWeight="SemiBold" FontSize="12"
+                           Foreground="{StaticResource AccentBrush}" Margin="0,12,0,4"
+                           Visibility="{Binding IsHeader, Converter={StaticResource BoolToVis}}"/>
+                <Grid Visibility="{Binding IsHeader, Converter={StaticResource InvBoolToVis}}" Margin="0,2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="130"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{Binding Label}" Foreground="{StaticResource TextMutedBrush}"
+                               FontSize="12" TextWrapping="Wrap"/>
+                    <TextBlock Grid.Column="1" Text="{Binding Value}" Foreground="{StaticResource TextBrush}"
+                               FontSize="12" TextWrapping="Wrap"/>
+                </Grid>
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- ── Top bar: preview text + size ────────────────────────────────── -->
+        <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}" Padding="16,12"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBox Grid.Column="0" AutomationProperties.AutomationId="FontPreviewInput"
+                         Style="{StaticResource DarkTextBox}" FontSize="14"
+                         VerticalContentAlignment="Center" Margin="0,0,16,0"
+                         Text="{Binding Options.PreviewText, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Size" Foreground="{StaticResource TextMutedBrush}" FontSize="12"
+                               VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <Slider Width="150" Minimum="8" Maximum="120" VerticalAlignment="Center"
+                            AutomationProperties.AutomationId="FontSizeSlider"
+                            Value="{Binding Options.PreviewSizePt}" TickFrequency="1" IsSnapToTickEnabled="True"/>
+                    <TextBlock Text="{Binding Options.PreviewSizePt, StringFormat={}{0:0} pt}"
+                               Foreground="{StaticResource TextBrush}" FontSize="12"
+                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="34"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ── Body: compare list + resizable details panel ────────────────── -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="7*" MinWidth="320"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="3*" MinWidth="240"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Compare list -->
+            <DockPanel Grid.Column="0" LastChildFill="True">
+                <Button DockPanel.Dock="Bottom" Command="{Binding AddFontCommand}"
+                        AutomationProperties.AutomationId="FontAddButton"
+                        Height="46" Margin="10" Cursor="Hand" HorizontalContentAlignment="Center">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd" Background="{StaticResource SurfaceBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                    CornerRadius="8" Padding="8">
+                                <TextBlock Text="+  Add font" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{StaticResource TextBrush}" FontSize="13" FontWeight="SemiBold"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource Surface2Brush}"/>
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+
+                <Grid>
+                    <ListBox x:Name="FontList" Style="{StaticResource DarkListBox}"
+                             ItemContainerStyle="{StaticResource DarkListBoxItem}"
+                             Background="Transparent" BorderThickness="0"
+                             ItemsSource="{Binding Fonts}" SelectedItem="{Binding SelectedFont}"
+                             HorizontalContentAlignment="Stretch"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             VirtualizingPanel.ScrollUnit="Pixel">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <!-- MaxWidth pinned to the scroll viewport so a huge preview never widens the
+                                     row (it wraps down instead), keeping the ✕ and specimen on-screen. -->
+                                <Grid Margin="6,8"
+                                      MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ScrollContentPresenter}}">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <Grid Grid.Row="0" Margin="0,0,0,2">
+                                        <TextBlock Text="{Binding DisplayName}" Foreground="{StaticResource TextMutedBrush}"
+                                                   FontSize="12" TextTrimming="CharacterEllipsis" Margin="0,0,26,0"/>
+                                        <Button HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                AutomationProperties.AutomationId="FontRemoveButton"
+                                                Style="{StaticResource IconButton}" Width="22" Height="22"
+                                                ToolTip="Remove"
+                                                Command="{Binding DataContext.RemoveFontCommand,
+                                                          RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                CommandParameter="{Binding}">
+                                            <TextBlock Text="✕" FontSize="11"/>
+                                        </Button>
+                                    </Grid>
+
+                                    <!-- Large preview (or load error). Wraps → no horizontal overflow. -->
+                                    <TextBlock Grid.Row="1" Text="{Binding Options.PreviewText}"
+                                               FontFamily="{Binding FontFamily}"
+                                               FontSize="{Binding Options.PreviewSizeDip}"
+                                               FontWeight="{Binding EffectiveWeight}"
+                                               FontStyle="{Binding EffectiveStyle}"
+                                               FontStretch="{Binding EffectiveStretch}"
+                                               TextDecorations="{Binding EffectiveDecorations}"
+                                               Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"
+                                               HorizontalAlignment="Left"
+                                               Visibility="{Binding CanRender, Converter={StaticResource BoolToVis}}"/>
+                                    <TextBlock Grid.Row="1" Text="{Binding LoadError}" Foreground="{StaticResource DangerBrush}"
+                                               FontSize="12" TextWrapping="Wrap"
+                                               Visibility="{Binding CanRender, Converter={StaticResource InvBoolToVis}}"/>
+
+                                    <!-- Small specimen: alphabet + digits + symbols, right-aligned, wraps. -->
+                                    <TextBlock Grid.Row="2" Text="{Binding Options.SpecimenText}"
+                                               FontFamily="{Binding FontFamily}"
+                                               FontSize="{Binding Options.SpecimenSizeDip}"
+                                               Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"
+                                               HorizontalAlignment="Right" TextAlignment="Right" Margin="0,4,0,0"
+                                               Visibility="{Binding CanRender, Converter={StaticResource BoolToVis}}"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <!-- Empty state -->
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
+                                Visibility="{Binding HasFonts, Converter={StaticResource InvBoolToVis}}">
+                        <TextBlock Text="🔤" FontSize="40" HorizontalAlignment="Center" Opacity="0.5"/>
+                        <TextBlock Text="No fonts yet" Foreground="{StaticResource TextBrush}" FontSize="15"
+                                   HorizontalAlignment="Center" Margin="0,8,0,2"/>
+                        <TextBlock Text="Click “Add font” to compare installed fonts or open a font file."
+                                   Foreground="{StaticResource TextMutedBrush}" FontSize="12"
+                                   HorizontalAlignment="Center" TextAlignment="Center" MaxWidth="260" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Grid>
+            </DockPanel>
+
+            <!-- Drag to resize the details panel. -->
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                          Background="{StaticResource BorderBrush}" ShowsPreview="True"/>
+
+            <!-- Details panel -->
+            <Border Grid.Column="2" Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0">
+                <Grid>
+                    <!-- Placeholder when nothing is selected -->
+                    <TextBlock Text="Select a font to see its details"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Foreground="{StaticResource TextMutedBrush}" FontSize="12"
+                               Visibility="{Binding DataContext.SelectedFont, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource NullToCollapsed}}"/>
+
+                    <!-- Details content: a scrolling top section, and the glyph map with its OWN scrollbar. -->
+                    <Grid DataContext="{Binding SelectedFont}"
+                          Visibility="{Binding DataContext.SelectedFont, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource NullToVis}}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled" Padding="16,14"
+                                      AutomationProperties.AutomationId="FontDetailsPanel">
+                            <StackPanel>
+                                <TextBlock Text="{Binding DisplayName}" Foreground="{StaticResource TextBrush}"
+                                           FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding SourceLabel}" Foreground="{StaticResource TextMutedBrush}"
+                                           FontSize="11" TextWrapping="Wrap" Margin="0,2,0,10"/>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <Button Content="Copy name" Style="{StaticResource TbBtn}" Height="26" Padding="10,0"
+                                            Margin="0,0,6,0"
+                                            Command="{Binding DataContext.CopyNameCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                    <Button Content="Copy path" Style="{StaticResource TbBtn}" Height="26" Padding="10,0"
+                                            Command="{Binding DataContext.CopyPathCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            Visibility="{Binding SourcePath, Converter={StaticResource NullToVis}}"/>
+                                </StackPanel>
+
+                                <!-- Face chips: an ItemsControl (no internal ScrollViewer, unlike a ListBox)
+                                     so the WrapPanel actually wraps → every variant stays selectable.
+                                     Clicking one shows that face in the preview + its metrics. -->
+                                <ItemsControl ItemsSource="{Binding Faces}" Margin="0,8,0,0">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border CornerRadius="12" Padding="10,3" BorderThickness="1"
+                                                    Margin="0,0,6,6" Cursor="Hand">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="{StaticResource Surface2Brush}"/>
+                                                        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                                                                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                                            </DataTrigger>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <Border.InputBindings>
+                                                    <MouseBinding MouseAction="LeftClick"
+                                                                  Command="{Binding DataContext.SelectFaceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                  CommandParameter="{Binding}"/>
+                                                </Border.InputBindings>
+                                                <TextBlock Text="{Binding ChipLabel}" FontSize="12">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <ItemsControl ItemsSource="{Binding Details}" ItemTemplate="{StaticResource DetailRowTemplate}"
+                                              Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <!-- Glyph map: its own scrollbar, a 3-row minimum height, and paging. -->
+                        <Expander Grid.Row="1" Header="Glyph map" IsExpanded="False" Margin="16,4,16,14"
+                                  AutomationProperties.AutomationId="FontGlyphMap"
+                                  Foreground="{StaticResource TextBrush}">
+                            <StackPanel Margin="0,8,0,0">
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding GlyphPageLabel}"
+                                               Foreground="{StaticResource TextMutedBrush}" FontSize="11"
+                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                                Visibility="{Binding HasGlyphPages, Converter={StaticResource BoolToVis}}">
+                                        <Button Content="‹ Prev" Style="{StaticResource TbBtn}" Height="24" Padding="8,0"
+                                                Margin="0,0,6,0" Command="{Binding PrevGlyphPageCommand}"
+                                                IsEnabled="{Binding CanPrevGlyphPage}"/>
+                                        <Button Content="Next ›" Style="{StaticResource TbBtn}" Height="24" Padding="8,0"
+                                                Command="{Binding NextGlyphPageCommand}"
+                                                IsEnabled="{Binding CanNextGlyphPage}"/>
+                                    </StackPanel>
+                                </Grid>
+                                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              MinHeight="120" MaxHeight="300">
+                                    <ItemsControl ItemsSource="{Binding GlyphSamples}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Width="34" Height="34" Margin="2"
+                                                        Background="{StaticResource Surface2Brush}" CornerRadius="4"
+                                                        Cursor="Hand" ToolTip="Right-click to copy"
+                                                        Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
+                                                    <Border.ContextMenu>
+                                                        <ContextMenu>
+                                                            <MenuItem Header="Copy"
+                                                                      Command="{Binding PlacementTarget.Tag.CopyGlyphCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                      CommandParameter="{Binding}"/>
+                                                        </ContextMenu>
+                                                    </Border.ContextMenu>
+                                                    <TextBlock Text="{Binding}"
+                                                               FontFamily="{Binding DataContext.FontFamily, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                               FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                               Foreground="{StaticResource TextBrush}"/>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </StackPanel>
+                        </Expander>
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

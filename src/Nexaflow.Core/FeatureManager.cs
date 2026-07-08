@@ -384,8 +384,11 @@ public sealed class FeatureManager
         var tab = reg.CreatePageDefinition(pageParams);
         if (tab is not null)
         {
-            tab.PageKind   = pageKind;
-            tab.PageParams = pageParams;
+            tab.PageKind = pageKind;
+            // Record the params the tab was opened with. When opened with none, keep any defaults the
+            // registration set on the page itself (e.g. a standalone tab that wants its own identity so
+            // it isn't a null-param "matches anything" singleton).
+            tab.PageParams = pageParams ?? tab.PageParams;
         }
         return tab;
     }

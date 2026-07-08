@@ -173,19 +173,32 @@ public abstract class UITestBase
 
     private static string FindAppExe()
     {
-        var testDir = new DirectoryInfo(AppContext.BaseDirectory);
-        var tfm     = testDir.Name;
-        var config  = testDir.Parent!.Name;
-        var srcDir  = testDir.Parent!.Parent!.Parent!.Parent!.Parent!.FullName;
+        // Walk up to the folder that holds Nexaflow.Core (the src dir), independent of how deep the test
+        // binary's own output path is (e.g. bin\x64\Debug\<tfm> vs bin\Debug\<tfm>).
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "Nexaflow.Core")))
+            dir = dir.Parent;
+        if (dir is null)
+            throw new FileNotFoundException(
+                $"Could not locate the src dir containing 'Nexaflow.Core' above '{AppContext.BaseDirectory}'.");
 
-        var coreBase = Path.Combine(srcDir, "Nexaflow.Core", "bin", config, tfm);
-        var withRid  = Path.Combine(coreBase, "win-x64", "Nexaflow.exe");
-        if (File.Exists(withRid)) return withRid;
+        // Match this test run's configuration (Debug/Release) — the folder just above the TFM in our path.
+        var config = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
+        var coreBin = Path.Combine(dir.FullName, "Nexaflow.Core", "bin");
+        if (!Directory.Exists(coreBin))
+            throw new FileNotFoundException($"Core output not found at '{coreBin}'. Build the solution first.");
 
-        var flat = Path.Combine(coreBase, "Nexaflow.exe");
-        if (File.Exists(flat)) return flat;
+        // The app is Nexaflow.exe under …\bin\[<Platform>\]<Config>\<tfm>\win-x64\. Prefer the one matching
+        // our config; take the most recently built to avoid a stale sibling.
+        var exe = Directory.EnumerateFiles(coreBin, "Nexaflow.exe", SearchOption.AllDirectories)
+            .Where(p => p.Split(Path.DirectorySeparatorChar).Contains(config))
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .FirstOrDefault()
+            ?? Directory.EnumerateFiles(coreBin, "Nexaflow.exe", SearchOption.AllDirectories)
+                .OrderByDescending(File.GetLastWriteTimeUtc)
+                .FirstOrDefault();
 
-        throw new FileNotFoundException(
-            $"Could not locate Nexaflow.exe. Tried:\n  {withRid}\n  {flat}");
+        return exe ?? throw new FileNotFoundException(
+            $"Could not locate Nexaflow.exe under '{coreBin}'. Build the solution first.");
     }
 }

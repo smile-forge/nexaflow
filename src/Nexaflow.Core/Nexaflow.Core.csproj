@@ -71,6 +71,7 @@
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Compressed.SecureZip\Nexaflow.Features.Compressed.SecureZip.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Console\Nexaflow.Features.Console.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Dotnet\Nexaflow.Features.Dotnet.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Font\Nexaflow.Features.Font.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Git\Nexaflow.Features.Git.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Hex\Nexaflow.Features.Hex.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Json\Nexaflow.Features.Json.csproj" />

@@ -184,6 +184,16 @@
     ]
   },
   {
+    "ExperienceId": "/font",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.ttf" },
+      { "Type": "Extension", "Value": "*.otf" },
+      { "Type": "Extension", "Value": "*.ttc" },
+      { "Type": "Extension", "Value": "*.woff" }
+    ]
+  },
+  {
     "ExperienceId": "/image",
     "Source": "User",
     "Criteria": [
