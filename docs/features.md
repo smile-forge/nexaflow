@@ -176,6 +176,7 @@ reflect the tab's current state (set it after in-tab navigation so `FindTab` and
 | Notebook / Model3D / Compressed | `path` |
 | Images | `paths` (pipe-separated), `view` (`carousel` \| `album` \| `explore` \| `collage`), `scope` (`folder` = whole-folder view) |
 | Audio | `paths` (pipe-separated queue), `index`, `autoplay`, `scope` (`folder` = whole-folder queue) |
+| Font | `paths` (pipe-separated font files; omit for the standalone "System Fonts" compare mode) |
 | ProductManager | `path` (folder holding/initialising `.product/`) |
 | Projects | *(none)* |
 | ProjectDetail | `folder` |

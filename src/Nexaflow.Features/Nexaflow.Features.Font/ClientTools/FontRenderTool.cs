@@ -43,7 +43,7 @@ public sealed class FontRenderTool(FontViewModel vm) : IClientTool
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        var item = vm.ResolveFont(FontToolArgs.GetString(arguments, "font"));
+        var item = vm.ResolveFont(ToolArgs.Str(arguments, "font"));
         if (item is null)
             return Task.FromResult(ToolResult.Error(
                 "No matching font.",
@@ -54,8 +54,8 @@ public sealed class FontRenderTool(FontViewModel vm) : IClientTool
                 $"\"{item.DisplayName}\" can't be rendered: {item.LoadError}"));
 
         item.EnsureFacesLoaded();
-        var text = FontToolArgs.GetString(arguments, "text") is { Length: > 0 } t ? t : vm.Options.PreviewText;
-        double sizePt = double.TryParse(FontToolArgs.GetString(arguments, "size"),
+        var text = ToolArgs.Str(arguments, "text") ?? vm.Options.PreviewText;
+        double sizePt = double.TryParse(ToolArgs.Str(arguments, "size"),
             NumberStyles.Float, CultureInfo.InvariantCulture, out var s) ? Math.Clamp(s, 6, 200) : vm.Options.PreviewSizePt;
 
         try

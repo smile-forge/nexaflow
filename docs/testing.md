@@ -181,6 +181,7 @@ route), and waits for the viewer's root `AutomationProperties.AutomationId`:
 | `model3d`  | `.stl` `.obj` `.ply` `.gltf` `.glb` (+ FBX/3MF/… at runtime) | `Model3DView` |
 | `audio`    | `.wav` (+ `.mp3` `.flac` `.m4a` `.aac` `.wma` `.ogg` `.opus` at runtime) | `AudioView` |
 | `video`    | `.mp4` (+ `.mkv` `.webm` `.mov` `.avi` `.wmv` … at runtime) | `VideoView` |
+| `font`     | `.ttf` `.woff` (+ `.otf` `.ttc` at runtime) | `FontView` |
 
 (The `code`, `notebook` and `archive` sample sets also exist for unit/feature tests but route through their feature's own UI tests, not the data-driven `SampleFileViewerTests` map above.)
 
