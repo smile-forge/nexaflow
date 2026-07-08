@@ -1,7 +1,8 @@
+using Nexaflow.Features.Common.ClientTools;
 using System.Text;
 using System.Text.Json.Nodes;
 
-namespace Nexaflow.Features.Common.ClientTools;
+namespace Nexaflow.Core.Services.Agent;
 
 /// <summary>
 /// Extracts <c>client_tool</c> / <c>client_plan</c> / <c>client_prefill</c> fenced blocks from an

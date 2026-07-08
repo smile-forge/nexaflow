@@ -1,4 +1,4 @@
-namespace Nexaflow.Features.Common;
+namespace Nexaflow.Core.Models;
 
 /// <summary>
 /// Carries the (PageKind, PageParams) tuple for shell-level page-open commands —

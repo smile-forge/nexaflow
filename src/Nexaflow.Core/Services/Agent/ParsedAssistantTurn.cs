@@ -1,4 +1,6 @@
-namespace Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.Common.ClientTools;
+
+namespace Nexaflow.Core.Services.Agent;
 
 /// <summary>
 /// The structured view of one assistant reply: its human-facing prose plus any

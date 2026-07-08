@@ -1,4 +1,5 @@
 using System.Linq;
+using Nexaflow.Core.Services.Agent;
 using Nexaflow.Features.Common.ClientTools;
 
 namespace Nexaflow.Tests.Core.Unit.ClientTools;

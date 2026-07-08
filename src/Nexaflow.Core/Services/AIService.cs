@@ -1,5 +1,6 @@
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
+using Nexaflow.Core.Services.Agent;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Providers.Common;
