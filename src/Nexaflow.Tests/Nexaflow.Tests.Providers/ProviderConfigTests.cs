@@ -78,17 +78,17 @@ public class ProviderConfigTests
     [TestMethod]
     public void Aria_Defaults()
     {
+        // Aria carries no credentials (the pipe is ACL-guarded); the config is identity only.
         var c = new AriaConfig();
         Assert.AreEqual("aria", c.ConfigName);
         Assert.AreEqual("Aria", c.FriendlyName);
-        Assert.AreEqual("", c.ApiKey);
     }
 
     [TestMethod]
     public void Aria_RoundTrips()
     {
-        var c = RoundTrip(new AriaConfig { ApiKey = "aria-key" });
-        Assert.AreEqual("aria-key", c.ApiKey);
+        var c = RoundTrip(new AriaConfig());
+        Assert.AreEqual("aria", c.ConfigName);
     }
 
     // ── Ollama (richest: identity, defaults, computed keep-alive) ─────────────
