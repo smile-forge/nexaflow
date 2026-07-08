@@ -367,22 +367,8 @@
             </ScrollViewer>
         </Grid>
 
-        <!-- Confirmation overlay -->
-        <Border Visibility="{Binding ConfirmationVisible, Converter={StaticResource BoolVis}}"
-                Background="#CC000000" Panel.ZIndex="40">
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="8" Width="330" Padding="20"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
-                <StackPanel>
-                    <TextBlock Text="{Binding ConfirmationTitle}" Foreground="{StaticResource TextBrush}"
-                               FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,8"/>
-                    <TextBlock Text="{Binding ConfirmationPrompt}" Foreground="{StaticResource TextMutedBrush}"
-                               FontSize="12" TextWrapping="Wrap" Margin="0,0,0,16"/>
-                    <Button Content="Delete" Command="{Binding ConfirmActionCommand}" Style="{StaticResource GhostButton}" Margin="0,0,0,6"/>
-                    <Button Content="Cancel" Command="{Binding CancelConfirmationCommand}" Style="{StaticResource GhostButton}"/>
-                </StackPanel>
-            </Border>
-        </Border>
+        <!-- Confirmation overlay (shared Visuals.Common dialog) -->
+        <ctrl:ConfirmationDialog Request="{Binding Confirmation}" Panel.ZIndex="40"/>
 
         <!-- Take-snapshot overlay -->
         <Border Visibility="{Binding TakeSnapshotVisible, Converter={StaticResource BoolVis}}"
