@@ -85,11 +85,7 @@ public sealed class ProviderManager
     {
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
         foreach (var path in Directory.GetFiles(baseDir, "Nexaflow.Providers.*.dll"))
-        {
-            var fileName = Path.GetFileName(path);
-            if (!_loadedAssemblies.Contains(fileName))
-                LoadAssembly(path);
-        }
+            LoadAssembly(path);   // self-dedups under the pool lock
     }
 
     /// <summary>
@@ -101,7 +97,9 @@ public sealed class ProviderManager
     public IReadOnlyList<IProviderConfig> LoadProviderConfigs(string dir)
     {
         var configs = new List<IProviderConfig>();
-        foreach (var desc in _descriptors)
+        List<AssemblyDescriptor> descriptors;
+        lock (_poolLock) descriptors = [.. _descriptors];
+        foreach (var desc in descriptors)
             foreach (var ct in desc.ConfigTypes)
             {
                 var cfg = (IProviderConfig)Activator.CreateInstance(ct)!;
@@ -214,13 +212,15 @@ public sealed class ProviderManager
 
     /// <summary>
     /// Releases the pool references held by <paramref name="set"/>. Any instance whose ref-count reaches
-    /// zero is removed and disposed (if <see cref="IDisposable"/>) — "unloaded"; a model-bound execution
-    /// instance is cooled down first so its model is unloaded from the backend.
+    /// zero is removed and torn down — a model-bound execution instance is cooled down first (so its
+    /// model is unloaded from the backend) and then disposed, covering both <see cref="IDisposable"/>
+    /// and <see cref="IAsyncDisposable"/>-only providers (e.g. Aria). Teardown runs outside the pool
+    /// lock; it may do IO.
     /// </summary>
     public void ReleaseProviderSet(ProviderSet? set)
     {
         if (set is null) return;
-        var toCool = new List<ILlmProvider>();
+        var toRelease = new List<PoolEntry>();
         lock (_poolLock)
         {
             foreach (var key in set.PoolKeys)
@@ -228,11 +228,26 @@ public sealed class ProviderManager
                 if (!_pool.TryGetValue(key, out var entry)) continue;
                 if (--entry.RefCount > 0) continue;
                 _pool.Remove(key);
-                if (!string.IsNullOrEmpty(entry.Model)) toCool.Add(entry.Provider);
-                (entry.Provider as IDisposable)?.Dispose();
+                toRelease.Add(entry);
             }
         }
-        foreach (var p in toCool) _ = WarmCoolSafe(p.CooldownAsync());
+        foreach (var entry in toRelease) _ = TearDownSafe(entry);
+    }
+
+    /// <summary>Cool-then-dispose for an instance leaving the pool. Best-effort; never throws.</summary>
+    private static async Task TearDownSafe(PoolEntry entry)
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(entry.Model)) await entry.Provider.CooldownAsync();
+        }
+        catch { /* cooldown is best-effort; providers must not throw */ }
+        try
+        {
+            if (entry.Provider is IAsyncDisposable ad) await ad.DisposeAsync();
+            else (entry.Provider as IDisposable)?.Dispose();
+        }
+        catch { /* dispose is best-effort */ }
     }
 
     private static async Task WarmCoolSafe(Task t)
@@ -242,20 +257,26 @@ public sealed class ProviderManager
 
     private void LoadAssembly(string assemblyPath)
     {
-        var fileName = Path.GetFileName(assemblyPath);
-        if (!_loadedAssemblies.Add(fileName)) return;
+        // _loadedAssemblies/_descriptors are read under _poolLock by AcquireProviderSet and the
+        // snapshot readers; mutate them under the same lock. Load/reflection under the lock is fine —
+        // this path runs only at startup and when the AI options panel opens, and never re-enters.
+        lock (_poolLock)
+        {
+            var fileName = Path.GetFileName(assemblyPath);
+            if (!_loadedAssemblies.Add(fileName)) return;
 
-        var asm = Assembly.LoadFrom(assemblyPath);
+            var asm = Assembly.LoadFrom(assemblyPath);
 
-        var configTypes = asm.GetTypes()
-            .Where(t => !t.IsAbstract && !t.IsInterface && typeof(IProviderConfig).IsAssignableFrom(t))
-            .ToList();
+            var configTypes = asm.GetTypes()
+                .Where(t => !t.IsAbstract && !t.IsInterface && typeof(IProviderConfig).IsAssignableFrom(t))
+                .ToList();
 
-        var providerTypes = asm.GetTypes()
-            .Where(t => !t.IsAbstract && !t.IsInterface && typeof(ILlmProvider).IsAssignableFrom(t))
-            .Select(t => (Type: t, Ctor: t.GetConstructors().OrderByDescending(c => c.GetParameters().Length).First()))
-            .ToList();
+            var providerTypes = asm.GetTypes()
+                .Where(t => !t.IsAbstract && !t.IsInterface && typeof(ILlmProvider).IsAssignableFrom(t))
+                .Select(t => (Type: t, Ctor: t.GetConstructors().OrderByDescending(c => c.GetParameters().Length).First()))
+                .ToList();
 
-        _descriptors.Add(new AssemblyDescriptor(fileName, configTypes, providerTypes));
+            _descriptors.Add(new AssemblyDescriptor(fileName, configTypes, providerTypes));
+        }
     }
 }
