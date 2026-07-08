@@ -35,6 +35,7 @@ public class SampleFileViewerTests : FileSystemUiTestBase
         ("model3d",  "Model3DView"),
         ("audio",    "AudioView"),
         ("video",    "VideoView"),
+        ("font",     "FontView"),
     ];
 
     /// <summary>Yields one case per generated sample file: (subDir, fileName, expectedViewerId).</summary>

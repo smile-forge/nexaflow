@@ -130,7 +130,7 @@ After any change touching `Nexaflow.Core`, run the unit tests before committing:
 
 ```powershell
 dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Core/Nexaflow.Tests.Core.csproj
-src/Nexaflow.Tests/Nexaflow.Tests.Core/bin/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.Core.exe --filter "FullyQualifiedName~Unit"
+src/Nexaflow.Tests/Nexaflow.Tests.Core/bin/x64/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.Core.exe --filter "FullyQualifiedName~Unit"
 ```
 
 UI tests (`--filter "TestCategory=UI"`) require an interactive desktop session — skip in headless/CI. Run them manually when changes touch shell chrome, tab strip, ribbon, the AI bar, or any viewer.

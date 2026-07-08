@@ -1,0 +1,12 @@
+<Project>
+
+  <!-- Nexaflow ships x64 only (WinRT / native deps). Make x64 the single, default platform so every
+       build — Visual Studio, `dotnet build` of a project, or the whole solution — produces output in the
+       SAME place (bin\x64\<Config>\...), never a stray AnyCPU copy under bin\<Config>\. This removes the
+       bin\Debug vs bin\x64\Debug split that let a stale/partial output masquerade as a working build. -->
+  <PropertyGroup>
+    <Platforms>x64</Platforms>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+  </PropertyGroup>
+
+</Project>
