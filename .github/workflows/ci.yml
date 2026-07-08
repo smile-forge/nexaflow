@@ -47,16 +47,22 @@ jobs:
         run: |
           dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Core/Nexaflow.Tests.Core.csproj -c Release --no-restore
           dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Features/Nexaflow.Tests.Features.csproj -c Release --no-restore
+          dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Providers/Nexaflow.Tests.Providers.csproj -c Release --no-restore
 
       # UI tests (TestCategory=UI) drive the real app via FlaUI and need an interactive desktop session;
       # skip them in CI. The MSTest/MTP test exes take --filter directly (see docs/testing.md).
+      # Tests.Providers targets plain net10.0-windows (no WinRT), hence the per-project TFM map.
       - name: Run unit tests (non-UI)
         shell: pwsh
         run: |
-          $tfm = 'net10.0-windows10.0.19041.0'
+          $tests = [ordered]@{
+            'Nexaflow.Tests.Core'      = 'net10.0-windows10.0.19041.0'
+            'Nexaflow.Tests.Features'  = 'net10.0-windows10.0.19041.0'
+            'Nexaflow.Tests.Providers' = 'net10.0-windows'
+          }
           $failed = $false
-          foreach ($proj in 'Nexaflow.Tests.Core', 'Nexaflow.Tests.Features') {
-            $exe = "src/Nexaflow.Tests/$proj/bin/x64/Release/$tfm/$proj.exe"
+          foreach ($proj in $tests.Keys) {
+            $exe = "src/Nexaflow.Tests/$proj/bin/x64/Release/$($tests[$proj])/$proj.exe"
             Write-Host "::group::$proj"
             & $exe --filter 'TestCategory!=UI'
             if ($LASTEXITCODE -ne 0) { $failed = $true; Write-Host "::error::$proj failed (exit $LASTEXITCODE)" }
