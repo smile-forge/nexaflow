@@ -2,12 +2,13 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 
-namespace Nexaflow.Features.Processes.Converters;
+namespace Nexaflow.Visuals.Common.Converters;
 
 /// <summary>
-/// Sort-direction glyph for a GridView column header. Bound values: [0] active sort key, [1] ascending
-/// (bool), [2] this column's key. Returns ▲ / ▼ for the active column, ↕ otherwise. (Mirrors the
-/// WindowsApps helper — kept feature-local by the established pattern.)
+/// Sort-direction glyph for a GridView column header. Bound values: [0] active sort key (string),
+/// [1] ascending (bool), [2] this column's key (string). Returns ▲ / ▼ for the active column,
+/// ↕ for an inactive (but sortable) column. The shared home for the copy each sortable list view
+/// (WindowsFileSystem / WindowsApps / Processes) used to carry.
 /// </summary>
 public sealed class SortGlyphConverter : IMultiValueConverter
 {
@@ -27,8 +28,10 @@ public sealed class SortGlyphConverter : IMultiValueConverter
         => throw new NotSupportedException();
 }
 
-/// <summary>Brush for the sort glyph: accent when this column is the active sort, dim otherwise.
-/// Bound values: [0] active sort key, [1] this column's key.</summary>
+/// <summary>
+/// Brush for the sort glyph: accent when this column is the active sort, dim otherwise.
+/// Bound values: [0] active sort key (string), [1] this column's key (string).
+/// </summary>
 public sealed class SortBrushConverter : IMultiValueConverter
 {
     public static readonly SortBrushConverter Instance = new();

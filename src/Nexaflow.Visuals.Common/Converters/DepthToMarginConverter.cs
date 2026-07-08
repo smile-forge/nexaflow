@@ -2,10 +2,10 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 
-namespace Nexaflow.Features.Processes.Converters;
+namespace Nexaflow.Visuals.Common.Converters;
 
-/// <summary>Indents the tree's Name cell: depth → a left margin of <c>depth × 16</c>. The optional
-/// converter parameter overrides the per-level indent.</summary>
+/// <summary>Indents a tree row's cell: depth → a left margin of <c>depth × 16</c>. The optional
+/// converter parameter overrides the per-level indent. Shared by the Processes tree and JSON tree.</summary>
 public sealed class DepthToMarginConverter : IValueConverter
 {
     public static readonly DepthToMarginConverter Instance = new();
