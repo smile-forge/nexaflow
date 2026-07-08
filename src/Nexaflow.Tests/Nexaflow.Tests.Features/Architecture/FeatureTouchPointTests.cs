@@ -2,7 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
+using Nexaflow.Features.Common;
 using Nexaflow.Tests.Features.Fixtures;
 using Nexaflow.Tests.Fixtures;
 
@@ -75,5 +78,60 @@ public class FeatureTouchPointTests
         Assert.AreEqual(0, missing.Count,
             "Every sample-set extension in ViewerMap must be mapped in default-filemap.json or the " +
             $"default-open route won't reach the viewer. Missing: {string.Join(", ", missing)}");
+    }
+
+    [TestMethod]
+    public void Every_internal_viewer_action_is_reachable_from_the_bundled_filemap()
+    {
+        // The "this is a file viewer" marker is IFileAction.OpensViewer — the same flag the
+        // Define-New wizard filters on when listing internal viewers. Every viewer action's
+        // ExperienceId (or a descendant of it — child ids satisfy parent experiences) must be
+        // mapped by default-filemap.json, or no file type can ever default-open in that viewer.
+        var filemap = File.ReadAllText(Path.Combine(Root,
+            "src", "Nexaflow.Features", "Nexaflow.Features.WindowsFileSystem", "FileActions", "default-filemap.json"));
+        var mappedIds = Regex.Matches(filemap, @"""ExperienceId"":\s*""([^""]+)""")
+            .Select(m => m.Groups[1].Value)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var missing = new List<string>();
+        foreach (var asm in Directory.GetFiles(AppContext.BaseDirectory, "Nexaflow.Features.*.dll")
+                     .Select(p => Assembly.Load(Path.GetFileNameWithoutExtension(p))))
+            foreach (var type in ActionTypes(asm))
+            {
+                // Identity properties (OpensViewer / ExperienceId statics) are constants by
+                // contract — read them without running a constructor. A type whose identity
+                // depends on ctor state (ShellVerbAction, CustomAction) reports OpensViewer=false
+                // via the default and is out of scope here.
+                IFileAction action;
+                bool opensViewer;
+                try
+                {
+                    action = (IFileAction)RuntimeHelpers.GetUninitializedObject(type);
+                    opensViewer = action.OpensViewer;
+                }
+                catch { continue; }   // identity not readable without ctor state → not a mappable viewer
+                if (!opensViewer) continue;
+
+                var expId = type.GetProperty("StaticExperienceId", BindingFlags.Public | BindingFlags.Static)
+                    ?.GetValue(null) as string;
+                if (string.IsNullOrEmpty(expId)) { missing.Add($"{type.Name}: no StaticExperienceId"); continue; }
+
+                var reachable = mappedIds.Contains(expId) ||
+                                mappedIds.Any(id => id.StartsWith(expId + "/", StringComparison.OrdinalIgnoreCase));
+                if (!reachable) missing.Add($"{type.Name} ({expId})");
+            }
+
+        Assert.AreEqual(0, missing.Count,
+            "Every viewer-opening IFileAction must have its ExperienceId (or a descendant) mapped in " +
+            $"default-filemap.json. Missing: {string.Join(", ", missing)}");
+    }
+
+    private static IEnumerable<Type> ActionTypes(Assembly asm)
+    {
+        Type[] types;
+        try { types = asm.GetTypes(); }
+        catch (ReflectionTypeLoadException ex) { types = ex.Types.Where(t => t is not null).ToArray()!; }
+        return types.Where(t => t is { IsAbstract: false, IsInterface: false }
+                                && typeof(IFileAction).IsAssignableFrom(t));
     }
 }
