@@ -33,14 +33,14 @@ Priority bands: **P1** = do first (bugs, actively-misleading docs, lock-in-now g
 | F1 | **Bug:** cancellation rewrapped as error ×4 providers; Gemini ignores `ct` | ✅ Fixed 2026-07-08 | Product | S | P1 |
 | F2 | **Leak:** `IAsyncDisposable`-only provider (Aria) never disposed by pool | ✅ Fixed 2026-07-08 | Perf | S | P1 |
 | G2 | **Leak:** `RibbonViewModel` leaks per closed window | ✅ Fixed 2026-07-08 | Perf | S | P1 |
-| C1 | 2026-05 blessed moves still not executed (`ClientBlockParser`/`ParsedAssistantTurn`/`OpenPageRequest` → Core) | Do it | Maint | S | P2 |
-| C2 | ~30 tool classes duplicate 5-member scaffolding; SystemInfo invented a local base | `ClientToolBase` in Common | AI-Ready | M | P2 |
-| E1 | Modal overlay scaffold copy-pasted ~15× across 6 features + VM confirmation state | Shared overlay primitive | Maint | M | P2 |
-| G1 | Image album eagerly decodes every thumbnail, non-virtualized | Virtualize + demand-load | Perf | M | P2 |
+| C1 | 2026-05 blessed moves still not executed (`ClientBlockParser`/`ParsedAssistantTurn`/`OpenPageRequest` → Core) | ✅ Done 2026-07-08 (`Core/Services/Agent/`, `Core/Models/`) | Maint | S | P2 |
+| C2 | ~30 tool classes duplicate 5-member scaffolding; SystemInfo invented a local base | ✅ Done 2026-07-08 — `ClientToolBase`; SystemInfo migrated, rest on touch | AI-Ready | M | P2 |
+| E1 | Modal overlay scaffold copy-pasted ~15× across 6 features + VM confirmation state | ✅ Primitive shipped 2026-07-08 (`ConfirmationRequest` + `ConfirmationDialog` in Visuals.Common); ProductManager migrated, rest on touch | Maint | M | P2 |
+| G1 | Image album eagerly decodes every thumbnail, non-virtualized | ◐ Mitigated 2026-07-08 (batched marshalling + 1024-thumb cap); UI virtualization still open | Perf | M | P2 |
 | F3 | ~90 lines identical stream/catch/activity wrapper ×4 providers; no retry/timeout/429 anywhere | Shared helper + resilience | Product | M | P2 |
 | F5 | Vision/context-window/model-list hardcoded per **class**, not per model | Per-model capability table | Product | M | P2 |
 | F6 | API keys stored plaintext JSON in %AppData% | DPAPI via `[Secret]` seam | Product | M | P2 |
-| D1 | `ShellViewModel` (1,545 lines): AI-input cluster + overlay hosts extractable | `AiInputRouter` + `OverlayCoordinator` | AI-maint | M | P2 |
+| D1 | `ShellViewModel` (1,545 lines): AI-input cluster + overlay hosts extractable | ◐ `OverlayCoordinator` extracted 2026-07-08 (facade keeps XAML bindings); `AiInputRouter` still open | AI-maint | M | P2 |
 | D2 | `ShellServices` (958 lines, ~13 concerns) — undocumented second god object | Split 3 leaf helpers | AI-maint | M | P2 |
 | H1 | "AI Ready" concern: 317 open links; no recipe for making a page AI-ready | Recipe doc + C2 leverage | AI-Ready | M | P2 |
 | H3 | No add-feature skill / fast-loop docs / per-feature README stubs | Add affordances | AI-maint | S–M | P2 |
@@ -100,7 +100,7 @@ Architecture.md's six SoC findings vs reality: #1 ShellViewModel — three of th
 
 ## B. Mechanical enforcement — lock the rules in while they hold (P1)
 
-> **✅ Actioned 2026-07-08.** B1: `Tests.Features/Architecture/ArchitectureRulesTests` (no feature→Core, no feature→feature, dispatcher-singleton source scan) + `Tests.Providers/ArchitectureRulesTests` (no provider→Core / provider→provider). B2: `FeatureTouchPointTests` (every feature dir referenced by Core.csproj **and** Tests.Features.csproj; every `ViewerMap` sample extension mapped in `default-filemap.json` — `ViewerBySet` was extracted to the shared `Fixtures/ViewerMap` so the UI smoke and the guard consume one map). B3: `Tests.Providers` now builds and runs in ci.yml (per-project TFM map). Still open from B2's list: a test tying every viewer `StaticPageKind` to a filemap entry (needs a "this page kind is a file viewer" marker that doesn't exist yet) and B4's colour analyzer. A `Directory.Build.props` now exists (x64 pinning, PR #123) — a natural home for future analyzer wiring.
+> **✅ Actioned 2026-07-08.** B1: `Tests.Features/Architecture/ArchitectureRulesTests` (no feature→Core, no feature→feature, dispatcher-singleton source scan) + `Tests.Providers/ArchitectureRulesTests` (no provider→Core / provider→provider). B2: `FeatureTouchPointTests` (every feature dir referenced by Core.csproj **and** Tests.Features.csproj; every `ViewerMap` sample extension mapped in `default-filemap.json` — `ViewerBySet` was extracted to the shared `Fixtures/ViewerMap` so the UI smoke and the guard consume one map). B3: `Tests.Providers` now builds and runs in ci.yml (per-project TFM map). The viewer↔filemap guard landed 2026-07-08 using the marker that already existed — `IFileAction.OpensViewer` (what the Define-New wizard filters on) + the `StaticExperienceId` convention — and on its **first run caught a real regression**: commit `bfed811` moved `ShowJsonAction` to `/text/json` without updating the filemap, silently breaking `.json` default-open on a fresh map (fixed). Still open: B4's colour analyzer. A `Directory.Build.props` now exists (x64 pinning, PR #123) — a natural home for future analyzer wiring.
 
 At review time: **no** `Directory.Build.props`, no `.editorconfig`, no analyzers, no banned-API list, no architecture tests anywhere. Every hard rule was prose. The rules held — which is exactly when enforcement is cheap. For an agent-authored repo this is the highest-leverage structural change in this review: the failure mode isn't malice, it's a plausible wrong turn (`using Nexaflow.Core;`, a `<ProjectReference>` to Core, an `Application.Current.Dispatcher` because that's the WPF idiom the model knows best) — none of which produced a compile error.
 
