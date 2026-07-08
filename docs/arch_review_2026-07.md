@@ -43,14 +43,14 @@ Priority bands: **P1** = do first (bugs, actively-misleading docs, lock-in-now g
 | D1 | `ShellViewModel` (1,545 lines): AI-input cluster + overlay hosts extractable | ◐ `OverlayCoordinator` extracted 2026-07-08 (facade keeps XAML bindings); `AiInputRouter` still open | AI-maint | M | P2 |
 | D2 | `ShellServices` (958 lines, ~13 concerns) — undocumented second god object | Split 3 leaf helpers | AI-maint | M | P2 |
 | H1 | "AI Ready" concern: 317 open links; no recipe for making a page AI-ready | Recipe doc + C2 leverage | AI-Ready | M | P2 |
-| H3 | No add-feature skill / fast-loop docs / per-feature README stubs | Add affordances | AI-maint | S–M | P2 |
-| E2/E3 | 3× sort converters, 2× depth converter, dup formatters | Hoist to Visuals.Common | Maint | S | P3 |
+| H3 | No add-feature skill / fast-loop docs / per-feature README stubs | ✅ Done 2026-07-08 (add-feature skill + fast-loop in CLAUDE.md; README stubs deliberately skipped) | AI-maint | S–M | P2 |
+| E2/E3 | 3× sort converters, 2× depth converter, dup formatters | ✅ Done 2026-07-08 — hoisted to Visuals.Common; `FormatMediaTime` added | Maint | S | P3 |
 | E4 | 5 colour-literal clusters (Scratchpad chrome biggest) | Tokenize | Maint | S–M | P3 |
 | E5 | 5 process-global mutable registries in WindowsFileSystem | Scope or sanction | Maint | M | P3 |
 | E6 | `FileSystemViewModel` 75 KB; Json/Product VMs have clean split lines | Split | AI-maint | M–L | P3 |
-| C3–C6 | Tool merger dup, arg-reader gap, tool naming, `IShellServices` peel, quiesce wiring | See §C | Maint | S–M | P3 |
+| C3–C6 | Tool merger dup, arg-reader gap, tool naming, `IShellServices` peel, quiesce wiring | ◐ C4 done 2026-07-08 (`*_file` names, `ToolArgs.IntOrNull`, Registry wrappers dropped — UI-context guarantee verified in `ExecuteBatchAsync`); C3/C5/C6 open | Maint | S–M | P3 |
 | F4 | Provider contract: no streaming surface, no native tool-calling, no usage metadata | Evolve contract | Product | M | P3 |
-| G3–G8 | Minimize-blind timers, VFS temp growth, chat-list virtualization, eager conversations, startup reads, hex paint churn | See §G | Perf | S–M | P3 |
+| G3–G8 | Minimize-blind timers, VFS temp growth, chat-list virtualization, eager conversations, startup reads, hex paint churn | ◐ G3 + G4 done 2026-07-08 (`WindowMinimizeWatcher`; VFS 512 MB LRU); G5–G8 open | Perf | S–M | P3 |
 | D3 | RibbonEditor: 749-line procedural code-behind | ViewModel + XAML | Maint | L | P3 |
 
 ---
@@ -313,7 +313,7 @@ The live product tree (843 nodes, 674 leaves, 652 done, 0 faulted) says the prod
 
 ### H2. Tests concern (333 open links) — make coverage self-truthing (S–M)
 
-Beyond fixing the false table (§A3): add a reflection test that asserts every `Nexaflow.Features.*` assembly has ≥1 test class in `Tests.Features`, so the gap list can't rot again. The monolithic `Tests.Features` exe (references all 29 features) makes the per-feature edit-test loop pay a full feature-set rebuild — a per-feature `[TestCategory("<Feature>")]` convention is the cheap mitigation (**S**); splitting the project is the clean fix but **L**, defer.
+Beyond fixing the false table (§A3): a reflection test asserting every `Nexaflow.Features.*` assembly has ≥1 test class in `Tests.Features` (**✅ done 2026-07-08** — `Architecture/CoverageGuardTests`, with an alias map for shared folders), so the gap list can't rot again. The monolithic `Tests.Features` exe (references all 29 features) makes the per-feature edit-test loop pay a full feature-set rebuild — a per-feature `[TestCategory("<Feature>")]` convention is the cheap mitigation (**S**); splitting the project is the clean fix but **L**, defer.
 
 ### H3. Agent affordances (S–M)
 
