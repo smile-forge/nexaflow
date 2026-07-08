@@ -87,11 +87,11 @@ public sealed class GitWorktreeService(string folderPath)
     {
         var head      = repo.Head;
         var tip       = head.Tip;
-        var detached  = repo.Info.IsHeadDetached;
-        var branch    = detached ? "(detached)" : head.FriendlyName;
+        var ownBranch = ResolveOwnBranch(repo, new DirectoryInfo(folderPath).Name);
+        var branch    = ownBranch ?? "(detached)";
 
         // ── Pushed? — a remote branch that contains the worktree's tip ──────
-        var remote = ResolveRemoteBranch(repo, head, detached ? null : branch);
+        var remote = ResolveRemoteBranch(repo, head, ownBranch);
         int aheadOfRemote = 0;
         bool pushed = false;
         if (remote?.Tip is { } remoteTip && tip is not null)
@@ -102,7 +102,7 @@ public sealed class GitWorktreeService(string folderPath)
         }
 
         // ── Merged? — tip fully contained in the mainline target ───────────
-        var (targetName, targetTip) = ResolveMergeTarget(repo, detached ? null : branch);
+        var (targetName, targetTip) = ResolveMergeTarget(repo, ownBranch);
         bool merged = false;
         if (tip is not null && targetTip is not null)
         {
@@ -125,7 +125,7 @@ public sealed class GitWorktreeService(string folderPath)
             DisplayName:       new DirectoryInfo(folderPath).Name,
             WorktreeName:      ResolveWorktreeName() ?? new DirectoryInfo(folderPath).Name,
             Branch:            branch,
-            IsDetached:        detached,
+            IsDetached:        ownBranch is null,   // no branch this worktree owns → nothing to delete
             Upstream:          remote?.FriendlyName,
             HasUpstream:       remote is not null,
             AheadOfRemote:     aheadOfRemote,
@@ -157,24 +157,23 @@ public sealed class GitWorktreeService(string folderPath)
         if (!IsWorktree())
             return new(false, "This folder is not a git worktree.");
 
+        var basePath = folderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var name     = new DirectoryInfo(basePath).Name;
+
         // Read what we can. A broken remnant (dangling .git link) won't open as a repository — that's fine:
-        // we can still delete the leftover folder and prune a dangling registration. Only a valid worktree
-        // yields a branch to delete; name/common-dir come from parsing the .git file, which needs no repo.
+        // we can still delete the leftover folder and prune a dangling registration. Resolve the branch this
+        // worktree owns (its checked-out branch, or — when detached, as tool-created worktrees often are —
+        // the same-named branch sitting at its commit); name/common-dir come from parsing the .git file.
         string? branch = null;
-        bool    detached = false;
         try
         {
             using var repo = new Repository(folderPath);
-            detached = repo.Info.IsHeadDetached;
-            branch   = detached ? null : repo.Head.FriendlyName;
+            branch = ResolveOwnBranch(repo, name);
         }
         catch { /* broken worktree — no branch to delete */ }
 
         var worktreeName = ResolveWorktreeName();
         var commonGitDir = TryResolveCommonGitDir();
-
-        var basePath = folderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        var name     = new DirectoryInfo(basePath).Name;
 
         // 1. Vacate the working tree by an atomic same-volume rename. A locked/in-use file makes this fail as
         //    a unit, with the worktree still fully intact at its original path — a clean, recoverable failure.
@@ -213,9 +212,10 @@ public sealed class GitWorktreeService(string folderPath)
                 try { ForceDeleteDirectory(admin); } catch (Exception ex) { problems.Add($"registration ({ex.Message})"); }
         }
 
-        // 3. Delete the now-free branch (a fresh handle re-reads worktree state). Only when the repo opened
-        //    and gave us a branch name — a broken remnant's branch, if any, is no longer linked to it.
-        if (!detached && branch is not null && commonGitDir is not null)
+        // 3. Delete the branch this worktree owned (a fresh handle re-reads worktree state, so it's no longer
+        //    seen as checked-out). Null when the worktree was detached with no same-named branch, or a broken
+        //    remnant whose repo wouldn't open.
+        if (branch is not null && commonGitDir is not null)
         {
             try
             {
@@ -229,13 +229,36 @@ public sealed class GitWorktreeService(string folderPath)
         //    itself is already cleanly gone and git is consistent.
         try { ForceDeleteDirectory(stash); } catch { /* clearly-named remnant; not a broken worktree */ }
 
-        var what = branch is not null ? $"worktree '{name}' and branch '{branch}'." : $"worktree remnant '{name}'.";
+        var what = branch is not null ? $"worktree '{name}' and branch '{branch}'." : $"worktree '{name}'.";
         return problems.Count == 0
             ? new(true, $"Removed {what}")
             : new(true, $"Removed {what.TrimEnd('.')}, but some git cleanup failed: {string.Join(", ", problems)}.");
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The branch this worktree owns and that removal should delete: its checked-out branch, or — when the
+    /// worktree is in detached HEAD (as tool-created worktrees often are) — a local branch named after the
+    /// worktree that sits at the very same commit, so deleting it loses nothing. Null when neither applies
+    /// (a genuinely detached worktree with no matching branch). The same-commit guard keeps us from deleting
+    /// a same-named branch that has since moved ahead.
+    /// </summary>
+    private static string? ResolveOwnBranch(Repository repo, string worktreeName)
+    {
+        var head = repo.Head;
+        if (!repo.Info.IsHeadDetached)
+            return head.FriendlyName;
+
+        var tipSha = head.Tip?.Sha;
+        if (tipSha is null) return null;
+
+        return repo.Branches.FirstOrDefault(b => !b.IsRemote
+                && (string.Equals(b.FriendlyName, worktreeName, StringComparison.Ordinal)
+                    || b.FriendlyName.EndsWith("/" + worktreeName, StringComparison.Ordinal))
+                && b.Tip?.Sha == tipSha)
+            ?.FriendlyName;
+    }
 
     /// <summary>The remote-tracking branch the worktree's commits belong on: its configured upstream, or a
     /// same-named <c>&lt;remote&gt;/&lt;branch&gt;</c> when no upstream is set. Null when nothing matches.</summary>

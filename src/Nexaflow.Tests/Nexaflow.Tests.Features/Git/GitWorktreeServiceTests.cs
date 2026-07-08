@@ -186,6 +186,39 @@ public class GitWorktreeServiceTests
     }
 
     [TestMethod]
+    public void Remove_DetachedWorktreeAtSameNamedBranch_DeletesThatBranch()
+    {
+        var main = InitRepoWithMain();
+
+        // A tool-created worktree: a branch "claude/wt-x" plus a DETACHED worktree folder "wt-x" sitting at
+        // that branch's commit (git worktree list would show "(detached HEAD)").
+        string sha;
+        using (var repo = new Repository(main))
+        {
+            repo.CreateBranch("claude/wt-x");
+            sha = repo.Head.Tip.Sha;
+        }
+
+        var container = NewTempPath("container");
+        Directory.CreateDirectory(container);
+        var wt = Path.Combine(container, "wt-x");                 // folder name matches the branch's suffix
+        using (var repo = new Repository(main))
+            repo.Worktrees.Add(sha, "wt-x", wt, isLocked: false); // committish = a SHA ⇒ detached
+
+        using (var wtRepo = new Repository(wt))
+            Assert.IsTrue(wtRepo.Info.IsHeadDetached, "worktree must be detached for this test to be meaningful");
+
+        // The owned branch is resolved despite the detached HEAD.
+        Assert.AreEqual("claude/wt-x", new GitWorktreeService(wt).GetInfo()!.Branch);
+
+        var result = new GitWorktreeService(wt).Remove();
+
+        Assert.IsTrue(result.Success, result.Message);
+        using var m = new Repository(main);
+        Assert.IsNull(m.Branches["claude/wt-x"], "the branch the detached worktree owned should be deleted");
+    }
+
+    [TestMethod]
     public void Remove_OnMainCheckout_Fails()
     {
         var main = InitRepoWithMain();
