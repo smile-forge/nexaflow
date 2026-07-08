@@ -64,7 +64,7 @@ public sealed class ProviderManager
 
     /// <summary>
     /// Loads only the assemblies listed in <paramref name="assemblyFileNames"/>.
-    /// Called at startup with the union of assembly file names from all WorkContext AiConfigs.
+    /// Called at startup with the union of assembly file names from all workspaces' AiConfigs.
     /// </summary>
     public void LoadConfigured(IEnumerable<string> assemblyFileNames)
     {

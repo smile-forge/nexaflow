@@ -16,11 +16,18 @@ A feature is a class library (`Nexaflow.Features.MyFeature`) that references onl
 | `IPageView` on your `UserControl` | recommended | Shell lifecycle handle: `ViewModel` property + `Reinitialize` |
 | `IPageViewModel` on your ViewModel | recommended | AI pipeline contract: `GetContext`, `GetClientTools`, `GetContextObject` |
 | Add project reference in `Nexaflow.Core.csproj` | yes | So the feature DLL ships and `FeatureManager` reflection-discovers it at startup |
-| Add ribbon entry in `ShellViewModel.BuildDefaultItems()` | optional | Puts a button on the default toolbar |
+| Add a default-button entry in `src/Nexaflow.Core/Ribbon/default-ribbon.json` | optional | Puts a button on the default toolbar (loaded by `RibbonLayoutService.LoadDefaults`) |
 | `IFeatureConfig` | optional | Persisted settings, free Options panel UI |
 | `IQueryHandler` | optional | Handle AI input bar text |
 | `IFileAction` / `IFolderAction` | optional | File browser context actions |
 | `IKeyboardHandler` / `IDropTarget` | optional | Global keyboard shortcuts / file drag-drop |
+
+The wiring steps that used to fail silently are now **enforced**: `Nexaflow.Tests.Features/Architecture/FeatureTouchPointTests`
+goes red naming any feature directory missing its `Nexaflow.Core.csproj` or `Nexaflow.Tests.Features.csproj`
+ProjectReference, and any viewer sample extension missing from `default-filemap.json`; the layering rules
+(no Core reference, no dispatcher) are enforced by `ArchitectureRulesTests` in the same folder. Also update
+the **product tree** — add the feature's node(s) under `features` in `.product/tree.json` (see the
+product-folder skill); the docs deliberately don't keep a feature inventory anywhere else.
 
 ---
 
@@ -37,8 +44,8 @@ are `*PageRegistration.cs`) at the root, `ViewModels/`, `Views/`. Copy the cspro
 ## The entry point — `IPageRegistration`
 
 The one required contract. `FeatureManager.RegisterFeatures()` discovers it by reflection (reading
-`static StaticPageKind` without instantiating) and builds one instance **per `Workspace`**, injecting: any
-`IFeatureConfig` from the **same assembly**, the workspace's `IShellServices`, and its `IAIService`.
+`static StaticPageKind` without instantiating) and builds one instance **per `WorkspaceRuntime`**, injecting:
+any `IFeatureConfig` from the **same assembly**, the runtime's `IShellServices`, and its `IAIService`.
 
 - `CreatePageDefinition` must be **cheap and side-effect-free** — the shell builds definitions speculatively
   just to read `Title`/`Icon` (menus, the AI "add context" list) and may discard them. Build the view-model and
@@ -62,9 +69,10 @@ defaults, so a context-only page overrides almost nothing.
 
 ## AI input bar — `IQueryHandler`
 
-Intercepts the AI input bar before text reaches the LLM. Register **globally** in `App.xaml.cs` after
-`RegisterFeatures()` via `FeatureManager.Instance.RegisterQueryHandler(...)`, or **page-scoped** by implementing
-it on the ViewModel (the shell checks `page?.ViewModel as IQueryHandler`). `Symbol` claims a single-char prefix
+Intercepts the AI input bar before text reaches the LLM. Handlers are **auto-discovered** (the
+`FeatureCatalog` index) and built per `WorkspaceRuntime` — there is **no registration step**. Scope is
+expressed inside `CanProcess(input, pageVm)`: the active page's ViewModel is passed in, so a page-scoped
+handler is a type check returning 0 for pages it doesn't own. `Symbol` claims a single-char prefix
 for exact routing (e.g. `>` → console); otherwise `CanProcess` returns a 0–1 score and
 `IAIService.DisambiguateToolSelection` breaks ties via the LLM. `ProcessAsync` returns null (handled silently)
 or a string (shown in AI Chat). Canonical example: `Nexaflow.Features.WindowsSearch`.
@@ -77,7 +85,7 @@ reference.
 
 ## Calling the shell — `IShellServices`
 
-The active workspace's handle (injected into registrations and file actions): `OpenTab` / `CloseTab` /
+The active runtime's handle (injected into registrations and file actions): `OpenTab` / `CloseTab` /
 `FindTab`, notifications + prompts, `QueueBackgroundTask`, `WatchFile`, `RunOnUiAsync`,
 `DiscoverImplementations<T>`. To change a tab's own title/breadcrumbs/params, mutate the observable `Page`
 directly. The full, documented surface is in `Services/IShellServices.cs`.
@@ -107,7 +115,7 @@ attributes (all in `ConfigAttributes.cs`):
 | `[DisabledIfSet]` / `[DisabledIfNotSet]` | Grey out an editor based on a sibling property's value |
 | `[CustomControl(type)]` | Replace the section with a custom `UserControl` (+ `ICustomConfigApply` to save) |
 
-Configs are **global** by default; add `[WorkspaceScopedConfig]` for a per-profile one, `[MandatorySetup]` to
+Configs are **global** by default; add `[WorkspaceScopedConfig]` for a per-workspace one, `[MandatorySetup]` to
 add it to the first-run wizard. Implement `IConfigMigration` to fix shape changes across a version bump.
 
 ---
@@ -242,7 +250,7 @@ doc-comment is the authoritative, fuller description. Most are discovered by ref
 | `IFileAction` | Context action on file(s); matched by hierarchical `ExperienceId` via `FileMapManager`. |
 | `IFolderAction` | Context action on folder(s); matched **structurally** (name / contents globs), not by experience id. |
 | `IFileCreateAction` | A "new file/folder of type X" action for the current folder. |
-| `ICacheable` | Marker: the action has exactly one instance per `WorkContext`, so it's cached + auto-listed. Non-cacheable actions are rehydrated instead. |
+| `ICacheable` | Marker: the action has exactly one instance per `WorkspaceRuntime`, so it's cached + auto-listed. Non-cacheable actions are rehydrated instead. |
 
 ### Folder viewlets (`Viewlets/`)
 | Interface | What it's for |
@@ -264,7 +272,7 @@ doc-comment is the authoritative, fuller description. Most are discovered by ref
 ### Config (`ConfigAttributes.cs`, `IFeatureConfig.cs`, `IConfigMigration.cs`)
 | Interface | What it's for |
 |---|---|
-| `IFeatureConfig` | Marks a POCO as a config section (global by default; `[WorkspaceScopedConfig]` makes it per-profile). |
+| `IFeatureConfig` | Marks a POCO as a config section (global by default; `[WorkspaceScopedConfig]` makes it per-workspace). |
 | `IConfigMigration` | Opt-in hook to fix up shape changes when a config is migrated forward across an assembly-version bump. |
 | `ICustomConfigApply` | A custom Options control participating in the Save flow (`Apply()`). |
 | `IConfigChangeTracker` | A custom Options control reporting whether it has unsaved changes (else it's assumed always-dirty). |

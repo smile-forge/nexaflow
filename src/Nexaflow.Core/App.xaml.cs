@@ -157,7 +157,7 @@ public partial class App : Application
 
     /// <summary>
     /// Runs all app-level initialisation shared by both the normal and <c>--prestart</c> launch paths:
-    /// config registration, providers, work contexts, file map, features, the voice capability probe,
+    /// config registration, providers, workspaces, file map, features, the voice capability probe,
     /// the torn-off window factory, the taskbar JumpList and the single-instance IPC listener.
     /// Returns the <see cref="VoiceConfig"/> so the caller can start the model download afterwards.
     /// </summary>
@@ -297,7 +297,7 @@ public partial class App : Application
         var aboutConfig = new AboutConfig();
         ConfigManager.Instance.Register(aboutConfig, aboutConfig.ConfigName);
 
-        // ── 8. Taskbar JumpList — one entry per WorkContext ─────────────────
+        // ── 8. Taskbar JumpList — one entry per Workspace ───────────────────
         JumpListService.Initialize();
 
         // ── 9. Single-instance IPC listener — a later click signals us to open a window ──

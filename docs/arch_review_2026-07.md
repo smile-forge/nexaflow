@@ -22,11 +22,11 @@ Priority bands: **P1** = do first (bugs, actively-misleading docs, lock-in-now g
 
 | # | Finding | Verdict | Lens | Effort | Band |
 |---|---------|---------|------|--------|------|
-| A1 | Docs teach the **inverted** Workspace vocabulary post-rename | Rewrite CLAUDE.md + Architecture.md | AI-maint | M | P1 |
-| A2 | Dead instructions: `BuildDefaultItems()`, `RegisterQueryHandler` | Delete/retarget | AI-maint | S | P1 |
+| A1 | Docs teach the **inverted** Workspace vocabulary post-rename | ✅ Done 2026-07-08 — both docs rewritten; stale code comments swept | AI-maint | M | P1 |
+| A2 | Dead instructions: `BuildDefaultItems()`, `RegisterQueryHandler` | ✅ Done 2026-07-08 — incl. `IQueryHandler.cs` XML doc | AI-maint | S | P1 |
 | A3 | testing.md coverage table is false (4 areas claimed untested now have tests) | ✅ Done 2026-07-08 — replaced with product-tree redirect | AI-maint | S | P1 |
-| A4 | 5 projects undocumented (Elevation ×2, IO.Terminal, Syntax, Visuals.Terminal); IO.Common understated | Document; add elevation hard rule | AI-maint | M | P1 |
-| A5 | Architecture.md SoC list ~60% stale | Refresh | AI-maint | S | P1 |
+| A4 | 5 projects undocumented (Elevation ×2, IO.Terminal, Syntax, Visuals.Terminal); IO.Common understated | ✅ Done 2026-07-08 — layout re-tiered, Elevation section + hard rule added | AI-maint | M | P1 |
+| A5 | Architecture.md SoC list ~60% stale | ✅ Done 2026-07-08 — replaced with a pointer to this doc | AI-maint | S | P1 |
 | B1 | Hard rules have **zero mechanical enforcement** (they hold today — lock in) | ✅ Done 2026-07-08 — architecture tests | AI-maint | S | P1 |
 | B2 | New-feature checklist has 5 **silent** failure modes | ✅ Done 2026-07-08 — completeness tests (3 of 5) | AI-maint | M | P1 |
 | B3 | `Tests.Providers` never runs in CI | ✅ Done 2026-07-08 | AI-maint | S | P1 |
@@ -56,6 +56,18 @@ Priority bands: **P1** = do first (bugs, actively-misleading docs, lock-in-now g
 ---
 
 ## A. Docs are wrong in ways that will misroute an agent (P1)
+
+> **✅ Actioned 2026-07-08 (whole band).** CLAUDE.md + Architecture.md rewritten in the
+> `Workspace`/`WorkspaceRuntime` vocabulary (with a "naming history" note pinning the frozen compat
+> strings); dead instructions removed (features.md checklist → `default-ribbon.json`;
+> `RegisterQueryHandler` language deleted from both docs *and* `IQueryHandler.cs` itself); the five
+> missing projects documented and the solution layout re-tiered; an Elevation section + CLAUDE.md
+> hard rule added; the stale SoC list replaced with a pointer here. Beyond the fixes, the docs were
+> **de-listed**: feature inventory, per-component status, and test coverage now defer to the product
+> tree (`.product/tree.json`) as the single source of truth, and the product-folder skill gained
+> ready-made fast-query recipes so an agent can answer inventory/status questions without loading the
+> ~900 KB tree into context. Two stale claims found during the rewrite were also fixed: the AI persona
+> is per-`Workspace` (not global), and `[WorkspaceScopedConfig]` per-workspace feature configs exist.
 
 For this codebase, doc accuracy **is** architecture: CLAUDE.md tells every session to read the docs before exploring, so a confidently-wrong doc gets injected into every change.
 
@@ -320,7 +332,7 @@ Beyond fixing the false table (§A3): add a reflection test that asserts every `
 Cheapest, highest-confidence first — same discipline as the last review:
 
 1. **Bug/leak trio** ✅ done — F1 cancellation ×4 + Gemini `ct`, F2 Aria dispose (+ discovery-lock fix), G2 ribbon leak. *(S)*
-2. **Docs truth pass** (A1–A5): Workspace vocabulary rewrite, dead instructions, coverage table, missing projects/elevation, SoC refresh. One session, ends every "confidently wrong doc" hazard. *(M)*
+2. **Docs truth pass** (A1–A5) ✅ done: Workspace vocabulary rewrite, dead instructions, coverage table, missing projects/elevation, SoC refresh — plus de-listing to the product tree + skill query recipes. *(M)*
 3. **Enforcement** (B1–B3) ✅ done: architecture tests + touch-point completeness tests + Providers in CI. *(S–M)*
 4. **Contract moves + tool seam** (C1, C2, C4): the blessed relocations, `ClientToolBase`, tool polish. *(S–M)*
 5. **Overlay primitive + converter hoists** (E1, E2, E3): the biggest duplication kills; E1 also unblocks the E6 VM splits. *(M)*

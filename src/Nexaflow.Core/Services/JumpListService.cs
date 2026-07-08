@@ -12,7 +12,8 @@ namespace Nexaflow.Core.Services;
 /// </summary>
 public static class JumpListService
 {
-    /// <summary>Command-line switch a JumpTask passes to request a specific WorkContext.</summary>
+    /// <summary>Command-line switch a JumpTask passes to request a specific Workspace
+    /// (the "--context" literal is a frozen CLI/IPC compat string).</summary>
     public const string ContextSwitch = "--context";
 
     private const string CategoryName = "Workspaces";
@@ -30,7 +31,7 @@ public static class JumpListService
         Refresh();
     }
 
-    /// <summary>Rebuilds the JumpList from the current set of WorkContexts.</summary>
+    /// <summary>Rebuilds the JumpList from the current set of saved Workspaces.</summary>
     public static void Refresh()
     {
         if (Application.Current is null) return;
@@ -44,7 +45,7 @@ public static class JumpListService
             jumpList.JumpItems.Add(new JumpTask
             {
                 Title            = cfg.Name,
-                Description      = $"Open the “{cfg.Name}” work context",
+                Description      = $"Open the “{cfg.Name}” workspace",
                 CustomCategory   = CategoryName,
                 ApplicationPath  = exePath,
                 IconResourcePath = exePath,
