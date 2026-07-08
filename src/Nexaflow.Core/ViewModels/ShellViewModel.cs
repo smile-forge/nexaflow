@@ -758,6 +758,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         MessageCenter.Instance.MessagePosted -= OnMessagePosted;
         Notifications.CollectionChanged -= OnInboxChanged;
         foreach (var m in Notifications) m.PropertyChanged -= OnMessageItemChanged;
+
+        // The Workspace outlives its windows — unhook its RibbonChanged or this window's ribbon
+        // view-model stays rooted (and dead-reloads on every ribbon edit in surviving windows).
+        Ribbon?.Detach();
+        Ribbon = null;
     }
 
     private void OnInboxChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
