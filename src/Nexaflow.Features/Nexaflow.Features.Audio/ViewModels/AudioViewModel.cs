@@ -237,6 +237,14 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         if (IsPlaying) _renderTimer.Start();
     }
 
+    /// <summary>Window minimized/restored: suspend only the spectrum/waveform repaint — playback
+    /// keeps running (minimizing while listening is normal); the render loop resumes with the window.</summary>
+    public void SetRenderSuspended(bool suspended)
+    {
+        if (suspended) _renderTimer.Stop();
+        else if (IsPlaying) _renderTimer.Start();
+    }
+
     /// <summary>The tab was hidden (tab switch): pause playback (to resume on return) and stop the loop.</summary>
     public void OnDeactivated()
     {
