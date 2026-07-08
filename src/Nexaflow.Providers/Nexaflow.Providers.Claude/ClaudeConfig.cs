@@ -9,6 +9,7 @@ public sealed class ClaudeConfig : IProviderConfig
     public string FriendlyName => "Claude";
 
     [Required]
+    [Secret]
     [ConfigDisplayName("API Key")]
     public string ApiKey { get; set; } = "";
 

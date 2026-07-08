@@ -9,6 +9,7 @@ public sealed class OpenAIConfig : IProviderConfig
     public string FriendlyName => "OpenAI";
 
     [Required]
+    [Secret]
     [ConfigDisplayName("API Key")]
     public string ApiKey { get; set; } = string.Empty;
 
