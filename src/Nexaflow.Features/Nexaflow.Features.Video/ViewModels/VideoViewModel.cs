@@ -1,3 +1,4 @@
+using Nexaflow.Visuals.Common.Formatting;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -635,19 +636,9 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
     };
 
     private static string Format(long ms)
-    {
-        if (ms < 0) ms = 0;
-        var t = TimeSpan.FromMilliseconds(ms);
-        return t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss");
-    }
+        => DurationFormatter.FormatMediaTime(TimeSpan.FromMilliseconds(Math.Max(0, ms)));
 
-    private static string FormatBytes(long bytes)
-    {
-        string[] units = ["B", "KB", "MB", "GB", "TB"];
-        double v = bytes; int u = 0;
-        while (v >= 1024 && u < units.Length - 1) { v /= 1024; u++; }
-        return $"{v:0.##} {units[u]}";
-    }
+    private static string FormatBytes(long bytes) => SizeFormatter.FormatBytes(bytes);
 
     private Task OnUi(Action action) => _shell?.RunOnUiAsync(action) ?? Run(action);
     private static Task Run(Action a) { a(); return Task.CompletedTask; }

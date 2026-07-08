@@ -1,3 +1,4 @@
+using Nexaflow.Visuals.Common.Formatting;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -529,13 +530,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         UpdatePlaylistCurrent();
     }
 
-    private static string FormatTime(TimeSpan t)
-    {
-        if (t < TimeSpan.Zero) t = TimeSpan.Zero;
-        return t.TotalHours >= 1
-            ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}"
-            : $"{t.Minutes}:{t.Seconds:00}";
-    }
+    private static string FormatTime(TimeSpan t) => DurationFormatter.FormatMediaTime(t);
 
     // ── IPageViewModel ───────────────────────────────────────────────────────
 
