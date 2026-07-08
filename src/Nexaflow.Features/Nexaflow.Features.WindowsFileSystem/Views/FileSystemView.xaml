@@ -91,13 +91,13 @@
                 <!-- Sort glyph, right-aligned: ↕ when inactive, ▲/▼ when this column is sorted. -->
                 <TextBlock Grid.Column="1" FontSize="10" Margin="6,0,0,0" VerticalAlignment="Center">
                     <TextBlock.Foreground>
-                        <MultiBinding Converter="{x:Static conv:SortBrushConverter.Instance}">
+                        <MultiBinding Converter="{x:Static cv:SortBrushConverter.Instance}">
                             <Binding Path="DataContext.SortColumn" RelativeSource="{RelativeSource AncestorType=ListView}"/>
                             <Binding Path="Key"/>
                         </MultiBinding>
                     </TextBlock.Foreground>
                     <TextBlock.Text>
-                        <MultiBinding Converter="{x:Static conv:SortGlyphConverter.Instance}">
+                        <MultiBinding Converter="{x:Static cv:SortGlyphConverter.Instance}">
                             <Binding Path="DataContext.SortColumn"    RelativeSource="{RelativeSource AncestorType=ListView}"/>
                             <Binding Path="DataContext.SortAscending" RelativeSource="{RelativeSource AncestorType=ListView}"/>
                             <Binding Path="Key"/>

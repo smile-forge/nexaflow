@@ -1,3 +1,4 @@
+using Nexaflow.Visuals.Common.Formatting;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -234,6 +235,14 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
             IsPlaying = true;
         }
         if (IsPlaying) _renderTimer.Start();
+    }
+
+    /// <summary>Window minimized/restored: suspend only the spectrum/waveform repaint — playback
+    /// keeps running (minimizing while listening is normal); the render loop resumes with the window.</summary>
+    public void SetRenderSuspended(bool suspended)
+    {
+        if (suspended) _renderTimer.Stop();
+        else if (IsPlaying) _renderTimer.Start();
     }
 
     /// <summary>The tab was hidden (tab switch): pause playback (to resume on return) and stop the loop.</summary>
@@ -529,13 +538,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         UpdatePlaylistCurrent();
     }
 
-    private static string FormatTime(TimeSpan t)
-    {
-        if (t < TimeSpan.Zero) t = TimeSpan.Zero;
-        return t.TotalHours >= 1
-            ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}"
-            : $"{t.Minutes}:{t.Seconds:00}";
-    }
+    private static string FormatTime(TimeSpan t) => DurationFormatter.FormatMediaTime(t);
 
     // ── IPageViewModel ───────────────────────────────────────────────────────
 

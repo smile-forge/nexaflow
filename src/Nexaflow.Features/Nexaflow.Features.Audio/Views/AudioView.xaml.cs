@@ -1,3 +1,4 @@
+using Nexaflow.Visuals.Common;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -47,10 +48,18 @@ public partial class AudioView : UserControl, IPageView
 
         // Loaded/Unloaded is the active-tab signal (the shell hosts the active page in one
         // ContentPresenter). Deactivate pauses playback (resumed on return); the engine is torn down
-        // via Page.Closed (wired in the registration), not here.
+        // via Page.Closed (wired in the registration), not here. Minimize doesn't unload the tree —
+        // the watcher suspends only the 33 ms spectrum repaint (playback keeps running).
         Loaded += OnLoaded;
-        Unloaded += (_, _) => _vm.OnDeactivated();
+        Unloaded += (_, _) =>
+        {
+            _vm.OnDeactivated();
+            _minimizeWatcher?.Dispose();
+            _minimizeWatcher = null;
+        };
     }
+
+    private WindowMinimizeWatcher? _minimizeWatcher;
 
     IPageViewModel? IPageView.ViewModel => _vm;
 
@@ -71,6 +80,7 @@ public partial class AudioView : UserControl, IPageView
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         _vm.OnActivated();
+        _minimizeWatcher ??= WindowMinimizeWatcher.Attach(this, _vm.SetRenderSuspended);
         if (_loadedOnce) return;
         _loadedOnce = true;
         await _vm.LoadAsync();

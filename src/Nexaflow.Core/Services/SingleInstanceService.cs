@@ -39,7 +39,7 @@ public sealed class SingleInstanceService : IDisposable
             pipe.Connect(timeout: 2_000);
             using var w = new StreamWriter(pipe) { AutoFlush = true };
             w.WriteLine("new-window");
-            w.WriteLine(contextName ?? "");   // optional WorkContext name to open into
+            w.WriteLine(contextName ?? "");   // optional Workspace name to open into
         }
         catch { /* first instance may not be listening yet — swallow */ }
     }
@@ -47,7 +47,7 @@ public sealed class SingleInstanceService : IDisposable
     /// <summary>
     /// Starts a background pipe server. Each connection that sends "new-window"
     /// invokes <paramref name="onNewWindow"/> on the UI dispatcher, passing the
-    /// optional WorkContext name the second instance requested (null if none).
+    /// optional Workspace name the second instance requested (null if none).
     /// Must be called after the Application is running.
     /// </summary>
     public void StartListening(Action<string?> onNewWindow)

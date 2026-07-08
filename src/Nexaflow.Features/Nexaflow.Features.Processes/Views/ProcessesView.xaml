@@ -92,13 +92,13 @@
                            TextTrimming="CharacterEllipsis"/>
                 <TextBlock Grid.Column="1" FontSize="9" Margin="6,0,0,0" VerticalAlignment="Center">
                     <TextBlock.Foreground>
-                        <MultiBinding Converter="{x:Static conv:SortBrushConverter.Instance}">
+                        <MultiBinding Converter="{x:Static vcc:SortBrushConverter.Instance}">
                             <Binding Path="DataContext.SortColumn" RelativeSource="{RelativeSource AncestorType=ListView}"/>
                             <Binding Path="Key"/>
                         </MultiBinding>
                     </TextBlock.Foreground>
                     <TextBlock.Text>
-                        <MultiBinding Converter="{x:Static conv:SortGlyphConverter.Instance}">
+                        <MultiBinding Converter="{x:Static vcc:SortGlyphConverter.Instance}">
                             <Binding Path="DataContext.SortColumn"    RelativeSource="{RelativeSource AncestorType=ListView}"/>
                             <Binding Path="DataContext.SortAscending" RelativeSource="{RelativeSource AncestorType=ListView}"/>
                             <Binding Path="Key"/>
@@ -329,7 +329,7 @@
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:ProcessRowViewModel}">
                                     <StackPanel Orientation="Horizontal"
-                                                Margin="{Binding Depth, Converter={x:Static conv:DepthToMarginConverter.Instance}}">
+                                                Margin="{Binding Depth, Converter={x:Static vcc:DepthToMarginConverter.Instance}}">
                                         <!-- Expander only in tree mode; flat mode has no hierarchy to expand. -->
                                         <Button Width="16" Height="16" Padding="0" Cursor="Hand"
                                                 Background="Transparent" BorderThickness="0"

@@ -11,6 +11,7 @@ using Nexaflow.Features.ProductManager.ClientTools;
 using Nexaflow.Features.ProductManager.Model;
 using Nexaflow.Features.ProductManager.Services;
 using Nexaflow.Visuals.Common.Controls;
+using Nexaflow.Visuals.Common.Dialogs;
 
 namespace Nexaflow.Features.ProductManager.ViewModels;
 
@@ -104,11 +105,11 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     [ObservableProperty] private string _newSettingsConcern = string.Empty;
     public ObservableCollection<ConcernDefRow> SettingsConcerns { get; } = [];
 
-    // ── Confirmation overlay ────────────────────────────────────────────────
-    [ObservableProperty] private bool _confirmationVisible;
-    [ObservableProperty] private string _confirmationTitle = "Are you sure?";
-    [ObservableProperty] private string _confirmationPrompt = string.Empty;
-    private Action? _pendingConfirm;
+    // ── Confirmation overlay (shared Visuals.Common dialog) ────────────────
+    [ObservableProperty] private ConfirmationRequest? _confirmation;
+
+    private void ShowConfirmation(string title, string prompt, Action onConfirm)
+        => Confirmation = new ConfirmationRequest(title, prompt, onConfirm, confirmLabel: "Delete");
 
     public ProductViewModel(ProductStore store, ProductGit git, string root, IShellServices shell)
     {
@@ -806,31 +807,6 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
         var rn = new RestructureNode(id, node.Title, StatusInfo.Brush(node.Status));
         foreach (var c in node.Children.Where(_state.Nodes.ContainsKey)) rn.Children.Add(BuildRestructureNode(c));
         return rn;
-    }
-
-    // ── Confirmation overlay ─────────────────────────────────────────────────
-
-    [RelayCommand]
-    private void ConfirmAction()
-    {
-        ConfirmationVisible = false;
-        _pendingConfirm?.Invoke();
-        _pendingConfirm = null;
-    }
-
-    [RelayCommand]
-    private void CancelConfirmation()
-    {
-        ConfirmationVisible = false;
-        _pendingConfirm = null;
-    }
-
-    private void ShowConfirmation(string title, string prompt, Action onConfirm)
-    {
-        ConfirmationTitle = title;
-        ConfirmationPrompt = prompt;
-        _pendingConfirm = onConfirm;
-        ConfirmationVisible = true;
     }
 
     // ── Persistence (Current only — snapshots are frozen) ─────────────────────

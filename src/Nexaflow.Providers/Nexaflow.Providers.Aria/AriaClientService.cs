@@ -13,8 +13,15 @@ public class AriaClientService : IAsyncDisposable
     private AriaNamedPipeClient? _pipe;
     private bool _connected;
 
+    // One request/reply in flight at a time: the wire carries no correlation ids, so the first
+    // inbound assistant message IS the reply — concurrent sends would mis-attribute replies.
+    private readonly SemaphoreSlim _sendGate = new(1, 1);
+
     // How long to wait for the server pipe to appear before giving up.
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(3);
+
+    // How long to wait for a reply before reporting a timeout (the connection is kept — slow ≠ dead).
+    private static readonly TimeSpan ReplyTimeout = TimeSpan.FromSeconds(60);
 
     /// <summary>Parsed result of a call to <see cref="SendAsync"/>.</summary>
     public record AriaResponse(string RawText, FocusTabInstruction? FocusTab);
@@ -69,10 +76,11 @@ public class AriaClientService : IAsyncDisposable
         IReadOnlyList<string>? attachments = null,
         CancellationToken ct = default)
     {
-        await EnsureConnectedAsync(); // throws AriaConnectionException on failure
-
+        await _sendGate.WaitAsync(ct);
         try
         {
+            await EnsureConnectedAsync(); // throws AriaConnectionException on failure
+
             var tcs = new TaskCompletionSource<SimpleMessage>(
                 TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -87,9 +95,9 @@ public class AriaClientService : IAsyncDisposable
                     message.AttachmentPaths.AddRange(attachments);
                 await _pipe.SendAsync(message, ct);
 
-                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+                using var timeout = new CancellationTokenSource(ReplyTimeout);
                 using var linked  = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
-                linked.Token.Register(() => tcs.TrySetCanceled());
+                linked.Token.Register(() => tcs.TrySetCanceled(linked.Token));
 
                 reply = await tcs.Task;
             }
@@ -105,10 +113,25 @@ public class AriaClientService : IAsyncDisposable
         {
             throw;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;   // caller cancelled — the connection is still fine
+        }
+        catch (OperationCanceledException)
+        {
+            // Reply timeout: a slow answer is not a dropped connection — keep the pipe for the
+            // next request instead of forcing a reconnect.
+            throw new AriaConnectionException(
+                $"Aria did not reply within {ReplyTimeout.TotalSeconds:0} seconds.", new TimeoutException());
+        }
         catch (Exception ex)
         {
             _connected = false;
             throw new AriaConnectionException($"Lost connection to Aria: {ex.Message}", ex);
+        }
+        finally
+        {
+            _sendGate.Release();
         }
     }
 
@@ -138,5 +161,6 @@ public class AriaClientService : IAsyncDisposable
     {
         if (_pipe is not null)
             await _pipe.DisposeAsync();
+        _sendGate.Dispose();
     }
 }

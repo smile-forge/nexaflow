@@ -11,7 +11,7 @@ All under `src/Nexaflow.Tests/`:
 |---------|--------|--------|------------|
 | `Nexaflow.Tests.Core` | `net10.0-windows10.0.19041.0`, MSTest exe | Core shell chrome, services, `Nexaflow.Visuals.*` | `Nexaflow.Core`, `Nexaflow.Visuals.Text`, `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Features` | `net10.0-windows10.0.19041.0`, MSTest exe | Every `Nexaflow.Features.*` | the feature projects + `Nexaflow.Tests.Fixtures` — **never Core** |
-| `Nexaflow.Tests.Providers` | MSTest exe | Provider clients — **no test classes yet** (placeholder project) | the provider projects |
+| `Nexaflow.Tests.Providers` | MSTest exe | Provider clients — network-free provider surface, config round-trips, `PromptComposer`, `LlmAttachment`, Aria wire protocol | the provider projects |
 | `Nexaflow.Tests.Fixtures` | `net10.0` class library | **Generates the sample dataset.** Not a test project — no MSTest, no `[TestClass]` | nothing (deliberately dependency-free) |
 
 `Nexaflow.Tests.Features` deliberately does **not** reference Core (it mirrors the architectural rule
@@ -42,40 +42,27 @@ $exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/x64/Debug/net10.0-windows
 
 ## Coverage by feature
 
-Feature assemblies (`Nexaflow.Features.*`) are tested in `Nexaflow.Tests.Features`. **Unit** = the
-headless `TestCategory!=UI` tests; **UI** = `[TestCategory("UI")]` (drives the real shell via FlaUI).
-The file-viewer features additionally get a per-file open-smoke UI case from the shared, data-driven
-`SampleFileViewerTests` (each fixture → its viewer), shown below as *via SampleFileViewer*.
+Feature assemblies (`Nexaflow.Features.*`) are tested in `Nexaflow.Tests.Features`, **one folder
+per feature** (`Audio/`, `Compressed/`, `Projects/`, … — the Code feature's tests live under
+`CodeIntel/`), plus the shared `Common/`, `Fixtures/`, `Infrastructure/` and `UI/` support folders.
+**Unit** = the headless `TestCategory!=UI` tests; **UI** = `[TestCategory("UI")]` (drives the real
+shell via FlaUI). The file-viewer features additionally get a per-file open-smoke UI case from the
+shared, data-driven `SampleFileViewerTests` (each fixture → its viewer; see
+[Per-file viewer UI tests](#per-file-viewer-ui-tests)).
 
-| Feature | Unit tests | UI tests |
-|---------|-----------|----------|
-| AIChat | ✅ `ConversationContextReadiness` | — |
-| Audio | ✅ `LrcParser`, `AudioFileTypes`, `WaveformAnalyzer` | ✅ *via SampleFileViewer* (`audio` → `AudioView`) |
-| Code | ✅ `CodeIntelligence` (embedded-language parse, code/class map) | ✅ `CodeViewUiTests` |
-| Compressed | ✅ 11 classes (zip/tar/7z/rar handlers, `VirtualFileSystem`, codec convert, repackage + encrypt, signatures + modern codecs, extended formats, archive samples) | — |
-| Console | — | — |
-| Dotnet | ✅ `DotnetTargetScanner`, `DotnetViewletViewModel` | — |
-| Git | ✅ `GitService` | — |
-| Hex | ✅ `HexBuffer`, `HexViewModel` | ✅ *via SampleFileViewer* (`binary` → `HexView`) |
-| Images | ✅ `ImageSamples` | ✅ *via SampleFileViewer* (`images` → `ImageView`) |
-| Json | ✅ `JsonFileLoader` (small + large streaming, virtual-chunk windowing, BOM, estimation) | ✅ *via SampleFileViewer* (`json` → `JsonView`) |
-| Logs | ✅ `LogViewModel` (small load, tail-first read, encoding detection) | ✅ *via SampleFileViewer* (`logs` → `LogView`) |
-| Markdown | ✅ `MarkdownViewModelEditing` (editor model; rendering is covered in `Tests.Core`) | ✅ *via SampleFileViewer* (`markdown` → `MarkdownView`) |
-| Model3D | ✅ `Model3D` (loader dispatch, mesh/material parse) | ✅ *via SampleFileViewer* (`model3d` → `Model3DView`) |
-| Notebook | ✅ `Notebook` (cell decode + outline) | ✅ `NotebookViewUiTests` |
-| Processes | ✅ `CpuSampling`, `Handles`, `ProcessTools`, `ProcessTreeBuilder`, `Reconciliation` | ✅ `ProcessesViewTests` |
-| ProductManager | ✅ 9 classes (`ProductStore`, `ProductTreeOps`, `ProductRollup`, `ProductAggregator`, `ProductGit`, `ProductRootLocator`, `ProductTools`, `ProductCreateAction`, `SnaplinkPicker`) | — |
-| Projects | — | — |
-| Scratchpad | ✅ `DroppedMedia`, `PostItStore`, `PostItViewModel`, `ScratchpadConfig`, `ScratchpadViewModel`, `UrlPreviewTask` | — |
-| SystemInfo | ✅ `EnvironmentVariablesViewModel`, `EnvVarModel`, `EnvVarsCollector`, `ServicesCollector`, `ServicesViewModel`, `SystemInfoViewModel` | — |
-| Tabular | ✅ 13 classes (CSV tokeniser, shape + column-type detection, column transforms, windowed `RowWindowReader`/`LineSamplingReader`, encoding detection, sample detection, …) | ✅ *via SampleFileViewer* (`tabular` → `TabularView`) |
-| Text | ✅ `TextViewModel` (small + large windowed load, window advance) | ✅ *via SampleFileViewer* (`text` → `TextView`) |
-| Video | — | ✅ *via SampleFileViewer* (`video` → `VideoView`) |
-| Web | ✅ `WebPageChrome` | — |
-| WindowsApps | ✅ `WindowsAppsViewModel` | — |
-| WindowsFileSystem | ✅ 15 classes (file-type map, create actions + templates, glob matcher, external apps, tree node, view model, …) | ✅ `FileSystemViewTests`, `FileSystemCreateTests`, `TemplatedCreateOptionsTests` |
-| WindowsRegistry | — | — |
-| WindowsSearch | ✅ `SearchQueryParser`, `SearchQueryScorer`, `SearchResultEntry`, `SearchViewModel` | ✅ `SearchViewTests` |
+**Per-component coverage is tracked in the product tree, not in this file.** A hand-maintained
+coverage table here goes stale silently; the live record is the `tests` concern carried by every
+component node:
+
+- **In-app** — open the Product tab on the repo root: each node's `tests` concern shows `done`
+  (real coverage backs it) or `should` (not yet assessed/covered).
+- **From a Claude session** — read `.product/tree.json` via the product-folder skill and inspect
+  the node's `{ "tag": "tests", "status": … }` link.
+- **Durable per-release snapshot** — the concern tally table in
+  [product/PRODUCT.md](product/PRODUCT.md).
+
+When you add (or remove) tests for a component, update that node's `tests` concern in the product
+tree — that is the maintenance step that replaces editing a table here.
 
 `Features.Common` (contracts) has no test folder of its own; its client-tool wire-protocol parser
 (`ClientBlockParser`) and the agent loop are tested in `Tests.Core` (`Unit/ClientTools/`).
@@ -84,8 +71,6 @@ The windowed-reader view-models load into a thread-affine AvalonEdit `TextDocume
 points, so `LogViewModel`/`TextViewModel` tests run under `Infrastructure/AsyncPump.cs` (a
 single-threaded synchronization context). `LogViewModel`'s background head-reassembly needs a live UI
 `Dispatcher`, so that one path is left to the UI smoke rather than a unit test.
-
-**No coverage yet:** Console, Projects and WindowsRegistry have no tests.
 
 ### Core & shared libraries (`Nexaflow.Tests.Core`)
 
@@ -100,8 +85,22 @@ Covers `Nexaflow.Core` and the `Nexaflow.Visuals.*` libraries.
 
 ### Providers (`Nexaflow.Tests.Providers`)
 
-The project exists (MSTest exe) but currently ships **no test classes** — the provider clients
-(Claude, OpenAI, Gemini, Ollama, Aria) are untested.
+Covers the provider clients (Claude, OpenAI, Gemini, Ollama, Aria) without touching the network:
+
+- **Provider surface** — `Name` identity, `SupportsImages`, model listing (Claude's static list;
+  OpenAI/Ollama return empty and never throw when the backend is unreachable), `GetModelInfo`
+  (bound vs unbound / default-null).
+- **Configs** (`ProviderConfigTests`) — defaults + JSON round-trip for all five provider configs,
+  incl. Ollama's `KeepAliveValue` derivation rules.
+- **Shared prompt plumbing** — `PromptComposer` (system-prompt split, attachment partitioning,
+  file-list append) and `LlmAttachment` (MIME/extension image detection, `ResolvedMimeType`
+  precedence, in-memory-vs-disk `ReadBytes`).
+- **Aria wire protocol** — `PipeFrame` serialization round-trips and `AriaNamedPipeClient`
+  lifecycle guards (send before connect / after dispose throws, idempotent dispose).
+
+**Remaining gap:** the live `CompleteAsync` path — the neutral `LlmMessage` → SDK request mapping
+(roles, attachments, vision blocks) — has no coverage; it is welded to the vendor SDK call with no
+seam to intercept, so mapping regressions ship untested.
 
 ## Sample files (`test-samples/`)
 
@@ -182,6 +181,7 @@ route), and waits for the viewer's root `AutomationProperties.AutomationId`:
 | `model3d`  | `.stl` `.obj` `.ply` `.gltf` `.glb` (+ FBX/3MF/… at runtime) | `Model3DView` |
 | `audio`    | `.wav` (+ `.mp3` `.flac` `.m4a` `.aac` `.wma` `.ogg` `.opus` at runtime) | `AudioView` |
 | `video`    | `.mp4` (+ `.mkv` `.webm` `.mov` `.avi` `.wmv` … at runtime) | `VideoView` |
+| `font`     | `.ttf` `.woff` (+ `.otf` `.ttc` at runtime) | `FontView` |
 
 (The `code`, `notebook` and `archive` sample sets also exist for unit/feature tests but route through their feature's own UI tests, not the data-driven `SampleFileViewerTests` map above.)
 

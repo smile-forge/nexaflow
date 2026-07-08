@@ -1,10 +1,11 @@
 # Nexaflow Architecture
 
-> **Freshness:** reviewed/refreshed 2026-06-28 for the **1.2** release — adds the Audio, Code, Compressed
-> (archive), Model3D, Notebook, ProductManager and Video feature assemblies. Covers the `Profile` (saved
-> config) vs `Workspace` (runtime) split and the ref-counted provider pool — see
-> [Ownership & Lifetime](#ownership--lifetime) for what is central vs profile-scoped vs workspace-scoped.
-> Architectural cleanup opportunities are tracked in [arch_improvements.md](arch_improvements.md).
+> **Freshness:** reviewed/refreshed 2026-07-08 — the saved/runtime rename is applied throughout
+> (saved config = `Workspace`, runtime = `WorkspaceRuntime`; the old `Profile`/`WorkContext` names
+> survive only as on-disk/IPC compat strings), the solution layout is tiered rather than enumerated
+> (the feature inventory lives in the product tree), and the elevation subsystem is documented.
+> Architectural findings + cleanup opportunities are tracked in
+> [arch_review_2026-07.md](arch_review_2026-07.md).
 
 ## Table of Contents
 
@@ -13,72 +14,56 @@
 3. [Module Responsibilities](#module-responsibilities)
 4. [Key Data Models](#key-data-models)
 5. [Extensibility Points](#extensibility-points)
-6. [Core Flows](#core-flows)
-7. [Separation-of-Concerns Issues](#separation-of-concerns-issues)
+6. [Elevation / Privilege Bridge](#elevation--privilege-bridge)
+7. [Core Flows](#core-flows)
+8. [Architectural Findings](#architectural-findings)
 
 ---
 
 ## Solution Layout
 
-```
-nexaflow/src/
-├── Nexaflow.Core/                              ← WinExe entry point; shell UI; FeatureManager
-│
-├── Nexaflow.Features/
-│   ├── Nexaflow.Features.Common/              ← Shared contracts (interfaces + small DTOs). FeatureManager is NOT here — it's in Core.
-│   ├── Nexaflow.Features.AIChat/              ← AI conversation tab (browser over saved conversations)
-│   ├── Nexaflow.Features.Audio/               ← Audio player tab (playback, spectrum + waveform, .lrc lyrics, ID3 tag editor)
-│   ├── Nexaflow.Features.Code/                ← Code editor tab (tree-sitter highlighting, folding, code/class map, embedded languages)
-│   ├── Nexaflow.Features.Compressed/          ← Archive inspector tab + virtual-filesystem facade (browse/edit archives in the file tree)
-│   │   ├── Nexaflow.Features.Compressed.Modern/        ← zstd / lz4 codec backend
-│   │   ├── Nexaflow.Features.Compressed.SecureZip/     ← in-box ZIP backend (SharpZipLib — AES + detached signing)
-│   │   └── Nexaflow.Features.Compressed.SharpCompress/ ← tar / 7z / rar backend
-│   ├── Nexaflow.Features.Console/             ← PTY terminal tab
-│   ├── Nexaflow.Features.Dotnet/             ← .NET folder viewlet — AI context + dotnet client tools
-│   ├── Nexaflow.Features.Git/                 ← Git folder viewlet — AI context + git client tools
-│   ├── Nexaflow.Features.Hex/                 ← Binary / hex viewer tab
-│   ├── Nexaflow.Features.Images/              ← Image viewer tab
-│   ├── Nexaflow.Features.Json/                ← JSON viewer tab (seek-by-item windowing)
-│   ├── Nexaflow.Features.Logs/                ← Log viewer tab (tail-first streaming)
-│   ├── Nexaflow.Features.Markdown/            ← Markdown editor/preview tab
-│   ├── Nexaflow.Features.Model3D/             ← 3D model viewer tab (STL/OBJ/PLY/glTF + FBX/3MF/… via Assimp)
-│   ├── Nexaflow.Features.Notebook/            ← Jupyter .ipynb viewer tab (cells + per-cell outline)
-│   ├── Nexaflow.Features.Processes/           ← Process Explorer (live tree + per-process detail tabs; elevated kill/priority)
-│   ├── Nexaflow.Features.ProductManager/      ← Product status-tree tab (sunburst) + folder viewlet
-│   ├── Nexaflow.Features.Projects/            ← Project management tabs
-│   ├── Nexaflow.Features.Scratchpad/          ← Virtual corkboard tab
-│   ├── Nexaflow.Features.SystemInfo/          ← System info dashboard (WMI; Services/EnvVars via privilege bridge)
-│   ├── Nexaflow.Features.Tabular/             ← CSV/TSV/fixed-width viewer tab (shape detection + transforms)
-│   ├── Nexaflow.Features.Text/                ← Text editor tab (head-first windowing)
-│   ├── Nexaflow.Features.Video/               ← Video player tab (embedded libVLC: playback, codec/metadata panel, keyframe scene-strip, fullscreen)
-│   ├── Nexaflow.Features.Web/                 ← HTML/URL viewer tab (AI-aware, resizable)
-│   ├── Nexaflow.Features.WindowsApps/         ← Installed-apps manager + AI query handler
-│   ├── Nexaflow.Features.WindowsFileSystem/   ← File explorer tab (DirectoryTree + file list)
-│   ├── Nexaflow.Features.WindowsRegistry/     ← Registry browser/editor tab + AI tools
-│   └── Nexaflow.Features.WindowsSearch/       ← Windows Search integration tab
-│
-├── Nexaflow.Visuals.Common/                    ← Shared WPF controls + converters + formatters (PieChart, BoolToVisibility, SizeFormatter, BytesToTextConverter, …)
-├── Nexaflow.Visuals.Text/                      ← Shared markdown rendering (MarkdownView / SelectableMarkdownView / MarkdownFlowDocument)
-├── Nexaflow.IO.Common/                         ← Shared file-reading leaves: EncodingDetector + debounced FileChangeWatcher (net10.0, no WPF)
-│
-└── Nexaflow.Providers/
-    ├── Nexaflow.Providers.Common/             ← LlmProviderRegistry, shared message types
-    ├── Nexaflow.Providers.Aria/               ← Named-pipe client for Aria AI service
-    ├── Nexaflow.Providers.Claude/             ← Claude API provider
-    ├── Nexaflow.Providers.Gemini/             ← Google Gemini API provider
-    ├── Nexaflow.Providers.Ollama/             ← Ollama local model provider
-    └── Nexaflow.Providers.OpenAI/             ← OpenAI API provider
-```
+52 projects in `Nexaflow.slnx`, organised in tiers. **The per-feature inventory is deliberately not
+enumerated here** — a hand-copied list rots. The authoritative inventory and per-component status is
+the **product tree** (`.product/tree.json`, queried via the product-folder skill; per-release export in
+[product/PRODUCT.md](product/PRODUCT.md)); the annotated directory skeleton every session loads is in
+the root `CLAUDE.md`. This section fixes the tiers and the rules between them.
 
-**Dependency rule:** Features depend on `Features.Common` (and the shared `Nexaflow.Visuals.*` UI libs / `Nexaflow.IO.Common` utility lib) only — never on Core or each other. `Nexaflow.Core` depends on all features and providers (for registration in `App.xaml.cs`) but never instantiates feature view or view-model types in its hot paths — all tab creation goes through `FeatureManager` (which lives in Core). Features communicate back to the shell exclusively through `IShellServices`. Shared non-contract code goes in `Nexaflow.Visuals.*` (UI) or `Nexaflow.IO.Common` (file-reading utilities), not `Features.Common`.
+| Tier | Projects | Role |
+|------|----------|------|
+| Shell | `Nexaflow.Core` | WinExe entry point; window chrome, tab strip, ribbon, breadcrumbs, AI input bar; `FeatureManager`/`FeatureCatalog`, `WorkspaceManager`, `ProviderManager`, `ConfigManager` |
+| Contracts | `Nexaflow.Features.Common` | ALL feature-facing interfaces + small DTOs. Features and Core meet only here |
+| Features | `Nexaflow.Features.*` (~30, + 3 `Compressed.*` codec backends) | One assembly per feature; reflection-discovered, lazily loaded |
+| Shared leaves (non-contract) | `Nexaflow.Visuals.Common` (controls/converters/formatters), `Nexaflow.Visuals.Text` (markdown rendering), `Nexaflow.Visuals.Terminal` (terminal input logic), `Nexaflow.IO.Common` (encoding/line-endings, glob, hashing, base64 + `IStreamCodec`/`IArchiveHandler` codec contracts, the archive `VirtualFileSystem`, text index/transforms, file watching/splitting), `Nexaflow.IO.Terminal` (PTY host), `Nexaflow.Syntax` (tree-sitter engine) | Concrete shared code a feature may reference; never references Core or a feature |
+| Providers | `Nexaflow.Providers.Common` + one project per LLM backend (Claude, Gemini, OpenAI, Ollama, Aria) | Loaded by file name at runtime; never compile-time referenced |
+| Elevation | `Nexaflow.Elevation.Contracts` (pure DTO leaf) + `Nexaflow.PrivilegeBridge` (separate elevated exe) | The admin-action trust boundary — see [Elevation / Privilege Bridge](#elevation--privilege-bridge) |
+| Tests | `Nexaflow.Tests.{Core,Features,Providers}` + `Nexaflow.Tests.Fixtures` | See [testing.md](testing.md) |
+
+**Dependency rules** (mechanically enforced since 2026-07 by `Nexaflow.Tests.Features/Architecture/*`
+and `Nexaflow.Tests.Providers/ArchitectureRulesTests` — a violation is a red build):
+
+- Features depend on `Features.Common` + the shared leaves only — never on Core, never on each other.
+  (The `Compressed.*` codec backends reference only `IO.Common`, where the codec contracts live —
+  not even the Compressed feature; they're discovered at runtime.)
+- Providers depend on `Providers.Common` only — never on Core, never on each other.
+- `Nexaflow.Core` depends on all features and providers (so they ship) but never instantiates feature
+  view/view-model types — all tab/viewlet creation goes through `FeatureManager`, all provider
+  instances through `ProviderManager`'s pool. Features talk back only via `IShellServices`.
+- Shared non-contract code goes in `Nexaflow.Visuals.*` / `Nexaflow.IO.*` / `Nexaflow.Syntax`, not
+  `Features.Common`; `Elevation.Contracts` is the fourth shared leaf (referenced by `Features.Common`
+  for the `IShellServices.RunElevatedAsync` signature).
 
 ---
 
 ## Ownership & Lifetime
 
-There are nesting scopes. **Getting a thing's scope wrong is the easiest way to introduce a bug**, so this is the canonical reference for what is central to the process vs tied to a `Profile` (saved config) vs a `Workspace` (runtime) vs per-feature vs per-window/tab.
+There are nesting scopes. **Getting a thing's scope wrong is the easiest way to introduce a bug**, so this is the canonical reference for what is central to the process vs tied to a `Workspace` (saved config) vs a `WorkspaceRuntime` (runtime) vs per-feature vs per-window/tab.
 
-The model has two halves: a **`Profile`** is the saved, shared configuration shown in the dropdown (name/colour/icon + ribbon layout + AI ability grid + provider configs + conversations); a **`Workspace`** is a runtime grouping of one-or-more window frames all running ONE profile. App/IPC launch always creates a *new* Workspace (launch ×3 ⇒ 3 Workspaces, possibly all on one profile); tear-off / "open in new window" reuse the *same* Workspace; switching the dropdown reconfigures the current Workspace in place; closing a Workspace's last window disposes it.
+The model has two halves: a **`Workspace`** (`Models/Workspace.cs`) is the saved, shared configuration shown in the dropdown — name/colour/icon, default + last-session tabsets, AI ability grid, persona, ribbon layout, provider configs, conversations; a **`WorkspaceRuntime`** (`Models/WorkspaceRuntime.cs`) is a runtime grouping of one-or-more window frames all running ONE Workspace. App/IPC launch always creates a *new* WorkspaceRuntime (launch ×3 ⇒ 3 runtimes, possibly all on one Workspace); tear-off / "open in new window" reuse the *same* runtime; switching the dropdown reconfigures the current runtime in place (`WorkspaceManager.SwitchWorkspace`); closing a runtime's last window disposes it.
+
+> **Naming history:** before 2026-07 the saved half was named `Profile` (and earlier, `WorkContext`).
+> The old names survive **only** as frozen on-disk/IPC compat strings — the `workcontexts` config
+> name, the `Contexts\` data folder, the `--context` command-line/IPC flag. Never reintroduce them
+> as type or member names.
 
 ### Central — one instance per process
 
@@ -86,61 +71,67 @@ The model has two halves: a **`Profile`** is the saved, shared configuration sho
 
 | Singleton | Owns | NOT responsible for |
 |-----------|------|---------------------|
-| `ConfigManager` | Base data path; **global** config registry. `Register(cfg,name)` = global config; `LoadFrom`/`SaveTo(dir,…)` = per-profile config in that profile's folder | — |
-| `ProviderManager` | Loads provider **assemblies** by file name; records provider/config **types**; owns the shared `ActivityManager`; owns the **global ref-counted provider instance pool** (`AcquireProviderSet`/`ReleaseProviderSet`). Each `ILlmProvider` is **model-bound** (model injected via `ProviderModel`): one *capability* instance per (type+config) for model enumeration, plus one *execution* instance per (type+config+**model**) the grid assigns — warmed on first acquire, cooled on last release | Holds provider **configs** — those live on the `Profile` |
+| `ConfigManager` | Base data path; **global** config registry. `Register(cfg,name)` = global config; `LoadFrom`/`SaveTo(dir,…)` = per-workspace config in that workspace's folder | — |
+| `ProviderManager` | Loads provider **assemblies** by file name; records provider/config **types**; owns the shared `ActivityManager`; owns the **global ref-counted provider instance pool** (`AcquireProviderSet`/`ReleaseProviderSet`). Each `ILlmProvider` is **model-bound** (model injected via `ProviderModel`): one *capability* instance per (type+config) for model enumeration, plus one *execution* instance per (type+config+**model**) the grid assigns — warmed on first acquire, cooled + disposed on last release | Holds provider **configs** — those live on the saved `Workspace` |
 | `BackgroundActivityManager` | The one activity/notification surface (passed to ProviderManager, every window, every ShellServices) | — |
-| `WorkspaceManager` | The `Profiles` list (dropdown source) + the live `Workspace`s; create/switch/reconfigure/dispose lifecycle | — |
-| `FeatureManager` | Consumes the cached discovery index (`FeatureCatalog`); builds feature instances **per (Type, Workspace)** on demand; `EvictWorkspace` drops them on reconfigure/dispose | File-system contracts (those go to `FileSystemFeatureRegistry`) |
+| `WorkspaceManager` | The `Workspaces` list (dropdown source) + the live `WorkspaceRuntime`s; create/switch/reconfigure/dispose lifecycle | — |
+| `FeatureManager` | Consumes the cached discovery index (`FeatureCatalog`); builds feature instances **per (Type, WorkspaceRuntime)** on demand; `EvictWorkspace` drops them on reconfigure/dispose | File-system contracts (those go to `FileSystemFeatureRegistry`) |
 | `FeatureCatalog` | The discovery engine: a **disk-cached** index of which feature type implements which contract, so a normal launch loads **no** feature DLLs; assemblies load + activate **lazily** (first use or post-paint background warm-up). Cache is stamped with the app version and rebuilt only on an update | — |
 | `FileMapManager`, `ExternalAppRegistry`, `WhisperModelManager`, `HostCapabilityService`, `MessageCenter`, `JumpListService` | Misc app-wide services | — |
 
-**Global configs** (registered app-level, shared by every profile): `ShellConfig` (theme), **`AiPersonaConfig` (assistant name + system prompt)**, `WorkspacesConfig` (the profile-list metadata; `ConfigName` is `"workcontexts"` on disk), `FileMapConfig`, `ExternalAppsConfig`, `VoiceConfig`.
+**Global configs** (registered app-level, shared by every workspace): `ShellConfig` (theme), `WorkspacesConfig` (the workspace-list metadata; `ConfigName` is `"workcontexts"` on disk — compat), `FileMapConfig`, `ExternalAppsConfig`, `VoiceConfig`.
 
-> ⚠️ The **AI persona** (name + system prompt) is **global**, but **which provider/model answers each ability** is **per-profile**. Don't conflate them.
+> ⚠️ The **AI persona** (`AiPersonaConfig`: assistant name + system prompt) is **per-`Workspace`**
+> (persisted under `Contexts\<name>\ai-persona`, exposed as `Workspace.Persona`) — as are the
+> ability→model assignments. Feature `IFeatureConfig`s are global unless marked
+> `[WorkspaceScopedConfig]`. Don't conflate the scopes.
 
 ### Config versioning & migration
 
-Every config (global or per-profile) persists as `…\{configName}\config_{AssemblyVersion}.json`, so the filename records the version that wrote it. On load — `ConfigManager.Register` for global, `LoadFrom` for per-profile — when the current-version file is absent but an older one exists, `ConfigManager` **migrates it forward** rather than discarding it:
+Every config (global or per-workspace) persists as `…\{configName}\config_{AssemblyVersion}.json`, so the filename records the version that wrote it. On load — `ConfigManager.Register` for global, `LoadFrom` for per-workspace — when the current-version file is absent but an older one exists, `ConfigManager` **migrates it forward** rather than discarding it:
 
 1. The newest older `config_*.json` is loaded with a **lenient field-by-field carry-over**: unknown JSON fields are skipped and missing ones keep their type defaults, so additive and removed fields need no code.
 2. A shape change the carry-over can't express (a rename or restructure) opts into **`IConfigMigration`** — a tiny one-method interface mirrored in `Features.Common` and `Providers.Common` (kept parallel so the layering rule holds; Core checks both). Its `MigrateFrom(previousJson, previousVersion)` runs right after the carry-over, with the raw old JSON in hand.
 3. The result is rewritten under the current version and the stale files are deleted (**write-then-delete**, so a failed write never loses the prior data).
 
-Migrated configs are tracked apart from brand-new ones (`GetMigratedConfigs` vs `GetDefaultedConfigs`). The first-run/update **setup wizard** (`SetupWizardViewModel.Build`) therefore re-asks for a global mandatory config only when it is genuinely new **or** its migrated data still fails the required-field check (`AreRequiredPropertiesSatisfied`) — never for information already on disk; the workspace/provider/model flow is skipped because the migrated per-profile configs keep `IsWorkspaceConfigured` true. File-type mappings (`FileMapManager.SyncBundledDefaults`) follow the same spirit through a `_defaults.json` hash manifest: a changed bundled default refreshes mappings the user hasn't touched and leaves customized ones alone, fast-pathing when the bundle is unchanged.
+Migrated configs are tracked apart from brand-new ones (`GetMigratedConfigs` vs `GetDefaultedConfigs`). The first-run/update **setup wizard** (`SetupWizardViewModel.Build`) therefore re-asks for a global mandatory config only when it is genuinely new **or** its migrated data still fails the required-field check (`AreRequiredPropertiesSatisfied`) — never for information already on disk; the workspace/provider/model flow is skipped because the migrated per-workspace configs keep `IsWorkspaceConfigured` true. File-type mappings (`FileMapManager.SyncBundledDefaults`) follow the same spirit through a `_defaults.json` hash manifest: a changed bundled default refreshes mappings the user hasn't touched and leaves customized ones alone, fast-pathing when the bundle is unchanged.
 
 **Reset.** Options → About offers a danger-styled **Reset Config** that, after a window-modal confirmation, wipes the entire `%APPDATA%\Smile\nexaflow` tree and relaunches (`App.ResetAndRestart` arms a write-suppressor, drops the single-instance mutex, then starts a `--reset` process that deletes the directory **before** init — lock-safe because the fresh process holds no handle) straight into first-run.
 
-### Per-`Profile` — shared, saved (one instance per named profile)
+### Per-`Workspace` — shared, saved (one instance per named workspace)
 
-A `Profile` (`Core/Models/Profile.cs`) is a named, themed, saved workspace configuration. `Name`/`Color`/`Icon` persist (in `WorkspacesConfig`); the shared services below are runtime-only (`[JsonIgnore]`), loaded once by `Profile.EnsureSharedServicesLoaded`, with on-disk state under `…\Smile\nexaflow\Contexts\<Name>\` (the on-disk folder is named `Contexts`):
+A `Workspace` (`Core/Models/Workspace.cs`) is a named, themed, saved configuration. `Name`/`Color`/`Icon` and the default/last-session tabsets persist inline (in `WorkspacesConfig`); the shared services below are runtime-only (`[JsonIgnore]`), loaded once by `Workspace.EnsureSharedServicesLoaded`, with on-disk state under `…\Smile\nexaflow\Contexts\<Name>\` (folder name kept for compat):
 
-| Member on `Profile` | What it scopes | On disk |
-|---------------------|----------------|---------|
-| `AiConfig` | The ability → provider/model **assignments** + configured columns. Shared, so an edit shows in every Workspace on this profile | `ai-abilities/` |
+| Member on `Workspace` | What it scopes | On disk |
+|-----------------------|----------------|---------|
+| `AiConfig` | The ability → provider/model **assignments** + configured columns. Shared, so an edit shows in every runtime on this workspace | `ai-abilities/` |
+| `Persona` | The assistant persona (name + system prompt) | `ai-persona/` |
 | `ProviderConfigs` | The provider configs (API keys / subscriptions) used to build provider instances | provider config folders |
-| `RibbonService : RibbonLayoutService` + `RibbonChanged` | The shared ribbon layout. Saving raises `RibbonChanged`, which every window/Workspace on this profile observes to reload live | `ribbon.json` |
-| `ConversationsDir` | Where this profile's conversations are stored | `Conversations/` |
+| `RibbonService : RibbonLayoutService` + `RibbonChanged` | The shared ribbon layout. Saving raises `RibbonChanged`, which every window/runtime on this workspace observes to reload live | `ribbon.json` |
+| `ConversationsDir` | Where this workspace's conversations are stored | `Conversations/` |
+| workspace-scoped feature configs | Any `IFeatureConfig` marked `[WorkspaceScopedConfig]` (saved via `WorkspaceManager.SaveWorkspaceScopedConfig`) | `<configName>/` |
+| `DefaultTabs` / `LastSessionTabs` | The tabset a fresh window opens with; the last session's tabset when it differed (a toast offers one-click restore) | inline in `workcontexts` |
 
-### Per-`Workspace` — runtime (one per app/IPC launch; can have many windows)
+### Per-`WorkspaceRuntime` — runtime (one per app/IPC launch; can have many windows)
 
-A `Workspace` (`Core/Models/Workspace.cs`) points at one `Profile` and owns the live per-session services, built by `WorkspaceManager.BootstrapServices` / rebuilt by `ReconfigureWorkspace`:
+A `WorkspaceRuntime` (`Core/Models/WorkspaceRuntime.cs`) points at one `Workspace` and owns the live per-session services, built by `WorkspaceManager.CreateWorkspace` / rebuilt in place by `SwitchWorkspace`/`ReconfigureWorkspace`:
 
-| Member on `Workspace` | What it scopes |
-|-----------------------|----------------|
-| `Providers : ProviderSet` | The live provider instances **acquired from the pool** for this workspace (deduped by config across all workspaces/profiles); released when the workspace is reconfigured/disposed |
-| `AiService : AIService` | The agent loop + AI-input-bar routing — resolves each `AiAbility` through this profile's assignments + this workspace's providers; reads/writes the profile's conversations |
-| `ShellServices : ShellServices` | This workspace's **window + tab registry** (every window in the workspace). Stable for the workspace's life — a profile switch reconfigures internals, not this object |
+| Member on `WorkspaceRuntime` | What it scopes |
+|------------------------------|----------------|
+| `Providers : ProviderSet` | The live provider instances **acquired from the pool** for this runtime (deduped by config process-wide); released when the runtime is reconfigured/disposed |
+| `AiService : AIService` | The agent loop + AI-input-bar routing — resolves each `AiAbility` through the workspace's assignments + this runtime's providers; reads/writes the workspace's conversations |
+| `ShellServices : ShellServices` | This runtime's **window + tab registry** (every window in the runtime). Stable for the runtime's life — a workspace switch reconfigures internals, not this object |
 
-The `IShellServices` / `IAIService` injected into a feature are the **active workspace's** instances (`FeatureManager` resolves them per `Workspace`). So "open a tab" and "ask the AI" always act within exactly one workspace.
+The `IShellServices` / `IAIService` injected into a feature are the **active runtime's** instances (`FeatureManager` resolves them per `WorkspaceRuntime`). So "open a tab" and "ask the AI" always act within exactly one runtime.
 
 ### Per-window / per-tab
 
-- A **window** (`IWindowHost`) registers into its context's `ShellServices`. Several windows can show one context; a window can **switch** context, which moves its host + tabs to the target context's `ShellServices` via `TransferWindowTo`. Tearoff / "new window" currently default to `Contexts[0]`.
-- A **`Page`** (tab) is built by `FeatureManager.CreateTab(pageKind, workContext, params)` → the matching `IPageRegistration.CreatePageDefinition`. Its ViewModel + content are realized lazily by `ContentFactory` and live for the life of the tab.
+- A **window** (`IWindowHost`) registers into its runtime's `ShellServices`. Several windows can share one runtime (tear-off / "open in new window"); switching the dropdown reconfigures the runtime **in place** for all of its windows (`SwitchWorkspace` — tabs close, providers/AIService rebuilt against the target workspace).
+- A **`Page`** (tab) is built by `FeatureManager.CreateTab(pageKind, runtime, params)` → the matching `IPageRegistration.CreatePageDefinition`. Its ViewModel + content are realized lazily by `ContentFactory` and live for the life of the tab.
 
 ### Per-feature (assembly)
 
-- An **`IFeatureConfig`** is a **single, app-level instance per assembly** — registered with `ConfigManager` when its owning assembly is first **activated** (lazily, on first use or during warm-up), then never rebuilt. **Feature settings are global, not per-profile** (persisted at `…\Smile\nexaflow\<ConfigName>\`, outside `Contexts\`). Contrast `AiConfig`, which *is* per-profile. There is no per-profile feature-config mechanism today — adding one would be new work, not a config-path change.
+- An **`IFeatureConfig`** is by default a **single, app-level instance per assembly** — registered with `ConfigManager` when its owning assembly is first **activated** (lazily, on first use or during warm-up), then never rebuilt; persisted at `…\Smile\nexaflow\<ConfigName>\`, outside `Contexts\`. Marking the config class `[WorkspaceScopedConfig]` opts it into **per-`Workspace`** persistence instead (one instance per workspace, under `Contexts\<Name>\`).
 
 ---
 
@@ -152,23 +143,23 @@ The shell host. Owns the window chrome, tab strip, ribbon bar, breadcrumb bar, a
 
 | File | Responsibility |
 |------|----------------|
-| `App.xaml.cs` | Startup (`InitializeApp`): global-config + provider-**assembly** load, `WorkspaceManager.Initialize` (profiles only), feature discovery, first window (a fresh `Workspace`). Also the windowless `--prestart` daemon and single-instance / new-window IPC (each IPC launch = a new `Workspace`) |
-| `Models/Profile.cs` | The saved, shared profile (holds `AiConfig`/`ProviderConfigs`/`RibbonService`+`RibbonChanged`/conversations dir) — see [Ownership & Lifetime](#ownership--lifetime) |
-| `Models/Workspace.cs` | The runtime workspace (points at a `Profile`; holds `Providers`/`AiService`/`ShellServices`) |
-| `Services/WorkspaceManager.cs` | Singleton: the `Profiles` list + live `Workspace`s; `Initialize`/`CreateWorkspace`/`SwitchProfile`/`ReconfigureWorkspace`/`NotifyWindowClosed`, `Add`/`Clone`/`RemoveProfile`, `BootstrapServices` |
+| `App.xaml.cs` | Startup (`InitializeApp`): global-config + provider-**assembly** load, `WorkspaceManager.Initialize` (saved workspaces only), feature discovery, first window (a fresh `WorkspaceRuntime`). Also the windowless `--prestart` daemon and single-instance / new-window IPC (each IPC launch = a new runtime) |
+| `Models/Workspace.cs` | The saved, shared workspace config (holds `AiConfig`/`Persona`/`ProviderConfigs`/`RibbonService`+`RibbonChanged`/conversations dir + default/last-session tabsets) — see [Ownership & Lifetime](#ownership--lifetime) |
+| `Models/WorkspaceRuntime.cs` | The runtime (points at a `Workspace`; holds `Providers`/`AiService`/`ShellServices`) |
+| `Services/WorkspaceManager.cs` | Singleton: the `Workspaces` list + live `WorkspaceRuntime`s; `Initialize`/`CreateWorkspace`/`SwitchWorkspace`/`ReconfigureWorkspace`/`NotifyWindowClosed`, `Add`/`Clone`/`Rename`/`Remove`/`DeleteWorkspace`, orphaned-data quarantine |
 | `ProviderManager.cs` | Singleton: loads provider **assemblies** + records provider/config **types**; `LoadProviderConfigs(dir)` + the ref-counted pool `AcquireProviderSet`/`ReleaseProviderSet`. Instances are model-bound (capability per config + execution per config+model); execution instances warm/cool with their pool lifetime |
-| `ProviderSet.cs` | A workspace's acquired provider **instances** + the profile's configs + assembly map + pool keys |
-| `Services/AIService.cs` | `IAIService` impl — **per-Workspace**: provider registry, ability→model resolution, the agent loop, conversation history |
-| `AI/AiConfig.cs` | Per-profile AI ability config (`Columns` + ability→column `Assignments`); rendered by `AiAbilityGridControl` |
+| `ProviderSet.cs` | A runtime's acquired provider **instances** + the workspace's configs + assembly map + pool keys |
+| `Services/AIService.cs` | `IAIService` impl — **per-`WorkspaceRuntime`**: provider registry, ability→model resolution, the agent loop, conversation history |
+| `AI/AiConfig.cs` | Per-workspace AI ability config (`Columns` + ability→column `Assignments`); rendered by `AiAbilityGridControl` |
 | `MainWindow.xaml.cs` | Wires shell commands; creates `ShellViewModel`; handles ESC/breadcrumb clicks |
-| `ViewModels/ShellViewModel.cs` | Tab lifecycle, ribbon lifecycle, notifications, AI routing, background tasks; `SelectProfile` (in-place switch, blocked while a modal overlay is open) |
-| `Services/ShellServices.cs` | `IShellServices` impl — **per-Workspace** (not an app-level singleton). Owns that workspace's window + tab registry |
-| `FeatureManager.cs` | Singleton (`FeatureManager.Instance`). Delegates discovery to `FeatureCatalog` (a disk-cached index — **no** eager DLL loads on the common launch); resolves `IPageRegistration`/config/handler **types** lazily and builds instances per `Workspace` with scoped `IShellServices` + `IAIService` (`EvictWorkspace` drops them on reconfigure). File-system contracts are **not** here (see below) |
+| `ViewModels/ShellViewModel.cs` | Per-window VM: pane/split layout, overlays, AI input routing, toasts, workspace lifecycle commands; `SelectWorkspace` (in-place switch, blocked while a modal overlay is open) |
+| `Services/ShellServices.cs` | `IShellServices` impl — **per-`WorkspaceRuntime`** (not an app-level singleton). Owns that runtime's window + tab registry, tearoff/cross-window moves, file watching, session capture/restore, window positioning |
+| `FeatureManager.cs` | Singleton (`FeatureManager.Instance`). Delegates discovery to `FeatureCatalog` (a disk-cached index — **no** eager DLL loads on the common launch); resolves `IPageRegistration`/config/handler **types** lazily and builds instances per `WorkspaceRuntime` with scoped `IShellServices` + `IAIService` (`EvictWorkspace` drops them on reconfigure). File-system contracts are **not** here (see below) |
 | `Services/FeatureCatalog.cs` | The discovery engine behind `FeatureManager`. Persists the per-assembly type index to `…\Smile\nexaflow\discovery\catalog.json` (stamped with the app version); a version match is trusted with no assembly loads, a mismatch (an app update) triggers one full rescan. Resolving a type loads + **activates** its assembly on demand (registering that assembly's global configs / archive handlers / theme contributions). A post-paint background warm-up activates the rest |
 | `Services/StartupTimings.cs` | Opt-in startup profiler (`--timing` flag / `NEXAFLOW_STARTUP_TIMING=1`); writes a milestone breakdown + `FIRST_WINDOW_MS` / `WINDOW_ON_DEMAND_MS` to stderr. Zero cost when off |
 | `Services/FileSystemFeatureRegistry.cs` | Discovery + matching for `IFileAction`/`IFolderAction`/`IFileCreateAction`/`IFolderViewlet` (deliberately split out of `FeatureManager`) |
-| `Services/RibbonLayoutService.cs` | Serialize/deserialize ribbon items — **per-profile** (constructed with the profile's own folder, shared by its workspaces), not a single global `ribbon.json` |
-| `Services/WindowManager.cs` | Multi-window registry; tab tearoff; cross-window drag-transfer; DPI maths |
+| `Services/RibbonLayoutService.cs` | Serialize/deserialize ribbon items — **per-workspace** (constructed with the workspace's own folder, shared by its runtimes), not a single global `ribbon.json`. Bundled defaults live in `Ribbon/default-ribbon.json` (`LoadDefaults`) |
+| `Services/WindowManager.cs` | Static DPI/monitor/cursor maths only — tab/window lifecycle moved to `ShellServices` |
 | `FileActions/` | Core-owned file actions: copy, delete, rename, and other system-level operations |
 | `Controls/RibbonEditor.xaml.cs` | Interactive ribbon customization; local draft, commit on Done |
 | `Controls/TabStrip.xaml.cs` | Renders tabs; emits tearoff drag events |
@@ -185,16 +176,16 @@ The contract layer. Every feature depends on this; nothing else does.
 | `Page.cs` | Observable page/tab state: `Title`, `Icon`, `IsActive`, `Breadcrumbs`, `PageKind`, `PageParams`, `ContentFactory` delegate, cached `Content`, `Closed` event |
 | `BreadcrumbSegment.cs` | One crumb: label, drop-down children, same-tab `Navigate` action, or cross-tab `TargetPageKind` |
 | `IPageRegistration.cs` | Interface a feature implements to advertise one page kind: `PageKind` + the cheap `CreatePageDefinition(params)` (plus optional `Parameters`, `CanBeContextItem`, `CreatePageDefinitions`). Each impl also exposes `static string StaticPageKind` so `FeatureManager` discovers it by reflection |
-| `OpenPageRequest.cs` | `(PageKind, PageParams)` carrier for shell-level open commands (breadcrumb follow-links). Core-internal MVVM glue — `arch_improvements.md` proposes relocating it to Core |
+| `OpenPageRequest.cs` | `(PageKind, PageParams)` carrier for shell-level open commands (breadcrumb follow-links). Core-internal MVVM glue — [arch_review_2026-07.md §C1](arch_review_2026-07.md) tracks relocating it to Core |
 | `IPageView.cs` | Thin shell-lifecycle contract implemented by tab `UserControl`s: exposes `IPageViewModel? ViewModel` and `Reinitialize` |
 | `IPageViewModel.cs` | AI pipeline contract implemented by ViewModels: `GetContext`, `GetClientTools`, `GetContextObject` |
-| `IShellServices.cs` (under `Services/`) | The **active Workspace's** shell handle injected into feature code (one impl per workspace, not an app singleton): `OpenTab`/`CloseTab`/`FindTab`, `QueueBackgroundTask`, `ShowError`/`ShowNotification`/`ShowPrompt`/`ShowConfirmation`, `ShowOverlay`/`CloseOverlay` (feature-defined shell-modal overlays), `PinToRibbon`, `DiscoverImplementations<T>`. Owns UI-thread access for features: `WatchFile(path, onChanged)` (shared, deduped, UI-marshalled, lifecycle-managed file watching → `IFileWatch`) and `RunOnUiAsync(...)` (marshal work to the workspace UI thread). Features use these instead of `Application.Current.Dispatcher` |
+| `IShellServices.cs` (under `Services/`) | The **active `WorkspaceRuntime`'s** shell handle injected into feature code (one impl per runtime, not an app singleton): `OpenTab`/`CloseTab`/`FindTab`, `QueueBackgroundTask`, `ShowError`/`ShowNotification`/`ShowPrompt`/`ShowConfirmation`, `ShowOverlay`/`CloseOverlay` (feature-defined shell-modal overlays), `PinToRibbon`, `DiscoverImplementations<T>`. Owns UI-thread access for features: `WatchFile(path, onChanged)` (shared, deduped, UI-marshalled, lifecycle-managed file watching → `IFileWatch`) and `RunOnUiAsync(...)` (marshal work to the workspace UI thread). Features use these instead of `Application.Current.Dispatcher` |
 | `IFileWatch.cs` (under `Services/`) | Handle from `WatchFile`: `Enabled` (hold + coalesce while false, flush on re-enable), `Dispose` to unwatch |
-| `IAIService.cs` | Per-`Workspace` AI service: handler scoring/disambiguation, the `RunAgentAsync` agent loop, conversation load/save, analysis + artifacts |
+| `IAIService.cs` | Per-`WorkspaceRuntime` AI service: handler scoring/disambiguation, the `RunAgentAsync` agent loop, conversation load/save, analysis + artifacts |
 | `IBackgroundTask.cs` | Self-contained background work (`Description` + `RunAsync`) handed to `IShellServices.QueueBackgroundTask` |
 | `IFeatureConfig.cs` | Marks a POCO as a config section; discovered and instantiated by `FeatureManager` |
 | `IContext.cs` / `FileSystemContext.cs` | Typed context objects offered by ViewModels via `IPageViewModel.GetContextObject()` |
-| `ClientTools/*.cs` | Agent-loop contracts: `IClientTool`/`DelegateClientTool`, `ClientToolParameter`, `ToolSafety`, `ToolCall`, `ToolResult`, `ClientPlan`, `IToolApprovalCoordinator`. **Also** currently holds the Core-only wire-protocol parser `ClientBlockParser` + `ParsedAssistantTurn` — `arch_improvements.md` proposes moving those two to Core |
+| `ClientTools/*.cs` | Agent-loop contracts: `IClientTool`/`DelegateClientTool`, `ClientToolParameter`, `ToolSafety`, `ToolCall`, `ToolResult`, `ClientPlan`, `IToolApprovalCoordinator`, the shared `ToolArgs` argument reader. **Also** currently holds the Core-only wire-protocol parser `ClientBlockParser` + `ParsedAssistantTurn` — [arch_review_2026-07.md §C1](arch_review_2026-07.md) tracks moving those two to Core |
 | `ConfigAttributes.cs` | `[ConfigDisplayName]`, `[FolderPath]`, `[FilePath]`, `[ListSource]`, `[CustomControl]` / `ICustomConfigApply` / `IConfigChangeTracker` |
 | `AiResponse.cs` | `AiResponse` record returned by `IAIService.RunAgentAsync` |
 | `ConversationRecord.cs` | Chat conversation + message list + attachments |
@@ -229,7 +220,19 @@ Non-contract UI shared across features and Core. Features may reference these (t
 
 ### Nexaflow.Providers.*
 
-All providers implement `ILlmProvider` (and optionally `IAsyncDisposable`) from `Providers.Common`. `ProviderManager` loads the plugin assemblies at startup and records the provider/config **types** they expose — it does not create instances. Providers are **per-WorkContext**: each context builds its own `ProviderSet` via `ProviderManager.CreateProviderSet(contextDir)`, instantiating a fresh `IProviderConfig` per type loaded from that context's own folder (`Contexts/<name>/<configName>/`) and constructing the providers with it. So two contexts can hold different subscriptions for the same provider. The set lives on `WorkContext.Providers` and is registered into that context's `AIService`; the AI ability grid and provider-config editors operate on it through `WorkContext.AiConfig.Providers`.
+**The contract is deliberately lowest-common-denominator.** `CompleteAsync` is structured-in /
+**string-out**: providers stream internally (via the shared `LlmStreamRunner` — activity lifecycle,
+clean cancellation, hung-stream timeout, transient retry) but return one accumulated string; there is
+no token-streaming surface on the interface. Tool use is **prompt-convention**: the agent loop asks
+the model for fenced ```` ```client_tool ```` blocks and parses them out of the text — no provider
+sends native function-calling schemas. This keeps every backend (including local Ollama models and
+the pipe-based Aria) behaviourally identical and the agent loop provider-agnostic. The accepted
+trade-offs: no live token rendering, no usage/cost metadata, and tool reliability rides on
+instruction-following. The future escape hatches, when appetite exists, are an optional
+`CompleteStreamingAsync` overload plus usage fields on `LlmResponse`, and a native-tools capability a
+provider can opt into — both additive.
+
+All providers implement `ILlmProvider` (and optionally `IDisposable`/`IAsyncDisposable`) from `Providers.Common`. `ProviderManager` loads the plugin assemblies at startup and records the provider/config **types** they expose — it does not create instances eagerly. Provider **instances** are pooled process-wide and ref-counted: `AcquireProviderSet` hands each `WorkspaceRuntime` one model-agnostic *capability* instance per (provider type + config) for model enumeration, plus one model-bound *execution* instance per ability-grid assignment (warmed on first acquire, cooled + disposed when its last ref drops — `ReleaseProviderSet`). Provider **configs** (API keys / subscriptions) live on the saved `Workspace` (`Contexts/<name>/<configName>/`), so two workspaces can hold different subscriptions for the same provider while identical configs share one pooled instance. The acquired set lives on `WorkspaceRuntime.Providers` and registers into that runtime's `AIService`.
 
 | Assembly | Backing service |
 |----------|----------------|
@@ -281,7 +284,7 @@ ConversationRecord
 
 ### `IPageRegistration` — Adding a new page kind
 
-Implement in your feature assembly. `FeatureManager` discovers it **automatically** via the cached `FeatureCatalog` index (no code-registration step); its assembly is loaded and the registration built **lazily** on first use. It injects constructor dependencies per `Workspace`: any `IFeatureConfig` declared in the same assembly, the scoped `IShellServices`, and `IAIService`. Expose a `static string StaticPageKind` — the catalog reads the page kind from it without instantiating (and caches it).
+Implement in your feature assembly. `FeatureManager` discovers it **automatically** via the cached `FeatureCatalog` index (no code-registration step); its assembly is loaded and the registration built **lazily** on first use. It injects constructor dependencies per `WorkspaceRuntime`: any `IFeatureConfig` declared in the same assembly, the scoped `IShellServices`, and `IAIService`. Expose a `static string StaticPageKind` — the catalog reads the page kind from it without instantiating (and caches it).
 
 `CreatePageDefinition` must stay **cheap and side-effect-free** — callers build a definition speculatively just to read its `Title`/`Icon` (e.g. for a menu) and may discard it. Construct the view-model and view **inside the `ContentFactory` closure** so they're built only when the tab is first shown. Optionally advertise `Parameters` (so the shell/AI can describe how to open the page) and set `CanBeContextItem`/`CreatePageDefinitions` for pages offered in the AI "add context" and ribbon-editor menus.
 
@@ -360,7 +363,12 @@ public partial class MyViewModel : ObservableObject, IPageViewModel
 
 ### `IQueryHandler` — Intercepting the AI input bar
 
-Implement to handle typed input before it reaches the LLM. Either register globally at startup or implement on a page ViewModel (the shell checks `page?.ViewModel as IQueryHandler` for tab-scoped handling).
+Implement to handle typed input before it reaches the LLM. Handlers are **auto-discovered** via the
+`FeatureCatalog` index and built per `WorkspaceRuntime` — there is **no registration step**. Scope is
+expressed inside `CanProcess`: the active page's ViewModel is passed in, so a page-scoped handler is
+just a type check returning 0 for pages it doesn't own, while an app-wide handler scores on the input
+alone. `Symbol` claims a single-character prefix for exact routing; otherwise scores compete and
+`IAIService.DisambiguateToolSelection` breaks ties.
 
 ```csharp
 public sealed class MyQueryHandler : IQueryHandler
@@ -369,7 +377,7 @@ public sealed class MyQueryHandler : IQueryHandler
     public string? Symbol => null;                           // optional prefix character
 
     public float CanProcess(string input, IPageViewModel? pageVm = null)
-        => pageVm is MyViewModel ? 0.9f : 0f;
+        => pageVm is MyViewModel ? 0.9f : 0f;                // page-scoped via the type check
 
     public async Task<string?> ProcessAsync(string input, IPageViewModel? pageVm = null)
     {
@@ -378,12 +386,6 @@ public sealed class MyQueryHandler : IQueryHandler
         return null;   // null = handled silently; string = shown in AI Chat
     }
 }
-```
-
-Global registration in `App.xaml.cs` (after `RegisterFeatures()`):
-
-```csharp
-FeatureManager.Instance.RegisterQueryHandler(new MyQueryHandler());
 ```
 
 ---
@@ -484,6 +486,33 @@ Expose tools from a page by overriding `IPageViewModel.GetClientTools()`. Each t
 
 ---
 
+## Elevation / Privilege Bridge
+
+Nexaflow's host process runs **non-elevated** (`asInvoker`) — always. When a feature needs an admin
+action (kill a protected process, write HKLM, control a service, set a machine-scope environment
+variable), it calls **`IShellServices.RunElevatedAsync(ElevatedRequest)`**:
+
+1. `Services/Elevation/ElevatedBridgeLauncher.cs` (Core) opens a private message-mode named pipe and
+   launches `PrivilegeBridge.exe` **elevated** — one UAC prompt — authenticating the connection with a
+   one-time token.
+2. The request DTO ships over the pipe (never on the command line); the bridge dispatches to the
+   matching `IElevatedOperation` (`Nexaflow.PrivilegeBridge/Operations/` — Registry, Service, Process,
+   Env), replies with an `ElevatedResult`, and the bridge process exits. A declined UAC prompt surfaces
+   as a typed `ElevatedErrorKind`, not an exception storm.
+
+**Layering:** `Nexaflow.Elevation.Contracts` is a pure DTO leaf (`ElevatedRequest`/`ElevatedResult`/
+`Operations`/pipe framing) referenced by `Features.Common` (for the `RunElevatedAsync` signature), Core
+and the bridge. `Nexaflow.PrivilegeBridge` is a standalone `requireAdministrator` exe **outside** the
+in-process layering — Core's csproj copies it beside the app (`ReferenceOutputAssembly=false`, the
+`CopyPrivilegeBridge` target); features never see it.
+
+**To add an elevated operation:** define the DTO in `Elevation.Contracts`, implement an
+`IElevatedOperation` in the bridge, call it via `RunElevatedAsync`. **Never** `Process.Start` with
+`runas` from a feature (a CLAUDE.md hard rule). Consumers today: Processes (kill/priority), SystemInfo
+(services + machine env vars), WindowsRegistry (elevation-gated writes).
+
+---
+
 ## Core Flows
 
 ### Startup
@@ -493,31 +522,31 @@ App.OnStartup
   → new BackgroundActivityManager()                         ← the one shared activity surface
   → InitializeApp(activityManager):
       → ConfigManager.Initialize(%AppData%\Smile\nexaflow)   ← base data path
-      → register GLOBAL configs: ShellConfig (+ apply theme), AiPersonaConfig,
-        WorkspacesConfig, FileMapConfig, ExternalAppsConfig, VoiceConfig
+      → register GLOBAL configs: ShellConfig (+ apply theme), WorkspacesConfig,
+        FileMapConfig, ExternalAppsConfig, VoiceConfig
       → ProviderManager.Initialize(activityManager)         ← records the shared ActivityManager
-      → for each saved profile: temp AiConfig ← ConfigManager.LoadFrom(ProfileDir)
-            (need each profile's columns to know which provider DLLs to load)
-      → ProviderManager.LoadConfigured(⋃ AssemblyFileName across all profiles' AiConfigs)
-      → WorkspaceManager.Initialize(wcConfig)               ← loads the Profiles list ONLY (no runtime workspaces)
+      → for each saved workspace: temp AiConfig ← ConfigManager.LoadFrom(workspace dir)
+            (need each workspace's columns to know which provider DLLs to load)
+      → ProviderManager.LoadConfigured(⋃ AssemblyFileName across all workspaces' AiConfigs)
+      → WorkspaceManager.Initialize(wcConfig)               ← loads the saved Workspaces list ONLY (no runtimes)
       → FileMapManager / ExternalAppRegistry init
       → FeatureManager.RegisterFeatures()                   ← FeatureCatalog.Initialize: load the cached
             discovery index (no feature DLLs loaded) or, after an app update, one full rescan. Feature
             assemblies load + activate lazily later (first use, or the post-paint background warm-up)
       → WhisperModelManager + HostCapability probe, JumpList, single-instance IPC listener
-  → pick startup Profile (Profiles[0], or the one named by --context "Name")
-  → WorkspaceManager.CreateWorkspace(profile)               ← profile.EnsureSharedServicesLoaded +
-        BootstrapServices: AcquireProviderSet(pool) → new AIService(ws, Conversations\) →
-        register providers → LoadAbilityConfig → ShellServices
-  → new MainWindow(activityManager, startupWs)              ← window bound to ONE workspace
-      → ShellViewModel(ws)   (CurrentWorkspace = ws)
-          → ribbon binds ws.Profile → RibbonViewModel.SetProfile → Load() (shared layout)
+  → pick startup Workspace (Workspaces[0], or the one named by --context "Name")
+  → WorkspaceManager.CreateWorkspace(workspace)             ← workspace.EnsureSharedServicesLoaded +
+        bootstrap: AcquireProviderSet(pool) → new AIService(runtime, Conversations\) →
+        register providers → LoadAbilityConfig → ShellServices; returns the WorkspaceRuntime
+  → new MainWindow(activityManager, startupRuntime)         ← window bound to ONE runtime
+      → ShellViewModel(runtime)   (CurrentRuntime = runtime)
+          → ribbon binds runtime.Workspace → RibbonViewModel.SetWorkspace → Load() (shared layout)
           → OpenDefaultTabs()
   → win.Show()
 
-  (Each subsequent app/IPC launch = a NEW Workspace. Tear-off / "open in new window" reuse the SAME
-   workspace. --prestart launches the windowless resident daemon: InitializeApp runs, NO workspace is
-   created; a later click / JumpList signal opens a window — a new workspace — via the IPC listener.)
+  (Each subsequent app/IPC launch = a NEW WorkspaceRuntime. Tear-off / "open in new window" reuse the
+   SAME runtime. --prestart launches the windowless resident daemon: InitializeApp runs, NO runtime is
+   created; a later click / JumpList signal opens a window — a new runtime — via the IPC listener.)
 ```
 
 ### Opening a tab
@@ -530,11 +559,11 @@ User clicks ribbon button
   → CurrentPage = page, breadcrumbs updated
 
 Feature code calls shellServices.OpenTab("PageKind", params, callerPage)
-  (shellServices = the caller's Workspace instance)
+  (shellServices = the caller's WorkspaceRuntime instance)
   → ShellServices resolves target window from callerPage / focused window
-  → Searches this workspace's windows for an existing matching tab
+  → Searches this runtime's windows for an existing matching tab
   → If found: move to target window if needed → Reinitialize(params) → activate
-  → If not found: FeatureManager.CreateTab(pageKind, workContext, params)   ← internal; returns a Page
+  → If not found: FeatureManager.CreateTab(pageKind, runtime, params)   ← internal; returns a Page
       → matching IPageRegistration.CreatePageDefinition(params)
   → IWindowHost.AddTab(page) → prepends, sets active, loads content
 ```
@@ -585,83 +614,24 @@ User selects file in file browser → clicks action button
 
 ```
 Save:  RibbonItems changes → CollectionChanged → RibbonViewModel.Save()
-         → profile.RibbonService.Save(items) → profile.RaiseRibbonChanged()
-         → every other window/Workspace on this profile reloads its items live
+         → workspace.RibbonService.Save(items) → workspace.RaiseRibbonChanged()
+         → every other window/runtime on this workspace reloads its items live
+         (a closing window unhooks via RibbonViewModel.Detach — the Workspace outlives its windows)
 
-Load:  profile bound → RibbonViewModel.SetProfile → profile.RibbonService.Load()
+Load:  workspace bound → RibbonViewModel.SetWorkspace → workspace.RibbonService.Load()
          items are pure metadata (PageKind + params); they open via the window's
-         OpenRibbonItem command — no per-window delegate reattachment needed
+         OpenRibbonItem command — no per-window delegate reattachment needed.
+         Bundled defaults: Ribbon/default-ribbon.json via RibbonLayoutService.LoadDefaults
 ```
 
 ---
 
-## Separation-of-Concerns Issues
+## Architectural Findings
 
-Ordered by impact.
-
----
-
-### 1. `ShellViewModel` is a god object
-
-**Where:** `Nexaflow.Core/ViewModels/ShellViewModel.cs`
-
-**Problem:** One class owns tab lifecycle, ribbon lifecycle (load/save/build/pin), notification management, AI routing, background tasks, and breadcrumb management.
-
-**Impact:** Any change to AI routing, ribbon persistence, or tab management touches the same file.
-
-**Suggested split:**
-
-- `TabManager` — `OpenTab`, `ActivateTab`, `CloseTab`, `ReceiveTab`
-- `RibbonManager` — load/save/build/pin/reattach factories
-- `NotificationService` — `ShowError`, `AddNotification`, `ToggleNotifications`
-- `AiInputRouter` — `SendAiMessage`, handler selection, `GetOrCreateChatVm`
-
----
-
-### 2. `WindowManager` has hardcoded layout constants
-
-**Where:** `Nexaflow.Core/Services/WindowManager.cs`
-
-**Problem:** Tab tearoff position calculation uses `const double TopBarHeight = 72`, `TabBarHeight = 38`, etc. These duplicate values from `MainWindow.xaml`.
-
-**Fix:** Expose these as static properties on `MainWindow` or read them via `ActualHeight` / `TransformToVisual` at runtime.
-
----
-
-### 3. `ProjectOperations` is too wide
-
-**Where:** `Nexaflow.Features.Projects/Model/ProjectOperations.cs`
-
-**Problem:** Handles project metadata, backlog CRUD, 9-state workflow, transactional file editing, anchor-based text replacement, and `.aisummary` management in one class.
-
-**Suggested split:** `ProjectMetadataService`, `BacklogService`, `ProjectFileService`, `ProjectAiService` — with `ProjectOperations` as a facade.
-
----
-
-### 4. `ProjectService` uses a static singleton
-
-**Where:** `Nexaflow.Features.Projects/Services/ProjectService.cs`
-
-**Problem:** `ProjectService.Ops` is accessed directly by both ViewModels. No injection point for testing.
-
-**Fix:** Inject `IProjectOperations` into ViewModel constructors.
-
----
-
-### 5. Ribbon default items reference page-kind strings as literals
-
-**Where:** `ShellViewModel.BuildDefaultItems()`
-
-**Problem:** String literals must match `IPageRegistration.PageKind` exactly. No compile-time check.
-
-**Fix:** Registrations already expose `static string StaticPageKind` (used for reflection discovery) — reference that constant from `BuildDefaultItems` instead of re-typing the literal.
-
----
-
-### 6. `RibbonEditor` mixes model logic with view construction
-
-**Where:** `Nexaflow.Core/Controls/RibbonEditor.xaml.cs`
-
-**Problem:** ~710 lines of procedural `Border`/`StackPanel`/`TextBlock` construction. Drag-reorder logic, colour swatches, and draft-clone logic share the file. Direct `ShellViewModel` reference.
-
-**Fix:** Extract `RibbonEditorViewModel`; replace `ShellViewModel` dependency with `IDefaultRibbonProvider`.
+Point-in-time findings do **not** live in this document — an embedded findings list rots invisibly
+(the 2026-06 copy of this section was ~60% stale by 2026-07: three of its six items had already been
+fixed or had moved files). Current findings, each with status tracked inline:
+[arch_review_2026-07.md](arch_review_2026-07.md) (supersedes
+[arch_improvements.md](arch_improvements.md)). Per-component product status (what exists, what is
+tested, what is AI-ready) lives in the product tree — `.product/tree.json`, queried via the
+product-folder skill.

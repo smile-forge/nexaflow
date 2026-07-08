@@ -23,18 +23,17 @@ public static class ServiceTools
     }
 
     // ── Read ──────────────────────────────────────────────────────────────────────────────────
-    public sealed class GetServices(ServicesViewModel vm) : IClientTool
+    public sealed class GetServices(ServicesViewModel vm) : ClientToolBase
     {
-        public string Name => "get_services";
-        public string Description => "List Windows services, optionally filtered by state (running, stopped, paused).";
-        public IReadOnlyList<ClientToolParameter> Parameters =>
+        public override string Name => "get_services";
+        public override string Description => "List Windows services, optionally filtered by state (running, stopped, paused).";
+        public override IReadOnlyList<ClientToolParameter> Parameters =>
         [
             new("state", "Optional state filter: running, stopped, or paused.", Required: false),
         ];
-        public ToolSafety Safety => ToolSafety.ReadOnly;
-        public bool Parallelizable => true;
+        public override bool Parallelizable => true;
 
-        public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
+        public override Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
         {
             var state = ToolArgs.Str(arguments, "state", "status");
             var rows = vm.Snapshot();
@@ -50,18 +49,17 @@ public static class ServiceTools
         }
     }
 
-    public sealed class FindService(ServicesViewModel vm) : IClientTool
+    public sealed class FindService(ServicesViewModel vm) : ClientToolBase
     {
-        public string Name => "find_service";
-        public string Description => "Find services whose name or display name contains the query.";
-        public IReadOnlyList<ClientToolParameter> Parameters =>
+        public override string Name => "find_service";
+        public override string Description => "Find services whose name or display name contains the query.";
+        public override IReadOnlyList<ClientToolParameter> Parameters =>
         [
             new("query", "Substring to match against the service name or display name."),
         ];
-        public ToolSafety Safety => ToolSafety.ReadOnly;
-        public bool Parallelizable => true;
+        public override bool Parallelizable => true;
 
-        public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
+        public override Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
         {
             var q = ToolArgs.Str(arguments, "query", "name", "service");
             if (string.IsNullOrWhiteSpace(q))
@@ -81,18 +79,17 @@ public static class ServiceTools
         }
     }
 
-    public sealed class GetService(ServicesViewModel vm) : IClientTool
+    public sealed class GetService(ServicesViewModel vm) : ClientToolBase
     {
-        public string Name => "get_service";
-        public string Description => "Get one service's status, startup type and description.";
-        public IReadOnlyList<ClientToolParameter> Parameters =>
+        public override string Name => "get_service";
+        public override string Description => "Get one service's status, startup type and description.";
+        public override IReadOnlyList<ClientToolParameter> Parameters =>
         [
             new("name", "Service name or display name."),
         ];
-        public ToolSafety Safety => ToolSafety.ReadOnly;
-        public bool Parallelizable => true;
+        public override bool Parallelizable => true;
 
-        public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
+        public override Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
         {
             var name = ToolArgs.Str(arguments, "name", "service", "query");
             if (string.IsNullOrWhiteSpace(name))
@@ -107,16 +104,14 @@ public static class ServiceTools
     }
 
     // ── Act (approval-gated → bridge → UAC) ─────────────────────────────────────────────────────
-    public abstract class ControlToolBase(ServicesViewModel vm, string op) : IClientTool
+    // Parallelizable stays at the base default (false) so UAC prompts never stack.
+    public abstract class ControlToolBase(ServicesViewModel vm, string op) : ClientToolBase
     {
         protected readonly ServicesViewModel Vm = vm;
-        public abstract string Name { get; }
-        public abstract string Description { get; }
-        public IReadOnlyList<ClientToolParameter> Parameters => [new("name", "Service name or display name.")];
-        public ToolSafety Safety => ToolSafety.RequiresApproval;
-        public bool Parallelizable => false;   // avoid stacking UAC prompts
+        public override IReadOnlyList<ClientToolParameter> Parameters => [new("name", "Service name or display name.")];
+        public override ToolSafety Safety => ToolSafety.RequiresApproval;
 
-        public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
+        public override async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
         {
             var name = ToolArgs.Str(arguments, "name", "service");
             if (string.IsNullOrWhiteSpace(name))
@@ -145,19 +140,18 @@ public static class ServiceTools
         public override string Description => "Restart a Windows service (requires admin approval).";
     }
 
-    public sealed class SetServiceStartMode(ServicesViewModel vm) : IClientTool
+    public sealed class SetServiceStartMode(ServicesViewModel vm) : ClientToolBase
     {
-        public string Name => "set_service_start_mode";
-        public string Description => "Change a service's startup type: Automatic, AutomaticDelayed, Manual or Disabled (requires admin approval).";
-        public IReadOnlyList<ClientToolParameter> Parameters =>
+        public override string Name => "set_service_start_mode";
+        public override string Description => "Change a service's startup type: Automatic, AutomaticDelayed, Manual or Disabled (requires admin approval).";
+        public override IReadOnlyList<ClientToolParameter> Parameters =>
         [
             new("name", "Service name or display name."),
             new("start_mode", "One of: Automatic, AutomaticDelayed, Manual, Disabled."),
         ];
-        public ToolSafety Safety => ToolSafety.RequiresApproval;
-        public bool Parallelizable => false;
+        public override ToolSafety Safety => ToolSafety.RequiresApproval;
 
-        public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
+        public override async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
         {
             var name = ToolArgs.Str(arguments, "name", "service");
             var mode = ToolArgs.Str(arguments, "start_mode", "startMode", "mode");

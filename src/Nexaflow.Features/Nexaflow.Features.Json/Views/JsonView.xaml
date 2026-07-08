@@ -12,7 +12,7 @@
         <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
         <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
         <cv:StringToVisibilityConverter      x:Key="StringVis"/>
-        <local:DepthToMarginConverter        x:Key="DepthMargin"/>
+        <cv:DepthToMarginConverter        x:Key="DepthMargin"/>
         <local:ValueKindToBrushConverter     x:Key="ValueKindBrush"/>
         <local:ViewModeToVisibilityConverter x:Key="ViewModeVis"/>
 

@@ -177,7 +177,7 @@
     ]
   },
   {
-    "ExperienceId": "/json",
+    "ExperienceId": "/text/json",
     "Source": "User",
     "Criteria": [
       { "Type": "Extension", "Value": "*.json" }

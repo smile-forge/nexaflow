@@ -1,9 +1,11 @@
 namespace Nexaflow.Features.Common;
 
 /// <summary>
-/// Implemented by classes that can handle shell input bar queries.
-/// Register globally via <c>FeatureManager.RegisterQueryHandler</c> for app-wide handling,
-/// or implement on a page's DataContext for tab-scoped handling.
+/// Implemented by classes that can handle shell input bar queries. Implementations are
+/// auto-discovered (the feature catalog) and built per workspace runtime — there is no
+/// registration step. Scope is expressed in <see cref="CanProcess"/>: the active page's
+/// ViewModel is passed in, so a tab-scoped handler is a type check returning 0 for pages
+/// it doesn't own, and an app-wide handler scores on the input alone.
 /// </summary>
 public interface IQueryHandler
 {

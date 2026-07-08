@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using Nexaflow.Core.Models;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
 

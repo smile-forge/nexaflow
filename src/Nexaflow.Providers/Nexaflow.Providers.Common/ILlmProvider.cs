@@ -42,6 +42,13 @@ public interface ILlmProvider
     Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default);
 
     /// <summary>
+    /// Why the last <see cref="GetAvailableModelsAsync"/> came back empty (bad key, unreachable
+    /// backend…), or null after a success. Lets the options UI distinguish "no models" from
+    /// "misconfigured" without breaking the never-throws contract. Default: null (not tracked).
+    /// </summary>
+    string? LastModelListError => null;
+
+    /// <summary>
     /// Returns metadata about the bound model (context window etc.), or null if the provider doesn't
     /// know. Default implementation returns null.
     /// </summary>

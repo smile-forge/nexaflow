@@ -2,7 +2,7 @@ using Anthropic;
 using Anthropic.Core;
 using Anthropic.Models.Messages;
 using Nexaflow.Providers.Common;
-using System.Text;
+using AnthropicModelList = Anthropic.Models.Models;
 
 namespace Nexaflow.Providers.Claude;
 
@@ -11,12 +11,13 @@ public sealed class ClaudeLlmProvider : ILlmProvider
     public const  string ProviderName = "Claude";
     public string Name => ProviderName;
 
-    /// <summary>Every Claude model in our list (Claude 3 and later) accepts image input.</summary>
+    /// <summary>Every Claude model in the current catalogue (Claude 3 and later) accepts image input.</summary>
     public bool SupportsImages => true;
 
     private readonly ClaudeConfig               _config;
     private readonly IBackgroundActivityManager _activityManager;
     private readonly string                     _model;
+    private AnthropicClient?                    _client;
 
     public ClaudeLlmProvider(IBackgroundActivityManager activityManager, ClaudeConfig config, ProviderModel model)
     {
@@ -25,11 +26,54 @@ public sealed class ClaudeLlmProvider : ILlmProvider
         _model           = model.Model;
     }
 
+    // The pooled instance is long-lived and its config payload is fixed (the pool key includes it),
+    // so the SDK client — and its HttpClient — is built once and reused across calls.
+    private AnthropicClient Client => _client ??= new AnthropicClient(new ClientOptions
+    {
+        ApiKey  = _config.ApiKey,
+        BaseUrl = _config.BaseUrl
+    });
+
     // ── ILlmProvider ───────────────────────────────────────────────────────
 
     public Task<LlmResponse?> CompleteAsync(
         IReadOnlyList<LlmMessage> messages,
         CancellationToken         ct = default)
+    {
+        var (systemPrompt, msgParams) = BuildRequest(messages);
+
+        var request = new MessageCreateParams
+        {
+            Model     = _model,
+            MaxTokens = _config.MaxOutputTokens > 0 ? _config.MaxOutputTokens : DefaultMaxOutputTokens(_model),
+            Messages  = msgParams
+        };
+        if (!string.IsNullOrWhiteSpace(systemPrompt))
+            request = request with { System = new MessageCreateParamsSystem(systemPrompt, null) };
+
+        return LlmStreamRunner.RunAsync(_activityManager, $"Claude ({_model})…", ProviderName,
+            ct => Deltas(request, ct), ct);
+    }
+
+    private async IAsyncEnumerable<string?> Deltas(
+        MessageCreateParams request,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        await foreach (var evt in Client.Messages.CreateStreaming(request, ct))
+        {
+            if (evt.TryPickContentBlockDelta(out var deltaEvt) &&
+                deltaEvt.Delta.TryPickText(out var textDelta))
+                yield return textDelta.Text;
+        }
+    }
+
+    /// <summary>
+    /// Maps the neutral message list to Claude's wire shape (system prompt split out; image
+    /// attachments as base64 vision blocks). Internal + static so the mapping is unit-testable
+    /// without a network call.
+    /// </summary>
+    internal static (string? SystemPrompt, List<MessageParam> Messages) BuildRequest(
+        IReadOnlyList<LlmMessage> messages)
     {
         // Claude's API separates the system prompt from the messages array
         var (systemPrompt, turns) = PromptComposer.SplitSystemPrompt(messages);
@@ -47,78 +91,58 @@ public sealed class ClaudeLlmProvider : ILlmProvider
                 Content = content
             });
         }
-
-        return SendAsync(systemPrompt, msgParams, ct);
+        return (systemPrompt, msgParams);
     }
 
-    // ── Internal ───────────────────────────────────────────────────────────
-
-    private async Task<LlmResponse?> SendAsync(
-        string? systemPrompt,
-        IReadOnlyList<MessageParam> messages,
-        CancellationToken ct)
+    /// <summary>Per-model output ceiling, used when the config doesn't override it. Values are
+    /// deliberately below each family's documented maximum so a catalogue drift can't 400.</summary>
+    internal static int DefaultMaxOutputTokens(string model) => model switch
     {
-        var activity = _activityManager.StartActivity($"Claude ({_model})…");
+        _ when model.Contains("claude-3-opus", StringComparison.OrdinalIgnoreCase) => 4096,
+        _ when model.Contains("claude-3",      StringComparison.OrdinalIgnoreCase) => 8192,
+        _ => 32_000,   // Claude 4 / 5 families accept ≥32k output
+    };
+
+    /// <summary>Per-model context window. All currently shipping models are 200k; this is the seam
+    /// a larger-context variant extends (keyed on the bound model id).</summary>
+    internal static int ContextWindowTokens(string model) => 200_000;
+
+    public async Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
+    {
+        // Prefer the live models endpoint (new models appear without a code change); fall back to
+        // the static catalogue when unreachable so the options UI is never empty for Claude.
         try
         {
-            var client = new AnthropicClient(new ClientOptions
+            var names = new List<string>();
+            var page  = await Client.Models.List(new AnthropicModelList.ModelListParams(), ct);
+            while (true)
             {
-                ApiKey  = _config.ApiKey,
-                BaseUrl = _config.BaseUrl
-            });
-
-            var request = new MessageCreateParams
-            {
-                Model     = _model,
-                MaxTokens = 8096,
-                Messages  = messages
-            };
-
-            if (!string.IsNullOrWhiteSpace(systemPrompt))
-                request = request with { System = new MessageCreateParamsSystem(systemPrompt, null) };
-
-            var sb = new StringBuilder();
-            await foreach (var evt in client.Messages.CreateStreaming(request, ct))
-            {
-                if (evt.TryPickContentBlockDelta(out var deltaEvt) &&
-                    deltaEvt.Delta.TryPickText(out var textDelta))
-                {
-                    sb.Append(textDelta.Text);
-                }
+                foreach (var m in page.Items) names.Add(m.ID);
+                if (!page.HasNext()) break;
+                page = await page.Next(ct);
             }
+            if (names.Count > 0) return names;
+        }
+        catch { /* fall through to the static catalogue */ }
 
-            activity.Complete();
-            var text = sb.ToString();
-            return string.IsNullOrEmpty(text) ? null : new LlmResponse(text);
-        }
-        catch (Exception ex)
-        {
-            activity.Fail(ex.Message);
-            throw new LlmProviderException($"Claude request failed: {ex.Message}", ex);
-        }
+        return FallbackModels;
     }
 
-    public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
-    {
-        IReadOnlyList<string> models =
-        [
-            "claude-opus-4-7",
-            "claude-sonnet-4-6",
-            "claude-haiku-4-5-20251001",
-            "claude-3-5-sonnet-20241022",
-            "claude-3-5-haiku-20241022",
-            "claude-3-opus-20240229",
-        ];
-        return Task.FromResult(models);
-    }
+    internal static readonly IReadOnlyList<string> FallbackModels =
+    [
+        "claude-fable-5",
+        "claude-opus-4-8",
+        "claude-sonnet-5",
+        "claude-haiku-4-5-20251001",
+        "claude-opus-4-7",
+        "claude-sonnet-4-6",
+    ];
 
     public Task<ModelInfo?> GetModelInfoAsync(CancellationToken ct = default)
     {
-        // All currently-shipping Claude models in our model list use a 200k context window.
-        // Future models with larger windows can override here.
         ModelInfo? info = string.IsNullOrWhiteSpace(_model)
             ? null
-            : new ModelInfo(ContextWindowTokens: 200_000, DisplayName: _model);
+            : new ModelInfo(ContextWindowTokens(_model), DisplayName: _model);
         return Task.FromResult(info);
     }
 
@@ -126,7 +150,7 @@ public sealed class ClaudeLlmProvider : ILlmProvider
     /// Builds the final user turn. Image attachments become native vision blocks (base64); non-image
     /// attachments keep the path-as-text behaviour. With no images, returns a plain string content.
     /// </summary>
-    private static MessageParamContent BuildUserContent(string prompt, IReadOnlyList<LlmAttachment>? attachments)
+    internal static MessageParamContent BuildUserContent(string prompt, IReadOnlyList<LlmAttachment>? attachments)
     {
         var (images, files) = PromptComposer.PartitionAttachments(attachments);
         var text = PromptComposer.AppendFileList(prompt, files);

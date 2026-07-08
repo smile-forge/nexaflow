@@ -16,4 +16,7 @@
     <ProjectReference Include="..\Nexaflow.Providers.Common\Nexaflow.Providers.Common.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Providers" />
+  </ItemGroup>
 </Project>

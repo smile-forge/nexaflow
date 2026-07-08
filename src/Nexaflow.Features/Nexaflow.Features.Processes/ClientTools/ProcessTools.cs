@@ -93,7 +93,7 @@ internal static class ProcessTools
             rows = rows.Where(r => r.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToList();
 
         rows = SortRows(rows, ToolArgs.Str(args, "sort_by")).ToList();
-        var top = Int(args, "top");
+        var top = ToolArgs.IntOrNull(args, "top");
         if (top is > 0) rows = rows.Take(top.Value).ToList();
 
         if (rows.Count == 0) return ToolResult.Ok("No matching processes", "No matching processes.");
@@ -106,7 +106,7 @@ internal static class ProcessTools
     private static ToolResult TopConsumers(ProcessesViewModel vm, JsonObject args)
     {
         var metric = (ToolArgs.Str(args, "metric") ?? "cpu").ToLowerInvariant();
-        int count = Int(args, "count") is > 0 and var c ? c : 5;
+        int count = ToolArgs.IntOrNull(args, "count") is > 0 and var c ? c : 5;
         var rows = vm.RowsSnapshot();
         rows = (metric.StartsWith("mem")
                    ? rows.OrderByDescending(r => r.WorkingSet)
@@ -227,11 +227,4 @@ internal static class ProcessTools
         $"WS {BytesToTextConverter.Format(r.WorkingSet),-9}  {r.Company}";
 
     private static string Dash(string? s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
-
-    private static int? Int(JsonObject args, string key)
-    {
-        if (!args.TryGetPropertyValue(key, out var v) || v is null) return null;
-        try { return v.GetValue<int>(); }
-        catch { return int.TryParse(v.ToString(), out var i) ? i : null; }
-    }
 }

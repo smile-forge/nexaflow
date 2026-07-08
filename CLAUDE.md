@@ -18,49 +18,32 @@ src/
   Nexaflow.Core/                    shell chrome, main window, ribbon, AI input bar, FeatureManager
   Nexaflow.Features/
     Nexaflow.Features.Common/       ALL contracts (interfaces + small DTOs). NO FeatureManager — that's in Core.
-    Nexaflow.Features.AIChat/       AI conversation tab (now a browser over conversations)
-    Nexaflow.Features.Audio/        audio player tab — NAudio playback, spectrum + waveform, .lrc lyrics, ID3 tag editor
-    Nexaflow.Features.Code/         code editor tab — tree-sitter highlighting, folding, code/class map, embedded languages
-    Nexaflow.Features.Compressed/   archive inspector tab + virtual-filesystem facade (browse/edit archives in the file tree)
-      Nexaflow.Features.Compressed.Modern/        zstd / lz4 codec backend
-      Nexaflow.Features.Compressed.SecureZip/     in-box ZIP backend (SharpZipLib — AES + detached signing)
-      Nexaflow.Features.Compressed.SharpCompress/ tar / 7z / rar backend
-    Nexaflow.Features.Console/      PTY terminal
-    Nexaflow.Features.Dotnet/       .NET folder viewlet — feeds AI context + dotnet client tools
-    Nexaflow.Features.Git/          git folder viewlet — feeds AI context + git client tools
-    Nexaflow.Features.Hex/          binary / hex viewer
-    Nexaflow.Features.Images/       image viewer
-    Nexaflow.Features.Json/         JSON viewer (seek-by-item windowing)
-    Nexaflow.Features.Logs/         log viewer (tail-first streaming)
-    Nexaflow.Features.Markdown/     markdown editor + preview
-    Nexaflow.Features.Model3D/      3D model viewer — STL/OBJ/PLY/glTF + FBX/3MF/… via Assimp; rotate/zoom/pan, wireframe, material inspector
-    Nexaflow.Features.Notebook/     Jupyter .ipynb viewer — cells (rendered markdown + highlighted code) + per-cell outline
-    Nexaflow.Features.Processes/    Process Explorer — live process tree + per-process details (vertical tabs), AI tools, elevated kill/priority
-    Nexaflow.Features.ProductManager/ product status-tree tab (sunburst) + folder viewlet — reads/writes a folder's .product/ (product.json + tree.json)
-    Nexaflow.Features.Projects/     project + backlog management
-    Nexaflow.Features.Scratchpad/   virtual corkboard
-    Nexaflow.Features.SystemInfo/   system info dashboard (WMI; Services/EnvVars pages via privilege bridge)
-    Nexaflow.Features.Tabular/      CSV/TSV/fixed-width viewer (shape detection + transforms)
-    Nexaflow.Features.Text/         text editor (head-first windowing)
-    Nexaflow.Features.Video/        video player tab — embedded libVLC (codec/metadata panel, keyframe scene-strip, fullscreen)
-    Nexaflow.Features.Web/          WebView2 browser tab
-    Nexaflow.Features.WindowsApps/  installed-apps manager + AI query handler
-    Nexaflow.Features.WindowsFileSystem/ file explorer tab (the DirectoryTree + file list)
-    Nexaflow.Features.WindowsRegistry/ registry browser/editor tab + AI tools (approval-gated writes)
-    Nexaflow.Features.WindowsSearch/ Windows Search integration
-  Nexaflow.Visuals.Common/          shared WPF controls + converters + formatters (PieChart, BoolToVisibility, SizeFormatter/DurationFormatter, BytesToTextConverter, …)
-  Nexaflow.Visuals.Text/            shared markdown rendering (MarkdownView / SelectableMarkdownView / MarkdownFlowDocument)
-  Nexaflow.IO.Common/               shared file-reading leaves: EncodingDetector (BOM/UTF-8 sniff) + debounced FileChangeWatcher (net10.0, no WPF)
+    Nexaflow.Features.<Feature>/    ONE assembly per feature (~30: viewers, editors, players, managers, viewlets)
+      Nexaflow.Features.Compressed.{Modern,SecureZip,SharpCompress}/  codec backends — implement IO.Common's
+                                    IArchiveHandler/IStreamCodec, reference IO.Common ONLY (not even Compressed)
+  Nexaflow.Visuals.Common/          shared WPF controls + converters + formatters (PieChart, ThemedRegion, SizeFormatter/DurationFormatter, …)
+  Nexaflow.Visuals.Text/            shared markdown rendering (MarkdownView / SelectableMarkdownView / MarkdownFlowDocument, Mermaid)
+  Nexaflow.Visuals.Terminal/        terminal input logic (command classifier, keys/history, environments model)
+  Nexaflow.IO.Common/               shared IO leaves (net10.0, no WPF): EncodingDetector/LineEnding, Glob, Hashing,
+                                    Base64Codec + stream-codec/archive contracts (IStreamCodec/IArchiveHandler/IArchiveEncryptor),
+                                    VirtualFileSystem (archive-as-folder), TextLineIndex/TextTransforms, FileChangeWatcher, FileSplitter
+  Nexaflow.IO.Terminal/             PTY host (pseudo-console service, terminal screen, job objects)
+  Nexaflow.Syntax/                  tree-sitter syntax engine (highlighting, outline, structure extraction) —
+                                    used by Code, Notebook, ProductManager, Visuals.Text
+  Nexaflow.Elevation/               Elevation.Contracts (pure DTO leaf) + PrivilegeBridge (separate requireAdministrator
+                                    exe) — the RunElevatedAsync trust boundary; see docs/Architecture.md → Elevation
   Nexaflow.Providers/
-    Nexaflow.Providers.Common/      LlmProviderRegistry, shared message types
-    Nexaflow.Providers.Aria/        named-pipe Aria client
-    Nexaflow.Providers.Claude/      Claude API
-    Nexaflow.Providers.Gemini/      Google Gemini API
-    Nexaflow.Providers.Ollama/      Ollama local models
-    Nexaflow.Providers.OpenAI/      OpenAI API
+    Nexaflow.Providers.Common/      LlmProviderRegistry, shared message types, PromptComposer
+    Nexaflow.Providers.{Claude,Gemini,OpenAI,Ollama,Aria}/  one per LLM backend (Aria = named pipe, rest = vendor SDK)
 ```
 
-Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI) and `Nexaflow.IO.Common` (file-reading utilities) — mirror that pattern for any future shared-but-not-a-contract code rather than dumping it in `Features.Common`.
+**The feature inventory is NOT listed here on purpose** — a hand-copied list goes stale. The authoritative
+inventory and per-component status (incl. the `tests` / `AI Ready` / `theming` / `docs` concerns) is the
+**product tree**: query `.product/tree.json` via the product-folder skill (it has ready-made fast-query
+recipes), or read the per-release export [docs/product/PRODUCT.md](docs/product/PRODUCT.md). Per-feature
+tab parameters are in [docs/features.md](docs/features.md).
+
+Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI), `Nexaflow.IO.*` (IO), and `Nexaflow.Syntax` — mirror that pattern for any future shared-but-not-a-contract code rather than dumping it in `Features.Common`.
 
 ## Hard Rules
 
@@ -71,6 +54,9 @@ Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI) and `Nexaflow.IO.Co
 - **Features never touch the UI dispatcher.** No `Application.Current.Dispatcher` / `Dispatcher.CurrentDispatcher` in a feature. Marshal background work to the UI thread with `IShellServices.RunOnUiAsync(...)`, and watch files with `IShellServices.WatchFile(path, onChanged)` (the shell owns the watcher, dedups by path, marshals the callback, and tears it down). UI-thread ownership lives in Core (ShellServices captures its own `_ui`).
 - A feature advertises a page via `IPageRegistration` (`PageKind` + `CreatePage`); `FeatureManager` discovers it by reflection at startup (each registration exposes a `static string StaticPageKind`).
 - **Features never hard-code colours.** Every colour — even one a feature "owns" (status pip, chart/pie series, selection/search wash, post-it paper) — resolves from a theme resource so a theme can retune it: reuse a palette/semantic token (`TextBrush`/`AccentBrush`/`SuccessBrush`/`WarningBrush`/`DangerBrush`/`OnAccentBrush`), the categorical `Swatch.*` bank (for N distinct colours), or a feature-owned token shipped via `IThemeContribution` (like the scratchpad's `PostIt.*`). Code-drawn surfaces read the resource at paint time with a literal only as a last-resort fallback. Full rule + patterns in [docs/theming.md](docs/theming.md) → *Rule: a feature never hard-codes a colour*.
+- **Features never elevate directly.** No `Process.Start` with `runas` in a feature — route admin actions through `IShellServices.RunElevatedAsync` (a DTO in `Elevation.Contracts` + an `IElevatedOperation` in the PrivilegeBridge). See [docs/Architecture.md → Elevation](docs/Architecture.md#elevation--privilege-bridge).
+
+The reference and dispatcher rules are **mechanically enforced**: `Nexaflow.Tests.Features/Architecture/ArchitectureRulesTests` + `Nexaflow.Tests.Providers/ArchitectureRulesTests` fail on a violation, and `FeatureTouchPointTests` names any missed add-a-feature wiring step (Core/tests ProjectReference, filemap entry).
 
 ## Key Files
 
@@ -78,9 +64,9 @@ Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI) and `Nexaflow.IO.Co
 |------|--------------------|
 | `src/Nexaflow.Core/ViewModels/ShellViewModel.cs` | Tab lifecycle, ribbon, AI routing — god object, be careful |
 | `src/Nexaflow.Core/Services/ShellServices.cs` | `IShellServices` implementation |
-| `src/Nexaflow.Core/FeatureManager.cs` | Per-`Workspace` constructor injection for features (lives in **Core**, not Common); `EvictWorkspace` clears the cache on reconfigure. Discovery is delegated to `FeatureCatalog` |
+| `src/Nexaflow.Core/FeatureManager.cs` | Per-`WorkspaceRuntime` constructor injection for features (lives in **Core**, not Common); `EvictWorkspace` clears the cache on reconfigure. Discovery is delegated to `FeatureCatalog` |
 | `src/Nexaflow.Core/Services/FeatureCatalog.cs` | Disk-cached feature discovery index (`discovery/catalog.json`, app-version-stamped) → a normal launch loads **no** feature DLLs; assemblies load + activate lazily (first use or post-paint warm-up). Rebuilt only on an app update |
-| `src/Nexaflow.Core/Services/WorkspaceManager.cs` | The `Profiles` list (dropdown) + live `Workspace`s; create/switch/reconfigure/dispose lifecycle |
+| `src/Nexaflow.Core/Services/WorkspaceManager.cs` | The `Workspaces` list (dropdown) + live `WorkspaceRuntime`s; create/switch/reconfigure/dispose lifecycle |
 | `src/Nexaflow.Core/Services/FileSystemFeatureRegistry.cs` | Discovery for the file-system contracts (`IFileAction`/`IFolderAction`/`IFileCreateAction`/`IFolderViewlet`) — NOT FeatureManager |
 | `src/Nexaflow.Features/Nexaflow.Features.Common/*.cs` | Contracts — changes here affect everything |
 | `src/Nexaflow.Features/Nexaflow.Features.Common/IPageRegistration.cs`, `Page.cs` | The tab/page factory contract (`CreatePage`) and the `Page` model (`Title`/`Icon`/`Breadcrumbs`/`ContentFactory`) |
@@ -91,29 +77,33 @@ Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI) and `Nexaflow.IO.Co
 Base: `%APPDATA%\Smile\nexaflow\`
 
 ```
-{ConfigName}\                 GLOBAL app/feature config (IFeatureConfig.ConfigName) — shared by all profiles
-Contexts\<name>\              PER-PROFILE data (the on-disk folder is named "Contexts"):
+{ConfigName}\                 GLOBAL app/feature config (IFeatureConfig.ConfigName) — shared by all workspaces
+Contexts\<name>\              PER-WORKSPACE data (folder named "Contexts" for on-disk compat):
   ai-abilities\               AI ability grid (which provider/model per ability)
-  <provider configs>\         provider API keys / subscriptions for THIS profile
-  Conversations\              AI chat history for THIS profile
-  <ribbon layout>             ribbon items for THIS profile
+  ai-persona\                 assistant persona (name + system prompt)
+  <provider configs>\         provider API keys / subscriptions for THIS workspace
+  Conversations\              AI chat history for THIS workspace
+  <ribbon layout>             ribbon items for THIS workspace
+  <scoped feature configs>    any IFeatureConfig marked [WorkspaceScopedConfig]
 ```
 
-Ribbon, AI ability grid, provider configs and conversations are **per-profile** (not global). Feature `IFeatureConfig` is **global** (one instance per assembly).
+Ribbon, AI ability grid, persona, provider configs and conversations are **per-workspace** (not global). Feature `IFeatureConfig` is **global** (one instance per assembly) unless marked `[WorkspaceScopedConfig]`.
 
 **Versioned, self-migrating.** Each config persists as `…\{configName}\config_{AssemblyVersion}.json`. When an assembly version bumps, `ConfigManager` **migrates the newest older file forward** instead of discarding it — a lenient field-by-field carry-over (unknown fields dropped, missing ones keep defaults) plus an optional `IConfigMigration.MigrateFrom(previousJson, version)` hook for renames/restructures. So an update keeps the user's data, and the setup wizard re-asks only for genuinely new required info. File-type mappings merge changed bundled defaults while preserving user customizations. Options → About has a **Reset Config** button (confirmation-gated) that wipes `%APPDATA%\Smile\nexaflow` and relaunches into first-run. Full detail in [docs/Architecture.md → Config versioning & migration](docs/Architecture.md#config-versioning--migration).
 
-## Profile / Workspace scoping
+## Workspace / WorkspaceRuntime scoping
 
-A **`Profile`** is the saved, shared config shown in the dropdown; a **`Workspace`** is a runtime grouping of one-or-more window frames running ONE profile. Getting scope wrong is the easiest way to add a bug — full detail in [docs/Architecture.md → Ownership & Lifetime](docs/Architecture.md#ownership--lifetime).
+A **`Workspace`** (`Models/Workspace.cs`) is the saved, shared config shown in the dropdown; a **`WorkspaceRuntime`** (`Models/WorkspaceRuntime.cs`) is a runtime grouping of one-or-more window frames running ONE workspace. Getting scope wrong is the easiest way to add a bug — full detail in [docs/Architecture.md → Ownership & Lifetime](docs/Architecture.md#ownership--lifetime).
 
-- **Central (one per process):** `ConfigManager`, `ProviderManager` (loads provider **assemblies/types**; owns the **ref-counted instance pool** — identical configs share one provider), `WorkspaceManager` (the `Profiles` list + live `Workspace`s), `FeatureManager` (feature **types**; builds instances per Workspace), `BackgroundActivityManager`. Global configs = every feature `IFeatureConfig`.
-- **Per-`Profile` (shared, saved):** ability→model assignments (`AiConfig`), the **AI persona** (`AiPersonaConfig`: name + system prompt, under `ai-persona`), provider configs (API keys), ribbon layout (live-synced across its workspaces via `RibbonChanged`), conversations. All under `Contexts\<name>\`.
-- **Per-`Workspace` (runtime):** `ShellServices` (windows/tabs), `AIService` (agent loop), the **acquired** provider instances. App/IPC launch = a new Workspace; tear-off / "open in new window" = same Workspace; dropdown switch reconfigures the current Workspace in place (tabs close, providers/AIService rebuilt); closing the last window disposes it.
-- The `IShellServices` / `IAIService` injected into a feature are the **active workspace's** — opening a tab or asking the AI always acts within one workspace.
-- Options & Manage-AI overlays are **modal** (block profile switching); you can't delete the active profile; there's always ≥1 profile.
+> **Naming history:** pre-2026-07 the saved half was called `Profile` (before that `WorkContext`). Those names survive ONLY as frozen on-disk/IPC compat strings — the `workcontexts` config name, the `Contexts\` folder, the `--context` flag. Never reintroduce them as type/member names.
 
-Mnemonic: **feature settings = global; persona, ability grid, provider configs, conversations, ribbon = per-profile (shared); AIService, providers, windows/tabs = per-workspace (runtime).**
+- **Central (one per process):** `ConfigManager`, `ProviderManager` (loads provider **assemblies/types**; owns the **ref-counted instance pool** — identical configs share one provider), `WorkspaceManager` (the `Workspaces` list + live `WorkspaceRuntime`s), `FeatureManager` (feature **types**; builds instances per runtime), `BackgroundActivityManager`. Global configs = every feature `IFeatureConfig` not marked `[WorkspaceScopedConfig]`.
+- **Per-`Workspace` (shared, saved):** ability→model assignments (`AiConfig`), the **AI persona** (`AiPersonaConfig`, under `ai-persona`), provider configs (API keys), ribbon layout (live-synced across its runtimes via `RibbonChanged`), conversations, default + last-session tabsets, `[WorkspaceScopedConfig]` feature configs. All under `Contexts\<name>\`.
+- **Per-`WorkspaceRuntime` (runtime):** `ShellServices` (windows/tabs), `AIService` (agent loop), the **acquired** provider instances. App/IPC launch = a new runtime; tear-off / "open in new window" = same runtime; dropdown switch reconfigures the current runtime in place (tabs close, providers/AIService rebuilt); closing the last window disposes it.
+- The `IShellServices` / `IAIService` injected into a feature are the **active runtime's** — opening a tab or asking the AI always acts within one runtime.
+- Options & Manage-AI overlays are **modal** (block switching); you can't delete a live workspace; there's always ≥1 workspace.
+
+Mnemonic: **feature settings = global (unless `[WorkspaceScopedConfig]`); persona, ability grid, provider configs, conversations, ribbon, tabsets = per-`Workspace` (saved); AIService, providers, windows/tabs = per-`WorkspaceRuntime`.**
 
 ## Tests
 
@@ -135,6 +125,8 @@ src/Nexaflow.Tests/Nexaflow.Tests.Core/bin/x64/Debug/net10.0-windows10.0.19041.0
 
 UI tests (`--filter "TestCategory=UI"`) require an interactive desktop session — skip in headless/CI. Run them manually when changes touch shell chrome, tab strip, ribbon, the AI bar, or any viewer.
 
+**Fast inner loop for feature work:** build only the feature csproj you touched (features don't depend on Core), then build + run `Nexaflow.Tests.Features` with `--filter "FullyQualifiedName~<Class>"`. Test output is under `bin/x64/<Config>/` (the solution is pinned x64 — a stray `bin/<Config>/` is a stale pre-pin leftover; delete it).
+
 **Sample files.** `TestSampleData` (in `Nexaflow.Tests.Fixtures`) lazily materialises a git-ignored, cached dataset under `<repoRoot>/test-samples/` — markdown, tabular (csv/tsv), text (varied BOMs + line endings), json, logs, and binary fixtures. Generation is idempotent: a file is rewritten only when missing or drifted, so deleting `test-samples/` forces a clean rebuild. Use these instead of hand-curated machine-local sample folders. Add a new family by implementing `ISampleSet` and registering it in `TestSampleData.Sets`. Every sample file has a per-file UI test (`SampleFileViewerTests`) asserting it opens in the expected viewer. Details + the file→viewer map in [docs/testing.md](docs/testing.md).
 
 ## Potential WPF Gotchas
@@ -149,7 +141,7 @@ A bare string assigned to ToolTip inherits the parent's TextAlignment when WPF w
 
 ## Other design considerations
 
-**Large-file reading** — there are four established strategies; pick the one whose access pattern matches your data shape before inventing a fifth. Each reader's *strategy* is deliberately feature-specific (the data structure differs). The mechanical leaves now live in `Nexaflow.IO.Common`: `EncodingDetector` (BOM/UTF-8 sniff — Tabular's detector, the canonical one) and `FileChangeWatcher` (the debounced `FileSystemWatcher` wrapper used by Logs and Text). Reuse those rather than re-rolling them — see [docs/arch_improvements.md](docs/arch_improvements.md).
+**Large-file reading** — there are four established strategies; pick the one whose access pattern matches your data shape before inventing a fifth. Each reader's *strategy* is deliberately feature-specific (the data structure differs). The mechanical leaves now live in `Nexaflow.IO.Common`: `EncodingDetector` (BOM/UTF-8 sniff — Tabular's detector, the canonical one) and `FileChangeWatcher` (the debounced `FileSystemWatcher` wrapper used by Logs and Text). Reuse those rather than re-rolling them — current architectural findings live in [docs/arch_review_2026-07.md](docs/arch_review_2026-07.md).
 
 | Strategy | Canonical reader | When |
 |----------|------------------|------|

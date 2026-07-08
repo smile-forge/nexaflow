@@ -6,7 +6,7 @@ public enum WhisperModelSize { Base, Small, Medium, LargeV3 }
 public enum WhisperLanguage  { EnglishOnly, Multilingual }
 
 /// <summary>
-/// General (non-WorkContext) voice-input settings. Registered manually in App.xaml.cs; surfaces in
+/// General (global, not workspace-scoped) voice-input settings. Registered manually in App.xaml.cs; surfaces in
 /// the Options panel as a "Voice" section via <see cref="Controls.VoiceConfigControl"/>, which adds
 /// a model download-status indicator alongside the two enum selectors.
 /// </summary>

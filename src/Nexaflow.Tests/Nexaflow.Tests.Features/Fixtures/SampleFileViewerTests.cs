@@ -22,26 +22,11 @@ namespace Nexaflow.Tests.Features.Fixtures;
 [TestCategory("UI")]
 public class SampleFileViewerTests : FileSystemUiTestBase
 {
-    /// <summary>Sub-directory → the AutomationId of the viewer its files should open in.</summary>
-    private static readonly (string SubDir, string ViewerId)[] ViewerBySet =
-    [
-        ("markdown", "MarkdownView"),
-        ("tabular",  "TabularView"),
-        ("text",     "TextView"),
-        ("json",     "JsonView"),
-        ("logs",     "LogView"),
-        ("binary",   "HexView"),
-        ("images",   "ImageView"),
-        ("model3d",  "Model3DView"),
-        ("audio",    "AudioView"),
-        ("video",    "VideoView"),
-        ("font",     "FontView"),
-    ];
-
-    /// <summary>Yields one case per generated sample file: (subDir, fileName, expectedViewerId).</summary>
+    /// <summary>Yields one case per generated sample file: (subDir, fileName, expectedViewerId).
+    /// The sub-dir → viewer map lives in <see cref="ViewerMap"/> (shared with the filemap guard).</summary>
     public static IEnumerable<object[]> SampleFiles()
     {
-        foreach (var (subDir, viewerId) in ViewerBySet)
+        foreach (var (subDir, viewerId) in ViewerMap.BySet)
             foreach (var path in TestSampleData.Files(subDir))
                 yield return [subDir, Path.GetFileName(path), viewerId];
     }

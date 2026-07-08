@@ -33,6 +33,50 @@ public sealed class ConfigManager
         Converters    = { new JsonStringEnumConverter() }
     };
 
+    // ── [Secret] properties: DPAPI at rest ────────────────────────────────
+    // String properties marked [Secret] (Features.Common or Providers.Common — matched by name, the
+    // IConfigMigration mirroring precedent) are written as "enc:<base64>" (DPAPI, current user) and
+    // decrypted on load. Legacy plaintext passes through and becomes encrypted on the next save.
+
+    private const string EncPrefix = "enc:";
+
+    private static bool IsSecret(System.Reflection.PropertyInfo pi)
+        => pi.PropertyType == typeof(string)
+           && pi.GetCustomAttributes(inherit: true).Any(a => a.GetType().Name == nameof(Nexaflow.Features.Common.SecretAttribute));
+
+    /// <summary>Serializes a config, encrypting its [Secret] string properties for disk.</summary>
+    private static string SerializeProtected(object config)
+    {
+        var node = JsonSerializer.SerializeToNode(config, config.GetType(), _opts)!.AsObject();
+        foreach (var pi in config.GetType().GetProperties().Where(IsSecret))
+        {
+            if (node[pi.Name] is not JsonValue v || v.GetValueKind() != JsonValueKind.String) continue;
+            var plain = v.GetValue<string>();
+            if (string.IsNullOrEmpty(plain) || plain.StartsWith(EncPrefix, StringComparison.Ordinal)) continue;
+            var protectedBytes = System.Security.Cryptography.ProtectedData.Protect(
+                System.Text.Encoding.UTF8.GetBytes(plain), null,
+                System.Security.Cryptography.DataProtectionScope.CurrentUser);
+            node[pi.Name] = EncPrefix + Convert.ToBase64String(protectedBytes);
+        }
+        return node.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    /// <summary>Reverses <see cref="SerializeProtected"/> for one loaded value. A value that fails to
+    /// decrypt (file copied from another user/machine) loads as empty so the required-field check
+    /// re-prompts instead of feeding garbage to a provider.</summary>
+    private static string UnprotectValue(string stored)
+    {
+        if (!stored.StartsWith(EncPrefix, StringComparison.Ordinal)) return stored;   // legacy plaintext
+        try
+        {
+            var bytes = System.Security.Cryptography.ProtectedData.Unprotect(
+                Convert.FromBase64String(stored[EncPrefix.Length..]), null,
+                System.Security.Cryptography.DataProtectionScope.CurrentUser);
+            return System.Text.Encoding.UTF8.GetString(bytes);
+        }
+        catch { return string.Empty; }
+    }
+
     private ConfigManager() { }
 
     /// <summary>
@@ -136,7 +180,7 @@ public sealed class ConfigManager
             var version = config.GetType().Assembly.GetName().Version ?? new Version(0, 0, 0, 0);
             var path    = GetPath(configName, version);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllText(path, JsonSerializer.Serialize(config, config.GetType(), _opts));
+            File.WriteAllText(path, SerializeProtected(config));
             _defaultedConfigs.Remove(configName);
             _migratedConfigs.Remove(configName);
         }
@@ -155,7 +199,7 @@ public sealed class ConfigManager
             var version = config.GetType().Assembly.GetName().Version ?? new Version(0, 0, 0, 0);
             var path    = Path.Combine(directory, configName, $"config_{version}.json");
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllText(path, JsonSerializer.Serialize(config, config.GetType(), _opts));
+            File.WriteAllText(path, SerializeProtected(config));
         }
     }
 
@@ -228,7 +272,7 @@ public sealed class ConfigManager
 
         if (!_suppressWrites)
         {
-            File.WriteAllText(exact, JsonSerializer.Serialize(config, config.GetType(), _opts));
+            File.WriteAllText(exact, SerializeProtected(config));
             foreach (var stale in Directory.GetFiles(dir, "config_*.json"))
                 if (!string.Equals(stale, exact, StringComparison.OrdinalIgnoreCase))
                     File.Delete(stale);
@@ -254,6 +298,14 @@ public sealed class ConfigManager
         foreach (var el in doc.RootElement.EnumerateObject())
         {
             if (!props.TryGetValue(el.Name, out var pi)) continue;
+
+            // [Secret] strings are stored DPAPI-encrypted ("enc:…"); legacy plaintext passes through.
+            if (el.Value.ValueKind == JsonValueKind.String && IsSecret(pi))
+            {
+                pi.SetValue(config, UnprotectValue(el.Value.GetString() ?? string.Empty));
+                continue;
+            }
+
             var value = JsonSerializer.Deserialize(el.Value.GetRawText(), pi.PropertyType, _opts);
             pi.SetValue(config, value);
         }

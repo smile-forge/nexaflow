@@ -95,6 +95,21 @@ public partial class RibbonViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Unhooks the shared <see cref="Models.Workspace.RibbonChanged"/> live-sync and the per-item
+    /// handlers. Must be called when the owning window closes: the Workspace outlives its windows,
+    /// so without this every closed window's ribbon view-model stays rooted by the event delegate
+    /// (and keeps reloading from disk on every ribbon edit).
+    /// </summary>
+    public void Detach()
+    {
+        if (_workspace is not null) _workspace.RibbonChanged -= OnWorkspaceRibbonChanged;
+        _workspace = null;
+        Items.CollectionChanged -= OnItemsCollectionChanged;
+        foreach (var item in Items)
+            item.PropertyChanged -= OnItemChanged;
+    }
+
+    /// <summary>
     /// Another window on the same workspace changed the ribbon — reload our items from disk so the
     /// edit shows live. Skipped on the window that originated the change (its items are already current).
     /// </summary>

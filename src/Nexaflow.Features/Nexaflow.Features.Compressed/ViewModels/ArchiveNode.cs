@@ -1,3 +1,4 @@
+using Nexaflow.Visuals.Common.Formatting;
 using System.Collections.Generic;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -51,12 +52,7 @@ public sealed partial class ArchiveNode : ObservableObject
 
     partial void OnIsExpandedChanged(bool value) => OnPropertyChanged(nameof(Chevron));
 
+    // Negative = "no size known" for archive entries → empty, not "0 B"; the scaling is the shared formatter's.
     internal static string FormatBytes(long bytes)
-    {
-        if (bytes < 0) return string.Empty;
-        string[] units = ["B", "KB", "MB", "GB", "TB"];
-        double v = bytes; int u = 0;
-        while (v >= 1024 && u < units.Length - 1) { v /= 1024; u++; }
-        return u == 0 ? $"{bytes} B" : $"{v:0.#} {units[u]}";
-    }
+        => bytes < 0 ? string.Empty : SizeFormatter.FormatBytes(bytes);
 }

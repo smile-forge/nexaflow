@@ -1,4 +1,3 @@
-using System.DirectoryServices.AccountManagement;
 using System.IO.Pipes;
 using System.Net.Mime;
 using System.Security.Principal;
@@ -85,38 +84,17 @@ namespace Nexaflow.Providers.Aria
             if (_pipe is not null)
                 throw new InvalidOperationException("Already connected. Dispose and recreate to reconnect.");
 
-            // Get the current Windows identity
+            // Stamp frames with the Windows account name only — a stable, non-PII identifier.
+            // (This used to be upgraded to the user's e-mail via an AccountManagement lookup;
+            // dropped: it put PII on every frame and pulled in a directory-services dependency.)
             WindowsIdentity identity = WindowsIdentity.GetCurrent();
             if (identity == null)
-            {            
+            {
                 return;
             }
-            string accountName = identity.Name; // e.g., "MicrosoftAccount\\john.doe@outlook.com"
-
-            // Extract the username part (after the backslash)
+            string accountName = identity.Name; // e.g. "DOMAIN\\jones"
             string[] parts = accountName.Split('\\');
             _windowsUserId = parts.Length > 1 ? parts[1] : parts[0];
-
-            try
-            {           
-                // Use UserPrincipal to get the display name
-                using (PrincipalContext context = new PrincipalContext(ContextType.Machine))
-                using (UserPrincipal user = UserPrincipal.FindByIdentity(context, _windowsUserId))
-                {
-                    if (user != null)
-                    {
-                        var email = user.EmailAddress;
-                        if (email != null) 
-                        {
-                            _windowsUserId = email;
-                        }
-                    }
-                }
-            }
-            catch(Exception)
-            {
-                // If any of the above fails, fall back to the original account name
-            }
 
             _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 

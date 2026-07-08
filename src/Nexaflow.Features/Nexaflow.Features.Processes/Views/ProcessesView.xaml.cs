@@ -4,12 +4,14 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Processes.ViewModels;
+using Nexaflow.Visuals.Common;
 
 namespace Nexaflow.Features.Processes.Views;
 
 public partial class ProcessesView : UserControl, IPageView
 {
     public ProcessesViewModel ViewModel { get; }
+    private WindowMinimizeWatcher? _minimizeWatcher;
 
     IPageViewModel? IPageView.ViewModel => ViewModel;
 
@@ -24,9 +26,20 @@ public partial class ProcessesView : UserControl, IPageView
         ProcList.AddHandler(ButtonBase.ClickEvent, new RoutedEventHandler(OnColumnHeaderClick));
 
         // The view's Loaded/Unloaded is the active-tab signal (the shell hosts the active page in one
-        // ContentPresenter, so an inactive tab's content leaves the visual tree).
-        Loaded   += (_, _) => ViewModel.OnActivated();
-        Unloaded += (_, _) => ViewModel.OnDeactivated();
+        // ContentPresenter, so an inactive tab's content leaves the visual tree). Minimize doesn't
+        // unload the tree, so the watcher pauses the 1 s poll while the window is minimized.
+        Loaded += (_, _) =>
+        {
+            ViewModel.OnActivated();
+            _minimizeWatcher = WindowMinimizeWatcher.Attach(this,
+                minimized => { if (minimized) ViewModel.OnDeactivated(); else ViewModel.OnActivated(); });
+        };
+        Unloaded += (_, _) =>
+        {
+            ViewModel.OnDeactivated();
+            _minimizeWatcher?.Dispose();
+            _minimizeWatcher = null;
+        };
     }
 
     private void OnColumnHeaderClick(object sender, RoutedEventArgs e)

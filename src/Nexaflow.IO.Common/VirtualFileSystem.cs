@@ -24,6 +24,16 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
     private readonly ConcurrentDictionary<string, byte> _temps = new(System.StringComparer.OrdinalIgnoreCase);
     private readonly string _tempRoot;
 
+    // LRU budget for the materialised temps: without it a long session browsing many archive entries
+    // accumulates full-size extracted copies under %TEMP% until process exit. Least-recently-used
+    // entries are evicted (temp deleted) once the total passes the cap; an evicted entry simply
+    // re-extracts on next access.
+    private const long MaxMaterializedBytes = 512L * 1024 * 1024;
+    private readonly object _lruLock = new();
+    private readonly Dictionary<string, (string Temp, long Bytes, long Stamp)> _lru = new(System.StringComparer.Ordinal);
+    private long _materializedBytes;
+    private long _lruStamp;
+
     /// <summary>Internal so tests can build an isolated instance with their own handlers without
     /// polluting the process-wide <see cref="Instance"/>.</summary>
     internal VirtualFileSystem()
@@ -365,7 +375,11 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
     {
         var norm = Normalize(entryPath);
         var key = CacheKey(realContainer, norm);
-        if (_materialized.TryGetValue(key, out var cached) && File.Exists(cached)) return cached;
+        if (_materialized.TryGetValue(key, out var cached) && File.Exists(cached))
+        {
+            TouchLru(key);
+            return cached;
+        }
 
         using var session = OpenSession(new Resolved(realContainer, containerFileName, string.Empty));
         var entry = session.Entries.FirstOrDefault(e => !e.IsDirectory && PathEquals(e.Name, norm))
@@ -378,7 +392,45 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
 
         _temps[temp] = 0;
         _materialized[key] = temp;
+        RecordMaterialized(key, temp);
         return temp;
+    }
+
+    private void TouchLru(string key)
+    {
+        lock (_lruLock)
+            if (_lru.TryGetValue(key, out var e))
+                _lru[key] = e with { Stamp = ++_lruStamp };
+    }
+
+    private void RecordMaterialized(string key, string temp)
+    {
+        long bytes = 0;
+        try { bytes = new FileInfo(temp).Length; } catch { /* size unknown → counts as 0 */ }
+
+        lock (_lruLock)
+        {
+            if (_lru.Remove(key, out var old)) _materializedBytes -= old.Bytes;   // re-extract of the same key
+            _lru[key] = (temp, bytes, ++_lruStamp);
+            _materializedBytes += bytes;
+
+            // Evict least-recently-used until under budget — never the entry just added. A victim
+            // whose file is still open just fails its delete (best effort) and re-extracts later.
+            while (_materializedBytes > MaxMaterializedBytes && _lru.Count > 1)
+            {
+                var victim = _lru.Where(kv => kv.Key != key).OrderBy(kv => kv.Value.Stamp).First();
+                _lru.Remove(victim.Key);
+                _materializedBytes -= victim.Value.Bytes;
+                _materialized.TryRemove(victim.Key, out _);
+                TryDeleteTemp(victim.Value.Temp);
+            }
+        }
+    }
+
+    private void ForgetLru(string key)
+    {
+        lock (_lruLock)
+            if (_lru.Remove(key, out var e)) _materializedBytes -= e.Bytes;
     }
 
     private IArchiveSession OpenSession(Resolved resolved)
@@ -666,7 +718,11 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
     {
         var prefix = realContainer.ToLowerInvariant() + "|";
         foreach (var k in _materialized.Keys.Where(k => k.StartsWith(prefix, System.StringComparison.Ordinal)).ToList())
-            if (_materialized.TryRemove(k, out var temp)) TryDeleteTemp(temp);
+            if (_materialized.TryRemove(k, out var temp))
+            {
+                ForgetLru(k);
+                TryDeleteTemp(temp);
+            }
     }
 
     private void TryDeleteTemp(string temp)

@@ -95,30 +95,35 @@ public abstract class UITestBase
     /// Tries the RID-qualified layout (win-x64 subdir) first, then falls back to the
     /// flat layout. Both projects must use the same configuration (Debug/Release) and TFM.
     /// </summary>
-    private static string FindAppExe()
+    internal static string FindAppExe()
     {
-        var testDir = new DirectoryInfo(AppContext.BaseDirectory); // net10.0-windows
-        var tfm     = testDir.Name;
-        var config  = testDir.Parent!.Name; // Debug or Release
-        // Navigate up: tfm → config → bin → Nexaflow.Tests.Core → Nexaflow.Tests → src
-        var srcDir  = testDir.Parent!   // config
-                             .Parent!   // bin
-                             .Parent!   // Nexaflow.Tests.Core
-                             .Parent!   // Nexaflow.Tests
-                             .Parent!   // src
-                             .FullName;
+        // Walk up to the folder that holds Nexaflow.Core (the src dir), independent of how deep the test
+        // binary's own output path is (e.g. bin\x64\Debug\<tfm> vs bin\Debug\<tfm>). Mirrors the
+        // Tests.Features harness — a fixed-depth parent walk broke when the x64 pin added a level.
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "Nexaflow.Core")))
+            dir = dir.Parent;
+        if (dir is null)
+            throw new FileNotFoundException(
+                $"Could not locate the src dir containing 'Nexaflow.Core' above '{AppContext.BaseDirectory}'.");
 
-        var coreBase = Path.Combine(srcDir, "Nexaflow.Core", "bin", config, tfm);
+        // Match this test run's configuration (Debug/Release) — the folder just above the TFM in our path.
+        var config = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
+        var coreBin = Path.Combine(dir.FullName, "Nexaflow.Core", "bin");
+        if (!Directory.Exists(coreBin))
+            throw new FileNotFoundException($"Core output not found at '{coreBin}'. Build the solution first.");
 
-        // With RID subdir (self-contained / single-file publish produces this layout)
-        var withRid = Path.Combine(coreBase, "win-x64", "Nexaflow.exe");
-        if (File.Exists(withRid)) return withRid;
+        // The app is Nexaflow.exe under …\bin\[<Platform>\]<Config>\<tfm>\win-x64\. Prefer the one matching
+        // our config; take the most recently built to avoid a stale sibling.
+        var exe = Directory.EnumerateFiles(coreBin, "Nexaflow.exe", SearchOption.AllDirectories)
+            .Where(p => p.Split(Path.DirectorySeparatorChar).Contains(config))
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .FirstOrDefault()
+            ?? Directory.EnumerateFiles(coreBin, "Nexaflow.exe", SearchOption.AllDirectories)
+                .OrderByDescending(File.GetLastWriteTimeUtc)
+                .FirstOrDefault();
 
-        // Flat layout (framework-dependent)
-        var flat = Path.Combine(coreBase, "Nexaflow.exe");
-        if (File.Exists(flat)) return flat;
-
-        throw new FileNotFoundException(
-            $"Could not locate Nexaflow.exe. Tried:\n  {withRid}\n  {flat}");
+        return exe ?? throw new FileNotFoundException(
+            $"Could not locate Nexaflow.exe under '{coreBin}'. Build the solution first.");
     }
 }

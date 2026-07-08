@@ -132,7 +132,16 @@ public class SetupWizardTests
         var defaultDir = Path.Combine(_configDir, "Contexts", "Default");
 
         var claude = ReadConfig(defaultDir, "claude");
-        Assert.AreEqual(apiKey,  claude.GetProperty("ApiKey").GetString(),  "Claude ApiKey not persisted.");
+        // The ApiKey is [Secret]: on disk it must be DPAPI-encrypted ("enc:…"), never plaintext —
+        // and must decrypt back to what the wizard collected (same user, so we can verify here).
+        var storedKey = claude.GetProperty("ApiKey").GetString()!;
+        StringAssert.StartsWith(storedKey, "enc:", "Claude ApiKey must be encrypted at rest.");
+        Assert.IsFalse(storedKey.Contains(apiKey), "Claude ApiKey must not be plaintext on disk.");
+        var decrypted = System.Text.Encoding.UTF8.GetString(
+            System.Security.Cryptography.ProtectedData.Unprotect(
+                Convert.FromBase64String(storedKey["enc:".Length..]), null,
+                System.Security.Cryptography.DataProtectionScope.CurrentUser));
+        Assert.AreEqual(apiKey, decrypted, "Claude ApiKey did not round-trip through DPAPI.");
         Assert.AreEqual(baseUrl, claude.GetProperty("BaseUrl").GetString(), "Claude BaseUrl not persisted.");
 
         var ai = ReadConfig(defaultDir, "ai-abilities");
@@ -229,20 +238,7 @@ public class SetupWizardTests
         return doc.RootElement.Clone();
     }
 
-    /// <summary>Resolves Nexaflow.exe from the test binary's output dir (RID-qualified, else flat).</summary>
-    private static string FindAppExe()
-    {
-        var testDir = new DirectoryInfo(AppContext.BaseDirectory);   // net10.0-windows
-        var tfm     = testDir.Name;
-        var config  = testDir.Parent!.Name;                          // Debug | Release
-        var srcDir  = testDir.Parent!.Parent!.Parent!.Parent!.Parent!.FullName;
-        var coreBase = Path.Combine(srcDir, "Nexaflow.Core", "bin", config, tfm);
-
-        var withRid = Path.Combine(coreBase, "win-x64", "Nexaflow.exe");
-        if (File.Exists(withRid)) return withRid;
-        var flat = Path.Combine(coreBase, "Nexaflow.exe");
-        if (File.Exists(flat)) return flat;
-
-        throw new FileNotFoundException($"Could not locate Nexaflow.exe. Tried:\n  {withRid}\n  {flat}");
-    }
+    /// <summary>Resolves Nexaflow.exe via the shared harness locator (layout-independent walk-up —
+    /// this class had its own fixed-depth copy that broke when the x64 pin added a path level).</summary>
+    private static string FindAppExe() => Infrastructure.UITestBase.FindAppExe();
 }

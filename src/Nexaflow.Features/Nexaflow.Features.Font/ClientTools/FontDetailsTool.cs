@@ -32,7 +32,7 @@ public sealed class FontDetailsTool(FontViewModel vm) : IClientTool
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        var reference = FontToolArgs.GetString(arguments, "font");
+        var reference = ToolArgs.Str(arguments, "font");
         var item = vm.ResolveFont(reference);
         if (item is null)
             return Task.FromResult(ToolResult.Error(
