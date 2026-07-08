@@ -37,9 +37,9 @@ Priority bands: **P1** = do first (bugs, actively-misleading docs, lock-in-now g
 | C2 | ~30 tool classes duplicate 5-member scaffolding; SystemInfo invented a local base | ✅ Done 2026-07-08 — `ClientToolBase`; SystemInfo migrated, rest on touch | AI-Ready | M | P2 |
 | E1 | Modal overlay scaffold copy-pasted ~15× across 6 features + VM confirmation state | ✅ Primitive shipped 2026-07-08 (`ConfirmationRequest` + `ConfirmationDialog` in Visuals.Common); ProductManager migrated, rest on touch | Maint | M | P2 |
 | G1 | Image album eagerly decodes every thumbnail, non-virtualized | ◐ Mitigated 2026-07-08 (batched marshalling + 1024-thumb cap); UI virtualization still open | Perf | M | P2 |
-| F3 | ~90 lines identical stream/catch/activity wrapper ×4 providers; no retry/timeout/429 anywhere | Shared helper + resilience | Product | M | P2 |
-| F5 | Vision/context-window/model-list hardcoded per **class**, not per model | Per-model capability table | Product | M | P2 |
-| F6 | API keys stored plaintext JSON in %AppData% | DPAPI via `[Secret]` seam | Product | M | P2 |
+| F3 | ~90 lines identical stream/catch/activity wrapper ×4 providers; no retry/timeout/429 anywhere | ✅ Done 2026-07-08 — `LlmStreamRunner` (+ cached SDK clients, `LastModelListError`) | Product | M | P2 |
+| F5 | Vision/context-window/model-list hardcoded per **class**, not per model | ✅ Done 2026-07-08 — model-bound tables/heuristics; Gemini /models metadata; Claude live list + `MaxOutputTokens` | Product | M | P2 |
+| F6 | API keys stored plaintext JSON in %AppData% | ✅ Done 2026-07-08 — `[Secret]` → DPAPI at rest, legacy plaintext migrates | Product | M | P2 |
 | D1 | `ShellViewModel` (1,545 lines): AI-input cluster + overlay hosts extractable | ◐ `OverlayCoordinator` extracted 2026-07-08 (facade keeps XAML bindings); `AiInputRouter` still open | AI-maint | M | P2 |
 | D2 | `ShellServices` (958 lines, ~13 concerns) — undocumented second god object | Split 3 leaf helpers | AI-maint | M | P2 |
 | H1 | "AI Ready" concern: 317 open links; no recipe for making a page AI-ready | Recipe doc + C2 leverage | AI-Ready | M | P2 |
@@ -49,7 +49,7 @@ Priority bands: **P1** = do first (bugs, actively-misleading docs, lock-in-now g
 | E5 | 5 process-global mutable registries in WindowsFileSystem | Scope or sanction | Maint | M | P3 |
 | E6 | `FileSystemViewModel` 75 KB; Json/Product VMs have clean split lines | Split | AI-maint | M–L | P3 |
 | C3–C6 | Tool merger dup, arg-reader gap, tool naming, `IShellServices` peel, quiesce wiring | ◐ C4 done 2026-07-08 (`*_file` names, `ToolArgs.IntOrNull`, Registry wrappers dropped — UI-context guarantee verified in `ExecuteBatchAsync`); C3/C5/C6 open | Maint | S–M | P3 |
-| F4 | Provider contract: no streaming surface, no native tool-calling, no usage metadata | Evolve contract | Product | M | P3 |
+| F4 | Provider contract: no streaming surface, no native tool-calling, no usage metadata | ✅ Documented as deliberate 2026-07-08 (Architecture.md → Providers); additive escape hatches named | Product | M | P3 |
 | G3–G8 | Minimize-blind timers, VFS temp growth, chat-list virtualization, eager conversations, startup reads, hex paint churn | ◐ G3 + G4 done 2026-07-08 (`WindowMinimizeWatcher`; VFS 512 MB LRU); G5–G8 open | Perf | S–M | P3 |
 | D3 | RibbonEditor: 749-line procedural code-behind | ViewModel + XAML | Maint | L | P3 |
 
