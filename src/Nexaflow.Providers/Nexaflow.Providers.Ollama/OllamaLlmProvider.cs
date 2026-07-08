@@ -76,6 +76,12 @@ public sealed class OllamaLlmProvider : ILlmProvider
             var text = sb.ToString();
             return string.IsNullOrEmpty(text) ? null : new LlmResponse(text);
         }
+        catch (OperationCanceledException)
+        {
+            // Cooperative cancellation is a clean stop, not a provider failure — propagate unwrapped.
+            activity.Fail("canceled");
+            throw;
+        }
         catch (Exception ex)
         {
             activity.Fail(ex.Message);

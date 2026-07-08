@@ -58,10 +58,10 @@ public sealed class GeminiLlmProvider : ILlmProvider
         try
         {
             var client = new Client(apiKey: _config.ApiKey);
-            var pager  = await client.Models.ListAsync();
+            var pager  = await client.Models.ListAsync(cancellationToken: ct);
             var names  = new List<string>();
 
-            await foreach (var m in pager)
+            await foreach (var m in pager.WithCancellation(ct))
             {
                 if (m.Name is null || !m.Name.Contains("gemini", StringComparison.OrdinalIgnoreCase))
                     continue;
@@ -99,7 +99,7 @@ public sealed class GeminiLlmProvider : ILlmProvider
 
             var sb = new StringBuilder();
             await foreach (var chunk in client.Models.GenerateContentStreamAsync(
-                               model: _model, contents: contents, config: config))
+                               model: _model, contents: contents, config: config, cancellationToken: ct))
             {
                 var text = chunk.Text;
                 if (text is not null)
@@ -109,6 +109,12 @@ public sealed class GeminiLlmProvider : ILlmProvider
             activity.Complete();
             var result = sb.ToString();
             return string.IsNullOrEmpty(result) ? null : new LlmResponse(result);
+        }
+        catch (OperationCanceledException)
+        {
+            // Cooperative cancellation is a clean stop, not a provider failure — propagate unwrapped.
+            activity.Fail("canceled");
+            throw;
         }
         catch (Exception ex)
         {
