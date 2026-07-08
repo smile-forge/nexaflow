@@ -13,12 +13,18 @@ public sealed class OllamaLlmProvider : ILlmProvider
     public const  string ProviderName = "Ollama";
     public string Name => ProviderName;
 
+    /// <summary>Vision is model-bound (llava/moondream/…-vision variants accept images).</summary>
+    public bool SupportsImages => ModelSupportsVision(_model);
+
     private readonly OllamaConfig                _config;
     private readonly IBackgroundActivityManager  _activityManager;
     private readonly string                      _model;
+    private OllamaApiClient?                     _client;
 
     /// <summary>Context window (tokens) for the bound model, fetched on warm-up via /api/show.</summary>
     private int? _contextLength;
+
+    public string? LastModelListError { get; private set; }
 
     public OllamaLlmProvider(IBackgroundActivityManager activityManager, OllamaConfig config, ProviderModel model)
     {
@@ -27,11 +33,41 @@ public sealed class OllamaLlmProvider : ILlmProvider
         _model           = model.Model;
     }
 
+    // The pooled instance is long-lived with a fixed config payload — build the SDK client once.
+    private OllamaApiClient Client => _client ??= new OllamaApiClient(new Uri(_config.Url));
+
     // ── ILlmProvider ───────────────────────────────────────────────────────
 
     public Task<LlmResponse?> CompleteAsync(
         IReadOnlyList<LlmMessage> messages,
         CancellationToken         ct = default)
+    {
+        var msgList = BuildMessages(messages);
+        var request = new ChatRequest
+        {
+            Model     = _model,
+            Messages  = msgList,
+            KeepAlive = _config.KeepAliveValue,
+            // Thinking mode == --think; we never append Message.Thinking, so it's --hidethinking too.
+            Think     = _config.ThinkingMode ? true : null
+        };
+
+        return LlmStreamRunner.RunAsync(_activityManager, $"Ollama ({_model})…", ProviderName,
+            ct => Deltas(request, ct), ct);
+    }
+
+    private async IAsyncEnumerable<string?> Deltas(
+        ChatRequest request,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        await foreach (var chunk in Client.ChatAsync(request, ct))
+            yield return chunk?.Message?.Content;
+    }
+
+    /// <summary>Maps the neutral message list to Ollama chat messages (system inline; attachments
+    /// listed as paths — image bytes go via vision-capable models only when the host allows).
+    /// Internal + static so the mapping is unit-testable.</summary>
+    internal static List<Message> BuildMessages(IReadOnlyList<LlmMessage> messages)
     {
         // Ollama's API accepts system messages inline in the messages array
         var msgList = new List<Message>();
@@ -47,61 +83,33 @@ public sealed class OllamaLlmProvider : ILlmProvider
 
             msgList.Add(new Message { Role = role, Content = content });
         }
-
-        return SendAsync(msgList, ct);
+        return msgList;
     }
 
-    // ── Internal ───────────────────────────────────────────────────────────
-
-    private async Task<LlmResponse?> SendAsync(List<Message> messages, CancellationToken ct)
+    /// <summary>Name heuristic for locally-hosted vision models.</summary>
+    internal static bool ModelSupportsVision(string model)
     {
-        var activity = _activityManager.StartActivity($"Ollama ({_model})…");
-        try
-        {
-            var client  = new OllamaApiClient(new Uri(_config.Url));
-            var request = new ChatRequest
-            {
-                Model     = _model,
-                Messages  = messages,
-                KeepAlive = _config.KeepAliveValue,
-                // Thinking mode == --think; we never append Message.Thinking below, so it's --hidethinking too.
-                Think     = _config.ThinkingMode ? true : null
-            };
-
-            var sb = new StringBuilder();
-            await foreach (var chunk in client.ChatAsync(request, ct))
-                sb.Append(chunk?.Message?.Content ?? "");
-
-            activity.Complete();
-            var text = sb.ToString();
-            return string.IsNullOrEmpty(text) ? null : new LlmResponse(text);
-        }
-        catch (OperationCanceledException)
-        {
-            // Cooperative cancellation is a clean stop, not a provider failure — propagate unwrapped.
-            activity.Fail("canceled");
-            throw;
-        }
-        catch (Exception ex)
-        {
-            activity.Fail(ex.Message);
-            throw new LlmProviderException($"Ollama request failed: {ex.Message}", ex);
-        }
+        if (string.IsNullOrWhiteSpace(model)) return false;
+        string[] vision = ["llava", "bakllava", "moondream", "minicpm-v", "vision", "qwen2-vl", "qwen2.5vl"];
+        foreach (var v in vision)
+            if (model.Contains(v, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
     }
 
     public async Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
     {
         try
         {
-            var client = new OllamaApiClient(new Uri(_config.Url));
-            var models  = await client.ListLocalModelsAsync(ct);
+            var models = await Client.ListLocalModelsAsync(ct);
+            LastModelListError = null;
             return models?.Select(m => m.Name ?? "")
                           .Where(n => !string.IsNullOrEmpty(n))
                           .ToList()
                    ?? [];
         }
-        catch
+        catch (Exception ex)
         {
+            LastModelListError = ex.Message;
             return [];
         }
     }
@@ -125,14 +133,13 @@ public sealed class OllamaLlmProvider : ILlmProvider
 
         try
         {
-            var client  = new OllamaApiClient(new Uri(_config.Url));
             var request = new GenerateRequest
             {
                 Model     = _model,
                 Prompt    = string.Empty,
                 KeepAlive = _config.KeepAliveValue
             };
-            await foreach (var _ in client.GenerateAsync(request, ct)) { /* drain to completion */ }
+            await foreach (var _ in Client.GenerateAsync(request, ct)) { /* drain to completion */ }
         }
         catch { /* Ollama not running / model unavailable — best-effort */ }
     }
@@ -147,14 +154,13 @@ public sealed class OllamaLlmProvider : ILlmProvider
 
         try
         {
-            var client  = new OllamaApiClient(new Uri(_config.Url));
             var request = new GenerateRequest
             {
                 Model     = _model,
                 Prompt    = string.Empty,
                 KeepAlive = "0"
             };
-            await foreach (var _ in client.GenerateAsync(request, ct)) { /* drain to completion */ }
+            await foreach (var _ in Client.GenerateAsync(request, ct)) { /* drain to completion */ }
         }
         catch { /* best-effort */ }
     }
@@ -164,8 +170,7 @@ public sealed class OllamaLlmProvider : ILlmProvider
     {
         try
         {
-            var client = new OllamaApiClient(new Uri(_config.Url));
-            var show   = await client.ShowModelAsync(new ShowModelRequest { Model = _model }, ct);
+            var show   = await Client.ShowModelAsync(new ShowModelRequest { Model = _model }, ct);
             return ExtractContextLength(show);
         }
         catch { return 0; }
