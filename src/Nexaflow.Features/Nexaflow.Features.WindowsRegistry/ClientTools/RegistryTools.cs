@@ -59,7 +59,8 @@ internal sealed class RegistryGetValuesTool(RegistryViewModel vm) : IClientTool
         var values = vm.ReadValues(subPath);
 
         // Move the view to the inspected key so the user sees what the model is reading.
-        await vm.Shell.RunOnUiAsync(() => { vm.NavigateTo(label); return Task.FromResult(true); });
+        // (The harness invokes tools on the UI sync context — IClientTool.InvokeAsync doc — so no marshalling.)
+        vm.NavigateTo(label);
 
         var sb = new StringBuilder($"Values of '{label}':\n");
         foreach (var v in values)
@@ -132,12 +133,10 @@ internal static class RegistryWriteHelper
         try { wire = RegistryValueCodec.ParseUserInput(rawValue, kind); }
         catch (Exception ex) { return ToolResult.Error($"Invalid {RegistryValueCodec.TypeLabel(kind)} data: {ex.Message}"); }
 
-        var ok = await vm.Shell.RunOnUiAsync(async () =>
-        {
-            var written = await vm.WriteValueAsync(name, kind, wire);
-            if (written) vm.Refresh();
-            return written;
-        });
+        // The harness invokes tools on the UI sync context (IClientTool.InvokeAsync doc) and the
+        // awaits above resume on it, so the write + refresh need no explicit marshalling.
+        var ok = await vm.WriteValueAsync(name, kind, wire);
+        if (ok) vm.Refresh();
 
         var label = name.Length == 0 ? "(Default)" : name;
         return ok

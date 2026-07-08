@@ -34,6 +34,11 @@ public static class ToolArgs
 
     /// <summary>Reads an integer (JSON number or numeric string); <paramref name="fallback"/> if absent/invalid.</summary>
     public static int Int(JsonObject args, string key, int fallback)
+        => IntOrNull(args, key) ?? fallback;
+
+    /// <summary>Reads an integer (JSON number or numeric string); null if absent/invalid — for tools
+    /// where "not given" means something different from any default.</summary>
+    public static int? IntOrNull(JsonObject args, string key)
     {
         if (args.TryGetPropertyValue(key, out var n) && n is JsonValue v)
         {
@@ -41,6 +46,6 @@ public static class ToolArgs
             if (v.TryGetValue<double>(out var d)) return (int)d;
             if (v.TryGetValue<string>(out var s) && int.TryParse(s, out var p)) return p;
         }
-        return fallback;
+        return null;
     }
 }

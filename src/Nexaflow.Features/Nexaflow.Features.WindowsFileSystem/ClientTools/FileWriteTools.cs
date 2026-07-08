@@ -81,7 +81,7 @@ public sealed class CreateDirectoryTool(FileSystemViewModel vm) : IClientTool
 /// <summary>Copies a file or folder, like Explorer's Copy/Paste.</summary>
 public sealed class CopyTool(FileSystemViewModel vm) : IClientTool
 {
-    public string Name => "copy";
+    public string Name => "copy_file";
     public string Description => "Copy a file or folder to a destination.";
     public IReadOnlyList<ClientToolParameter> Parameters =>
     [
@@ -125,7 +125,7 @@ public sealed class CopyTool(FileSystemViewModel vm) : IClientTool
 /// <summary>Moves a file or folder.</summary>
 public sealed class MoveTool(FileSystemViewModel vm) : IClientTool
 {
-    public string Name => "move";
+    public string Name => "move_file";
     public string Description => "Move a file or folder to a destination.";
     public IReadOnlyList<ClientToolParameter> Parameters =>
     [
@@ -165,7 +165,7 @@ public sealed class MoveTool(FileSystemViewModel vm) : IClientTool
 /// <summary>Renames a file or folder in place.</summary>
 public sealed class RenameTool(FileSystemViewModel vm) : IClientTool
 {
-    public string Name => "rename";
+    public string Name => "rename_file";
     public string Description => "Rename a file or folder in the current directory.";
     public IReadOnlyList<ClientToolParameter> Parameters =>
     [
@@ -212,7 +212,7 @@ public sealed class RenameTool(FileSystemViewModel vm) : IClientTool
 /// <summary>Sends a file or folder to the Recycle Bin (soft delete only).</summary>
 public sealed class DeleteTool(FileSystemViewModel vm) : IClientTool
 {
-    public string Name => "delete";
+    public string Name => "delete_file";
     public string Description => "Send a file or folder to the Recycle Bin.";
     public IReadOnlyList<ClientToolParameter> Parameters =>
     [
