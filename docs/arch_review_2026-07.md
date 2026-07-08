@@ -27,12 +27,12 @@ Priority bands: **P1** = do first (bugs, actively-misleading docs, lock-in-now g
 | A3 | testing.md coverage table is false (4 areas claimed untested now have tests) | ✅ Done 2026-07-08 — replaced with product-tree redirect | AI-maint | S | P1 |
 | A4 | 5 projects undocumented (Elevation ×2, IO.Terminal, Syntax, Visuals.Terminal); IO.Common understated | Document; add elevation hard rule | AI-maint | M | P1 |
 | A5 | Architecture.md SoC list ~60% stale | Refresh | AI-maint | S | P1 |
-| B1 | Hard rules have **zero mechanical enforcement** (they hold today — lock in) | Architecture tests | AI-maint | S | P1 |
-| B2 | New-feature checklist has 5 **silent** failure modes | Completeness tests | AI-maint | M | P1 |
-| B3 | `Tests.Providers` never runs in CI | Add to ci.yml | AI-maint | S | P1 |
+| B1 | Hard rules have **zero mechanical enforcement** (they hold today — lock in) | ✅ Done 2026-07-08 — architecture tests | AI-maint | S | P1 |
+| B2 | New-feature checklist has 5 **silent** failure modes | ✅ Done 2026-07-08 — completeness tests (3 of 5) | AI-maint | M | P1 |
+| B3 | `Tests.Providers` never runs in CI | ✅ Done 2026-07-08 | AI-maint | S | P1 |
 | F1 | **Bug:** cancellation rewrapped as error ×4 providers; Gemini ignores `ct` | ✅ Fixed 2026-07-08 | Product | S | P1 |
-| F2 | **Leak:** `IAsyncDisposable`-only provider (Aria) never disposed by pool | Fix | Perf | S | P1 |
-| G2 | **Leak:** `RibbonViewModel` leaks per closed window | Add `Detach()` | Perf | S | P1 |
+| F2 | **Leak:** `IAsyncDisposable`-only provider (Aria) never disposed by pool | ✅ Fixed 2026-07-08 | Perf | S | P1 |
+| G2 | **Leak:** `RibbonViewModel` leaks per closed window | ✅ Fixed 2026-07-08 | Perf | S | P1 |
 | C1 | 2026-05 blessed moves still not executed (`ClientBlockParser`/`ParsedAssistantTurn`/`OpenPageRequest` → Core) | Do it | Maint | S | P2 |
 | C2 | ~30 tool classes duplicate 5-member scaffolding; SystemInfo invented a local base | `ClientToolBase` in Common | AI-Ready | M | P2 |
 | E1 | Modal overlay scaffold copy-pasted ~15× across 6 features + VM confirmation state | Shared overlay primitive | Maint | M | P2 |
@@ -88,7 +88,9 @@ Architecture.md's six SoC findings vs reality: #1 ShellViewModel — three of th
 
 ## B. Mechanical enforcement — lock the rules in while they hold (P1)
 
-Verified: **no** `Directory.Build.props`, no `.editorconfig`, no analyzers, no banned-API list, no architecture tests anywhere. Every hard rule is prose. The rules currently hold — which is exactly when enforcement is cheap. For an agent-authored repo this is the highest-leverage structural change in this review: the failure mode isn't malice, it's a plausible wrong turn (`using Nexaflow.Core;`, a `<ProjectReference>` to Core, an `Application.Current.Dispatcher` because that's the WPF idiom the model knows best) — none of which produce a compile error today.
+> **✅ Actioned 2026-07-08.** B1: `Tests.Features/Architecture/ArchitectureRulesTests` (no feature→Core, no feature→feature, dispatcher-singleton source scan) + `Tests.Providers/ArchitectureRulesTests` (no provider→Core / provider→provider). B2: `FeatureTouchPointTests` (every feature dir referenced by Core.csproj **and** Tests.Features.csproj; every `ViewerMap` sample extension mapped in `default-filemap.json` — `ViewerBySet` was extracted to the shared `Fixtures/ViewerMap` so the UI smoke and the guard consume one map). B3: `Tests.Providers` now builds and runs in ci.yml (per-project TFM map). Still open from B2's list: a test tying every viewer `StaticPageKind` to a filemap entry (needs a "this page kind is a file viewer" marker that doesn't exist yet) and B4's colour analyzer. A `Directory.Build.props` now exists (x64 pinning, PR #123) — a natural home for future analyzer wiring.
+
+At review time: **no** `Directory.Build.props`, no `.editorconfig`, no analyzers, no banned-API list, no architecture tests anywhere. Every hard rule was prose. The rules held — which is exactly when enforcement is cheap. For an agent-authored repo this is the highest-leverage structural change in this review: the failure mode isn't malice, it's a plausible wrong turn (`using Nexaflow.Core;`, a `<ProjectReference>` to Core, an `Application.Current.Dispatcher` because that's the WPF idiom the model knows best) — none of which produced a compile error.
 
 ### B1. Architecture tests (S)
 
@@ -317,9 +319,9 @@ Beyond fixing the false table (§A3): add a reflection test that asserts every `
 
 Cheapest, highest-confidence first — same discipline as the last review:
 
-1. **Bug/leak trio** — F1 cancellation ×4 + Gemini `ct` ✅ done; remaining: F2 Aria dispose, G2 ribbon leak. Small, mechanical, user-visible wins. *(S)*
+1. **Bug/leak trio** ✅ done — F1 cancellation ×4 + Gemini `ct`, F2 Aria dispose (+ discovery-lock fix), G2 ribbon leak. *(S)*
 2. **Docs truth pass** (A1–A5): Workspace vocabulary rewrite, dead instructions, coverage table, missing projects/elevation, SoC refresh. One session, ends every "confidently wrong doc" hazard. *(M)*
-3. **Enforcement** (B1–B3): architecture tests + touch-point completeness tests + Providers in CI. Locks in the currently-clean state. *(S–M)*
+3. **Enforcement** (B1–B3) ✅ done: architecture tests + touch-point completeness tests + Providers in CI. *(S–M)*
 4. **Contract moves + tool seam** (C1, C2, C4): the blessed relocations, `ClientToolBase`, tool polish. *(S–M)*
 5. **Overlay primitive + converter hoists** (E1, E2, E3): the biggest duplication kills; E1 also unblocks the E6 VM splits. *(M)*
 6. **Provider consolidation** (F3, F5, F6): shared stream helper + resilience, per-model capabilities, DPAPI secrets. *(M)*
