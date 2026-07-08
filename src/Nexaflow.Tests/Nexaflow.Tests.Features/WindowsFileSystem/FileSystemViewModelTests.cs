@@ -227,6 +227,23 @@ public class FileSystemViewModelTests
         Assert.AreEqual(string.Empty, vm.CurrentPath);
     }
 
+    // ── NearestExistingAncestor (re-home a tab after its folder is deleted) ─────
+
+    [TestMethod]
+    public void NearestExistingAncestor_LeafGone_ReturnsDeepestExistingParent()
+    {
+        var root     = Path.Combine(Path.GetTempPath(), "nexanav_" + Guid.NewGuid().ToString("N"));
+        var existing = Path.Combine(root, "a", "b");
+        Directory.CreateDirectory(existing);
+        try
+        {
+            // Several levels are gone (the worktree + anything under it) — walk up to the surviving one.
+            var gone = Path.Combine(existing, "gone", "deeper");
+            Assert.AreEqual(existing, FileSystemViewModel.NearestExistingAncestor(gone));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
     // ── OnSelectionChanged ────────────────────────────────────────────────────
 
     [TestMethod]

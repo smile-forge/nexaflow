@@ -11,8 +11,10 @@ namespace Nexaflow.Features.Dotnet.Services;
 /// ticker. (This no longer locks the AI input bar: that coupling was removed in the shell.)
 /// Results land in <see cref="Updates"/> for the queueing view to read in its completion callback;
 /// <see cref="Target"/> lets the caller discard a stale result if the selection has since changed.
+/// The check runs from a neutral working directory (see <see cref="DotnetCli.RunListOutdatedAsync"/>), so it
+/// never locks the target's folder — cancelling it is enough; there's nothing to force-kill.
 /// </summary>
-public sealed class NugetUpdateCheckTask(DotnetTarget target, string workingDir) : IBackgroundTask
+public sealed class NugetUpdateCheckTask(DotnetTarget target) : IBackgroundTask
 {
     public DotnetTarget Target => target;
 
@@ -25,7 +27,7 @@ public sealed class NugetUpdateCheckTask(DotnetTarget target, string workingDir)
 
     public async Task RunAsync(CancellationToken ct)
     {
-        var result = await NugetUpdateChecker.CheckAsync(target, workingDir, ct);
+        var result = await NugetUpdateChecker.CheckAsync(target, ct);
         Checked = result.Checked;
         Updates = result.Updates;
     }

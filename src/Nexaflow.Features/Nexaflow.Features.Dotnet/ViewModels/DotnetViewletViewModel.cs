@@ -197,7 +197,7 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
     public async Task<IReadOnlyList<NugetUpdateChecker.PackageUpdate>> CheckOutdatedAsync(CancellationToken ct)
     {
         if (SelectedTarget is not { } target) return [];
-        var result = await NugetUpdateChecker.CheckAsync(target, _folderPath, ct);
+        var result = await NugetUpdateChecker.CheckAsync(target, ct);
         if (result.Checked)
             NugetCheckCache.Store(target.Path, result.Updates);
         return result.Updates;
@@ -243,7 +243,7 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
         try { await Task.Delay(1500, token); }
         catch (OperationCanceledException) { return; }
 
-        var task = new NugetUpdateCheckTask(target, _folderPath);
+        var task = new NugetUpdateCheckTask(target);
         _shell.QueueBackgroundTask(task, onComplete: _ =>
         {
             // onComplete runs on the UI thread; ignore a result whose target is no longer selected.
@@ -260,6 +260,18 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
 
     /// <summary>Aborts any in-flight NuGet check; called when the viewlet's view unloads (folder change).</summary>
     public void CancelPending() => _nugetCts?.Cancel();
+
+    /// <summary>
+    /// Releases this viewlet's hold on the folder before it's mutated/deleted. Because the NuGet check runs
+    /// from a neutral working directory (see <see cref="DotnetCli.RunListOutdatedAsync"/>) it never locks the
+    /// folder, so this just <em>cancels</em> the pending check — no process to force-kill, so no UI stall and
+    /// no first-chance-exception flood. Any already-running <c>dotnet</c> is left to exit on its own.
+    /// </summary>
+    public Task QuiesceAsync(CancellationToken ct)
+    {
+        _nugetCts?.Cancel();
+        return Task.CompletedTask;
+    }
 
     private void ApplyUpdates(IReadOnlyList<NugetUpdateChecker.PackageUpdate> updates)
     {

@@ -379,6 +379,68 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
         }
     }
 
+    /// <summary>Cancels any in-flight directory enumeration so no folder handle is held open — called by the
+    /// host before a viewlet mutates/deletes the current folder (see the folder-quiesce fan-out).</summary>
+    public void CancelEntryLoad() => _loadCts?.Cancel();
+
+    /// <summary>The nearest ancestor of <paramref name="path"/> that still exists on disk, or null if none
+    /// does (the caller then falls back to This PC). Used to re-home a tab after its folder is deleted —
+    /// walk up until something is displayable. Assumes <paramref name="path"/> itself is already gone.</summary>
+    public static string? NearestExistingAncestor(string path)
+    {
+        for (var ancestor = Path.GetDirectoryName(path);
+             !string.IsNullOrEmpty(ancestor);
+             ancestor = Path.GetDirectoryName(ancestor))
+        {
+            if (Directory.Exists(ancestor)) return ancestor;
+        }
+        return null;
+    }
+
+    // ── Folder-busy state ──────────────────────────────────────────────────────
+    // When another part of the app is mid-mutation on this folder (e.g. deleting this worktree), the shell
+    // marks it busy; we show a "please wait" panel in place of the file list until it clears, then the view
+    // re-evaluates the folder. The subscription is attached only while the view is loaded (the shell outlives
+    // the tab), so it can't leak the VM.
+
+    /// <summary>True while a long mutation is in flight on the current folder — the view shows a wait panel.</summary>
+    [ObservableProperty] private bool   _isFolderBusy;
+    [ObservableProperty] private string _folderBusyMessage = string.Empty;
+
+    /// <summary>Raised when a mutation on the current folder finishes (its busy mark cleared), so the view can
+    /// refresh or re-home. Runs on the UI thread.</summary>
+    public event Action? FolderBusyCleared;
+
+    /// <summary>Begins observing the shell's folder-busy signal and syncs the current state. Called by the
+    /// view on load.</summary>
+    public void AttachBusyTracking()
+    {
+        _shell.FolderBusyChanged += OnShellFolderBusyChanged;
+        RefreshBusyState();
+    }
+
+    /// <summary>Stops observing the shell's folder-busy signal. Called by the view on unload so the long-lived
+    /// shell doesn't retain this VM.</summary>
+    public void DetachBusyTracking() => _shell.FolderBusyChanged -= OnShellFolderBusyChanged;
+
+    private void OnShellFolderBusyChanged() => RefreshBusyState();
+
+    /// <summary>Re-reads whether the current folder is busy; shows/hides the wait panel and, on a
+    /// busy→idle transition, fires <see cref="FolderBusyCleared"/> so the view re-evaluates the folder.</summary>
+    private void RefreshBusyState()
+    {
+        var message = string.IsNullOrEmpty(CurrentPath) ? null : _shell.GetFolderBusyMessage(CurrentPath);
+        var nowBusy = !string.IsNullOrEmpty(message);   // empty message ⇒ not busy
+        var wasBusy = IsFolderBusy;
+
+        FolderBusyMessage = message ?? string.Empty;
+        IsFolderBusy      = nowBusy;
+
+        if (wasBusy && !nowBusy) FolderBusyCleared?.Invoke();
+    }
+
+    partial void OnCurrentPathChanged(string value) => RefreshBusyState();
+
     /// <summary>
     /// Returns a list of applicable <see cref="FileActionViewModel"/>s for the
     /// given entries, suitable for use in a context menu.
@@ -627,6 +689,12 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
 
     private int _selectedCount;
 
+    // Folder/file totals kept in step with the footer labels by the sink below. GetContext reads these
+    // instead of enumerating the live Entries collection, which the background loader mutates on its own
+    // thread (see UpdateEntryCountLabel / GetContext).
+    private int _folderCount;
+    private int _fileCount;
+
     /// <summary>Recomputes folder/file counts from the current <see cref="Entries"/>.</summary>
     private void UpdateEntryCountLabel(int selectedCount = 0)
         => UpdateEntryCountLabel(Entries.Count(e => e.IsDirectory),
@@ -638,6 +706,8 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     private void UpdateEntryCountLabel(int folders, int files, int selectedCount)
     {
         _selectedCount = selectedCount;
+        _folderCount   = folders;
+        _fileCount     = files;
 
         HasFolders         = folders > 0;
         HasFiles           = files   > 0;
@@ -1099,8 +1169,12 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
         if (string.IsNullOrEmpty(CurrentPath))
             return "File browser — no location selected.";
 
-        var folders = Entries.Count(e => e.IsDirectory);
-        var files   = Entries.Count - folders;
+        // Use the tracked counts (kept current by the load pipeline) rather than enumerating the live
+        // Entries collection: the background loader adds to it on its own thread, so enumerating here
+        // races that writer (InvalidOperationException: Collection was modified). Int reads are atomic,
+        // and these already back the folder/file footer labels, so the numbers stay consistent with them.
+        var folders = _folderCount;
+        var files   = _fileCount;
         var sb = new StringBuilder(
             $"File browser at '{CurrentPath}' — {folders} folder{(folders == 1 ? "" : "s")}, " +
             $"{files} file{(files == 1 ? "" : "s")}");
@@ -1397,6 +1471,10 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     private async Task RefreshEntriesAsync()
     {
         var path = CurrentPath;
+
+        // A mutation is in flight on this folder (e.g. it's being deleted): don't enumerate it — the view
+        // shows the "please wait" panel and we reload once the shell clears the busy mark.
+        if (IsFolderBusy) { Entries.Clear(); UpdateEntryCountLabel(0, 0, 0); IsLoadingEntries = false; return; }
 
         // Inside an archive (or on an archive file itself): the VFS enumerates the entries in one shot.
         if (!Directory.Exists(path) && Vfs.IsDirectory(path)) { LoadVirtualEntries(path); return; }

@@ -435,6 +435,27 @@
                             Panel.ZIndex="5"
                             Visibility="Collapsed"/>
 
+            <!-- ── Folder-busy overlay: a long mutation (e.g. worktree deletion) is in flight here ── -->
+            <Border x:Name="FolderBusyPanel"
+                    Grid.Row="0" Grid.Column="0"
+                    Grid.RowSpan="3" Grid.ColumnSpan="2"
+                    Panel.ZIndex="10"
+                    Background="{DynamicResource BgBrush}"
+                    Visibility="{Binding IsFolderBusy, Converter={StaticResource BoolToVis}}">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="360">
+                    <TextBlock Text="⏳" FontSize="30" HorizontalAlignment="Center"
+                               Foreground="{DynamicResource TextMutedBrush}"/>
+                    <TextBlock Text="{Binding FolderBusyMessage}" Margin="0,12,0,0"
+                               FontSize="13" FontWeight="SemiBold"
+                               HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextBrush}"/>
+                    <TextBlock Text="You can keep working — this view updates when it finishes."
+                               Margin="0,6,0,0" FontSize="11"
+                               HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextMutedBrush}"/>
+                </StackPanel>
+            </Border>
+
             <!-- ── Drive ListView (This PC mode) ───────────────────────── -->
             <ListView Grid.Row="1" Grid.Column="0"
                       x:Name="DriveListView"

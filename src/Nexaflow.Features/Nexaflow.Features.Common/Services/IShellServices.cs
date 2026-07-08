@@ -168,6 +168,23 @@ public interface IShellServices
     void RequestRefresh();
 
     /// <summary>
+    /// Marks <paramref name="folderPath"/> as having an in-flight mutation (e.g. a worktree deletion). While
+    /// marked, any file browser showing that folder displays <paramref name="message"/> in place of its file
+    /// list and holds off refreshing. Dispose the returned handle when the mutation finishes — browsers then
+    /// re-evaluate the folder (refresh, or navigate up if it's gone). Ref-counted per path; safe to dispose
+    /// from any thread. Lets a feature run a long mutation off the UI thread without blocking the user, who
+    /// can keep navigating and even queue more mutations.
+    /// </summary>
+    IDisposable MarkFolderBusy(string folderPath, string message);
+
+    /// <summary>The busy message if a mutation is in flight on <paramref name="folderPath"/>, else null.</summary>
+    string? GetFolderBusyMessage(string folderPath);
+
+    /// <summary>Raised on the UI thread whenever any folder's busy state changes (marked or cleared).
+    /// A file browser re-checks <see cref="GetFolderBusyMessage"/> for its current folder in response.</summary>
+    event Action? FolderBusyChanged;
+
+    /// <summary>
     /// Persists a global feature config (an <see cref="IFeatureConfig"/>) to its on-disk store —
     /// the same versioned-JSON location the Options panel writes. Lets a feature commit a config
     /// change made outside the Options flow (e.g. a wizard adding an external-app mapping) without

@@ -28,6 +28,30 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <!-- Danger variant of FlatBtn — used by the worktree Remove button -->
+        <Style x:Key="DangerBtn" TargetType="Button" BasedOn="{StaticResource FlatBtn}">
+            <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="3"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource DangerSubtleBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="LabelText" TargetType="TextBlock">
             <Setter Property="FontSize"   Value="9"/>
             <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
@@ -78,13 +102,14 @@
                 <RowDefinition Height="Auto"/>  <!-- Status counts -->
             </Grid.RowDefinitions>
 
-            <!-- Row 0: Branch label + dropdown + Pull button -->
+            <!-- Row 0: Branch label + dropdown + worktree badge + action buttons -->
             <Grid Grid.Row="0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>  <!-- "Branch" label -->
-                    <ColumnDefinition Width="Auto"/>    <!-- branch dropdown -->
-                    <ColumnDefinition Width="Auto"/>  <!-- Pull -->
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>  <!-- branch dropdown -->
+                    <ColumnDefinition Width="Auto"/>  <!-- worktree badge -->
+                    <ColumnDefinition Width="*"/>     <!-- spacer -->
+                    <ColumnDefinition Width="Auto"/>  <!-- action buttons -->
                 </Grid.ColumnDefinitions>
 
                 <TextBlock Grid.Column="0"
@@ -112,13 +137,38 @@
                     </StackPanel>
                 </Button>
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="3" HorizontalAlignment="Right">
+                <!-- Worktree badge — shown only when the folder is a linked worktree -->
+                <Border x:Name="WorktreeBadge"
+                        Grid.Column="2"
+                        Visibility="Collapsed"
+                        Background="{DynamicResource AccentSubtleBrush}"
+                        CornerRadius="3"
+                        Padding="5,1"
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center">
+                    <TextBlock Text="worktree"
+                               FontSize="9"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource AccentBrush}"/>
+                </Border>
+
+                <StackPanel Grid.Column="4" Orientation="Horizontal" Margin="3" HorizontalAlignment="Right">
                     <Button x:Name="PullButton"
                         Style="{StaticResource FlatBtn}"
                         Content="Pull"
                         Padding="6,2"
                         FontSize="10"
                         Click="PullButton_Click"/>
+
+                    <!-- Remove-worktree button — shown only for a linked worktree -->
+                    <Button x:Name="RemoveWorktreeButton"
+                        Style="{StaticResource DangerBtn}"
+                        Content="Remove"
+                        Padding="6,2"
+                        FontSize="10"
+                        Visibility="Collapsed"
+                        ToolTip="Remove this worktree (delete its folder and branch)"
+                        Click="RemoveWorktreeButton_Click"/>
 
                     <!-- Open-in-git-manager button — anchored bottom-right of the info column -->
                     <Button x:Name="GitManagerButton"

@@ -1,4 +1,5 @@
 using LibGit2Sharp;
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.Git.ClientTools;
@@ -16,13 +17,16 @@ namespace Nexaflow.Features.Git.Viewlets;
 
 public partial class GitViewletView : UserControl, IViewletAiSurface
 {
-    private readonly GitOptions         _options;
-    private readonly string             _folderPath;
-    private readonly IViewletController _controller;
-    private readonly GitService         _git;
+    private readonly GitOptions          _options;
+    private readonly IShellServices      _shell;
+    private readonly string              _folderPath;
+    private readonly IViewletController  _controller;
+    private readonly GitService          _git;
+    private readonly GitWorktreeService  _worktreeService;
 
-    private string       _currentBranch = string.Empty;
-    private List<string> _localBranches = [];
+    private string            _currentBranch = string.Empty;
+    private List<string>      _localBranches = [];
+    private GitWorktreeInfo?  _worktree;
 
     // Colours used in the inline status line — resolved from the active theme; throw (no silent literal
     // fallback) if a token is missing so a mis-themed reference surfaces immediately.
@@ -33,13 +37,15 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
     private static Brush ModifiedBrush => ThemeBrush("WarningBrush");
     private static Brush ErrorBrush    => ThemeBrush("DangerBrush");
 
-    public GitViewletView(GitOptions options, string folderPath, IViewletController controller)
+    public GitViewletView(GitOptions options, IShellServices shell, string folderPath, IViewletController controller)
     {
         InitializeComponent();
-        _options    = options;
-        _folderPath = folderPath;
-        _controller = controller;
-        _git        = new GitService(folderPath);
+        _options         = options;
+        _shell           = shell;
+        _folderPath      = folderPath;
+        _controller      = controller;
+        _git             = new GitService(folderPath);
+        _worktreeService = new GitWorktreeService(folderPath);
 
         GitManagerButton.Visibility = string.IsNullOrWhiteSpace(options.GitManagerPath)
             ? Visibility.Collapsed
@@ -54,6 +60,13 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
     {
         BranchButton.IsEnabled = false;
         PullButton.IsEnabled   = false;
+
+        // Worktree info is fetched independently and is resilient — a remnant with a dangling .git link
+        // returns a broken record rather than throwing, so the Remove button stays available to clean it up
+        // even when the repo itself won't open below.
+        GitWorktreeInfo? worktree = null;
+        try { worktree = await Task.Run(_worktreeService.GetInfo); } catch { }
+
         try
         {
             var info = await Task.Run(_git.GetStatus);
@@ -61,9 +74,11 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
         }
         catch (RepositoryNotFoundException)
         {
-            BranchName.Text = "not a repo";
-            StatusLine.Text = string.Empty;
-            ShowActionResult("The .git file is broken", false);
+            StatusLine.Inlines.Clear();
+            LastCommitLine.Text = string.Empty;
+            BranchName.Text = worktree is { IsBroken: true } ? "broken worktree" : "not a repo";
+            if (worktree is not { IsBroken: true })
+                ShowActionResult("The .git file is broken", false);
         }
         catch(Exception ex)
         {
@@ -73,6 +88,7 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
         }
         finally
         {
+            ApplyWorktree(worktree);
             BranchButton.IsEnabled = true;
             PullButton.IsEnabled   = true;
         }
@@ -125,6 +141,136 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
                 : $"{info.LastCommitHash}  {msg}  ·  {timeAgo}";
             LastCommitLine.Text = display;
         }
+    }
+
+    // ── Worktree state ────────────────────────────────────────────────────
+    // Shown only when the folder is a linked worktree: a "worktree" badge, the merge/push state appended
+    // to the status line, and the Remove control. ApplyInfo has already rebuilt StatusLine, so we append.
+
+    private void ApplyWorktree(GitWorktreeInfo? wt)
+    {
+        _worktree = wt;
+
+        var visible = wt is not null ? Visibility.Visible : Visibility.Collapsed;
+        WorktreeBadge.Visibility        = visible;
+        RemoveWorktreeButton.Visibility = visible;
+
+        if (wt is null) return;
+
+        void AddRun(string text, Brush brush)
+        {
+            StatusLine.Inlines.Add(new Run("  ") { Foreground = (Brush)FindResource("TextMutedBrush") });
+            StatusLine.Inlines.Add(new Run(text) { Foreground = brush });
+        }
+
+        // A remnant: the repo won't open, so there's no merge/push state to show — just flag it for cleanup.
+        if (wt.IsBroken)
+        {
+            AddRun("broken remnant — Remove to clean up", ErrorBrush);
+            WorktreeBadge.ToolTip = $"Broken git worktree remnant\nIts .git link is dangling — the linked " +
+                                    $"repository is gone.\nUse Remove to delete the leftover folder.";
+            return;
+        }
+
+        // Merge state vs the mainline target.
+        if (wt.MergeTargetBranch is { } target)
+            AddRun(wt.IsMerged ? $"merged into {target}" : $"unmerged vs {target}",
+                   wt.IsMerged ? StagedBrush : ModifiedBrush);
+
+        // Remote (pushed) state.
+        if (!wt.HasUpstream)
+            AddRun("no upstream", (Brush)FindResource("TextMutedBrush"));
+        else if (wt.IsPushed)
+            AddRun("pushed", (Brush)FindResource("TextMutedBrush"));
+        else
+            AddRun(wt.AheadOfRemote > 0 ? $"unpushed ↑{wt.AheadOfRemote}" : "unpushed", ModifiedBrush);
+
+        WorktreeBadge.ToolTip = BuildWorktreeTooltip(wt);
+    }
+
+    private static string BuildWorktreeTooltip(GitWorktreeInfo wt)
+    {
+        var sb = new StringBuilder("Linked git worktree\n");
+        sb.Append("Branch: ").Append(wt.Branch).Append('\n');
+        sb.Append(wt.MergeTargetBranch is { } t
+            ? (wt.IsMerged ? $"Merged into {t}" : $"Not merged into {t}")
+            : "Merge target unknown").Append('\n');
+        sb.Append(!wt.HasUpstream ? "No upstream configured"
+            : wt.IsPushed ? $"Pushed to {wt.Upstream}"
+            : $"{wt.AheadOfRemote} commit(s) not on {wt.Upstream}");
+        if (wt.HasUncommittedChanges)
+            sb.Append($"\n{wt.StagedCount + wt.ModifiedCount} uncommitted change(s)");
+        return sb.ToString();
+    }
+
+    // ── Worktree removal ──────────────────────────────────────────────────
+
+    private async void RemoveWorktreeButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_worktree is not { } wt) return;
+
+        // A merged worktree with no uncommitted work is safe to drop (its commits live on in the mainline),
+        // so it removes without a prompt. Anything unmerged or dirty confirms first.
+        if (!wt.CanRemoveWithoutConfirmation)
+        {
+            var confirmed = await _shell.ConfirmAsync("Remove worktree?", BuildRemovalPrompt(wt),
+                                                      "Remove", "Cancel");
+            if (!confirmed) return;
+        }
+
+        RemoveWorktreeButton.IsEnabled = false;
+
+        // Removal (quiescing the .NET scan, killing its dotnet tree, deleting the folder) can take a while, so
+        // run it off the UI thread. Marking the folder busy makes the browser show a "please wait" panel and
+        // refresh/re-home when it clears — the user can keep working and even queue more removals meanwhile.
+        var busy = _shell.MarkFolderBusy(_folderPath, $"Removing worktree '{wt.DisplayName}'…");
+        _ = RunRemovalAsync(busy);
+    }
+
+    private async Task RunRemovalAsync(IDisposable busy)
+    {
+        try
+        {
+            // Quiesce every viewlet on this folder first — e.g. the .NET viewlet's NuGet scan runs `dotnet`
+            // with the folder as its working directory and would otherwise lock it against deletion.
+            try { await _controller.QuiesceFolderAsync(); } catch { /* best-effort; removal is fail-safe anyway */ }
+
+            var result = await Task.Run(_worktreeService.Remove);
+            if (result.Success) _shell.ShowNotification(result.Message);
+            else                _shell.ShowError(result.Message);
+        }
+        catch (Exception ex) { _shell.ShowError($"Worktree removal failed: {ex.Message}"); }
+        finally { busy.Dispose(); }   // clears the busy mark → the browser refreshes / re-homes
+    }
+
+    /// <summary>The confirmation body shown for an unmerged / dirty / broken worktree — spells out exactly
+    /// what is lost so the user can make an informed call.</summary>
+    private static string BuildRemovalPrompt(GitWorktreeInfo wt)
+    {
+        if (wt.IsBroken)
+            return $"Remove broken worktree remnant '{wt.DisplayName}'?\n\n" +
+                   "Its .git link is dangling — the linked repository is gone, so this can't be opened as a " +
+                   "worktree. Removing deletes the leftover folder. This cannot be undone.";
+
+        var sb = new StringBuilder($"Permanently remove worktree '{wt.DisplayName}'?\n\n");
+
+        if (!wt.IsMerged)
+            sb.Append(wt.MergeTargetBranch is { } t
+                ? $"• Branch '{wt.Branch}' is not merged into {t}.\n"
+                : $"• Branch '{wt.Branch}' has no known merge target.\n");
+
+        if (!wt.HasUpstream)
+            sb.Append("• The branch has never been pushed — its commits exist only here.\n");
+        else if (!wt.IsPushed)
+            sb.Append($"• {wt.AheadOfRemote} commit(s) are not on the remote and will be lost.\n");
+
+        if (wt.HasUncommittedChanges)
+            sb.Append($"• {wt.StagedCount + wt.ModifiedCount} uncommitted change(s) will be lost.\n");
+
+        sb.Append($"\nThis deletes the folder");
+        sb.Append(wt.IsDetached ? "." : $" and the branch '{wt.Branch}'.");
+        sb.Append(" This cannot be undone.");
+        return sb.ToString();
     }
 
     // ── Branch switching ──────────────────────────────────────────────────
@@ -328,6 +474,22 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
 
             if (s.LastCommitHash is not null)
                 sb.Append($" Last commit {s.LastCommitHash} \"{s.LastCommitSubject}\".");
+
+            if (_worktreeService.GetInfo() is { } wt)
+            {
+                if (wt.IsBroken)
+                    sb.Append(" This is a broken worktree remnant (dangling .git link).");
+                else
+                {
+                    sb.Append(" This is a linked worktree");
+                    sb.Append(wt.MergeTargetBranch is { } t
+                        ? (wt.IsMerged ? $", merged into {t}" : $", not yet merged into {t}")
+                        : "");
+                    sb.Append(!wt.HasUpstream ? ", never pushed."
+                        : wt.IsPushed ? ", pushed to its remote."
+                        : $", {wt.AheadOfRemote} commit(s) unpushed.");
+                }
+            }
             return sb.ToString();
         }
         catch

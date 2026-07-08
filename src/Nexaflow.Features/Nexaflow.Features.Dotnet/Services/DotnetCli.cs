@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -48,13 +49,16 @@ public static class DotnetCli
         return RunRawAsync(args, workingDir, onLine, ct);
     }
 
-    /// <summary>Runs <c>dotnet list &lt;target&gt; package --outdated</c>. This read-only check is short
-    /// and side-effect-free, so on cancellation it is abandoned (left to exit on its own) rather than
-    /// force-killed — a tree-kill here runs synchronously on the caller's (UI) thread and stalls folder
-    /// navigation, and throws a flurry of first-chance Win32Exceptions for transient child processes.</summary>
-    public static Task<Result> RunListOutdatedAsync(
-        DotnetTarget target, string workingDir, CancellationToken ct = default)
-        => RunRawAsync(["list", target.Path, "package", "--outdated"], workingDir, onLine: null, ct,
+    /// <summary>Runs <c>dotnet list &lt;target&gt; package --outdated</c> against the target's absolute path.
+    /// <para>
+    /// Runs from a <b>neutral working directory</b>, not the project's folder: the <c>dotnet</c> host and the
+    /// MSBuild/compiler nodes it spawns inherit their CWD, and a process's CWD locks that directory against
+    /// rename/delete on Windows — pointing them at a temp dir instead means this passive check never holds
+    /// the folder hostage (so it can just be cancelled, never force-killed). The check is read-only and short,
+    /// so on cancellation the process is abandoned (left to exit on its own).
+    /// </para></summary>
+    public static Task<Result> RunListOutdatedAsync(DotnetTarget target, CancellationToken ct = default)
+        => RunRawAsync(["list", target.Path, "package", "--outdated"], Path.GetTempPath(), onLine: null, ct,
                        killTreeOnCancel: false);
 
     /// <param name="killTreeOnCancel">When true (build/run/test/clean), cancelling <paramref name="ct"/>

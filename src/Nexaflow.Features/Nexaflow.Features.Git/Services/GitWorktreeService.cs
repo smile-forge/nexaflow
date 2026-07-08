@@ -1,0 +1,356 @@
+using System.IO;
+using System.Threading;
+using LibGit2Sharp;
+
+namespace Nexaflow.Features.Git.Services;
+
+/// <summary>
+/// Worktree-specific state for a folder that is a linked git worktree. Drives the viewlet's worktree
+/// banner and the removal flow. <see cref="IsMerged"/> / <see cref="IsPushed"/> answer the two questions
+/// the viewlet surfaces — "has this been merged into the mainline?" and "have its commits reached the
+/// remote?" — and gate whether removal needs a confirmation prompt.
+/// </summary>
+public sealed record GitWorktreeInfo(
+    string  DisplayName,          // the worktree folder's name (what the user sees)
+    string  WorktreeName,         // git's internal worktree name (folder under .git/worktrees/)
+    string  Branch,               // checked-out branch friendly name ("(detached)" when headless)
+    bool    IsDetached,           // HEAD is detached — there is no branch to delete
+    string? Upstream,             // remote-tracking branch the commits would push to, if any
+    bool    HasUpstream,
+    int     AheadOfRemote,        // local commits not yet on the remote (0 when fully pushed / no upstream)
+    bool    IsPushed,             // a remote branch exists and contains the worktree's tip
+    string? MergeTargetBranch,    // branch merged-state is tested against (e.g. "main" / "origin/main")
+    bool    IsMerged,             // the worktree's tip is fully contained in the merge target
+    int     StagedCount,
+    int     ModifiedCount,
+    bool    IsBroken = false)     // a remnant: the .git link is dangling and the repo won't open
+{
+    public bool HasUncommittedChanges => StagedCount > 0 || ModifiedCount > 0;
+
+    /// <summary>
+    /// Removing a merged worktree with no uncommitted tracked changes is non-destructive (its commits live
+    /// on in the mainline), so the viewlet skips the confirmation prompt in exactly that case. Anything
+    /// unmerged, dirty, or broken (state unknown) prompts first.
+    /// </summary>
+    public bool CanRemoveWithoutConfirmation => IsMerged && !HasUncommittedChanges && !IsBroken;
+}
+
+/// <summary>The outcome of a worktree removal: whether it fully succeeded and a user-facing message. Where
+/// the browser re-homes afterwards is the file view's job (see <c>IViewletController.InvalidateLocation</c>).</summary>
+public sealed record GitWorktreeRemovalResult(bool Success, string Message);
+
+/// <summary>
+/// Detects whether a folder is a linked git worktree and, if so, reports its merge/push state and performs
+/// a full removal (delete the working-tree folder, prune the worktree registration, delete its branch).
+/// A linked worktree is identified by its <c>.git</c> being a <em>file</em> (<c>gitdir: …</c> pointer)
+/// rather than a directory — the main checkout has a real <c>.git</c> directory and is not a worktree.
+/// Read queries open a fresh <see cref="Repository"/> per call (like <see cref="GitService"/>); the mutating
+/// <see cref="Remove"/> drives everything from the main repository so the branch is free to delete.
+/// </summary>
+public sealed class GitWorktreeService(string folderPath)
+{
+    /// <summary>True when <c>folderPath</c> is a linked worktree (its <c>.git</c> is a pointer file).</summary>
+    public bool IsWorktree() => File.Exists(Path.Combine(folderPath, ".git"));
+
+    /// <summary>
+    /// Worktree merge/push/dirty state, or null when the folder is not a linked worktree. A remnant whose
+    /// <c>.git</c> link is dangling (the repo won't open) returns a record with <see cref="GitWorktreeInfo.IsBroken"/>
+    /// set — so the viewlet can still offer to remove the leftover rather than just showing "broken".
+    /// </summary>
+    public GitWorktreeInfo? GetInfo()
+    {
+        if (!IsWorktree()) return null;
+
+        Repository repo;
+        try { repo = new Repository(folderPath); }
+        catch { return BrokenInfo(); }   // dangling .git pointer — a remnant to be cleaned up
+        using (repo)
+            return ReadInfo(repo);
+    }
+
+    private GitWorktreeInfo BrokenInfo() => new(
+        DisplayName:       new DirectoryInfo(folderPath).Name,
+        WorktreeName:      ResolveWorktreeName() ?? new DirectoryInfo(folderPath).Name,
+        Branch:            "(unknown)",
+        IsDetached:        false,
+        Upstream:          null,
+        HasUpstream:       false,
+        AheadOfRemote:     0,
+        IsPushed:          false,
+        MergeTargetBranch: null,
+        IsMerged:          false,
+        StagedCount:       0,
+        ModifiedCount:     0,
+        IsBroken:          true);
+
+    private GitWorktreeInfo ReadInfo(Repository repo)
+    {
+        var head      = repo.Head;
+        var tip       = head.Tip;
+        var ownBranch = ResolveOwnBranch(repo, new DirectoryInfo(folderPath).Name);
+        var branch    = ownBranch ?? "(detached)";
+
+        // ── Pushed? — a remote branch that contains the worktree's tip ──────
+        var remote = ResolveRemoteBranch(repo, head, ownBranch);
+        int aheadOfRemote = 0;
+        bool pushed = false;
+        if (remote?.Tip is { } remoteTip && tip is not null)
+        {
+            var div        = repo.ObjectDatabase.CalculateHistoryDivergence(tip, remoteTip);
+            aheadOfRemote  = div.AheadBy ?? 0;   // null = unrelated histories → treat as "not on remote"
+            pushed         = div.AheadBy is 0;
+        }
+
+        // ── Merged? — tip fully contained in the mainline target ───────────
+        var (targetName, targetTip) = ResolveMergeTarget(repo, ownBranch);
+        bool merged = false;
+        if (tip is not null && targetTip is not null)
+        {
+            var div = repo.ObjectDatabase.CalculateHistoryDivergence(tip, targetTip);
+            merged  = div.AheadBy is 0;          // no commits on the branch that the target lacks
+        }
+
+        // ── Uncommitted tracked changes ────────────────────────────────────
+        var status = repo.RetrieveStatus(new StatusOptions
+        {
+            IncludeUntracked  = false,
+            IncludeIgnored    = false,
+            ExcludeSubmodules = true
+        });
+        int staged   = status.Added.Count() + status.Staged.Count() + status.Removed.Count()
+                     + status.RenamedInIndex.Count();
+        int modified = status.Modified.Count() + status.Missing.Count() + status.RenamedInWorkDir.Count();
+
+        return new GitWorktreeInfo(
+            DisplayName:       new DirectoryInfo(folderPath).Name,
+            WorktreeName:      ResolveWorktreeName() ?? new DirectoryInfo(folderPath).Name,
+            Branch:            branch,
+            IsDetached:        ownBranch is null,   // no branch this worktree owns → nothing to delete
+            Upstream:          remote?.FriendlyName,
+            HasUpstream:       remote is not null,
+            AheadOfRemote:     aheadOfRemote,
+            IsPushed:          pushed,
+            MergeTargetBranch: targetName,
+            IsMerged:          merged,
+            StagedCount:       staged,
+            ModifiedCount:     modified);
+    }
+
+    // ── Removal ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Fully removes the worktree: deletes the working-tree folder, drops the worktree registration from the
+    /// main repository, and deletes the (now-unused) branch. Best-effort and self-reporting — never throws
+    /// for an expected failure.
+    /// <para>
+    /// Ordering is deliberately fail-safe. The folder is vacated FIRST, by an <em>atomic rename</em> out of
+    /// the way: if any file inside is in use (e.g. an app still running from the worktree) the rename fails
+    /// as a whole and the worktree is left completely intact and recoverable — no git surgery has run, so we
+    /// never leave a half-removed folder with its <c>.git</c> pointer destroyed. Only once the path is
+    /// confirmed vacated do we drop the registration and branch. (An earlier design pruned via LibGit2Sharp
+    /// first, which deletes the <c>.git</c> pointer + working tree up front and, on a locked file, orphaned
+    /// the folder and branch — hence the rename-first approach.)
+    /// </para>
+    /// </summary>
+    public GitWorktreeRemovalResult Remove()
+    {
+        if (!IsWorktree())
+            return new(false, "This folder is not a git worktree.");
+
+        var basePath = folderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var name     = new DirectoryInfo(basePath).Name;
+
+        // Read what we can. A broken remnant (dangling .git link) won't open as a repository — that's fine:
+        // we can still delete the leftover folder and prune a dangling registration. Resolve the branch this
+        // worktree owns (its checked-out branch, or — when detached, as tool-created worktrees often are —
+        // the same-named branch sitting at its commit); name/common-dir come from parsing the .git file.
+        string? branch = null;
+        try
+        {
+            using var repo = new Repository(folderPath);
+            branch = ResolveOwnBranch(repo, name);
+        }
+        catch { /* broken worktree — no branch to delete */ }
+
+        var worktreeName = ResolveWorktreeName();
+        var commonGitDir = TryResolveCommonGitDir();
+
+        // 1. Vacate the working tree by an atomic same-volume rename. A locked/in-use file makes this fail as
+        //    a unit, with the worktree still fully intact at its original path — a clean, recoverable failure.
+        //    Nothing in git is touched until this succeeds. Retry briefly to ride out a *transient* handle
+        //    (e.g. a background NuGet scan finishing its file reads); we're on a background thread, so the
+        //    short blocking waits are fine.
+        var stash = basePath + ".removing-" + Guid.NewGuid().ToString("N");
+        Exception? moveError = null;
+        for (int attempt = 0; attempt < 8; attempt++)
+        {
+            try { Directory.Move(basePath, stash); moveError = null; break; }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                moveError = ex;               // likely a transient lock — wait and retry
+                Thread.Sleep(300);
+            }
+            catch (Exception ex) { moveError = ex; break; }   // not a lock — don't spin
+        }
+        if (moveError is not null)
+        {
+            return new(false,
+                "Couldn't remove the worktree — a file inside it is still in use. Close anything open under it " +
+                $"(and don't run the app from the worktree you're deleting), then try again. ({moveError.Message})");
+        }
+
+        // The worktree path is now gone. From here every step is git bookkeeping the rename already made safe.
+        var problems = new List<string>();
+
+        // 2. Drop the worktree registration — deleting .git/worktrees/<name> is exactly `git worktree prune`
+        //    for this worktree, and frees the branch to be deleted. (For a broken remnant this is usually
+        //    already gone, which is why it was broken.)
+        if (commonGitDir is not null && worktreeName is not null)
+        {
+            var admin = Path.Combine(commonGitDir, "worktrees", worktreeName);
+            if (Directory.Exists(admin))
+                try { ForceDeleteDirectory(admin); } catch (Exception ex) { problems.Add($"registration ({ex.Message})"); }
+        }
+
+        // 3. Delete the branch this worktree owned (a fresh handle re-reads worktree state, so it's no longer
+        //    seen as checked-out). Null when the worktree was detached with no same-named branch, or a broken
+        //    remnant whose repo wouldn't open.
+        if (branch is not null && commonGitDir is not null)
+        {
+            try
+            {
+                using var main = new Repository(commonGitDir);
+                if (main.Branches[branch] is { IsRemote: false } b) main.Branches.Remove(b);
+            }
+            catch (Exception ex) { problems.Add($"branch '{branch}' ({ex.Message})"); }
+        }
+
+        // 4. Best-effort delete the stashed copy. Any leftover here is harmless throwaway — the worktree path
+        //    itself is already cleanly gone and git is consistent.
+        try { ForceDeleteDirectory(stash); } catch { /* clearly-named remnant; not a broken worktree */ }
+
+        var what = branch is not null ? $"worktree '{name}' and branch '{branch}'." : $"worktree '{name}'.";
+        return problems.Count == 0
+            ? new(true, $"Removed {what}")
+            : new(true, $"Removed {what.TrimEnd('.')}, but some git cleanup failed: {string.Join(", ", problems)}.");
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The branch this worktree owns and that removal should delete: its checked-out branch, or — when the
+    /// worktree is in detached HEAD (as tool-created worktrees often are) — a local branch named after the
+    /// worktree that sits at the very same commit, so deleting it loses nothing. Null when neither applies
+    /// (a genuinely detached worktree with no matching branch). The same-commit guard keeps us from deleting
+    /// a same-named branch that has since moved ahead.
+    /// </summary>
+    private static string? ResolveOwnBranch(Repository repo, string worktreeName)
+    {
+        var head = repo.Head;
+        if (!repo.Info.IsHeadDetached)
+            return head.FriendlyName;
+
+        var tipSha = head.Tip?.Sha;
+        if (tipSha is null) return null;
+
+        return repo.Branches.FirstOrDefault(b => !b.IsRemote
+                && (string.Equals(b.FriendlyName, worktreeName, StringComparison.Ordinal)
+                    || b.FriendlyName.EndsWith("/" + worktreeName, StringComparison.Ordinal))
+                && b.Tip?.Sha == tipSha)
+            ?.FriendlyName;
+    }
+
+    /// <summary>The remote-tracking branch the worktree's commits belong on: its configured upstream, or a
+    /// same-named <c>&lt;remote&gt;/&lt;branch&gt;</c> when no upstream is set. Null when nothing matches.</summary>
+    private static Branch? ResolveRemoteBranch(Repository repo, Branch head, string? branchName)
+    {
+        try
+        {
+            if (head.TrackedBranch is { } tb && head.IsTracking) return tb;
+        }
+        catch (InvalidSpecificationException) { /* no valid upstream configured */ }
+
+        if (branchName is null) return null;
+        return repo.Branches.FirstOrDefault(b =>
+            b.IsRemote && b.FriendlyName.EndsWith("/" + branchName, StringComparison.Ordinal));
+    }
+
+    /// <summary>The mainline branch to test merged-state against: a local <c>main</c>/<c>master</c>/… if
+    /// present, else the matching remote-tracking branch. Never the worktree's own branch. Null when none
+    /// is found (merged-state then reads as "unknown", so removal still prompts).</summary>
+    private static (string? name, Commit? tip) ResolveMergeTarget(Repository repo, string? currentBranch)
+    {
+        string[] candidates = ["main", "master", "develop", "trunk"];
+
+        foreach (var c in candidates)
+            if (repo.Branches[c] is { IsRemote: false, Tip: not null } b &&
+                !string.Equals(b.FriendlyName, currentBranch, StringComparison.Ordinal))
+                return (b.FriendlyName, b.Tip);
+
+        foreach (var c in candidates)
+            if (repo.Branches.FirstOrDefault(b =>
+                    b.IsRemote && b.FriendlyName.EndsWith("/" + c, StringComparison.Ordinal)) is { Tip: not null } rb &&
+                !string.Equals(rb.FriendlyName, currentBranch, StringComparison.Ordinal))
+                return (rb.FriendlyName, rb.Tip);
+
+        return (null, null);
+    }
+
+    /// <summary>git's internal name for this worktree — the folder name under <c>.git/worktrees/</c>,
+    /// read from the <c>.git</c> pointer file. Null if the file is missing/malformed. Works for a broken
+    /// remnant too (the admin dir need not still exist — this parses the path, not the directory).</summary>
+    private string? ResolveWorktreeName()
+    {
+        var admin = ReadAdminDirPath();
+        return admin is null ? null
+            : new DirectoryInfo(admin.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)).Name;
+    }
+
+    /// <summary>The shared <c>.git</c> directory of the main repository (the worktree's <c>commondir</c>), or
+    /// null when the <c>.git</c> pointer is missing/malformed. Resolves from the parsed path, so it still
+    /// works for a broken remnant whose admin directory has already been pruned.</summary>
+    private string? TryResolveCommonGitDir()
+    {
+        var admin = ReadAdminDirPath();
+        if (admin is null) return null;
+
+        var commonFile = Path.Combine(admin, "commondir");
+        if (File.Exists(commonFile))
+        {
+            var rel = File.ReadAllText(commonFile).Trim();
+            return Path.GetFullPath(Path.IsPathRooted(rel) ? rel : Path.Combine(admin, rel));
+        }
+        // Fallback: admin dir is "<common>/worktrees/<name>", so the common dir is two levels up.
+        return Path.GetFullPath(Path.Combine(admin, "..", ".."));
+    }
+
+    /// <summary>Parses the per-worktree admin directory path from the <c>.git</c> pointer file
+    /// (<c>gitdir: &lt;path&gt;</c>). Returns the path whether or not it still exists on disk (a broken
+    /// remnant's may be gone); null only if the file is missing or malformed.</summary>
+    private string? ReadAdminDirPath()
+    {
+        var dotGit = Path.Combine(folderPath, ".git");
+        if (!File.Exists(dotGit)) return null;
+
+        const string prefix = "gitdir:";
+        var line = File.ReadAllText(dotGit).Trim();
+        if (!line.StartsWith(prefix, StringComparison.Ordinal)) return null;
+
+        var target = line[prefix.Length..].Trim();
+        if (target.Length == 0) return null;
+        return Path.GetFullPath(Path.IsPathRooted(target) ? target : Path.Combine(folderPath, target));
+    }
+
+    /// <summary>Recursively deletes a directory, clearing read-only attributes first (git pack/object files
+    /// are read-only, which would otherwise fault the delete).</summary>
+    private static void ForceDeleteDirectory(string dir)
+    {
+        if (!Directory.Exists(dir)) return;
+
+        foreach (var file in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
+        {
+            try { File.SetAttributes(file, FileAttributes.Normal); } catch { /* best-effort */ }
+        }
+        Directory.Delete(dir, recursive: true);
+    }
+}

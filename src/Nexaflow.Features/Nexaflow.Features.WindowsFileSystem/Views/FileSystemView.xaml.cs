@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -61,8 +63,14 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         DataContext = viewModel;
         ViewModel.NavigationChanged += OnViewModelNavigationChanged;
         ViewModel.PropertyChanged   += OnViewModelPropertyChanged;
+        ViewModel.FolderBusyCleared += ReEvaluateCurrentFolder;   // a mutation on this folder finished
         WireDragDrop();
         WireActionStripDrag();
+
+        // The VM subscribes to the shell's folder-busy signal only while this view is loaded (the shell
+        // outlives the tab, so a permanent subscription would leak the VM); re-sync on each load.
+        Loaded   += (_, _) => ViewModel.AttachBusyTracking();
+        Unloaded += (_, _) => ViewModel.DetachBusyTracking();
 
         // Column-header sorting. GridViewColumnHeader is a ButtonBase that captures the
         // mouse on press, so a Button inside the header template never sees the click —
@@ -241,6 +249,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
             host.FileViewRequested         += OnFileViewRequested;
             host.ViewletViewRequested      += OnViewletViewRequested;
             host.SwitchFullViewletRequested += OnSwitchFullViewletRequested;
+            host.QuiesceFolderHandler       = QuiesceActiveFolderAsync;
             _activeViewletHosts.Add(host);
         }
 
@@ -250,6 +259,48 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
             _activeViewletHosts.Select(h => h.AiSurface).OfType<IViewletAiSurface>().ToList());
 
         ApplyViewletLayout();
+    }
+
+    /// <summary>
+    /// Quiesces the current folder before a viewlet mutates it (e.g. the Git viewlet removing a worktree):
+    /// stops the browser's own in-flight enumeration, then asks each active viewlet that holds handles /
+    /// runs child processes against the folder to release them (see <see cref="IViewletQuiescible"/>).
+    /// Best-effort and awaited, so on return nothing here is locking the folder.
+    /// </summary>
+    private async Task QuiesceActiveFolderAsync(CancellationToken ct)
+    {
+        ViewModel.CancelEntryLoad();   // drop any directory handle held by a streaming load
+
+        foreach (var quiescible in _activeViewletHosts.Select(h => h.Quiescible).OfType<IViewletQuiescible>())
+        {
+            try { await quiescible.QuiesceAsync(ct); }
+            catch { /* best-effort — a viewlet's own failure must not block the mutation */ }
+        }
+    }
+
+    /// <summary>
+    /// Re-evaluates the current folder after a mutation finished (the shell cleared its busy mark — e.g. a
+    /// worktree deletion completed). If the folder is now gone, walk up to the nearest surviving ancestor and
+    /// navigate there in this same tab (falling back to This PC) so the user isn't stranded. If it still
+    /// exists, refresh its contents and rebuild the viewlets in place — the mutation may have changed which
+    /// viewlets apply.
+    /// </summary>
+    private void ReEvaluateCurrentFolder()
+    {
+        var path = ViewModel.CurrentPath;
+
+        if (!string.IsNullOrEmpty(path) && !System.IO.Directory.Exists(path))
+        {
+            if (FileSystemViewModel.NearestExistingAncestor(path) is { } ancestor)
+                ViewModel.NavigateTo(ancestor);            // navigation rebuilds contents + viewlets
+            else
+                ViewModel.GoToThisPc(rebuildTree: true);   // even the drive is gone — fall back to This PC
+            return;
+        }
+
+        // Still there: refresh contents, then tear down + reinit the viewlets for the (possibly changed) folder.
+        ViewModel.Refresh();
+        RefreshViewlets(path, ViewModel.IsThisPcMode);
     }
 
     private void ApplyViewletLayout()
