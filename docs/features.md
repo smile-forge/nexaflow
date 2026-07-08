@@ -164,7 +164,8 @@ so checks stay side-effect-free; it only queries the **active** page.
 ## AI client tools — `IClientTool`
 
 Tools a page exposes to the agent via `IPageViewModel.GetClientTools()`. Use `DelegateClientTool` for
-one-liners, or implement `IClientTool` for richer ones. `ToolSafety.ReadOnly` tools auto-run; mutating ones are
+one-liners, or derive from `ClientToolBase` for richer ones (abstract `Name`/`Description`; defaults:
+no parameters, `ReadOnly`, non-parallelizable — override what differs). `ToolSafety.ReadOnly` tools auto-run; mutating ones are
 approved via `IToolApprovalCoordinator` before running, and each `ToolResult` is fed back to the model. Return
 an error `ToolResult` (don't throw) for an expected failure. Canonical example:
 `Nexaflow.Features.Video/ClientTools/VideoCaptureFrameTool.cs`.
