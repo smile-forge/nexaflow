@@ -1,4 +1,5 @@
 using System.IO;
+using System.Threading;
 using LibGit2Sharp;
 
 namespace Nexaflow.Features.Git.Services;
@@ -177,17 +178,26 @@ public sealed class GitWorktreeService(string folderPath)
 
         // 1. Vacate the working tree by an atomic same-volume rename. A locked/in-use file makes this fail as
         //    a unit, with the worktree still fully intact at its original path — a clean, recoverable failure.
-        //    Nothing in git is touched until this succeeds.
+        //    Nothing in git is touched until this succeeds. Retry briefly to ride out a *transient* handle
+        //    (e.g. a background NuGet scan finishing its file reads); we're on a background thread, so the
+        //    short blocking waits are fine.
         var stash = basePath + ".removing-" + Guid.NewGuid().ToString("N");
-        try
+        Exception? moveError = null;
+        for (int attempt = 0; attempt < 8; attempt++)
         {
-            Directory.Move(basePath, stash);
+            try { Directory.Move(basePath, stash); moveError = null; break; }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                moveError = ex;               // likely a transient lock — wait and retry
+                Thread.Sleep(300);
+            }
+            catch (Exception ex) { moveError = ex; break; }   // not a lock — don't spin
         }
-        catch (Exception ex)
+        if (moveError is not null)
         {
             return new(false,
-                "Couldn't remove the worktree — a file inside it is in use. Close anything open under it " +
-                $"(and don't run the app from the worktree you're deleting), then try again. ({ex.Message})");
+                "Couldn't remove the worktree — a file inside it is still in use. Close anything open under it " +
+                $"(and don't run the app from the worktree you're deleting), then try again. ({moveError.Message})");
         }
 
         // The worktree path is now gone. From here every step is git bookkeeping the rename already made safe.
