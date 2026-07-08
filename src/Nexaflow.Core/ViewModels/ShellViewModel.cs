@@ -278,56 +278,44 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         });
 
     // ── Unified overlay host ──────────────────────────────────────────────
-    // One ContentControl in MainWindow renders whatever modal is active, picked by DataTemplate from the
-    // content's type — so each overlay's visual tree is built lazily, only when shown, and torn down on
-    // close. The legacy per-overlay flags below (OptionsOpen/WorkspaceConfigOpen/ConfirmationVisible/PromptVisible)
-    // remain the source of truth (they drive workspace-switch gating, airspace coverage and deep-links);
-    // ActiveOverlay is *derived* from them, and the heavy panel VMs are built on demand here. Features push
-    // their own overlays via IShellServices.ShowOverlay (rendered by a DataTemplate they contribute).
+    // The modal-overlay state machine lives in Overlays (OverlayCoordinator): the overlay host's
+    // ActiveOverlay, feature-pushed overlays, and the built-in confirmation/prompt modals. The
+    // per-overlay flags OptionsOpen/WorkspaceConfigOpen stay HERE (they drive workspace-switch
+    // gating, airspace coverage and deep-links); their lazily-built panel VMs are pushed into the
+    // coordinator when a flag flips. The members below are thin forwarders — the coordinator's
+    // PropertyChanged is re-raised on this VM under the same names, so XAML bindings are unchanged.
 
-    /// <summary>The content view-model shown in the shell's overlay host, or null when nothing is open.</summary>
-    public object? ActiveOverlay { get; private set; }
+    public OverlayCoordinator Overlays { get; }
 
     private OptionsViewModel?  _optionsPanel;
     private WorkspaceConfigViewModel? _workspaceConfigPanel;
-    private object? _confirmationOverlay;
-    private object? _promptOverlay;
-    private object? _featureOverlay;
+
+    /// <summary>The content view-model shown in the shell's overlay host, or null when nothing is open.</summary>
+    public object? ActiveOverlay => Overlays.ActiveOverlay;
 
     /// <summary>True while a feature-pushed overlay (not a built-in modal) is showing.</summary>
-    public bool HasFeatureOverlay => _featureOverlay is not null;
+    public bool HasFeatureOverlay => Overlays.HasFeatureOverlay;
 
-    private void SyncActiveOverlay()
-    {
-        object? next =
-            _featureOverlay
-            ?? (OptionsOpen        ? _optionsPanel       : null)
-            ?? (WorkspaceConfigOpen       ? _workspaceConfigPanel      : null)
-            ?? (ConfirmationVisible ? _confirmationOverlay : null)
-            ?? (PromptVisible      ? _promptOverlay      : null);
+    public bool   ConfirmationVisible => Overlays.ConfirmationVisible;
+    public bool   PromptVisible       => Overlays.PromptVisible;
+    public string PromptValue { get => Overlays.PromptValue; set => Overlays.PromptValue = value; }
 
-        if (ReferenceEquals(next, ActiveOverlay)) return;
-        ActiveOverlay = next;
-        OnPropertyChanged(nameof(ActiveOverlay));
-    }
+    public IRelayCommand CancelShellConfirmationCommand => Overlays.CancelShellConfirmationCommand;
+    public IRelayCommand CancelShellPromptCommand       => Overlays.CancelShellPromptCommand;
 
-    /// <summary>Shows a feature-supplied overlay view-model (rendered by a DataTemplate the feature ships
-    /// via its IThemeContribution). Backs <see cref="IShellServices.ShowOverlay"/>.</summary>
-    public void ShowOverlay(object overlayViewModel)
-    {
-        _featureOverlay = overlayViewModel;
-        SyncActiveOverlay();
-    }
+    /// <summary>Shows a feature-supplied overlay view-model. Backs <see cref="IShellServices.ShowOverlay"/>.</summary>
+    public void ShowOverlay(object overlayViewModel) => Overlays.ShowOverlay(overlayViewModel);
 
     /// <summary>Closes whatever overlay is currently active (feature overlay or the built-in modal).</summary>
-    public void CloseOverlay()
-    {
-        if (_featureOverlay is not null) { _featureOverlay = null; SyncActiveOverlay(); return; }
-        if (OptionsOpen)             OptionsOpen = false;
-        else if (WorkspaceConfigOpen)       WorkspaceConfigOpen = false;
-        else if (ConfirmationVisible) CancelShellConfirmation();
-        else if (PromptVisible)      CancelShellPrompt();
-    }
+    public void CloseOverlay() => Overlays.CloseOverlay();
+
+    public void ShowConfirmation(string title, string prompt, Action onConfirm, Action? onCancel = null,
+                                 string? confirmLabel = null, string? cancelLabel = null)
+        => Overlays.ShowConfirmation(title, prompt, onConfirm, onCancel, confirmLabel, cancelLabel);
+
+    public void ShowPrompt(string title, string label, string initialValue,
+                           Action<string> onConfirm, Action? onCancel = null)
+        => Overlays.ShowPrompt(title, label, initialValue, onConfirm, onCancel);
 
     // Builds the Options panel VM on open and re-homes the wiring that used to live in MainWindow code-behind.
     private OptionsViewModel BuildOptionsPanel()
@@ -368,127 +356,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     partial void OnOptionsOpenChanged(bool value)
     {
         _optionsPanel = value ? BuildOptionsPanel() : null;
-        SyncActiveOverlay();
-    }
-
-    // ── Shell-level confirmation overlay ──────────────────────────────────
-    // A modal yes/no overlay that lives at the window level (not inside any page).
-    // Used by the ribbon's right-click Delete, and any other shell-side action that
-    // needs to ask the user.
-
-    [ObservableProperty] private bool   _confirmationVisible;
-    [ObservableProperty] private string _confirmationTitle  = string.Empty;
-    [ObservableProperty] private string _confirmationPrompt = string.Empty;
-
-    private Action? _confirmationOnConfirm;
-    private Action? _confirmationOnCancel;
-    private string  _confirmationConfirmLabel = "Confirm";
-    private string  _confirmationCancelLabel  = "Cancel";
-
-    public void ShowConfirmation(string title, string prompt, Action onConfirm, Action? onCancel = null,
-                                 string? confirmLabel = null, string? cancelLabel = null)
-    {
-        ConfirmationTitle         = title;
-        ConfirmationPrompt        = prompt;
-        _confirmationConfirmLabel = string.IsNullOrWhiteSpace(confirmLabel) ? "Confirm" : confirmLabel!;
-        _confirmationCancelLabel  = string.IsNullOrWhiteSpace(cancelLabel)  ? "Cancel"  : cancelLabel!;
-        _confirmationOnConfirm    = onConfirm;
-        _confirmationOnCancel     = onCancel;
-        ConfirmationVisible       = true;
-    }
-
-    [RelayCommand]
-    private void ConfirmShellConfirmation()
-    {
-        ConfirmationVisible = false;
-        var cb = _confirmationOnConfirm;
-        _confirmationOnConfirm = _confirmationOnCancel = null;
-        cb?.Invoke();
-    }
-
-    [RelayCommand]
-    private void CancelShellConfirmation()
-    {
-        ConfirmationVisible = false;
-        var cb = _confirmationOnCancel;
-        _confirmationOnConfirm = _confirmationOnCancel = null;
-        cb?.Invoke();
-    }
-
-    partial void OnConfirmationVisibleChanged(bool value)
-    {
-        // Title/Prompt/labels are set before ConfirmationVisible flips true (see ShowConfirmation).
-        _confirmationOverlay = value
-            ? new ConfirmationOverlay
-              {
-                  Title          = ConfirmationTitle,
-                  Prompt         = ConfirmationPrompt,
-                  ConfirmCommand = ConfirmShellConfirmationCommand,
-                  CancelCommand  = CancelShellConfirmationCommand,
-                  ConfirmLabel   = _confirmationConfirmLabel,
-                  CancelLabel    = _confirmationCancelLabel,
-              }
-            : null;
-        SyncActiveOverlay();
-    }
-
-    // ── Shell-level input prompt overlay ──────────────────────────────────
-    // Window-level text-input prompt. Mirrors the confirmation overlay above
-    // and is the destination for IShellServices.ShowPrompt.
-
-    [ObservableProperty] private bool   _promptVisible;
-    [ObservableProperty] private string _promptTitle = string.Empty;
-    [ObservableProperty] private string _promptLabel = string.Empty;
-    [ObservableProperty] private string _promptValue = string.Empty;
-
-    private Action<string>? _promptOnConfirm;
-    private Action?         _promptOnCancel;
-
-    public void ShowPrompt(string title, string label, string initialValue,
-                           Action<string> onConfirm, Action? onCancel = null)
-    {
-        PromptTitle      = title;
-        PromptLabel      = label;
-        PromptValue      = initialValue;
-        _promptOnConfirm = onConfirm;
-        _promptOnCancel  = onCancel;
-        PromptVisible    = true;
-    }
-
-    [RelayCommand]
-    private void ConfirmShellPrompt()
-    {
-        PromptVisible = false;
-        var value = PromptValue;
-        var cb    = _promptOnConfirm;
-        _promptOnConfirm = null;
-        _promptOnCancel  = null;
-        cb?.Invoke(value);
-    }
-
-    [RelayCommand]
-    private void CancelShellPrompt()
-    {
-        PromptVisible = false;
-        var cb = _promptOnCancel;
-        _promptOnConfirm = null;
-        _promptOnCancel  = null;
-        cb?.Invoke();
-    }
-
-    partial void OnPromptVisibleChanged(bool value)
-    {
-        // The editable PromptValue stays on this VM; the template two-way-binds to it via the window.
-        _promptOverlay = value
-            ? new PromptOverlay
-              {
-                  Title          = PromptTitle,
-                  Label          = PromptLabel,
-                  ConfirmCommand = ConfirmShellPromptCommand,
-                  CancelCommand  = CancelShellPromptCommand,
-              }
-            : null;
-        SyncActiveOverlay();
+        Overlays.OptionsPanel = _optionsPanel;
     }
 
     /// <summary>
@@ -593,6 +461,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         {
             // ConfigureTargetWorkspace / RequestedConfigureSection were set just before this flipped true.
             _workspaceConfigPanel = BuildWorkspaceConfigPanel();
+            Overlays.WorkspaceConfigPanel = _workspaceConfigPanel;
         }
         else
         {
@@ -600,6 +469,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
             // panel was opened from the Options → Workspaces tab, bounce back to Options on that tab.
             bool changed = _workspaceConfigPanel?.Close() ?? false;
             _workspaceConfigPanel         = null;
+            Overlays.WorkspaceConfigPanel = null;
             ConfigureTargetWorkspace = null;
 
             bool returnToOptions = ConfigureReturnToOptions;
@@ -610,7 +480,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
                 OptionsOpen = true;
             }
         }
-        SyncActiveOverlay();
+        // Both branches pushed the panel into Overlays, whose setter re-derives ActiveOverlay.
     }
 
     /// <summary>Opens the Configure panel for a workspace chosen in the Options → Workspaces tab,
@@ -699,6 +569,15 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         _currentRuntime = workspace;
         _shellServices = workspace.ShellServices!;
         Ai = new ShellAIResponseHandler(this);
+
+        // Modal-overlay state machine; the flags stay here (they gate switching/deep-links), the
+        // coordinator owns everything else. Re-raise its changes under the same property names so
+        // existing XAML bindings (ActiveOverlay, PromptValue, …) and the airspace-coverage watcher
+        // keep working against this VM.
+        Overlays = new OverlayCoordinator(
+            () => OptionsOpen, () => WorkspaceConfigOpen,
+            () => OptionsOpen = false, () => WorkspaceConfigOpen = false);
+        Overlays.PropertyChanged += (_, e) => OnPropertyChanged(e.PropertyName);
 
         // Keep airspace-hosting pages (WebView2) hidden while a modal overlay covers the page area —
         // its native HWND would otherwise render above the overlay. Track the contributing overlay flags.
