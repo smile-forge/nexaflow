@@ -29,6 +29,9 @@ public sealed class FileSystemKeyboardHandler : IKeyboardHandler
             (Key.V, ModifierKeys.Control) => NativeMethods.ClipboardHasFiles(),
             (Key.Delete, ModifierKeys.None)  => HasSelection,
             (Key.Delete, ModifierKeys.Shift) => HasSelection,
+            // Refresh is always available — it re-reads the current path (list + tree),
+            // and in This-PC mode re-enumerates the drives.
+            (Key.F5, ModifierKeys.None)      => true,
             _ => false,
         };
     }
@@ -47,7 +50,15 @@ public sealed class FileSystemKeyboardHandler : IKeyboardHandler
             // Shift+Del: FileActionViewModel.Execute() reads Keyboard.IsKeyDown(Shift) live,
             // so force=true is set automatically — no special handling needed here.
             (Key.Delete, _)                  => _viewModel.TryExecuteAction<DeleteFile>(),
+            // F5: re-read the current path — refreshes both the file list and the tree.
+            (Key.F5, ModifierKeys.None)      => Refresh(),
             _                                => false,
         };
+    }
+
+    private bool Refresh()
+    {
+        _viewModel.Refresh();
+        return true;
     }
 }
