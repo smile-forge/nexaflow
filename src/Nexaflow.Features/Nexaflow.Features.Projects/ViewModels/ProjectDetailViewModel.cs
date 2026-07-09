@@ -2,45 +2,299 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Projects.Model;
-using Nexaflow.Visuals.Common.Controls;
 using System.Collections.ObjectModel;
-using System.Windows.Media;
 
 namespace Nexaflow.Features.Projects.ViewModels;
 
-
-
-// ── Main detail view-model ────────────────────────────────────────────────────
-
+/// <summary>
+/// The tabbed project detail editor (Project Details + Backlog). Markdown description, a completion-
+/// criteria list, and a backlog with per-item markdown + a configurable status (forward "Progress" step
+/// plus an any-status dropdown). Opening a legacy (pre-2.0) project prompts to upgrade; until upgraded the
+/// editor is read-only. Two AI buttons open a new conversation seeded with the item and the project folder.
+/// </summary>
 public partial class ProjectDetailViewModel : ObservableObject, IPageViewModel
 {
     private readonly ProjectOperations _svc;
-    public  string FolderName { get; }
+    private readonly ProjectsConfig    _config;
+    private readonly IShellServices?   _shell;
+    private readonly IAIService?       _ai;
+    private readonly string            _projectPath;
 
-    // ── Project header ────────────────────────────────────────────────────
-    [ObservableProperty] private string _projectName    = string.Empty;
-    [ObservableProperty] private string _description    = string.Empty;
-    [ObservableProperty] private string _scope          = string.Empty;
-    [ObservableProperty] private string _objectivesText = string.Empty;  // newline-separated
-    [ObservableProperty] private string _lastModified   = string.Empty;
+    public string FolderName { get; }
+
+    /// <summary>The workspace config — child VMs resolve statuses through it.</summary>
+    public ProjectsConfig Config => _config;
+
+    // ── Project header ──
+    [ObservableProperty] private string  _projectName  = string.Empty;
+    [ObservableProperty] private string  _description  = string.Empty;   // markdown
+    [ObservableProperty] private string  _lastModified = string.Empty;
     [ObservableProperty] private string? _solutionFile;
 
-    // ── Backlog ────────────────────────────────────────────────────────────
-    public ObservableCollection<BacklogItemViewModel> Backlog { get; } = [];
+    /// <summary>0 = Project Details, 1 = Backlog. Defaulted in <see cref="Load"/>.</summary>
+    [ObservableProperty] private int _selectedTabIndex;
+
+    // ── Legacy-schema upgrade gating ──
+    [ObservableProperty] private bool _needsUpgrade;
+    [ObservableProperty] private bool _isReadOnly;
+
+    /// <summary>Inverse of <see cref="IsReadOnly"/> — bound to the editors' IsEnabled.</summary>
+    public bool IsEditable => !IsReadOnly;
+    partial void OnIsReadOnlyChanged(bool value) => OnPropertyChanged(nameof(IsEditable));
+
+    public ObservableCollection<CompletionCriterionViewModel> CompletionCriteria { get; } = [];
+    public ObservableCollection<BacklogItemViewModel>          Backlog            { get; } = [];
 
     [ObservableProperty] private BacklogItemViewModel? _selectedItem;
-
-    // ── New todo entry ────────────────────────────────────────────────────
     [ObservableProperty] private string _newTodoTitle = string.Empty;
 
-    // ── Pie chart ─────────────────────────────────────────────────────────
-    [ObservableProperty] private IReadOnlyList<PieSlice> _pieSlices = [];
-
-    // ── Confirmation overlay (same pattern as FileSystemViewModel) ────────
+    // ── Confirmation overlay (delete) ──
     [ObservableProperty] private bool   _confirmationVisible;
     [ObservableProperty] private string _confirmationTitle  = "Are you sure?";
     [ObservableProperty] private string _confirmationPrompt = string.Empty;
     private Action? _pendingConfirmAction;
+
+    public event Action<string>? OpenFilesRequested;
+
+    private bool _loading;
+
+    public ProjectDetailViewModel(ProjectOperations ops, ProjectsConfig config, string folderName,
+                                  IShellServices? shell = null, IAIService? ai = null)
+    {
+        _svc         = ops;
+        _config      = config;
+        FolderName   = folderName;
+        _shell       = shell;
+        _ai          = ai;
+        _projectPath = System.IO.Path.Combine(ops.RootPath, folderName);
+        Load();
+    }
+
+    [RelayCommand]
+    private void Refresh() => Load();
+
+    private void Load()
+    {
+        _loading = true;
+        try
+        {
+            var info = _svc.GetProjectInfo(FolderName);
+            ProjectName  = string.IsNullOrWhiteSpace(info.Name) ? FolderName : info.Name;
+            Description  = info.Description;
+            SolutionFile = info.SolutionFile;
+            LastModified = Format(info.LastUpdate);
+
+            NeedsUpgrade = info.SchemaVersion < ProjectInfo.CurrentSchemaVersion;
+            IsReadOnly   = NeedsUpgrade;
+
+            CompletionCriteria.Clear();
+            foreach (var c in info.CompletionCriteria)
+                CompletionCriteria.Add(new CompletionCriterionViewModel(c, OnCriteriaChanged));
+
+            Backlog.Clear();
+            foreach (var item in info.Backlog)
+                Backlog.Add(new BacklogItemViewModel(item, this));
+
+            // More room where it's needed: no description → open on details; otherwise open on the backlog.
+            SelectedTabIndex = string.IsNullOrWhiteSpace(Description) ? 0 : 1;
+        }
+        finally { _loading = false; }
+
+        if (NeedsUpgrade) _ = PromptUpgradeAsync();
+    }
+
+    private static string Format(DateTime? t)
+        => t.HasValue ? t.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "—";
+
+    private void RefreshLastModified()
+        => LastModified = Format(_svc.GetProjectInfo(FolderName).LastUpdate);
+
+    // ── Legacy upgrade ──
+
+    private async Task PromptUpgradeAsync()
+    {
+        if (_shell is null) return;   // no shell (e.g. tests) → leave read-only, banner offers Upgrade
+        var ok = await _shell.ConfirmAsync(
+            "Upgrade project format?",
+            "This project uses the old format. Upgrading rolls the previous scope / notes / plan fields into " +
+            "the new markdown fields and enables editing. Your data is preserved.",
+            "Upgrade", "Keep as-is");
+        if (ok) DoUpgrade();
+    }
+
+    [RelayCommand]
+    private void Upgrade() => DoUpgrade();
+
+    private void DoUpgrade()
+    {
+        _svc.UpgradeSchema(FolderName);
+        Load();   // reloads as v2 → NeedsUpgrade/IsReadOnly clear
+    }
+
+    // ── Header saves ──
+
+    partial void OnProjectNameChanged(string value) => SaveHeader();
+    partial void OnDescriptionChanged(string value) => SaveHeader();
+
+    private void SaveHeader()
+    {
+        if (_loading || IsReadOnly) return;
+        _svc.ModifyProjectHeader(FolderName, ProjectName, Description);
+        RefreshLastModified();
+    }
+
+    // ── Completion criteria ──
+
+    private void OnCriteriaChanged()
+    {
+        if (_loading || IsReadOnly) return;
+        SaveCriteria();
+    }
+
+    private void SaveCriteria()
+    {
+        _svc.SetCompletionCriteria(FolderName, CompletionCriteria.Select(c => c.ToModel()).ToList());
+        RefreshLastModified();
+    }
+
+    [RelayCommand]
+    private void AddCriterion()
+    {
+        if (IsReadOnly) return;
+        CompletionCriteria.Add(new CompletionCriterionViewModel(OnCriteriaChanged));
+        SaveCriteria();
+    }
+
+    [RelayCommand]
+    private void RemoveCriterion(CompletionCriterionViewModel? c)
+    {
+        if (c is null || IsReadOnly) return;
+        CompletionCriteria.Remove(c);
+        SaveCriteria();
+    }
+
+    // ── Backlog ──
+
+    [RelayCommand]
+    private void SaveItem()
+    {
+        if (SelectedItem is not null) SaveBacklogItem(SelectedItem);
+    }
+
+    internal void SaveBacklogItem(BacklogItemViewModel vm)
+    {
+        if (_loading || IsReadOnly) return;
+        _svc.ModifyToDo(FolderName, vm.Id, vm.Title, vm.Description);
+        RefreshLastModified();
+    }
+
+    internal bool CanProgress(string statusKey) => _svc.CanProgress(statusKey);
+
+    internal void ProgressItem(BacklogItemViewModel vm)
+    {
+        if (IsReadOnly) return;
+        _svc.ProgressToDo(FolderName, vm.Id);
+        SyncItemStatus(vm);
+    }
+
+    internal void SetItemStatus(BacklogItemViewModel vm, string statusKey)
+    {
+        if (_loading || IsReadOnly) return;
+        _svc.SetToDoStatus(FolderName, vm.Id, statusKey);
+        RefreshLastModified();
+    }
+
+    private void SyncItemStatus(BacklogItemViewModel vm)
+    {
+        var updated = _svc.GetProjectInfo(FolderName).Backlog.FirstOrDefault(i => i.Id == vm.Id);
+        if (updated is not null) vm.SetStatusKeyQuiet(updated.StatusKey);
+        RefreshLastModified();
+    }
+
+    [RelayCommand]
+    private void AddTodo()
+    {
+        if (IsReadOnly) return;
+        var title = NewTodoTitle.Trim();
+        if (string.IsNullOrEmpty(title)) return;
+        var id = _svc.AddToDo(FolderName, title);
+        var created = _svc.GetProjectInfo(FolderName).Backlog.FirstOrDefault(i => i.Id == id)
+                      ?? new BacklogItem { Id = id, Title = title };
+        var vm = new BacklogItemViewModel(created, this);
+        Backlog.Add(vm);
+        SelectedItem = vm;
+        NewTodoTitle = string.Empty;
+        RefreshLastModified();
+    }
+
+    [RelayCommand]
+    private void DeleteTodo(BacklogItemViewModel? item)
+    {
+        if (item is null || IsReadOnly) return;
+        ShowConfirmation(
+            "Delete backlog item",
+            $"Delete \"{item.Title}\"? This cannot be undone.",
+            () =>
+            {
+                _svc.RemoveToDo(FolderName, item.Id);
+                Backlog.Remove(item);
+                if (SelectedItem == item) SelectedItem = null;
+                RefreshLastModified();
+            });
+    }
+
+    [RelayCommand]
+    private void OpenFiles()
+        => OpenFilesRequested?.Invoke(_projectPath);
+
+    // ── AI buttons ──
+
+    [RelayCommand]
+    private Task TaskToAi(BacklogItemViewModel? item) => StartAiConversation(item, plan: false);
+
+    [RelayCommand]
+    private Task PlanWithAi(BacklogItemViewModel? item) => StartAiConversation(item, plan: true);
+
+    private async Task StartAiConversation(BacklogItemViewModel? item, bool plan)
+    {
+        item ??= SelectedItem;
+        if (item is null || _shell is null || _ai is null) return;
+
+        var status = Config.Resolve(item.StatusKey).Label;
+        var lead = plan
+            ? "Let's plan how to approach the following backlog task. Ask any clarifying questions, then propose a plan."
+            : "Please carry out the following backlog task.";
+        var prompt =
+            $"{lead}\n\n" +
+            $"Project: {ProjectName}\n" +
+            $"Backlog item: {item.Title}\n" +
+            $"Status: {status}\n" +
+            (string.IsNullOrWhiteSpace(item.Description) ? string.Empty : $"\nDetails:\n{item.Description}\n") +
+            "\nThe project folder is attached as context — read its .project file and the files as needed.";
+
+        var record = new ConversationRecord
+        {
+            Title = (plan ? "Plan: " : "Task: ") + item.Title,
+            Context =
+            [
+                new ContextRef
+                {
+                    PageKind   = "FileSystem",
+                    PageParams = new() { ["mode"] = "path", ["path"] = _projectPath, ["label"] = ProjectName },
+                },
+            ],
+        };
+
+        try { await _ai.SaveConversationAsync(record); } catch { return; }
+
+        _shell.OpenTab("Conversation", new()
+        {
+            ["conversationId"] = record.Id,
+            ["initialPrompt"]  = prompt,
+        });
+    }
+
+    // ── Confirmation overlay ──
 
     [RelayCommand]
     private void ConfirmAction()
@@ -59,185 +313,13 @@ public partial class ProjectDetailViewModel : ObservableObject, IPageViewModel
 
     private void ShowConfirmation(string title, string prompt, Action onConfirm)
     {
-        ConfirmationTitle   = title;
-        ConfirmationPrompt  = prompt;
+        ConfirmationTitle     = title;
+        ConfirmationPrompt    = prompt;
         _pendingConfirmAction = onConfirm;
-        ConfirmationVisible = true;
+        ConfirmationVisible   = true;
     }
 
-    // ── Raised by shell to open the project files tab ─────────────────────
-    public event Action<string>? OpenFilesRequested;
-
-    // ── Dirty-save guards ─────────────────────────────────────────────────
-    private bool _loading;
-
-    public ProjectDetailViewModel(ProjectOperations ops, string folderName)
-    {
-        _svc       = ops;
-        FolderName = folderName;
-        Load();
-    }
-
-    [RelayCommand]
-    private void Refresh() => Load();
-
-    private void Load()
-    {
-        _loading = true;
-        try
-        {
-            var info = _svc.GetProjectInfo(FolderName);
-            ProjectName    = string.IsNullOrWhiteSpace(info.Name) ? FolderName : info.Name;
-            Description    = info.Description;
-            Scope          = info.Scope;
-            ObjectivesText = string.Join(Environment.NewLine, info.Objectives);
-            SolutionFile   = info.SolutionFile;
-            LastModified   = info.LastUpdate.HasValue
-                ? info.LastUpdate.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
-                : "—";
-
-            Backlog.Clear();
-            foreach (var item in info.Backlog)
-                Backlog.Add(new BacklogItemViewModel(item, this));
-
-            RefreshPie();
-        }
-        finally { _loading = false; }
-    }
-
-    // ── Header saves ──────────────────────────────────────────────────────
-
-    partial void OnProjectNameChanged(string value)  => SaveHeader();
-    partial void OnDescriptionChanged(string value)  => SaveHeader();
-    partial void OnScopeChanged(string value)        => SaveScope();
-    partial void OnObjectivesTextChanged(string value) => SaveObjectives();
-
-    private void SaveHeader()
-    {
-        if (_loading) return;
-        _svc.ModifyProjectHeader(FolderName, ProjectName, Description);
-        RefreshLastModified();
-    }
-
-    private void SaveScope()
-    {
-        if (_loading) return;
-        _svc.ModifyScope(FolderName, Scope);
-        RefreshLastModified();
-    }
-
-    private void SaveObjectives()
-    {
-        if (_loading) return;
-        var lines = ObjectivesText
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToList();
-        _svc.ClearObjectives(FolderName);
-        if (lines.Count > 0) _svc.AddObjectives(FolderName, lines);
-        RefreshLastModified();
-    }
-
-    private void RefreshLastModified()
-    {
-        // Re-read info for the updated timestamp
-        var info = _svc.GetProjectInfo(FolderName);
-        LastModified = info.LastUpdate.HasValue
-            ? info.LastUpdate.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
-            : "—";
-    }
-
-    // ── Backlog operations (called by BacklogItemViewModel) ───────────────
-
-    [RelayCommand]
-    private void SaveItem()
-    {
-        if (SelectedItem is not null) SaveBacklogItem(SelectedItem);
-    }
-
-    internal void SaveBacklogItem(BacklogItemViewModel vm)
-    {
-        if (_loading) return;
-        _svc.ModifyToDo(FolderName, vm.Id, vm.Title, vm.Notes);
-        if (vm.ImpPlan is not null)  _svc.ModifyToDoImpPlan(FolderName, vm.Id, vm.ImpPlan);
-        if (vm.TestPlan is not null) _svc.ModifyToDoTestPlan(FolderName, vm.Id, vm.TestPlan);
-        RefreshLastModified();
-    }
-
-    internal void ProgressItem(BacklogItemViewModel vm)
-    {
-        _svc.ProgressToDo(FolderName, vm.Id);
-        var info = _svc.GetProjectInfo(FolderName);
-        var updated = info.Backlog.FirstOrDefault(i => i.Id == vm.Id);
-        if (updated is not null) vm.Status = updated.Status;
-        RefreshPie();
-        RefreshLastModified();
-    }
-
-    internal void CancelItem(BacklogItemViewModel vm)
-    {
-        _svc.CancelToDo(FolderName, vm.Id);
-        vm.Status = BacklogStatus.Cancelled;
-        RefreshPie();
-        RefreshLastModified();
-    }
-
-    [RelayCommand]
-    private void AddTodo()
-    {
-        var title = NewTodoTitle.Trim();
-        if (string.IsNullOrEmpty(title)) return;
-        var id = _svc.AddToDo(FolderName, title);
-        Backlog.Add(new BacklogItemViewModel(
-            new BacklogItem { Id = id, Title = title }, this));
-        NewTodoTitle = string.Empty;
-        RefreshPie();
-        RefreshLastModified();
-    }
-
-    [RelayCommand]
-    private void DeleteTodo(BacklogItemViewModel? item)
-    {
-        if (item is null) return;
-        ShowConfirmation(
-            "Delete backlog item",
-            $"Delete \"{item.Title}\"? This cannot be undone.",
-            () =>
-            {
-                if (!item.IsCancelled)
-                    _svc.CancelToDo(FolderName, item.Id);
-                Backlog.Remove(item);
-                if (SelectedItem == item) SelectedItem = null;
-                RefreshPie();
-                RefreshLastModified();
-            });
-    }
-
-    [RelayCommand]
-    private void OpenFiles()
-        => OpenFilesRequested?.Invoke(System.IO.Path.Combine(_svc.RootPath, FolderName));
-
-    // ── Pie chart ─────────────────────────────────────────────────────────
-
-    private void RefreshPie()
-    {
-        var notStarted = Backlog.Count(i => i.Status == BacklogStatus.NotStarted);
-        var inProgress = Backlog.Count(i =>
-            i.Status != BacklogStatus.NotStarted &&
-            i.Status != BacklogStatus.AwaitingFinalisation &&
-            i.Status != BacklogStatus.Cancelled);
-        var done       = Backlog.Count(i => i.Status == BacklogStatus.AwaitingFinalisation);
-        var cancelled  = Backlog.Count(i => i.Status == BacklogStatus.Cancelled);
-
-        var slices = new List<PieSlice>();
-        if (notStarted > 0) slices.Add(new PieSlice(notStarted, ProjectsViewModel.BrushNotStarted));
-        if (inProgress > 0) slices.Add(new PieSlice(inProgress, ProjectsViewModel.BrushInProgress));
-        if (done       > 0) slices.Add(new PieSlice(done,       ProjectsViewModel.BrushDone));
-        if (cancelled  > 0) slices.Add(new PieSlice(cancelled,  ProjectsViewModel.BrushCancelled));
-
-        PieSlices = slices;
-    }
-
-    // ── IPageViewModel ────────────────────────────────────────────────────
+    // ── IPageViewModel ──
 
     public string GetContext()
     {

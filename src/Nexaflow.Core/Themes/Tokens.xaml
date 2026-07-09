@@ -75,6 +75,16 @@
     <SolidColorBrush x:Key="SuccessBrush" Color="#22C55E"/>   <!-- done / staged / go      (green) -->
     <SolidColorBrush x:Key="WarningBrush" Color="#F59E0B"/>   <!-- modified / attention    (amber) -->
 
+    <!-- ════ Node / criterion status vocabulary ════
+         The four-state set (should / shouldn't / done / faulted) shared by the Product tree and the
+         Projects "completion criteria" list. Kept as its own bank (not aliased to Success/Warning/
+         Danger) so the four stay mutually DISTINCT at a glance. A theme may retune them tonally in
+         Theme.<name>.xaml but should keep them separable. Resolved by key at paint time. -->
+    <SolidColorBrush x:Key="Status.Should"   Color="#EF9F27"/>  <!-- should    — amber -->
+    <SolidColorBrush x:Key="Status.Shouldnt" Color="#B4B2A9"/>  <!-- shouldn't  — grey  -->
+    <SolidColorBrush x:Key="Status.Done"     Color="#639922"/>  <!-- done      — green -->
+    <SolidColorBrush x:Key="Status.Faulted"  Color="#E24B4A"/>  <!-- faulted   — red   -->
+
     <!-- ════ Categorical swatch bank ════
          A dozen mutually-distinct hues for components that need RECOGNISABLY DIFFERENT colours next to
          one another — pie / chart series, status buckets, category dots — rather than the theme's

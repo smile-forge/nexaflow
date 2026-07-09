@@ -1,67 +1,74 @@
-﻿using Nexaflow.Features.Projects.Model;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using System;
-using System.Collections.Generic;
-using System.Text;
+using Nexaflow.Features.Projects.Model;
+using Nexaflow.Visuals.Common.Theming;
 using System.Windows.Media;
 
-namespace Nexaflow.Features.Projects.ViewModels
+namespace Nexaflow.Features.Projects.ViewModels;
+
+/// <summary>
+/// Editable backlog item. Its status is a configured status <b>key</b> resolved live against the
+/// workspace config, so a deleted status shows as invalid (greyed, non-progressable) rather than being
+/// silently remapped. The forward "Progress" button steps one status; the themed status dropdown sets
+/// any status (binding <see cref="StatusKey"/> two-way, which persists via the parent).
+/// </summary>
+public partial class BacklogItemViewModel : ObservableObject
 {
-    // ── Editable backlog item ─────────────────────────────────────────────────────
+    private readonly ProjectDetailViewModel _parent;
+    private bool _suppressStatusSave;
 
-    public partial class BacklogItemViewModel : ObservableObject
+    public Guid Id { get; }
+
+    [ObservableProperty] private string _title = string.Empty;
+    [ObservableProperty] private string _description = string.Empty;   // markdown
+    [ObservableProperty] private string _statusKey = string.Empty;
+
+    /// <summary>The workspace config — the status dropdown binds <c>Config.BacklogStatuses</c>.</summary>
+    public ProjectsConfig Config => _parent.Config;
+
+    public string StatusLabel     => Config.Resolve(StatusKey).Label;
+    public bool   IsInvalidStatus => !Config.Resolve(StatusKey).IsValid;
+    public bool   IsCancelled     => Config.Resolve(StatusKey).IsTerminalCancelled;
+    public bool   CanProgress     => _parent.CanProgress(StatusKey);
+    public Brush  StatusBrush     => SwatchPalette.Resolve(Config.Resolve(StatusKey).SwatchKey);
+
+    public BacklogItemViewModel(BacklogItem item, ProjectDetailViewModel parent)
     {
-        private readonly ProjectDetailViewModel _parent;
-
-        public Guid Id { get; }
-
-        [ObservableProperty] private string _title = string.Empty;
-        [ObservableProperty] private string? _notes;
-        [ObservableProperty] private string? _impPlan;
-        [ObservableProperty] private string? _testPlan;
-        [ObservableProperty] private BacklogStatus _status;
-
-        public string StatusLabel => Status.ToString();
-        public bool IsCancelled => Status == BacklogStatus.Cancelled;
-        public bool CanProgress => Status != BacklogStatus.AwaitingFinalisation && !IsCancelled;
-
-        public Brush StatusBrush => Status switch
-        {
-            BacklogStatus.NotStarted => ProjectsViewModel.BrushNotStarted,
-            BacklogStatus.AwaitingFinalisation => ProjectsViewModel.BrushDone,
-            BacklogStatus.Cancelled => ProjectsViewModel.BrushCancelled,
-            _ => ProjectsViewModel.BrushInProgress
-        };
-
-        public BacklogItemViewModel(BacklogItem item, ProjectDetailViewModel parent)
-        {
-            Id = item.Id;
-            _title = item.Title;
-            _notes = item.Notes;
-            _impPlan = item.ImpPlan;
-            _testPlan = item.TestPlan;
-            _status = item.Status;
-            _parent = parent;
-        }
-
-        partial void OnTitleChanged(string value) { /* saved explicitly */ }
-        partial void OnNotesChanged(string? value) { /* saved explicitly */ }
-        partial void OnImpPlanChanged(string? value) { /* saved explicitly */ }
-        partial void OnTestPlanChanged(string? value) { /* saved explicitly */ }
-
-        [RelayCommand(CanExecute = nameof(CanProgress))]
-        private void Progress()
-        {
-            _parent.ProgressItem(this);
-            OnPropertyChanged(nameof(StatusLabel));
-            OnPropertyChanged(nameof(StatusBrush));
-            OnPropertyChanged(nameof(IsCancelled));
-            OnPropertyChanged(nameof(CanProgress));
-            ProgressCommand.NotifyCanExecuteChanged();
-        }
-
-        [RelayCommand]
-        private void Cancel() => _parent.CancelItem(this);
+        _parent      = parent;
+        Id           = item.Id;
+        _title       = item.Title;
+        _description = item.Description;
+        _statusKey   = item.StatusKey;
     }
+
+    partial void OnTitleChanged(string value) { /* saved explicitly via the Save button */ }
+    partial void OnDescriptionChanged(string value) { /* saved explicitly via the Save button */ }
+
+    partial void OnStatusKeyChanged(string value)
+    {
+        RefreshStatusView();
+        if (_suppressStatusSave) return;   // programmatic (Progress / reload) — don't re-persist
+        _parent.SetItemStatus(this, value);
+    }
+
+    private void RefreshStatusView()
+    {
+        OnPropertyChanged(nameof(StatusLabel));
+        OnPropertyChanged(nameof(StatusBrush));
+        OnPropertyChanged(nameof(IsCancelled));
+        OnPropertyChanged(nameof(IsInvalidStatus));
+        OnPropertyChanged(nameof(CanProgress));
+        ProgressCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Sets the status key without re-persisting — used after Progress or a reload.</summary>
+    internal void SetStatusKeyQuiet(string key)
+    {
+        _suppressStatusSave = true;
+        StatusKey = key;
+        _suppressStatusSave = false;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanProgress))]
+    private void Progress() => _parent.ProgressItem(this);
 }

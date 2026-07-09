@@ -1,10 +1,11 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Projects.Model;
 
 namespace Nexaflow.Tests.Features.Projects;
 
-/// <summary>POCO defaults and JSON round-trip for the project model (<see cref="ProjectInfo"/> / <see cref="BacklogItem"/>).</summary>
+/// <summary>POCO defaults and JSON round-trip for the v2 project model.</summary>
 [TestClass]
 public class ProjectModelTests
 {
@@ -20,41 +21,50 @@ public class ProjectModelTests
     {
         var a = new BacklogItem();
         var b = new BacklogItem();
-        Assert.AreEqual(BacklogStatus.NotStarted, a.Status);
+        Assert.AreEqual("NotStarted", a.StatusKey);
+        Assert.AreEqual("", a.Description);
         Assert.AreNotEqual(Guid.Empty, a.Id);
         Assert.AreNotEqual(a.Id, b.Id, "each item should get its own id");
     }
 
     [TestMethod]
-    public void ProjectInfo_Defaults_AreEmptyCollectionsAndStrings()
+    public void ProjectInfo_Defaults_AreV2_WithEmptyCollections()
     {
         var p = new ProjectInfo();
+        Assert.AreEqual(ProjectInfo.CurrentSchemaVersion, p.SchemaVersion);
         Assert.AreEqual("", p.Name);
-        Assert.AreEqual(0, p.Objectives.Count);
+        Assert.AreEqual(0, p.CompletionCriteria.Count);
         Assert.AreEqual(0, p.Backlog.Count);
         Assert.IsNull(p.SolutionFile);
         Assert.IsNull(p.LastUpdate);
     }
 
     [TestMethod]
-    public void ProjectInfo_RoundTrips_WithEnumAsString()
+    public void ProjectInfo_RoundTrips_WithStatusKeyAndCriterionStatusAsString()
     {
         var p = new ProjectInfo
         {
-            Name = "Demo",
-            Description = "d",
-            Objectives = { "o1", "o2" },
-            Backlog = { new BacklogItem { Title = "t", Status = BacklogStatus.AwaitingDesign } },
+            Name        = "Demo",
+            Description  = "d",
+            CompletionCriteria =
+            {
+                new CompletionCriterion { Text = "ships", Status = CompletionStatus.Done },
+                new CompletionCriterion { Text = "no bugs", Status = CompletionStatus.Faulted },
+            },
+            Backlog = { new BacklogItem { Title = "t", StatusKey = "AwaitingDesign", Description = "body" } },
         };
 
         var json = JsonSerializer.Serialize(p, Options);
-        StringAssert.Contains(json, "AwaitingDesign");   // enum written as name, not number
+        StringAssert.Contains(json, "\"SchemaVersion\": 2");
+        StringAssert.Contains(json, "Done");           // criterion status written as name
+        StringAssert.Contains(json, "AwaitingDesign"); // backlog status key is a plain string
 
         var rt = JsonSerializer.Deserialize<ProjectInfo>(json, Options)!;
         Assert.AreEqual("Demo", rt.Name);
-        CollectionAssert.AreEqual(new[] { "o1", "o2" }, rt.Objectives);
+        Assert.AreEqual(2, rt.CompletionCriteria.Count);
+        Assert.AreEqual(CompletionStatus.Done, rt.CompletionCriteria[0].Status);
         Assert.AreEqual(1, rt.Backlog.Count);
-        Assert.AreEqual(BacklogStatus.AwaitingDesign, rt.Backlog[0].Status);
-        Assert.AreEqual("t", rt.Backlog[0].Title);
+        Assert.AreEqual("AwaitingDesign", rt.Backlog[0].StatusKey);
+        Assert.AreEqual("body", rt.Backlog[0].Description);
     }
 }

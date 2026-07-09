@@ -1,5 +1,5 @@
-using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Visuals.Common.Theming;
 
 namespace Nexaflow.Core.Controls;
 
@@ -7,32 +7,14 @@ namespace Nexaflow.Core.Controls;
 public sealed record SwatchOption(string Hex, Brush Brush);
 
 /// <summary>
-/// The shared categorical swatch bank (Tokens.xaml / per-theme overrides) resolved to brush+hex pairs.
-/// Every per-workspace colour picker draws from it — the Options workspaces list and the Configure
-/// panel's identity page — so they offer the same palette the ribbon picker and project pie use.
+/// The shared categorical swatch bank resolved to brush+hex pairs for the per-workspace colour pickers
+/// (the Options workspaces list and the Configure panel's identity page). Delegates to the single source
+/// of truth, <see cref="SwatchPalette"/> in Visuals.Common, so the workspace pickers, the ribbon picker,
+/// and the project status colours all offer the same palette from one definition.
 /// </summary>
 public static class WorkspaceSwatches
 {
-    private static readonly string[] Keys =
-    [
-        "Swatch.Blue",  "Swatch.Cyan",   "Swatch.Teal",  "Swatch.Green",
-        "Swatch.Lime",  "Swatch.Yellow", "Swatch.Amber", "Swatch.Orange",
-        "Swatch.Red",   "Swatch.Pink",   "Swatch.Purple","Swatch.Slate",
-    ];
-
-    /// <summary>
-    /// Resolves the bank against the live application resources. Throws (not silently skips) on a
-    /// missing key so a typo surfaces instead of a gap in the picker.
-    /// </summary>
+    /// <summary>Resolves the bank against the live application resources (throws on a missing key).</summary>
     public static IReadOnlyList<SwatchOption> Build()
-    {
-        var list = new List<SwatchOption>(Keys.Length);
-        foreach (var key in Keys)
-        {
-            if (Application.Current?.Resources[key] is not SolidColorBrush b)
-                throw new InvalidOperationException($"Swatch brush '{key}' not found.");
-            list.Add(new SwatchOption(b.Color.ToString(), b));
-        }
-        return list;
-    }
+        => [.. SwatchPalette.Build().Select(o => new SwatchOption(o.Hex, o.Brush))];
 }

@@ -185,6 +185,17 @@ public interface IShellServices
     event Action? FolderBusyChanged;
 
     /// <summary>
+    /// Moves a folder to a new location on a background thread as a SAFE move (copy-then-delete, so a file
+    /// held open elsewhere can't corrupt the move — the destination gets a complete copy before the source
+    /// is removed). While it runs, the source folder and both parents are marked busy via
+    /// <see cref="MarkFolderBusy"/>, so any file browser showing them shows a "please wait" panel and
+    /// refreshes when it clears. <paramref name="onComplete"/> is invoked on the UI thread with
+    /// <c>true</c> on success. Used for the projects archive / shelf / reactivate relocations.
+    /// </summary>
+    void MoveFolderInBackground(string sourcePath, string destinationPath, string busyMessage,
+                                Action<bool>? onComplete = null);
+
+    /// <summary>
     /// Persists a global feature config (an <see cref="IFeatureConfig"/>) to its on-disk store —
     /// the same versioned-JSON location the Options panel writes. Lets a feature commit a config
     /// change made outside the Options flow (e.g. a wizard adding an external-app mapping) without

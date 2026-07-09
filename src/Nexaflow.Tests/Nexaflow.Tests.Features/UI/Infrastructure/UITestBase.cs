@@ -41,11 +41,23 @@ public abstract class UITestBase
     /// </summary>
     protected virtual string? LaunchTabKind => null;
 
+    /// <summary>
+    /// Override to seed files/config into the isolated config dir (<paramref name="configDir"/> =
+    /// <c>NEXAFLOW_CONFIG_DIR</c>) BEFORE the app launches — e.g. write a workspace-scoped feature config
+    /// under <c>Contexts\Default\&lt;configName&gt;\config_&lt;version&gt;.json</c> to enable a feature. Runs
+    /// after the dir is created, before <c>Application.Launch</c>. No-op by default.
+    /// </summary>
+    protected virtual void SeedConfig(string configDir) { }
+
     [TestInitialize]
     public void UISetup()
     {
         _configDir = Path.Combine(Path.GetTempPath(), "nexaflow-uitest-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_configDir);
+
+        // Let a derived test seed files/config into the isolated dir BEFORE launch (e.g. enable a
+        // workspace-scoped feature so its enabled UI renders instead of the disabled placeholder).
+        SeedConfig(_configDir);
 
         Automation = new UIA3Automation();
 

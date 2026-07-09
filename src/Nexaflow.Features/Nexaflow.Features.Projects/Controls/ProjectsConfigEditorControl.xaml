@@ -1,0 +1,169 @@
+<UserControl x:Class="Nexaflow.Features.Projects.Controls.ProjectsConfigEditorControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common">
+
+    <UserControl.Resources>
+        <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
+
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontSize"   Value="11"/>
+            <Setter Property="Margin"     Value="0,8,0,3"/>
+        </Style>
+
+        <Style x:Key="SectionHeader" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="FontSize"   Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin"     Value="0,16,0,4"/>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="12">
+
+            <!-- Enable -->
+            <CheckBox Content="Enable projects for this workspace"
+                      Foreground="{StaticResource TextBrush}" FontSize="12"
+                      IsChecked="{Binding EnableProjects, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"/>
+
+            <!-- Locations -->
+            <TextBlock Text="Locations" Style="{StaticResource SectionHeader}"/>
+            <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" FontSize="11"
+                       Text="Where projects live, and where Archive / Shelf move them. Reactivating a shelved or archived project moves it back to the project folder."/>
+
+            <Grid IsEnabled="{Binding EnableProjects, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Project directory -->
+                <StackPanel Grid.Row="0">
+                    <TextBlock Text="Project folder" Style="{StaticResource FieldLabel}"/>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="…" MinWidth="28" Margin="4,0,0,0"
+                                Style="{StaticResource IconButton}" Click="BrowseProject_Click"/>
+                        <TextBox Text="{Binding ProjectDirectory, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource DarkTextBox}" FontSize="11"/>
+                    </DockPanel>
+                </StackPanel>
+
+                <!-- Shelf directory -->
+                <StackPanel Grid.Row="1">
+                    <TextBlock Text="Shelf folder" Style="{StaticResource FieldLabel}"/>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="…" MinWidth="28" Margin="4,0,0,0"
+                                Style="{StaticResource IconButton}" Click="BrowseShelf_Click"/>
+                        <TextBox Text="{Binding ShelfDirectory, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource DarkTextBox}" FontSize="11"/>
+                    </DockPanel>
+                </StackPanel>
+
+                <!-- Archive directory -->
+                <StackPanel Grid.Row="2">
+                    <TextBlock Text="Archive folder" Style="{StaticResource FieldLabel}"/>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="…" MinWidth="28" Margin="4,0,0,0"
+                                Style="{StaticResource IconButton}" Click="BrowseArchive_Click"/>
+                        <TextBox Text="{Binding ArchiveDirectory, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource DarkTextBox}" FontSize="11"/>
+                    </DockPanel>
+                </StackPanel>
+            </Grid>
+
+            <!-- Backlog statuses -->
+            <Grid Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Backlog statuses" Style="{StaticResource SectionHeader}" Margin="0,0,0,4"/>
+                <Button Grid.Column="1" Content="+ Add" MinWidth="56" VerticalAlignment="Center"
+                        Style="{StaticResource IconButton}" Click="AddStatus_Click"/>
+            </Grid>
+            <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,0,6"
+                       Text="Top-to-bottom is the order the “Progress” button steps through. Mark exactly one state as the terminal “cancelled” state — it is skipped by stepping and chosen from the status dropdown. Deleting a state leaves any item on it flagged invalid; it is never silently moved."/>
+
+            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                <ItemsControl x:Name="StatusList" Margin="6,4">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,3">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>   <!-- reorder -->
+                                    <ColumnDefinition Width="*"/>      <!-- label -->
+                                    <ColumnDefinition Width="130"/>    <!-- swatch -->
+                                    <ColumnDefinition Width="Auto"/>   <!-- terminal -->
+                                    <ColumnDefinition Width="Auto"/>   <!-- remove -->
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Reorder -->
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,6,0">
+                                    <Button Style="{StaticResource IconButton}" Width="24" ToolTip="Move up"
+                                            Tag="{Binding}" Click="MoveUp_Click">
+                                        <TextBlock Text="▲" FontSize="9"/>
+                                    </Button>
+                                    <Button Style="{StaticResource IconButton}" Width="24" ToolTip="Move down"
+                                            Tag="{Binding}" Click="MoveDown_Click">
+                                        <TextBlock Text="▼" FontSize="9"/>
+                                    </Button>
+                                </StackPanel>
+
+                                <!-- Label (rings red on error) -->
+                                <Border Grid.Column="1" Margin="0,0,6,0" BorderThickness="1.5" CornerRadius="8">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="BorderBrush" Value="Transparent"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasLabelError}" Value="True">
+                                                    <Setter Property="BorderBrush" Value="{StaticResource DangerBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBox Text="{Binding Label, UpdateSourceTrigger=PropertyChanged}"
+                                             Style="{StaticResource DarkTextBox}" FontSize="11"/>
+                                </Border>
+
+                                <!-- Colour -->
+                                <ComboBox Grid.Column="2" Margin="0,0,6,0"
+                                          Style="{StaticResource DarkComboBox}" FontSize="11"
+                                          ItemsSource="{Binding Swatches, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                          SelectedValuePath="Key"
+                                          SelectedValue="{Binding SwatchKey, Mode=TwoWay}"
+                                          ToolTip="Status colour">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border Width="14" Height="14" CornerRadius="3"
+                                                        Background="{Binding Brush}" Margin="0,0,6,0"/>
+                                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontSize="11"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+
+                                <!-- Terminal (cancelled) -->
+                                <CheckBox Grid.Column="3" VerticalAlignment="Center" Margin="0,0,6,0"
+                                          Content="Cancel state" FontSize="10"
+                                          Foreground="{StaticResource TextMutedBrush}"
+                                          IsChecked="{Binding IsTerminalCancelled, Mode=TwoWay}"
+                                          ToolTip="The terminal “cancelled” state (exactly one)."/>
+
+                                <!-- Remove -->
+                                <Button Grid.Column="4" Style="{StaticResource IconButton}" Width="26"
+                                        ToolTip="Remove this status" Tag="{Binding}" Click="RemoveStatus_Click">
+                                    <TextBlock Text="✕" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                                </Button>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -39,11 +39,10 @@ public sealed class ProjectsTabRegistration : IPageRegistration
         // projects) — callers may peek a page's Title/Icon without realizing its content.
         tab.ContentFactory = () =>
         {
-            var ops  = new ProjectOperations(_config);
-            var vm   = new ProjectsViewModel(ops, _config.EnableProjects);
+            var vm   = new ProjectsViewModel(_config, _shellServices);
             var page = new ProjectsView(vm);
-            vm.OpenProjectRequested += folder =>
-                _shellServices.OpenTab("ProjectDetail", new() { ["folder"] = folder }, page);
+            vm.OpenProjectRequested += path =>
+                _shellServices.OpenTab("ProjectDetail", new() { ["path"] = path }, page);
             vm.OpenFilesRequested += path =>
                 _shellServices.OpenTab("FileSystem", new() { ["mode"] = "path", ["path"] = path }, page);
             return page;
