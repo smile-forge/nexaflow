@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using Nexaflow.Core.Controls;
 using Nexaflow.Core.Models;
@@ -109,11 +110,26 @@ public partial class MainWindow : Window
             }
         };
 
-        // Window-level shell shortcuts. These live on the tunneling PreviewKeyDown (window sees the key
-        // first) so they fire from any focus instead of being swallowed by the focused content on the way
-        // up — closing a tab and reaching the AI input are shell concerns, not a feature's to intercept.
+        // Window-level keyboard dispatch on the tunneling PreviewKeyDown (the window sees the key first, so
+        // it fires from any focus). The active page's IKeyboardHandler gets first refusal — so a tab's
+        // shortcuts work whichever shell control (ribbon, breadcrumb, the view itself) is focused — then the
+        // shell's own global shortcuts apply.
         PreviewKeyDown += (_, e) =>
         {
+            // Active-page shortcuts. Skipped while a text box is focused so typing keeps its native editing
+            // keys (Ctrl+C/V/A, Del, …). A page advertises shortcuts by implementing IKeyboardHandler on its
+            // view or view-model; reading CurrentPage each keystroke is what "swaps" the mapping per tab.
+            if (Keyboard.FocusedElement is not TextBoxBase)
+            {
+                var pageKeys = _vm.CurrentPage as IKeyboardHandler
+                            ?? (_vm.CurrentPage as IPageView)?.ViewModel as IKeyboardHandler;
+                if (pageKeys is not null && pageKeys.CanProcessKey(e.Key, Keyboard.Modifiers))
+                {
+                    e.Handled = pageKeys.ProcessKey(e.Key, Keyboard.Modifiers);
+                    if (e.Handled) return;
+                }
+            }
+
             // Ctrl+Tab focuses the AI input. Plain Tab is left alone so it keeps normal focus navigation,
             // and so the focused input's PlaceholderTextBox can use Tab to accept its inline completion.
             if (e.Key == Key.Tab
@@ -123,10 +139,9 @@ public partial class MainWindow : Window
                 AiInput.Focus();
                 e.Handled = true;
             }
-            // Ctrl+W closes the current tab. CanExecute gates it out while a modal overlay is up or the
-            // pane has no tab.
-            else if (e.Key == Key.W && Keyboard.Modifiers == ModifierKeys.Control
-                     && _vm.CloseActiveTabCommand.CanExecute(null))
+            // Ctrl+W closes the current tab. Trigger on the key alone (like Ctrl+Tab); the command itself
+            // no-ops under a modal overlay / with no tab.
+            else if (e.Key == Key.W && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
             {
                 _vm.CloseActiveTabCommand.Execute(null);
                 e.Handled = true;

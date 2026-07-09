@@ -19,7 +19,7 @@ using Nexaflow.Features.WindowsFileSystem;
 
 namespace Nexaflow.Features.WindowsFileSystem.Views;
 
-public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
+public partial class FileSystemView : UserControl, IPageView, ISelectionProvider, IKeyboardHandler
 {
     public FileSystemViewModel ViewModel { get; }
 
@@ -30,7 +30,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     IReadOnlyList<string> ISelectionProvider.SelectedFilePaths
         => ViewModel.CurrentSelection.Select(e => e.FullPath).ToList();
 
-    private readonly IKeyboardHandler _keyboardHandler;
+    private readonly IKeyboardHandler _actionKeys;   // maps shortcut keys → file actions (this view IS the page handler)
     private readonly IDropTarget      _dropTarget;
 
     // Drag-from-list tracking
@@ -58,7 +58,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     {
         InitializeComponent();
         ViewModel        = viewModel;
-        _keyboardHandler = keyboardHandler;
+        _actionKeys      = keyboardHandler;
         _dropTarget      = dropTarget;
         DataContext = viewModel;
         ViewModel.NavigationChanged += OnViewModelNavigationChanged;
@@ -390,28 +390,33 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     }
 
     // ── Keyboard handling ─────────────────────────────────────────────────
+    // Shortcut dispatch is centralised: the shell calls this view's IKeyboardHandler (below) for the active
+    // page, so the shortcuts fire whichever shell control has focus. This override only tracks Shift (used
+    // by force-delete and the drop-hint visual) so it stays accurate regardless of what's focused.
     protected override void OnPreviewKeyDown(KeyEventArgs e)
     {
         base.OnPreviewKeyDown(e);
-
-        // Shift tracking (run unconditionally so ShiftHeld stays accurate).
         if (e.Key is Key.LeftShift or Key.RightShift)
             ViewModel.ShiftHeld = true;
+    }
 
-        // Don't intercept shortcuts when an overlay or TextBox has focus.
-        if (ViewModel.InputPromptVisible || ViewModel.ConfirmationVisible) return;
-        if (Keyboard.FocusedElement is TextBox) return;
+    // ── IKeyboardHandler (dispatched by the shell for the active page) ─────
+    // Ctrl+A is a view-level selection; the rest delegate to the shared FileSystemKeyboardHandler so they
+    // take the same path as clicking the action strip. The shell already skips this while a TextBox is
+    // focused, so an inline rename keeps its native editing keys; the overlay guard covers the confirm/prompt
+    // banners (which aren't text boxes).
+    public bool CanProcessKey(Key key, ModifierKeys modifiers)
+    {
+        if (ViewModel.InputPromptVisible || ViewModel.ConfirmationVisible) return false;
+        if (key == Key.A && modifiers == ModifierKeys.Control) return true;
+        return _actionKeys.CanProcessKey(key, modifiers);
+    }
 
-        // Ctrl+A: pure UI selection — select all list-view entries.
-        if (e.Key == Key.A && Keyboard.Modifiers == ModifierKeys.Control)
-        {
-            FileListView.SelectAll();
-            e.Handled = true;
-            return;
-        }
-
-        if (_keyboardHandler.CanProcessKey(e.Key, Keyboard.Modifiers))
-            e.Handled = _keyboardHandler.ProcessKey(e.Key, Keyboard.Modifiers);
+    public bool ProcessKey(Key key, ModifierKeys modifiers)
+    {
+        if (ViewModel.InputPromptVisible || ViewModel.ConfirmationVisible) return false;
+        if (key == Key.A && modifiers == ModifierKeys.Control) { FileListView.SelectAll(); return true; }
+        return _actionKeys.ProcessKey(key, modifiers);
     }
 
     protected override void OnPreviewKeyUp(KeyEventArgs e)

@@ -58,8 +58,9 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
     }
 
     // ── IKeyboardHandler ─────────────────────────────────────────────────
-    // Called by the framework when this view is active. OnKeyDown (below) also
-    // calls ProcessKey for keyboard events that bubble up from unfocused children.
+    // The shell dispatches this for the active page from the window's PreviewKeyDown, and skips it while a
+    // text box is focused — so a RichTextBox inside a PostIt keeps Ctrl+V for text paste, while Ctrl+V on the
+    // canvas background lands here and pastes into the scratchpad.
 
     public bool CanProcessKey(Key key, ModifierKeys modifiers)
         => (key == Key.V        && modifiers == ModifierKeys.Control)
@@ -79,16 +80,6 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
         if (key == Key.Subtract && modifiers == ModifierKeys.Control) { ZoomBy(1 / 1.15);   return true; }
         if (key == Key.D0       && modifiers == ModifierKeys.Control) { ResetZoom();         return true; }
         return false;
-    }
-
-    // OnKeyDown handles Ctrl+V when the canvas background has focus (no RichTextBox focused).
-    // When a RichTextBox inside a PostItControl handles Ctrl+V it marks the event Handled=true,
-    // so it never bubbles up here — no interception needed.
-    protected override void OnKeyDown(KeyEventArgs e)
-    {
-        base.OnKeyDown(e);
-        if (!e.Handled && ProcessKey(e.Key, Keyboard.Modifiers))
-            e.Handled = true;
     }
 
     // ── IDropTarget (intra-app drops from FileSystemView) ─────────────────

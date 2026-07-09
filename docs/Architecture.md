@@ -457,9 +457,21 @@ For a fully custom options UI, apply `[CustomControl(typeof(MyOptionsControl))]`
 
 ---
 
-### `IKeyboardHandler` — Global keyboard shortcuts
+### `IKeyboardHandler` — page keyboard shortcuts
 
-Implement on your `UserControl` or ViewModel. The shell calls `CanProcessKey` before consuming the event.
+Implement on your page's `UserControl` **or** its ViewModel. The shell dispatches it from the window's
+tunneling `PreviewKeyDown` (`MainWindow.xaml.cs`) for the **active page only** — it resolves the handler off
+`CurrentPage` (view first, then `IPageView.ViewModel`) on each keystroke, so the mapping follows the focused
+tab automatically. Because it's the window that dispatches, a page's shortcuts fire whichever shell control
+(ribbon, breadcrumb bar, the view itself) currently has focus — not only when the view is focused.
+
+Two rules the shell applies so it composes cleanly:
+
+- **Skipped while a text box is focused** (`Keyboard.FocusedElement is TextBoxBase`), so typing keeps its
+  native editing keys (Ctrl+C/V/A, Del, …). Guard any *non*-text-box modal state (a confirm banner, an
+  inline prompt) inside your own `CanProcessKey`.
+- **The active page gets first refusal, then shell globals** (Ctrl+Tab → AI input, Ctrl+W → close tab). So a
+  page may claim a key the shell would otherwise take.
 
 ```csharp
 public bool CanProcessKey(Key key, ModifierKeys modifiers)
