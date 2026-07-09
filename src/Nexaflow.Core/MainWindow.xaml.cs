@@ -109,16 +109,26 @@ public partial class MainWindow : Window
             }
         };
 
-        // Ctrl+Tab anywhere in the app focuses the AI input. Plain Tab is left
-        // alone so it keeps normal focus navigation, and so the focused input's
-        // PlaceholderTextBox can use Tab to accept its inline completion.
+        // Window-level shell shortcuts. These live on the tunneling PreviewKeyDown (window sees the key
+        // first) so they fire from any focus instead of being swallowed by the focused content on the way
+        // up — closing a tab and reaching the AI input are shell concerns, not a feature's to intercept.
         PreviewKeyDown += (_, e) =>
         {
+            // Ctrl+Tab focuses the AI input. Plain Tab is left alone so it keeps normal focus navigation,
+            // and so the focused input's PlaceholderTextBox can use Tab to accept its inline completion.
             if (e.Key == Key.Tab
                 && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control
                 && !AiInput.IsKeyboardFocusWithin)
             {
                 AiInput.Focus();
+                e.Handled = true;
+            }
+            // Ctrl+W closes the current tab. CanExecute gates it out while a modal overlay is up or the
+            // pane has no tab.
+            else if (e.Key == Key.W && Keyboard.Modifiers == ModifierKeys.Control
+                     && _vm.CloseActiveTabCommand.CanExecute(null))
+            {
+                _vm.CloseActiveTabCommand.Execute(null);
                 e.Handled = true;
             }
         };

@@ -707,6 +707,18 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     [RelayCommand]
     private void CloseTab(Page tab) => _shellServices.CloseTab(tab);
 
+    /// <summary>Ctrl+W: close the focused pane's active tab. Disabled while a window-modal overlay owns the
+    /// page (Options, Manage-AI, a confirmation prompt, …) so the shortcut can't pull a tab out from under
+    /// it, and when the pane has no tab to close — the shell key handler consumes the key only when this
+    /// can run, leaving Ctrl+W free for a focused feature that claims it.</summary>
+    private bool CanCloseActiveTab() => !AnyOverlayCoversPage && ActiveTab is not null;
+
+    [RelayCommand(CanExecute = nameof(CanCloseActiveTab))]
+    private void CloseActiveTab()
+    {
+        if (ActiveTab is { } tab) CloseTab(tab);
+    }
+
     [RelayCommand]
     private void TearOffTab(Page tab) => _shellServices.TearOffTab(tab);
 
