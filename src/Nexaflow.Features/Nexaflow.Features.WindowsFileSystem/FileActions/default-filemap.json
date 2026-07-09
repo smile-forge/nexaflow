@@ -44,7 +44,10 @@
     "Criteria": [
       { "Type": "Extension", "Value": "*.html" },
       { "Type": "Extension", "Value": "*.htm" },
-      { "Type": "Extension", "Value": "*.url" }
+      { "Type": "Extension", "Value": "*.url" },
+      { "Type": "Extension", "Value": "*.xhtml" },
+      { "Type": "Extension", "Value": "*.shtml" },
+      { "Type": "OptionalExtension", "Value": "*.pdf" }
     ]
   },
   {
