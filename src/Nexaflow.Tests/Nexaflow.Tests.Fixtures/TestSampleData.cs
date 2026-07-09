@@ -153,7 +153,7 @@ public static class TestSampleData
         - `json/`     — JSON objects, arrays and a large array for seek-by-item windowing.
         - `logs/`     — timestamped log files, short and long (tail-first streaming).
         - `binary/`   — binary blobs for the hex viewer (random, zeros, mixed, image header).
-        - `images/`   — solid-colour BMPs in varied aspect ratios for the image viewer.
+        - `images/`   — solid-colour images (BMP/PNG/GIF/JPEG) in varied aspect ratios for the image viewer.
         - `audio/`    — small PCM WAV tones (mono/stereo) for the audio player.
         - `video/`    — a minimal MP4 container for the video viewer (routing/open smoke test).
         - `font/`     — a code-generated minimal TrueType font + its WOFF wrapping for the font viewer.

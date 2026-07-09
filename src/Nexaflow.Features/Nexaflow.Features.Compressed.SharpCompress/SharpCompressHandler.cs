@@ -57,7 +57,8 @@ public sealed class SharpCompressHandler : IArchiveHandler
 
     public IArchiveSession Open(Stream container, string fileName, ArchiveOpenOptions? options = null)
     {
-        var lower = (fileName ?? string.Empty).ToLowerInvariant();
+        fileName ??= string.Empty;
+        var lower = fileName.ToLowerInvariant();
         bool raw = RawCodecCompound.Any(c => lower.EndsWith(c, StringComparison.Ordinal))
                 || RawCodecSimple.Contains(Path.GetExtension(lower));
         return raw ? new RawCodecSession(container, fileName)

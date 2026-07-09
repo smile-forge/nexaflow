@@ -75,7 +75,7 @@ public class ExtendedArchiveFormatTests
         try { Directory.Delete(stage, recursive: true); } catch { /* best effort */ }
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("formats.tar.zst", "formats.tar/readme.txt", ArchiveText, false)]
     [DataRow("formats.tar.lz4", "formats.tar/readme.txt", ArchiveText, false)]
     [DataRow("formats.tar.br",  "formats.tar/readme.txt", ArchiveText, false)]

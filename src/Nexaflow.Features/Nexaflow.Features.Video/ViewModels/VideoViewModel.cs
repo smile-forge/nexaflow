@@ -384,6 +384,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
         try
         {
             list = _mp.Tracks(TrackType.Text);
+            if (list is null) return;
             int n = 0;
             foreach (MediaTrack tr in list)
             {
@@ -459,6 +460,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
         try
         {
             list = _media.TrackList(type);
+            if (list is null) return;
             int n = 0;
             foreach (MediaTrack tr in list)
             {

@@ -29,7 +29,7 @@ public class CodecConvertTests
         return vfs;
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("out.tar.zst")]
     [DataRow("out.tar.lz4")]
     [DataRow("out.tar.br")]

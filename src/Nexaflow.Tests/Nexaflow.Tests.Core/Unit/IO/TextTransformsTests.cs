@@ -13,7 +13,7 @@ public class TextTransformsTests
         Assert.IsFalse(trailing);
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("a\nb\n", LineEndingKind.Lf)]
     [DataRow("a\r\nb\r\n", LineEndingKind.CrLf)]
     [DataRow("a\rb\r", LineEndingKind.Cr)]

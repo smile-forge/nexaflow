@@ -886,7 +886,8 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     private async Task AfterAiEditAsync()
     {
         IsDirty = true;
-        await _shell.RunOnUiAsync(() => SlideWindowAsync(_winStartLine)); // re-read the resident window so the edit shows
+        // re-read the resident window on the UI thread so the edit shows — await completion (Func<Task<T>> overload)
+        await _shell.RunOnUiAsync(async () => { await SlideWindowAsync(_winStartLine); return true; });
     }
 
     internal async Task SaveFromToolAsync()

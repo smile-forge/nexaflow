@@ -23,10 +23,20 @@
   -->
   <Target Name="HarvestCoreOutput" AfterTargets="ResolveProjectReferences" BeforeTargets="CoreCompile">
     <!--
-      Harvest from the EXACT directory MSBuild built Nexaflow.Core into: build Core, then ask it
-      for its TargetPath. The old code hardcoded bin\$(Configuration)\net10.0-windows\win-x64 —
-      which silently shipped a stale/leftover folder whenever Core's output was out of date, and
-      that is how the Gemini provider DLL went missing from the installer with no error.
+      Harvest from the EXACT directory MSBuild built Nexaflow.Core into. The old code hardcoded
+      bin\$(Configuration)\net10.0-windows\win-x64 — which silently shipped a stale/leftover folder
+      whenever Core's output was out of date, and that is how the Gemini provider DLL went missing
+      from the installer with no error. So instead we ask Core for its own TargetPath.
+
+      Core is ALREADY built here: this target runs AfterTargets=ResolveProjectReferences, which builds
+      the <ProjectReference> to Core above. Do NOT build it again with a nested <MSBuild Targets="Build">
+      — a second build with a different global-property set (e.g. dropping Platform) is a *separate*
+      MSBuild instance that runs concurrently with the ProjectReference build and races it on
+      Nexaflow.dll: under parallel MSBuild that surfaces as file-lock CS2012, a half-done WPF markup
+      compile ("tag does not exist in namespace" warnings), or an incomplete harvest → the bundle can't
+      find nexaflowSetup.msi. We only *query* the path, passing the same Configuration+Platform so it
+      resolves the very output the ProjectReference produced (win-x64 comes from Core's RuntimeIdentifier;
+      the x64 obj segment comes from the Platform global property — omit it and the path is wrong).
       GetTargetPath returns a path relative to Core's project, so root it at Core's dir (Path.Combine
       ignores the base when the returned path is already absolute, so this is correct either way).
     -->
@@ -34,10 +44,8 @@
       <_CoreProjDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\src\Nexaflow.Core'))</_CoreProjDir>
     </PropertyGroup>
 
-    <MSBuild Projects="$(_CoreProjDir)\Nexaflow.Core.csproj" Targets="Build"
-             Properties="Configuration=$(Configuration)" />
     <MSBuild Projects="$(_CoreProjDir)\Nexaflow.Core.csproj" Targets="GetTargetPath"
-             Properties="Configuration=$(Configuration)">
+             Properties="Configuration=$(Configuration);Platform=$(Platform)">
       <Output TaskParameter="TargetOutputs" ItemName="_CoreRef" />
     </MSBuild>
 

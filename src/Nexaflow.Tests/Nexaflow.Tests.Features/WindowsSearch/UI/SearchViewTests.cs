@@ -7,9 +7,9 @@ using Nexaflow.Tests.Features.UI.Infrastructure;
 namespace Nexaflow.Tests.Features.WindowsSearch.UI;
 
 /// <summary>
-/// Drives Search the way a user does: the shell opens on the default FileSystem tab, Ctrl+Tab
-/// moves focus to the AI input (see MainWindow.xaml.cs), and a glob query routes deterministically
-/// to Windows Search — which opens and immediately activates a Search tab. No ribbon interaction.
+/// Drives Search the way a user does: the shell opens on the default "This PC" FileSystem tab, a glob
+/// typed into the AI input routes deterministically to Windows Search — which opens and immediately
+/// activates a Search tab. No ribbon interaction.
 /// Requires an interactive desktop session — run manually or via --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
@@ -21,12 +21,19 @@ public class SearchViewTests : UITestBase
 
     protected override void OnUISetup()
     {
-        // Focus the app, then Ctrl+Tab to land in the AI input regardless of where focus starts.
-        MainWindow.Focus();
-        Wait.UntilInputIsProcessed();
+        // The default "This PC" FileSystem tab opens on a *deferred* dispatcher tick after the window
+        // appears (ShellServices.OpenDefaultTabs), and WindowsSearchQueryHandler only routes a glob to
+        // Search while the active page exposes a FileSystemContext. So we must wait for that tab to load
+        // before submitting — otherwise the query lands in an empty context and no Search tab opens. Run
+        // alone the tab happens to win the race; in a full suite run it doesn't (the machine is busier),
+        // which is why these tests passed individually but failed as part of the set.
+        Assert.IsNotNull(WaitForElement("DirectoryTree", 15), "Default FileSystem tab did not load.");
 
-        using (Keyboard.Pressing(VirtualKeyShort.CONTROL))
-            Keyboard.Type(VirtualKeyShort.TAB);
+        // Focus the AI input by clicking it — reliable across the foreground churn of a full suite run,
+        // where Ctrl+Tab (which depends on the window being foreground) is not.
+        var ai = WaitForElement("AiInputBox", 10);
+        Assert.IsNotNull(ai, "AI input box not found.");
+        ai!.Click();
         Wait.UntilInputIsProcessed();
 
         // A glob scores ≥0.9 on SearchQueryScorer and wins routing without LLM disambiguation.
@@ -59,10 +66,10 @@ public class SearchViewTests : UITestBase
     }
 
     /// <summary>Polls for an element by automation id for a few seconds (the tab opens async).</summary>
-    private AutomationElement? WaitForElement(string automationId)
+    private AutomationElement? WaitForElement(string automationId, int seconds = 8)
     {
         var sw = Stopwatch.StartNew();
-        while (sw.Elapsed < TimeSpan.FromSeconds(8))
+        while (sw.Elapsed < TimeSpan.FromSeconds(seconds))
         {
             var el = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
             if (el is not null && !el.IsOffscreen) return el;

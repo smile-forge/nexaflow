@@ -12,7 +12,7 @@ public class CommandClassifierTests
 {
     private static readonly IReadOnlySet<string> Builtins = CommandClassifier.CmdBuiltins;
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("echo hello")]
     [DataRow("dir")]
     [DataRow("cd ..")]
@@ -22,7 +22,7 @@ public class CommandClassifierTests
     public void Commands_AreClassifiedAsCommands(string line)
         => Assert.IsTrue(CommandClassifier.IsCommand(line, Builtins), $"'{line}' should be a command");
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("summarise the errors in this log")]
     [DataRow("explain what just happened")]
     [DataRow("qwzzx the temp folder")]   // first token is clearly not a program

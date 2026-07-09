@@ -15,7 +15,7 @@ namespace Nexaflow.Tests.Features.CodeIntel;
 [TestCategory("UI")]
 public class CodeViewUiTests : FileSystemUiTestBase
 {
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("hello.cs")]
     [DataRow("app.js")]
     [DataRow("types.ts")]
