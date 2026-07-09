@@ -1,8 +1,8 @@
 # Nexaflow — product status
 
-_Version **v1.2.0** · 2026-06-28_
+_Version **v1.3.0** · 2026-07-09_
 
-**98% shipping** — 652/666 components done (14 should · 0 faulted · 0 shouldn't)
+**97% shipping** — 656/678 components done (22 should · 0 faulted · 0 shouldn't)
 
 ## Tree
 
@@ -210,16 +210,20 @@ _Version **v1.2.0** · 2026-06-28_
     - **Project list** — _done_
     - **Project summary pane** — _done_
     - **Project detail tab** — _done_
-      - **Edit project fields** — _done_
+      - **Description & completion criteria** — _done_
     - **Backlog** — _done_
-      - **9-state workflow** — _done_
+      - **Configurable statuses** — _done_
       - **Add backlog item** — _done_
       - **Progress item** — _done_
       - **Backlog item editor** — _done_
-      - **Delete (cancel) item** — _done_
+      - **Delete item** — _done_
+      - **Task to AI / Plan with AI** — _done_
     - **AI Summary viewlet** — _done_
     - **Projects config** — _done_
     - **AI project tools** — _should_
+    - **Archive / Shelf / Reactivate** — _done_
+    - **Schema migration (v2)** — _done_
+    - **Backlog folder viewlet** — _done_
   - **Scratchpad** — _done_
     - **Canvas View** — _done_
       - **Canvas Context Menu** — _done_
@@ -344,6 +348,7 @@ _Version **v1.2.0** · 2026-06-28_
       - **Find Next / Previous** — _done_
       - **Match Minimap** — _done_
     - **AI Tools** — _done_
+    - **Edit File** — _should_
   - **Web Viewer** — _done_
     - **Navigation toolbar** — _done_
     - **Title & breadcrumbs** — _done_
@@ -540,6 +545,14 @@ _Version **v1.2.0** · 2026-06-28_
     - **Context pinning** — _done_
     - **History & resume** — _done_
     - **AI Chat config** — _done_
+  - **Font** — _should_
+    - **Compare list** — _should_
+    - **Font picker** — _should_
+    - **Details panel** — _should_
+    - **Glyph map** — _should_
+    - **Open As Font** — _should_
+    - **Font decode pipeline** — _should_
+    - **AI tools** — _should_
 - **Providers** — _should_
   - **Claude** — _done_
   - **Gemini** — _done_
@@ -849,8 +862,8 @@ _Nothing faulted._
 
 | Concern | Done |
 |---|---|
-| i18n | 0/666 |
-| theming | 551/666 |
-| tests | 231/666 |
-| docs | 1/666 |
-| AI Ready | 131/666 |
+| i18n | 0/678 |
+| theming | 434/678 |
+| tests | 341/678 |
+| docs | 1/678 |
+| AI Ready | 92/678 |
