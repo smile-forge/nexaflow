@@ -123,8 +123,13 @@
       <_BridgeDest>$(OutDir)PrivilegeBridge\</_BridgeDest>
     </PropertyGroup>
 
-    <MSBuild Projects="$(_BridgeProj)" Targets="Build" Properties="Configuration=$(Configuration)" />
-    <MSBuild Projects="$(_BridgeProj)" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
+    <!-- The bridge is already built by the ProjectReference above (ReferenceOutputAssembly=false keeps its DLL
+         out of Core, but it's still built for ordering), so don't build it again here. A second nested <MSBuild>
+         that drops Platform (Configuration only) is a *separate* AnyCPU instance: it builds a stray bin\<Config>\
+         tree and, on an incremental build, leaves GetTargetPath pointing at an output the bridge wasn't built
+         into. Just query the path, passing the same Configuration+Platform Core was built with. -->
+    <MSBuild Projects="$(_BridgeProj)" Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration);Platform=$(Platform)">
       <Output TaskParameter="TargetOutputs" ItemName="_BridgeTarget" />
     </MSBuild>
 
@@ -155,8 +160,13 @@
       <_VideoProj>$(MSBuildThisFileDirectory)..\Nexaflow.Features\Nexaflow.Features.Video\Nexaflow.Features.Video.csproj</_VideoProj>
     </PropertyGroup>
 
-    <MSBuild Projects="$(_VideoProj)" Targets="Build" Properties="Configuration=$(Configuration)" />
-    <MSBuild Projects="$(_VideoProj)" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
+    <!-- Core references the Video project (ProjectReference above), so this AfterTargets="Build" target already
+         built Video with Core's Configuration+Platform — don't build it again. A second nested <MSBuild> that
+         drops Platform is a *separate* AnyCPU instance: it builds a stray bin\<Config>\ tree and, on an
+         incremental build, leaves GetTargetPath resolving an output where libVLC isn't staged — the "no libVLC
+         native files found" error. Just query the path with the same Configuration+Platform. -->
+    <MSBuild Projects="$(_VideoProj)" Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration);Platform=$(Platform)">
       <Output TaskParameter="TargetOutputs" ItemName="_VideoTarget" />
     </MSBuild>
 
