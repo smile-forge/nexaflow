@@ -18,14 +18,23 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// copy are native and span the whole note — rendered blocks, tables and the source
 /// block alike.
 ///
-/// All text-modifying input is intercepted and applied to the block model; the document
-/// is then rebuilt. WPF never edits the document itself (which keeps the model
-/// authoritative and avoids the re-entrancy crash from mutating a RichTextBox inside its
-/// own change block). Caret/selection navigation stays native.
+/// There are two editing modes, both keeping the block model authoritative:
+/// <list type="bullet">
+/// <item><b>Word-style (single click + type):</b> plain-text edits applied to the rendered
+/// paragraph in place — no source view, no rebuild, no scroll jump. Typed text inherits the
+/// formatting around the caret but never creates formatting (typed markdown syntax is escaped
+/// to stay literal). After every edit the paragraph is serialized back to markdown
+/// (<see cref="MarkdownInlineSerializer"/>); a session only starts once the pristine paragraph
+/// provably round-trips to the exact block source, so this mode can never corrupt a document.</item>
+/// <item><b>Source mode (double click, or any block Word-style can't serve):</b> the block swaps
+/// to its raw markdown source; input is intercepted and applied to the model, and the document
+/// is rebuilt (which avoids the re-entrancy crash from mutating a RichTextBox inside its own
+/// change block). Caret/selection navigation stays native.</item>
+/// </list>
 ///
 /// Editing semantics: Enter = new block (the block you leave renders); Ctrl+Enter = a
-/// markdown hard break inside the current block; Tab = a tab. Block separators are NOT
-/// part of a block's content, so editing a block never shows or doubles the blank-line
+/// markdown hard break inside the current block (source mode); Tab = a tab. Block separators
+/// are NOT part of a block's content, so editing a block never shows or doubles the blank-line
 /// separator.
 ///
 /// Offsets within the active block are measured at the run level
@@ -42,6 +51,13 @@ public partial class InlineMarkdownEditor : UserControl
     private List<string> _blocks = [""];
     private int        _active = -1;          // block shown as source, or -1 when fully rendered
     private Paragraph? _activePara;
+
+    // Word-style (native) edit session: typing into a RENDERED block edits the document in place —
+    // no source view, no rebuild — and the model is kept in sync by serializing the edited paragraph
+    // back to markdown after every edit (see MarkdownInlineSerializer + EnsureNativeSession).
+    private int        _nativeBlock = -1;     // block being edited Word-style, or -1
+    private Paragraph? _nativePara;
+    private string     _nativePrefix = "";    // block-level prefix outside the inlines (e.g. "## ")
     private bool       _suppress;             // guard around programmatic document/caret changes
     private bool       _navQueued;
     private bool       _menuOpen;             // a context menu is open → don't treat the focus loss as leaving edit mode
@@ -259,6 +275,7 @@ public partial class InlineMarkdownEditor : UserControl
         var self = (InlineMarkdownEditor)d;
         if (self._suppress) return;                  // our own push
         if (self._rtb.IsKeyboardFocusWithin) return; // don't clobber an in-progress edit
+        self.ClearNativeSession();                   // external truth replaces any stale native edit
         self._blocks = MarkdownBlocks.Split((string?)e.NewValue);
         self._active = -1;
         self._undo.Clear();                          // a new document → discard the old undo history
@@ -353,6 +370,8 @@ public partial class InlineMarkdownEditor : UserControl
     {
         var parts = MarkdownBlocks.Split(markdown);
 
+        SyncNativeModel();                                                               // commit a Word-style edit
+        ClearNativeSession();                                                            // (indices shift below)
         if (_active >= 0) { _blocks = MarkdownBlocks.Compact(_blocks); _active = -1; }   // commit any edit
         _undo.Clear();
         _undoGroupBlock = -2;
@@ -369,6 +388,8 @@ public partial class InlineMarkdownEditor : UserControl
     /// the block is gone (e.g. the user deleted it).</summary>
     public void ReplaceBlock(string from, string to)
     {
+        SyncNativeModel();          // a Word-style edit may be in flight — settle the model first
+        ClearNativeSession();
         int i = _blocks.IndexOf(from);
         if (i < 0) return;
         _blocks[i] = to;
@@ -560,6 +581,15 @@ public partial class InlineMarkdownEditor : UserControl
             RenderAll();           // a fresh document → the selection is cleared
             PushMarkdown();
         }
+        else if (_nativeBlock >= 0)
+        {
+            // A Word-style session ends with a re-render: the model is already synced per edit, but the
+            // rebuild refreshes the runs' SourceSpan tags (stale after native edits) and re-parses typed
+            // markdown syntax as the escaped literal text it was stored as.
+            SyncNativeModel();
+            ClearNativeSession();
+            RenderAll();
+        }
         else if (!_rtb.Selection.IsEmpty)
         {
             _suppress = true;
@@ -739,15 +769,23 @@ public partial class InlineMarkdownEditor : UserControl
     private void Snapshot()
     {
         if (_active < 0) return;
-        if (_active == _undoGroupBlock) return;   // already snapshotted this block's session
-        _undo.Add(([.. _blocks], _active, CaretInActiveBlock()));
+        SnapshotAt(_active, CaretInActiveBlock());
+    }
+
+    /// <summary>Block-level undo shared by source-mode and Word-style sessions: edits within the same
+    /// block coalesce into one undo step.</summary>
+    private void SnapshotAt(int block, int caret)
+    {
+        if (block == _undoGroupBlock) return;     // already snapshotted this block's session
+        _undo.Add(([.. _blocks], block, caret));
         if (_undo.Count > UndoLimit) _undo.RemoveAt(0);
-        _undoGroupBlock = _active;
+        _undoGroupBlock = block;
     }
 
     private void Undo()
     {
         if (_undo.Count == 0) return;
+        ClearNativeSession();                     // undo discards the in-flight Word-style edit
         var (blocks, active, caret) = _undo[^1];
         _undo.RemoveAt(_undo.Count - 1);
         _blocks = blocks;
@@ -760,26 +798,23 @@ public partial class InlineMarkdownEditor : UserControl
     {
         var text = e.Text;
         if (string.IsNullOrEmpty(text) || text is "\r" or "\n") return;  // Enter handled in keydown
-        // Typing in a rendered block enters edit mode at the caret first, so the edit lands in the
-        // authoritative block model — see the note on ActivateAtCaretForInput for why we never let WPF
-        // edit the rendered run itself.
-        if (_active < 0 && !ActivateAtCaretForInput()) return;
+        if (_active < 0)
+        {
+            // Word-style: type into the rendered line in place — plain text that inherits the
+            // surrounding formatting; the model is re-serialized from the paragraph after the edit.
+            if (TryNativeInsert(text)) { e.Handled = true; return; }
+            // Fallback (tables, lists, task lists, any block we can't reconstruct losslessly):
+            // enter source-edit mode at the caret and apply the edit through the block model.
+            if (!ActivateAtCaretForInput()) return;
+        }
         var (from, to) = SelectionInActiveBlock();
         EditActive(from, to, text);
         e.Handled = true;
     }
 
-    // ── Editing that starts in a rendered block (EditOnDoubleClick mode: click, then type) ──
-    // A single click leaves the RichTextBox natively editable but does NOT activate a block. We must not let
-    // WPF edit the rendered text itself: the model — not the document — is authoritative, and the rendered
-    // runs are NOT 1:1 with the source (WPF collapses/normalises whitespace, and formatted spans don't map
-    // char-for-char), so shadowing a native edit back into the model drifts and scrambles the text after the
-    // first collapsed space. Instead the first keystroke activates the block at the caret's mapped source
-    // offset and every edit flows through the normal source-block path below.
-
-    /// <summary>Enters edit mode for the block the caret sits in. The caret is mapped to a (block, source
-    /// offset) against the still-pristine rendered document — exact because no native edit has desynced a
-    /// run yet — and that block is activated there. Returns false if the caret maps to no block.</summary>
+    /// <summary>Enters source-edit mode for the block the caret sits in. The caret is mapped to a (block,
+    /// source offset) against the rendered document's run tags and the block is activated there. The
+    /// fallback for blocks Word-style editing can't serve. Returns false if the caret maps to no block.</summary>
     private bool ActivateAtCaretForInput()
     {
         var (block, off) = CaretLocation();
@@ -790,14 +825,46 @@ public partial class InlineMarkdownEditor : UserControl
 
     private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
     {
+        bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
         if (_active < 0)
         {
-            // An editing key in a rendered block enters edit mode at the caret, then is handled through the
-            // model below. Navigation / shortcut keys are left to WPF (native caret movement / commands).
-            if (e.Key is not (Key.Back or Key.Delete or Key.Enter or Key.Tab)) return;
+            // Word-style editing of the rendered document. Each editing key first tries the native
+            // path (edit in place + re-serialize); a block that can't be handled that way falls back
+            // to source-edit mode below. Navigation and other shortcuts stay native.
+            switch (e.Key)
+            {
+                case Key.Z when ctrl:
+                    if (_undo.Count > 0) { Undo(); e.Handled = true; }
+                    return;
+                case Key.Enter when !ctrl:
+                    if (TryNativeSplit()) { e.Handled = true; return; }
+                    break;
+                case Key.Back when !ctrl:
+                    if (TryNativeDelete(forward: false)) { e.Handled = true; return; }
+                    break;
+                case Key.Delete when !ctrl:
+                    if (TryNativeDelete(forward: true)) { e.Handled = true; return; }
+                    break;
+                case Key.Space:
+                    if (TryNativeInsert(" ")) { e.Handled = true; return; }
+                    break;
+                case Key.Tab:
+                    if (TryNativeInsert("\t")) { e.Handled = true; return; }
+                    break;
+                case Key.Enter:   // Ctrl+Enter (hard break) → source path
+                case Key.Back:    // Ctrl+Back → source path
+                case Key.Delete:  // Ctrl+Delete → source path
+                    break;
+                case Key.Escape:
+                    CommitEdit();                    // ends a Word-style session with a re-render
+                    Keyboard.ClearFocus();
+                    e.Handled = true;
+                    return;
+                default:
+                    return;                          // caret movement, selection, copy… — native
+            }
             if (!ActivateAtCaretForInput()) return;
         }
-        bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
         var block  = _blocks[_active];
 
         switch (e.Key)
@@ -916,9 +983,196 @@ public partial class InlineMarkdownEditor : UserControl
         Activate(_active, join);
     }
 
+    // ── Word-style (native) editing of a rendered block ───────────────────
+    // Single click + type edits the rendered line IN PLACE: no source view, no document rebuild, no
+    // scroll jump. Typed characters are plain text (they inherit the formatting around the caret but
+    // markdown syntax the user types stays literal — it is escaped on serialization). The block model
+    // stays authoritative: after every native edit the paragraph is serialized back to markdown
+    // (MarkdownInlineSerializer) and written into the model. A session only starts after proving the
+    // pristine paragraph serializes back to EXACTLY the block's source — any block that fails that
+    // round-trip (tables, lists, task lists, sub/superscript, `__x__`-style emphasis…) falls back to
+    // source-edit mode, so Word-style editing can never corrupt a document.
+
+    /// <summary>Starts (or continues) a Word-style session for the block under the caret. Returns false
+    /// when the block can't be edited natively — the caller falls back to source-edit mode.</summary>
+    private bool EnsureNativeSession()
+    {
+        var caret = _rtb.CaretPosition;
+        var para  = TopLevelParagraphAt(caret, out int b);
+        if (para is null || b < 0 || b >= _blocks.Count) return false;
+
+        // A selection reaching outside the paragraph would let a native edit touch other blocks.
+        var sel = _rtb.Selection;
+        if (!sel.IsEmpty && (sel.Start.CompareTo(para.ContentStart) < 0 || sel.End.CompareTo(para.ContentEnd) > 0))
+            return false;
+
+        if (_nativeBlock == b && ReferenceEquals(_nativePara, para)) return true;
+
+        var src = _blocks[b];
+        if (src.Contains('\n') || MarkdownBlocks.IsFenced(src)) return false;
+
+        // An empty block renders as a placeholder glyph — drop it so the paragraph serializes to "".
+        if (src.Length == 0 && para.Inlines.Count > 0)
+        {
+            _suppress = true;
+            try { para.Inlines.Clear(); } finally { _suppress = false; }
+            caret = _rtb.CaretPosition;
+        }
+
+        var prefix  = HeadingPrefixOf(src);
+        bool escape = prefix.Length == 0;
+        if (!MarkdownInlineSerializer.TrySerialize(para, null, escape, out var rebuilt)
+            || prefix + rebuilt != src)
+            return false;                       // not losslessly reconstructable → source-edit fallback
+
+        SyncNativeModel();                      // settle a session on another block first
+        MarkdownInlineSerializer.TrySerialize(para, caret, escape, out var upTo);
+        SnapshotAt(b, prefix.Length + upTo.Length);
+        _nativeBlock  = b;
+        _nativePara   = para;
+        _nativePrefix = prefix;
+        return true;
+    }
+
+    /// <summary>Serializes the natively-edited paragraph back into the block model and pushes the
+    /// markdown. No-op without a session. Never renders — the document already shows the edit.</summary>
+    private void SyncNativeModel()
+    {
+        if (_nativeBlock < 0 || _nativePara is null) return;
+        if (!MarkdownInlineSerializer.TrySerialize(_nativePara, null, _nativePrefix.Length == 0, out var md))
+            return;                             // can't happen after the session-start proof; keep the model
+        var full = _nativePrefix + md;
+        if (_blocks[_nativeBlock] == full) return;
+        _blocks[_nativeBlock] = full;
+        PushMarkdown();
+    }
+
+    private void ClearNativeSession()
+    {
+        _nativeBlock  = -1;
+        _nativePara   = null;
+        _nativePrefix = "";
+    }
+
+    private bool TryNativeInsert(string text)
+    {
+        if (!EnsureNativeSession()) return false;
+        NativeInsertText(text);
+        return true;
+    }
+
+    /// <summary>Replaces the selection (or inserts at the caret) with plain text in the rendered
+    /// paragraph — the text takes the formatting at the insertion point — then re-syncs the model.</summary>
+    private void NativeInsertText(string text)
+    {
+        _suppress = true;
+        try
+        {
+            _rtb.Selection.Text = text;
+            var end = _rtb.Selection.End;
+            _rtb.Selection.Select(end, end);
+        }
+        finally { _suppress = false; }
+        SyncNativeModel();
+    }
+
+    private bool TryNativeDelete(bool forward)
+    {
+        if (!EnsureNativeSession()) return false;
+        var sel = _rtb.Selection;
+        if (sel.IsEmpty)
+        {
+            var caret  = _rtb.CaretPosition;
+            var target = caret.GetNextInsertionPosition(forward ? LogicalDirection.Forward : LogicalDirection.Backward);
+            if (target is null
+                || target.CompareTo(_nativePara!.ContentStart) < 0
+                || target.CompareTo(_nativePara.ContentEnd) > 0)
+                return false;                   // block boundary — merging blocks is a source-mode edit
+            _suppress = true;
+            try { new TextRange(caret, target).Text = string.Empty; }
+            finally { _suppress = false; }
+        }
+        else
+        {
+            _suppress = true;
+            try { sel.Text = string.Empty; }
+            finally { _suppress = false; }
+        }
+        SyncNativeModel();
+        return true;
+    }
+
+    /// <summary>Enter during a Word-style session: split the block at the caret (replacing any selection)
+    /// and re-render, caret at the start of the new block. The split offsets come from the serializer's
+    /// prefix property — serialize-up-to-pointer is always a string prefix of the full serialization.</summary>
+    private bool TryNativeSplit()
+    {
+        if (!EnsureNativeSession()) return false;
+        var para   = _nativePara!;
+        int b      = _nativeBlock;
+        var prefix = _nativePrefix;
+        bool esc   = prefix.Length == 0;
+        if (!MarkdownInlineSerializer.TrySerialize(para, null, esc, out var full)) return false;
+        MarkdownInlineSerializer.TrySerialize(para, _rtb.Selection.Start, esc, out var upToStart);
+        MarkdownInlineSerializer.TrySerialize(para, _rtb.Selection.End,   esc, out var upToEnd);
+        ClearNativeSession();
+
+        _blocks[b] = prefix + upToStart;
+        _blocks.Insert(b + 1, full[Math.Min(upToEnd.Length, full.Length)..]);
+        PushMarkdown();
+        RenderAll();
+        MoveCaretToRenderedBlockStart(b + 1);
+        return true;
+    }
+
+    /// <summary>The top-level document block containing <paramref name="p"/> as a Paragraph (with its
+    /// model index), or null when it isn't a plain paragraph (section, table, list…).</summary>
+    private Paragraph? TopLevelParagraphAt(TextPointer p, out int index)
+    {
+        index = -1;
+        foreach (var blk in _rtb.Document.Blocks)
+            if (blk.Tag is int i && p.CompareTo(blk.ContentStart) >= 0 && p.CompareTo(blk.ContentEnd) <= 0)
+            {
+                index = i;
+                return blk as Paragraph;
+            }
+        return null;
+    }
+
+    private void MoveCaretToRenderedBlockStart(int index)
+    {
+        foreach (var blk in _rtb.Document.Blocks)
+            if (blk.Tag is int i && i == index)
+            {
+                _suppress = true;
+                try { _rtb.CaretPosition = blk.ContentStart; }
+                finally { _suppress = false; }
+                return;
+            }
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex HeadingPrefix =
+        new(@"^#{1,6}[ \t]+", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static string HeadingPrefixOf(string src) => HeadingPrefix.Match(src).Value;
+
     private void OnPreviewExecuted(object? sender, ExecutedRoutedEventArgs e)
     {
-        if (_active < 0) return;
+        if (_active < 0)
+        {
+            if (e.Command == ApplicationCommands.Cut)
+            {
+                // Within a Word-style session the native cut is fine (copy + delete inside the
+                // paragraph) — re-sync afterwards. Anywhere else it would desync the model: block it.
+                if (EnsureNativeSession()) Dispatcher.BeginInvoke(SyncNativeModel, DispatcherPriority.Background);
+                else e.Handled = true;
+            }
+            else if (e.Command == EditingCommands.ToggleBold
+                  || e.Command == EditingCommands.ToggleItalic
+                  || e.Command == EditingCommands.ToggleUnderline)
+                e.Handled = true;               // Word-style typing adds no formatting
+            return;
+        }
         if (e.Command == ApplicationCommands.Cut)
         {
             var (from, to) = SelectionInActiveBlock();
@@ -941,7 +1195,21 @@ public partial class InlineMarkdownEditor : UserControl
     {
         var data = e.DataObject;
         e.CancelCommand();
-        if (_active < 0) return;
+
+        if (_active < 0)
+        {
+            // Word-style paste: single-line text goes in at the caret as plain text (like typing it);
+            // rich/multi-line content becomes block(s) after the caret's block.
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (ContentPasted?.Invoke(data) == true) return;
+                var pasted = MarkdownClipboard.ReadBestMarkdown(data);
+                if (string.IsNullOrEmpty(pasted)) return;
+                if (!pasted.Contains('\n') && TryNativeInsert(pasted)) return;
+                InsertMarkdownAtCaret(pasted);
+            }, DispatcherPriority.Background);
+            return;
+        }
 
         // DataObject.Pasting fires inside the RichTextBox's change block, where rebuilding the document
         // throws — apply the paste after the operation unwinds.
@@ -1121,6 +1389,9 @@ public partial class InlineMarkdownEditor : UserControl
         if (!IsVisible) { _renderPending = true; return; }
         _renderPending = false;
 
+        SyncNativeModel();                                  // never drop an in-flight Word-style edit
+        ClearNativeSession();                               // the paragraph is about to be replaced
+
         int focal     = _active;                            // the block being left — keep it pinned across the rebuild
         double offset = _rtb.VerticalOffset;
         double? focalY = focal >= 0 ? BlockTopY(focal) : null;
@@ -1148,6 +1419,8 @@ public partial class InlineMarkdownEditor : UserControl
     /// top should land at — i.e. the mouse position. Otherwise the block is pinned to where it already was.</param>
     private void Activate(int index, int caretOffset, double? anchorTopY = null)
     {
+        SyncNativeModel();                                  // entering source mode commits a Word-style edit
+        ClearNativeSession();
         if (_blocks.Count == 0) _blocks.Add(string.Empty);
         index = Math.Clamp(index, 0, _blocks.Count - 1);
 

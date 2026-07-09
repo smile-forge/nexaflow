@@ -741,7 +741,9 @@ public static class BlockRenderer
             Foreground      = ctx.Palette.Accent,
             TextDecorations = TextDecorations.Underline,
             Cursor          = System.Windows.Input.Cursors.Hand,   // signal the link is clickable
-            NavigateUri     = Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri : null
+            NavigateUri     = Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri : null,
+            Tag             = url,   // raw source URL — NavigateUri normalizes (trailing slash, casing),
+                                     // and MarkdownInlineSerializer needs the exact original to round-trip
         };
         var onNavigate = ctx.OnNavigate;
         hyper.RequestNavigate += (_, e) =>
