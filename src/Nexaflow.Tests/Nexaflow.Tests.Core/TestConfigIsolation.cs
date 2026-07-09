@@ -9,7 +9,7 @@ namespace Nexaflow.Tests.Core;
 /// real <c>%APPDATA%\Smile\nexaflow</c>. Without this, a test that touches <see cref="ConfigManager"/> /
 /// <c>FeatureCatalog</c> reads and <b>writes</b> the real config — and a headless catalog build there
 /// (no WPF Application) poisons the running app, silently dropping every feature's theme contribution
-/// (missing <c>PostIt.*</c> / <c>Product.Status.*</c>). UI tests already isolate via <c>NEXAFLOW_CONFIG_DIR</c>
+/// (missing <c>PostIt.*</c>). UI tests already isolate via <c>NEXAFLOW_CONFIG_DIR</c>
 /// on the launched process; this covers the in-process ones. Individual classes may still redirect to their
 /// own temp dir on top of this (e.g. WorkspaceManagerTests) — they restore to this root, not %APPDATA%.
 /// </summary>

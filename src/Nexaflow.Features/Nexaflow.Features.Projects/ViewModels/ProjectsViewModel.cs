@@ -2,86 +2,92 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Projects.Model;
-using Nexaflow.Visuals.Common.Controls;
 using System.Collections.ObjectModel;
-using System.Windows;
-using System.Windows.Media;
+using System.IO;
 
 namespace Nexaflow.Features.Projects.ViewModels;
+
+/// <summary>Which project folder location the list is showing.</summary>
+public enum ProjectBucket { Projects, Shelf, Archive }
 
 // ── Summary row shown in the project list ─────────────────────────────────────
 
 public partial class ProjectSummaryItem : ObservableObject
 {
     public string FolderName { get; init; } = string.Empty;
-    [ObservableProperty] private string _displayName = string.Empty;
-    [ObservableProperty] private string _description = string.Empty;
-    [ObservableProperty] private string _lastModified = string.Empty;
-    [ObservableProperty] private int    _activeCount;
-    [ObservableProperty] private int    _cancelledCount;
-    [ObservableProperty] private int    _doneCount;
-    [ObservableProperty] private int    _totalCount;
-    [ObservableProperty] private IReadOnlyList<PieSlice> _pieSlices = [];
 
-    /// <summary>First two non-empty lines of the description, used in the list banner.</summary>
+    /// <summary>Absolute folder path (used for moves, Open Files, and opening the detail view).</summary>
+    public string FolderPath { get; init; } = string.Empty;
+
+    [ObservableProperty] private string _displayName  = string.Empty;
+    [ObservableProperty] private string _description  = string.Empty;   // raw markdown
+    [ObservableProperty] private string _detailMarkdown = string.Empty; // status pie + description
+    [ObservableProperty] private string _countsText   = string.Empty;
+    [ObservableProperty] private string _lastModified = string.Empty;
+
+    /// <summary>First two non-empty lines of the description, shown on the list row.</summary>
     public string DescriptionPreview
     {
         get
         {
             if (string.IsNullOrWhiteSpace(Description)) return string.Empty;
-            var lines = Description.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Take(2);
+            var lines = Description.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Take(2);
             return string.Join(" ", lines);
         }
     }
-
-    /// <summary>Description for the detail panel, with a placeholder when none is set.</summary>
-    public string DescriptionDisplay
-        => string.IsNullOrWhiteSpace(Description) ? "This project does not have a description" : Description;
 }
 
 // ── Main view-model ───────────────────────────────────────────────────────────
 
 public partial class ProjectsViewModel : ObservableObject, IPageViewModel
 {
-    private readonly ProjectOperations _svc;
+    private readonly ProjectsConfig  _config;
+    private readonly IShellServices? _shell;
 
     public ObservableCollection<ProjectSummaryItem> Projects { get; } = [];
 
     [ObservableProperty] private ProjectSummaryItem? _selectedProject;
     [ObservableProperty] private int _projectCount;
-
-    /// <summary>False when the Projects feature is disabled for this workspace — the view shows a
-    /// "enable in settings" placeholder instead of the list/detail split.</summary>
     [ObservableProperty] private bool _isEnabled;
 
-    // Raised when the user clicks "Open Project" — shell wires this to open a tab
-    public event Action<string>? OpenProjectRequested;
+    [ObservableProperty] private ProjectBucket _selectedBucket = ProjectBucket.Projects;
 
-    // Raised when the user clicks "Open Files" — shell opens a FileSystem tab at that path
+    // Moving overlay (shown in place of the detail pane while a background move runs).
+    [ObservableProperty] private bool   _isMoving;
+    [ObservableProperty] private string _movingMessage = string.Empty;
+
+    /// <summary>In the Projects bucket a project can be archived or shelved…</summary>
+    public bool CanArchiveOrShelf => SelectedBucket == ProjectBucket.Projects;
+    /// <summary>…in Shelf / Archive it can be reactivated.</summary>
+    public bool CanReactivate => SelectedBucket != ProjectBucket.Projects;
+
+    // Raised when "Open Project" / "Open Files" is clicked (absolute path). Wired by the registration.
+    public event Action<string>? OpenProjectRequested;
     public event Action<string>? OpenFilesRequested;
 
-    // ── Status-bucket colours (shared with detail view) ───────────────────
-    // Read from the active theme at call-time; theme restarts the window so these are stable
-    // within any one session. Fallback colours match the Dark-theme palette exactly.
-    // Resolve from the active theme; throw (not silently fall back to a literal) if the key is missing,
-    // so a mis-typed or undefined token surfaces immediately instead of painting a plausible colour.
-    private static Brush Res(string key)
-        => Application.Current?.Resources[key] as Brush
-           ?? throw new InvalidOperationException($"Theme brush '{key}' not found.");
-    // Distinct categorical swatches — the four buckets must read apart in a pie/legend, so they pull
-    // from the swatch bank (slate / blue / green / red), not the theme's close-together chrome tones.
-    internal static Brush BrushNotStarted => Res("Swatch.Slate");
-    internal static Brush BrushInProgress => Res("Swatch.Blue");
-    internal static Brush BrushDone       => Res("Swatch.Green");
-    internal static Brush BrushCancelled  => Res("Swatch.Red");
-
-    public ProjectsViewModel(ProjectOperations ops, bool isEnabled)
+    public ProjectsViewModel(ProjectsConfig config, IShellServices? shell = null)
     {
-        _svc = ops;
-        IsEnabled = isEnabled;
-        if (isEnabled) Load();
+        _config = config;
+        _shell  = shell;
+        IsEnabled = config.EnableProjects;
+        if (IsEnabled) Load();
     }
+
+    partial void OnSelectedBucketChanged(ProjectBucket value)
+    {
+        OnPropertyChanged(nameof(CanArchiveOrShelf));
+        OnPropertyChanged(nameof(CanReactivate));
+        if (IsEnabled) Load();
+    }
+
+    private string RootFor(ProjectBucket bucket) => bucket switch
+    {
+        ProjectBucket.Shelf   => _config.ShelfDirectory,
+        ProjectBucket.Archive => _config.ArchiveDirectory,
+        _                     => _config.ProjectDirectory,
+    };
+
+    private ProjectOperations OpsFor(ProjectBucket bucket) => new(_config, RootFor(bucket));
 
     [RelayCommand]
     private void Refresh()
@@ -94,74 +100,94 @@ public partial class ProjectsViewModel : ObservableObject, IPageViewModel
         Projects.Clear();
         SelectedProject = null;
 
+        var ops  = OpsFor(SelectedBucket);
+        var root = RootFor(SelectedBucket);
         try
         {
-            foreach (var (folder, name) in _svc.GetProjectListTyped())
+            foreach (var (folder, name) in ops.GetProjectListTyped())
             {
-                var info = _svc.GetProjectInfo(folder);
-                Projects.Add(BuildSummary(folder, name, info));
+                var info = ops.GetProjectInfo(folder);
+                Projects.Add(BuildSummary(ops, root, folder, name, info));
             }
         }
-        catch { /* show empty list on error */ }
+        catch { /* show empty list on error (e.g. root folder missing) */ }
 
-        ProjectCount = Projects.Count;
+        ProjectCount    = Projects.Count;
         SelectedProject = Projects.FirstOrDefault();
     }
 
-    private static ProjectSummaryItem BuildSummary(string folder, string name, ProjectInfo info)
+    private static ProjectSummaryItem BuildSummary(ProjectOperations ops, string root, string folder, string name, ProjectInfo info)
     {
-        var notStarted = info.Backlog.Count(i => i.Status == BacklogStatus.NotStarted);
-        var inProgress = info.Backlog.Count(i =>
-            i.Status != BacklogStatus.NotStarted &&
-            i.Status != BacklogStatus.AwaitingFinalisation &&
-            i.Status != BacklogStatus.Cancelled);
-        var done       = info.Backlog.Count(i => i.Status == BacklogStatus.AwaitingFinalisation);
-        var cancelled  = info.Backlog.Count(i => i.Status == BacklogStatus.Cancelled);
-        var active     = info.Backlog.Count(i => i.Status != BacklogStatus.Cancelled);
-
-        var slices = new List<PieSlice>();
-        if (notStarted > 0) slices.Add(new PieSlice(notStarted, BrushNotStarted));
-        if (inProgress > 0) slices.Add(new PieSlice(inProgress, BrushInProgress));
-        if (done       > 0) slices.Add(new PieSlice(done,       BrushDone));
-        if (cancelled  > 0) slices.Add(new PieSlice(cancelled,  BrushCancelled));
+        var statusMd = ops.GetBacklogStatusMarkdown(info);
+        var detail = string.Join("\n\n",
+            new[] { statusMd, info.Description }.Where(s => !string.IsNullOrWhiteSpace(s)));
 
         return new ProjectSummaryItem
         {
-            FolderName    = folder,
-            DisplayName   = string.IsNullOrWhiteSpace(info.Name) ? folder : info.Name,
-            Description   = info.Description,
-            LastModified  = info.LastUpdate.HasValue
+            FolderName     = folder,
+            FolderPath     = Path.Combine(root, folder),
+            DisplayName    = string.IsNullOrWhiteSpace(info.Name) ? folder : info.Name,
+            Description    = info.Description,
+            DetailMarkdown = detail,
+            CountsText     = info.Backlog.Count == 0 ? "No backlog items" : $"{info.Backlog.Count} backlog item(s)",
+            LastModified   = info.LastUpdate.HasValue
                                 ? info.LastUpdate.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
                                 : "—",
-            ActiveCount   = active,
-            CancelledCount = cancelled,
-            DoneCount     = done,
-            TotalCount    = info.Backlog.Count,
-            PieSlices     = slices
         };
     }
+
+    // ── Open ──
 
     [RelayCommand]
     private void OpenProject(ProjectSummaryItem? item)
     {
+        item ??= SelectedProject;
         if (item is null) return;
-        OpenProjectRequested?.Invoke(item.FolderName);
+        OpenProjectRequested?.Invoke(item.FolderPath);
     }
 
     [RelayCommand]
     private void OpenFiles(ProjectSummaryItem? item)
     {
-        var folder = item?.FolderName ?? SelectedProject?.FolderName;
-        if (folder is null) return;
-        OpenFilesRequested?.Invoke(System.IO.Path.Combine(_svc.RootPath, folder));
+        var path = (item ?? SelectedProject)?.FolderPath;
+        if (path is null) return;
+        OpenFilesRequested?.Invoke(path);
     }
 
-    // ── IPageViewModel ────────────────────────────────────────────────────
+    // ── Move (archive / shelf / reactivate) ──
+
+    [RelayCommand]
+    private void Archive(ProjectSummaryItem? item)   => Move(item, _config.ArchiveDirectory);
+
+    [RelayCommand]
+    private void Shelf(ProjectSummaryItem? item)     => Move(item, _config.ShelfDirectory);
+
+    [RelayCommand]
+    private void Reactivate(ProjectSummaryItem? item) => Move(item, _config.ProjectDirectory);
+
+    private void Move(ProjectSummaryItem? item, string targetRoot)
+    {
+        item ??= SelectedProject;
+        if (item is null || _shell is null || IsMoving) return;
+        if (string.IsNullOrWhiteSpace(targetRoot)) { _shell.ShowError("The target folder is not configured."); return; }
+
+        var dest = Path.Combine(targetRoot, item.FolderName);
+        MovingMessage = "Moving project… please wait";
+        IsMoving = true;
+        _shell.MoveFolderInBackground(item.FolderPath, dest, MovingMessage, ok =>
+        {
+            IsMoving = false;
+            if (!ok) _shell.ShowError($"Could not move '{item.DisplayName}'.");
+            Load();
+        });
+    }
+
+    // ── IPageViewModel ──
 
     public string GetContext()
     {
         if (ProjectCount == 0) return "Projects list: no projects.";
         var selected = SelectedProject is { } p ? $" Selected: '{p.DisplayName}'." : string.Empty;
-        return $"Projects list: {ProjectCount} project(s).{selected}";
+        return $"Projects list ({SelectedBucket}): {ProjectCount} project(s).{selected}";
     }
 }

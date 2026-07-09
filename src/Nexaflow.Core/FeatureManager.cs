@@ -117,7 +117,7 @@ public sealed class FeatureManager
             // scan that ran WITHOUT a WPF Application (e.g. a unit-test run that rebuilt the shared catalog)
             // can't build pack:// URIs, so ThemeUris is null — re-read them from the freshly-loaded live
             // type here, where WPF is up. Without this a headless-built catalog silently drops every
-            // feature's theme resources (PostIt.* / Product.Status.* missing → gray, or a converter throws
+            // feature's theme resources (PostIt.* missing → gray, or a converter throws
             // mid-layout and takes the app down).
             var uris = te.ThemeUris;
             if ((uris is null || uris.Count == 0)

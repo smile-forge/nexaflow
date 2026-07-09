@@ -1,0 +1,84 @@
+<UserControl x:Class="Nexaflow.Features.Projects.Viewlets.BacklogStatusViewletView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             AutomationProperties.AutomationId="Projects_BacklogViewlet">
+    <UserControl.Resources>
+        <!-- Flat text button (mirrors the .NET viewlet's toolbar buttons). -->
+        <Style x:Key="FlatBtn" TargetType="Button">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"      Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Padding"         Value="8,3"/>
+            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BorderBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Background="{DynamicResource SurfaceBrush}">
+        <Grid.ColumnDefinitions>
+            <!-- Logo strip -->
+            <ColumnDefinition Width="44"/>
+            <!-- Content -->
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ── Left: logo strip ─────────────────────────────────────────── -->
+        <Border Grid.Column="0"
+                Background="{DynamicResource AccentSubtleBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,1,0">
+            <TextBlock Text="📋" FontSize="15"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        </Border>
+
+        <!-- ── Right: chips (left) + open action (right) ────────────────── -->
+        <Grid Grid.Column="1" Margin="9,0,8,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>     <!-- status chips -->
+                <ColumnDefinition Width="Auto"/>  <!-- open project -->
+            </Grid.ColumnDefinitions>
+
+            <ItemsControl x:Name="ChipList" Grid.Column="0" VerticalAlignment="Center" ClipToBounds="True">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,12,0" VerticalAlignment="Center"
+                                    ToolTip="{Binding Label}">
+                            <Border Width="9" Height="9" CornerRadius="4" Background="{Binding Brush}"
+                                    VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBlock Text="{Binding Label}" FontSize="11" Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding Count}" FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock x:Name="EmptyText" Grid.Column="0" Text="No backlog items" Visibility="Collapsed"
+                       FontSize="11" Foreground="{DynamicResource TextDimBrush}" VerticalAlignment="Center"/>
+
+            <Button Grid.Column="1" Style="{StaticResource FlatBtn}" Content="Open project ↗"
+                    VerticalAlignment="Center" HorizontalAlignment="Right"
+                    Click="OpenProject_Click" ToolTip="Open the project detail view"/>
+        </Grid>
+    </Grid>
+</UserControl>

@@ -868,6 +868,39 @@ public sealed class ShellServices : IShellServices
     string? IShellServices.GetFolderBusyMessage(string folderPath)
         => _busyFolders.MessageFor(folderPath);
 
+    void IShellServices.MoveFolderInBackground(string sourcePath, string destinationPath, string busyMessage,
+                                               Action<bool>? onComplete)
+    {
+        // Mark the source folder + both parents busy so any file browser on them shows the wait panel and
+        // refreshes when the move clears (disposing the handles below raises FolderBusyChanged).
+        var handles = new[] { sourcePath, ParentOf(sourcePath), ParentOf(destinationPath) }
+            .Where(p => !string.IsNullOrEmpty(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(p => _busyFolders.Mark(p!, busyMessage))
+            .ToList();
+
+        QueueBackgroundTask(
+            new MoveFolderTask(sourcePath, destinationPath, busyMessage),
+            ok =>
+            {
+                foreach (var h in handles) h.Dispose();
+                onComplete?.Invoke(ok);
+            });
+    }
+
+    private static string? ParentOf(string path)
+    {
+        try { return System.IO.Path.GetDirectoryName(path.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar)); }
+        catch { return null; }
+    }
+
+    /// <summary>Adapts <see cref="Nexaflow.IO.Common.DirectoryMover"/> as a queued background task.</summary>
+    private sealed class MoveFolderTask(string source, string dest, string description) : IBackgroundTask
+    {
+        public string Description => description;
+        public Task RunAsync(CancellationToken ct) => Nexaflow.IO.Common.DirectoryMover.MoveAsync(source, dest, ct);
+    }
+
     void IShellServices.SaveFeatureConfig(IFeatureConfig config)
     {
         // Workspace-scoped configs are persisted per-workspace under Contexts\<name>\ (the same place the

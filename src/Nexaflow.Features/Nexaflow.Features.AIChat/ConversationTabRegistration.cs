@@ -17,6 +17,7 @@ public sealed class ConversationTabRegistration : IPageRegistration
     public IReadOnlyList<PageParameter> Parameters =>
     [
         new("conversationId", "Id of an existing conversation to open. Omit to start a new one.", Required: false),
+        new("initialPrompt", "A first user message to auto-send once the conversation (and its context) is ready.", Required: false),
     ];
 
     private readonly IAIService     _aiService;
@@ -44,18 +45,24 @@ public sealed class ConversationTabRegistration : IPageRegistration
         {
             var vm = new ConversationViewModel(_aiService, _shell, _config, tab);
             var view = new ConversationView(vm);
-            if (pageParams is not null &&
-                pageParams.TryGetValue("conversationId", out var convId))
-            {
-                _ = vm.LoadAsync(convId);
-            }
-            else
-            {
-                _ = vm.StartNew();
-            }
+
+            var initialPrompt = pageParams?.GetValueOrDefault("initialPrompt");
+            var load = pageParams is not null && pageParams.TryGetValue("conversationId", out var convId)
+                ? vm.LoadAsync(convId)
+                : vm.StartNew();
+            _ = InitAsync(load, vm, initialPrompt);
             return view;
         };
 
         return tab;
+    }
+
+    /// <summary>Awaits the load/new-conversation init (so any pinned context is realized), then auto-sends
+    /// the initial prompt if one was supplied.</summary>
+    private static async Task InitAsync(Task load, ConversationViewModel vm, string? initialPrompt)
+    {
+        await load;
+        if (!string.IsNullOrWhiteSpace(initialPrompt))
+            await vm.SendSeedAsync(initialPrompt);
     }
 }

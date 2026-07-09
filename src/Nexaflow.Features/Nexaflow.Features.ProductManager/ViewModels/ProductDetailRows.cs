@@ -6,7 +6,7 @@ using Nexaflow.Features.ProductManager.Model;
 
 namespace Nexaflow.Features.ProductManager.ViewModels;
 
-/// <summary>Status display text + theme-resolved brushes (colours come from contributed Product.Status.* tokens).</summary>
+/// <summary>Status display text + theme-resolved brushes (colours come from the shared app-theme Status.* tokens).</summary>
 public static class StatusInfo
 {
     public static readonly IReadOnlyList<Status> All = [Status.Should, Status.Shouldnt, Status.Done, Status.Faulted];
@@ -22,10 +22,10 @@ public static class StatusInfo
 
     public static Brush Brush(Status s) => Res(s switch
     {
-        Status.Done     => "Product.Status.Done",
-        Status.Faulted  => "Product.Status.Faulted",
-        Status.Should   => "Product.Status.Should",
-        _               => "Product.Status.Shouldnt"
+        Status.Done     => "Status.Done",
+        Status.Faulted  => "Status.Faulted",
+        Status.Should   => "Status.Should",
+        _               => "Status.Shouldnt"
     });
 
     public static Brush Res(string key) => Application.Current?.Resources[key] as Brush ?? Brushes.Gray;

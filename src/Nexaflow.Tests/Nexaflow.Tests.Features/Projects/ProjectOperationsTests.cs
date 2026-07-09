@@ -1,4 +1,5 @@
 using System.IO;
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Projects;
 using Nexaflow.Features.Projects.Model;
 
@@ -6,8 +7,8 @@ namespace Nexaflow.Tests.Features.Projects;
 
 /// <summary>
 /// End-to-end behaviour of <see cref="ProjectOperations"/> over a private temp project directory:
-/// project/backlog CRUD plus the transactional file path (which transitively exercises
-/// <c>TransactionalFileService</c> — its commit/rollback are not otherwise reachable).
+/// project/backlog CRUD (v2: markdown description, configurable status keys, completion criteria) plus
+/// the transactional file path (which transitively exercises <c>TransactionalFileService</c>).
 /// </summary>
 [TestClass]
 public class ProjectOperationsTests
@@ -79,6 +80,14 @@ public class ProjectOperationsTests
     public void GetProjectInfo_NonexistentFolder_Throws()
         => Assert.ThrowsExactly<ArgumentException>(() => _ops.GetProjectInfo("ghost"));
 
+    [TestMethod]
+    public void SaveProject_StampsCurrentSchemaVersion()
+    {
+        var f = NewFolder();
+        _ops.ModifyProjectHeader(f, "Name", "desc");
+        Assert.AreEqual(ProjectInfo.CurrentSchemaVersion, _ops.GetProjectInfo(f).SchemaVersion);
+    }
+
     // ── Metadata ─────────────────────────────────────────────────────────────
 
     [TestMethod]
@@ -93,35 +102,52 @@ public class ProjectOperationsTests
     }
 
     [TestMethod]
-    public void Objectives_AddThenClear()
+    public void SetCompletionCriteria_Persists()
     {
         var f = NewFolder();
-        _ops.AddObjectives(f, ["o1", "o2"]);
-        CollectionAssert.AreEqual(new[] { "o1", "o2" }, _ops.GetProjectInfo(f).Objectives);
-        _ops.ClearObjectives(f);
-        Assert.AreEqual(0, _ops.GetProjectInfo(f).Objectives.Count);
+        _ops.SetCompletionCriteria(f,
+        [
+            new CompletionCriterion { Text = "ships", Status = CompletionStatus.Done },
+            new CompletionCriterion { Text = "documented", Status = CompletionStatus.Should },
+        ]);
+        var criteria = _ops.GetProjectInfo(f).CompletionCriteria;
+        Assert.AreEqual(2, criteria.Count);
+        Assert.AreEqual("ships", criteria[0].Text);
+        Assert.AreEqual(CompletionStatus.Done, criteria[0].Status);
     }
 
     // ── Backlog ──────────────────────────────────────────────────────────────
 
     [TestMethod]
-    public void AddToDo_AppearsInBacklog()
+    public void AddToDo_AppearsInBacklog_AtFirstStatus()
     {
         var f = NewFolder();
         var id = _ops.AddToDo(f, "Write tests", "now");
         var item = _ops.GetProjectInfo(f).Backlog.Single();
         Assert.AreEqual(id, item.Id);
         Assert.AreEqual("Write tests", item.Title);
-        Assert.AreEqual(BacklogStatus.NotStarted, item.Status);
+        Assert.AreEqual("now", item.Description);
+        Assert.AreEqual("NotStarted", item.StatusKey);
     }
 
     [TestMethod]
-    public void ProgressToDo_AdvancesThroughTheChain()
+    public void ProgressToDo_AdvancesThroughTheChain_ReturningLabels()
     {
         var f = NewFolder();
         var id = _ops.AddToDo(f, "x");
-        Assert.AreEqual("AwaitingDesign", _ops.ProgressToDo(f, id));
-        Assert.AreEqual("AwaitingDesignReview", _ops.ProgressToDo(f, id));
+        Assert.AreEqual("Awaiting Design", _ops.ProgressToDo(f, id));
+        Assert.AreEqual("Awaiting Design Review", _ops.ProgressToDo(f, id));
+    }
+
+    [TestMethod]
+    public void ProgressToDo_StopsAtLastNonTerminal()
+    {
+        var f = NewFolder();
+        var id = _ops.AddToDo(f, "x");
+        _ops.SetToDoStatus(f, id, "AwaitingFinalisation");
+        Assert.IsFalse(_ops.CanProgress("AwaitingFinalisation"));
+        Assert.AreEqual("Awaiting Finalisation", _ops.ProgressToDo(f, id));   // unchanged
+        Assert.AreEqual("AwaitingFinalisation", _ops.GetProjectInfo(f).Backlog.Single().StatusKey);
     }
 
     [TestMethod]
@@ -129,24 +155,50 @@ public class ProjectOperationsTests
         => Assert.ThrowsExactly<ArgumentException>(() => _ops.ProgressToDo(NewFolder(), Guid.NewGuid()));
 
     [TestMethod]
-    public void CancelToDo_SetsCancelled()
+    public void SetToDoStatus_SetsAnyStatus()
+    {
+        var f = NewFolder();
+        var id = _ops.AddToDo(f, "x");
+        _ops.SetToDoStatus(f, id, "AwaitingTestReview");
+        Assert.AreEqual("AwaitingTestReview", _ops.GetProjectInfo(f).Backlog.Single().StatusKey);
+    }
+
+    [TestMethod]
+    public void CancelToDo_SetsTerminalCancelled()
     {
         var f = NewFolder();
         var id = _ops.AddToDo(f, "x");
         _ops.CancelToDo(f, id);
-        Assert.AreEqual(BacklogStatus.Cancelled, _ops.GetProjectInfo(f).Backlog.Single().Status);
+        Assert.AreEqual("Cancelled", _ops.GetProjectInfo(f).Backlog.Single().StatusKey);
     }
 
     [TestMethod]
-    public void ModifyToDoPlans_Persist()
+    public void RemoveToDo_DropsItem()
     {
         var f = NewFolder();
         var id = _ops.AddToDo(f, "x");
-        _ops.ModifyToDoImpPlan(f, id, "imp");
-        _ops.ModifyToDoTestPlan(f, id, "test");
+        _ops.RemoveToDo(f, id);
+        Assert.AreEqual(0, _ops.GetProjectInfo(f).Backlog.Count);
+    }
+
+    [TestMethod]
+    public void ModifyToDo_TitleAndDescription_Persist()
+    {
+        var f = NewFolder();
+        var id = _ops.AddToDo(f, "x");
+        _ops.ModifyToDo(f, id, "renamed", "## Notes\n\nbody");
         var item = _ops.GetProjectInfo(f).Backlog.Single();
-        Assert.AreEqual("imp", item.ImpPlan);
-        Assert.AreEqual("test", item.TestPlan);
+        Assert.AreEqual("renamed", item.Title);
+        StringAssert.Contains(item.Description, "## Notes");
+    }
+
+    [TestMethod]
+    public void UnknownStatusKey_ResolvesInvalidSentinel()
+    {
+        var cfg = new ProjectsConfig();
+        var def = cfg.Resolve("no-such-status");
+        Assert.IsFalse(def.IsValid);
+        Assert.IsFalse(new ProjectOperations(cfg).CanProgress("no-such-status"), "an unknown status is never progressable");
     }
 
     [TestMethod]
@@ -154,14 +206,25 @@ public class ProjectOperationsTests
         => StringAssert.Contains(_ops.GetToDos(NewFolder()), "No backlog items");
 
     [TestMethod]
-    public void GetProjectDetails_IncludesNameAndBacklogSummary()
+    public void GetProjectDetails_IncludesNameAndPerStatusBacklog()
     {
         var f = NewFolder();
         _ops.ModifyProjectHeader(f, "Proj", "");
         _ops.AddToDo(f, "task");
         var md = _ops.GetProjectDetails(f);
         StringAssert.Contains(md, "# Proj");
-        StringAssert.Contains(md, "active item");
+        StringAssert.Contains(md, "Not Started");
+    }
+
+    [TestMethod]
+    public void GetBacklogStatusMarkdown_EmitsMermaidPie_WhenItemsPresent()
+    {
+        var f = NewFolder();
+        _ops.AddToDo(f, "task");
+        var md = _ops.GetBacklogStatusMarkdown(_ops.GetProjectInfo(f));
+        StringAssert.Contains(md, "```mermaid");
+        StringAssert.Contains(md, "pie");
+        StringAssert.Contains(md, "Not Started");
     }
 
     // ── Transactional file operations ────────────────────────────────────────

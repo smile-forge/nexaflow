@@ -196,6 +196,26 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         RecomputeTokens();
     }
 
+    /// <summary>
+    /// Seeds and runs a first turn from an external opener (e.g. the Projects "Task to AI" / "Plan with
+    /// AI" buttons open this tab with an <c>initialPrompt</c> param). Echoes the prompt as the user
+    /// message and runs the agent, rendering into the timeline like any other turn — the context pinned
+    /// by <see cref="LoadAsync"/> / <see cref="StartNew"/> is already in place, so the agent sees it.
+    /// </summary>
+    public async Task SendSeedAsync(string prompt)
+    {
+        if (string.IsNullOrWhiteSpace(prompt) || IsAgentRunning) return;
+
+        BeginResponse(prompt);   // echo the user message + "considering" placeholder
+        try
+        {
+            var response = await _aiService.RunAgentAsync(this, prompt, includeContext: true, this);
+            if (response is null || response.Kind != AiResponseKind.Message)
+                Abort();   // prefill / cancelled / no provider — drop the unfinished turn
+        }
+        catch { Abort(); }
+    }
+
     // ── IAIResponseHandler (inline agent rendering) ───────────────────────
     // The agent loop drives these; everything is rendered into Timeline. Marshalled to the UI thread.
 
