@@ -758,47 +758,45 @@ public partial class InlineMarkdownEditor : UserControl
 
     private void OnPreviewTextInput(object? sender, TextCompositionEventArgs e)
     {
-        if (_active < 0) { MirrorRenderInput(e.Text); return; }   // typing in a rendered block — shadow into the model
         var text = e.Text;
         if (string.IsNullOrEmpty(text) || text is "\r" or "\n") return;  // Enter handled in keydown
+        // Typing in a rendered block enters edit mode at the caret first, so the edit lands in the
+        // authoritative block model — see the note on ActivateAtCaretForInput for why we never let WPF
+        // edit the rendered run itself.
+        if (_active < 0 && !ActivateAtCaretForInput()) return;
         var (from, to) = SelectionInActiveBlock();
         EditActive(from, to, text);
         e.Handled = true;
     }
 
-    // ── Typing in a rendered block (single click in EditOnDoubleClick mode, then type) ──
-    // A single click leaves the document editable but does NOT activate a block, so WPF edits the rendered
-    // text natively — convenient for quick fixes. That native edit bypasses the block model and so wouldn't
-    // save. We shadow it into the model and mark the document dirty WITHOUT intercepting the keystroke or
-    // re-rendering, so the smooth native feel is untouched. Exact for plain text (rendered == source); inside
-    // formatted runs the mapped offset can drift until the next full render.
+    // ── Editing that starts in a rendered block (EditOnDoubleClick mode: click, then type) ──
+    // A single click leaves the RichTextBox natively editable but does NOT activate a block. We must not let
+    // WPF edit the rendered text itself: the model — not the document — is authoritative, and the rendered
+    // runs are NOT 1:1 with the source (WPF collapses/normalises whitespace, and formatted spans don't map
+    // char-for-char), so shadowing a native edit back into the model drifts and scrambles the text after the
+    // first collapsed space. Instead the first keystroke activates the block at the caret's mapped source
+    // offset and every edit flows through the normal source-block path below.
 
-    private void MirrorRenderInput(string text)
+    /// <summary>Enters edit mode for the block the caret sits in. The caret is mapped to a (block, source
+    /// offset) against the still-pristine rendered document — exact because no native edit has desynced a
+    /// run yet — and that block is activated there. Returns false if the caret maps to no block.</summary>
+    private bool ActivateAtCaretForInput()
     {
-        if (string.IsNullOrEmpty(text) || text is "\r" or "\n") return;
-        if (!_rtb.Selection.IsEmpty) return;            // selection-replace stays native, reconciled on next render
-        var (b, off) = CaretLocation();
-        if (b < 0 || b >= _blocks.Count) return;
-        off = Math.Clamp(off, 0, _blocks[b].Length);
-        _blocks[b] = _blocks[b][..off] + text + _blocks[b][off..];
-        PushMarkdown();
-    }
-
-    private void MirrorRenderKey(KeyEventArgs e)
-    {
-        if (e.Key is not (Key.Back or Key.Delete) || !_rtb.Selection.IsEmpty) return;
-        var (b, off) = CaretLocation();
-        if (b < 0 || b >= _blocks.Count) return;
-        var block = _blocks[b];
-        if (e.Key == Key.Back && off > 0)                   _blocks[b] = block[..(off - 1)] + block[off..];
-        else if (e.Key == Key.Delete && off < block.Length) _blocks[b] = block[..off] + block[(off + 1)..];
-        else return;
-        PushMarkdown();
+        var (block, off) = CaretLocation();
+        if (block < 0 || block >= _blocks.Count) return false;
+        Activate(block, Math.Clamp(off, 0, _blocks[block].Length));
+        return true;
     }
 
     private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_active < 0) { MirrorRenderKey(e); return; }
+        if (_active < 0)
+        {
+            // An editing key in a rendered block enters edit mode at the caret, then is handled through the
+            // model below. Navigation / shortcut keys are left to WPF (native caret movement / commands).
+            if (e.Key is not (Key.Back or Key.Delete or Key.Enter or Key.Tab)) return;
+            if (!ActivateAtCaretForInput()) return;
+        }
         bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
         var block  = _blocks[_active];
 
