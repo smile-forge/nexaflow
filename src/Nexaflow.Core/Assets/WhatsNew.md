@@ -1,35 +1,39 @@
 # What's New in Nexaflow
 
-Welcome to **Nexaflow 1.2** 🎉
+Welcome to **Nexaflow 1.3** 🎉
 
-This release is all about opening *more* of your files — sound, 3D, notebooks, archives — right inside the same window, plus a smarter code editor and a new way to track a product.
+This release is about *doing more in place* — editing markdown and big files without leaving the tab, running your projects end to end, viewing fonts, working with git worktrees — plus a faster start and keys that stay safe on disk.
 
-### 🎬 New media & 3D viewers
-*   **Audio player**: A full player tab — playback with a live spectrum + waveform, scrolling `.lrc` lyrics, and an in-place ID3 tag editor. Plays MP3, FLAC, M4A/AAC, WMA, Ogg/Opus, and WAV.
-*   **3D model viewer**: Open STL, OBJ, PLY, 3DS, glTF/glb and — via Assimp — FBX, 3MF, AMF, Collada and many more. Rotate / zoom / pan, toggle wireframe, and inspect materials and mesh stats.
-*   **Native video playback**: An embedded libVLC player handles the wide range of formats VLC does — with a codec/metadata panel, a scrubbable keyframe scene-strip, and fullscreen.
+### 📋 Projects, reimagined
+The Projects feature grows a real lifecycle.
+*   **Archive, Shelf & Reactivate**: move a project through its stages with a safe background copy‑then‑delete — nothing is lost mid‑move.
+*   **Your statuses, your names**: backlog statuses are now configurable per workspace and stored by name, so reordering or renaming them never silently remaps your items.
+*   **Markdown everywhere**: project and backlog descriptions become rich markdown, with a dedicated **completion‑criteria** list and split **Project Details / Backlog** tabs.
+*   **Hand work to the assistant**: new **Task to AI** and **Plan with AI** buttons open a seeded conversation with the project folder pinned as context.
+*   **Backlog at a glance**: a folder viewlet surfaces your backlog grouped by status. Older project files upgrade automatically on open.
 
-### 📦 Browse archives like folders
-*   **Step into archives in the file tree**: `.zip`, `.7z`, `.tar`, `.rar`, and modern `zstd` / `lz4` containers expand like folders — nesting included.
-*   **Open, edit, write back**: Open a file inside an archive in its normal viewer, edit it, and your change is written straight back into the container.
-*   **Zip It / Unzip here**: New right-click file and folder actions, plus a dedicated archive inspector tab.
+### ✍️ Edit in place
+*   **Inline markdown editing**: edit a markdown document directly in the rendered view — no separate raw‑text mode.
+*   **Editable large text files**: the text editor now lets you *edit and save* files far too big to load whole, using windowed reads and change‑block saves.
 
-### 📓 Notebooks & a smarter code editor
-*   **Jupyter notebooks**: `.ipynb` files render as cells — rendered markdown alongside syntax-highlighted code — with a per-cell code outline.
-*   **Richer code intelligence**: The code editor now parses **embedded languages** (JavaScript/CSS in HTML, Ruby in ERB, and more), broadens language coverage, and draws a cleaner code/class map. New code formats open *As Code* by default.
+### 🔤 Font viewer
+*   Open `.ttf` / `.otf` / `.woff` and friends **as a font** — browse the full **glyph map**, read the family details, compare several fonts side by side, and ask the assistant about them.
 
-### 🧭 Product Manager
-*   A new feature for tracking a **product as a status tree** — a sunburst you can navigate, with cross-cutting concerns, snaplinks, and a status roll-up. Opens from any folder that has (or can start) a `.product/` directory.
+### 🌿 Git worktrees
+*   The Git viewlet is now **worktree‑aware**: create and remove worktrees, and clean up broken remnants. Removal runs in the background, re‑homes the current tab instead of yanking it away, and tidies up the branch too.
 
-### ✍️ More Mermaid diagrams
-The markdown renderer adds six more native diagram types — **XY charts**, **radar**, **Ishikawa** (fishbone), **Sankey**, **ER diagrams**, and **Venn** — each drawn in WPF with full front-matter `config:` support. A diagram showcase doc ships alongside.
+### 🗂️ Workspaces & sessions
+*   **Pick up where you left off**: Nexaflow can restore the tabs from your last session, and remembers each workspace's own default startup tabs and split‑pane layout across restarts.
+*   Profiles are now called **Workspaces** throughout, with clearer clone / reorder / configure controls.
 
-### 🤖 AI & web
-*   **The web tab is now AI-aware and resizable** — ask the assistant about the page you're viewing.
-*   Tabular data gains reusable **templates** for common shapes.
+### 🧩 Be the default
+*   **Default Actions**: choose the file types Nexaflow opens by default. The registry toggle is fully **reversible** — turn a handler on, then off, and Windows is left exactly as it was.
 
-### 🛠️ Improvements & under the hood
-*   **Config survives updates**: App and feature settings now **migrate forward** across version bumps instead of resetting — your keys, layout, and preferences carry over.
-*   File copy/move now reports the **specific** Windows fault instead of a generic error.
+### 🔒 Safer by default
+*   **Keys encrypted at rest**: provider API keys and other secrets are now DPAPI‑protected on disk, tied to your Windows account.
+
+### ⚡ Faster & smoother
+*   **Quicker cold start**: a normal launch no longer loads every feature up front — features are discovered from a cached index and load only when first used.
+*   **PDFs** open in a browser tab, there's a **close‑tab** keyboard shortcut, and file search now reaches **globs in non‑indexed locations**.
 
 Thank you for being part of the journey. Press **Next** to continue.

@@ -39,11 +39,11 @@ An audio player with spectrum and waveform visualisation, `.lrc` lyrics, and ID3
 
 **📦 Archives, in place**
 
-Browse `.zip`, `.7z`, `.tar`, `.rar`, `zstd`, and `lz4` archives like folders in the file tree. Open files inside them in their normal viewers. Edit and write changes back. Zip and unzip from the right-click menu. It's just files.
+Browse `.zip`, `.7z`, `.tar`, `.rar`, `zstd`, and `lz4` archives like folders in the file tree. Open files inside them in their normal viewers. Edit and write changes back. Zip and unzip from the right-click menu.
 
 **⌨️ Terminal and system tools**
 
-A real PTY terminal with shell integration. A live Process Explorer. An installed-apps manager. A system-info dashboard. A registry editor. Elevated actions go through a privilege bridge so you're never blindsided by a UAC prompt mid-flow.
+A real PTY terminal with shell integration. A live Process Explorer. A font viewer. An installed-apps manager. A system-info dashboard. A registry editor. Elevated actions go through a privilege bridge so you're never blindsided by a UAC prompt mid-flow.
 
 **🗂️ Organisation built in**
 
