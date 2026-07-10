@@ -509,7 +509,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
 
         // Update the visible count immediately — this is a cheap label update.
         SelectedEntry = selected.Count == 1 ? selected[0] : null;
-        UpdateEntryCountLabel(selected.Count);
+        UpdateSelectionCount(selected.Count);
 
         // Restart the debounce window; the strip rebuild is deferred.
         _actionDebounceTimer.Stop();
@@ -695,11 +695,24 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     private int _folderCount;
     private int _fileCount;
 
-    /// <summary>Recomputes folder/file counts from the current <see cref="Entries"/>.</summary>
-    private void UpdateEntryCountLabel(int selectedCount = 0)
-        => UpdateEntryCountLabel(Entries.Count(e => e.IsDirectory),
-                                 Entries.Count(e => !e.IsDirectory),
-                                 selectedCount);
+    /// <summary>Updates only the selection part of the footer, reusing the totals the last mutation of
+    /// <see cref="Entries"/> published. A selection change never alters the folder/file totals, and
+    /// re-scanning here would race the streaming loader: <see cref="RefreshEntriesAsync"/> is started
+    /// fire-and-forget and appends on its own continuation, so a caller that reaches
+    /// <see cref="OnSelectionChanged"/> before that continuation is scheduled can enumerate the collection
+    /// mid-append (InvalidOperationException: Collection was modified).</summary>
+    private void UpdateSelectionCount(int selectedCount)
+        => UpdateEntryCountLabel(_folderCount, _fileCount, selectedCount);
+
+    /// <summary>Recomputes the totals in a single pass — for the paths that fill <see cref="Entries"/>
+    /// directly (the drive list, a newly created entry) rather than through the loader. Runs on the thread
+    /// that owns the collection, right after it mutated it.</summary>
+    private void RecountEntries()
+    {
+        int folders = 0, files = 0;
+        foreach (var e in Entries) { if (e.IsDirectory) folders++; else files++; }
+        UpdateEntryCountLabel(folders, files, 0);
+    }
 
     /// <summary>Sets the footer labels from already-known counts (avoids re-scanning
     /// <see cref="Entries"/> on every streamed chunk).</summary>
@@ -779,7 +792,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
             _ = CheckDriveAsync(d, node, entry);
         }
 
-        vm.UpdateEntryCountLabel();
+        vm.RecountEntries();
         vm.NavigationChanged?.Invoke([("This PC", string.Empty)]);
         return vm;
     }
@@ -1048,7 +1061,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
                 }
             }
 
-            UpdateEntryCountLabel();
+            RecountEntries();
             NavigationChanged?.Invoke([("This PC", string.Empty)]);
 
             if (thisPcNode is not null)
