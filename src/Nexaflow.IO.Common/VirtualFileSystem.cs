@@ -100,7 +100,7 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
     {
         if (!IsContainer(containerPath)) return null;
         var handler = HandlerFor(Path.GetFileName(containerPath))!;
-        using var session = OpenSession(new Resolved(containerPath, Path.GetFileName(containerPath), string.Empty));
+        using var session = OpenSession(containerPath, Path.GetFileName(containerPath));
         return new ArchiveSummary(handler.Name, handler.Capabilities, session.Entries, session.Comment, session.IsEncrypted);
     }
 
@@ -183,7 +183,7 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
         if (norm.Length == 0)
             return new VirtualEntry(Path.GetFileName(resolved.RealContainer), true, 0, 0, System.DateTime.Now);
 
-        using var session = OpenSession(resolved);
+        using var session = OpenSession(resolved.RealContainer, resolved.ContainerFileName);
         return session.Entries.FirstOrDefault(e => PathEquals(e.Name, norm))
             ?? (session.Entries.Any(e => IsUnder(e.Name, norm))
                 ? new VirtualEntry(LastSegment(norm), true, 0, 0, System.DateTime.Now)  // a directory inside the archive
@@ -198,7 +198,7 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
 
         Resolved? resolved;
         if (IsContainer(path))
-            resolved = new Resolved(path, Path.GetFileName(path), string.Empty);
+            resolved = new Resolved(path, Path.GetFileName(path), string.Empty, []);
         else
         {
             var (container, inner) = SplitOutermostContainer(path);
@@ -207,7 +207,7 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
             if (resolved is null) return [];
         }
 
-        using var session = OpenSession(resolved);
+        using var session = OpenSession(resolved.RealContainer, resolved.ContainerFileName);
         return ChildrenOf(session.Entries, Normalize(resolved.Inner));
     }
 
@@ -318,7 +318,16 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
 
     // ── Archive resolution + materialisation ─────────────────────────────────
 
-    private sealed record Resolved(string RealContainer, string ContainerFileName, string Inner);
+    /// <summary>One step down into a nested container: the parent's real file (the outermost archive, or a
+    /// materialised temp of a container above it) and the entry within it that <i>is</i> the child container.
+    /// A write deep inside must rebuild each parent in turn, so the chain has to survive resolution.</summary>
+    private sealed record ContainerLink(string ParentFile, string ParentFileName, string EntryPath);
+
+    /// <summary><see cref="Chain"/> is empty when the path lives directly in the outermost real archive;
+    /// otherwise <c>Chain[0].ParentFile</c> is that archive and each later link's parent is the temp copy
+    /// of the container above it.</summary>
+    private sealed record Resolved(string RealContainer, string ContainerFileName, string Inner,
+                                   IReadOnlyList<ContainerLink> Chain);
 
     /// <summary>Descends through any nested containers named in <paramref name="inner"/>, materialising
     /// each intermediate container to a real temp file, and returns the innermost real container plus the
@@ -328,12 +337,13 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
         var realContainer = File.Exists(outerContainer) ? outerContainer : MaterializeFile(outerContainer);
         var containerName = Path.GetFileName(outerContainer);
         var path = Normalize(inner);
+        var chain = new List<ContainerLink>();
 
         while (path.Length > 0)
         {
             // Find the longest leading sub-path that is itself an entry AND a nested container.
             string? nestedEntry = null;
-            using (var session = OpenSession(new Resolved(realContainer, containerName, string.Empty)))
+            using (var session = OpenSession(realContainer, containerName))
             {
                 var segments = path.Split('/');
                 // Include i == segments.Length so a nested container that is the *leaf* of the path
@@ -352,12 +362,13 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
             if (nestedEntry is null) break;   // 'path' lives directly within the current container
 
             var nestedReal = ExtractEntry(realContainer, containerName, nestedEntry);
+            chain.Add(new ContainerLink(realContainer, containerName, nestedEntry));
             realContainer = nestedReal;
             containerName = LastSegment(nestedEntry);
             path = path[nestedEntry.Length..].TrimStart('/');
         }
 
-        return new Resolved(realContainer, containerName, path);
+        return new Resolved(realContainer, containerName, path, chain);
     }
 
     /// <summary>Returns a real on-disk path for the file the (possibly virtual, possibly nested) path
@@ -385,7 +396,7 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
             return cached;
         }
 
-        using var session = OpenSession(new Resolved(realContainer, containerFileName, string.Empty));
+        using var session = OpenSession(realContainer, containerFileName);
         var entry = session.Entries.FirstOrDefault(e => !e.IsDirectory && PathEquals(e.Name, norm))
             ?? throw new FileNotFoundException($"Entry '{entryPath}' not found in '{containerFileName}'.");
 
@@ -437,15 +448,20 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
             if (_lru.Remove(key, out var e)) _materializedBytes -= e.Bytes;
     }
 
-    private IArchiveSession OpenSession(Resolved resolved)
+    private IArchiveSession OpenSession(string realContainer, string containerFileName)
     {
-        var handler = HandlerFor(resolved.ContainerFileName)
-            ?? throw new System.NotSupportedException($"No archive handler for '{resolved.ContainerFileName}'.");
-        var stream = new FileStream(resolved.RealContainer, FileMode.Open, FileAccess.Read, FileShare.Read);
-        return handler.Open(stream, resolved.ContainerFileName);
+        var handler = HandlerFor(containerFileName)
+            ?? throw new System.NotSupportedException($"No archive handler for '{containerFileName}'.");
+        var stream = new FileStream(realContainer, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return handler.Open(stream, containerFileName);
     }
 
-    /// <summary>Rewrites the archive owning <paramref name="path"/> with that entry's bytes replaced.</summary>
+    /// <summary>
+    /// Rewrites the archive owning <paramref name="path"/> with that entry's bytes replaced. For a nested
+    /// path (<c>outer.zip\inner.zip\x.txt</c>) the innermost container is rebuilt first, and its bytes become
+    /// the replacement content for its own entry in the container above — repeated outward until the real
+    /// archive on disk is rewritten. Rebuilding only the innermost would leave the edit in a temp copy.
+    /// </summary>
     private void WriteBackEntry(string path, byte[] newContent)
     {
         var (container, inner) = SplitOutermostContainer(path);
@@ -453,16 +469,60 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
         var resolved = ResolveToInnermost(container, inner)
             ?? throw new FileNotFoundException("Path does not resolve.", path);
 
-        var handler = HandlerFor(resolved.ContainerFileName)
-            ?? throw new System.NotSupportedException($"No archive handler for '{resolved.ContainerFileName}'.");
+        // Every level must be writable before anything is committed — a read-only container two levels up
+        // would otherwise surface only after the inner rebuilds had already run.
+        RequireModifiable(resolved.ContainerFileName);
+        foreach (var link in resolved.Chain) RequireModifiable(link.ParentFileName);
+
+        // Fold the chain inward-to-outward: each level's rebuilt bytes are the next level's entry content.
+        var content = newContent;
+        var file    = resolved.RealContainer;
+        var name    = resolved.ContainerFileName;
+        var entry   = Normalize(resolved.Inner);
+
+        for (int i = resolved.Chain.Count - 1; i >= 0; i--)
+        {
+            using var ms = new MemoryStream();
+            RebuildContainer(file, name, entry, content, ms);
+            content = ms.ToArray();
+
+            var link = resolved.Chain[i];
+            file  = link.ParentFile;
+            name  = link.ParentFileName;
+            entry = link.EntryPath;
+        }
+
+        // 'file' is now the outermost real archive: stream its rebuild to a temp and swap it in atomically.
+        var tmp = file + ".nexatmp";
+        using (var outStream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
+            RebuildContainer(file, name, entry, content, outStream);
+        File.Replace(tmp, file, null);
+
+        // Every container in the chain was rebuilt — drop the cached extractions taken from each.
+        InvalidateContainer(resolved.RealContainer);
+        foreach (var link in resolved.Chain) InvalidateContainer(link.ParentFile);
+    }
+
+    private void RequireModifiable(string containerFileName)
+    {
+        var handler = HandlerFor(containerFileName)
+            ?? throw new System.NotSupportedException($"No archive handler for '{containerFileName}'.");
         if (!handler.Capabilities.HasFlag(ArchiveCapabilities.Modify))
             throw new System.NotSupportedException($"{handler.Name} archives are read-only.");
+    }
 
-        var target = Normalize(resolved.Inner);
+    /// <summary>Writes the archive in <paramref name="containerFile"/> to <paramref name="output"/> with
+    /// <paramref name="entryPath"/>'s bytes replaced by <paramref name="newContent"/>. One call per level of
+    /// a container chain. An entry path that matches nothing rewrites the archive unchanged.</summary>
+    private void RebuildContainer(string containerFile, string containerFileName, string entryPath,
+                                  byte[] newContent, Stream output)
+    {
+        var handler = HandlerFor(containerFileName)
+            ?? throw new System.NotSupportedException($"No archive handler for '{containerFileName}'.");
+
+        var target = Normalize(entryPath);
         var rebuilt = new List<ArchiveWriteEntry>();
-        using (var session = handler.Open(
-            new FileStream(resolved.RealContainer, FileMode.Open, FileAccess.Read, FileShare.Read),
-            resolved.ContainerFileName))
+        using (var session = OpenSession(containerFile, containerFileName))
         {
             foreach (var e in session.Entries)
             {
@@ -476,14 +536,7 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
                 }
             }
         }
-
-        var tmp = resolved.RealContainer + ".nexatmp";
-        using (var outStream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
-            handler.Write(outStream, resolved.ContainerFileName, rebuilt);
-        File.Replace(tmp, resolved.RealContainer, null);
-
-        // The container's bytes changed — drop cached extractions from it.
-        InvalidateContainer(resolved.RealContainer);
+        handler.Write(output, containerFileName, rebuilt);
     }
 
     public void ExtractAll(string containerPath, string destinationDir)
