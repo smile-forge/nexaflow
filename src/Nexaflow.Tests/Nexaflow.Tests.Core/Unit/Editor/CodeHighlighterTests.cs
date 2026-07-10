@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Syntax;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit.Editor;
 
@@ -12,6 +13,7 @@ public class CodeHighlighterTests
 
     [TestMethod]
     [DynamicData(nameof(Grammars))]
+    [CoversNode("syntax-queries")]
     public void Grammar_NativeLoadsAndQueryCompiles(string grammarId)
     {
         using var highlighter = CodeHighlighter.TryCreate(grammarId);
@@ -19,6 +21,7 @@ public class CodeHighlighterTests
     }
 
     [TestMethod]
+    [CoversNode("syntax-queries")]
     public void CSharp_ProducesExpectedCaptures_WithCorrectOffsets()
     {
         using var highlighter = CodeHighlighter.TryCreate("c-sharp");
@@ -41,6 +44,7 @@ public class CodeHighlighterTests
     }
 
     [TestMethod]
+    [CoversNode("syntax-queries")]
     public void CSharp_DistinguishesTypesFunctionsAndParameters()
     {
         using var highlighter = CodeHighlighter.TryCreate("c-sharp");
@@ -60,12 +64,14 @@ public class CodeHighlighterTests
     }
 
     [TestMethod]
+    [CoversNode("syntax-queries")]
     public void UnknownGrammar_ReturnsNull()
     {
         Assert.IsNull(CodeHighlighter.TryCreate("nonsense-lang"));
     }
 
     [TestMethod]
+    [CoversNode("code-syntax-tree-tool")]
     public void CSharp_ParseTree_IsSExpression()
     {
         using var highlighter = CodeHighlighter.TryCreate("c-sharp");
@@ -75,6 +81,7 @@ public class CodeHighlighterTests
     }
 
     [TestMethod]
+    [CoversNode("code-folding")]
     public void CSharp_ProducesFolds_ForBlocks()
     {
         using var highlighter = CodeHighlighter.TryCreate("c-sharp");
@@ -88,6 +95,7 @@ public class CodeHighlighterTests
     }
 
     [TestMethod]
+    [CoversNode("code-folding")]
     public void CSharp_FoldsCommentBlocks()
     {
         using var highlighter = CodeHighlighter.TryCreate("c-sharp");
@@ -101,6 +109,7 @@ public class CodeHighlighterTests
     }
 
     [TestMethod]
+    [CoversNode("code-folding")]
     public void CSharp_DoesNotFold_LoneOwnLineComment()
     {
         using var highlighter = CodeHighlighter.TryCreate("c-sharp");

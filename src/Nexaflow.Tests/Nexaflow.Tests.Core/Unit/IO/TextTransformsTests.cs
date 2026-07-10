@@ -1,8 +1,10 @@
 using Nexaflow.IO.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit.IO;
 
 [TestClass]
+[CoversNode("iocommon-transforms")]
 public class TextTransformsTests
 {
     [TestMethod]

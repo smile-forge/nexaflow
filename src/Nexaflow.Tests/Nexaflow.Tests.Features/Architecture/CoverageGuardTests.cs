@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Architecture;
 
@@ -12,6 +13,7 @@ namespace Nexaflow.Tests.Features.Architecture;
 /// convention (Nexaflow.Tests.Features.&lt;Folder&gt;) and fails naming any feature with no test class.
 /// </summary>
 [TestClass]
+[NoCoverage("architecture guard")]
 public class CoverageGuardTests
 {
     /// <summary>Feature short-name → test-folder name, where they differ from the 1:1 convention.</summary>

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Text.ViewModels;
 using Nexaflow.Tests.Features.Infrastructure;
+using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 
 namespace Nexaflow.Tests.Features.Text;
@@ -18,6 +19,7 @@ namespace Nexaflow.Tests.Features.Text;
 /// <c>TextDocument</c> across <c>await</c> points.
 /// </summary>
 [TestClass]
+[CoversNode("edit-file")]
 public class TextViewModelTests
 {
     private static string WriteTemp(string content)

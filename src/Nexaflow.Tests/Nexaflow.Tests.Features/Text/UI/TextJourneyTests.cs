@@ -15,9 +15,11 @@ namespace Nexaflow.Tests.Features.Text.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
+[CoversNode("text-viewer")]
 public class TextJourneyTests : UiJourneyTestBase
 {
     [TestMethod]
+    [CoversNode("text-viewer-toolbar")]
     public void Text_Controls_RespondInOnePass()
     {
         var file = Path.GetFileName(TestSampleData.Files("text").First());

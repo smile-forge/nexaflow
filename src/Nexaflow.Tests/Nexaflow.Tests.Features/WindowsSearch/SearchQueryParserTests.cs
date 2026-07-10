@@ -1,8 +1,10 @@
 using Nexaflow.Features.WindowsSearch.Services;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsSearch;
 
 [TestClass]
+[CoversNode("search-query-parser")]
 public class SearchQueryParserTests
 {
     // ── Quoted single term ────────────────────────────────────────────────────

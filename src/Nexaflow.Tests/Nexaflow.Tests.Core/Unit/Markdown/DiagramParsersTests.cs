@@ -1,6 +1,7 @@
 using Nexaflow.Visuals.Text.Markdown.Graphs;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit.Markdown;
 
@@ -32,6 +33,7 @@ public class DiagramParsersTests
         """;
 
     [TestMethod]
+    [CoversNode("quadrant-graph")]
     public void Quadrant_ParsesTitleAxesAndQuadrants()
     {
         var c = new MermaidQuadrantParser().Parse(QuadrantSrc);
@@ -48,6 +50,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("quadrant-graph")]
     public void Quadrant_ParsesAllPoints()
     {
         var c = new MermaidQuadrantParser().Parse(QuadrantSrc);
@@ -59,6 +62,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("quadrant-graph")]
     public void Quadrant_AxisWithoutArrow_FillsLowEndOnly()
     {
         var c = new MermaidQuadrantParser().Parse("quadrantChart\n    x-axis Low Reach\n");
@@ -67,6 +71,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("quadrant-graph")]
     public void Quadrant_StripsClassStylingFromPointLabel()
     {
         var c = new MermaidQuadrantParser().Parse("quadrantChart\n    Campaign A:::class1: [0.3, 0.6]\n");
@@ -75,6 +80,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("quadrant-graph")]
     public void Quadrant_ClampsOutOfRangeCoordinates()
     {
         var c = new MermaidQuadrantParser().Parse("quadrantChart\n    P: [1.4, 0.2]\n");
@@ -96,6 +102,7 @@ public class DiagramParsersTests
         """;
 
     [TestMethod]
+    [CoversNode("quadrant-graph")]
     public void Quadrant_StyledPoints_AreNotDropped()
     {
         var c = new MermaidQuadrantParser().Parse(StyledQuadrantSrc);
@@ -104,6 +111,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("quadrant-graph")]
     public void Quadrant_ParsesInlineStyleKeys()
     {
         var c = new MermaidQuadrantParser().Parse(StyledQuadrantSrc);
@@ -114,6 +122,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("quadrant-graph")]
     public void Quadrant_StrokeWidthStripsPx_AndToleratesSpacing()
     {
         var c = new MermaidQuadrantParser().Parse(StyledQuadrantSrc);
@@ -123,6 +132,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("quadrant-graph")]
     public void Quadrant_ClassDef_AppliesToReferencingPoint()
     {
         // class2 is declared *after* Campaign E, so resolution must be deferred.
@@ -135,6 +145,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("quadrant-graph")]
     public void Quadrant_InlineStyleWinsOverClass()
     {
         // Campaign B references class1 (color #109060) but sets color #ff3300 inline → inline wins.
@@ -145,6 +156,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("quadrant-graph")]
     public void Quadrant_UnstyledPoint_HasNoStyle()
     {
         var c = new MermaidQuadrantParser().Parse("quadrantChart\n    P: [0.3, 0.6]\n");
@@ -162,6 +174,7 @@ public class DiagramParsersTests
         """;
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_AutoCreatesParticipantsInOrder()
     {
         var d = new MermaidSequenceParser().Parse(SequenceSrc);
@@ -172,6 +185,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_ParsesMessagesWithLineAndHeadStyles()
     {
         var d = new MermaidSequenceParser().Parse(SequenceSrc);
@@ -195,6 +209,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_ParticipantAliasSetsLabel()
     {
         var d = new MermaidSequenceParser().Parse(
@@ -207,6 +222,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_CrossAndOpenHeads()
     {
         var d = new MermaidSequenceParser().Parse(
@@ -219,6 +235,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_SelfMessageHasMatchingEndpoints()
     {
         var d = new MermaidSequenceParser().Parse(
@@ -229,6 +246,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_SkipsControlFlowKeywords()
     {
         var d = new MermaidSequenceParser().Parse(
@@ -239,6 +257,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_PlainArrowHasNoHead()
     {
         var d = new MermaidSequenceParser().Parse("sequenceDiagram\n    A->B: note\n");
@@ -249,6 +268,7 @@ public class DiagramParsersTests
     // ── Sequence: participant metadata, notes, activations, fragments ──────
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_ParticipantTypeMetadata_SetsKind()
     {
         var d = new MermaidSequenceParser().Parse(
@@ -257,6 +277,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_ActorKeyword_SetsActorKind()
     {
         var d = new MermaidSequenceParser().Parse("sequenceDiagram\n    actor Alice\n    Alice->>Bob: hi\n");
@@ -264,6 +285,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_InlineAlias_BecomesLabel()
     {
         var d = new MermaidSequenceParser().Parse(
@@ -272,6 +294,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_AsLabelWinsOverInlineAlias()
     {
         var d = new MermaidSequenceParser().Parse(
@@ -280,6 +303,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_CreateActorWithAlias()
     {
         var d = new MermaidSequenceParser().Parse(
@@ -291,6 +315,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_Destroy_MarksAndEmitsItem()
     {
         var d = new MermaidSequenceParser().Parse(
@@ -300,6 +325,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_ActivationShorthand_OnMessage()
     {
         var d = new MermaidSequenceParser().Parse(
@@ -314,6 +340,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_ExplicitActivateDeactivate()
     {
         var d = new MermaidSequenceParser().Parse(
@@ -325,6 +352,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_Autonumber_NumbersMessages()
     {
         var d = new MermaidSequenceParser().Parse(
@@ -334,6 +362,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_NoteOverTwoParticipants()
     {
         var d = new MermaidSequenceParser().Parse(
@@ -345,6 +374,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_NoteRightOf()
     {
         var d = new MermaidSequenceParser().Parse("sequenceDiagram\n    Note right of John: hello\n");
@@ -352,6 +382,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_AltFragment_EmitsBoundaries()
     {
         var d = new MermaidSequenceParser().Parse(
@@ -366,6 +397,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_NestedFragments_BalanceBeginAndEnd()
     {
         var d = new MermaidSequenceParser().Parse(
@@ -376,6 +408,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_Box_GroupsParticipants()
     {
         var d = new MermaidSequenceParser().Parse(
@@ -386,6 +419,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_BrBecomesNewline()
     {
         var d = new MermaidSequenceParser().Parse(
@@ -394,6 +428,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_CentralConnectionMarkersStripped()
     {
         var d = new MermaidSequenceParser().Parse(
@@ -402,6 +437,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_CentralConnectionDotFlags()
     {
         var d = new MermaidSequenceParser().Parse(
@@ -413,6 +449,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_BidirectionalArrows()
     {
         var d = new MermaidSequenceParser().Parse(
@@ -428,6 +465,7 @@ public class DiagramParsersTests
     }
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_AsyncAndDottedArrowVariants()
     {
         var d = new MermaidSequenceParser().Parse(

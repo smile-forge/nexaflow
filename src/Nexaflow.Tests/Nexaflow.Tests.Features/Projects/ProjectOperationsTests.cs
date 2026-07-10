@@ -3,6 +3,8 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Projects;
 using Nexaflow.Features.Projects.Model;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.Projects;
 
 /// <summary>
@@ -11,6 +13,7 @@ namespace Nexaflow.Tests.Features.Projects;
 /// the transactional file path (which transitively exercises <c>TransactionalFileService</c>).
 /// </summary>
 [TestClass]
+[CoversNode("projects")]
 public class ProjectOperationsTests
 {
     private string _root = "";

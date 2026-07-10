@@ -1,5 +1,7 @@
 using Nexaflow.Tests.Features.UI.Infrastructure;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.Projects.UI;
 
 /// <summary>
@@ -21,6 +23,7 @@ namespace Nexaflow.Tests.Features.Projects.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
+[CoversNode("projects")]
 public class ProjectsJourneyTests : UiJourneyTestBase
 {
     protected override string? LaunchTabKind => "Projects";

@@ -1,9 +1,11 @@
 using Nexaflow.Features.WindowsRegistry.Services;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsRegistry;
 
 /// <summary>Hive-root identity and token resolution. Touches only the read-only base-key singletons.</summary>
 [TestClass]
+[CoversNode("registry-hive-dropdown")]
 public class RegistryRootTests
 {
     [TestMethod]

@@ -5,10 +5,13 @@ using Nexaflow.Features.ProductManager.ClientTools;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.ProductManager;
 
 /// <summary>The AI tool surface — read renderers + the write tools (which load .product/, mutate, and save).</summary>
 [TestClass]
+[CoversNode("product-ai-tools")]
 public class ProductToolsTests
 {
     private string _root = string.Empty;

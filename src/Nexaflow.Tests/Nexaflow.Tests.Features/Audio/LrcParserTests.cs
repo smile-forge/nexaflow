@@ -1,8 +1,10 @@
 using Nexaflow.Features.Audio.Services;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Audio;
 
 [TestClass]
+[CoversNode("audio-lyrics")]
 public class LrcParserTests
 {
     [TestMethod]

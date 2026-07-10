@@ -5,11 +5,13 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
 [TestClass]
 [DoNotParallelize]   // mutates the process-wide FileMapManager.Instance
+[CoversNode("winfs-filemap-editor")]
 public class FileMapDefaultsMergeTests
 {
     private string _dir = string.Empty;

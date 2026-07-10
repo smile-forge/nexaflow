@@ -1,5 +1,6 @@
 using System.IO;
 using Nexaflow.Features.Hex.Buffer;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Hex;
 
@@ -241,6 +242,7 @@ public class HexBufferTests
     }
 
     [TestMethod]
+    [CoversNode("hex-undo-redo")]
     public void Undo_ReversesOverwrite()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
@@ -259,6 +261,7 @@ public class HexBufferTests
     }
 
     [TestMethod]
+    [CoversNode("hex-undo-redo")]
     public void Undo_ReversesInsertAndDelete()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
@@ -279,6 +282,7 @@ public class HexBufferTests
     }
 
     [TestMethod]
+    [CoversNode("hex-undo-redo")]
     public void Redo_ReappliesEdit()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
@@ -296,6 +300,7 @@ public class HexBufferTests
     }
 
     [TestMethod]
+    [CoversNode("hex-undo-redo")]
     public void NewEdit_ClearsRedoStack()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
@@ -358,6 +363,7 @@ public class HexBufferTests
     }
 
     [TestMethod]
+    [CoversNode("hex-windowing")]
     public void LargeFile_ReadAcrossWindowBoundaries_IsCorrect()
     {
         // > 8 KB so multiple window loads are required during scan
@@ -376,6 +382,7 @@ public class HexBufferTests
     }
 
     [TestMethod]
+    [CoversNode("hex-windowing")]
     public void EnsureWindow_DoesNotMutateContent()
     {
         var data = new byte[10_000];
@@ -408,6 +415,7 @@ public class HexBufferTests
     }
 
     [TestMethod]
+    [CoversNode("hex-undo-redo")]
     public void RepeatedEdits_OnSameOffset_AllReversibleInOrder()
     {
         var path = WriteTempFile(new byte[] { 0, 0, 0 });

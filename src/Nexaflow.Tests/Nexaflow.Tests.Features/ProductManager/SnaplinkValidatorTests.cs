@@ -2,6 +2,8 @@ using System.IO;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.ProductManager;
 
 /// <summary>
@@ -10,6 +12,7 @@ namespace Nexaflow.Tests.Features.ProductManager;
 /// never invent one, because a false positive fails a release build.
 /// </summary>
 [TestClass]
+[CoversNode("product-snaplinks")]
 public class SnaplinkValidatorTests
 {
     private string _root = string.Empty;

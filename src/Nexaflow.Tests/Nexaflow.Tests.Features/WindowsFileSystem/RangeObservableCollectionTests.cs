@@ -1,5 +1,6 @@
 using System.Collections.Specialized;
 using Nexaflow.Visuals.Common.Collections;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -8,6 +9,7 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem;
 /// (not N events) so a freshly-loaded folder renders in one pass. These guard that.
 /// </summary>
 [TestClass]
+[CoversNode("vcommon-collections")]
 public class RangeObservableCollectionTests
 {
     private static (RangeObservableCollection<int> Coll, List<NotifyCollectionChangedEventArgs> Events) Track()

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Nexaflow.Visuals.Terminal;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Console;
 
@@ -8,6 +9,7 @@ namespace Nexaflow.Tests.Features.Console;
 /// built-in / PATH executable / existing file → command; otherwise → natural-language request.
 /// </summary>
 [TestClass]
+[CoversNode("vterm-classifier")]
 public class CommandClassifierTests
 {
     private static readonly IReadOnlySet<string> Builtins = CommandClassifier.CmdBuiltins;
@@ -19,6 +21,7 @@ public class CommandClassifierTests
     [DataRow("set PATH")]
     [DataRow("EXIT")]            // case-insensitive
     [DataRow("git status")]     // first token resolves on PATH in this repo's environment
+    [CoversNode("console-routing-group")]
     public void Commands_AreClassifiedAsCommands(string line)
         => Assert.IsTrue(CommandClassifier.IsCommand(line, Builtins), $"'{line}' should be a command");
 
@@ -26,6 +29,7 @@ public class CommandClassifierTests
     [DataRow("summarise the errors in this log")]
     [DataRow("explain what just happened")]
     [DataRow("qwzzx the temp folder")]   // first token is clearly not a program
+    [CoversNode("console-routing-group")]
     public void NaturalLanguage_IsNotACommand(string line)
         => Assert.IsFalse(CommandClassifier.IsCommand(line, Builtins), $"'{line}' should go to the model");
 

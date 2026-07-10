@@ -1,6 +1,8 @@
 using Nexaflow.Features.Scratchpad.Models;
 using Nexaflow.Features.Scratchpad.ViewModels;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.Scratchpad;
 
 [TestClass]
@@ -182,6 +184,7 @@ public class PostItViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("postit-zorder")]
     public void BringToFrontCommand_UsesGetMaxZIndex()
     {
         var vm = new PostItViewModel(MakeNote())
@@ -193,6 +196,7 @@ public class PostItViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("postit-zorder")]
     public void BringToFrontCommand_NoProvider_DefaultsToOne()
     {
         var vm = new PostItViewModel(MakeNote());
@@ -201,6 +205,7 @@ public class PostItViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("postit-zorder")]
     public void SendToBackCommand_ZeroesZIndex()
     {
         var vm = new PostItViewModel(MakeNote()) { ZIndex = 99 };
@@ -209,6 +214,7 @@ public class PostItViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("postit-close")]
     public void RemoveCommand_FiresRequestRemoveWithSelf()
     {
         var vm = new PostItViewModel(MakeNote());

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.IO.Terminal;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Console;
 
@@ -10,6 +11,7 @@ namespace Nexaflow.Tests.Features.Console;
 /// child shell. A malformed block fails CreateProcess at runtime, so the shape is worth pinning down.
 /// </summary>
 [TestClass]
+[CoversNode("io-terminal")]
 public class EnvironmentBlockTests
 {
     private static List<string> Entries(string block)

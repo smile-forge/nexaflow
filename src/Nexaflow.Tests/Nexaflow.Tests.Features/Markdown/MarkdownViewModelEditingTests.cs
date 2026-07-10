@@ -1,4 +1,5 @@
 using Nexaflow.Features.Markdown.ViewModels;
+using Nexaflow.Tests.Fixtures;
 using System.IO;
 
 namespace Nexaflow.Tests.Features.Markdown;
@@ -11,6 +12,7 @@ namespace Nexaflow.Tests.Features.Markdown;
 /// in the shared InlineMarkdownEditor and is covered under Tests.Core.
 /// </summary>
 [TestClass]
+[CoversNode("markdown-dirty-tracking")]
 public class MarkdownViewModelEditingTests
 {
     private readonly List<string> _tempFiles = [];

@@ -13,10 +13,12 @@ namespace Nexaflow.Tests.Features.Font;
 /// step the Font viewer runs when opening a <c>.woff</c> file.
 /// </summary>
 [TestClass]
+[CoversNode("font")]
 public class WoffDecoderTests
 {
     [TestMethod]
     [TestCategory("Unit")]
+    [CoversNode("font-decode")]
     public void Decode_WoffFixture_ProducesLoadableSfnt()
     {
         var woffPath = TestSampleData.Files("font").Single(p => p.EndsWith(".woff"));

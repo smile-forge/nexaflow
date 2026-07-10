@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Architecture;
 
@@ -13,6 +14,7 @@ namespace Nexaflow.Tests.Features.Architecture;
 /// A violation is now a red build instead of a review catch.
 /// </summary>
 [TestClass]
+[NoCoverage("architecture guard")]
 public class ArchitectureRulesTests
 {
     /// <summary>Every feature assembly deployed next to the test exe — this project references all

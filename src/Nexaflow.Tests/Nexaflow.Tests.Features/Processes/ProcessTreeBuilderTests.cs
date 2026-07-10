@@ -4,9 +4,12 @@ using Nexaflow.Features.Processes.ViewModels;
 using NSubstitute;
 using static Nexaflow.Tests.Features.Processes.FakeProcessSource;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.Processes;
 
 [TestClass]
+[CoversNode("tree-vs-list")]
 public class ProcessTreeBuilderTests
 {
     // Tree mode isn't the default (flat list is) — these tests are specifically about the hierarchy.

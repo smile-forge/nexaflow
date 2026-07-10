@@ -2,10 +2,12 @@ using System.IO;
 using NSubstitute;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Dotnet.ViewModels;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Dotnet;
 
 [TestClass]
+[CoversNode("viewlet")]
 public class DotnetViewletViewModelTests
 {
     private readonly List<string> _temp = [];
@@ -73,6 +75,7 @@ public class DotnetViewletViewModelTests
     // ── GetClientTools ────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("dotnet-ai-tools")]
     public void GetClientTools_ExposesVerbsAndOutdatedCheck()
     {
         var names = Vm(TempDir("Foo.csproj")).GetClientTools().Select(t => t.Name).ToList();
@@ -85,6 +88,7 @@ public class DotnetViewletViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("dotnet-ai-tools")]
     public void GetClientTools_DoesNotExposeRun()
     {
         var names = Vm(TempDir("Foo.csproj")).GetClientTools().Select(t => t.Name).ToList();

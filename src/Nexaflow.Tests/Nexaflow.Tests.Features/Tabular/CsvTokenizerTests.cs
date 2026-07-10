@@ -1,8 +1,10 @@
 using Nexaflow.Features.Tabular.Detection;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Tabular;
 
 [TestClass]
+[CoversNode("parser")]
 public class CsvTokenizerTests
 {
     [TestMethod]

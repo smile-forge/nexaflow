@@ -5,6 +5,7 @@ using Nexaflow.Visuals.Text.Editor.Highlighting;
 namespace Nexaflow.Tests.Core.Unit.Editor;
 
 [TestClass]
+[CoversNode("vtext-highlighting")]
 public class HighlightingRegistryTests
 {
     [TestMethod]

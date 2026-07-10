@@ -1,4 +1,5 @@
 using Nexaflow.Tests.Features.UI.Infrastructure;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsRegistry.UI;
 
@@ -19,6 +20,7 @@ namespace Nexaflow.Tests.Features.WindowsRegistry.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
+[CoversNode("win-registry")]
 public class RegistryJourneyTests : UiJourneyTestBase
 {
     protected override string? LaunchTabKind => "WindowsRegistry";

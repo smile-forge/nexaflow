@@ -22,6 +22,14 @@
     <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Core\Nexaflow.Core.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
+    <!-- Author-time coverage-declaration checks (NXCOV001/2). The tree feeds id-validity; absent on a
+         clean checkout (gitignored), where the analyzer degrades to the presence check only. -->
+    <ProjectReference Include="..\..\Nexaflow.Analyzers\Nexaflow.Analyzers.Coverage\Nexaflow.Analyzers.Coverage.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('..\..\..\.product\tree.json')">
+    <AdditionalFiles Include="..\..\..\.product\tree.json" />
   </ItemGroup>
 
   <ItemGroup>

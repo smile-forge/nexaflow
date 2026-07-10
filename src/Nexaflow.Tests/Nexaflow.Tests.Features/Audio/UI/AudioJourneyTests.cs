@@ -13,6 +13,7 @@ namespace Nexaflow.Tests.Features.Audio.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
+[CoversNode("audio")]
 public class AudioJourneyTests : UiJourneyTestBase
 {
     [TestMethod]

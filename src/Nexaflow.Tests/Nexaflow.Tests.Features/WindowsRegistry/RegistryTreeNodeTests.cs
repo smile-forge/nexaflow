@@ -1,5 +1,6 @@
 using Nexaflow.Features.WindowsRegistry.Services;
 using Nexaflow.Features.WindowsRegistry.ViewModels;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsRegistry;
 
@@ -8,6 +9,7 @@ namespace Nexaflow.Tests.Features.WindowsRegistry;
 /// subpath so the lazy-load probe finds nothing and no real keys are enumerated.
 /// </summary>
 [TestClass]
+[CoversNode("registry-key-tree")]
 public class RegistryTreeNodeTests
 {
     private const string MissingSub = @"Software\__NexaflowNoSuchKey__";

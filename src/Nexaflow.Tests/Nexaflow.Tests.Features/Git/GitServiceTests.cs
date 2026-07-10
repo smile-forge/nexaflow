@@ -1,10 +1,12 @@
 using System.IO;
 using LibGit2Sharp;
 using Nexaflow.Features.Git.Services;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Git;
 
 [TestClass]
+[CoversNode("git-ai-tools")]
 public class GitServiceTests
 {
     private static readonly Signature Sig = new("Tester", "test@example.com", DateTimeOffset.Now);

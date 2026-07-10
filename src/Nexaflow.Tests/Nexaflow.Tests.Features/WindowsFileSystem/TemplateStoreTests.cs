@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.IO;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
 [TestClass]
+[CoversNode("winfs-create-template")]
 public class TemplateStoreTests
 {
     private static string TempDir()

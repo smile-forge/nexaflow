@@ -1,8 +1,11 @@
 using Nexaflow.Features.Processes.Services;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.Processes;
 
 [TestClass]
+[CoversNode("process-view")]
 public class CpuSamplingTests
 {
     [TestMethod]

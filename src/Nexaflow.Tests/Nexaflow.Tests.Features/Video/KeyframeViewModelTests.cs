@@ -1,9 +1,11 @@
 using Nexaflow.Features.Video.ViewModels;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Video;
 
 /// <summary>The scene-strip thumbnail's time label — sub-hour uses m:ss, an hour or more uses h:mm:ss.</summary>
 [TestClass]
+[CoversNode("video-scenestrip")]
 public class KeyframeViewModelTests
 {
     private static string Label(TimeSpan at) => new KeyframeViewModel { Position = at }.TimeLabel;

@@ -6,10 +6,12 @@ using UserControl = System.Windows.Controls.UserControl;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit;
 
 [TestClass]
+[CoversNode("win-cux-window-registry")]
 public class ShellServicesTests
 {
     private static ShellServices CreateSvc() => new(new WorkspaceRuntime());

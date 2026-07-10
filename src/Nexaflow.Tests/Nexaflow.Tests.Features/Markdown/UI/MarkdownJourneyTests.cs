@@ -18,6 +18,7 @@ namespace Nexaflow.Tests.Features.Markdown.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
+[CoversNode("markdown-toolbar")]
 public class MarkdownJourneyTests : UiJourneyTestBase
 {
     [TestMethod]

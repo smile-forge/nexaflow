@@ -1,6 +1,7 @@
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
 using Nexaflow.Tests.Features.UI.Infrastructure;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem.UI;
 
@@ -10,6 +11,7 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem.UI;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
+[CoversNode("winfs-tab")]
 public class FileSystemViewTests : UITestBase
 {
     private AutomationElement? _directoryTree;

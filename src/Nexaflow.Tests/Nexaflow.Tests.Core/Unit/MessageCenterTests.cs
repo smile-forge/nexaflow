@@ -1,10 +1,12 @@
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit;
 
 [TestClass]
 [DoNotParallelize]   // shares the MessageCenter singleton; methods must not race each other
+[CoversNode("messages")]
 public class MessageCenterTests
 {
     // MessageCenter is a singleton; in tests it captures the test thread's dispatcher, so its

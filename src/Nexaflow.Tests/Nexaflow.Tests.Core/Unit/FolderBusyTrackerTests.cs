@@ -1,9 +1,11 @@
 using System.IO;
 using Nexaflow.Core.Services;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit;
 
 [TestClass]
+[NoCoverage("folder busy-state tracker — shell plumbing, no single product node")]
 public class FolderBusyTrackerTests
 {
     [TestMethod]

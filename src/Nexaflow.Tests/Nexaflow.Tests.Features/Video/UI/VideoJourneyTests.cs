@@ -20,6 +20,7 @@ namespace Nexaflow.Tests.Features.Video.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
+[CoversNode("video")]
 public class VideoJourneyTests : UiJourneyTestBase
 {
     [TestMethod]

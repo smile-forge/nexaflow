@@ -6,10 +6,12 @@ using NSubstitute;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Tabular.Templates;
 using Nexaflow.Features.Tabular.ViewModels;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Tabular;
 
 [TestClass]
+[CoversNode("tabular-template-autoapply")]
 public class TabularViewModelLoadTests
 {
     private static string WriteCsv(out string dir)

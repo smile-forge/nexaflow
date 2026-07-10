@@ -5,6 +5,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using Nexaflow.Tests.Fixtures;
 using MdMarkdown = Markdig.Markdown;
 using MdTable    = Markdig.Extensions.Tables.Table;
 using DefList    = Markdig.Extensions.DefinitionLists.DefinitionList;
@@ -21,6 +22,7 @@ namespace Nexaflow.Tests.Core.Visuals.Markdown;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
+[CoversNode("vtext-selectable-markdown")]
 public class MarkdownExtensionsTests
 {
     private static MarkdownDocument Parse(string src) => MdMarkdown.Parse(src, MarkdownPipelineFactory.Default);

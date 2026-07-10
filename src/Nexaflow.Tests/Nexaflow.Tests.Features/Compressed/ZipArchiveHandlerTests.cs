@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using Nexaflow.Features.Compressed.Handlers;
 using Nexaflow.IO.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Compressed;
 
@@ -13,6 +14,7 @@ namespace Nexaflow.Tests.Features.Compressed;
 /// of nested entries, and write-back (rebuild) of a single entry.
 /// </summary>
 [TestClass]
+[CoversNode("compressed-backend-zip")]
 public class ZipArchiveHandlerTests
 {
     [TestMethod]

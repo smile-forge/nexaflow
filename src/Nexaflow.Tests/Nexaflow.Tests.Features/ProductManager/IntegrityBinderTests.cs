@@ -1,6 +1,8 @@
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.ProductManager;
 
 /// <summary>
@@ -9,6 +11,7 @@ namespace Nexaflow.Tests.Features.ProductManager;
 /// the user is stuck until a full rescan — which is exactly what a stale index used to cause after a removal.
 /// </summary>
 [TestClass]
+[CoversNode("product-snaplinks")]
 public class IntegrityBinderTests
 {
     private static Snaplink Code(string doc, string? cls = null, string? method = null) =>

@@ -1,6 +1,8 @@
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.ProductManager;
 
 /// <summary>
@@ -38,6 +40,7 @@ public class ProductAggregatorTests
     }
 
     [TestMethod]
+    [CoversNode("product-status-rollup")]
     public void StatusBreakdown_CountsLeafStatuses()
     {
         var b = ProductAggregator.StatusBreakdown(Fixture(), "a");
@@ -50,6 +53,7 @@ public class ProductAggregatorTests
     }
 
     [TestMethod]
+    [CoversNode("product-status-rollup")]
     public void ConcernBreakdown_CountsDoneLinksOverLeaves()
     {
         var (done, total) = ProductAggregator.ConcernBreakdown(Fixture(), "a", "tests");
@@ -58,6 +62,7 @@ public class ProductAggregatorTests
     }
 
     [TestMethod]
+    [CoversNode("product-needs-attention")]
     public void NeedsAttention_IsExactlyFaultedDescendants()
     {
         var att = ProductAggregator.NeedsAttention(Fixture(), "a");
@@ -74,6 +79,8 @@ public class ProductAggregatorTests
     }
 
     [TestMethod]
+    [CoversNode("product-status-rollup")]
+    [CoversNode("product-needs-attention")]
     public void RollupTolerates_Cycle()
     {
         var s = new ProductState();

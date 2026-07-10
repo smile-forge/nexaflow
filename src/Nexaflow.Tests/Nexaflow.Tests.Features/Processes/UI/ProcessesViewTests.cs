@@ -3,6 +3,8 @@ using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
 using Nexaflow.Tests.Features.UI.Infrastructure;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.Processes.UI;
 
 /// <summary>
@@ -13,6 +15,7 @@ namespace Nexaflow.Tests.Features.Processes.UI;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
+[CoversNode("process-view")]
 public class ProcessesViewTests : UITestBase
 {
     [TestMethod]

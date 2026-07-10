@@ -5,6 +5,7 @@ using Nexaflow.IO.Terminal;
 using Nexaflow.Visuals.Terminal.Models;
 using Nexaflow.Visuals.Terminal.ViewModels;
 using NSubstitute;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Console;
 
@@ -13,6 +14,7 @@ namespace Nexaflow.Tests.Features.Console;
 /// no-op PTY so no real shell is spawned (constructing a terminal VM otherwise launches cmd.exe).
 /// </summary>
 [TestClass]
+[CoversNode("console-bar-history-keys")]
 public class TerminalKeyHistoryTests
 {
     private sealed class FakePty : PseudoConsoleHostService

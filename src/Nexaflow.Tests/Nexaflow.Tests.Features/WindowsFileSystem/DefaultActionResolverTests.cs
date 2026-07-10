@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -12,6 +13,7 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem;
 /// not asserted here.</summary>
 [TestClass]
 [DoNotParallelize]   // mutates FileMapManager.Instance + ExternalAppRegistry.Instance
+[CoversNode("winfs-open-entry")]
 public class DefaultActionResolverTests
 {
     private string _dir = string.Empty;

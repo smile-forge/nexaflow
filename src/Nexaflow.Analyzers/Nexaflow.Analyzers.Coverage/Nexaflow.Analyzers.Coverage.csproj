@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The repo's first Roslyn analyzer. Author-time backstop for the test↔product-node coverage rule: it
+    flags a [TestClass] with no [CoversNode]/[NoCoverage], and a [CoversNode] whose id is not in the live
+    .product/tree.json (passed as an AdditionalFile; skipped when absent). The CI guard test enforces the
+    same invariants — this just surfaces them as you type. Analyzers load into the compiler as AnyCPU MSIL,
+    so this netstandard2.0 project has no platform-specific output despite the solution's x64 pin.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+    <IsPackable>false</IsPackable>
+    <!-- Internal analyzer, not a shipped package — skip the release-tracking ledger nag. -->
+    <NoWarn>$(NoWarn);RS2008</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

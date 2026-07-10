@@ -1,8 +1,10 @@
 using Nexaflow.Features.WindowsSearch;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsSearch;
 
 [TestClass]
+[CoversNode("search-results-list")]
 public class SearchResultEntryTests
 {
     private static SearchResultEntry Make(

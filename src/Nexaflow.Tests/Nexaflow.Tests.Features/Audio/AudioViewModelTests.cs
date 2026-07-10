@@ -3,6 +3,7 @@ using System.Linq;
 using Nexaflow.Features.Audio;             // AudioConfig
 using Nexaflow.Features.Audio.ViewModels;
 using Nexaflow.Features.Common;            // IShellServices
+using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 
 namespace Nexaflow.Tests.Features.Audio;
@@ -13,6 +14,7 @@ namespace Nexaflow.Tests.Features.Audio;
 /// UI journey instead; everything here runs without touching an audio device.
 /// </summary>
 [TestClass]
+[CoversNode("audio-playlist-reorder")]
 public class AudioViewModelTests
 {
     private static AudioViewModel Make(params string[] paths)

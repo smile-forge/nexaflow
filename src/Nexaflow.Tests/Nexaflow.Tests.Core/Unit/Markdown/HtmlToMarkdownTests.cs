@@ -1,4 +1,5 @@
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit.Markdown;
 
@@ -7,6 +8,7 @@ namespace Nexaflow.Tests.Core.Unit.Markdown;
 /// onto the scratchpad. WPF-free (HtmlAgilityPack + string building).
 /// </summary>
 [TestClass]
+[CoversNode("markdown-paste")]
 public class HtmlToMarkdownTests
 {
     private static string Convert(string html) => HtmlToMarkdown.Convert(html).Trim();

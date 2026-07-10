@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using Nexaflow.Tests.Features.UI.Infrastructure;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Web.UI;
 
@@ -18,6 +19,7 @@ namespace Nexaflow.Tests.Features.Web.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
+[CoversNode("web-toolbar")]
 public class WebJourneyTests : UiJourneyTestBase
 {
     [TestMethod]

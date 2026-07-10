@@ -3,14 +3,17 @@ using System.IO;
 using System.Linq;
 using Nexaflow.Features.Compressed.Handlers;
 using Nexaflow.IO.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Compressed;
 
 /// <summary>VFS create + extract used by the "Zip It" / "Unzip here" actions, including the zip-slip guard.</summary>
 [TestClass]
+[CoversNode("compressed-unzip-here")]
 public class ArchiveActionsTests
 {
     [TestMethod]
+    [CoversNode("compressed-zip-it")]
     public void CreateThenExtract_RoundTrips()
     {
         using var fix = new Dir();

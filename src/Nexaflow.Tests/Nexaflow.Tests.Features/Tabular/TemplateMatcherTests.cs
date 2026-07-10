@@ -2,10 +2,12 @@ using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Features.Tabular.Detection;
 using Nexaflow.Features.Tabular.Templates;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Tabular;
 
 [TestClass]
+[CoversNode("tabular-template-autoapply")]
 public class TemplateMatcherTests
 {
     private static CsvShape Shape(char? sep, bool header, int fields) => new()

@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Model3D.Loaders;
 using Nexaflow.Features.Model3D.ViewModels;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Model3D;
 
@@ -20,6 +21,7 @@ public class Model3DViewModelTests
     private static Model3DViewModel Make() => new("model.stl", new ModelLoaderRegistry());
 
     [TestMethod]
+    [CoversNode("model3d-wireframe")]
     public void ShowWireframe_DefaultsSolid_AndToggles()
     {
         var vm = Make();
@@ -32,6 +34,7 @@ public class Model3DViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("model3d-wireframe")]
     public void DescribeInfo_ReflectsRenderMode()
     {
         var vm = Make();
@@ -42,6 +45,7 @@ public class Model3DViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("model3d-inspector")]
     public void ShowInspector_IsIndependentObservableState()
     {
         var vm = Make();
@@ -54,6 +58,7 @@ public class Model3DViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("model3d-ai-tools")]
     public void GetContext_GatedUntilLoaded()
     {
         var vm = Make();
@@ -62,6 +67,8 @@ public class Model3DViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("model3d-ai-tools")]
+    [CoversNode("model3d-wireframe")]
     public async Task SetRenderMode_Tool_TogglesAndSetsWireframe()
     {
         var vm = Make();
@@ -81,6 +88,7 @@ public class Model3DViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("model3d-ai-tools")]
     public async Task CameraTools_FailGracefully_WithoutViewport()
     {
         var vm = Make(); // no view attached → camera/capture delegates are null

@@ -13,7 +13,8 @@ public sealed class ProductDocument
     public List<ConcernDef> Concerns { get; set; } =
     [
         new() { Name = "accessibility" }, new() { Name = "i18n" }, new() { Name = "telemetry" },
-        new() { Name = "theming" }, new() { Name = "tests", IsDefault = true }, new() { Name = "demo" }, new() { Name = "docs" }
+        new() { Name = "theming" }, new() { Name = "tests", IsDefault = true, RequiresSnaplink = true },
+        new() { Name = "demo" }, new() { Name = "docs" }
     ];
 
     /// <summary>Folder (relative to the product root) where committed snapshots + PRODUCT.md are written.</summary>

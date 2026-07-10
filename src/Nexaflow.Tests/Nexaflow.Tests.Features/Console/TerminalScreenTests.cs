@@ -1,5 +1,6 @@
 using System.Linq;
 using Nexaflow.IO.Terminal;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Console;
 
@@ -9,6 +10,7 @@ namespace Nexaflow.Tests.Features.Console;
 /// This is what lets short, cursor-positioned ConPTY output (which never line-feed-commits) render at all.
 /// </summary>
 [TestClass]
+[CoversNode("ioterm-screen")]
 public class TerminalScreenTests
 {
     [TestMethod]

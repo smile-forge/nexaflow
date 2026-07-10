@@ -3,6 +3,8 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Projects;
 using Nexaflow.Features.Projects.Model;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.Projects;
 
 /// <summary>
@@ -11,6 +13,7 @@ namespace Nexaflow.Tests.Features.Projects;
 /// persists it as v2.
 /// </summary>
 [TestClass]
+[CoversNode("projects-migration")]
 public class ProjectMigrationTests
 {
     private const string LegacyJson = """

@@ -1,11 +1,13 @@
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
 using Nexaflow.Tests.Core.UI.Infrastructure;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.UI;
 
 [TestClass]
 [TestCategory("UI")]
+[CoversNode("chrome-content-area")]
 public class TabTests : UITestBase
 {
     private AutomationElement TabStrip =>
@@ -25,6 +27,7 @@ public class TabTests : UITestBase
                    .ToArray();
 
     [TestMethod]
+    [CoversNode("ribbon-button-full")]
     public void ClickRibbonItem_OpensTab()
     {
         var ribbon = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("RibbonControl"));
@@ -73,6 +76,8 @@ public class TabTests : UITestBase
     }
 
     [TestMethod]
+    [CoversNode("dual-pane")]
+    [CoversNode("win-cux-split-empty")]
     public void Split_FromEmptyStripArea_CreatesSecondPane()
     {
         Assert.AreEqual(1, CountTabStrips(), "Expected a single pane (one TabStrip) on launch.");
@@ -90,6 +95,8 @@ public class TabTests : UITestBase
     }
 
     [TestMethod]
+    [CoversNode("dual-pane")]
+    [CoversNode("win-cux-close-pane")]
     public void Split_ThenClosePane_CollapsesBackWithContent()
     {
         // Open a tab so a pane holds realised page content — this is what gets re-parented on collapse.

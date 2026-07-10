@@ -2,10 +2,13 @@ using System.IO;
 using LibGit2Sharp;
 using Nexaflow.Services.Initiatives.Product.Services;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.ProductManager;
 
 /// <summary>The git surface used by Take Snapshot: repo detection, tag checks, and commit-and-tag.</summary>
 [TestClass]
+[CoversNode("product-version-bar")]
 public class ProductGitTests
 {
     private static readonly Signature Sig = new("Tester", "test@example.com", DateTimeOffset.Now);
