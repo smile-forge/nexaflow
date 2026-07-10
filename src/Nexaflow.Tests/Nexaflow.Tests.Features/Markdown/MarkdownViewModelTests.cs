@@ -1,4 +1,5 @@
 using Nexaflow.Features.Markdown.ViewModels;
+using Nexaflow.Tests.Fixtures;
 using System.IO;
 using System.Linq;
 
@@ -15,6 +16,7 @@ namespace Nexaflow.Tests.Features.Markdown;
 /// shell dependency lives in the registration/action, not the VM — so nothing here touches WPF.
 /// </summary>
 [TestClass]
+[CoversNode("markdown-toolbar")]
 public class MarkdownViewModelTests
 {
     private readonly List<string> _tempFiles = [];

@@ -1,10 +1,12 @@
 using Microsoft.Win32;
 using Nexaflow.Features.WindowsRegistry.ViewModels;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsRegistry;
 
 /// <summary>The right-pane value row (<see cref="RegistryValue"/>) — display name, type label, formatted data.</summary>
 [TestClass]
+[CoversNode("registry-value-list")]
 public class RegistryValueRowTests
 {
     [TestMethod]

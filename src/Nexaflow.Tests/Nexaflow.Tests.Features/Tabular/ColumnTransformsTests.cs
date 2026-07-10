@@ -1,9 +1,11 @@
 using Nexaflow.Features.Tabular.Detection;
 using Nexaflow.Features.Tabular.Streaming;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Tabular;
 
 [TestClass]
+[CoversNode("tabular-column-actions")]
 public class ColumnTransformsTests
 {
     [TestMethod]

@@ -11,10 +11,12 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Console;
 using Nexaflow.Features.Projects;
 using Nexaflow.Providers.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit;
 
 [TestClass]
+[CoversNode("console-environments-group")]
 public class WorkspaceConfigScopingTests
 {
     // A provider config with a [Required] property, used to exercise the configured-ness checks.

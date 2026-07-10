@@ -3,6 +3,7 @@ using Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 using System.Windows;
 using System.Windows.Controls;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Visuals.Markdown;
 
@@ -41,6 +42,7 @@ public class DiagramRendererTests
         """;
 
     [TestMethod]
+    [CoversNode("quadrant-graph")]
     public void Quadrant_RendersBorder() => UiThread.Run(() =>
     {
         var chart = new MermaidQuadrantParser().Parse(QuadrantSrc);
@@ -49,6 +51,7 @@ public class DiagramRendererTests
     });
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_RendersBorder() => UiThread.Run(() =>
     {
         var diagram = new MermaidSequenceParser().Parse(SequenceSrc);
@@ -57,18 +60,21 @@ public class DiagramRendererTests
     });
 
     [TestMethod]
+    [CoversNode("quadrant-graph")]
     public void Quadrant_DispatchesThroughDiagramRenderer() => UiThread.Run(() =>
     {
         Assert.IsNotNull(DiagramRenderer.Render("mermaid", QuadrantSrc, MarkdownPalette.Dark));
     });
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_DispatchesThroughDiagramRenderer() => UiThread.Run(() =>
     {
         Assert.IsNotNull(DiagramRenderer.Render("mermaid", SequenceSrc, MarkdownPalette.Dark));
     });
 
     [TestMethod]
+    [CoversNode("sequence-diagram")]
     public void Sequence_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
     {
         var diagram = new MermaidSequenceParser().Parse("sequenceDiagram\n");

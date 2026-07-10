@@ -1,8 +1,10 @@
 using Nexaflow.Features.Tabular.Detection;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Tabular;
 
 [TestClass]
+[CoversNode("tabular-coltype-detection")]
 public class ColumnTypeInferrerTests
 {
     [TestMethod]

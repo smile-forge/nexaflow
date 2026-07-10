@@ -12,6 +12,7 @@ namespace Nexaflow.Tests.Features.Fixtures;
 /// via WPF's font APIs, no window required.
 /// </summary>
 [TestClass]
+[NoCoverage("sample-file corpus")]
 public class FontSamplesTests
 {
     [TestMethod]

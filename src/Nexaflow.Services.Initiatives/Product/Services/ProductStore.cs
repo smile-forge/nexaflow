@@ -93,6 +93,16 @@ public sealed class ProductStore
 
     public void SaveIntegrity(IntegrityReport report) => Write(IntegrityFilePath, report);
 
+    // ── Test-coverage manifest (derived — regenerate with `scan-tests`) ──
+
+    /// <summary>On-disk path of the last test-coverage scan (declared [CoversNode] → test refs).</summary>
+    public string TestCoverageFilePath => Path.Combine(_dir, "test-coverage.json");
+
+    /// <summary>The last saved coverage manifest, or null when <c>scan-tests</c> has never run.</summary>
+    public TestCoverageManifest? LoadTestCoverage() => Read<TestCoverageManifest>(TestCoverageFilePath);
+
+    public void SaveTestCoverage(TestCoverageManifest manifest) => Write(TestCoverageFilePath, manifest);
+
     // ── Snapshots (committed, in the export dir) ──────────────────────────────
 
     public string ExportPath(string exportDir) => Path.Combine(_root, exportDir);

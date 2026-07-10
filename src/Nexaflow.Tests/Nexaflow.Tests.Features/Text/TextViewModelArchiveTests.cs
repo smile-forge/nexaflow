@@ -8,6 +8,7 @@ using Nexaflow.Features.Compressed.Handlers;
 using Nexaflow.Features.Text.ViewModels;
 using Nexaflow.IO.Common;
 using Nexaflow.Tests.Features.Infrastructure;
+using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 
 namespace Nexaflow.Tests.Features.Text;
@@ -18,6 +19,7 @@ namespace Nexaflow.Tests.Features.Text;
 /// (<see cref="OverlayTextFile"/>) path, which is what the 100 KB threshold selects.
 /// </summary>
 [TestClass]
+[CoversNode("compressed-open-inner-file")]
 public class TextViewModelArchiveTests
 {
     private string _dir = string.Empty;
@@ -71,6 +73,7 @@ public class TextViewModelArchiveTests
     });
 
     [TestMethod]
+    [CoversNode("text-viewer-windowing")]
     public void LoadAsync_LargeFileInsideZip_LoadsContent() => AsyncPump.Run(async () =>
     {
         BigBody(out var lineCount);
@@ -112,6 +115,7 @@ public class TextViewModelArchiveTests
     /// file in place, which an archive path has no equivalent for. The viewer must refuse rather than silently
     /// write the materialised temp copy.</summary>
     [TestMethod]
+    [CoversNode("text-viewer-windowing")]
     public void LargeFileInsideZip_IsNotEditable() => AsyncPump.Run(async () =>
     {
         using var vm = new TextViewModel(Path.Combine(_zip, "big.txt"), Substitute.For<IShellServices>())

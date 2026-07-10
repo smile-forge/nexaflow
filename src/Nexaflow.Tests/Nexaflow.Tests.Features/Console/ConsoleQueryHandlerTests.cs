@@ -6,6 +6,7 @@ using Nexaflow.IO.Terminal;
 using Nexaflow.Visuals.Terminal.Models;
 using Nexaflow.Visuals.Terminal.ViewModels;
 using NSubstitute;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Console;
 
@@ -15,6 +16,7 @@ namespace Nexaflow.Tests.Features.Console;
 /// was open), and never anything off a terminal.
 /// </summary>
 [TestClass]
+[CoversNode("console-gt-prefix")]
 public class ConsoleQueryHandlerTests
 {
     private sealed class FakePty : PseudoConsoleHostService

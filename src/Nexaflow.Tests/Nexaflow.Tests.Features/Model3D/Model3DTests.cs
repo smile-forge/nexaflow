@@ -15,11 +15,13 @@ namespace Nexaflow.Tests.Features.Model3D;
 /// view-manipulation tools to the AI.
 /// </summary>
 [TestClass]
+[CoversNode("model3d")]
 public class Model3DTests
 {
     private static string Sample(string name) => Path.Combine(TestSampleData.Path("model3d"), name);
 
     [TestMethod]
+    [CoversNode("model3d-loaders")]
     public void Registry_RoutesEachExtensionToALoader()
     {
         var registry = new ModelLoaderRegistry();
@@ -34,6 +36,7 @@ public class Model3DTests
     }
 
     [TestMethod]
+    [CoversNode("model3d-loaders")]
     public void AssimpLoader_RoundTripsFbxAnd3mf_WithGeometry()
     {
         // Round-trip the OBJ fixture through Assimp to each format, then load it back via the Assimp loader.
@@ -62,6 +65,7 @@ public class Model3DTests
     }
 
     [TestMethod]
+    [CoversNode("model3d-loaders")]
     public void HelixLoader_ReadsStlAndObj_WithGeometry()
     {
         var registry = new ModelLoaderRegistry();
@@ -79,6 +83,7 @@ public class Model3DTests
     }
 
     [TestMethod]
+    [CoversNode("model3d-loaders")]
     public void GltfLoader_ReadsEmbeddedTriangle_AndItsMaterial()
     {
         var loaded = new GltfModelLoader().Load(Sample("triangle.gltf"), CategoricalPalette.Fallback);
@@ -93,6 +98,7 @@ public class Model3DTests
     }
 
     [TestMethod]
+    [CoversNode("model3d-loaders")]
     public void Tinting_SeparatesMaterialsThatShareAColour()
     {
         var palette = CategoricalPalette.Fallback;

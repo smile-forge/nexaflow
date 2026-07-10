@@ -1,10 +1,12 @@
 using System.Threading.Tasks;
 using Nexaflow.Core.Services.Elevation;
 using Nexaflow.Elevation.Contracts;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit.Elevation;
 
 [TestClass]
+[CoversNode("sysinfo-elevation")]
 public class ElevatedBridgeLauncherTests
 {
     // Both paths are deterministic and headless-safe: no elevated process is ever launched.

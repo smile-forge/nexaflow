@@ -3,6 +3,7 @@ using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
 using FlaUI.Core.WindowsAPI;
 using Nexaflow.Tests.Features.UI.Infrastructure;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsSearch.UI;
 
@@ -14,6 +15,7 @@ namespace Nexaflow.Tests.Features.WindowsSearch.UI;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
+[CoversNode("search-ai-launch")]
 public class SearchViewTests : UITestBase
 {
     private AutomationElement? _searchTab;

@@ -4,10 +4,12 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.WindowsSearch;
 using Nexaflow.Features.WindowsSearch.ViewModels;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsSearch;
 
 [TestClass]
+[CoversNode("search-ai-tool")]
 public class SearchViewModelTests
 {
     private static IShellServices Shell() => Substitute.For<IShellServices>();

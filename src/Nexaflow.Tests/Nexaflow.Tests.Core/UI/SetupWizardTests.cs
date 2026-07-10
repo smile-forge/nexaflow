@@ -10,6 +10,7 @@ using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
 using FlaUI.Core.WindowsAPI;
 using FlaUI.UIA3;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.UI;
 
@@ -61,6 +62,8 @@ public class SetupWizardTests
     }
 
     [TestMethod]
+    [CoversNode("opt-ai-persona")]
+    [CoversNode("opt-section-shell")]
     public void FirstRunWizard_ConfiguresEveryStep_AndPersistsToDisk()
     {
         const string chosenTheme   = "Ocean";               // not the default (Dark)

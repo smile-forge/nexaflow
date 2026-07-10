@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Text;
 using Nexaflow.Syntax;
 using Nexaflow.Visuals.Text.Editor.Highlighting;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit.Editor;
 
@@ -21,6 +22,7 @@ namespace Nexaflow.Tests.Core.Unit.Editor;
 /// type coloured and another left plain — without penalising our different categorisation.
 /// </summary>
 [TestClass]
+[CoversNode("syntax-queries")]
 public class SyntaxHighlightConsistencyTests
 {
     private const string PlainRole = "·plain·";

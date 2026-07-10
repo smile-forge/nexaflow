@@ -1,5 +1,7 @@
 using Nexaflow.Tests.Features.UI.Infrastructure;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.Projects.UI;
 
 /// <summary>
@@ -8,6 +10,7 @@ namespace Nexaflow.Tests.Features.Projects.UI;
 /// appears. Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
+[CoversNode("projects-backlog-viewlet")]
 public class ProjectsViewletJourneyTests : UiJourneyTestBase
 {
     // Default file-browser launch tab (no --openTab) — NavigateFileBrowserTo drives it.

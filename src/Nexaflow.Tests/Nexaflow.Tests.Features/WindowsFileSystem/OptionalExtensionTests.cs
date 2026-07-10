@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -14,6 +15,7 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem;
 /// </summary>
 [TestClass]
 [DoNotParallelize]   // mutates the process-wide FileMapManager.Instance
+[CoversNode("winfs-filemap-editor")]
 public class OptionalExtensionTests
 {
     private const string OptExp = "/test-optional-archive";

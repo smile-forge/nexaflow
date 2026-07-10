@@ -3,11 +3,13 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.IO.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit.IO;
 
 /// <summary>Unit tests for the safe recursive directory move (copy-then-delete).</summary>
 [TestClass]
+[NoCoverage("recursive directory-move IO utility — no single product node")]
 public class DirectoryMoverTests
 {
     private string _root = "";

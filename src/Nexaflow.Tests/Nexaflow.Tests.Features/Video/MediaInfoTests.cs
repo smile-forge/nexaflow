@@ -1,9 +1,11 @@
 using Nexaflow.Features.Video.Models;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Video;
 
 /// <summary>The info-panel model: row value-equality, the "Off" subtitle option, and section composition.</summary>
 [TestClass]
+[CoversNode("video-infopanel")]
 public class MediaInfoTests
 {
     [TestMethod]

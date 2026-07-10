@@ -12,6 +12,7 @@ namespace Nexaflow.Tests.Features.Notebook;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
+[CoversNode("notebook")]
 public class NotebookViewUiTests : FileSystemUiTestBase
 {
     [TestMethod]

@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using Nexaflow.Features.Processes.Services;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.Processes;
 
 /// <summary>
@@ -13,6 +15,7 @@ namespace Nexaflow.Tests.Features.Processes;
 /// the meta cache while another Snapshot read it).
 /// </summary>
 [TestClass]
+[CoversNode("process-view")]
 public class LiveProcessSourceConcurrencyTests
 {
     [TestMethod]

@@ -1,10 +1,12 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nexaflow.Features.Web;
+using Nexaflow.Tests.Fixtures;
 using System.Linq;
 
 namespace Nexaflow.Tests.Features.Web;
 
 [TestClass]
+[CoversNode("chrome-breadcrumb-navigate")]
 public class WebPageChromeTests
 {
     private const string Deep = "https://www.example.com/somedir/anotherdir/source.py?gh=213123123123123sdasd";

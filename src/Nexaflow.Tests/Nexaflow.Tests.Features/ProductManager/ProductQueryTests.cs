@@ -2,6 +2,8 @@ using System.Linq;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.ProductManager;
 
 /// <summary>
@@ -9,6 +11,7 @@ namespace Nexaflow.Tests.Features.ProductManager;
 /// where's its code/tests/docs" index.
 /// </summary>
 [TestClass]
+[CoversNode("data-model")]
 public class ProductQueryTests
 {
     private static ProductState SampleTree() => new()

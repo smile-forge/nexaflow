@@ -10,6 +10,7 @@ namespace Nexaflow.Tests.Features.Fixtures;
 /// of openable pictures. Unit-category: decodes the bytes, no window required.
 /// </summary>
 [TestClass]
+[NoCoverage("sample-file corpus")]
 public class ImageSamplesTests
 {
     [TestMethod]

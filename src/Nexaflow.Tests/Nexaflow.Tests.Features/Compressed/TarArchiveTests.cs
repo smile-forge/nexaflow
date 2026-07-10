@@ -5,12 +5,14 @@ using System.Formats.Tar;
 using System.Linq;
 using Nexaflow.Features.Compressed.SharpCompress;
 using Nexaflow.IO.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Compressed;
 
 /// <summary>The SharpCompress backend over the VFS: tar listing/extraction, and tar.gz resolving its
 /// inner tar through the VFS's nesting (gzip handler → "foo.tar" → tar handler).</summary>
 [TestClass]
+[CoversNode("compressed-backend-sharpcompress")]
 public class TarArchiveTests
 {
     [TestMethod]

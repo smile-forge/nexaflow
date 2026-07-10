@@ -9,6 +9,7 @@ namespace Nexaflow.Tests.Features.Compressed;
 /// <summary>Drives the shared <c>archive/</c> sample fixtures through the VFS, covering a plain zip and a
 /// nested zip (zip-in-zip) end to end.</summary>
 [TestClass]
+[CoversNode("compressed-vfs")]
 public class ArchiveSampleTests
 {
     private static VirtualFileSystem Vfs()

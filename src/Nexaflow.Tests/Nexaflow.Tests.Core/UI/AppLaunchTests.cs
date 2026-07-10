@@ -1,10 +1,12 @@
 using FlaUI.Core.Conditions;
 using Nexaflow.Tests.Core.UI.Infrastructure;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.UI;
 
 [TestClass]
 [TestCategory("UI")]
+[CoversNode("chrome-frame")]
 public class AppLaunchTests : UITestBase
 {
     [TestMethod]

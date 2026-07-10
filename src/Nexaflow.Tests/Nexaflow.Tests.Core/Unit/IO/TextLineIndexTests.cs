@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.IO.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit.IO;
 
@@ -15,6 +16,7 @@ namespace Nexaflow.Tests.Core.Unit.IO;
 /// decoding the line there back to its expected text.
 /// </summary>
 [TestClass]
+[CoversNode("text-viewer-windowing")]
 public class TextLineIndexTests
 {
     private string _dir = string.Empty;

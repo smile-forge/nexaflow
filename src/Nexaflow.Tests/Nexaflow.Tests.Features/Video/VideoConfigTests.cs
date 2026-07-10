@@ -1,10 +1,12 @@
 using System.Text.Json;
 using Nexaflow.Features.Video;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Video;
 
 /// <summary>Identity, default, and round-trip for the Video feature config.</summary>
 [TestClass]
+[CoversNode("video-hwdecode-config")]
 public class VideoConfigTests
 {
     [TestMethod]

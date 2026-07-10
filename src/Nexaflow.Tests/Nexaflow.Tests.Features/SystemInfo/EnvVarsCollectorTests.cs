@@ -3,9 +3,12 @@ using System.Linq;
 using Nexaflow.Features.SystemInfo.Models;
 using Nexaflow.Features.SystemInfo.Services;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.SystemInfo;
 
 [TestClass]
+[CoversNode("sysinfo-envvars")]
 public class EnvVarsCollectorTests
 {
     [TestMethod]

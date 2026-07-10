@@ -40,6 +40,17 @@ $exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/x64/Debug/net10.0-windows
   dir), so it neither depends on nor pollutes the developer's real `%APPDATA%` config. See
   `UITestBase`.
 
+### Coverage declaration (`[CoversNode]` / `[NoCoverage]`)
+
+Every concrete `[TestClass]` must declare the product-tree node it backs with `[CoversNode("node-id")]`
+(from `Nexaflow.Tests.Fixtures`, repeatable, also valid on a method), or opt out with `[NoCoverage("reason")]`
+for tests that map to no single node (the `Architecture/` guards, `Fixtures/` sample-corpus tests). Abstract
+test bases need no attribute. This is enforced at author time by the `Nexaflow.Analyzers.Coverage` analyzer
+(NXCOV001 = missing declaration, NXCOV002 = stale id) and in CI by `CoverageDeclarationGuardTests` (one per
+test assembly). `dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- scan-tests . --suggest-attributes`
+prints the starter set derived from the tree's existing `tests` snaplinks. See CLAUDE.md → *Test coverage is
+declared on the test* for the full loop (scan-tests → manifest → Integrity-page reconcile → Add link).
+
 ## Coverage by feature
 
 Feature assemblies (`Nexaflow.Features.*`) are tested in `Nexaflow.Tests.Features`, **one folder

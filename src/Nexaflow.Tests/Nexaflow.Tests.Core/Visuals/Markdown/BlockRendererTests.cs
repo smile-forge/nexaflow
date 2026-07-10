@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Nexaflow.Tests.Fixtures;
 using MdMarkdown = Markdig.Markdown;
 using MdTable    = Markdig.Extensions.Tables.Table;
 
@@ -13,6 +14,7 @@ namespace Nexaflow.Tests.Core.Visuals.Markdown;
 
 [TestClass]
 [TestCategory("UI")]
+[CoversNode("latex")]
 public class BlockRendererTests
 {
     private static MarkdownDocument Parse(string src) =>

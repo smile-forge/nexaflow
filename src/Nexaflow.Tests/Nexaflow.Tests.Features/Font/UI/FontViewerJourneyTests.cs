@@ -3,6 +3,7 @@ using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
 using Nexaflow.Tests.Features.UI.Infrastructure;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Font.UI;
 
@@ -16,11 +17,14 @@ namespace Nexaflow.Tests.Features.Font.UI;
 /// <para>Interactive desktop only — run with <c>--filter "TestCategory=UI"</c>.</para>
 /// </summary>
 [TestClass]
+[CoversNode("font")]
 public class FontViewerJourneyTests : UiJourneyTestBase
 {
     protected override string? LaunchTabKind => "Font";
 
     [TestMethod]
+    [CoversNode("font-compare")]
+    [CoversNode("font-picker")]
     public void Font_Controls_RespondInOnePass()
     {
         var view = WaitForId("FontView", 15);

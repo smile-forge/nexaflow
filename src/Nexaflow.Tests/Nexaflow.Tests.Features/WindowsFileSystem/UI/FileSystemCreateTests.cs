@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem.UI;
 
@@ -12,6 +13,7 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem.UI;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
+[CoversNode("winfs-create")]
 public class FileSystemCreateTests : FileSystemUiTestBase
 {
     private string _folder = null!;

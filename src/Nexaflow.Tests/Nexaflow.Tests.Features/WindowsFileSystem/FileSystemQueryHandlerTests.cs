@@ -4,10 +4,12 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
 [TestClass]
+[CoversNode("winfs-path-query")]
 public class FileSystemQueryHandlerTests
 {
     private static (IShellServices Shell, IAIService Ai, IReadOnlyDictionary<Type, IFeatureConfig> Configs) Deps()

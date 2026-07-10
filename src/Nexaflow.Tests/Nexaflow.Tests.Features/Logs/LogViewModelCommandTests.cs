@@ -1,6 +1,7 @@
 using System;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Logs.ViewModels;
+using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 
 namespace Nexaflow.Tests.Features.Logs;
@@ -12,6 +13,7 @@ namespace Nexaflow.Tests.Features.Logs;
 /// end-to-end by the UI journey. Everything here runs synchronously on the test thread.
 /// </summary>
 [TestClass]
+[CoversNode("log-viewer-toolbar")]
 public class LogViewModelCommandTests
 {
     private static LogViewModel Make()

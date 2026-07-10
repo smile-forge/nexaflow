@@ -1,8 +1,10 @@
 using Nexaflow.Core;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit;
 
 [TestClass]
+[NoCoverage("ConfigManager instance-registration plumbing — no single product node")]
 public class ConfigManagerRegisterTests
 {
     private sealed class DummyConfig { public int Value { get; set; } }

@@ -17,6 +17,7 @@ namespace Nexaflow.Tests.Features.CodeIntel.UI;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
+[CoversNode("code-map-toggle")]
 public class CodeJourneyTests : UiJourneyTestBase
 {
     [TestMethod]

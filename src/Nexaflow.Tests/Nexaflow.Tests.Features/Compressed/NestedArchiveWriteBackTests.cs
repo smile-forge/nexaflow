@@ -4,6 +4,7 @@ using System.IO.Compression;
 using System.Text;
 using Nexaflow.Features.Compressed.Handlers;
 using Nexaflow.IO.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Compressed;
 
@@ -13,6 +14,8 @@ namespace Nexaflow.Tests.Features.Compressed;
 /// never reaches the archive on disk. Each level must be rebuilt back into its parent.
 /// </summary>
 [TestClass]
+[CoversNode("compressed-editwriteback")]
+[CoversNode("compressed-vfs")]
 public class NestedArchiveWriteBackTests
 {
     private VirtualFileSystem _vfs = null!;

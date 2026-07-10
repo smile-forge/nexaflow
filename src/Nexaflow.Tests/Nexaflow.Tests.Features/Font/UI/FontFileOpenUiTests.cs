@@ -14,6 +14,7 @@ namespace Nexaflow.Tests.Features.Font.UI;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
+[CoversNode("font-open")]
 public class FontFileOpenUiTests : FileSystemUiTestBase
 {
     [TestMethod]

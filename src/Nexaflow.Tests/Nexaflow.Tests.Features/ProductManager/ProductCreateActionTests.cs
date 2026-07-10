@@ -2,9 +2,12 @@ using System.IO;
 using Nexaflow.Features.ProductManager.FileActions;
 using Nexaflow.Services.Initiatives.Product.Services;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.ProductManager;
 
 [TestClass]
+[CoversNode("product-create-action")]
 public class ProductCreateActionTests
 {
     private string _root = string.Empty;

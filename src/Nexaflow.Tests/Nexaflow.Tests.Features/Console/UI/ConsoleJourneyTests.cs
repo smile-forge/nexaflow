@@ -3,6 +3,7 @@ using System.IO;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Tools;
 using Nexaflow.Tests.Features.UI.Infrastructure;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Console.UI;
 
@@ -26,6 +27,8 @@ namespace Nexaflow.Tests.Features.Console.UI;
 public class ConsoleJourneyTests : UiJourneyTestBase
 {
     [TestMethod]
+    [CoversNode("console-panels-group")]
+    [CoversNode("console-configure-button")]
     public void Console_Controls_RespondInOnePass()
     {
         var view = OpenConsole();

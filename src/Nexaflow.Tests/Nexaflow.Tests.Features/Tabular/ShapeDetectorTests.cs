@@ -2,10 +2,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Nexaflow.Features.Tabular.Detection;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Tabular;
 
 [TestClass]
+[CoversNode("tabular-detection")]
 public class ShapeDetectorTests
 {
     private static FileSample MakeSample(IEnumerable<string> head, IEnumerable<string> tail) =>

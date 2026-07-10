@@ -1,10 +1,12 @@
 using NSubstitute;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsApps.ViewModels;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsApps;
 
 [TestClass]
+[CoversNode("windowsapps-ai-context")]
 public class WindowsAppsViewModelTests
 {
     // Capture the pass-1 onComplete the VM hands to QueueBackgroundTask so a test can simulate the scan

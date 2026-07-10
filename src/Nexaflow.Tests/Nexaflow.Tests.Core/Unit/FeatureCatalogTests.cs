@@ -4,10 +4,12 @@ using Nexaflow.Core;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit;
 
 [TestClass]
+[NoCoverage("feature discovery / live config-view plumbing — no single product node")]
 public class FeatureCatalogTests
 {
     // ── The regression that broke the action bar + git viewlet ─────────────────

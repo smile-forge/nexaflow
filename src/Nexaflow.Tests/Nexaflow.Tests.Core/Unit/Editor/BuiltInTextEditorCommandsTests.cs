@@ -3,6 +3,7 @@ using System.Linq;
 using System.Text;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Text.Editor.Commands;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit.Editor;
 
@@ -40,6 +41,7 @@ public class BuiltInTextEditorCommandsTests
     private static ITextEditorCommand Cmd(string name) => BuiltInTextEditorCommands.All.First(c => c.Name == name);
 
     [TestMethod]
+    [CoversNode("code-line-ops")]
     public void SortLines_SortsDocument()
     {
         var p = Make("b\na\nc\n", "");
@@ -50,6 +52,7 @@ public class BuiltInTextEditorCommandsTests
     }
 
     [TestMethod]
+    [CoversNode("code-line-ops")]
     public void RemoveEmptyLines_DropsBlanks()
     {
         var p = Make("a\n\nb\n", "");
@@ -79,6 +82,7 @@ public class BuiltInTextEditorCommandsTests
     }
 
     [TestMethod]
+    [CoversNode("code-checksum")]
     public void ChecksumDocument_SurfacesHash()
     {
         var p = Make("abc", "");
@@ -87,6 +91,7 @@ public class BuiltInTextEditorCommandsTests
     }
 
     [TestMethod]
+    [CoversNode("code-checksum")]
     public void SelectionCommands_DisabledWithoutSelection()
     {
         var p = Make("x", "", hasSel: false);
@@ -95,6 +100,8 @@ public class BuiltInTextEditorCommandsTests
     }
 
     [TestMethod]
+    [CoversNode("code-line-ops")]
+    [CoversNode("code-checksum")]
     public void DestructiveCommands_DisabledWhenReadOnly_ButChecksumAllowed()
     {
         var p = Make("b\na\n", "", canEdit: false);

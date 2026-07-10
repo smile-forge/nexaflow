@@ -15,6 +15,7 @@ namespace Nexaflow.Tests.Features.Logs.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
+[CoversNode("log-viewer-toolbar")]
 public class LogsJourneyTests : UiJourneyTestBase
 {
     [TestMethod]

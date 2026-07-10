@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:local="clr-namespace:Nexaflow.Features.ProductManager.Views"
+             xmlns:vm="clr-namespace:Nexaflow.Features.ProductManager.ViewModels"
              Background="{StaticResource BgBrush}">
     <UserControl.Resources>
         <ResourceDictionary>
@@ -54,8 +55,8 @@
                  ToolTip="Filter by node, scope, kind or detail"/>
 
         <!-- ── Empty state ────────────────────────────────────────────────── -->
-        <TextBlock Grid.Row="2" Text="Every snaplink points at a real target."
-                   FontSize="13" Foreground="{StaticResource TextMutedBrush}"
+        <TextBlock Grid.Row="2" Text="Nothing needs attention — every snaplink resolves and every test is linked."
+                   FontSize="13" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" TextAlignment="Center"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    Visibility="{Binding HasIssues, Converter={StaticResource NotBoolVis}}"/>
 
@@ -83,7 +84,7 @@
                                     <Border Background="{StaticResource BgBrush}" CornerRadius="3" Padding="5,1" Margin="6,0,0,0">
                                         <TextBlock Text="{Binding Scope}" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
                                     </Border>
-                                    <Border Background="{StaticResource DangerBrush}" CornerRadius="3" Padding="5,1" Margin="6,0,0,0">
+                                    <Border Background="{Binding KindBrush}" CornerRadius="3" Padding="5,1" Margin="6,0,0,0">
                                         <TextBlock Text="{Binding Kind}" FontSize="10" Foreground="{StaticResource OnAccentBrush}"/>
                                     </Border>
                                 </StackPanel>
@@ -101,7 +102,11 @@
             <Border Grid.Column="2" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1" CornerRadius="8" Padding="14">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel DataContext="{Binding SelectedIssue}">
+                    <ContentControl Content="{Binding SelectedIssue}">
+                        <ContentControl.Resources>
+                            <!-- Broken snaplink → re-point or remove the target in place -->
+                            <DataTemplate DataType="{x:Type vm:IntegrityIssueItem}">
+                                <StackPanel>
                         <TextBlock Text="{Binding NodeTitle}" FontSize="13" FontWeight="SemiBold"
                                    Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"/>
                         <TextBlock Text="{Binding Detail}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
@@ -242,7 +247,39 @@
                             <Button Content="Open node in Product" Command="{Binding OpenNodeCommand}" Style="{StaticResource GhostButton}" Margin="0,6,0,0"/>
                             <Button Content="Remove snaplink" Command="{Binding RemoveLinkCommand}" Style="{StaticResource GhostButton}" Margin="0,6,0,0"/>
                         </StackPanel>
-                    </StackPanel>
+                                </StackPanel>
+                            </DataTemplate>
+
+                            <!-- Coverage suggestion → add the link the test declared -->
+                            <DataTemplate DataType="{x:Type vm:CoverageAdvisoryItem}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding NodeTitle}" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"/>
+                                    <TextBlock Text="Declared by" Style="{StaticResource FieldLabel}"/>
+                                    <TextBlock Text="{Binding TestDisplay}" FontSize="12"
+                                               Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding File}" FontSize="11" Margin="0,2,0,0"
+                                               Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
+
+                                    <TextBlock Text="This node id no longer exists — the [CoversNode] attribute is stale. Fix or remove the attribute on the test."
+                                               FontSize="11" TextWrapping="Wrap" Margin="0,10,0,0" Foreground="{StaticResource WarningBrush}"
+                                               Visibility="{Binding IsUnknownNode, Converter={StaticResource BoolVis}}"/>
+                                    <TextBlock Text="Adds the test to this node's ‘tests’ concern and marks it done."
+                                               FontSize="11" TextWrapping="Wrap" Margin="0,10,0,0" Foreground="{StaticResource TextMutedBrush}"
+                                               Visibility="{Binding CanAdd, Converter={StaticResource BoolVis}}"/>
+
+                                    <StackPanel Margin="0,14,0,0">
+                                        <Button Content="Add link" Style="{StaticResource GhostButton}"
+                                                Command="{Binding DataContext.AddDeclaredLinkCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}" IsEnabled="{Binding CanAdd}"/>
+                                        <Button Content="Open node in Product" Margin="0,6,0,0" Style="{StaticResource GhostButton}"
+                                                Command="{Binding DataContext.OpenNodeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                Visibility="{Binding IsUnknownNode, Converter={StaticResource NotBoolVis}}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ContentControl.Resources>
+                    </ContentControl>
                 </ScrollViewer>
             </Border>
         </Grid>

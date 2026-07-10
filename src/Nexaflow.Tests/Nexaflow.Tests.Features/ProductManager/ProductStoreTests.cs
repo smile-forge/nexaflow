@@ -2,6 +2,8 @@ using System.IO;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.ProductManager;
 
 /// <summary>
@@ -9,6 +11,7 @@ namespace Nexaflow.Tests.Features.ProductManager;
 /// (markdown title-path + code class/method), round-trip fidelity, and minimal diffs on a status flip.
 /// </summary>
 [TestClass]
+[CoversNode("data-model")]
 public class ProductStoreTests
 {
     private string _root = string.Empty;

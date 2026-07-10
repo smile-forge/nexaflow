@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Web.ViewModels;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Web;
 
@@ -17,6 +18,7 @@ namespace Nexaflow.Tests.Features.Web;
 /// already covered by <c>WebPageChromeTests</c> — not duplicated here.)
 /// </summary>
 [TestClass]
+[CoversNode("web-toolbar")]
 public class WebViewModelTests
 {
     /// <summary>Per-test scratch folder for sample .html / .url files; deleted at cleanup.</summary>

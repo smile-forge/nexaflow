@@ -2,9 +2,12 @@ using System.IO;
 using Nexaflow.Features.Scratchpad.Models;
 using Nexaflow.Features.Scratchpad.Services;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.Scratchpad;
 
 [TestClass]
+[CoversNode("note-attachments")]
 public class PostItStoreTests
 {
     private string _root = string.Empty;

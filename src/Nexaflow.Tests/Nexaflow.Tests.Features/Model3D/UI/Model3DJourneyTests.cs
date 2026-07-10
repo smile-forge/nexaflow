@@ -15,9 +15,11 @@ namespace Nexaflow.Tests.Features.Model3D.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
+[CoversNode("model3d-toolbar")]
 public class Model3DJourneyTests : UiJourneyTestBase
 {
     [TestMethod]
+    [CoversNode("model3d-reset")]
     public void Model3D_Controls_RespondInOnePass()
     {
         // A model with a material so the inspector toggle is present (the STL/OBJ tetras have none).

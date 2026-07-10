@@ -18,6 +18,7 @@ namespace Nexaflow.Tests.Features.Compressed;
 /// rar from WinRAR when those are installed (skipped, not failed, when they are not).
 /// </summary>
 [TestClass]
+[CoversNode("compressed-backends")]
 public class ExtendedArchiveFormatTests
 {
     private const string ArchiveText = "# Archive sample\nText file inside a zip.\n";   // sample.zip → readme.txt

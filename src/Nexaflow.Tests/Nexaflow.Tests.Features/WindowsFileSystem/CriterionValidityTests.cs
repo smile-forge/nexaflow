@@ -1,8 +1,11 @@
 using Nexaflow.Features.WindowsFileSystem.FileActions;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
 [TestClass]
+[CoversNode("winfs-external-apps-editor")]
+[CoversNode("winfs-filemap-editor")]
 public class CriterionValidityTests
 {
     [TestMethod]

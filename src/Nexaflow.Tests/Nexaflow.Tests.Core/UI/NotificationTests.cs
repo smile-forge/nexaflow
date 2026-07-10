@@ -1,11 +1,13 @@
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
 using Nexaflow.Tests.Core.UI.Infrastructure;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.UI;
 
 [TestClass]
 [TestCategory("UI")]
+[CoversNode("chrome-notifications-panel")]
 public class NotificationTests : UITestBase
 {
     [TestMethod]

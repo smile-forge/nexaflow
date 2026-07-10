@@ -3,10 +3,12 @@ using System.IO;
 using System.Linq;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit;
 
 [TestClass]
+[CoversNode("aichat-history-resume")]
 public class ConversationStoreTests
 {
     private string _dir = string.Empty;

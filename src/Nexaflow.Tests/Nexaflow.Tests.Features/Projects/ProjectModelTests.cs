@@ -3,10 +3,13 @@ using System.Text.Json.Serialization;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Projects.Model;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.Projects;
 
 /// <summary>POCO defaults and JSON round-trip for the v2 project model.</summary>
 [TestClass]
+[CoversNode("projects")]
 public class ProjectModelTests
 {
     private static readonly JsonSerializerOptions Options = new()

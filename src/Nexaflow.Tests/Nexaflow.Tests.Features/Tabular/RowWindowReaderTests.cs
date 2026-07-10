@@ -5,10 +5,12 @@ using System.Text;
 using System.Threading;
 using Nexaflow.Features.Tabular.Detection;
 using Nexaflow.Features.Tabular.Streaming;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Tabular;
 
 [TestClass]
+[CoversNode("tabular-windowed-load")]
 public class RowWindowReaderTests
 {
     private static string WriteRows(int count, bool header)

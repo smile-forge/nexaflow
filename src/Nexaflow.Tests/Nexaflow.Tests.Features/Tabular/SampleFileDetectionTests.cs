@@ -27,6 +27,7 @@ public class SampleFileDetectionTests
     // ── comma_header.csv: comma, header, Integer/String/Decimal/Boolean columns ──
 
     [TestMethod]
+    [CoversNode("tabular-detection")]
     public void CommaHeader_DetectedAsCommaWithHeader_AndColumnTypes()
     {
         var (_, top) = Probe(Sample("comma_header.csv"));
@@ -42,6 +43,7 @@ public class SampleFileDetectionTests
     // ── tab_no_header.tsv: tab-separated, 2 string columns, no header ──
 
     [TestMethod]
+    [CoversNode("tabular-detection")]
     public void TabNoHeader_DetectedAsTabSeparated_NoHeader()
     {
         var (_, top) = Probe(Sample("tab_no_header.tsv"));
@@ -53,6 +55,7 @@ public class SampleFileDetectionTests
     // ── semicolon_dates.csv: semicolon, header, a dd.MM.yyyy HH:mm:ss DateTime column ──
 
     [TestMethod]
+    [CoversNode("tabular-detection")]
     public void SemicolonDates_DetectedAsSemicolonWithHeader_AndDateTimeColumn()
     {
         var (_, top) = Probe(Sample("semicolon_dates.csv"));
@@ -66,6 +69,7 @@ public class SampleFileDetectionTests
     // ── single_column.csv: one numeric column, no separator ──
 
     [TestMethod]
+    [CoversNode("tabular-detection")]
     public void SingleColumn_FallsBackToSingleColumnShape()
     {
         var (_, top) = Probe(Sample("single_column.csv"));
@@ -76,6 +80,7 @@ public class SampleFileDetectionTests
     // ── comma_space_header.csv: comma+space, header, many columns ──
 
     [TestMethod]
+    [CoversNode("tabular-detection")]
     public void CommaSpaceHeader_DetectedAsCommaWithHeader_ManyColumns()
     {
         var (_, top) = Probe(Sample("comma_space_header.csv"));
@@ -87,6 +92,7 @@ public class SampleFileDetectionTests
     // ── quoted_fields.csv: comma, double-quoted fields containing commas ──
 
     [TestMethod]
+    [CoversNode("tabular-detection")]
     public void QuotedFields_DetectedAsQuotedComma_ThreeColumns()
     {
         var (_, top) = Probe(Sample("quoted_fields.csv"));
@@ -99,6 +105,7 @@ public class SampleFileDetectionTests
     // ── iso_dates.csv: comma, header, ISO date column + decimals ──
 
     [TestMethod]
+    [CoversNode("tabular-detection")]
     public void IsoDates_DetectedAsComma_WithDateColumn()
     {
         var (_, top) = Probe(Sample("iso_dates.csv"));
@@ -110,6 +117,7 @@ public class SampleFileDetectionTests
     // ── SmallFileLoader: load comma_header body and check first row content ──
 
     [TestMethod]
+    [CoversNode("tabular-windowed-load")]
     public void CommaHeader_SmallLoader_ReturnsBodyRows()
     {
         var path = Sample("comma_header.csv");
@@ -127,6 +135,7 @@ public class SampleFileDetectionTests
     // ── RowWindowReader: scan deep into the long file and confirm row alignment ──
 
     [TestMethod]
+    [CoversNode("tabular-windowed-load")]
     public void CommaLong_WindowReader_ReadsDeepRange()
     {
         var path = Sample("comma_long.csv");
@@ -141,6 +150,8 @@ public class SampleFileDetectionTests
     // ── Every tabular sample should at minimum probe + tokenize without error ──
 
     [TestMethod]
+    [CoversNode("tabular-detection")]
+    [CoversNode("tabular-windowed-load")]
     public void AllSamples_ProbeAndLoadFirstWindow_DoNotThrow()
     {
         foreach (var path in TestSampleData.Files("tabular"))

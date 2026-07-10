@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Logs.ViewModels;
 using Nexaflow.Tests.Features.Infrastructure;
+using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 
 namespace Nexaflow.Tests.Features.Logs;
@@ -17,6 +18,7 @@ namespace Nexaflow.Tests.Features.Logs;
 /// only the synchronous tail, the small-file path and encoding detection are asserted here.
 /// </summary>
 [TestClass]
+[CoversNode("log-viewer-tail-streaming")]
 public class LogViewModelTests
 {
     private static string WriteTemp(string content, Encoding encoding)

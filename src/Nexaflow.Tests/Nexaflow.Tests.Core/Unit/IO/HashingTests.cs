@@ -1,10 +1,12 @@
 using System.IO;
 using System.Threading.Tasks;
 using Nexaflow.IO.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit.IO;
 
 [TestClass]
+[CoversNode("iocommon-transforms")]
 public class HashingTests
 {
     [TestMethod]

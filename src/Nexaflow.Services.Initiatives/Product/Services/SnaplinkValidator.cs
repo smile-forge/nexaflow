@@ -74,11 +74,40 @@ public sealed class SnaplinkValidator(string productRoot)
                 Scan(link.Snaplinks, id, node.Title, link.Tag, report);
         }
 
+        FlagUnbackedConcerns(state, report);
+
         report.Issues = [.. report.Issues
             .OrderBy(i => i.NodeId, StringComparer.Ordinal)
             .ThenBy(i => i.Concern ?? string.Empty, StringComparer.Ordinal)
             .ThenBy(i => i.Index)];
         return report;
+    }
+
+    /// <summary>
+    /// Flags concern links that reached a terminal status (<c>done</c>/<c>faulted</c>) with no snaplink,
+    /// where the concern def demands one (<see cref="ConcernDef.RequiresSnaplink"/>). Provable from the
+    /// tree alone — no file I/O — so it stays within the "only report what we can prove broken" bar.
+    /// </summary>
+    private static void FlagUnbackedConcerns(ProductState state, IntegrityReport report)
+    {
+        var mustLink = state.Product.Concerns
+            .Where(c => c.RequiresSnaplink)
+            .Select(c => c.Name)
+            .ToHashSet(StringComparer.Ordinal);
+        if (mustLink.Count == 0) return;
+
+        foreach (var (id, node) in state.Nodes)
+            foreach (var link in node.Concerns ?? [])
+                if (mustLink.Contains(link.Tag)
+                    && link.Status is Status.Done or Status.Faulted
+                    && (link.Snaplinks is null || link.Snaplinks.Count == 0))
+                    report.Issues.Add(new IntegrityIssue
+                    {
+                        NodeId = id, NodeTitle = node.Title, Concern = link.Tag, Index = -1,
+                        Kind = IntegrityKind.MissingSnaplink,
+                        Detail = $"concern '{link.Tag}' is {link.Status.ToString().ToLowerInvariant()} but has no snaplink",
+                        Link = new Snaplink()
+                    });
     }
 
     private void Scan(List<Snaplink>? links, string nodeId, string title, string? concern, IntegrityReport report)

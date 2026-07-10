@@ -1,6 +1,7 @@
 using System.IO;
 using Nexaflow.Features.WindowsSearch;
 using Nexaflow.Features.WindowsSearch.Services;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsSearch;
 
@@ -11,6 +12,7 @@ namespace Nexaflow.Tests.Features.WindowsSearch;
 /// nothing (globs went to the index only).
 /// </summary>
 [TestClass]
+[CoversNode("search-index-query")]
 public class WindowsSearchServiceTests
 {
     private string _root = string.Empty;

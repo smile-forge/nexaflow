@@ -2,10 +2,12 @@ using System;
 using System.IO;
 using Nexaflow.Features.Text.FileActions;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
 [TestClass]
+[CoversNode("winfs-create-shellnew")]
 public class CreateActionTests
 {
     private static string TempDir()

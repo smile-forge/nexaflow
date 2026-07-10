@@ -429,7 +429,7 @@
                             <KeyBinding Key="Return" Command="{Binding ConfirmSettingsCommand}"/>
                         </TextBox.InputBindings>
                     </TextBox>
-                    <TextBlock Text="Cross-cutting concerns  (✓ = auto-added to new nodes)" FontSize="11"
+                    <TextBlock Text="Cross-cutting concerns  (✓ = auto-added to new nodes · 🔗 = needs a snaplink when done)" FontSize="11"
                                Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,4"/>
                     <ItemsControl ItemsSource="{Binding SettingsConcerns}" MaxHeight="180">
                         <ItemsControl.Template>
@@ -444,12 +444,15 @@
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <CheckBox Grid.Column="0" IsChecked="{Binding IsDefault}" VerticalAlignment="Center"
                                               ToolTip="Default — auto-added to new nodes as 'should'"/>
                                     <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="12" Margin="8,0,0,0"
                                                Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"/>
-                                    <Button Grid.Column="2" Command="{Binding RemoveCommand}" Style="{StaticResource IconBtn}" ToolTip="Remove concern">
+                                    <CheckBox Grid.Column="2" Content="🔗" IsChecked="{Binding RequiresSnaplink}" VerticalAlignment="Center" Margin="8,0,0,0"
+                                              ToolTip="Requires a snaplink — validation fails if a node marks this concern done/faulted with no snaplink"/>
+                                    <Button Grid.Column="3" Command="{Binding RemoveCommand}" Style="{StaticResource IconBtn}" ToolTip="Remove concern" Margin="8,0,0,0">
                                         <TextBlock Text="✕" FontSize="9"/>
                                     </Button>
                                 </Grid>

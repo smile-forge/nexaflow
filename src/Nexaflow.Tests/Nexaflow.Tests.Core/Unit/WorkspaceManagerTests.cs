@@ -9,6 +9,7 @@ using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit;
 
@@ -20,6 +21,7 @@ namespace Nexaflow.Tests.Core.Unit;
 /// </summary>
 [TestClass]
 [DoNotParallelize]
+[CoversNode("workspaces")]
 public class WorkspaceManagerTests
 {
     private string _origBaseDir = string.Empty;
@@ -71,6 +73,7 @@ public class WorkspaceManagerTests
     // ── CloneWorkspace ──
 
     [TestMethod]
+    [CoversNode("ws-clone")]
     public void CloneWorkspace_CopiesConfig_RoundTrips_AndExcludesConversations()
     {
         var source = new Workspace { Name = "Source" };
@@ -140,6 +143,7 @@ public class WorkspaceManagerTests
     // ── DeleteWorkspace ──
 
     [TestMethod]
+    [CoversNode("ws-delete")]
     public void DeleteWorkspace_RemovesFolderConversations_AndList_AndPersists()
     {
         var keep   = new Workspace { Name = "Keep" };
@@ -159,6 +163,7 @@ public class WorkspaceManagerTests
     }
 
     [TestMethod]
+    [CoversNode("ws-delete")]
     public void DeleteWorkspace_LastRemaining_IsRefused()
     {
         var only = new Workspace { Name = "Only" };
@@ -171,6 +176,7 @@ public class WorkspaceManagerTests
     }
 
     [TestMethod]
+    [CoversNode("ws-delete")]
     public void DeleteWorkspace_Force_StillRefusesLastRemaining()
     {
         // force bypasses the in-use guard, but never the last-remaining guard.

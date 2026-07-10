@@ -280,7 +280,7 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
         NewSettingsConcern = string.Empty;
         SettingsConcerns.Clear();
         foreach (var c in live.Product.Concerns)
-            SettingsConcerns.Add(new ConcernDefRow(c.Name, c.IsDefault, RemoveSettingsConcern));
+            SettingsConcerns.Add(new ConcernDefRow(c.Name, c.IsDefault, c.RequiresSnaplink, RemoveSettingsConcern));
         SettingsVisible = true;
     }
 
@@ -291,7 +291,7 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     {
         var name = NewSettingsConcern.Trim();
         if (name.Length == 0 || SettingsConcerns.Any(r => string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase))) return;
-        SettingsConcerns.Add(new ConcernDefRow(name, false, RemoveSettingsConcern));
+        SettingsConcerns.Add(new ConcernDefRow(name, false, false, RemoveSettingsConcern));
         NewSettingsConcern = string.Empty;
     }
 
@@ -304,7 +304,9 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
         if (dir.Length == 0) { _shell.ShowError("Enter an export folder (relative to the product root)."); return; }
         var live = _store.Load();
         live.Product.ExportDir = dir;
-        live.Product.Concerns = SettingsConcerns.Select(r => new ConcernDef { Name = r.Name, IsDefault = r.IsDefault }).ToList();
+        live.Product.Concerns = SettingsConcerns
+            .Select(r => new ConcernDef { Name = r.Name, IsDefault = r.IsDefault, RequiresSnaplink = r.RequiresSnaplink })
+            .ToList();
         _store.SaveProduct(live.Product);
         _exportDir = dir;
         SettingsVisible = false;

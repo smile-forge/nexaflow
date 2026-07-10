@@ -1,9 +1,11 @@
 using System.ComponentModel;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
 [TestClass]
+[CoversNode("winfs-tree")]
 public class FileSystemTreeNodeTests
 {
     // A path that does not exist — guarantees no filesystem side-effects.

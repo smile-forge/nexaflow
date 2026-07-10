@@ -1,6 +1,7 @@
 using System.Linq;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Text.ViewModels;
+using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 
 namespace Nexaflow.Tests.Features.Text;
@@ -18,6 +19,7 @@ public class TextViewModelCommandTests
         => new("nonexistent.txt", Substitute.For<IShellServices>()) { IsMonitoring = false };
 
     [TestMethod]
+    [CoversNode("text-viewer-split")]
     public void ToggleSplitPanel_FlipsOpenState()
     {
         using var vm = Make();
@@ -31,6 +33,7 @@ public class TextViewModelCommandTests
     }
 
     [TestMethod]
+    [CoversNode("text-viewer-split")]
     public void SelectedSplitMode_ByLineCount_SetsLineHintAndDefault()
     {
         using var vm = Make();
@@ -43,6 +46,7 @@ public class TextViewModelCommandTests
     }
 
     [TestMethod]
+    [CoversNode("text-viewer-split")]
     public void SelectedSplitMode_BySize_SetsMegabyteHintAndDefault()
     {
         using var vm = Make();
@@ -55,6 +59,7 @@ public class TextViewModelCommandTests
     }
 
     [TestMethod]
+    [CoversNode("text-viewer-split")]
     public void SelectedSplitMode_ByRegex_SetsRegexHintAndDefault()
     {
         using var vm = Make();
@@ -67,6 +72,7 @@ public class TextViewModelCommandTests
     }
 
     [TestMethod]
+    [CoversNode("text-viewer-monitor")]
     public void ToggleMonitoring_FlipsFlag_AndIsSafeWithoutFile()
     {
         using var vm = Make();   // path doesn't exist → StartMonitoring is a guarded no-op
@@ -80,6 +86,8 @@ public class TextViewModelCommandTests
     }
 
     [TestMethod]
+    [CoversNode("text-viewer-linenumbers")]
+    [CoversNode("text-viewer-wordwrap")]
     public void DisplayToggles_DefaultToLineNumbersOnAndWrapOff()
     {
         using var vm = Make();
@@ -94,6 +102,7 @@ public class TextViewModelCommandTests
     }
 
     [TestMethod]
+    [CoversNode("text-viewer-find")]
     public void CancelSearch_ResetsSearchState()
     {
         using var vm = Make();

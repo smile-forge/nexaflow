@@ -6,10 +6,12 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem.ClientTools;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
 [TestClass]
+[CoversNode("winfs-ai-tools")]
 public class FileSystemViewModelTests
 {
     // A fresh empty folder per test method (MSTest builds a new class instance for each). These tests used

@@ -1,4 +1,5 @@
 using Nexaflow.Tests.Features.UI.Infrastructure;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.UI;
 
@@ -30,6 +31,7 @@ namespace Nexaflow.Tests.Features.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
+[NoCoverage("shell-chrome journey")]
 public class ShellChromeJourneyTests : UiJourneyTestBase
 {
     [TestMethod]

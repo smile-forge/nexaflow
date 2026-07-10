@@ -1,6 +1,8 @@
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.ProductManager;
 
 /// <summary>Pure tree restructuring (promote / demote / re-parent) and its guards.</summary>
@@ -22,6 +24,7 @@ public class ProductTreeOpsTests
     };
 
     [TestMethod]
+    [CoversNode("product-node-menu")]
     public void Promote_MovesNodeBesideItsParent()
     {
         var s = Sample();
@@ -34,6 +37,7 @@ public class ProductTreeOpsTests
     }
 
     [TestMethod]
+    [CoversNode("product-node-menu")]
     public void Promote_OnRootChild_MakesItTopLevel()
     {
         var s = Sample();
@@ -43,9 +47,11 @@ public class ProductTreeOpsTests
     }
 
     [TestMethod]
+    [CoversNode("product-node-menu")]
     public void Promote_RejectedForRoot() => Assert.IsFalse(ProductTreeOps.Promote(Sample(), "root"));
 
     [TestMethod]
+    [CoversNode("product-node-menu")]
     public void Demote_MovesUnderPreviousSibling()
     {
         var s = Sample();
@@ -57,9 +63,11 @@ public class ProductTreeOpsTests
     }
 
     [TestMethod]
+    [CoversNode("product-node-menu")]
     public void Demote_RejectedForFirstSibling() => Assert.IsFalse(ProductTreeOps.Demote(Sample(), "a1"));
 
     [TestMethod]
+    [CoversNode("product-restructure")]
     public void Reparent_MovesAcrossBranches()
     {
         var s = Sample();
@@ -71,6 +79,7 @@ public class ProductTreeOpsTests
     }
 
     [TestMethod]
+    [CoversNode("product-restructure")]
     public void Reparent_ToTopLevel_WhenNull()
     {
         var s = Sample();
@@ -80,6 +89,7 @@ public class ProductTreeOpsTests
     }
 
     [TestMethod]
+    [CoversNode("product-restructure")]
     public void Reparent_RejectsCycle_OntoOwnDescendant()
     {
         var s = Sample();
@@ -88,6 +98,7 @@ public class ProductTreeOpsTests
     }
 
     [TestMethod]
+    [CoversNode("product-restructure")]
     public void Reparent_RejectsSelfAndNoOp()
     {
         var s = Sample();
@@ -97,6 +108,7 @@ public class ProductTreeOpsTests
 
     // ── Cascade status (sunburst "Status: …" menu) ──────────────────────────
     [TestMethod]
+    [CoversNode("product-node-menu")]
     public void CascadeStatus_AdvancesOnlyShouldItems()
     {
         var s = new ProductState
@@ -123,6 +135,7 @@ public class ProductTreeOpsTests
     }
 
     [TestMethod]
+    [CoversNode("product-node-menu")]
     public void CascadeStatus_ClickedLeafChangesRegardless()
     {
         var s = new ProductState { Nodes = new() { ["leaf"] = new ProductNode { Title = "leaf", Status = Status.Faulted } } };
@@ -131,6 +144,7 @@ public class ProductTreeOpsTests
     }
 
     [TestMethod]
+    [CoversNode("product-node-menu")]
     public void CascadeStatus_ParentStoredStatusLeftAlone()
     {
         var s = new ProductState

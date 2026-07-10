@@ -2,6 +2,7 @@ using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Hex.ViewModels;
 using NSubstitute;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Hex;
 
@@ -25,6 +26,7 @@ public class HexViewModelCommandTests
     // ── Save / SaveAs gating ────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("hex-save")]
     public void SaveCommands_DisabledUntilModified_ThenEnabled()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
@@ -46,6 +48,7 @@ public class HexViewModelCommandTests
     }
 
     [TestMethod]
+    [CoversNode("hex-save")]
     public void Save_PersistsEdit_ClearsDirty_AndRedisablesSave()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
@@ -70,6 +73,7 @@ public class HexViewModelCommandTests
     }
 
     [TestMethod]
+    [CoversNode("hex-save")]
     public void Save_WhenBufferSaveThrows_ReportsViaShell_AndStaysDirty()
     {
         // Read-only file makes the atomic File.Replace path throw inside Buffer.Save.
@@ -97,6 +101,7 @@ public class HexViewModelCommandTests
     // ── Undo / Redo availability ────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("hex-undo-redo")]
     public void UndoRedo_CanExecute_TracksBufferHistory()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
@@ -119,6 +124,7 @@ public class HexViewModelCommandTests
     }
 
     [TestMethod]
+    [CoversNode("hex-undo-redo")]
     public void RedoCommand_ReappliesEdit_AndRestoresDirtyState()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
@@ -142,6 +148,7 @@ public class HexViewModelCommandTests
     }
 
     [TestMethod]
+    [CoversNode("hex-undo-redo")]
     public void NewEdit_AfterUndo_ClearsRedoAvailability()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
@@ -161,6 +168,7 @@ public class HexViewModelCommandTests
     }
 
     [TestMethod]
+    [CoversNode("hex-undo-redo")]
     public void MultipleEdits_UndoStackUnwinds_ToCleanState()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });

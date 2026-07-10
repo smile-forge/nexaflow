@@ -6,6 +6,7 @@ using NSubstitute;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Tabular.Templates;
 using Nexaflow.Features.Tabular.ViewModels;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Tabular;
 
@@ -26,6 +27,7 @@ public class TabularViewModelTests
                templates ?? new TabularTemplatesConfig());
 
     [TestMethod]
+    [CoversNode("tabular-apply-template")]
     public void TemplatePanel_TogglesOpenAndClosed()
     {
         var vm = MakeEmpty();
@@ -39,6 +41,7 @@ public class TabularViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("tabular-apply-template")]
     public void CloseTemplatePanel_ClosesAnOpenPanel()
     {
         var vm = MakeEmpty();
@@ -50,6 +53,7 @@ public class TabularViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("tabular-apply-template")]
     public void OpenTemplatePanel_LeavesChooseModeOff()
     {
         var vm = MakeEmpty();
@@ -58,6 +62,7 @@ public class TabularViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("tabular-template-this")]
     public void CancelTemplateThis_ClosesThePopup()
     {
         var vm = MakeEmpty();
@@ -68,6 +73,7 @@ public class TabularViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("tabular-template-this")]
     public void SaveTemplate_CanExecute_RequiresName()
     {
         var vm = MakeEmpty();
@@ -81,6 +87,7 @@ public class TabularViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("tabular-template-this")]
     public void SaveTemplate_CanExecute_GlobScopeRequiresPattern()
     {
         var vm = MakeEmpty();
@@ -95,6 +102,7 @@ public class TabularViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("tabular-apply-template")]
     public void ShowOnlyCompatible_TogglesAndRebuildsPanelWithoutThrowing()
     {
         var vm = MakeEmpty();
@@ -111,6 +119,7 @@ public class TabularViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("tabular-filter")]
     public void FilterPanelOpen_TracksColumnSelection()
     {
         // IsFilterPanelOpen is derived from any column being selected — needs a loaded grid.

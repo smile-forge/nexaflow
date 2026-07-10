@@ -8,6 +8,7 @@ using Nexaflow.Features.Text.FileActions;
 using Nexaflow.Syntax;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
 using NSubstitute;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.CodeIntel;
 
@@ -17,6 +18,7 @@ namespace Nexaflow.Tests.Features.CodeIntel;
 /// the As Code / As Text actions.
 /// </summary>
 [TestClass]
+[CoversNode("syntax-outline")]
 public class CodeIntelligenceTests
 {
     private const string CSharp = """

@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Common;
 
@@ -7,6 +8,7 @@ namespace Nexaflow.Tests.Features.Common;
 /// clickable parent crumb that opens a file-explorer tab at that folder.
 /// </summary>
 [TestClass]
+[CoversNode("chrome-breadcrumb-crosstab")]
 public class FileBreadcrumbsTests
 {
     [TestMethod]

@@ -5,6 +5,7 @@ using System.Linq;
 using Nexaflow.Features.Compressed.Handlers;
 using Nexaflow.Features.Compressed.SecureZip;
 using Nexaflow.IO.Common;
+using Nexaflow.Tests.Fixtures;
 using SharpCompressHandlerNs = Nexaflow.Features.Compressed.SharpCompress;
 
 namespace Nexaflow.Tests.Features.Compressed;
@@ -15,6 +16,7 @@ namespace Nexaflow.Tests.Features.Compressed;
 public class RepackageAndEncryptTests
 {
     [TestMethod]
+    [CoversNode("compressed-convert")]
     public void Convert_ZipToTar_PreservesEntries()
     {
         var dir = NewDir();
@@ -42,6 +44,7 @@ public class RepackageAndEncryptTests
     }
 
     [TestMethod]
+    [CoversNode("compressed-recompress")]
     public void Recompress_RebuildsInPlace_KeepingContents()
     {
         var dir = NewDir();
@@ -60,6 +63,8 @@ public class RepackageAndEncryptTests
     }
 
     [TestMethod]
+    [CoversNode("compressed-encrypt")]
+    [CoversNode("compressed-decrypt")]
     public void Encrypt_ThenDecrypt_RoundTrips()
     {
         var dir = NewDir();

@@ -5,10 +5,12 @@ using NSubstitute;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
 [TestClass]
+[CoversNode("winfs-create")]
 public class FileSystemViewModelCreateTests
 {
     /// <summary>Records the create call and materialises the item so Refresh has something to read.</summary>

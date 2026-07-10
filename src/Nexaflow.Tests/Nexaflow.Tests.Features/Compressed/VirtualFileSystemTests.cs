@@ -14,6 +14,7 @@ namespace Nexaflow.Tests.Features.Compressed;
 /// against an in-memory fake handler (real format handlers arrive in later commits).
 /// </summary>
 [TestClass]
+[CoversNode("iocommon-vfs")]
 public class VirtualFileSystemTests
 {
     // ── Pass-through byte identity (uses the real process singleton; no handlers needed) ──

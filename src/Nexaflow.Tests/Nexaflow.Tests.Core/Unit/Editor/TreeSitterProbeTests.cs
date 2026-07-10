@@ -1,5 +1,6 @@
 using System.Linq;
 using TreeSitter;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit.Editor;
 
@@ -9,6 +10,7 @@ namespace Nexaflow.Tests.Core.Unit.Editor;
 /// "// café" is 7 UTF-16 units but 8 UTF-8 bytes (é = 2 bytes), so the end index disambiguates.
 /// </summary>
 [TestClass]
+[CoversNode("syntax")]
 public class TreeSitterProbeTests
 {
     [TestMethod]

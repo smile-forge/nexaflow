@@ -18,6 +18,7 @@ namespace Nexaflow.Tests.Features.Images.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
+[CoversNode("images-tools")]
 public class ImagesJourneyTests : UiJourneyTestBase
 {
     [TestMethod]

@@ -14,9 +14,11 @@ namespace Nexaflow.Tests.Features.Tabular.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
+[CoversNode("tabular")]
 public class TabularJourneyTests : UiJourneyTestBase
 {
     [TestMethod]
+    [CoversNode("tabular-apply-template")]
     public void Tabular_Controls_RespondInOnePass()
     {
         var file = Path.GetFileName(TestSampleData.Files("tabular").First());

@@ -1,9 +1,11 @@
 using Nexaflow.Core.Services;
+using Nexaflow.Tests.Fixtures;
 using TaskStatus = Nexaflow.Core.Models.TaskStatus;
 
 namespace Nexaflow.Tests.Core.Unit;
 
 [TestClass]
+[CoversNode("chrome-activity-handle")]
 public class BackgroundActivityManagerTests
 {
     // The manager captures the constructing thread's dispatcher (the test thread here), so its

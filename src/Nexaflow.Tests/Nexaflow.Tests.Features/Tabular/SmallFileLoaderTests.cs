@@ -6,10 +6,12 @@ using System.Text;
 using System.Threading;
 using Nexaflow.Features.Tabular.Detection;
 using Nexaflow.Features.Tabular.Streaming;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Tabular;
 
 [TestClass]
+[CoversNode("tabular-windowed-load")]
 public class SmallFileLoaderTests
 {
     private static string WriteTemp(string contents)

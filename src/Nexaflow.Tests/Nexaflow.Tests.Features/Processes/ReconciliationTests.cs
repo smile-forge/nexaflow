@@ -4,9 +4,12 @@ using Nexaflow.Features.Processes.ViewModels;
 using NSubstitute;
 using static Nexaflow.Tests.Features.Processes.FakeProcessSource;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.Processes;
 
 [TestClass]
+[CoversNode("process-columns")]
 public class ReconciliationTests
 {
     private static ProcessesViewModel NewVm() =>

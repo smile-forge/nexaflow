@@ -1,6 +1,8 @@
 using FlaUI.Core.AutomationElements;
 using Nexaflow.Tests.Features.UI.Infrastructure;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.Processes.UI;
 
 /// <summary>
@@ -18,6 +20,7 @@ namespace Nexaflow.Tests.Features.Processes.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
+[CoversNode("processes")]
 public class ProcessesJourneyTests : UiJourneyTestBase
 {
     protected override string? LaunchTabKind => "Processes";

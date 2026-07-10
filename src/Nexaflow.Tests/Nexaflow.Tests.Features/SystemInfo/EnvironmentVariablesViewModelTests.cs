@@ -3,9 +3,12 @@ using NSubstitute;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.SystemInfo.ViewModels;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.SystemInfo;
 
 [TestClass]
+[CoversNode("sysinfo-envvars")]
 public class EnvironmentVariablesViewModelTests
 {
     private static EnvironmentVariablesViewModel Build() =>

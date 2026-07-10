@@ -10,10 +10,12 @@ using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Providers.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit.ClientTools;
 
 [TestClass]
+[CoversNode("chat-interface")]
 public class AgentLoopTests
 {
     // ── Fakes ──────────────────────────────────────────────────────────────

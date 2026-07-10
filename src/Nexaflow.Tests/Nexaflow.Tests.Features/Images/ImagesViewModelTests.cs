@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;            // IShellServices
 using Nexaflow.Features.Images.ViewModels;
 using NSubstitute;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Images;
 
@@ -12,6 +13,7 @@ namespace Nexaflow.Tests.Features.Images;
 /// covered by the UI journey instead.
 /// </summary>
 [TestClass]
+[CoversNode("displaymodes")]
 public class ImagesViewModelTests
 {
     private static ImageViewModel Make(params string[] paths)
