@@ -3,6 +3,7 @@ using System.Windows.Markup;
 using System.Windows.Media;
 using Nexaflow.Core;
 using Nexaflow.Tests.Core.Visuals.Markdown;   // UiThread (STA WPF helper)
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Visuals;
 
@@ -16,6 +17,7 @@ namespace Nexaflow.Tests.Core.Visuals;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
+[CoversNode("theme-freeze-on-merge")]
 public class ThemeManagerFreezeTests
 {
     // Palette (a merged child) defines the colour + a same-dict brush; the token-style brush at the

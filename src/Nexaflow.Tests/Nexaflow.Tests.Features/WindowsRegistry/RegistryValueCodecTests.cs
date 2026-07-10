@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using Nexaflow.Features.WindowsRegistry.Services;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsRegistry;
 
@@ -11,6 +12,7 @@ namespace Nexaflow.Tests.Features.WindowsRegistry;
 public class RegistryValueCodecTests
 {
     [TestMethod]
+    [CoversNode("registry-modify-value")]
     public void TypeLabel_MapsEachKind()
     {
         Assert.AreEqual("REG_SZ",        RegistryValueCodec.TypeLabel(RegistryValueKind.String));
@@ -24,6 +26,7 @@ public class RegistryValueCodecTests
     }
 
     [TestMethod]
+    [CoversNode("registry-new-value")]
     public void EditableKinds_AreTheSixWritableTypes()
     {
         CollectionAssert.AreEqual(
@@ -39,6 +42,7 @@ public class RegistryValueCodecTests
     // ── Display ──────────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("registry-modify-value")]
     public void FormatForDisplay_Dword_ShowsHexAndDecimal()
     {
         Assert.AreEqual("0x0000001a (26)", RegistryValueCodec.FormatForDisplay(26, RegistryValueKind.DWord));
@@ -46,10 +50,12 @@ public class RegistryValueCodecTests
     }
 
     [TestMethod]
+    [CoversNode("registry-modify-value")]
     public void FormatForDisplay_Qword_ShowsHexAndDecimal()
         => Assert.AreEqual("0x000000000000001a (26)", RegistryValueCodec.FormatForDisplay(26L, RegistryValueKind.QWord));
 
     [TestMethod]
+    [CoversNode("registry-modify-value")]
     public void FormatForDisplay_Binary_IsSpaceSeparatedHex()
     {
         Assert.AreEqual("01 ab ff", RegistryValueCodec.FormatForDisplay(new byte[] { 0x01, 0xAB, 0xFF }, RegistryValueKind.Binary));
@@ -57,10 +63,12 @@ public class RegistryValueCodecTests
     }
 
     [TestMethod]
+    [CoversNode("registry-modify-value")]
     public void FormatForDisplay_MultiString_IsCommaSeparated()
         => Assert.AreEqual("a, b, c", RegistryValueCodec.FormatForDisplay(new[] { "a", "b", "c" }, RegistryValueKind.MultiString));
 
     [TestMethod]
+    [CoversNode("registry-modify-value")]
     public void FormatForDisplay_StringAndNull()
     {
         Assert.AreEqual("hello", RegistryValueCodec.FormatForDisplay("hello", RegistryValueKind.String));
@@ -70,6 +78,7 @@ public class RegistryValueCodecTests
     // ── Wire round-trip (Encode ↔ Decode), the bridge contract ───────────────
 
     [TestMethod]
+    [CoversNode("registry-new-value")]
     public void Encode_Decode_Dword_RoundTrips()
     {
         var (data, kind) = RegistryValueCodec.Decode("DWord", RegistryValueCodec.Encode(26, RegistryValueKind.DWord));
@@ -78,6 +87,7 @@ public class RegistryValueCodecTests
     }
 
     [TestMethod]
+    [CoversNode("registry-new-value")]
     public void Encode_Decode_Binary_RoundTrips()
     {
         var bytes = new byte[] { 0x01, 0xAB, 0xFF };
@@ -87,6 +97,7 @@ public class RegistryValueCodecTests
     }
 
     [TestMethod]
+    [CoversNode("registry-new-value")]
     public void Encode_Decode_MultiString_RoundTrips()
     {
         var items = new[] { "alpha", "beta", "gamma" };
@@ -96,6 +107,7 @@ public class RegistryValueCodecTests
     }
 
     [TestMethod]
+    [CoversNode("registry-modify-value")]
     public void Decode_UnknownType_FallsBackToString()
     {
         var (data, kind) = RegistryValueCodec.Decode("NoSuchType", "literal");
@@ -104,10 +116,12 @@ public class RegistryValueCodecTests
     }
 
     [TestMethod]
+    [CoversNode("registry-modify-value")]
     public void Decode_IsCaseInsensitive_OnTypeToken()
         => Assert.AreEqual(RegistryValueKind.DWord, RegistryValueCodec.Decode("dword", "5").Kind);
 
     [TestMethod]
+    [CoversNode("registry-modify-value")]
     public void Decode_EmptyBinaryAndMultiString_AreEmptyArrays()
     {
         Assert.AreEqual(0, ((byte[])RegistryValueCodec.Decode("Binary", "").Data).Length);
@@ -115,12 +129,14 @@ public class RegistryValueCodecTests
     }
 
     [TestMethod]
+    [CoversNode("registry-modify-value")]
     public void Decode_Dword_AcceptsUnsignedOverflow()
         => Assert.AreEqual(-1, RegistryValueCodec.Decode("DWord", "4294967295").Data);   // 0xFFFFFFFF → -1
 
     // ── User input parsing ───────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("registry-modify-value")]
     public void ParseUserInput_Dword_AcceptsDecimalHexAndNegative()
     {
         Assert.AreEqual("26",  RegistryValueCodec.ParseUserInput("26",   RegistryValueKind.DWord));
@@ -130,22 +146,27 @@ public class RegistryValueCodecTests
     }
 
     [TestMethod]
+    [CoversNode("registry-modify-value")]
     public void ParseUserInput_Qword_AcceptsHex()
         => Assert.AreEqual("16", RegistryValueCodec.ParseUserInput("0x10", RegistryValueKind.QWord));
 
     [TestMethod]
+    [CoversNode("registry-modify-value")]
     public void ParseUserInput_Binary_IgnoresWhitespace()
         => Assert.AreEqual("01ABFF", RegistryValueCodec.ParseUserInput("01 AB FF", RegistryValueKind.Binary));
 
     [TestMethod]
+    [CoversNode("registry-modify-value")]
     public void ParseUserInput_MultiString_SplitsLines()
         => Assert.AreEqual("a\0b\0c", RegistryValueCodec.ParseUserInput("a\r\nb\nc", RegistryValueKind.MultiString));
 
     [TestMethod]
+    [CoversNode("registry-modify-value")]
     public void ParseUserInput_InvalidDword_Throws()
         => Assert.ThrowsExactly<FormatException>(() => RegistryValueCodec.ParseUserInput("not-a-number", RegistryValueKind.DWord));
 
     [TestMethod]
+    [CoversNode("registry-modify-value")]
     public void ParseUserInput_InvalidBinary_Throws()
         => Assert.ThrowsExactly<FormatException>(() => RegistryValueCodec.ParseUserInput("ZZ", RegistryValueKind.Binary));
 
@@ -157,6 +178,7 @@ public class RegistryValueCodecTests
     [DataRow(RegistryValueKind.Binary)]
     [DataRow(RegistryValueKind.MultiString)]
     [DataRow(RegistryValueKind.String)]
+    [CoversNode("registry-modify-value")]
     public void ToEditText_RoundTripsThroughParseUserInput(RegistryValueKind kind)
     {
         object data = kind switch

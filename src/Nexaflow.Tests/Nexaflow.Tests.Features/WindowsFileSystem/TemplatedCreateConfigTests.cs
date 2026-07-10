@@ -1,9 +1,11 @@
 using System.Text.Json;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
 [TestClass]
+[CoversNode("winfs-create-template")]
 public class TemplatedCreateConfigTests
 {
     [TestMethod]

@@ -1,5 +1,7 @@
 using Nexaflow.Tests.Features.UI.Infrastructure;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.SystemInfo.UI;
 
 /// <summary>
@@ -16,6 +18,7 @@ namespace Nexaflow.Tests.Features.SystemInfo.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
+[CoversNode("sysinfoview")]
 public class SystemInfoJourneyTests : UiJourneyTestBase
 {
     protected override string? LaunchTabKind => "SystemInfo";

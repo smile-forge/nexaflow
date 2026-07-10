@@ -1,12 +1,15 @@
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.ProductManager;
 
 /// <summary>Rolled-up "effective" status shown on a sunburst arc: a leaf folds in its concerns; a parent
 /// derives from its children (and their concerns), ignoring its own stored status. Precedence:
 /// faulted → should → done → shouldnt.</summary>
 [TestClass]
+[CoversNode("product-status-rollup")]
 public class ProductRollupTests
 {
     private static ProductState One(ProductNode node)

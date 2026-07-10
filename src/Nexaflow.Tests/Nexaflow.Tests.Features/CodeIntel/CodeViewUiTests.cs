@@ -13,6 +13,7 @@ namespace Nexaflow.Tests.Features.CodeIntel;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
+[CoversNode("code-map")]
 public class CodeViewUiTests : FileSystemUiTestBase
 {
     [TestMethod]
@@ -25,6 +26,7 @@ public class CodeViewUiTests : FileSystemUiTestBase
     [DataRow("Greeter.java")]   // Java
     [DataRow("index.php")]      // PHP
     [DataRow("Counter.razor")]  // Razor (@code → component box)
+    [CoversNode("code-view")]
     public void CodeFile_OpensAsCode_WithStructurePanel(string fileName)
     {
         NavigateFileBrowserTo(TestSampleData.Path("code"));

@@ -1,9 +1,11 @@
 using System.IO;
 using Nexaflow.Features.Dotnet.Services;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Dotnet;
 
 [TestClass]
+[CoversNode("dotnet-target-picker")]
 public class DotnetTargetScannerTests
 {
     private readonly List<string> _temp = [];

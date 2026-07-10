@@ -92,7 +92,7 @@ public partial class ConcernBox : ObservableObject
     }
 }
 
-/// <summary>A defined concern row in the Settings overlay: name + a default toggle + remove.</summary>
+/// <summary>A defined concern row in the Settings overlay: name + a default toggle + a requires-snaplink toggle + remove.</summary>
 public partial class ConcernDefRow : ObservableObject
 {
     public string Name { get; }
@@ -100,11 +100,15 @@ public partial class ConcernDefRow : ObservableObject
 
     [ObservableProperty] private bool _isDefault;
 
-    public ConcernDefRow(string name, bool isDefault, Action<ConcernDefRow> remove)
+    /// <summary>Must a node's link to this concern carry a snaplink once done/faulted? (e.g. tests need proof.)</summary>
+    [ObservableProperty] private bool _requiresSnaplink;
+
+    public ConcernDefRow(string name, bool isDefault, bool requiresSnaplink, Action<ConcernDefRow> remove)
     {
-        Name      = name;
-        _isDefault = isDefault;
-        _remove   = remove;
+        Name             = name;
+        _isDefault       = isDefault;
+        _requiresSnaplink = requiresSnaplink;
+        _remove          = remove;
     }
 
     [RelayCommand] private void Remove() => _remove(this);

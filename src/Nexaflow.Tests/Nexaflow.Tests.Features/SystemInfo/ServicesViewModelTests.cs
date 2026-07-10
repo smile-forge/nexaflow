@@ -4,9 +4,12 @@ using NSubstitute;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.SystemInfo.ViewModels;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.SystemInfo;
 
 [TestClass]
+[CoversNode("sysinfo-services")]
 public class ServicesViewModelTests
 {
     // Capture the onComplete handed to QueueBackgroundTask so a test can simulate the gather finishing

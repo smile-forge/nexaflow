@@ -17,6 +17,7 @@ namespace Nexaflow.Tests.Features.Font;
 /// an STA/visual host, so it's exercised manually / via the UI, not here.
 /// </summary>
 [TestClass]
+[CoversNode("font")]
 public class FontClientToolsTests
 {
     private static FontViewModel LoadedVm()
@@ -27,6 +28,7 @@ public class FontClientToolsTests
 
     [TestMethod]
     [TestCategory("Unit")]
+    [CoversNode("font-ai")]
     public void Exposes_TheTwoFontTools()
     {
         var names = LoadedVm().GetClientTools().Select(t => t.Name).ToList();
@@ -35,6 +37,7 @@ public class FontClientToolsTests
 
     [TestMethod]
     [TestCategory("Unit")]
+    [CoversNode("font-ai")]
     public void GetContext_ListsFonts_PreviewText_AndSpecimen()
     {
         var vm = LoadedVm();
@@ -46,6 +49,7 @@ public class FontClientToolsTests
 
     [TestMethod]
     [TestCategory("Unit")]
+    [CoversNode("font-ai")]
     public void ResolveFont_ByIndex_ByName_AndDefault()
     {
         var vm = LoadedVm();
@@ -72,6 +76,7 @@ public class FontClientToolsTests
 
     [TestMethod]
     [TestCategory("Unit")]
+    [CoversNode("font-details")]
     public async Task DetailsTool_ReturnsMetadata_ForAnyListedFont()
     {
         var tool = new FontDetailsTool(LoadedVm());

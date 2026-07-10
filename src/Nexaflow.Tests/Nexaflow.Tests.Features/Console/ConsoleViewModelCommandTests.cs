@@ -6,6 +6,7 @@ using Nexaflow.IO.Terminal;
 using Nexaflow.Visuals.Terminal.Models;
 using Nexaflow.Visuals.Terminal.ViewModels;
 using NSubstitute;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Console;
 
@@ -18,6 +19,7 @@ namespace Nexaflow.Tests.Features.Console;
 /// is not duplicated here.
 /// </summary>
 [TestClass]
+[CoversNode("visuals-terminal")]
 public class ConsoleViewModelCommandTests
 {
     private sealed class FakePty : PseudoConsoleHostService

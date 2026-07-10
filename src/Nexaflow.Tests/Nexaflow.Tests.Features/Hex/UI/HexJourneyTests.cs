@@ -14,6 +14,7 @@ namespace Nexaflow.Tests.Features.Hex.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
+[CoversNode("view-hex")]
 public class HexJourneyTests : UiJourneyTestBase
 {
     [TestMethod]

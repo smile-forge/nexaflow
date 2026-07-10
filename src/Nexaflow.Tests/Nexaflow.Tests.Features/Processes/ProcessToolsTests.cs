@@ -6,9 +6,12 @@ using Nexaflow.Features.Processes.ViewModels;
 using NSubstitute;
 using static Nexaflow.Tests.Features.Processes.FakeProcessSource;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.Processes;
 
 [TestClass]
+[CoversNode("process-ai-tools")]
 public class ProcessToolsTests
 {
     private static (ProcessesViewModel vm, FakeProcessSource src) NewVm()

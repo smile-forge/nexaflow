@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Json.Models;
 using Nexaflow.Features.Json.Services;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Json;
 
@@ -15,6 +16,7 @@ namespace Nexaflow.Tests.Features.Json;
 /// path (front batch + a virtual tail node), virtual-chunk loading, BOM skipping and estimation.
 /// </summary>
 [TestClass]
+[CoversNode("json-windowing")]
 public class JsonFileLoaderTests
 {
     private const long LargeFileThreshold = 1 * 1024 * 1024;

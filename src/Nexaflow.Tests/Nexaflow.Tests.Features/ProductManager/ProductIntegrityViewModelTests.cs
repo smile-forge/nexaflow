@@ -4,6 +4,8 @@ using Nexaflow.Features.ProductManager.ViewModels;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.ProductManager;
 
 /// <summary>
@@ -13,6 +15,7 @@ namespace Nexaflow.Tests.Features.ProductManager;
 /// must resolve the issue, a moved file must be suggested, and removing one link must not lock its siblings.
 /// </summary>
 [TestClass]
+[CoversNode("product-snaplinks")]
 public class ProductIntegrityViewModelTests
 {
     private string _root = string.Empty;
@@ -70,7 +73,7 @@ public class ProductIntegrityViewModelTests
 
         Assert.AreEqual(1, vm.IssueCount);
         Assert.IsNotNull(vm.SelectedIssue);
-        Assert.IsTrue(vm.SelectedIssue!.CanEdit, "a live link must be editable, not 'from an older scan'");
+        Assert.IsTrue(((IntegrityIssueItem)vm.SelectedIssue!).CanEdit, "a live link must be editable, not 'from an older scan'");
         Assert.IsTrue(vm.HasTargets, "the dropdown should be enabled");
         // The picker offers the class and its method — exactly what a whole-file parse yields.
         CollectionAssert.Contains(vm.AvailableTargets.Select(t => t.Class).ToList(), "Widget");
@@ -85,7 +88,7 @@ public class ProductIntegrityViewModelTests
         var vm = Open();
 
         vm.SelectedTarget = vm.AvailableTargets.First(t => t.Method == "Spin");
-        Assert.AreEqual("Spin", vm.SelectedIssue!.Method, "picking a target fills the row's fields");
+        Assert.AreEqual("Spin", ((IntegrityIssueItem)vm.SelectedIssue!).Method, "picking a target fills the row's fields");
 
         vm.ApplyCommand.Execute(null);
 
@@ -110,7 +113,7 @@ public class ProductIntegrityViewModelTests
         vm.RemoveLinkCommand.Execute(null);
 
         Assert.AreEqual(1, vm.IssueCount);
-        Assert.IsTrue(vm.SelectedIssue!.CanEdit,
+        Assert.IsTrue(((IntegrityIssueItem)vm.SelectedIssue!).CanEdit,
             "the surviving row must stay editable after a sibling was removed (the index-drift bug)");
         Assert.AreEqual(1, _store.Load().Nodes["n"].Snaplinks!.Count, "one link removed from the tree");
     }
@@ -129,7 +132,7 @@ public class ProductIntegrityViewModelTests
         CollectionAssert.Contains(vm.FileSuggestions.ToList(), "src/new/Widget.cs");
 
         vm.UseSuggestionCommand.Execute("src/new/Widget.cs");
-        Assert.AreEqual("src/new/Widget.cs", vm.SelectedIssue!.Doc, "the row is repointed at the relocated file");
+        Assert.AreEqual("src/new/Widget.cs", ((IntegrityIssueItem)vm.SelectedIssue!).Doc, "the row is repointed at the relocated file");
         Assert.IsTrue(vm.HasTargets, "the relocated file's classes are now offered");
     }
 

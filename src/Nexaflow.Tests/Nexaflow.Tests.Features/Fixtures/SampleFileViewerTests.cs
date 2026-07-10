@@ -25,6 +25,7 @@ namespace Nexaflow.Tests.Features.Fixtures;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
+[NoCoverage("sample-file corpus")]
 public class SampleFileViewerTests : FileSystemUiTestBase
 {
     public TestContext TestContext { get; set; } = null!;

@@ -5,9 +5,12 @@ using Nexaflow.Features.Processes.Services;
 using Nexaflow.Features.Processes.ViewModels;
 using NSubstitute;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.Processes;
 
 [TestClass]
+[CoversNode("handles")]
 public class HandlesTests
 {
     private static ProcessDetailViewModel NewVm(IShellServices shell) =>

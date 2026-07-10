@@ -1,11 +1,13 @@
 using Nexaflow.Visuals.Text.Markdown;
 using System.Windows.Controls;
+using Nexaflow.Tests.Fixtures;
 using VisMarkdownView = Nexaflow.Visuals.Text.Markdown.MarkdownView;
 
 namespace Nexaflow.Tests.Core.Visuals.Markdown;
 
 [TestClass]
 [TestCategory("UI")]
+[CoversNode("markdown-rendering")]
 public class MarkdownViewTests
 {
     [TestMethod]

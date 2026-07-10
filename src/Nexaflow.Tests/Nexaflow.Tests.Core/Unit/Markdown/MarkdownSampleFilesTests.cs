@@ -8,6 +8,7 @@ namespace Nexaflow.Tests.Core.Unit.Markdown;
 /// WPF-free; exercises generation + on-disk presence only (rendering is covered separately).
 /// </summary>
 [TestClass]
+[NoCoverage("markdown sample corpus")]
 public class MarkdownSampleFilesTests
 {
     [TestMethod]

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using Nexaflow.Core;
 using Nexaflow.Features.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit.Config;
 
@@ -11,6 +12,7 @@ namespace Nexaflow.Tests.Core.Unit.Config;
 /// on the next save) so existing configs migrate without a wizard re-prompt.
 /// </summary>
 [TestClass]
+[CoversNode("opt-provider-config")]
 public class SecretConfigTests
 {
     private sealed class FakeConfig

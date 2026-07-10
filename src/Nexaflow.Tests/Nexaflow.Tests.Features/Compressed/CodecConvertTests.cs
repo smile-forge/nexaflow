@@ -4,6 +4,7 @@ using System.IO.Compression;
 using Nexaflow.Features.Compressed.Codecs;
 using Nexaflow.Features.Compressed.Handlers;
 using Nexaflow.IO.Common;
+using Nexaflow.Tests.Fixtures;
 using ModernNs = Nexaflow.Features.Compressed.Modern;
 using SharpCompressNs = Nexaflow.Features.Compressed.SharpCompress;
 
@@ -12,6 +13,7 @@ namespace Nexaflow.Tests.Features.Compressed;
 /// <summary>Convert via codec composition: a zip → tar.zst / tar.lz4 / tar.br / tar.bz2 and single-stream
 /// .zst, each read back through the VFS. Exercises <see cref="IStreamCodec"/> + the tar+codec write path.</summary>
 [TestClass]
+[CoversNode("iocommon-codecs")]
 public class CodecConvertTests
 {
     private static VirtualFileSystem MakeVfs()

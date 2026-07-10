@@ -1,10 +1,12 @@
 using System.Linq;
 using Nexaflow.Features.Tabular.Detection;
 using Nexaflow.Features.Tabular.Streaming;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Tabular;
 
 [TestClass]
+[CoversNode("tabular-column-actions")]
 public class DataShapeTests
 {
     private static CsvShape MakeShape(bool hasHeader, int fields, CsvDataType[]? types = null) => new()

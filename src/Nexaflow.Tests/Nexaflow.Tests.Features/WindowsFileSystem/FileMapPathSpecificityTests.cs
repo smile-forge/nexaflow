@@ -2,11 +2,13 @@ using System;
 using System.IO;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
 [TestClass]
 [DoNotParallelize]   // mutates the process-wide FileMapManager.Instance
+[CoversNode("winfs-filemap-editor")]
 public class FileMapPathSpecificityTests
 {
     private string _dir = string.Empty;

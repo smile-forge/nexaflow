@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using Nexaflow.Features.WindowsRegistry.Services;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsRegistry;
 
@@ -9,6 +10,7 @@ namespace Nexaflow.Tests.Features.WindowsRegistry;
 /// — no elevation, no HKLM/HKCR, and the subtree is deleted in cleanup. (Live elevated writes are out of scope.)
 /// </summary>
 [TestClass]
+[CoversNode("registry-write-elevation")]
 public class RegistryWriterTests
 {
     private static readonly RegistryRoot Root = RegistryRoot.CurrentUser;

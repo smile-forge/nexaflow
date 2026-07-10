@@ -1,10 +1,12 @@
 using System.IO;
 using System.Text;
 using Nexaflow.IO.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Tabular;
 
 [TestClass]
+[CoversNode("iocommon-encoding")]
 public class EncodingDetectorTests
 {
     [TestMethod]

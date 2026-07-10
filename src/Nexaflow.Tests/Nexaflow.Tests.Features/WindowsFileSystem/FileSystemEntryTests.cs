@@ -1,9 +1,11 @@
 using System.ComponentModel;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
 [TestClass]
+[CoversNode("winfs-filelist")]
 public class FileSystemEntryTests
 {
     // ── TypeLabel ─────────────────────────────────────────────────────────────

@@ -1,8 +1,11 @@
 using Nexaflow.Features.Scratchpad;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.Scratchpad;
 
 [TestClass]
+[CoversNode("scratchpad-config")]
 public class ScratchpadConfigTests
 {
     [TestMethod]

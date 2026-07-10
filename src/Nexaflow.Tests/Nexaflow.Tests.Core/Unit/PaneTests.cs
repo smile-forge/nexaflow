@@ -1,9 +1,11 @@
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit;
 
 [TestClass]
+[CoversNode("chrome-content-area")]
 public class PaneTests
 {
     private static Page MakePage(string title = "Page") => new() { Title = title };

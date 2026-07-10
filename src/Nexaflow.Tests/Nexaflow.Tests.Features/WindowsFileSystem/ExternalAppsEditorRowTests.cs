@@ -1,9 +1,11 @@
 using Nexaflow.Features.WindowsFileSystem.Controls;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
 [TestClass]
+[CoversNode("winfs-external-apps-editor")]
 public class ExternalAppsEditorRowTests
 {
     // The Options editor rebuilds ExternalAppDefinitions from its rows on Save; the row must carry

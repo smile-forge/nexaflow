@@ -5,6 +5,7 @@ using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.Images.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -13,6 +14,7 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem;
 /// exercise the <c>ContainsFileGlobs</c> + <c>MinimumFileGlobMatchPercentage</c> (30%) content check.
 /// </summary>
 [TestClass]
+[CoversNode("winfs-action-strip")]
 public class FolderActionMatchingTests
 {
     // ── Setup ─────────────────────────────────────────────────────────────

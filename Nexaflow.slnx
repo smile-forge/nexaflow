@@ -131,6 +131,11 @@
       <Platform Project="x64" />
     </Project>
   </Folder>
+  <Folder Name="/Nexaflow.Analyzers/">
+    <Project Path="src/Nexaflow.Analyzers/Nexaflow.Analyzers.Coverage/Nexaflow.Analyzers.Coverage.csproj">
+      <Platform Project="x64" />
+    </Project>
+  </Folder>
   <Folder Name="/Nexaflow.Tests/">
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Core/Nexaflow.Tests.Core.csproj" Id="ccb84772-1b15-4e2b-b98a-1e9b524e7238">
       <Platform Project="x64" />

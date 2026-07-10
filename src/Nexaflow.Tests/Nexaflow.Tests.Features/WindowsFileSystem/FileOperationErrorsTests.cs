@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using Nexaflow.Features.WindowsFileSystem;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -9,6 +10,7 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem;
 /// faults into a specific, user-facing sentence instead of a generic "something went wrong".
 /// </summary>
 [TestClass]
+[CoversNode("winfs-act-paste")]
 public class FileOperationErrorsTests
 {
     private const string Source = @"C:\work\report.docx";

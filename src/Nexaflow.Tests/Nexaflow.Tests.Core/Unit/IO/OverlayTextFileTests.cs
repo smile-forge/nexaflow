@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.IO.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit.IO;
 
@@ -15,6 +16,7 @@ namespace Nexaflow.Tests.Core.Unit.IO;
 /// preservation, overlay-aware windowed reads, and edit-aware find/replace.
 /// </summary>
 [TestClass]
+[CoversNode("vtext-editor")]
 public class OverlayTextFileTests
 {
     private string _dir = string.Empty;

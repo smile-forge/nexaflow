@@ -1,6 +1,7 @@
 using System.IO;
 using LibGit2Sharp;
 using Nexaflow.Features.Git.Services;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Git;
 
@@ -9,6 +10,7 @@ namespace Nexaflow.Tests.Features.Git;
 /// Each test builds a real repository + linked worktree on disk under the temp folder.
 /// </summary>
 [TestClass]
+[CoversNode("viewlet-2")]
 public class GitWorktreeServiceTests
 {
     private static readonly Signature Sig = new("Tester", "test@example.com", DateTimeOffset.Now);

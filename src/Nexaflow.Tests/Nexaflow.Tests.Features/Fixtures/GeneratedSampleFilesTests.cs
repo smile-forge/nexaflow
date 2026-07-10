@@ -13,6 +13,7 @@ namespace Nexaflow.Tests.Features.Fixtures;
 /// <see cref="EncodingDetector"/>.
 /// </summary>
 [TestClass]
+[NoCoverage("sample-file corpus")]
 public class GeneratedSampleFilesTests
 {
     [TestMethod]

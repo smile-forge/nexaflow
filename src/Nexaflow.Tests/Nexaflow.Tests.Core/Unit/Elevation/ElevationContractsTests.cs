@@ -1,10 +1,12 @@
 using System.Collections.Generic;
 using System.Text.Json;
 using Nexaflow.Elevation.Contracts;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit.Elevation;
 
 [TestClass]
+[CoversNode("sysinfo-elevation")]
 public class ElevationContractsTests
 {
     [TestMethod]

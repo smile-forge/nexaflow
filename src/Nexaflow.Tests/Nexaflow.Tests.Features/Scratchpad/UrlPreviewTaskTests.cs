@@ -1,8 +1,11 @@
 using Nexaflow.Features.Scratchpad.Services;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.Scratchpad;
 
 [TestClass]
+[CoversNode("note-url-preview")]
 public class UrlPreviewTaskTests
 {
     [TestMethod]

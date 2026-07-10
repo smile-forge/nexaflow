@@ -9,6 +9,7 @@ using Nexaflow.IO.Common;
 using Nexaflow.Tests.Core.Infrastructure;
 using Nexaflow.Visuals.Text.Editor;
 using NSubstitute;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit.Editor;
 
@@ -18,6 +19,8 @@ namespace Nexaflow.Tests.Core.Unit.Editor;
 /// <see cref="AsyncPump"/> because loading/saving mutate a thread-affine AvalonEdit <c>TextDocument</c>.
 /// </summary>
 [TestClass]
+[CoversNode("vtext-editor")]
+[CoversNode("vtext-editor-host")]
 public class FileTextEditorViewModelTests
 {
     private const long Big = 50L * 1024 * 1024;
@@ -35,6 +38,7 @@ public class FileTextEditorViewModelTests
     private static bool HasUtf8Bom(byte[] b) => b.Length >= 3 && b[0] == 0xEF && b[1] == 0xBB && b[2] == 0xBF;
 
     [TestMethod]
+    [CoversNode("code-save")]
     public void Save_RoundTripsUtf8NoBom() => AsyncPump.Run(async () =>
     {
         var path = Temp();
@@ -60,6 +64,7 @@ public class FileTextEditorViewModelTests
     });
 
     [TestMethod]
+    [CoversNode("code-encoding")]
     public void Save_PreservesBom_WhenOriginalHadBom() => AsyncPump.Run(async () =>
     {
         var path = Temp();
@@ -79,6 +84,7 @@ public class FileTextEditorViewModelTests
     });
 
     [TestMethod]
+    [CoversNode("code-too-large")]
     public void OverSizeLimit_OpensReadOnly_AndCannotSave() => AsyncPump.Run(async () =>
     {
         var path = Temp();
@@ -111,6 +117,7 @@ public class FileTextEditorViewModelTests
     });
 
     [TestMethod]
+    [CoversNode("code-commands")]
     public void CommandGroups_HideSelectionOnlyGroups_UntilSelectionExists() => AsyncPump.Run(async () =>
     {
         using var vm = new FileTextEditorViewModel("notes.txt", Shell(), Big);
@@ -129,6 +136,7 @@ public class FileTextEditorViewModelTests
     });
 
     [TestMethod]
+    [CoversNode("code-eol")]
     public void Eol_NormalizedToCrlfOnSave() => AsyncPump.Run(async () =>
     {
         var path = Temp();

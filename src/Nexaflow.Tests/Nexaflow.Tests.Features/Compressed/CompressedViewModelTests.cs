@@ -6,6 +6,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Compressed.Handlers;
 using Nexaflow.Features.Compressed.ViewModels;
 using Nexaflow.IO.Common;
+using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 
 namespace Nexaflow.Tests.Features.Compressed;
@@ -13,9 +14,12 @@ namespace Nexaflow.Tests.Features.Compressed;
 /// <summary>The Compressed inspector view-model: archive metadata + the flattened directory tree it
 /// builds from the VFS, and folder expand/collapse of the visible rows.</summary>
 [TestClass]
+[CoversNode("compressed-inspector")]
+[CoversNode("compressed-entry-tree")]
 public class CompressedViewModelTests
 {
     [TestMethod]
+    [CoversNode("compressed-metadata-pane")]
     public void Load_PopulatesMetadataAndTree()
     {
         using var fix = new Fixture();

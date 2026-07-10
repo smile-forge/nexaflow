@@ -3,11 +3,13 @@ using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
 using Nexaflow.Core;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit;
 
 [TestClass]
 [DoNotParallelize]   // the Register cases mutate the process-wide ConfigManager.Instance.BaseDir
+[CoversNode("opt-config-migration")]
 public class ConfigMigrationTests
 {
     private sealed class MigrationFakeConfig

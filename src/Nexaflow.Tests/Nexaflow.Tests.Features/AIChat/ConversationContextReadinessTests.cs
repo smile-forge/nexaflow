@@ -5,6 +5,7 @@ using NSubstitute;
 using Nexaflow.Features.AIChat;
 using Nexaflow.Features.AIChat.ViewModels;
 using Nexaflow.Features.Common;
+using Nexaflow.Tests.Fixtures;
 using Page = Nexaflow.Features.Common.Page;   // disambiguate from System.Windows.Controls.Page
 
 namespace Nexaflow.Tests.Features.AIChat;
@@ -15,6 +16,7 @@ namespace Nexaflow.Tests.Features.AIChat;
 /// signal the shell's held send waits on.
 /// </summary>
 [TestClass]
+[CoversNode("aichat-context-pinning")]
 public class ConversationContextReadinessTests
 {
     // ── Fakes (hand-rolled INPC so the test project needs no MVVM source generator) ──

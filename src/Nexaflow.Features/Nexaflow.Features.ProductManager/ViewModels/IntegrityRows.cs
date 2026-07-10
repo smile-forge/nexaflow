@@ -40,6 +40,29 @@ public sealed record TargetChoice(
     IReadOnlyList<string>? TitlePath = null);
 
 /// <summary>
+/// A row in the Integrity list — either a broken snaplink (<see cref="IntegrityIssueItem"/>) or a coverage
+/// suggestion (<see cref="CoverageAdvisoryItem"/>). One list, one count, one filter; they differ only in the
+/// badge colour (<see cref="KindBrush"/>) and what the detail pane offers (repair vs add).
+/// </summary>
+public interface IIntegrityRow
+{
+    string NodeId { get; }
+    string NodeTitle { get; }
+    /// <summary>Badge one — "node" or the concern tag the row pertains to.</summary>
+    string Scope { get; }
+    /// <summary>Badge two — the short kind ("missing file", "not linked", …).</summary>
+    string Kind { get; }
+    /// <summary>The sub-line under the title.</summary>
+    string Detail { get; }
+    /// <summary>True for a coverage suggestion (non-gating), false for a broken snaplink (gating).</summary>
+    bool IsAdvisory { get; }
+    /// <summary>Colour of the Kind badge — danger for a broken link, accent for a suggestion.</summary>
+    Brush KindBrush { get; }
+    /// <summary>The text the free-text filter matches against.</summary>
+    string FilterText { get; }
+}
+
+/// <summary>
 /// One broken snaplink in the Integrity page: the diagnosis, plus the link's target as <em>editable</em>
 /// fields so it can be re-pointed in place.
 /// </summary>
@@ -49,8 +72,12 @@ public sealed record TargetChoice(
 /// (the tree changed underneath) have a null <see cref="Live"/> and are read-only until the rescan lands,
 /// because writing to a detached copy would silently lose the edit.
 /// </remarks>
-public partial class IntegrityIssueItem : ObservableObject
+public partial class IntegrityIssueItem : ObservableObject, IIntegrityRow
 {
+    public bool IsAdvisory => false;
+    public Brush KindBrush => StatusInfo.Res("DangerBrush");
+    public string FilterText => $"{NodeTitle} {Scope} {Kind} {Detail} {Doc}";
+
     public IntegrityIssue Issue { get; }
     public Snaplink? Live { get; }
 
@@ -127,6 +154,40 @@ public partial class IntegrityIssueItem : ObservableObject
         IntegrityKind.MissingMethod  => "missing method",
         IntegrityKind.EmptyTarget    => "empty target",
         IntegrityKind.InvalidUrl     => "invalid url",
+        IntegrityKind.MissingSnaplink => "no snaplink",
         _                            => kind.ToString()
     };
+}
+
+/// <summary>
+/// A non-gating coverage suggestion in the Integrity list: a test declares it covers a node (via
+/// <c>[CoversNode]</c>) but the tree has no matching <c>tests</c> snaplink yet, or the declared id is stale.
+/// A <see cref="CanAdd"/> advisory turns into a real snaplink with one click; the tree stays authoritative.
+/// </summary>
+public sealed class CoverageAdvisoryItem(CoverageAdvisory advisory) : IIntegrityRow
+{
+    public CoverageAdvisory Advisory { get; } = advisory;
+
+    public bool IsUnknownNode => Advisory.Kind == CoverageAdvisoryKind.UnknownNode;
+
+    public string NodeId    => Advisory.NodeId;
+    public string NodeTitle => IsUnknownNode ? $"unknown node: {Advisory.NodeId}" : Advisory.NodeTitle;
+    public string Scope     => "tests";
+    public string Kind      => IsUnknownNode ? "stale id" : "not linked";
+
+    /// <summary>The declaring test — <c>Class.Method</c>, or just the class for a class-level declaration.</summary>
+    public string TestDisplay => string.IsNullOrEmpty(Advisory.Method)
+        ? CoverageAdvisory.SimpleName(Advisory.Class)
+        : $"{CoverageAdvisory.SimpleName(Advisory.Class)}.{Advisory.Method}";
+
+    public string File => Advisory.File.Length > 0 ? Advisory.File : "(source file unresolved)";
+
+    /// <summary>Sub-line: the declaring test and its file.</summary>
+    public string Detail => $"{TestDisplay}  ·  {File}";
+
+    public bool CanAdd => Advisory.CanAdd;
+
+    public bool IsAdvisory => true;
+    public Brush KindBrush => StatusInfo.Res(CanAdd ? "AccentBrush" : "WarningBrush");
+    public string FilterText => $"{NodeTitle} {Scope} {Kind} {TestDisplay} {File}";
 }

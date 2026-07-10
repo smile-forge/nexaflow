@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -10,6 +11,7 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem;
 /// map used to look only at the last extension (<c>.gz</c>), so "As Archive" never appeared for it.</summary>
 [TestClass]
 [DoNotParallelize]   // mutates the process-wide FileMapManager.Instance
+[CoversNode("winfs-filemap-editor")]
 public class CompoundExtensionMatchTests
 {
     private const string Exp = "/test-compound-archive";

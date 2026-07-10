@@ -1,10 +1,12 @@
 using System.Linq;
 using Nexaflow.Features.Tabular.Detection;
 using Nexaflow.Features.Tabular.Streaming;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Tabular;
 
 [TestClass]
+[CoversNode("tabular-templates")]
 public class TransformSerializerTests
 {
     [TestMethod]

@@ -12,6 +12,7 @@ namespace Nexaflow.Tests.Features.Notebook;
 /// source), picks the kernel grammar, and builds a per-cell code outline.
 /// </summary>
 [TestClass]
+[CoversNode("notebook-cells")]
 public class NotebookTests
 {
     private const string SampleJson = """
@@ -61,6 +62,7 @@ public class NotebookTests
     }
 
     [TestMethod]
+    [CoversNode("notebook-outline")]
     public async Task ViewModel_LoadsCells_AndBuildsCodeOutline()
     {
         var path = Path.Combine(TestSampleData.Path("notebook"), "notebook.ipynb");

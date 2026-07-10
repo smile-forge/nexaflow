@@ -79,6 +79,35 @@ The **installer build runs the same check and fails on any broken link** (`nexaf
 it. Results persist to the gitignored `.product/integrity.json` (derived — safe to delete). A file whose extension
 has no tree-sitter grammar (`.xaml`) is treated as **unverifiable, not broken** — never make the validator guess.
 
+**Test coverage is declared on the test, not hand-linked in the tree.** Every concrete `[TestClass]` carries
+`[CoversNode("node-id")]` (from `Nexaflow.Tests.Fixtures`) naming the node(s) it backs — or `[NoCoverage("reason")]`
+for architecture/corpus/infra tests that map to no node. The tree stays authoritative; the attributes are a
+cross-check with a one-click reconcile:
+
+```powershell
+dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- scan-tests .                     # → .product/test-coverage.json
+dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- scan-tests . --suggest-attributes # tree-derived [CoversNode] starter set
+```
+
+Put a `[CoversNode]` at **class level** only when the whole class covers that node (usually a container with
+children); a specific behaviour (a leaf node) goes on the individual `[TestMethod]`(s) — the manifest then carries
+precise class+method links. Grow the tree finer when a leaf needs sub-nodes:
+
+```powershell
+dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- add-node <parent-id> "<title>"   # + default concerns, re-validates
+```
+
+`scan-tests` reflects the built test DLLs (metadata-only, via `MetadataLoadContext` + the portable PDB for the
+source path) into the derived **coverage manifest**. The Integrity page reconciles that manifest against the tree
+and shows each *declared-but-unlinked* test as a **non-gating advisory** with an **Add link** button (writes the
+`tests`-concern `code` snaplink for you). This is a separate channel from the gating `Issues` — advisories never
+fail the installer. Two enforcement layers keep it honest: the **Roslyn analyzer** `Nexaflow.Analyzers.Coverage`
+(NXCOV001 missing declaration / NXCOV002 stale id / NXCOV003 a class-level leaf that over-claims when the class
+covers other nodes too, author-time) and the **guard tests** `CoverageDeclarationGuardTests` (CI). Id validity is
+checked against the live `.product/tree.json` (gitignored → absent in CI, where it degrades to presence-only).
+Separately, a `ConcernDef` can set **`RequiresSnaplink`** (enabled for `tests`): a node whose `tests` concern is
+`done`/`faulted` with no snaplink is a *gating* `MissingSnaplink` integrity issue — so "tests done" can't ship unbacked.
+
 Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI), `Nexaflow.IO.*` (IO), and `Nexaflow.Syntax` — mirror that pattern for any future shared-but-not-a-contract code rather than dumping it in `Features.Common`.
 
 ## Hard Rules

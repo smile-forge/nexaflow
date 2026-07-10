@@ -1,5 +1,7 @@
 using Nexaflow.Tests.Features.UI.Infrastructure;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.Scratchpad.UI;
 
 /// <summary>
@@ -17,6 +19,7 @@ namespace Nexaflow.Tests.Features.Scratchpad.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
+[CoversNode("scratchpad")]
 public class ScratchpadJourneyTests : UiJourneyTestBase
 {
     protected override string? LaunchTabKind => "Scratchpad";

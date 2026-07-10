@@ -2,6 +2,7 @@ using System;
 using Nexaflow.Features.Common;            // IShellServices
 using Nexaflow.Features.Video.Models;       // SubtitleTrackOption
 using Nexaflow.Features.Video.ViewModels;
+using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 
 namespace Nexaflow.Tests.Features.Video;
@@ -15,6 +16,7 @@ namespace Nexaflow.Tests.Features.Video;
 /// by the UI journey instead.
 /// </summary>
 [TestClass]
+[CoversNode("video-subtitles")]
 public class VideoViewModelTests
 {
     private static VideoViewModel Make()

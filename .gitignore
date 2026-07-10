@@ -439,3 +439,10 @@ nexaflowSetup/*.exe
 
 # Nexaflow Product Manager — live metadata (snapshots are committed under the export dir)
 .product/
+
+# The Roslyn analyzer project's folder name ends in ".Coverage", which the *.coverage rule above matches
+# case-insensitively on Windows and would exclude the whole project from git. Keep the project tracked
+# (but still ignore its build output).
+!src/Nexaflow.Analyzers/Nexaflow.Analyzers.Coverage/
+src/Nexaflow.Analyzers/Nexaflow.Analyzers.Coverage/bin/
+src/Nexaflow.Analyzers/Nexaflow.Analyzers.Coverage/obj/

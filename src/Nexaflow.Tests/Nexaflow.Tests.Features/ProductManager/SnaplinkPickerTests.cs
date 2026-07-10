@@ -1,11 +1,14 @@
 using System.IO;
 using Nexaflow.Features.ProductManager.ViewModels;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.ProductManager;
 
 /// <summary>The inline snaplink picker's file tree + markdown-heading targets (the code path needs the
 /// tree-sitter runtime, so it's exercised manually, not here).</summary>
 [TestClass]
+[CoversNode("product-snaplink-picker")]
 public class SnaplinkPickerTests
 {
     private string _root = string.Empty;

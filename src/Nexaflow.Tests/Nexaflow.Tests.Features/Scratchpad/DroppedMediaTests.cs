@@ -3,9 +3,12 @@ using System.IO;
 using System.Windows;
 using Nexaflow.Features.Scratchpad.Services;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.Scratchpad;
 
 [TestClass]
+[CoversNode("universal-drop-target")]
 public class DroppedMediaTests
 {
     private static DataObject Text(string s)

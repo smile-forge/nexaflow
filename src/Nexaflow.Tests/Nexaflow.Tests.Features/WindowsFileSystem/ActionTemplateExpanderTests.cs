@@ -1,8 +1,10 @@
 using Nexaflow.Features.WindowsFileSystem.FileActions;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
 [TestClass]
+[CoversNode("winfs-act-customapp")]
 public class ActionTemplateExpanderTests
 {
     private static readonly string[] OnePath  = ["C:\\folder\\photo.jpg"];
@@ -93,6 +95,7 @@ public class ActionTemplateExpanderTests
 // The registry itself is a singleton with private ctor; we test the normalization
 // rule in isolation via a local helper that mirrors it exactly.
 [TestClass]
+[CoversNode("winfs-act-customapp")]
 public class ExternalAppExtensionNormTests
 {
     // Mirror of ExternalAppRegistry.MatchesAll — kept in sync manually.

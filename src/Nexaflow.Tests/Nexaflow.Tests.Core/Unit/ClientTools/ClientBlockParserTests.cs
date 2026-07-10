@@ -1,10 +1,12 @@
 using System.Linq;
 using Nexaflow.Core.Services.Agent;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit.ClientTools;
 
 [TestClass]
+[CoversNode("chat-interface")]
 public class ClientBlockParserTests
 {
     [TestMethod]

@@ -1,11 +1,13 @@
 using System;
 using Nexaflow.Features.WindowsFileSystem.Services;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
 /// <summary>Command-template → executable parsing used when importing Windows "Open with" handlers
 /// into External Apps. Pure string logic (no registry), so it runs anywhere.</summary>
 [TestClass]
+[CoversNode("winfs-external-apps-editor")]
 public class RegistryHandlerImportTests
 {
     [TestMethod]

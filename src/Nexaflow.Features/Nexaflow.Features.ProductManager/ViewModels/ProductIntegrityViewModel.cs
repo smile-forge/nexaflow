@@ -32,6 +32,7 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
     private readonly IShellServices _shell;
     private ProductState _state = new();
     private IntegrityReport _report = new();
+    private TestCoverageManifest? _coverage;
     private IFileWatch? _watch;
 
     public string ProductRoot { get; }
@@ -47,12 +48,17 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
     [ObservableProperty] private int _issueCount;
     [ObservableProperty] private bool _hasIssues;
 
-    [ObservableProperty] private IntegrityIssueItem? _selectedIssue;
+    [ObservableProperty] private IIntegrityRow? _selectedIssue;
 
     /// <summary>Free-text filter over node title, scope, kind and detail — 200+ rows is normal on a real tree.</summary>
     [ObservableProperty] private string _filter = string.Empty;
 
-    public ObservableCollection<IntegrityIssueItem> Issues { get; } = [];
+    /// <summary>
+    /// Every row on the page: broken snaplinks (<see cref="IntegrityIssueItem"/>, gating) interleaved with
+    /// non-gating coverage suggestions (<see cref="CoverageAdvisoryItem"/> — a test declares via
+    /// <c>[CoversNode]</c> that it covers a node the tree hasn't linked). One list, one count, one filter.
+    /// </summary>
+    public ObservableCollection<IIntegrityRow> Issues { get; } = [];
     public ICollectionView IssuesView { get; }
 
     // ── Re-pointing aids: what the named document actually offers, and where a moved file went ──
@@ -106,6 +112,7 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
     {
         _state = _store.Load();
         _report = _store.LoadIntegrity() ?? new IntegrityReport();
+        _coverage = _store.LoadTestCoverage();
         RebuildRows();
         HeaderLine = _report.Generated is { } g && DateTime.TryParse(g, out var when)
             ? $"Last validated {when:yyyy-MM-dd HH:mm}"
@@ -119,15 +126,24 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
         var wasAt = SelectedIssue is null ? 0 : Math.Max(0, Issues.IndexOf(SelectedIssue));
 
         Issues.Clear();
+
+        // Broken snaplinks first (they gate), then coverage suggestions (non-gating) — one list.
         var live = IntegrityBinder.Bind(_state, _report.Issues);
         for (var i = 0; i < _report.Issues.Count; i++)
             Issues.Add(new IntegrityIssueItem(_report.Issues[i], live[i]));
 
+        var brokenCount = Issues.Count;
+        var advisories = TestCoverageReconciler.Reconcile(_state, _coverage).Advisories;
+        foreach (var advisory in advisories)
+            Issues.Add(new CoverageAdvisoryItem(advisory));
+
         IssueCount = Issues.Count;
         HasIssues  = IssueCount > 0;
-        SummaryLine = _report.ScannedSnaplinks == 0
+        SummaryLine = _report.ScannedSnaplinks == 0 && advisories.Count == 0
             ? "No scan yet."
-            : $"{IssueCount} broken · scanned {_report.ScannedSnaplinks} snaplinks across {_report.ScannedNodes} nodes";
+            : $"{brokenCount} broken"
+              + (advisories.Count > 0 ? $" · {advisories.Count} coverage suggestion{(advisories.Count == 1 ? "" : "s")}" : "")
+              + $" · scanned {_report.ScannedSnaplinks} snaplinks across {_report.ScannedNodes} nodes";
         IssuesView.Refresh();
         SelectedIssue = Issues.Count == 0 ? null : Issues[Math.Min(wasAt, Issues.Count - 1)];
     }
@@ -135,10 +151,10 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
 
     // ── Re-pointing aids ─────────────────────────────────────────────────────
 
-    partial void OnSelectedIssueChanged(IntegrityIssueItem? oldValue, IntegrityIssueItem? newValue)
+    partial void OnSelectedIssueChanged(IIntegrityRow? oldValue, IIntegrityRow? newValue)
     {
-        if (oldValue is not null) oldValue.PropertyChanged -= OnRowChanged;
-        if (newValue is not null) newValue.PropertyChanged += OnRowChanged;
+        if (oldValue is IntegrityIssueItem oldIssue) oldIssue.PropertyChanged -= OnRowChanged;
+        if (newValue is IntegrityIssueItem newIssue) newIssue.PropertyChanged += OnRowChanged;
         RefreshTargets();
     }
 
@@ -152,7 +168,7 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
     /// <summary>Applying a picked target fills the row's fields; the user still presses "Apply fix" to save.</summary>
     partial void OnSelectedTargetChanged(TargetChoice? value)
     {
-        if (value is null || SelectedIssue is not { CanEdit: true } row) return;
+        if (value is null || SelectedIssue is not IntegrityIssueItem { CanEdit: true } row) return;
         if (value.TitlePath is not null)
             row.TitlePath = string.Join(IntegrityIssueItem.TitlePathSeparator, value.TitlePath);
         else
@@ -170,7 +186,7 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
         SelectedTarget = null;
         TargetsHeader = string.Empty;
 
-        if (SelectedIssue is not { } row || row.IsUrl || string.IsNullOrWhiteSpace(row.Doc)) { UpdateTargetFlags(); return; }
+        if (SelectedIssue is not IntegrityIssueItem { } row || row.IsUrl || string.IsNullOrWhiteSpace(row.Doc)) { UpdateTargetFlags(); return; }
 
         var full = Path.IsPathRooted(row.Doc) ? row.Doc : Path.Combine(ProductRoot, row.Doc);
         if (!File.Exists(full))
@@ -262,7 +278,7 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
     [RelayCommand]
     private void UseSuggestion(string? relativePath)
     {
-        if (string.IsNullOrWhiteSpace(relativePath) || SelectedIssue is not { CanEdit: true } row) return;
+        if (string.IsNullOrWhiteSpace(relativePath) || SelectedIssue is not IntegrityIssueItem { CanEdit: true } row) return;
         row.Doc = relativePath;   // raises PropertyChanged → RefreshTargets
     }
 
@@ -272,11 +288,9 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
 
     private bool Matches(object obj)
     {
-        if (obj is not IntegrityIssueItem row) return false;
+        if (obj is not IIntegrityRow row) return false;
         if (string.IsNullOrWhiteSpace(Filter)) return true;
-        var f = Filter.Trim();
-        return Contains(row.NodeTitle, f) || Contains(row.Scope, f)
-            || Contains(row.Kind, f) || Contains(row.Detail, f) || Contains(row.Doc, f);
+        return Contains(row.FilterText, Filter.Trim());
     }
 
     private static bool Contains(string? s, string f) =>
@@ -308,13 +322,47 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
         });
     }
 
+    // ── Coverage advisories ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Turns a "declared but unlinked" advisory into a real <c>tests</c>-concern snaplink on the node — the
+    /// user acting on the cross-check, so the tree stays the thing they authored. The link points at a real,
+    /// compiled test, so it also marks the concern <c>done</c>: an unassessed (<c>should</c>) tests concern is
+    /// now backed by proof (an inadequate test is a later <c>faulted</c> correction). A deliberate
+    /// <c>shouldnt</c>/<c>faulted</c>/already-<c>done</c> status is left untouched. Saving fires the tree
+    /// watch, which reloads and re-reconciles.
+    /// </summary>
+    [RelayCommand]
+    private void AddDeclaredLink(CoverageAdvisoryItem? item)
+    {
+        item ??= SelectedIssue as CoverageAdvisoryItem;
+        if (item is not { CanAdd: true } || !_state.Nodes.TryGetValue(item.Advisory.NodeId, out var node)) return;
+
+        var tests = node.Concerns?.FirstOrDefault(c => c.Tag == TestCoverageReconciler.TestsConcern);
+        if (tests is null)
+        {
+            tests = new ConcernLink { Tag = TestCoverageReconciler.TestsConcern, Status = Status.Should };
+            (node.Concerns ??= []).Add(tests);
+        }
+        (tests.Snaplinks ??= []).Add(item.Advisory.ToSnaplink());
+
+        var promoted = tests.Status == Status.Should;
+        if (promoted) tests.Status = Status.Done;   // proof exists → the concern is done, not "not assessed"
+
+        _store.SaveTree(_state.Nodes);
+        LoadStateAndSavedReport();   // re-reads the tree we just wrote and re-reconciles (advisory now gone)
+        _shell.ShowNotification(promoted
+            ? $"Linked {item.TestDisplay} to '{node.Title}' — tests marked done."
+            : $"Linked {item.TestDisplay} to '{node.Title}'.");
+    }
+
     // ── Repair ───────────────────────────────────────────────────────────────
 
     /// <summary>Writes the edited target back to the live link, saves, and re-checks just that link.</summary>
     [RelayCommand]
     private void Apply()
     {
-        if (SelectedIssue is not { CanEdit: true } row) return;
+        if (SelectedIssue is not IntegrityIssueItem { CanEdit: true } row) return;
 
         row.WriteBack();
         _store.SaveTree(_state.Nodes);
@@ -338,7 +386,7 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
     [RelayCommand]
     private void RemoveLink()
     {
-        if (SelectedIssue is not { CanEdit: true } row) return;
+        if (SelectedIssue is not IntegrityIssueItem { CanEdit: true } row) return;
         if (!_state.Nodes.TryGetValue(row.NodeId, out var node)) return;
 
         var list = IntegrityBinder.LinkList(node, row.Issue.Concern);
@@ -392,7 +440,7 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
     [RelayCommand]
     private void OpenTarget()
     {
-        if (SelectedIssue is not { } row || string.IsNullOrWhiteSpace(row.Doc)) return;
+        if (SelectedIssue is not IntegrityIssueItem { } row || string.IsNullOrWhiteSpace(row.Doc)) return;
         var full = Path.IsPathRooted(row.Doc) ? row.Doc : Path.Combine(ProductRoot, row.Doc);
         if (!File.Exists(full)) { _shell.ShowError($"{row.Doc} does not exist."); return; }
         _shell.OpenTab(row.IsMarkdown ? "Markdown" : "Code",

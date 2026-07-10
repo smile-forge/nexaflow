@@ -9,6 +9,7 @@ using Nexaflow.Features.Json.Models;
 using Nexaflow.Features.Json.Services;
 using Nexaflow.Features.Json.ViewModels;
 using NSubstitute;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Json;
 
@@ -20,6 +21,7 @@ namespace Nexaflow.Tests.Features.Json;
 /// (fast-path) document so no streaming / UI-dispatcher machinery is exercised.
 /// </summary>
 [TestClass]
+[CoversNode("view-json")]
 public class JsonViewModelTests
 {
     private static string WriteTempJson(string content)

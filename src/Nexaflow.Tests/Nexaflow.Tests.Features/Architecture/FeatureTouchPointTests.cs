@@ -18,6 +18,7 @@ namespace Nexaflow.Tests.Features.Architecture;
 /// these assertions make the build say what was missed.
 /// </summary>
 [TestClass]
+[NoCoverage("architecture guard")]
 public class FeatureTouchPointTests
 {
     private static readonly string Root = RepoRoot.Locate();

@@ -1,4 +1,5 @@
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit.Markdown;
 
@@ -8,6 +9,7 @@ namespace Nexaflow.Tests.Core.Unit.Markdown;
 /// reducer shapes. WPF-free.
 /// </summary>
 [TestClass]
+[CoversNode("markdown-block-model")]
 public class MarkdownBlocksTests
 {
     // ── Split ─────────────────────────────────────────────────────────────

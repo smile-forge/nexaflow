@@ -1,5 +1,6 @@
 using System.Linq;
 using Nexaflow.Syntax;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit.Editor;
 
@@ -9,6 +10,7 @@ namespace Nexaflow.Tests.Core.Unit.Editor;
 /// with offsets that still index the original document. A target language we don't ship (SQL) is a no-op.
 /// </summary>
 [TestClass]
+[CoversNode("parser-sql-graphql")]
 public class LanguageInjectionTests
 {
     private static (string cap, string text)[] Pairs(string grammar, string src)

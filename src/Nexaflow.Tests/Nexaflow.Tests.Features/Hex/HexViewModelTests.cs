@@ -2,10 +2,12 @@ using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Hex.ViewModels;
 using NSubstitute;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Hex;
 
 [TestClass]
+[CoversNode("view-hex")]
 public class HexViewModelTests
 {
     private static readonly IShellServices _shell = Substitute.For<IShellServices>();

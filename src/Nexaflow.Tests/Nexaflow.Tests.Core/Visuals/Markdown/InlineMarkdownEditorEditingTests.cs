@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Visuals.Markdown;
 
@@ -25,6 +26,7 @@ namespace Nexaflow.Tests.Core.Visuals.Markdown;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
+[CoversNode("markdown-inline-editor")]
 public class InlineMarkdownEditorEditingTests
 {
     private static readonly FieldInfo RtbField =

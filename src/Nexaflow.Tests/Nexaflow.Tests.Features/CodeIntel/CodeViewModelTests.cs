@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Nexaflow.Features.Code.ViewModels;
 using Nexaflow.Features.Common;
 using NSubstitute;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.CodeIntel;
 
@@ -13,6 +14,7 @@ namespace Nexaflow.Tests.Features.CodeIntel;
 /// touched — the buffer is seeded via <c>Document.Text</c> and the tree-sitter parse runs in-process.
 /// </summary>
 [TestClass]
+[CoversNode("code-map")]
 public class CodeViewModelTests
 {
     private const string CSharp = """
@@ -41,6 +43,7 @@ public class CodeViewModelTests
     // ── Panel toggle + derived visibility ─────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("code-map-toggle")]
     public void TogglePanel_FlipsOpenState()
     {
         var vm = Make(@"C:\proj\calc.cs");
@@ -127,6 +130,7 @@ public class CodeViewModelTests
     // ── Navigation coupling ───────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("code-map-nav")]
     public void NavigateToAst_RaisesScrollRequest_ForKnownMember()
     {
         var vm = Make(@"C:\proj\calc.cs");
@@ -140,6 +144,7 @@ public class CodeViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("code-map-nav")]
     public void NavigateToAst_UnknownMember_DoesNotScroll()
     {
         var vm = Make(@"C:\proj\calc.cs");
@@ -155,6 +160,7 @@ public class CodeViewModelTests
     // ── Cross-file open ───────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("code-map-nav")]
     public void OpenCode_OpensCodeTab_WithPathAndAst()
     {
         var shell = Substitute.For<IShellServices>();
@@ -168,6 +174,7 @@ public class CodeViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("code-map-nav")]
     public void OpenCode_OmitsAst_WhenNull()
     {
         var shell = Substitute.For<IShellServices>();

@@ -1,9 +1,11 @@
 using System.IO;
 using Nexaflow.Features.Audio;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Audio;
 
 [TestClass]
+[CoversNode("audio-open")]
 public class AudioFileTypesTests
 {
     [TestMethod]

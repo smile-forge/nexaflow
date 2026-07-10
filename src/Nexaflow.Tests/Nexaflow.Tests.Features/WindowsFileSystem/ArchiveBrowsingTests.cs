@@ -7,12 +7,14 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Compressed.Handlers;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.IO.Common;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
 /// <summary>The file explorer treating an archive like a folder: double-clicking navigates in, and the
 /// VFS supplies the listing for the archive and its inner folders.</summary>
 [TestClass]
+[CoversNode("winfs-open-entry")]
 public class ArchiveBrowsingTests
 {
     [TestMethod]

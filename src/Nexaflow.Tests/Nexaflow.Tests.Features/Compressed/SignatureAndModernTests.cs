@@ -5,6 +5,7 @@ using System.Linq;
 using Nexaflow.Features.Compressed.Modern;
 using Nexaflow.Features.Compressed.Services;
 using Nexaflow.IO.Common;
+using Nexaflow.Tests.Fixtures;
 using ZstdSharp;
 
 namespace Nexaflow.Tests.Features.Compressed;
@@ -14,6 +15,8 @@ namespace Nexaflow.Tests.Features.Compressed;
 public class SignatureAndModernTests
 {
     [TestMethod]
+    [CoversNode("compressed-sign")]
+    [CoversNode("compressed-verify")]
     public void Sign_ThenVerify_IsValid_AndDetectsTampering()
     {
         var dir = NewDir();
@@ -39,6 +42,7 @@ public class SignatureAndModernTests
     }
 
     [TestMethod]
+    [CoversNode("compressed-verify")]
     public void Verify_NoSidecar_ReturnsNotValidNullFingerprint()
     {
         var dir = NewDir();
@@ -54,6 +58,7 @@ public class SignatureAndModernTests
     }
 
     [TestMethod]
+    [CoversNode("compressed-backend-modern")]
     public void Zstd_SingleStream_ReadsThroughVfs()
     {
         var dir = NewDir();

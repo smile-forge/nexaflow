@@ -2,11 +2,13 @@ using System.Collections.Generic;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
 [TestClass]
 [DoNotParallelize]   // mutates the process-wide ExternalAppRegistry.Instance
+[CoversNode("winfs-act-customapp")]
 public class ExternalAppRegistryTests
 {
     private static FileSystemEntry File(string path) =>

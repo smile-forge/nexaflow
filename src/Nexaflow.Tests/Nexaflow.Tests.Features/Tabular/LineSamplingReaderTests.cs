@@ -3,10 +3,12 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using Nexaflow.Features.Tabular.Detection;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Tabular;
 
 [TestClass]
+[CoversNode("tabular-encoding-detect")]
 public class LineSamplingReaderTests
 {
     private static string WriteTemp(string contents, Encoding? enc = null, byte[]? bomBytes = null)

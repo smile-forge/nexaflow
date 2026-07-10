@@ -24,7 +24,14 @@ public enum IntegrityKind
     EmptyTarget,
 
     /// <summary>A <c>url</c> link whose target isn't a well-formed absolute URI.</summary>
-    InvalidUrl
+    InvalidUrl,
+
+    /// <summary>
+    /// A concern link is <c>done</c>/<c>faulted</c> but carries no snaplink, and its concern def is marked
+    /// <see cref="ConcernDef.RequiresSnaplink"/> — the claim has nothing backing it. Unlike the other kinds
+    /// this hangs off the concern itself, not an existing link, so <see cref="IntegrityIssue.Index"/> is -1.
+    /// </summary>
+    MissingSnaplink
 }
 
 /// <summary>

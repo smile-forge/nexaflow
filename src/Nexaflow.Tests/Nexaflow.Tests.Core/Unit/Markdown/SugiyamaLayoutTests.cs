@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit.Markdown;
 
@@ -14,6 +15,7 @@ namespace Nexaflow.Tests.Core.Unit.Markdown;
 /// antiparallel-edge separation pass.
 /// </summary>
 [TestClass]
+[CoversNode("mermaid")]
 public class SugiyamaLayoutTests
 {
     private static Rect Box(LayoutedGraph lg, string label) =>

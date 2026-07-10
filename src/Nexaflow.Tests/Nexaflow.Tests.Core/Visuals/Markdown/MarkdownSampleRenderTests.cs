@@ -12,6 +12,7 @@ namespace Nexaflow.Tests.Core.Visuals.Markdown;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
+[NoCoverage("markdown sample corpus")]
 public class MarkdownSampleRenderTests
 {
     [TestMethod]

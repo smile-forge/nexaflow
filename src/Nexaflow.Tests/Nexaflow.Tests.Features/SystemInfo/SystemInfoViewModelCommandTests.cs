@@ -2,6 +2,8 @@ using NSubstitute;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.SystemInfo.ViewModels;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.SystemInfo;
 
 /// <summary>
@@ -11,6 +13,7 @@ namespace Nexaflow.Tests.Features.SystemInfo;
 /// no-op so the dashboard never double-queues the (expensive) WMI probe.
 /// </summary>
 [TestClass]
+[CoversNode("sysinfo-refresh")]
 public class SystemInfoViewModelCommandTests
 {
     // Build a VM over a faked shell that records every QueueBackgroundTask call and captures the last

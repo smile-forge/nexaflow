@@ -2,6 +2,8 @@ using System.IO;
 using Nexaflow.Features.Projects;
 using Nexaflow.Features.Projects.ViewModels;
 
+using Nexaflow.Tests.Fixtures;
+
 namespace Nexaflow.Tests.Features.Projects;
 
 /// <summary>
@@ -11,6 +13,7 @@ namespace Nexaflow.Tests.Features.Projects;
 /// theme) are never hit.
 /// </summary>
 [TestClass]
+[CoversNode("projects")]
 public class ProjectsViewModelTests
 {
     private string _root = "";

@@ -2,11 +2,13 @@ using Markdig.Extensions.Mathematics;
 using Markdig.Extensions.Tables;
 using Markdig.Syntax;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Tests.Fixtures;
 using MdMarkdown = Markdig.Markdown;
 
 namespace Nexaflow.Tests.Core.Visuals.Markdown;
 
 [TestClass]
+[CoversNode("vtext-pipeline")]
 public class MarkdownPipelineFactoryTests
 {
     [TestMethod]
