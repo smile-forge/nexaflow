@@ -50,6 +50,12 @@ public interface IVirtualFileSystem
     /// in-archive entries via a materialised temp copy).</summary>
     Stream OpenRead(string path);
 
+    /// <summary>As <see cref="OpenRead(string)"/>, with the <see cref="FileStream"/> tuning a reader that
+    /// scans a huge file off the UI thread needs — a large buffer and overlapped IO. Read-only, so the
+    /// materialised temp of an in-archive entry can never be written to behind the archive's back; writers
+    /// go through <see cref="OpenReadWrite"/> or <see cref="Replace"/>.</summary>
+    Stream OpenRead(string path, int bufferSize, bool useAsync);
+
     /// <summary>Opens the file for read-write. Real paths map to a read-write <see cref="FileStream"/>;
     /// in-archive entries materialise to a temp copy whose changes are written back to the archive when
     /// the stream is closed.</summary>

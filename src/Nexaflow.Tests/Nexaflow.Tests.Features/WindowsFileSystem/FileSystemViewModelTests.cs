@@ -12,6 +12,17 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem;
 [TestClass]
 public class FileSystemViewModelTests
 {
+    // A fresh empty folder per test method (MSTest builds a new class instance for each). These tests used
+    // to browse the machine's %TEMP% directly — thousands of entries that every other test creates and
+    // deletes, so the streaming loader published different counts between two GetContext() calls.
+    private string _scratch = string.Empty;
+
+    [TestInitialize]
+    public void CreateScratch() => _scratch = TempDir();
+
+    [TestCleanup]
+    public void RemoveScratch() { try { Directory.Delete(_scratch, recursive: true); } catch { } }
+
     // ── Factory helpers ───────────────────────────────────────────────────────
 
     private static (IShellServices Shell, IAIService Ai, IReadOnlyDictionary<Type, IFeatureConfig> Configs) Deps()
@@ -81,7 +92,7 @@ public class FileSystemViewModelTests
     [TestMethod]
     public void PathConstructor_SetsCurrentPath()
     {
-        var path = Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar);
+        var path = _scratch;
         var vm   = AtPath(path);
 
         Assert.AreEqual(path, vm.CurrentPath.TrimEnd(Path.DirectorySeparatorChar),
@@ -91,7 +102,7 @@ public class FileSystemViewModelTests
     [TestMethod]
     public void PathConstructor_IsThisPcMode_False()
     {
-        var vm = AtPath(Path.GetTempPath());
+        var vm = AtPath(_scratch);
 
         Assert.IsFalse(vm.IsThisPcMode);
     }
@@ -109,7 +120,7 @@ public class FileSystemViewModelTests
     [TestMethod]
     public void GetContext_PathMode_ContainsCurrentPath()
     {
-        var path = Path.GetTempPath();
+        var path = _scratch;
         var vm   = AtPath(path);
 
         StringAssert.Contains(vm.GetContext(), vm.CurrentPath);
@@ -148,7 +159,7 @@ public class FileSystemViewModelTests
     [TestMethod]
     public void GetContext_WithViewletSurface_AppendsItsLine()
     {
-        var vm = AtPath(Path.GetTempPath());
+        var vm = AtPath(_scratch);
         vm.SetActiveViewletSurfaces([new StubViewletSurface("STUB-VIEWLET-LINE")]);
 
         StringAssert.Contains(vm.GetContext(), "STUB-VIEWLET-LINE");
@@ -157,7 +168,7 @@ public class FileSystemViewModelTests
     [TestMethod]
     public void GetContext_BlankSurfaceContext_AddsNothing()
     {
-        var vm   = AtPath(Path.GetTempPath());
+        var vm   = AtPath(_scratch);
         var bare = vm.GetContext();
 
         vm.SetActiveViewletSurfaces([new StubViewletSurface(null), new StubViewletSurface("   ")]);
@@ -177,7 +188,7 @@ public class FileSystemViewModelTests
     [TestMethod]
     public void GetClientTools_WithViewletSurface_IncludesSurfaceAndFileTools()
     {
-        var vm = AtPath(Path.GetTempPath());
+        var vm = AtPath(_scratch);
         vm.SetActiveViewletSurfaces([new StubViewletSurface(null, StubTool("stub_tool"))]);
 
         var names = vm.GetClientTools().Select(t => t.Name).ToList();
@@ -188,7 +199,7 @@ public class FileSystemViewModelTests
     [TestMethod]
     public void GetClientTools_NoSurfaces_ExcludesSurfaceTools()
     {
-        var vm = AtPath(Path.GetTempPath());
+        var vm = AtPath(_scratch);
 
         Assert.IsFalse(vm.GetClientTools().Any(t => t.Name == "stub_tool"));
     }
@@ -199,7 +210,7 @@ public class FileSystemViewModelTests
     public void NavigateTo_ValidPath_SetsCurrentPath()
     {
         var vm   = ThisPc();
-        var path = Path.GetTempPath();
+        var path = _scratch;
 
         vm.NavigateTo(path);
 
@@ -212,7 +223,7 @@ public class FileSystemViewModelTests
     {
         var vm = ThisPc();
 
-        vm.NavigateTo(Path.GetTempPath());
+        vm.NavigateTo(_scratch);
 
         Assert.IsFalse(vm.IsThisPcMode);
     }
@@ -385,7 +396,7 @@ public class FileSystemViewModelTests
         bool fired = false;
         vm.NavigationChanged += _ => fired = true;
 
-        vm.NavigateTo(Path.GetTempPath());
+        vm.NavigateTo(_scratch);
 
         Assert.IsTrue(fired, "NavigationChanged was not raised");
     }
@@ -395,7 +406,7 @@ public class FileSystemViewModelTests
     [TestMethod]
     public void ResetRootToCurrentPath_UpdatesRootPath()
     {
-        var path = Path.GetTempPath();
+        var path = _scratch;
         var vm   = AtPath(path);
 
         vm.ResetRootToCurrentPath();
@@ -501,5 +512,48 @@ public class FileSystemViewModelTests
             Assert.IsTrue(result.IsError);
         }
         finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    // ── Footer counts ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A selection change reuses the totals the loader published and never re-scans <c>Entries</c>. The
+    /// re-scan raced the fire-and-forget loader, which appends on its own continuation — under the parallel
+    /// test runner that surfaced as "Collection was modified" thrown from the constructor.
+    /// <para>
+    /// The probe appends to <c>Entries</c> without publishing new totals, which is exactly what the loader
+    /// is doing mid-stream. A re-scanning implementation reports the appended entry; the correct one
+    /// reports the last published counts.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    public async Task OnSelectionChanged_UsesPublishedTotals_WithoutRescanningEntries()
+    {
+        Directory.CreateDirectory(Path.Combine(_scratch, "alpha"));
+        Directory.CreateDirectory(Path.Combine(_scratch, "beta"));
+        foreach (var name in new[] { "a.txt", "b.txt", "c.txt" })
+            File.WriteAllText(Path.Combine(_scratch, name), "x");
+
+        var vm = AtPath(_scratch);
+        await WaitForLoadAsync(vm);
+
+        Assert.AreEqual("2 folders", vm.FolderCountText);
+        Assert.AreEqual("3 files",   vm.FileCountText);
+
+        var selected = vm.Entries.First(e => !e.IsDirectory);
+        vm.Entries.Add(new FileSystemEntry { Name = "ghost", FullPath = @"X:\ghost", IsDirectory = true });
+
+        vm.OnSelectionChanged([selected]);
+
+        Assert.AreEqual("2 folders", vm.FolderCountText, "selecting must not re-scan Entries");
+        Assert.AreEqual("3 files",   vm.FileCountText,   "selecting must not re-scan Entries");
+        StringAssert.Contains(vm.SelectionSummary, "1 selected");
+    }
+
+    /// <summary>The constructor kicks the folder load off fire-and-forget; wait for it to settle.</summary>
+    private static async Task WaitForLoadAsync(FileSystemViewModel vm)
+    {
+        for (var i = 0; i < 200 && (vm.IsLoadingEntries || vm.Entries.Count == 0); i++)
+            await Task.Delay(25);
     }
 }

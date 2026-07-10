@@ -40,7 +40,7 @@ public sealed class OverlayTextFile : IDisposable
 
     private readonly TextLineIndex _index;
     private readonly Encoding _enc;
-    private readonly FileStream _orig;
+    private readonly Stream _orig;            // read-only; via the VFS, so it may be an archive entry's temp copy
     private FileStream? _add;                 // the "change file" — created lazily on the first edit
     private readonly string _addPath;
     private readonly object _io = new();
@@ -52,7 +52,7 @@ public sealed class OverlayTextFile : IDisposable
     private bool _dirty;
     private bool _disposed;
 
-    private OverlayTextFile(TextLineIndex index, Encoding enc, FileStream orig, string addPath)
+    private OverlayTextFile(TextLineIndex index, Encoding enc, Stream orig, string addPath)
     {
         _index   = index;
         _enc     = enc;
@@ -72,11 +72,13 @@ public sealed class OverlayTextFile : IDisposable
     public int BomByteCount => _index.BomByteCount;
 
     /// <summary>Opens an overlay over <paramref name="originalPath"/>, creating (truncating) the
-    /// add-buffer at <paramref name="addBufferPath"/>.</summary>
+    /// add-buffer at <paramref name="addBufferPath"/>. The original is read through the
+    /// <see cref="VirtualFileSystem"/>, so <paramref name="originalPath"/> may descend into an archive.
+    /// <see cref="SaveAsync"/> only produces bytes — persisting them back to the path is the caller's job.</summary>
     public static async Task<OverlayTextFile> OpenAsync(string originalPath, Encoding enc, int linesPerPage,
                                                         string addBufferPath, CancellationToken ct = default)
     {
-        var orig = new FileStream(originalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 1 << 16, useAsync: true);
+        var orig = VirtualFileSystem.Instance.OpenRead(originalPath, 1 << 16, useAsync: true);
         TextLineIndex index;
         try { index = await TextLineIndex.BuildAsync(orig, enc, linesPerPage, ct); }
         catch { orig.Dispose(); throw; }
