@@ -183,6 +183,7 @@ reflect the tab's current state (set it after in-tab navigation so `FindTab` and
 | Markdown | `path` |
 | Code | `path`, `ast` (optional — member to jump to) |
 | Notebook / Model3D / Svg / Compressed | `path` |
+| Email | `path` (a `.eml` or `.msg` file) |
 | Images | `paths` (pipe-separated), `view` (`carousel` \| `album` \| `explore` \| `collage`), `scope` (`folder` = whole-folder view) |
 | Audio | `paths` (pipe-separated queue), `index`, `autoplay`, `scope` (`folder` = whole-folder queue) |
 | Font | `paths` (pipe-separated font files; omit for the standalone "System Fonts" compare mode) |
@@ -259,7 +260,6 @@ doc-comment is the authoritative, fuller description. Most are discovered by ref
 | `IFolderViewlet` | Inline view shown above the file list when the open folder matches (Git status, .NET build). |
 | `IViewletController` | Host handle passed to a viewlet's `CreateView` — read/set its display mode. |
 | `IViewletAiSurface` | Optional: a viewlet view feeding folder-specific context + tools into the host page's AI surface. |
-| `IDynamicFolder` | Declares that certain files are browsable like folders (archives) — the explorer descends into them. |
 
 ### Ribbon pinning (`Ribbon/`)
 | Interface | What it's for |

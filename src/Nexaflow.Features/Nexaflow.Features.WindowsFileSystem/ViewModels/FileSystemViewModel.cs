@@ -883,10 +883,6 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     /// Defaults to the process singleton; settable for tests.</summary>
     internal IVirtualFileSystem Vfs { get; set; } = VirtualFileSystem.Instance;
 
-    /// <summary>Discovered dynamic-folder declarations — they govern the default-action policy (expand
-    /// an archive vs keep a document's normal open). Expandability itself comes from <see cref="Vfs"/>.</summary>
-    private readonly List<IDynamicFolder> _dynamicFolders = [];
-
     internal FileSystemFeatureRegistry Registry { get; }
 
     private FileSystemViewModel(IShellServices shell, IAIService ai,
@@ -900,20 +896,12 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
         _externalAppsConfig = configs.TryGetValue(typeof(ExternalAppsConfig), out var ec)
                               && ec is ExternalAppsConfig eac ? eac : new ExternalAppsConfig();
         FileMapManager.Instance.RegisterKnownExperiences(_actionRegistry.AllExperiences);
-
-        foreach (var t in shell.DiscoverImplementations<IDynamicFolder>())
-            if (Activator.CreateInstance(t) is IDynamicFolder df) _dynamicFolders.Add(df);
     }
 
     /// <summary>True when the (file) path can be browsed as a folder — a real archive or a nested archive
     /// entry. Real directories are handled separately.</summary>
     private bool IsExpandable(string path)
         => Vfs.IsContainer(path) || (Vfs.IsContainerName(Path.GetFileName(path)) && Vfs.Exists(path));
-
-    /// <summary>Whether double-clicking <paramref name="path"/> should expand it as a folder by default
-    /// (archives) rather than run its normal open action (documents).</summary>
-    private bool ExpandsByDefault(string path)
-        => (_dynamicFolders.FirstOrDefault(f => f.CanProcess(path)))?.ExpandsByDefault(path) ?? true;
 
     /// <summary>True when the browse location is an archive — its root (the archive file itself) or a
     /// folder inside it. Such locations are virtual, so real-folder actions like "Zip It" don't apply.</summary>
@@ -1106,8 +1094,10 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
     private async Task OpenEntry(FileSystemEntry entry)
     {
         if (entry.IsDirectory) { NavigateTo(entry.FullPath); return; }
-        // An archive file expands like a folder by default (documents keep their normal open action).
-        if (IsExpandable(entry.FullPath) && ExpandsByDefault(entry.FullPath)) { NavigateTo(entry.FullPath); return; }
+        // A real archive expands in place (browse its contents in this tab); a document that merely happens
+        // to be a container (.docx, .eml) keeps its own viewer. The policy is the /archive filemap mapping.
+        if (IsExpandable(entry.FullPath) && DefaultFileOpener.ExpandsInPlace(entry.FullPath))
+        { NavigateTo(entry.FullPath); return; }
         await OpenFileDefaultAsync(entry);
     }
 

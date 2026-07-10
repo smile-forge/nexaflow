@@ -195,6 +195,14 @@
     ]
   },
   {
+    "ExperienceId": "/email",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.eml" },
+      { "Type": "Extension", "Value": "*.msg" }
+    ]
+  },
+  {
     "ExperienceId": "/font",
     "Source": "User",
     "Criteria": [

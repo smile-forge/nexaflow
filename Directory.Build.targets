@@ -1,0 +1,16 @@
+<Project>
+
+  <!-- The Email feature's MsgReader → Microsoft.Maui.Graphics → Microsoft.WindowsAppSDK chain adds a second,
+       native_uap copy of Microsoft.Web.WebView2.Core.dll to windows-targeted projects. In any project that
+       also pulls the Web feature's WPF WebView2 (Core, the Features test project, the installer) the two
+       copies collide in the MRT/PRI payload and fail the build with APPX1101. Nexaflow is an unpackaged WPF
+       app that never uses the native_uap variant, so drop it from copy-local before the payload is
+       enumerated. The condition matches nothing in projects without the duplicate, so this is a no-op there. -->
+  <Target Name="DropDuplicateNativeWebView2" AfterTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)"
+        Condition="'%(FileName)%(Extension)' == 'Microsoft.Web.WebView2.Core.dll' and $([System.String]::new('%(FullPath)').Contains('native_uap'))" />
+    </ItemGroup>
+  </Target>
+
+</Project>

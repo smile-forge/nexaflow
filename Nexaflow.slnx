@@ -33,6 +33,9 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Dotnet/Nexaflow.Features.Dotnet.csproj" Id="48d6ef11-d047-420e-a2af-1fb2b071af4e">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Email/Nexaflow.Features.Email.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Font/Nexaflow.Features.Font.csproj">
       <Platform Project="x64" />
     </Project>

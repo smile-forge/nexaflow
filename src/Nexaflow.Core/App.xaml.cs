@@ -139,7 +139,7 @@ public partial class App : Application
         // first window is up, so deferred features (and their archive handlers / theme / configs) are ready
         // within a second or two without ever blocking first paint. Archive backends go first so browsing
         // into an archive works as early as possible.
-        Task.Run(() => FeatureCatalog.Instance.WarmUpAll(["Nexaflow.Features.Compressed"]));
+        Task.Run(() => FeatureCatalog.Instance.WarmUpAll(["Nexaflow.Features.Compressed", "Nexaflow.Features.Email"]));
 
         // Voice model download — background, kicked off only after the window is up (or after init in
         // prestart mode) so it never competes with window construction / first render.

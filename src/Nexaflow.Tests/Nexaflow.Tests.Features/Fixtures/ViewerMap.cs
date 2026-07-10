@@ -22,5 +22,6 @@ internal static class ViewerMap
         ("video",    "VideoView"),
         ("font",     "FontView"),
         ("svg",      "SvgView"),
+        ("email",    "EmailView"),
     ];
 }
