@@ -263,6 +263,10 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
         return new FileStream(real, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
     }
 
+    public Stream OpenRead(string path, int bufferSize, bool useAsync)
+        => new FileStream(MaterializeFile(path), FileMode.Open, FileAccess.Read, FileShare.ReadWrite,
+                          bufferSize, useAsync);
+
     public Stream OpenReadWrite(string path)
     {
         if (File.Exists(path) || !IsVirtual(path))
