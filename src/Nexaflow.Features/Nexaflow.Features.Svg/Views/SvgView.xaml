@@ -1,0 +1,81 @@
+<UserControl x:Class="Nexaflow.Features.Svg.Views.SvgView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             AutomationProperties.AutomationId="SvgView"
+             Background="{StaticResource BgBrush}">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>   <!-- toolbar -->
+            <RowDefinition Height="*"/>      <!-- canvas -->
+            <RowDefinition Height="Auto"/>   <!-- footer -->
+        </Grid.RowDefinitions>
+
+        <!-- Toolbar -->
+        <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="8,6">
+            <StackPanel Orientation="Horizontal">
+                <Button Style="{StaticResource TbBtn}" Content="Reset view" Click="OnResetClick"
+                        AutomationProperties.AutomationId="Svg_ResetView"
+                        ToolTip="Fit the image to the window"/>
+                <ToggleButton Style="{StaticResource TbToggle}" Content="Checkerboard"
+                              AutomationProperties.AutomationId="Svg_Checkerboard"
+                              IsChecked="{Binding ShowCheckerboard}"
+                              ToolTip="Show a checkerboard behind transparent artwork"/>
+                <TextBlock Text="Scroll to zoom · drag to pan" VerticalAlignment="Center" Margin="10,0,0,0"
+                           FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Canvas: checkerboard/solid backdrop + the transformed vector image -->
+        <Border Grid.Row="1" x:Name="Host" ClipToBounds="True"
+                Background="{DynamicResource Svg.CanvasBg}"
+                MouseWheel="OnWheel"
+                MouseLeftButtonDown="OnMouseDown" MouseMove="OnMouseMove" MouseLeftButtonUp="OnMouseUp"
+                SizeChanged="OnHostSizeChanged">
+            <Grid>
+                <Rectangle Fill="{DynamicResource Svg.CheckerBrush}"
+                           Visibility="{Binding ShowCheckerboard, Converter={StaticResource BoolToVis}}"/>
+
+                <Image x:Name="Canvas" Source="{Binding Artifact}" Stretch="None"
+                       HorizontalAlignment="Left" VerticalAlignment="Top"
+                       RenderOptions.BitmapScalingMode="HighQuality">
+                    <Image.RenderTransform>
+                        <TransformGroup>
+                            <ScaleTransform x:Name="Scale"/>
+                            <TranslateTransform x:Name="Translate"/>
+                        </TransformGroup>
+                    </Image.RenderTransform>
+                </Image>
+
+                <!-- Error overlay -->
+                <Border Background="{StaticResource SurfaceBrush}" CornerRadius="6" Padding="16,12"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource TextBrush}"
+                               TextWrapping="Wrap" MaxWidth="360"/>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- Footer -->
+        <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="14,5">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="SVG" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,16,0"/>
+                <TextBlock Text="{Binding DimensionsText}" Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="11" Margin="0,0,16,0"/>
+                <TextBlock Text="{Binding ViewBoxText, StringFormat='viewBox {0}'}"
+                           Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,16,0"
+                           Visibility="{Binding HasViewBox, Converter={StaticResource BoolToVis}}"/>
+                <TextBlock Text="{Binding ElementCount, StringFormat='{}{0:N0} elements'}"
+                           Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,16,0"/>
+                <TextBlock Text="{Binding FileSizeText}" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

@@ -180,6 +180,14 @@
     ]
   },
   {
+    "ExperienceId": "/svg",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.svg" },
+      { "Type": "Extension", "Value": "*.svgz" }
+    ]
+  },
+  {
     "ExperienceId": "/text/json",
     "Source": "User",
     "Criteria": [

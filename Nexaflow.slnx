@@ -57,6 +57,9 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Model3D/Nexaflow.Features.Model3D.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Svg/Nexaflow.Features.Svg.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Notebook/Nexaflow.Features.Notebook.csproj">
       <Platform Project="x64" />
     </Project>
