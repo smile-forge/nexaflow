@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Nexaflow.Features.ProductManager.Model;
+namespace Nexaflow.Services.Initiatives.Product.Model;
 
 /// <summary>
 /// A typed, <em>loose</em> connection from a node to another entity — it records an intended alignment

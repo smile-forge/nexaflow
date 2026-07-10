@@ -10,12 +10,67 @@
 
   <ItemGroup>
     <ProjectReference Include="..\src\Nexaflow.Core\Nexaflow.Core.csproj" />
+    <!--
+      Build-order edge only (ReferenceOutputAssembly=false → not part of the MSI payload): guarantees the
+      snaplink validator exists before ValidateSnaplinks runs, and — crucially — that it is built inside THIS
+      MSBuild graph. A `dotnet run` here would spawn a second, concurrent build of Syntax/IO.Common and race
+      the Core build on the same obj/bin (the CS2012 hazard documented in HarvestCoreOutput below).
+    -->
+    <ProjectReference Include="..\src\Nexaflow.Services.Initiatives.Cli\Nexaflow.Services.Initiatives.Cli.csproj"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="WixToolset.UI.wixext" Version="*" />
     <PackageReference Include="WixToolset.Util.wixext" Version="*" />
   </ItemGroup>
+
+  <!--
+    Regenerate the installer branding art so the painted version tracks Nexaflow.Core's <Version>
+    (the same source AppVersion reads). Incremental: runs only when Core.csproj or the script changes
+    — i.e. on a version bump — so a normal installer rebuild produces no image churn, and a plain
+    Core build never triggers it at all. Windows-only (GDI+ via powershell.exe); WiX is Windows-only
+    too, so this never blocks a cross-platform build. Regenerates the bundle's banner as well, and the
+    bundle's ProjectReference to this project guarantees it runs before the bootstrapper links.
+  -->
+  <Target Name="RegenerateBranding"
+          BeforeTargets="CoreCompile"
+          Inputs="$(MSBuildThisFileDirectory)generate-branding.ps1;$(MSBuildThisFileDirectory)..\src\Nexaflow.Core\Nexaflow.Core.csproj"
+          Outputs="$(MSBuildThisFileDirectory)banner.bmp;$(MSBuildThisFileDirectory)dialog.bmp;$(MSBuildThisFileDirectory)License.rtf;$(MSBuildThisFileDirectory)..\nexaflowBundle\bundlebanner.png">
+    <Message Importance="high" Text="Regenerating installer branding from Nexaflow.Core &lt;Version&gt;…" />
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)generate-branding.ps1&quot;"
+          WorkingDirectory="$(MSBuildThisFileDirectory)" />
+  </Target>
+
+  <!--
+    Release gate: every snaplink in the product tree must still point at a real target (file exists, markdown
+    heading resolves, class/method still declared, URL well-formed). Runs the *same* SnaplinkValidator the
+    Product tab's "Validate snaplinks" uses — one implementation, so the build and the UI can never disagree.
+
+    Only the installer build runs this, so a normal `dotnet build Nexaflow.slnx` is unaffected. `.product/` is
+    gitignored working state, so a clean CI checkout has no tree: the CLI exits 0 with "nothing to validate"
+    rather than failing. Exit 1 = broken snaplinks → the release build stops here.
+  -->
+  <Target Name="ValidateSnaplinks" AfterTargets="ResolveProjectReferences" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <_RepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))</_RepoRoot>
+      <_CliProj>$(MSBuildThisFileDirectory)..\src\Nexaflow.Services.Initiatives.Cli\Nexaflow.Services.Initiatives.Cli.csproj</_CliProj>
+    </PropertyGroup>
+
+    <MSBuild Projects="$(_CliProj)" Targets="GetTargetPath" Properties="Configuration=$(Configuration);Platform=$(Platform)">
+      <Output TaskParameter="TargetOutputs" ItemName="_SnaplinkCli" />
+    </MSBuild>
+
+    <Message Importance="high" Text="Validating product snaplinks in $(_RepoRoot)…" />
+    <Exec Command="dotnet &quot;@(_SnaplinkCli)&quot; validate &quot;$(_RepoRoot)&quot;" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="_SnaplinkExit" />
+    </Exec>
+
+    <Error Condition="'$(_SnaplinkExit)' == '1'"
+           Text="Product snaplink integrity check failed: one or more snaplinks point at a target that no longer exists (see the list above). Fix them in the Product tab (⋮ → Validate snaplinks → Integrity), or run: dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- validate ." />
+    <Error Condition="'$(_SnaplinkExit)' != '0' and '$(_SnaplinkExit)' != '1'"
+           Text="Product snaplink validator failed to run (exit $(_SnaplinkExit))." />
+  </Target>
 
   <!--
     Generate AppComponents.wxs at build time from all files in the Core output directory.

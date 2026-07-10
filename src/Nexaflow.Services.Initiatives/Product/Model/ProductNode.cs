@@ -1,4 +1,4 @@
-namespace Nexaflow.Features.ProductManager.Model;
+namespace Nexaflow.Services.Initiatives.Product.Model;
 
 /// <summary>
 /// A component in the product's tree of truth. The node itself carries a <see cref="Status"/> — there

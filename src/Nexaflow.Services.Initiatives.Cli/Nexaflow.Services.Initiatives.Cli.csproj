@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Headless entry point for the initiatives backend. Exists so the *same* validation the Product tab runs
+    can also run from the installer build and from PowerShell — one implementation, no drift.
+    Deliberately depends only on Nexaflow.Services.Initiatives (no WPF, no Core, no features).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>nexaflow-initiatives</AssemblyName>
+    <RootNamespace>Nexaflow.Services.Initiatives.Cli</RootNamespace>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Services.Initiatives\Nexaflow.Services.Initiatives.csproj" />
+  </ItemGroup>
+
+</Project>

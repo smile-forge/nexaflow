@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Backend (WPF-free) services for the "initiatives" domain: the Product tracker today, the Projects
+    backlog later. Kept out of the feature assemblies so the same logic can run headless — from the
+    Initiatives CLI (installer build check, PowerShell tooling) as well as from the WPF features.
+    Never reference WPF, Nexaflow.Core, or any Nexaflow.Features.* from here.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LibGit2Sharp" Version="0.31.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- CodeStructureExtractor: resolves classes/methods so a code snaplink can be validated. -->
+    <ProjectReference Include="..\Nexaflow.Syntax\Nexaflow.Syntax.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -2,9 +2,9 @@ using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Nexaflow.Features.ProductManager.Model;
+using Nexaflow.Services.Initiatives.Product.Model;
 
-namespace Nexaflow.Features.ProductManager.Services;
+namespace Nexaflow.Services.Initiatives.Product.Services;
 
 /// <summary>
 /// Reader/writer for a product. The live working state lives in a <b>gitignored</b> <c>.product/</c>
@@ -12,18 +12,27 @@ namespace Nexaflow.Features.ProductManager.Services;
 /// git-integrated records are produced by <b>snapshots</b>: frozen <c>&lt;version&gt;.json</c> files plus a
 /// <c>PRODUCT.md</c> dashboard written to the committed export dir (default <c>docs/product/</c>).
 /// </summary>
-public sealed class ProductStore
+/// <summary>
+/// The one serializer configuration for every product file (tree, product, snapshots, integrity report).
+/// snake_case so the committed snapshots stay hand-editable / greppable / diff-friendly; enums serialize
+/// as snake_case names rather than integers, so a report reads as <c>missing_file</c>, not <c>1</c>.
+/// </summary>
+public static class ProductJson
 {
-    public const string CurrentVersion = "Current";
-
-    // snake_case so the (committed) snapshot files are hand-editable / greppable / diff-friendly.
-    private static readonly JsonSerializerOptions Json = new()
+    public static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented          = true,
         PropertyNamingPolicy   = JsonNamingPolicy.SnakeCaseLower,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         Converters             = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) }
     };
+}
+
+public sealed class ProductStore
+{
+    public const string CurrentVersion = "Current";
+
+    private static readonly JsonSerializerOptions Json = ProductJson.Options;
 
     private readonly string _root;   // the folder that contains .product/
     private readonly string _dir;    // <root>/.product
@@ -73,6 +82,16 @@ public sealed class ProductStore
 
     public void SaveTree(IReadOnlyDictionary<string, ProductNode> nodes) =>
         Write(TreeFilePath, new TreeDoc { Nodes = nodes as Dictionary<string, ProductNode> ?? new(nodes) });
+
+    // ── Integrity report (derived — safe to delete; regenerate by re-validating) ──
+
+    /// <summary>On-disk path of the last snaplink-validation result.</summary>
+    public string IntegrityFilePath => Path.Combine(_dir, "integrity.json");
+
+    /// <summary>The last saved report, or null when validation has never run for this product.</summary>
+    public IntegrityReport? LoadIntegrity() => Read<IntegrityReport>(IntegrityFilePath);
+
+    public void SaveIntegrity(IntegrityReport report) => Write(IntegrityFilePath, report);
 
     // ── Snapshots (committed, in the export dir) ──────────────────────────────
 

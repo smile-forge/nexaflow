@@ -1,7 +1,7 @@
 using System.Text;
-using Nexaflow.Features.ProductManager.Model;
+using Nexaflow.Services.Initiatives.Product.Model;
 
-namespace Nexaflow.Features.ProductManager.Services;
+namespace Nexaflow.Services.Initiatives.Product.Services;
 
 /// <summary>
 /// Renders a product snapshot to the human-readable <c>PRODUCT.md</c> dashboard — the committed artifact a

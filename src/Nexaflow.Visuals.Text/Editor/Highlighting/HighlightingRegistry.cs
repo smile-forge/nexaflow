@@ -1,7 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.IO;
 using ICSharpCode.AvalonEdit.Highlighting;
+using Nexaflow.Syntax;
 
 namespace Nexaflow.Visuals.Text.Editor.Highlighting;
 
@@ -26,48 +25,18 @@ public sealed record HighlightResolution(
 /// </summary>
 public static class HighlightingRegistry
 {
-    // Extensions whose colouring (and parse tree) come from tree-sitter rather than .xshd.
-    private static readonly Dictionary<string, string> TreeSitterByExtension =
-        new(StringComparer.OrdinalIgnoreCase);
-
-    static HighlightingRegistry()
-    {
-        // Real code languages → tree-sitter (yields a parse tree for AI/graphify too).
-        RegisterTreeSitter("c-sharp",    ".cs", ".csx");
-        RegisterTreeSitter("javascript", ".js", ".mjs", ".cjs", ".jsx");
-        RegisterTreeSitter("typescript", ".ts", ".cts", ".mts");
-        RegisterTreeSitter("python",     ".py", ".pyw");
-        RegisterTreeSitter("ruby",       ".rb", ".rbw", ".rake", ".gemspec", ".ru");
-        RegisterTreeSitter("json",       ".json");
-        RegisterTreeSitter("rust",       ".rs");
-        RegisterTreeSitter("cpp",        ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".ipp");
-        RegisterTreeSitter("java",       ".java");
-
-        // Markup / templating languages — also the hosts for embedded-language injection (a <script> in
-        // HTML, the Ruby in an ERB/Razor block, the HTML around <?php …?>). See LanguageInjections.
-        RegisterTreeSitter("html",              ".html", ".htm");
-        RegisterTreeSitter("css",               ".css");
-        RegisterTreeSitter("embedded-template", ".erb");
-        RegisterTreeSitter("razor",             ".razor", ".cshtml");
-        RegisterTreeSitter("php",               ".php", ".phtml");
-        RegisterTreeSitter("jinja",             ".j2", ".jinja", ".jinja2");   // html + python {{ }}/{% %}
-        // .ipynb is owned by the Notebook feature (its own viewer), not the code editor.
-        // xml/xaml/xsl stay on AvalonEdit's built-in .xshd (no bundled tree-sitter xml grammar).
-    }
-
     /// <summary>Registers a tree-sitter grammar for a set of extensions (called during tree-sitter setup).</summary>
+    /// <remarks>The extension→grammar map itself lives in <see cref="TreeSitterLanguages"/> (Nexaflow.Syntax)
+    /// so headless callers can resolve a grammar without WPF; this stays as the editor-side entry point.</remarks>
     public static void RegisterTreeSitter(string grammarId, params string[] extensions)
-    {
-        foreach (var ext in extensions)
-            TreeSitterByExtension[ext] = grammarId;
-    }
+        => TreeSitterLanguages.Register(grammarId, extensions);
 
     public static HighlightResolution Resolve(string fileName)
     {
         var ext = Path.GetExtension(fileName);
         if (string.IsNullOrEmpty(ext)) return HighlightResolution.Plain;
 
-        if (TreeSitterByExtension.TryGetValue(ext, out var grammar))
+        if (TreeSitterLanguages.ForFile(fileName) is { } grammar)
             return new HighlightResolution(HighlightMode.TreeSitter, TreeSitterLanguage: grammar);
 
         var def = HighlightingManager.Instance.GetDefinitionByExtension(ext);

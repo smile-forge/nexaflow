@@ -1,4 +1,4 @@
-namespace Nexaflow.Features.ProductManager.Model;
+namespace Nexaflow.Services.Initiatives.Product.Model;
 
 /// <summary>
 /// The single status vocabulary used everywhere — a node's own state, a node↔concern link, and a

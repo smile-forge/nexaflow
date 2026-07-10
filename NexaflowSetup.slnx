@@ -1,0 +1,18 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <!--
+    Packaging-only solution: builds the WiX MSI + Burn bundle. The bundle references the setup, which
+    references Nexaflow.Core, which pulls in every feature/provider/shared project transitively — so
+    building this solution builds the whole app and wraps it. Kept separate from Nexaflow.slnx so a normal
+    app/dev build never compiles the installer (and doesn't need the WiX SDK). Build with:
+      dotnet build NexaflowSetup.slnx -c Release -p:Platform=x64
+  -->
+  <Project Path="nexaflowBundle/nexaflowBundle.wixproj" Type="b7dd6f7e-def8-4e67-b5b7-07ef123db6f0" Id="4e1c900e-18d5-462c-8c16-ac2cb1a79c4c">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="nexaflowSetup/nexaflowSetup.wixproj" Type="b7dd6f7e-def8-4e67-b5b7-07ef123db6f0" Id="52400615-c2b1-4ecf-a059-2f752e45b47c">
+    <Platform Project="x64" />
+  </Project>
+</Solution>

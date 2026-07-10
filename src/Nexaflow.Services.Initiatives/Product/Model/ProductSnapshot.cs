@@ -1,4 +1,4 @@
-namespace Nexaflow.Features.ProductManager.Model;
+namespace Nexaflow.Services.Initiatives.Product.Model;
 
 /// <summary>
 /// A frozen, committed export of the product at a point in time — written to the export dir as

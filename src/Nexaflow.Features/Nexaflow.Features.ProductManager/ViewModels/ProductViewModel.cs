@@ -8,8 +8,8 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.ProductManager.ClientTools;
-using Nexaflow.Features.ProductManager.Model;
-using Nexaflow.Features.ProductManager.Services;
+using Nexaflow.Services.Initiatives.Product.Model;
+using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Visuals.Common.Controls;
 using Nexaflow.Visuals.Common.Dialogs;
 
@@ -28,6 +28,7 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     private readonly ProductGit     _git;
     private readonly IShellServices _shell;
     private IFileWatch? _watch;
+    private IFileWatch? _integrityWatch;
     private ProductState _state = new();
     private ProductSnapshot? _snapshot;     // non-null when a read-only snapshot is selected
     private string _exportDir = "docs/product";
@@ -55,6 +56,10 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
 
     // ── Details: editable node (only when a real node is focused, on Current) ──
     [ObservableProperty] private bool _isNodeSelected;
+
+    /// <summary>True at the product root — the slot a real node fills with PROPERTIES shows count widgets instead.</summary>
+    [ObservableProperty] private bool _isRootSelected = true;
+
     [ObservableProperty] private string _detailTitle = string.Empty;
     [ObservableProperty] private string _detailDescription = string.Empty;
     [ObservableProperty] private Status _detailStatus = Status.Should;
@@ -88,6 +93,14 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     [ObservableProperty] private bool _restructureVisible;
     public ObservableCollection<RestructureNode> RestructureRoots { get; } = [];
 
+    // Integrity — the broken-snaplink count. The list (and the scan) live on the Integrity page.
+    [ObservableProperty] private int _integrityIssueCount;
+    [ObservableProperty] private string _integrityCheckedLine = "Never validated.";
+
+    /// <summary>Count tiles for the product root. Open-ended — append another widget here as metrics arrive.</summary>
+    public ObservableCollection<CountWidget> RootWidgets { get; } = [];
+    private CountWidget? _integrityWidget;
+
     // ── Versions (Current = live/editable; others = committed read-only snapshots) ──
     public ObservableCollection<string> Versions { get; } = [];
     [ObservableProperty] private string _selectedVersion = ProductStore.CurrentVersion;
@@ -120,6 +133,8 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
         Load();
         // watch only the live tree; snapshots are static, so ignore changes while one is selected
         _watch = shell.WatchFile(store.TreeFilePath, () => { if (SelectedVersion == ProductStore.CurrentVersion) Load(); });
+        // the Integrity page rewrites integrity.json after a scan or a repair — keep the root tile honest
+        _integrityWatch = shell.WatchFile(store.IntegrityFilePath, LoadIntegritySummary);
     }
 
     [RelayCommand] private void Refresh() => Load();
@@ -151,7 +166,41 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
         SyncVersions();
         if (FocusedNodeId is not null && !_state.Nodes.ContainsKey(FocusedNodeId)) FocusedNodeId = null;
         RebuildAll();
+        LoadIntegritySummary();
     }
+
+    // ── Integrity: the count tile + the page that owns the scan ──────────────
+
+    /// <summary>
+    /// Reads the last saved report — a cheap file read, so the root's tile is populated without ever running
+    /// a scan on the dispatcher. The scan itself lives on the Integrity page, off the UI thread.
+    /// </summary>
+    private void LoadIntegritySummary()
+    {
+        var report = _store.LoadIntegrity();
+        IntegrityIssueCount = report?.IssueCount ?? 0;
+        IntegrityCheckedLine = report?.Generated is { } g && DateTime.TryParse(g, out var when)
+            ? $"Last validated {when:yyyy-MM-dd HH:mm} · {report.ScannedSnaplinks} snaplinks"
+            : "Never validated.";
+        RebuildWidgets();
+    }
+
+    private void RebuildWidgets()
+    {
+        if (_integrityWidget is null)
+        {
+            _integrityWidget = new CountWidget("🔗", "Integrity issues", IntegrityIssueCount, OpenIntegrity);
+            RootWidgets.Add(_integrityWidget);
+        }
+        else _integrityWidget.Count = IntegrityIssueCount;
+    }
+
+    /// <summary>⋮ → Validate snaplinks, and the root's integrity tile: both open the Integrity page, which
+    /// rescans on the shell's background queue so this tab never blocks.</summary>
+    [RelayCommand]
+    private void OpenIntegrity() =>
+        _shell.OpenTab(ProductIntegrityTabRegistration.StaticPageKind,
+            new Dictionary<string, string> { ["path"] = ProductRoot });
 
     // ["Current", …snapshots] — rebuilt only when the set changes, preserving a valid selection.
     private void SyncVersions()
@@ -405,6 +454,7 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
         {
             var node = FocusedNodeId is not null && _state.Nodes.TryGetValue(FocusedNodeId, out var n) ? n : null;
             IsNodeSelected = node is not null;
+            IsRootSelected = node is null;   // the root shows count widgets where a node shows PROPERTIES
 
             HeaderTitle = node?.Title ?? ProductName;
             BuildBreadcrumb();
@@ -826,7 +876,11 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
         "cross-cutting concerns, and snaplinks. Faulted items are leaks that must not vanish. Explore with " +
         "product_zoom (a ring at a time); record progress by marking nodes/concerns done or faulted.";
 
-    public void Dispose() => _watch?.Dispose();
+    public void Dispose()
+    {
+        _watch?.Dispose();
+        _integrityWatch?.Dispose();
+    }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 

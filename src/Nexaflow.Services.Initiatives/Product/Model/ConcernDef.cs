@@ -1,4 +1,4 @@
-namespace Nexaflow.Features.ProductManager.Model;
+namespace Nexaflow.Services.Initiatives.Product.Model;
 
 /// <summary>
 /// A defined cross-cutting concern in the product vocabulary. <see cref="IsDefault"/> concerns are

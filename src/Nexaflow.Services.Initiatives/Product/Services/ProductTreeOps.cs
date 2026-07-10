@@ -1,6 +1,6 @@
-using Nexaflow.Features.ProductManager.Model;
+using Nexaflow.Services.Initiatives.Product.Model;
 
-namespace Nexaflow.Features.ProductManager.Services;
+namespace Nexaflow.Services.Initiatives.Product.Services;
 
 /// <summary>
 /// Pure structural edits on the node tree (promote / demote / re-parent) — mutate <see cref="ProductState.Nodes"/>

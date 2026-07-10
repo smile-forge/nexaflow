@@ -2,7 +2,7 @@ using System.Windows;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Nexaflow.Features.ProductManager.Model;
+using Nexaflow.Services.Initiatives.Product.Model;
 
 namespace Nexaflow.Features.ProductManager.ViewModels;
 

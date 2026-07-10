@@ -1,6 +1,6 @@
 using System.IO;
 using Nexaflow.Features.ProductManager.FileActions;
-using Nexaflow.Features.ProductManager.Services;
+using Nexaflow.Services.Initiatives.Product.Services;
 
 namespace Nexaflow.Tests.Features.ProductManager;
 

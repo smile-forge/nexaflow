@@ -1,0 +1,83 @@
+<!--
+    Styles shared by the Product view and the Integrity page. Feature-local (not general enough for Core's
+    Styles.xaml), but factored out so the two views cannot drift.
+
+    Theme brushes are referenced with DynamicResource, not StaticResource: this dictionary is loaded on its
+    own (via MergedDictionaries) and cannot reliably walk up to Application.Resources at load time, and the
+    app swaps themes at runtime anyway. Styles needing BasedOn (which requires StaticResource) stay in the
+    view that uses them.
+
+    Note the deliberate use of TextMutedBrush rather than TextDimBrush for secondary text: Dim is the dimmest
+    tier and falls below comfortable contrast on several themes (Sunny #9AA2B2, Light #8593A6).
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Style x:Key="SectionLabel" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+        <Setter Property="Margin" Value="0,16,0,8"/>
+    </Style>
+
+    <Style x:Key="GhostButton" TargetType="Button">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="Padding" Value="10,5"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="r" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="r" Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A GhostButton that latches — the anchor for a dropdown popup. -->
+    <Style x:Key="GhostToggle" TargetType="ToggleButton">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="Padding" Value="10,5"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="r" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="r" Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="r" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

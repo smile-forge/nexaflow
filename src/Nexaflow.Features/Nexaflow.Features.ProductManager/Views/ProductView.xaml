@@ -7,57 +7,34 @@
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
-        <BooleanToVisibilityConverter x:Key="BoolVis"/>
-        <local:StatusDisplayConverter x:Key="StatusDisplay"/>
-        <local:StatusToBrushConverter x:Key="StatusBrush"/>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- SectionLabel / GhostButton — shared with the Integrity page. Absolute pack URI: feature
+                     assemblies are Assembly.LoadFrom-ed, where a relative dictionary URI can misresolve. -->
+                <ResourceDictionary Source="pack://application:,,,/Nexaflow.Features.ProductManager;component/Views/ProductStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
 
-        <Style x:Key="SectionLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="{StaticResource TextDimBrush}"/>
-            <Setter Property="Margin" Value="0,16,0,8"/>
-        </Style>
+            <BooleanToVisibilityConverter x:Key="BoolVis"/>
+            <local:StatusDisplayConverter x:Key="StatusDisplay"/>
+            <local:StatusToBrushConverter x:Key="StatusBrush"/>
 
-        <Style x:Key="GhostButton" TargetType="Button">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Padding" Value="10,5"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="r" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="r" Property="Background" Value="{StaticResource SurfaceBrush}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+            <Style x:Key="StatusCombo" TargetType="ComboBox" BasedOn="{StaticResource DarkComboBox}">
+                <Setter Property="ItemTemplate">
+                    <Setter.Value>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Converter={StaticResource StatusDisplay}}"/>
+                        </DataTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
 
-        <Style x:Key="StatusCombo" TargetType="ComboBox" BasedOn="{StaticResource DarkComboBox}">
-            <Setter Property="ItemTemplate">
-                <Setter.Value>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding Converter={StaticResource StatusDisplay}}"/>
-                    </DataTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="IconBtn" TargetType="Button" BasedOn="{StaticResource IconButton}">
-            <Setter Property="Width" Value="20"/>
-            <Setter Property="Height" Value="20"/>
-        </Style>
-
+            <!-- BasedOn requires StaticResource, which a standalone merged dictionary cannot resolve — so
+                 this one stays here rather than in ProductStyles.xaml. -->
+            <Style x:Key="IconBtn" TargetType="Button" BasedOn="{StaticResource IconButton}">
+                <Setter Property="Width" Value="20"/>
+                <Setter Property="Height" Value="20"/>
+            </Style>
+        </ResourceDictionary>
     </UserControl.Resources>
 
     <Grid>
@@ -288,6 +265,47 @@
                     <!-- Snapshot indicator (hidden on the live working state) -->
                     <TextBlock Text="{Binding VersionInfoLine}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,16,0,0"
                                Visibility="{Binding ShowVersionInfo, Converter={StaticResource BoolVis}}"/>
+
+                    <!-- ── Product-root sections: count widgets, where a node shows PROPERTIES ──
+                         Open-ended strip: integrity is the first tile; more metrics slot in via RootWidgets. -->
+                    <StackPanel Visibility="{Binding IsRootSelected, Converter={StaticResource BoolVis}}">
+                        <TextBlock Text="CHECKS" Style="{StaticResource SectionLabel}"/>
+                        <ItemsControl ItemsSource="{Binding RootWidgets}" Margin="0,2,0,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Command="{Binding OpenCommand}" Cursor="Hand" Margin="0,0,8,8">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="Card" Background="{StaticResource Surface2Brush}"
+                                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                        CornerRadius="8" Padding="14,10" MinWidth="150">
+                                                    <StackPanel>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding Icon}" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                            <TextBlock Text="{Binding Count}" FontSize="20" FontWeight="SemiBold"
+                                                                       Foreground="{Binding CountBrush}"/>
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding Label}" FontSize="11" Margin="0,2,0,0"
+                                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                                    </StackPanel>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="{Binding IntegrityCheckedLine}" FontSize="11"
+                                   Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,0"/>
+                    </StackPanel>
 
                     <!-- ── Node-only sections ─────────────────────────────── -->
                     <StackPanel Visibility="{Binding IsNodeSelected, Converter={StaticResource BoolVis}}"
@@ -687,5 +705,6 @@
                 </DockPanel>
             </Border>
         </Border>
+
     </Grid>
 </UserControl>

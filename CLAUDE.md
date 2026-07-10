@@ -29,7 +29,13 @@ src/
                                     VirtualFileSystem (archive-as-folder), TextLineIndex/TextTransforms, FileChangeWatcher, FileSplitter
   Nexaflow.IO.Terminal/             PTY host (pseudo-console service, terminal screen, job objects)
   Nexaflow.Syntax/                  tree-sitter syntax engine (highlighting, outline, structure extraction) —
-                                    used by Code, Notebook, ProductManager, Visuals.Text
+                                    used by Code, Notebook, ProductManager, Visuals.Text. Owns TreeSitterLanguages
+                                    (extension→grammar), so headless callers resolve a grammar without WPF
+  Nexaflow.Services.Initiatives/    WPF-free backend for the "initiatives" domain — Product today, Projects later:
+                                    model, ProductStore, ProductAggregator/TreeOps, SnaplinkValidator. Never
+                                    reference WPF/Core/Features.* from here
+  Nexaflow.Services.Initiatives.Cli/ `nexaflow-initiatives validate <root>` — the SAME SnaplinkValidator, headless.
+                                    Powers the installer build gate and PowerShell tooling (exit 1 = broken links)
   Nexaflow.Elevation/               Elevation.Contracts (pure DTO leaf) + PrivilegeBridge (separate requireAdministrator
                                     exe) — the RunElevatedAsync trust boundary; see docs/Architecture.md → Elevation
   Nexaflow.Providers/
@@ -39,9 +45,39 @@ src/
 
 **The feature inventory is NOT listed here on purpose** — a hand-copied list goes stale. The authoritative
 inventory and per-component status (incl. the `tests` / `AI Ready` / `theming` / `docs` concerns) is the
-**product tree**: query `.product/tree.json` via the product-folder skill (it has ready-made fast-query
-recipes), or read the per-release export [docs/product/PRODUCT.md](docs/product/PRODUCT.md). Per-feature
-tab parameters are in [docs/features.md](docs/features.md).
+**product tree**. **To locate a feature's code/tests/docs, query the tree first** (it beats grepping — every
+node carries snaplinks to its source):
+
+```powershell
+dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- find <term>        # nodes matching id/title/description
+dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- describe <node-id> # path, concerns, code/test/doc snaplinks
+```
+
+The product-folder skill has fast-query recipes for deeper questions; the per-release export
+[docs/product/PRODUCT.md](docs/product/PRODUCT.md) is the human dashboard. Per-feature tab parameters are in
+[docs/features.md](docs/features.md).
+
+When a rename/move breaks snaplinks, don't hand-edit `tree.json` — `remap` rewrites them under validation:
+
+```powershell
+dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- remap <old-path> <new-path> [--class <n>] [--method <n>]
+```
+
+**Snaplinks are mechanically checked.** Every snaplink (on a node *and* on each concern link) must still point
+at a real target — the file exists, the markdown heading path resolves, the class/method is still declared, the
+URL is well formed. Run it from the Product tab (⋮ → **Validate snaplinks**, or the root's integrity tile) — both
+open the **Integrity page** (`ProductIntegrity`), which rescans on the shell's background queue (a full scan
+tree-sitter-parses every referenced file and takes seconds, so it never runs on the dispatcher) and lets you
+re-point or remove each broken link. Or run it headlessly:
+
+```powershell
+dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- validate .   # exit 1 = broken links
+```
+
+The **installer build runs the same check and fails on any broken link** (`nexaflowSetup.wixproj` →
+`ValidateSnaplinks`), so `NexaflowSetup.slnx` is the release gate; a plain `dotnet build Nexaflow.slnx` never runs
+it. Results persist to the gitignored `.product/integrity.json` (derived — safe to delete). A file whose extension
+has no tree-sitter grammar (`.xaml`) is treated as **unverifiable, not broken** — never make the validator guess.
 
 Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI), `Nexaflow.IO.*` (IO), and `Nexaflow.Syntax` — mirror that pattern for any future shared-but-not-a-contract code rather than dumping it in `Features.Common`.
 
@@ -65,7 +101,7 @@ The reference and dispatcher rules are **mechanically enforced**: `Nexaflow.Test
 | `src/Nexaflow.Core/ViewModels/ShellViewModel.cs` | Tab lifecycle, ribbon, AI routing — god object, be careful |
 | `src/Nexaflow.Core/Services/ShellServices.cs` | `IShellServices` implementation |
 | `src/Nexaflow.Core/FeatureManager.cs` | Per-`WorkspaceRuntime` constructor injection for features (lives in **Core**, not Common); `EvictWorkspace` clears the cache on reconfigure. Discovery is delegated to `FeatureCatalog` |
-| `src/Nexaflow.Core/Services/FeatureCatalog.cs` | Disk-cached feature discovery index (`discovery/catalog.json`, app-version-stamped) → a normal launch loads **no** feature DLLs; assemblies load + activate lazily (first use or post-paint warm-up). Rebuilt only on an app update |
+| `src/Nexaflow.Core/Services/FeatureCatalog.cs` | Disk-cached feature discovery index (`discovery/catalog.json`, app-version-stamped) → a normal launch loads **no** feature DLLs; assemblies load + activate lazily (first use or post-paint warm-up). Rebuilt only on an app update. **Debug builds bypass the cache entirely** (always rescan, never write, stale file deleted), so a newly added page kind / file handler / config is visible immediately — never clear it by hand while developing |
 | `src/Nexaflow.Core/Services/WorkspaceManager.cs` | The `Workspaces` list (dropdown) + live `WorkspaceRuntime`s; create/switch/reconfigure/dispose lifecycle |
 | `src/Nexaflow.Core/Services/FileSystemFeatureRegistry.cs` | Discovery for the file-system contracts (`IFileAction`/`IFolderAction`/`IFileCreateAction`/`IFolderViewlet`) — NOT FeatureManager |
 | `src/Nexaflow.Features/Nexaflow.Features.Common/*.cs` | Contracts — changes here affect everything |

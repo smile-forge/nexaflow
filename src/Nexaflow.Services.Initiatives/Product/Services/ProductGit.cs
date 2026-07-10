@@ -1,7 +1,7 @@
 using System.IO;
 using LibGit2Sharp;
 
-namespace Nexaflow.Features.ProductManager.Services;
+namespace Nexaflow.Services.Initiatives.Product.Services;
 
 /// <summary>
 /// The thin git surface the snapshot workflow needs: detect a repo, check a tag, and commit the exported

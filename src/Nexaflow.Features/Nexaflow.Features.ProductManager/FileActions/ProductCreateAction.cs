@@ -1,5 +1,5 @@
 using Nexaflow.Features.Common;
-using Nexaflow.Features.ProductManager.Services;
+using Nexaflow.Services.Initiatives.Product.Services;
 
 namespace Nexaflow.Features.ProductManager.FileActions;
 

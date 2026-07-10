@@ -1,14 +1,20 @@
 # Regenerates the installer branding assets: banner.bmp (493x58), dialog.bmp (493x312)
 # and License.rtf (from the repo LICENSE.txt). Run with Windows PowerShell (needs GDI+):
 #   powershell.exe -NoProfile -ExecutionPolicy Bypass -File generate-branding.ps1
-# Update $version below when cutting a new release.
+# The painted version follows Nexaflow.Core's <Version> automatically (same source the
+# .wixproj reads for AppVersion) — re-run this script after a version bump to refresh the art.
 
 Add-Type -AssemblyName System.Drawing
 $ErrorActionPreference = 'Stop'
-$version  = 'v1.0.0'
 $dir      = $PSScriptRoot
 $repoRoot = Split-Path $PSScriptRoot -Parent
 $ico      = Join-Path $repoRoot 'src\Nexaflow.Core\Appicon.ico'
+
+# Single source of truth: the <Version> in Nexaflow.Core.csproj (e.g. 1.3.0), prefixed with 'v'.
+$coreCsproj = Get-Content (Join-Path $repoRoot 'src\Nexaflow.Core\Nexaflow.Core.csproj') -Raw
+$verMatch   = [regex]::Match($coreCsproj, '<Version>([^<]+)</Version>')
+if (-not $verMatch.Success) { throw 'generate-branding: could not read <Version> from Nexaflow.Core.csproj' }
+$version    = 'v' + $verMatch.Groups[1].Value.Trim()
 
 $indigoTop = [System.Drawing.Color]::FromArgb(34,28,68)
 $indigoBot = [System.Drawing.Color]::FromArgb(75,63,187)
