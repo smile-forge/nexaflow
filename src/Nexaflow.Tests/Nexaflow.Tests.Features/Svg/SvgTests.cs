@@ -21,6 +21,7 @@ public class SvgTests
     private static string Sample(string name) => Path.Combine(TestSampleData.Path("svg"), name);
 
     [TestMethod]
+    [CoversNode("svg-loader")]
     public void Loader_ReadsSvg_ProducesFrozenDrawingAndMetadata()
     {
         var loaded = new SvgLoader().Load(Sample("sample.svg"));
@@ -35,6 +36,7 @@ public class SvgTests
     }
 
     [TestMethod]
+    [CoversNode("svg-loader")]
     public void Loader_ReadsGzippedSvgz_SameAsSvg()
     {
         var loaded = new SvgLoader().Load(Sample("sample.svgz"));
@@ -46,6 +48,7 @@ public class SvgTests
     }
 
     [TestMethod]
+    [CoversNode("svg-viewer")]
     public void GetContext_GatedUntilLoaded()
     {
         var vm = new SvgViewModel(Sample("sample.svg"));
@@ -54,6 +57,7 @@ public class SvgTests
     }
 
     [TestMethod]
+    [CoversNode("svg-viewer")]
     public async Task ViewModel_Loads_ExposesContextAndTools()
     {
         var vm = new SvgViewModel(Sample("sample.svg"));
@@ -74,6 +78,7 @@ public class SvgTests
     }
 
     [TestMethod]
+    [CoversNode("svg-viewer")]
     public async Task LoadAsync_MissingFile_SetsErrorButReleasesGate()
     {
         var vm = new SvgViewModel(Path.Combine(TestSampleData.Path("svg"), "does-not-exist.svg"));
@@ -87,6 +92,7 @@ public class SvgTests
     }
 
     [TestMethod]
+    [CoversNode("svg-ai-tools")]
     public async Task GetSvgInfo_Tool_ReportsDimensions()
     {
         var vm = new SvgViewModel(Sample("sample.svg"));
@@ -100,6 +106,7 @@ public class SvgTests
     }
 
     [TestMethod]
+    [CoversNode("svg-ai-tools")]
     public async Task RenderTool_FailsGracefully_BeforeLoad()
     {
         var vm = new SvgViewModel(Sample("sample.svg")); // not loaded → no artifact
