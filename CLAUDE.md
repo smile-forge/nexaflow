@@ -45,9 +45,23 @@ src/
 
 **The feature inventory is NOT listed here on purpose** — a hand-copied list goes stale. The authoritative
 inventory and per-component status (incl. the `tests` / `AI Ready` / `theming` / `docs` concerns) is the
-**product tree**: query `.product/tree.json` via the product-folder skill (it has ready-made fast-query
-recipes), or read the per-release export [docs/product/PRODUCT.md](docs/product/PRODUCT.md). Per-feature
-tab parameters are in [docs/features.md](docs/features.md).
+**product tree**. **To locate a feature's code/tests/docs, query the tree first** (it beats grepping — every
+node carries snaplinks to its source):
+
+```powershell
+dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- find <term>        # nodes matching id/title/description
+dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- describe <node-id> # path, concerns, code/test/doc snaplinks
+```
+
+The product-folder skill has fast-query recipes for deeper questions; the per-release export
+[docs/product/PRODUCT.md](docs/product/PRODUCT.md) is the human dashboard. Per-feature tab parameters are in
+[docs/features.md](docs/features.md).
+
+When a rename/move breaks snaplinks, don't hand-edit `tree.json` — `remap` rewrites them under validation:
+
+```powershell
+dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- remap <old-path> <new-path> [--class <n>] [--method <n>]
+```
 
 **Snaplinks are mechanically checked.** Every snaplink (on a node *and* on each concern link) must still point
 at a real target — the file exists, the markdown heading path resolves, the class/method is still declared, the
