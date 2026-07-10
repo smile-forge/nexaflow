@@ -1,6 +1,6 @@
-using Nexaflow.Features.ProductManager.Model;
+using Nexaflow.Services.Initiatives.Product.Model;
 
-namespace Nexaflow.Features.ProductManager.Services;
+namespace Nexaflow.Services.Initiatives.Product.Services;
 
 /// <summary>
 /// Pure, derived views over a loaded <see cref="ProductState"/> — the testable core of the survey. A

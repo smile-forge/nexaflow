@@ -11,13 +11,14 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <PackageReference Include="LibGit2Sharp" Version="0.31.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Syntax\Nexaflow.Syntax.csproj" />
+    <!-- Product model + store/aggregator/validator (WPF-free; shared with the Initiatives CLI). -->
+    <ProjectReference Include="..\..\Nexaflow.Services.Initiatives\Nexaflow.Services.Initiatives.csproj" />
     <ProjectReference Include="..\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
   </ItemGroup>
 

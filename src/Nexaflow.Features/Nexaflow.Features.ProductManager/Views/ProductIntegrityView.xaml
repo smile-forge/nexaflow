@@ -1,0 +1,250 @@
+<UserControl x:Class="Nexaflow.Features.ProductManager.Views.ProductIntegrityView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:local="clr-namespace:Nexaflow.Features.ProductManager.Views"
+             Background="{StaticResource BgBrush}">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/Nexaflow.Features.ProductManager;component/Views/ProductStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <BooleanToVisibilityConverter x:Key="BoolVis"/>
+            <conv:InverseBoolToVisibilityConverter x:Key="NotBoolVis"/>
+            <conv:DepthToMarginConverter x:Key="IndentMargin"/>
+
+            <Style x:Key="FieldLabel" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                <Setter Property="Margin" Value="0,6,0,2"/>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- ── Header: state + rescan ─────────────────────────────────────── -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="{Binding SummaryLine}" FontSize="14" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextBrush}"/>
+                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                    <TextBlock Text="{Binding HeaderLine}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                    <TextBlock Text="  ·  scanning…" FontSize="11" Foreground="{StaticResource AccentBrush}"
+                               Visibility="{Binding IsScanning, Converter={StaticResource BoolVis}}"/>
+                </StackPanel>
+            </StackPanel>
+            <Button Grid.Column="1" Content="Re-validate" Command="{Binding RescanCommand}"
+                    Style="{StaticResource GhostButton}" VerticalAlignment="Center"/>
+        </Grid>
+
+        <!-- ── Filter ─────────────────────────────────────────────────────── -->
+        <TextBox Grid.Row="1" Text="{Binding Filter, UpdateSourceTrigger=PropertyChanged, Delay=150}"
+                 Style="{StaticResource DarkTextBox}" Margin="0,12,0,0"
+                 ToolTip="Filter by node, scope, kind or detail"/>
+
+        <!-- ── Empty state ────────────────────────────────────────────────── -->
+        <TextBlock Grid.Row="2" Text="Every snaplink points at a real target."
+                   FontSize="13" Foreground="{StaticResource TextMutedBrush}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   Visibility="{Binding HasIssues, Converter={StaticResource NotBoolVis}}"/>
+
+        <!-- ── Master / detail ────────────────────────────────────────────── -->
+        <Grid Grid.Row="2" Margin="0,12,0,0" Visibility="{Binding HasIssues, Converter={StaticResource BoolVis}}">
+            <Grid.ColumnDefinitions>
+                <!-- Proportional (not a fixed detail width) so the detail pane never sticks out past a narrow tab. -->
+                <ColumnDefinition Width="1.5*" MinWidth="240"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="1*" MinWidth="280"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Selectable issue list -->
+            <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="8">
+                <ListBox ItemsSource="{Binding IssuesView}" SelectedItem="{Binding SelectedIssue}"
+                         Background="Transparent" BorderThickness="0"
+                         HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="4,6">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding NodeTitle}" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis"/>
+                                    <Border Background="{StaticResource BgBrush}" CornerRadius="3" Padding="5,1" Margin="6,0,0,0">
+                                        <TextBlock Text="{Binding Scope}" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                                    </Border>
+                                    <Border Background="{StaticResource DangerBrush}" CornerRadius="3" Padding="5,1" Margin="6,0,0,0">
+                                        <TextBlock Text="{Binding Kind}" FontSize="10" Foreground="{StaticResource OnAccentBrush}"/>
+                                    </Border>
+                                </StackPanel>
+                                <TextBlock Text="{Binding Detail}" FontSize="11" TextWrapping="Wrap" Margin="0,3,0,0"
+                                           Foreground="{StaticResource TextMutedBrush}"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+
+            <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch" Background="Transparent"/>
+
+            <!-- Selected issue: edit the target in place -->
+            <Border Grid.Column="2" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="14">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel DataContext="{Binding SelectedIssue}">
+                        <TextBlock Text="{Binding NodeTitle}" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"/>
+                        <TextBlock Text="{Binding Detail}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
+                                   Foreground="{StaticResource TextMutedBrush}"/>
+
+                        <TextBlock Text="This row is from an older scan — re-validate to edit it."
+                                   FontSize="11" TextWrapping="Wrap" Margin="0,8,0,0"
+                                   Foreground="{StaticResource WarningBrush}"
+                                   Visibility="{Binding CanEdit, Converter={StaticResource NotBoolVis}}"/>
+
+                        <!-- Editable target. Each field group carries a dropdown that offers real, valid targets
+                             from the named document (or, when the file has moved, where it went). The dropdown is
+                             a Popup, so long entries + a scrollbar never widen the panel. Page-VM bindings use an
+                             explicit source since this subtree's DataContext is the selected row. -->
+                        <StackPanel IsEnabled="{Binding CanEdit}"
+                                    x:Name="EditFields">
+                            <StackPanel.Resources>
+                                <!-- shared reference to the page VM for the dropdowns below -->
+                                <local:BindingProxy x:Key="Page" Data="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                            </StackPanel.Resources>
+
+                            <!-- Document path (file-backed links) + "did it move?" dropdown -->
+                            <StackPanel Visibility="{Binding IsUrl, Converter={StaticResource NotBoolVis}}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Document path (relative to the product root)" Style="{StaticResource FieldLabel}"/>
+                                    <ToggleButton Grid.Column="1" x:Name="FileDrop" Content="Moved? ▾" Style="{StaticResource GhostToggle}"
+                                                  VerticalAlignment="Bottom" Margin="6,0,0,0"
+                                                  IsEnabled="{Binding Data.HasFileSuggestions, Source={StaticResource Page}}"/>
+                                </Grid>
+                                <!-- Delay: each committed edit re-parses the document to re-offer its targets. -->
+                                <TextBox Text="{Binding Doc, UpdateSourceTrigger=PropertyChanged, Delay=350}" Style="{StaticResource DarkTextBox}"
+                                         TextWrapping="Wrap" AcceptsReturn="False"/>
+                                <Popup PlacementTarget="{Binding ElementName=FileDrop}" IsOpen="{Binding IsChecked, ElementName=FileDrop}"
+                                       StaysOpen="False" AllowsTransparency="True" MinWidth="260" MaxWidth="440">
+                                    <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="6" MaxHeight="300" Margin="0,2,0,0">
+                                        <ListBox ItemsSource="{Binding Data.FileSuggestions, Source={StaticResource Page}}"
+                                                 Background="Transparent" BorderThickness="0" SelectionChanged="FileSuggestion_Picked"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                                               Foreground="{StaticResource TextBrush}" Padding="2,3"/>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </Border>
+                                </Popup>
+                            </StackPanel>
+
+                            <!-- Class / method (code) + a dropdown of the file's classes and methods -->
+                            <StackPanel Visibility="{Binding IsCode, Converter={StaticResource BoolVis}}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Class / method (blank class = whole file)" Style="{StaticResource FieldLabel}"/>
+                                    <ToggleButton Grid.Column="1" x:Name="CodeDrop" Content="Pick ▾" Style="{StaticResource GhostToggle}"
+                                                  VerticalAlignment="Bottom" Margin="6,0,0,0"
+                                                  IsEnabled="{Binding Data.HasTargets, Source={StaticResource Page}}"/>
+                                </Grid>
+                                <TextBox Text="{Binding Class, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBox}"/>
+                                <TextBox Text="{Binding Method, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBox}" Margin="0,4,0,0"/>
+                                <Popup PlacementTarget="{Binding ElementName=CodeDrop}" IsOpen="{Binding IsChecked, ElementName=CodeDrop}"
+                                       StaysOpen="False" AllowsTransparency="True" MinWidth="260" MaxWidth="460">
+                                    <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="6" MaxHeight="320" Margin="0,2,0,0">
+                                        <ListBox ItemsSource="{Binding Data.AvailableTargets, Source={StaticResource Page}}"
+                                                 SelectedItem="{Binding Data.SelectedTarget, Source={StaticResource Page}}"
+                                                 Background="Transparent" BorderThickness="0" SelectionChanged="Target_Picked"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Label}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                                               Foreground="{StaticResource TextBrush}" Padding="2,3"
+                                                               Margin="{Binding Depth, Converter={StaticResource IndentMargin}, ConverterParameter=14}"/>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </Border>
+                                </Popup>
+                            </StackPanel>
+
+                            <!-- Heading path (markdown) + a dropdown of the file's headings -->
+                            <StackPanel Visibility="{Binding IsMarkdown, Converter={StaticResource BoolVis}}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Heading path (levels separated by &gt;)" Style="{StaticResource FieldLabel}"/>
+                                    <ToggleButton Grid.Column="1" x:Name="MdDrop" Content="Pick ▾" Style="{StaticResource GhostToggle}"
+                                                  VerticalAlignment="Bottom" Margin="6,0,0,0"
+                                                  IsEnabled="{Binding Data.HasTargets, Source={StaticResource Page}}"/>
+                                </Grid>
+                                <TextBox Text="{Binding TitlePath, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBox}"
+                                         TextWrapping="Wrap"/>
+                                <Popup PlacementTarget="{Binding ElementName=MdDrop}" IsOpen="{Binding IsChecked, ElementName=MdDrop}"
+                                       StaysOpen="False" AllowsTransparency="True" MinWidth="260" MaxWidth="460">
+                                    <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="6" MaxHeight="320" Margin="0,2,0,0">
+                                        <ListBox ItemsSource="{Binding Data.AvailableTargets, Source={StaticResource Page}}"
+                                                 SelectedItem="{Binding Data.SelectedTarget, Source={StaticResource Page}}"
+                                                 Background="Transparent" BorderThickness="0" SelectionChanged="Target_Picked"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Label}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                                               Foreground="{StaticResource TextBrush}" Padding="2,3"
+                                                               Margin="{Binding Depth, Converter={StaticResource IndentMargin}, ConverterParameter=14}"/>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </Border>
+                                </Popup>
+                            </StackPanel>
+
+                            <StackPanel Visibility="{Binding IsUrl, Converter={StaticResource BoolVis}}">
+                                <TextBlock Text="URL" Style="{StaticResource FieldLabel}"/>
+                                <TextBox Text="{Binding Target, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBox}"
+                                         TextWrapping="Wrap"/>
+                            </StackPanel>
+
+                            <TextBlock Text="{Binding Data.TargetsHeader, Source={StaticResource Page}}" Style="{StaticResource FieldLabel}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <!-- Actions live on the page VM, acting on the selected row -->
+                        <StackPanel Margin="0,14,0,0"
+                                    DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                            <Button Content="Apply fix" Command="{Binding ApplyCommand}" Style="{StaticResource GhostButton}"/>
+                            <Button Content="Open target file" Command="{Binding OpenTargetCommand}" Style="{StaticResource GhostButton}" Margin="0,6,0,0"/>
+                            <Button Content="Open node in Product" Command="{Binding OpenNodeCommand}" Style="{StaticResource GhostButton}" Margin="0,6,0,0"/>
+                            <Button Content="Remove snaplink" Command="{Binding RemoveLinkCommand}" Style="{StaticResource GhostButton}" Margin="0,6,0,0"/>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

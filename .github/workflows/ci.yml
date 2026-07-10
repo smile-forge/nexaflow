@@ -32,9 +32,12 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      # Restores nuget.org + the VideoLAN preview feed (libVLC) per NuGet.config, for every project incl. WiX.
+      # Restores nuget.org + the VideoLAN preview feed (libVLC) per NuGet.config. The installer lives in its
+      # own NexaflowSetup.slnx (kept out of the app solution), so restore both to cover the WiX projects too.
       - name: Restore
-        run: dotnet restore Nexaflow.slnx
+        run: |
+          dotnet restore Nexaflow.slnx
+          dotnet restore NexaflowSetup.slnx
 
       # The point of this step is the payload-completeness GUARDS, not the MSI. Building the installer builds
       # Core -> every feature/provider/shared project, then asserts every provider DLL, every feature DLL and

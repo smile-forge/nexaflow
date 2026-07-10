@@ -142,12 +142,8 @@
       <Platform Project="x64" />
     </Project>
   </Folder>
-  <Project Path="nexaflowBundle/nexaflowBundle.wixproj" Type="b7dd6f7e-def8-4e67-b5b7-07ef123db6f0" Id="4e1c900e-18d5-462c-8c16-ac2cb1a79c4c">
-    <Platform Project="x64" />
-  </Project>
-  <Project Path="nexaflowSetup/nexaflowSetup.wixproj" Type="b7dd6f7e-def8-4e67-b5b7-07ef123db6f0" Id="52400615-c2b1-4ecf-a059-2f752e45b47c">
-    <Platform Project="x64" />
-  </Project>
+  <!-- The installer (nexaflowSetup.wixproj + nexaflowBundle.wixproj) lives in NexaflowSetup.slnx so a
+       normal app build never compiles it. See that solution to build the MSI/bundle. -->
   <Project Path="src/Nexaflow.Core/Nexaflow.Core.csproj" Id="eed52ce5-c185-4a39-af4b-8df86d69359a">
     <Platform Project="x64" />
   </Project>
@@ -155,6 +151,13 @@
     <Platform Project="x64" />
   </Project>
   <Project Path="src/Nexaflow.IO.Terminal/Nexaflow.IO.Terminal.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <!-- WPF-free backend for the Product tracker (and, later, Projects) + its headless CLI. -->
+  <Project Path="src/Nexaflow.Services.Initiatives/Nexaflow.Services.Initiatives.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="src/Nexaflow.Services.Initiatives.Cli/Nexaflow.Services.Initiatives.Cli.csproj">
     <Platform Project="x64" />
   </Project>
   <Project Path="src/Nexaflow.Syntax/Nexaflow.Syntax.csproj">

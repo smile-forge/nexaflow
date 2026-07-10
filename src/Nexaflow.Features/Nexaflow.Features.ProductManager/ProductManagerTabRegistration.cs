@@ -2,7 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using Nexaflow.Features.Common;
-using Nexaflow.Features.ProductManager.Services;
+using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Features.ProductManager.ViewModels;
 using Nexaflow.Features.ProductManager.Views;
 using Page = Nexaflow.Features.Common.Page;
@@ -26,12 +26,20 @@ public sealed class ProductManagerTabRegistration : IPageRegistration
     public IReadOnlyList<PageParameter> Parameters =>
     [
         new("path", "Folder containing (or to initialise) the .product/ directory.", Required: false),
+        new("node", "Id of a node to focus on open (deep link from the Integrity page).", Required: false),
     ];
 
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var root  = ProductRootLocator.Resolve(pageParams);
         var title = root is not null ? $"Product: {new DirectoryInfo(root).Name}" : "Product";
+
+        // `node` is a one-shot navigation hint, NOT part of this tab's identity: the shell stamps whatever
+        // params it was opened with onto the tab, and a tab identified by {path,node} would stop matching a
+        // later request for a *different* node — spawning a second Product tab per node. Take it, then drop
+        // it, so the tab keeps the {path} identity that lets the Integrity page adopt and Reinitialize it.
+        string? focusNode = null;
+        if (pageParams is not null && pageParams.Remove("node", out var requested)) focusNode = requested;
 
         var tab = new Page
         {
@@ -49,6 +57,7 @@ public sealed class ProductManagerTabRegistration : IPageRegistration
 
             var vm = new ProductViewModel(store, new ProductGit(root), root, _shell);
             vm.NavigationChanged += segments => ApplyBreadcrumbs(tab, vm, segments);
+            if (!string.IsNullOrWhiteSpace(focusNode)) vm.NavigateTo(focusNode);
             ApplyBreadcrumbs(tab, vm, vm.CurrentPath);    // initial path (built during the VM ctor)
             return new ProductView(vm);
         };

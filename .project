@@ -1,189 +1,151 @@
 {
+  "SchemaVersion": 2,
   "Name": "nexaflow",
-  "Description": "Nexaflow provides a coherent AI integrated workspace that replaces the miriad of simple tools for common tasks.",
-  "Scope": "Features should not become a full application, should not require more than a basic toolbar or require complex configuration",
-  "Objectives": [
-    "Simple activities should be doable from the interface without requiring another application",
-    "Minimise context switching for all simple activities"
+  "Description": "Nexaflow provides a coherent AI integrated workspace that replaces the miriad of simple tools for common tasks.\n\n## Scope\n\nFeatures should not become a full application, should not require more than a basic toolbar or require complex configuration",
+  "CompletionCriteria": [
+    {
+      "Text": "Simple activities should be doable from the interface without requiring another application",
+      "Status": "Should"
+    },
+    {
+      "Text": "Minimise context switching for all simple activities",
+      "Status": "Should"
+    }
   ],
   "SolutionFile": null,
-  "LastUpdate": "2026-06-04T22:37:39.7864131Z",
+  "LastUpdate": "2026-07-10T11:53:26.2695098Z",
   "Backlog": [
     {
       "Id": "49ca9f9c-663a-474d-a282-daa6d7adda82",
       "Title": "csv/table viewer/editor",
-      "Notes": null,
-      "Status": "AwaitingFinalisation",
-      "ImpPlan": null,
-      "TestPlan": null
+      "Description": "",
+      "StatusKey": "AwaitingFinalisation"
     },
     {
       "Id": "6379211b-d909-4147-a50d-0db91a00fea6",
       "Title": "Add the ability to add new files to a directory",
-      "Notes": null,
-      "Status": "NotStarted",
-      "ImpPlan": null,
-      "TestPlan": null
+      "Description": "",
+      "StatusKey": "NotStarted"
     },
     {
       "Id": "298a512a-6811-44c1-a90b-002708a273c4",
       "Title": "Whole pc search",
-      "Notes": null,
-      "Status": "AwaitingFinalisation",
-      "ImpPlan": null,
-      "TestPlan": null
+      "Description": "",
+      "StatusKey": "AwaitingFinalisation"
     },
     {
       "Id": "8f0f82b2-28ef-4b40-8c86-5597be77831e",
       "Title": "Wizard for setup at start",
-      "Notes": null,
-      "Status": "AwaitingFinalisation",
-      "ImpPlan": null,
-      "TestPlan": null
+      "Description": "",
+      "StatusKey": "AwaitingFinalisation"
     },
     {
       "Id": "c67f3d61-f0c8-493e-affb-aab0584756f3",
       "Title": "Add gemini as provider",
-      "Notes": null,
-      "Status": "AwaitingFinalisation",
-      "ImpPlan": null,
-      "TestPlan": null
+      "Description": "",
+      "StatusKey": "AwaitingFinalisation"
     },
     {
       "Id": "4c97f510-c0ca-4020-8fc0-6fdb4d3827a9",
       "Title": "add local onnx as provider",
-      "Notes": null,
-      "Status": "NotStarted",
-      "ImpPlan": null,
-      "TestPlan": null
+      "Description": "",
+      "StatusKey": "NotStarted"
     },
     {
       "Id": "1f7055e7-be4e-47f6-9879-9276eff701d8",
       "Title": "new ai context view model",
-      "Notes": null,
-      "Status": "AwaitingFinalisation",
-      "ImpPlan": null,
-      "TestPlan": null
+      "Description": "",
+      "StatusKey": "AwaitingFinalisation"
     },
     {
       "Id": "fd611b18-fb04-42b6-818a-acde1e9a33e9",
       "Title": "ai response popup",
-      "Notes": null,
-      "Status": "AwaitingFinalisation",
-      "ImpPlan": null,
-      "TestPlan": null
+      "Description": "",
+      "StatusKey": "AwaitingFinalisation"
     },
     {
       "Id": "19bda786-4404-4f34-88b3-e1cb0faaf601",
       "Title": "fix overlays to be generic rather than page specific",
-      "Notes": null,
-      "Status": "NotStarted",
-      "ImpPlan": null,
-      "TestPlan": null
+      "Description": "",
+      "StatusKey": "NotStarted"
     },
     {
       "Id": "e0483e39-739f-4d4e-8e0b-f53fee3aeff0",
       "Title": "fix ribbon right click",
-      "Notes": null,
-      "Status": "AwaitingFinalisation",
-      "ImpPlan": null,
-      "TestPlan": null
+      "Description": "",
+      "StatusKey": "AwaitingFinalisation"
     },
     {
       "Id": "d56b84d3-9f54-4347-8f5d-4d20ce1dbdc0",
       "Title": "Error handling for search with direct scan fallback",
-      "Notes": null,
-      "Status": "NotStarted",
-      "ImpPlan": null,
-      "TestPlan": null
+      "Description": "",
+      "StatusKey": "NotStarted"
     },
     {
       "Id": "0c02a933-f50e-42e3-ab3d-22b8ea5bb83a",
       "Title": "add environment variable expansion to filesystemview",
-      "Notes": null,
-      "Status": "AwaitingFinalisation",
-      "ImpPlan": null,
-      "TestPlan": null
+      "Description": "",
+      "StatusKey": "AwaitingFinalisation"
     },
     {
       "Id": "6af25108-8050-4445-8821-e654f03b1673",
       "Title": "support for zip files",
-      "Notes": null,
-      "Status": "NotStarted",
-      "ImpPlan": null,
-      "TestPlan": null
+      "Description": "",
+      "StatusKey": "NotStarted"
     },
     {
       "Id": "c46652dd-c925-4c20-a956-132297b47bfa",
       "Title": "fix theming",
-      "Notes": null,
-      "Status": "AwaitingFinalisation",
-      "ImpPlan": null,
-      "TestPlan": null
+      "Description": "",
+      "StatusKey": "AwaitingFinalisation"
     },
     {
       "Id": "3591934e-7733-480c-8eb0-282e1b69f5b7",
       "Title": "Activity Tracking",
-      "Notes": null,
-      "Status": "NotStarted",
-      "ImpPlan": "Currently we do not track user actions. What I want to add is a per work context useractivity tracking system. Features can opt into it by receiving an IActivityReporter in their constructors or obtaining it from a Workspace reference. They can then report an activity (e.g. \u0022Opened directory c:\\temp\u0022) when the user or an AI performs some action. This should be optional with 4 config options\u0022\r\n- Enable activity tracking (if this is active the other options become possible)\r\n - Allow AI to query activity\r\n - Activity retention time (1-30 days)\r\n\r\n\r\nActivityTracker should be defined in nexaflow.core and its instance held and built by Workspace. It implements the IActivityReporter interface.\r\nWhen enabled, It should keep the most recent activity in memory, periodically flush records older than 30 mins to disk to a file that holds 1 days worth of activity. Rollover to the next file at midnight local time. Delete files which are older than the activity retention time.\r\nThe storage to disk should be encrypted with AES and the AES key should be protected by DPAPI (CurrentUser) with an application-(no so) secret for entropy.\r\n",
-      "TestPlan": null
+      "Description": "## Implementation Plan\n\nCurrently we do not track user actions. What I want to add is a per work context useractivity tracking system. Features can opt into it by receiving an IActivityReporter in their constructors or obtaining it from a Workspace reference. They can then report an activity (e.g. \u0022Opened directory c:\\temp\u0022) when the user or an AI performs some action. This should be optional with 4 config options\u0022\r\n- Enable activity tracking (if this is active the other options become possible)\r\n - Allow AI to query activity\r\n - Activity retention time (1-30 days)\r\n\r\n\r\nActivityTracker should be defined in nexaflow.core and its instance held and built by Workspace. It implements the IActivityReporter interface.\r\nWhen enabled, It should keep the most recent activity in memory, periodically flush records older than 30 mins to disk to a file that holds 1 days worth of activity. Rollover to the next file at midnight local time. Delete files which are older than the activity retention time.\r\nThe storage to disk should be encrypted with AES and the AES key should be protected by DPAPI (CurrentUser) with an application-(no so) secret for entropy.",
+      "StatusKey": "NotStarted"
     },
     {
       "Id": "c284a6b6-f588-4fb1-94ad-e43257386486",
       "Title": "add XML viewer",
-      "Notes": null,
-      "Status": "NotStarted",
-      "ImpPlan": null,
-      "TestPlan": null
+      "Description": "",
+      "StatusKey": "NotStarted"
     },
     {
       "Id": "01ba655c-415a-49ef-a4a6-539da7a1af59",
       "Title": "add folder/file differ",
-      "Notes": null,
-      "Status": "NotStarted",
-      "ImpPlan": null,
-      "TestPlan": null
+      "Description": "",
+      "StatusKey": "NotStarted"
     },
     {
       "Id": "fe0e1af8-6dca-43f7-b722-d9558206f944",
       "Title": "add project viewlet",
-      "Notes": null,
-      "Status": "NotStarted",
-      "ImpPlan": null,
-      "TestPlan": null
+      "Description": "",
+      "StatusKey": "NotStarted"
     },
     {
       "Id": "cbb21f30-ea4e-4731-a54e-a7080f895c31",
       "Title": "add dotnet viewlet",
-      "Notes": null,
-      "Status": "AwaitingFinalisation",
-      "ImpPlan": null,
-      "TestPlan": null
+      "Description": "",
+      "StatusKey": "AwaitingFinalisation"
     },
     {
       "Id": "de679fae-d078-4dce-b581-3d9d7dcc3b20",
       "Title": "add system info page",
-      "Notes": null,
-      "Status": "AwaitingFinalisation",
-      "ImpPlan": null,
-      "TestPlan": null
+      "Description": "",
+      "StatusKey": "AwaitingFinalisation"
     },
     {
       "Id": "70084e4d-924e-4592-89d3-90cb6af6765c",
       "Title": "add installed software page",
-      "Notes": null,
-      "Status": "AwaitingFinalisation",
-      "ImpPlan": null,
-      "TestPlan": null
+      "Description": "",
+      "StatusKey": "AwaitingFinalisation"
     },
     {
       "Id": "a5a21f36-ff8f-4961-977c-610e0f781b37",
       "Title": "add process inspector page",
-      "Notes": null,
-      "Status": "NotStarted",
-      "ImpPlan": null,
-      "TestPlan": null
+      "Description": "",
+      "StatusKey": "NotStarted"
     }
   ]
 }

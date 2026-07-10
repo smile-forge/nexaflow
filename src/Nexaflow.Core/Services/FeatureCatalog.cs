@@ -18,7 +18,13 @@ namespace Nexaflow.Core.Services;
 /// <b>no assembly loads</b>. Feature assemblies are loaded lazily — only when a type they own is actually
 /// resolved (the first page, a handler query, or the post-paint background warm-up). The cache is stamped
 /// with the app version and trusted whenever the stamp matches; an app update (the only thing that changes
-/// the DLLs — the same signal that drives the What's New popup) bumps the version and forces one full rescan.
+/// the DLLs <em>in a release install</em> — the same signal that drives the What's New popup) bumps the version
+/// and forces one full rescan.
+///
+/// <b>Debug builds bypass the cache entirely</b> (never read, never written, any stale file deleted). While
+/// developing, the DLLs change constantly but the app version does not, so a stamped cache would happily hide
+/// a newly added page kind, file handler or config behind a matching stamp. Dev launches therefore always
+/// rescan — which, because the scan loads every assembly anyway, also restores the old eager activation.
 ///
 /// The catalog is a pure discovery/loading engine: the side-effects of "activating" an assembly (registering
 /// its global configs / archive handlers / theme contributions) are performed by a callback supplied at
@@ -90,7 +96,18 @@ public sealed class FeatureCatalog
         _coreFile = Path.GetFileName(typeof(FeatureCatalog).Assembly.Location);
 
         var version = SetupWizardViewModel.CurrentVersion();
-        var cached  = TryLoadCache();
+
+#if DEBUG
+        // Debug builds never read or write the cache. The stamp is the *app version*, which does not move
+        // while you are developing — so a rebuilt DLL that adds a page kind, file handler or config would stay
+        // invisible behind a matching stamp until someone remembered to delete catalog.json. A full rescan
+        // costs tens of milliseconds and only developers pay it. Any stale file is removed as well, so a
+        // same-version Release run can't inherit a dev-era index.
+        CatalogIndex? cached = null;
+        DeleteCache();
+#else
+        var cached = TryLoadCache();
+#endif
         bool rebuilt;
 
         if (cached is not null && string.Equals(cached.Version, version, StringComparison.Ordinal))
@@ -103,9 +120,11 @@ public sealed class FeatureCatalog
         {
             var sw = Stopwatch.StartNew();
             _index = BuildIndex(version);
+#if !DEBUG
             SaveCache(_index);
+#endif
             rebuilt = true;
-            Debug.WriteLine($"[FeatureCatalog] full scan of {_index.Assemblies.Count} assemblies in {sw.ElapsedMilliseconds} ms (cache rebuilt).");
+            Debug.WriteLine($"[FeatureCatalog] full scan of {_index.Assemblies.Count} assemblies in {sw.ElapsedMilliseconds} ms.");
         }
 
         lock (_lock)
@@ -428,5 +447,12 @@ public sealed class FeatureCatalog
             File.WriteAllText(CachePath, JsonSerializer.Serialize(idx, _json));
         }
         catch (Exception ex) { Debug.WriteLine($"[FeatureCatalog] cache write failed: {ex.Message}"); }
+    }
+
+    /// <summary>Drops the on-disk index (Debug builds, which always rescan).</summary>
+    private static void DeleteCache()
+    {
+        try { if (File.Exists(CachePath)) File.Delete(CachePath); }
+        catch (Exception ex) { Debug.WriteLine($"[FeatureCatalog] cache delete failed: {ex.Message}"); }
     }
 }

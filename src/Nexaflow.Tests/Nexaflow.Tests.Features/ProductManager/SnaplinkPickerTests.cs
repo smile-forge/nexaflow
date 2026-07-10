@@ -55,6 +55,6 @@ public class SnaplinkPickerTests
         picker.SelectedTarget = subA;
         var link = picker.BuildSelectedLink();
         Assert.IsNotNull(link);
-        Assert.AreEqual(Nexaflow.Features.ProductManager.Model.Status.Should, link!.Status);
+        Assert.AreEqual(Nexaflow.Services.Initiatives.Product.Model.Status.Should, link!.Status);
     }
 }

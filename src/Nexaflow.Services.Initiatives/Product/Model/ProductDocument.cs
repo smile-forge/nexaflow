@@ -1,4 +1,4 @@
-namespace Nexaflow.Features.ProductManager.Model;
+namespace Nexaflow.Services.Initiatives.Product.Model;
 
 /// <summary>
 /// <c>product.json</c> — the product name plus the reusable concern-tag vocabulary the survey checks

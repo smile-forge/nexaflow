@@ -1,8 +1,8 @@
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
-using Nexaflow.Features.ProductManager.Model;
+using Nexaflow.Services.Initiatives.Product.Model;
+using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Syntax;
 using Nexaflow.Visuals.Text.Editor.Highlighting;
 
@@ -117,15 +117,10 @@ public sealed partial class SnaplinkPickerViewModel : ObservableObject
     private void BuildMarkdown(string rel, string text)
     {
         Targets.Add(new SnaplinkTarget("(whole file)", 0, new Snaplink { Type = "markdown", Doc = rel }));
-        var stack = new List<(int Level, string Text)>();
-        foreach (var (level, heading) in Headings(text))
-        {
-            while (stack.Count > 0 && stack[^1].Level >= level) stack.RemoveAt(stack.Count - 1);
-            var path = stack.Select(s => s.Text).Append(heading).ToList();
-            stack.Add((level, heading));
-            Targets.Add(new SnaplinkTarget(heading, (level - 1) * 14,
-                new Snaplink { Type = "markdown", Doc = rel, TitlePath = path }));
-        }
+        // SnaplinkTargets owns heading parsing, so the picker and the validator agree on what a title_path is.
+        foreach (var path in SnaplinkTargets.HeadingPaths(text))
+            Targets.Add(new SnaplinkTarget(path[^1], (path.Count - 1) * 14,
+                new Snaplink { Type = "markdown", Doc = rel, TitlePath = [.. path] }));
     }
 
     private void BuildCode(string rel, string grammar, string text, string? dir)
@@ -154,28 +149,5 @@ public sealed partial class SnaplinkPickerViewModel : ObservableObject
         };
     }
 
-    private static readonly Regex HeadingRx = new(@"^(#{1,6})\s+(.+?)\s*#*$", RegexOptions.Compiled);
-
-    private static IEnumerable<(int Level, string Text)> Headings(string md)
-    {
-        var fenced = false;
-        foreach (var raw in md.Replace("\r", "").Split('\n'))
-        {
-            var line = raw.Trim();
-            if (line.StartsWith("```") || line.StartsWith("~~~")) { fenced = !fenced; continue; }
-            if (fenced) continue;
-            var m = HeadingRx.Match(line);
-            if (m.Success) yield return (m.Groups[1].Value.Length, m.Groups[2].Value.Trim());
-        }
-    }
-
-    private static string? ReadText(string path)
-    {
-        try
-        {
-            var fi = new FileInfo(path);
-            return fi is { Exists: true, Length: <= 2_000_000 } ? File.ReadAllText(path) : null;
-        }
-        catch { return null; }
-    }
+    private static string? ReadText(string path) => SnaplinkTargets.ReadText(path);
 }

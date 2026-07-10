@@ -1,5 +1,5 @@
-using Nexaflow.Features.ProductManager.Model;
-using Nexaflow.Features.ProductManager.Services;
+using Nexaflow.Services.Initiatives.Product.Model;
+using Nexaflow.Services.Initiatives.Product.Services;
 
 namespace Nexaflow.Tests.Features.ProductManager;
 

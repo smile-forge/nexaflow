@@ -1,4 +1,4 @@
-namespace Nexaflow.Features.ProductManager.Services;
+namespace Nexaflow.Services.Initiatives.Product.Services;
 
 /// <summary>
 /// Resolves which folder a Product tab acts on. A product is simply the folder its <c>.product/</c>

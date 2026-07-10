@@ -3,8 +3,8 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using Nexaflow.Features.Common;
-using Nexaflow.Features.ProductManager.Model;
-using Nexaflow.Features.ProductManager.Services;
+using Nexaflow.Services.Initiatives.Product.Model;
+using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Features.ProductManager.ViewModels;
 using Nexaflow.Visuals.Common.Controls;
 
@@ -26,6 +26,14 @@ public partial class ProductView : UserControl, IPageView
     }
 
     IPageViewModel? IPageView.ViewModel => ViewModel;
+
+    /// <summary>Deep-link: the Integrity page asks this tab to focus the node owning a broken snaplink.
+    /// (An existing Product tab, whose params are just <c>path</c>, is adopted and re-initialised.)</summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        if (pageParams.TryGetValue("node", out var nodeId) && !string.IsNullOrWhiteSpace(nodeId))
+            ViewModel.NavigateTo(nodeId);
+    }
 
     private void AddRoot_Click(object sender, RoutedEventArgs e) => ViewModel.AddChild(null);
 
@@ -61,6 +69,7 @@ public partial class ProductView : UserControl, IPageView
         var restructure = Item("🧩  Restructure…", () => ViewModel.ShowRestructureCommand.Execute(null));
         restructure.IsEnabled = ViewModel.IsEditable;
         menu.Items.Add(restructure);
+        menu.Items.Add(Item("🔗  Validate snaplinks", () => ViewModel.OpenIntegrityCommand.Execute(null)));
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("⚙  Settings…", () => ViewModel.ShowSettingsCommand.Execute(null)));
         menu.IsOpen = true;

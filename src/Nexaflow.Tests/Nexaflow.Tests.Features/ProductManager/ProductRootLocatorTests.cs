@@ -1,4 +1,4 @@
-using Nexaflow.Features.ProductManager.Services;
+using Nexaflow.Services.Initiatives.Product.Services;
 
 namespace Nexaflow.Tests.Features.ProductManager;
 

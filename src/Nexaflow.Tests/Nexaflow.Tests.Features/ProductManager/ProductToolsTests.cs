@@ -2,8 +2,8 @@ using System.IO;
 using System.Text.Json.Nodes;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.ProductManager.ClientTools;
-using Nexaflow.Features.ProductManager.Model;
-using Nexaflow.Features.ProductManager.Services;
+using Nexaflow.Services.Initiatives.Product.Model;
+using Nexaflow.Services.Initiatives.Product.Services;
 
 namespace Nexaflow.Tests.Features.ProductManager;
 

@@ -1,4 +1,4 @@
-namespace Nexaflow.Features.ProductManager.Model;
+namespace Nexaflow.Services.Initiatives.Product.Model;
 
 /// <summary>
 /// The fully-loaded in-memory product: what <see cref="Services.ProductStore"/> reads from a
