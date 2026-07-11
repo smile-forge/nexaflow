@@ -53,7 +53,8 @@ dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- find <term>       
 dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- describe <node-id> # path, concerns, code/test/doc snaplinks
 ```
 
-**For code-level discovery, prefer the knowledge graph over grep/read.** The `graph` command builds
+**Code discovery is graph-first — reach for the graph CLI before Read/Grep, and before spawning an Explore/Plan
+agent (and require any sub-agent you do spawn to use it too).** The `graph` command builds
 `.product/graph.json` — the product tree ⊕ whole-repo AST ⊕ their snaplinks — and queries it headlessly. It's more
 token-efficient than reading files and surfaces relationships grep can't (who calls/instantiates a type, a project's
 `depends_on`, a view's `view_of` code-behind, the file a member `mentions`, the product feature that owns a code
@@ -72,6 +73,11 @@ dotnet run --project $cli -- graph code <code-id> .    # a code node's source bl
 Node ids: `product:<slug>` · `code:<relpath>#<astpath>` · `file:<relpath>` · `external:<name>`. For a multi-query
 session, `dotnet build` the CLI once and call `nexaflow-initiatives.exe` directly — each invocation reloads the
 graph, so skip the per-call `dotnet run` rebuild.
+
+**Working in a git worktree?** The `.product` graph/tree are gitignored and live only in the **main checkout**, not
+the worktree — so Glob/ripgrep won't list them, and `graph … .` finds nothing. Run the CLI with the **main-repo root**
+(`… graph search <term> d:\codedev\nexaflow`, not `.`) and call the prebuilt
+`src\Nexaflow.Services.Initiatives.Cli\bin\x64\Debug\net10.0\nexaflow-initiatives.exe` directly.
 
 The product-folder skill has fast-query recipes for deeper questions; the per-release export
 [docs/product/PRODUCT.md](docs/product/PRODUCT.md) is the human dashboard. Per-feature tab parameters are in
@@ -98,6 +104,12 @@ The **installer build runs the same check and fails on any broken link** (`nexaf
 `ValidateSnaplinks`), so `NexaflowSetup.slnx` is the release gate; a plain `dotnet build Nexaflow.slnx` never runs
 it. Results persist to the gitignored `.product/integrity.json` (derived — safe to delete). A file whose extension
 has no tree-sitter grammar (`.xaml`) is treated as **unverifiable, not broken** — never make the validator guess.
+
+**The tree is forward-looking** — the plan of what *should* be in place for the **next release**, not a snapshot
+of what shipped (that's the label-aligned [docs/product](docs/product) export). So **update it as you build** — flip
+concerns, add snaplinks, fix descriptions — *right then, not after merge*. Because the snaplink check is
+setup-build-only (above), pointing a `done` snaplink at a not-yet-merged file never blocks a regular build; it's the
+intended forward-looking state.
 
 **Test coverage is declared on the test, not hand-linked in the tree.** Every concrete `[TestClass]` carries
 `[CoversNode("node-id")]` (from `Nexaflow.Tests.Fixtures`) naming the node(s) it backs — or `[NoCoverage("reason")]`
