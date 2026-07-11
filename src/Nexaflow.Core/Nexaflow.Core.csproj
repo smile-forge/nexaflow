@@ -21,10 +21,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="Appicon.ico" />
-  </ItemGroup>
-  
-  <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="NAudio" Version="2.3.0" />
     <PackageReference Include="Updatum" Version="1.4.0" />
