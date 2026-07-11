@@ -2,6 +2,7 @@ using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Nexaflow.Services.Initiatives.Graph.Model;
 using Nexaflow.Services.Initiatives.Product.Model;
 
 namespace Nexaflow.Services.Initiatives.Product.Services;
@@ -103,6 +104,27 @@ public sealed class ProductStore
 
     public void SaveTestCoverage(TestCoverageManifest manifest) => Write(TestCoverageFilePath, manifest);
 
+    // ── Knowledge graph (derived — regenerate with `graph`; the Graph viewer opens this file) ──
+
+    /// <summary>On-disk path of the generated knowledge graph (the file the Graph viewer opens).</summary>
+    public string GraphFilePath => Path.Combine(_dir, "graph.json");
+
+    /// <summary>Per-file incremental build state (content hashes + cached contributions). Derived — safe to delete.</summary>
+    public string GraphCacheFilePath => Path.Combine(_dir, "graph-cache.json");
+
+    /// <summary>The last generated graph, or null when <c>graph</c> has never run for this product.</summary>
+    public KnowledgeGraph? LoadGraph() => Read<KnowledgeGraph>(GraphFilePath);
+
+    /// <summary>Writes the graph atomically — a whole-repo graph is large enough that a torn mid-scan write matters.</summary>
+    public void SaveGraph(KnowledgeGraph graph) => WriteAtomic(GraphFilePath, graph);
+
+    /// <summary>The last incremental build cache, or null when it has never been written (→ a full first scan).</summary>
+    public Nexaflow.Services.Initiatives.Graph.GraphCache? LoadGraphCache() =>
+        Read<Nexaflow.Services.Initiatives.Graph.GraphCache>(GraphCacheFilePath);
+
+    /// <summary>Writes the incremental build cache atomically alongside the graph.</summary>
+    public void SaveGraphCache(Nexaflow.Services.Initiatives.Graph.GraphCache cache) => WriteAtomic(GraphCacheFilePath, cache);
+
     // ── Snapshots (committed, in the export dir) ──────────────────────────────
 
     public string ExportPath(string exportDir) => Path.Combine(_root, exportDir);
@@ -160,6 +182,15 @@ public sealed class ProductStore
     {
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
         File.WriteAllText(fullPath, JsonSerializer.Serialize(value, Json));
+    }
+
+    /// <summary>Serialize to a sibling <c>.tmp</c> then atomically replace — no half-written file on crash.</summary>
+    private static void WriteAtomic(string fullPath, object value)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        var tmp = fullPath + ".tmp";
+        File.WriteAllText(tmp, JsonSerializer.Serialize(value, Json));
+        File.Move(tmp, fullPath, overwrite: true);
     }
 
     private static string Slug(string s)

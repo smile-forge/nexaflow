@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.ProductManager.ClientTools;
+using Nexaflow.Features.ProductManager.Services;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Visuals.Common.Controls;
@@ -201,6 +202,29 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     private void OpenIntegrity() =>
         _shell.OpenTab(ProductIntegrityTabRegistration.StaticPageKind,
             new Dictionary<string, string> { ["path"] = ProductRoot });
+
+    /// <summary>⋮ → Generate graph: builds the product ⊕ code knowledge graph on the shell's background queue,
+    /// then opens the result in the Graph viewer. Opening by page-kind string needs no reference to that feature.</summary>
+    [RelayCommand]
+    private void GenerateGraph()
+    {
+        var task = new BuildGraphTask(_state, ProductRoot);
+        _shell.QueueBackgroundTask(task, ok =>
+        {
+            if (ok) _shell.OpenTab("GraphViewer", new Dictionary<string, string> { ["path"] = task.GraphFilePath });
+        });
+    }
+
+    /// <summary>⋮ → Open graph: opens the existing <c>.product/graph.json</c> in the Graph viewer <b>without</b>
+    /// rebuilding it. Falls through to a build only when no graph has been generated yet.</summary>
+    [RelayCommand]
+    private void OpenGraph()
+    {
+        if (File.Exists(_store.GraphFilePath))
+            _shell.OpenTab("GraphViewer", new Dictionary<string, string> { ["path"] = _store.GraphFilePath });
+        else
+            GenerateGraph();
+    }
 
     // ["Current", …snapshots] — rebuilt only when the set changes, preserving a valid selection.
     private void SyncVersions()

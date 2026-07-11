@@ -22,6 +22,8 @@
   <ItemGroup>
     <!-- CodeStructureExtractor: resolves classes/methods so a code snaplink can be validated. -->
     <ProjectReference Include="..\Nexaflow.Syntax\Nexaflow.Syntax.csproj" />
+    <!-- Hashing: content-hash each code file for the incremental graph cache. -->
+    <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
   </ItemGroup>
 
 </Project>
