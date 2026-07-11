@@ -64,6 +64,7 @@ public static class TestSampleData
         new AudioSamples(),
         new VideoSamples(),
         new FontSamples(),
+        new SvgSamples(),
     ];
 
     private static readonly Lazy<string> RootLazy = new(EnsureAll);
@@ -157,5 +158,6 @@ public static class TestSampleData
         - `audio/`    — small PCM WAV tones (mono/stereo) for the audio player.
         - `video/`    — a minimal MP4 container for the video viewer (routing/open smoke test).
         - `font/`     — a code-generated minimal TrueType font + its WOFF wrapping for the font viewer.
+        - `svg/`      — a tiny hand-written SVG plus its gzipped `.svgz` for the vector viewer.
         """;
 }

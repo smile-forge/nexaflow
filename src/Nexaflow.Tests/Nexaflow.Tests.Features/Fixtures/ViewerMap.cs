@@ -21,5 +21,6 @@ internal static class ViewerMap
         ("audio",    "AudioView"),
         ("video",    "VideoView"),
         ("font",     "FontView"),
+        ("svg",      "SvgView"),
     ];
 }

@@ -1,0 +1,37 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ════ SVG viewer colour tokens ════
+         Shipped as an IThemeContribution so they merge BELOW the active theme (layer 3): every theme gets
+         these canvas defaults for free, and any theme may retune an Svg.* key by name without Core or the
+         feature referencing each other. Literal fallbacks (same approach as Model3D's viewport tokens) so
+         they resolve standalone. The canvas reads CanvasBg (solid backdrop) and CheckerBrush (the
+         transparency checkerboard behind transparent art); CheckerLight/CheckerDark are the two tile
+         colours, exposed so a theme author can retune them. -->
+
+    <SolidColorBrush x:Key="Svg.CanvasBg"     Color="#1B1F2A"/>
+    <SolidColorBrush x:Key="Svg.CheckerLight" Color="#3A3F4B"/>
+    <SolidColorBrush x:Key="Svg.CheckerDark"  Color="#2A2E38"/>
+
+    <DrawingBrush x:Key="Svg.CheckerBrush" TileMode="Tile" Stretch="None"
+                  Viewport="0,0,24,24" ViewportUnits="Absolute">
+        <DrawingBrush.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="{StaticResource Svg.CheckerLight}">
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,24,24"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="{StaticResource Svg.CheckerDark}">
+                    <GeometryDrawing.Geometry>
+                        <GeometryGroup>
+                            <RectangleGeometry Rect="0,0,12,12"/>
+                            <RectangleGeometry Rect="12,12,12,12"/>
+                        </GeometryGroup>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingBrush.Drawing>
+    </DrawingBrush>
+
+</ResourceDictionary>
