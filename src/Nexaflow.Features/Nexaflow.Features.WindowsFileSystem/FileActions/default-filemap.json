@@ -188,6 +188,13 @@
     ]
   },
   {
+    "ExperienceId": "/graph",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "PathPattern", "Value": "**/graph.json" }
+    ]
+  },
+  {
     "ExperienceId": "/text/json",
     "Source": "User",
     "Criteria": [

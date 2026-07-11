@@ -53,6 +53,26 @@ dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- find <term>       
 dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- describe <node-id> # path, concerns, code/test/doc snaplinks
 ```
 
+**For code-level discovery, prefer the knowledge graph over grep/read.** The `graph` command builds
+`.product/graph.json` — the product tree ⊕ whole-repo AST ⊕ their snaplinks — and queries it headlessly. It's more
+token-efficient than reading files and surfaces relationships grep can't (who calls/instantiates a type, a project's
+`depends_on`, a view's `view_of` code-behind, the file a member `mentions`, the product feature that owns a code
+node). Regenerate with `graph .` (incremental) after code changes, then explore (`graph help` lists the full set):
+
+```powershell
+$cli = "src/Nexaflow.Services.Initiatives.Cli"
+dotnet run --project $cli -- graph search <term> .     # find nodes (product/type/member/file) by id/label
+dotnet run --project $cli -- graph node <id> .         # a node + ALL its edges (both directions) + hyperedges
+dotnet run --project $cli -- graph context <id> .      # ONE-SHOT: node + its source + neighbours + owning feature
+dotnet run --project $cli -- graph walk <id> . --hops 2                               # its N-hop neighbourhood
+dotnet run --project $cli -- graph grep <regex> . --from <id> --hops 2 --mode content  # grep source of nodes near <id>
+dotnet run --project $cli -- graph code <code-id> .    # a code node's source block; `graph cat file:<path> .` = whole file
+```
+
+Node ids: `product:<slug>` · `code:<relpath>#<astpath>` · `file:<relpath>` · `external:<name>`. For a multi-query
+session, `dotnet build` the CLI once and call `nexaflow-initiatives.exe` directly — each invocation reloads the
+graph, so skip the per-call `dotnet run` rebuild.
+
 The product-folder skill has fast-query recipes for deeper questions; the per-release export
 [docs/product/PRODUCT.md](docs/product/PRODUCT.md) is the human dashboard. Per-feature tab parameters are in
 [docs/features.md](docs/features.md).

@@ -70,6 +70,8 @@ public partial class ProductView : UserControl, IPageView
         restructure.IsEnabled = ViewModel.IsEditable;
         menu.Items.Add(restructure);
         menu.Items.Add(Item("🔗  Validate snaplinks", () => ViewModel.OpenIntegrityCommand.Execute(null)));
+        menu.Items.Add(Item("🕸  Open graph", () => ViewModel.OpenGraphCommand.Execute(null)));
+        menu.Items.Add(Item("🔄  Regenerate graph", () => ViewModel.GenerateGraphCommand.Execute(null)));
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("⚙  Settings…", () => ViewModel.ShowSettingsCommand.Execute(null)));
         menu.IsOpen = true;
