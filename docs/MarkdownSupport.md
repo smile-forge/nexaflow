@@ -142,11 +142,13 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `sankey` | ✅ (flow diagram) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `erDiagram` | ✅ (graph layout) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `venn-beta` | ✅ (overlapping circles) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
+| `architecture-beta` | ✅ (grid layout, icon glyphs) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
+| `swimlane-beta` | ✅ (lane bands) | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
+| `cynefin-beta` | ✅ (five-domain grid) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `timeline` | ❌ raw source | ❌ |
 | `journey` | ❌ raw source | ❌ |
 | `C4Context` | ❌ raw source | ❌ |
 | `block-beta` | ❌ raw source | ❌ |
-| `architecture-beta` | ❌ raw source | ❌ |
 
 **State-diagram sub-features** ([`MermaidStateParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidStateParser.cs)).
 State diagrams reuse the shared graph model, the Sugiyama layout and `WpfGraphRenderer` (pseudostate
@@ -311,11 +313,52 @@ and `style id` / `style A,B` (fill / color / stroke / fill-opacity, the comma ta
 layout is canonical (radii scale with `size`), not the area-proportional solver Mermaid uses, so overlap areas are
 indicative rather than exact; `useDebugLayout` is ignored.
 
+**Architecture sub-features** ([`MermaidArchitectureParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidArchitectureParser.cs)
++ [`WpfArchitectureRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfArchitectureRenderer.cs)).
+An architecture diagram has its own [`ArchitectureDiagram`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/ArchitectureDiagram.cs)
+model — groups, the services/junctions inside them, and side-anchored edges — drawn by a **dedicated grid renderer**
+(not the Sugiyama pipeline): services are placed on a grid seeded from the edges' side hints (`A:R -- L:B` puts B to
+the right of A), groups draw as boxes around their members, and edges anchor to the declared `T`/`B`/`L`/`R` side.
+Supported: `group id(icon)[Title]` with nesting (`in parent`); `service id(icon)[Title] in group`; `junction`;
+edges `id{group}?:SIDE {<}?--{>}? SIDE:id{group}?` (all four arrow forms, cross-group `{group}` endpoints); and
+`align row`/`align column`. The five default icons (cloud/database/disk/internet/server) render as **built-in vector
+glyphs**; unknown/custom `pack:name` icons fall back to a caption. **The front-matter `config:` block is applied**
+([`ArchitectureConfigParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/ArchitectureConfigParser.cs) →
+[`ArchitectureConfig`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/ArchitectureConfig.cs)): `nodeSeparation`
+tunes cell spacing; the physics keys (`randomize`/`seed`/`idealEdgeLengthMultiplier`) are parsed but the grid layout
+is deterministic. **Limitations:** placement is a deterministic grid heuristic, not Mermaid's force-directed engine,
+so complex graphs may lay out differently; edges route as straight side-to-side lines.
+
+**Swimlane sub-features** ([`MermaidSwimlaneParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidSwimlaneParser.cs)
++ [`WpfSwimlaneRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfSwimlaneRenderer.cs)).
+Swimlane syntax is flowchart syntax where every **top-level `subgraph` is a lane**, so the parser rewrites the
+`swimlane-beta [DIR]` header to a `flowchart [DIR]` header and reuses `MermaidParser` for the full grammar; the
+dedicated renderer draws each lane as a band (horizontal bands for `TB`/`BT`, vertical columns for `LR`/`RL`) with
+its nodes flowing along the lane and edges (including cross-lane ones) drawn between node centres. Supported:
+direction (`TB`/`TD`/`BT`/`LR`/`RL`); lanes via top-level `subgraph id[Label] … end`; flowchart node shapes
+(`[rect]`, `(round)`, `([stadium])`, `{decision}`, `((circle))`); flowchart edges (`-->`, `---`, `-->|label|`,
+`-.->`, `==>`); and `accTitle`/`accDescr` (dropped as accessibility metadata). **Limitations:** each lane lays its
+nodes out in a single row/column in declaration order (no per-lane Sugiyama), so long lanes scroll rather than wrap.
+
+**Cynefin sub-features** ([`MermaidCynefinParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidCynefinParser.cs)
++ [`WpfCynefinRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfCynefinRenderer.cs)).
+A Cynefin diagram has its own [`CynefinDiagram`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/CynefinDiagram.cs)
+model — the five fixed domains, the items in each, and the transitions between them — drawn as a **fixed 2×2 grid**
+(Complex top-left, Complicated top-right, Chaotic bottom-left, Clear bottom-right) with `confusion` as a central
+ellipse. Supported: `cynefin-beta`; optional `title`; the five domain keywords with indented quoted `"item"` lines
+(unknown keywords are not domains); the confusion centre shows up to three items with a **`+N more`** overflow badge;
+and transitions `domainA --> domainB : "label"` as labelled arrows. **The front-matter `config:` block is applied**
+([`CynefinConfigParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/CynefinConfigParser.cs) →
+[`CynefinConfig`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/CynefinConfig.cs)): `config: cynefin`
+`width`/`height`/`padding`/`showDomainDescriptions`, and the `themeVariables: cynefin` domain backgrounds
+(`complexBg`/`complicatedBg`/`clearBg`/`chaoticBg`/`confusionBg`/`boundaryColor`, else the palette's series bank).
+
 Mermaid `--- … ---` front-matter (title/config) is stripped and a title applied
 (`MermaidFrontmatter`); this is tested directly (`DiagramParsersTests` →
 `Frontmatter_*`, and `DiagramRendererTests.Frontmatter_PieRoutesToChartNotSourceText`). The `config:` block is
-discarded for every diagram **except `xychart`, `radar-beta`, `ishikawa-beta`, `sankey`, `erDiagram` and `venn-beta`**,
-which re-read it (via `MermaidFrontmatter.RawBlock`) and apply their `config:` options described above.
+discarded for every diagram **except `xychart`, `radar-beta`, `ishikawa-beta`, `sankey`, `erDiagram`, `venn-beta`,
+`architecture-beta` and `cynefin-beta`**, which re-read it (via `MermaidFrontmatter.RawBlock`) and apply their
+`config:` options described above.
 A document-level YAML front-matter block is handled separately (`UseYamlFrontMatter`, parsed but
 not rendered — see the extensions table above); this Mermaid front-matter is a different, fence-local
 mechanism.
@@ -356,8 +399,8 @@ covered by the Core test project):
 | [`Visuals/Markdown/BlockRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/BlockRendererTests.cs) | Per-block render (headings incl. setext, paragraph, HR, quote, lists incl. nested/loose, indented + fenced code, table, diagram dispatch, math block) **and the full CommonMark inline layer** (inline code, emphasis, strong, links, reference links, autolinks, images local + remote, line breaks, escapes, entities, raw-HTML drop). (UI category.) |
 | [`Visuals/Markdown/MarkdownViewTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownViewTests.cs) | `MarkdownView` populates its block panel. (UI category.) |
 | [`Visuals/Markdown/MarkdownExtensionsTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownExtensionsTests.cs) | Enabled extensions (grid tables, task lists, emphasis extras, auto links, definition lists, list extras, abbreviations, alert blocks, figures, footers, citations, inline math) + expanded pipe-table edge cases + selectable `MarkdownFlowDocument` tables. (UI category.) |
-| [`Visuals/Markdown/DiagramRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/DiagramRendererTests.cs) | WPF render smoke tests for quadrant + sequence; state/class/requirement + kanban routing; XY chart (vertical/horizontal, per-point labels, front-matter config); radar (circle/polygon graticule, keyed curve, front-matter config); ishikawa (fishbone routing, front-matter config); sankey (CSV routing, front-matter config + node colours); ER (graph routing, word-cardinality + front-matter config); venn (circle routing, three-set + custom palette + front-matter config); front-matter pie routing. (UI category.) |
-| [`Unit/Markdown/DiagramParsersTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/DiagramParsersTests.cs) | WPF-free parser tests: quadrant, sequence (extensive), flowchart, gantt, git graph, mindmap, state, class, requirement, kanban, XY chart + `XyChartConfig` (layout/axis/theme keys, `plotColorPalette`), radar + `RadarConfig` (axes, positional/keyed curves, options, geometry/styling/`cScale`), ishikawa + `IshikawaConfig` (head/category/nested-cause indentation, `diagramPadding`), sankey + `SankeyConfig` (CSV quoting/doubled-quotes/comments, shared nodes, enums + `nodeColors`), ER + `ErConfig` (symbol/word cardinality, identification, attributes/keys/comments, aliases, `layoutDirection`), venn + `VennConfig` (sets/unions/sizes, indented + explicit text, styling, `venn1…8` palette), front-matter. |
+| [`Visuals/Markdown/DiagramRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/DiagramRendererTests.cs) | WPF render smoke tests for quadrant + sequence; state/class/requirement + kanban routing; XY chart (vertical/horizontal, per-point labels, front-matter config); radar (circle/polygon graticule, keyed curve, front-matter config); ishikawa (fishbone routing, front-matter config); sankey (CSV routing, front-matter config + node colours); ER (graph routing, word-cardinality + front-matter config); venn (circle routing, three-set + custom palette + front-matter config); architecture (grid routing not raw text, groups/icons/cross-group edges/junction); swimlane (lane routing not raw text, horizontal direction); cynefin (domain routing not raw text, confusion overflow + front-matter config); front-matter pie routing. (UI category.) |
+| [`Unit/Markdown/DiagramParsersTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/DiagramParsersTests.cs) | WPF-free parser tests: quadrant, sequence (extensive), flowchart, gantt, git graph, mindmap, state, class, requirement, kanban, XY chart + `XyChartConfig` (layout/axis/theme keys, `plotColorPalette`), radar + `RadarConfig` (axes, positional/keyed curves, options, geometry/styling/`cScale`), ishikawa + `IshikawaConfig` (head/category/nested-cause indentation, `diagramPadding`), sankey + `SankeyConfig` (CSV quoting/doubled-quotes/comments, shared nodes, enums + `nodeColors`), ER + `ErConfig` (symbol/word cardinality, identification, attributes/keys/comments, aliases, `layoutDirection`), venn + `VennConfig` (sets/unions/sizes, indented + explicit text, styling, `venn1…8` palette); architecture + `ArchitectureConfig` (groups/services/icons/membership, nested groups, edge sides + all four arrow forms, cross-group edges, junctions, alignment, custom icon packs); cynefin + `CynefinConfig` (domain items, all five domains, confusion overflow, transitions, theme colours); swimlane (direction, top-level subgraph lanes, node shapes, edge styles/labels, cross-lane edges, accessibility lines); front-matter. |
 | [`Visuals/Markdown/MarkdownSampleRenderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownSampleRenderTests.cs) | End-to-end: every diagram in the sample dataset parses + renders, plus the `extensions.md` sample (emphasis extras, abbreviations, alert blocks) renders every block. (UI category.) |
 | [`Unit/Markdown/MarkdownBlocksTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/MarkdownBlocksTests.cs) | **Editor** block model (split/join/compact) — *not* renderer coverage. |
 | [`Unit/Markdown/HtmlToMarkdownTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/HtmlToMarkdownTests.cs) | **HTML→markdown paste** conversion — *not* renderer coverage. |
@@ -365,7 +408,7 @@ covered by the Core test project):
 Sample fixtures (driving `MarkdownSampleRenderTests`) live in
 [`Nexaflow.Tests.Fixtures/MarkdownSamples.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Fixtures/MarkdownSamples.cs):
 the `mermaid-*` diagram docs (pie, flowchart, quadrant, sequence, gantt, git graph, mindmap, state, class,
-requirement, kanban, xychart, radar, ishikawa, sankey, er, venn) and `extensions.md` (YAML front matter, emphasis extras, abbreviations, alert blocks).
+requirement, kanban, xychart, radar, ishikawa, sankey, er, venn, architecture, swimlane, cynefin) and `extensions.md` (YAML front matter, emphasis extras, abbreviations, alert blocks).
 
 **Where coverage is thin:**
 
@@ -385,8 +428,7 @@ requirement, kanban, xychart, radar, ishikawa, sankey, er, venn) and `extensions
 - **Raw HTML is not rendered** — inline HTML is dropped, HTML blocks show as raw text.
 - **No emoji shortcodes** (`:tada:`).
 - **Task list checkboxes are display-only** — not clickable to toggle.
-- **Several Mermaid families fall back to raw text** (timeline, journey,
-  C4, block, architecture).
+- **Several Mermaid families fall back to raw text** (timeline, journey, C4, block).
 
 If any of the disabled extensions are wanted, the change is usually a one-line
 `.UseX()` in `MarkdownPipelineFactory` **plus** renderer cases in both `BlockRenderer`

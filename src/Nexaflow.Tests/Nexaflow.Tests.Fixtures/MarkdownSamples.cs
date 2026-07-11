@@ -3,9 +3,11 @@ namespace Nexaflow.Tests.Fixtures;
 /// <summary>
 /// Catalog of sample markdown documents — one per Mermaid diagram type the renderer supports
 /// (pie, flowchart, quadrant chart, sequence diagram, gantt, git graph, mindmap, state diagram,
-/// class diagram, requirement diagram, kanban board, XY chart, radar chart, Ishikawa/fishbone, Sankey, ER, Venn), plus an <c>extensions.md</c> exercising the non-diagram Markdig extensions (emphasis extras,
-/// abbreviations, alert blocks). Each document showcases several variations, so the fixtures
-/// double as a human-readable reference. The <c>mermaid-*</c> naming marks the diagram docs.
+/// class diagram, requirement diagram, kanban board, XY chart, radar chart, Ishikawa/fishbone, Sankey,
+/// ER, Venn, architecture, swimlanes, Cynefin), plus an <c>extensions.md</c> exercising the non-diagram
+/// Markdig extensions (emphasis extras, abbreviations, alert blocks). Each document showcases several
+/// variations, so the fixtures double as a human-readable reference. The <c>mermaid-*</c> naming marks
+/// the diagram docs.
 /// </summary>
 internal sealed class MarkdownSamples : ISampleSet
 {
@@ -30,6 +32,9 @@ internal sealed class MarkdownSamples : ISampleSet
         SampleFile.Text("mermaid-sankey.md",      Sankey),
         SampleFile.Text("mermaid-er.md",          Er),
         SampleFile.Text("mermaid-venn.md",        Venn),
+        SampleFile.Text("mermaid-architecture.md", Architecture),
+        SampleFile.Text("mermaid-swimlane.md",    Swimlane),
+        SampleFile.Text("mermaid-cynefin.md",     Cynefin),
         SampleFile.Text("extensions.md",          Extensions),
     ];
 
@@ -91,6 +96,155 @@ internal sealed class MarkdownSamples : ISampleSet
           union A,B["AB"]:3
           style A fill:#ff6b6b
           style A,B color:#cccccc
+        ```
+        """;
+
+    private const string Architecture =
+        """
+        # Mermaid — Architecture diagram
+
+        An `architecture-beta` diagram shows grouped `service` nodes joined by side-anchored edges. A
+        `group id(icon)[Title]` box contains services (`service id(icon)[Title] in group`); edges attach to
+        a declared `T`/`B`/`L`/`R` side (`db:R -- L:server`), carry optional arrowheads, and may cross
+        groups via the `{group}` suffix. Default icons (cloud/database/disk/internet/server) render as
+        built-in glyphs; `junction` nodes route four ways.
+
+        ## Grouped services with icons
+
+        ```mermaid
+        architecture-beta
+            group api(cloud)[API]
+            service db(database)[Database] in api
+            service disk1(disk)[Storage] in api
+            service server(server)[Server] in api
+            db:L -- R:server
+            disk1:T -- B:server
+        ```
+
+        ## Cross-group edges and a junction
+
+        ```mermaid
+        architecture-beta
+            group public(cloud)[Public]
+            group private(cloud)[Private]
+            service gateway(internet)[Gateway] in public
+            service app(server)[App] in private
+            junction j1 in private
+            gateway:R --> L:app
+            app:B -- T:j1
+            gateway{group}:B --> T:app{group}
+        ```
+
+        ## Alignment and custom icons
+
+        ```mermaid
+        architecture-beta
+            service left(server)[Left]
+            service mid(server)[Middle]
+            service right(server)[Right]
+            left:R -- L:mid
+            mid:R -- L:right
+            align row left mid right
+        ```
+        """;
+
+    private const string Swimlane =
+        """
+        # Mermaid — Swimlane diagram
+
+        A `swimlane-beta` diagram is a flowchart whose top-level `subgraph`s become lanes. An optional
+        direction (`TB`/`BT`/`LR`/`RL`) follows the keyword; nodes use flowchart shapes (`[rect]`,
+        `(round)`, `([stadium])`, `{decision}`, `((circle))`) and edges use flowchart links
+        (`-->`, `---`, `-->|label|`, `-.->`, `==>`), including edges that cross lanes.
+
+        ## Vertical lanes (default TB)
+
+        ```mermaid
+        swimlane-beta
+            subgraph customer[Customer]
+                start([Place order])
+                pay[Pay]
+            end
+            subgraph fulfilment[Fulfilment]
+                pick{In stock?}
+                ship[Ship order]
+            end
+            start --> pay
+            pay --> pick
+            pick -->|Yes| ship
+            pick -.->|No| pay
+        ```
+
+        ## Horizontal lanes (LR) and thick links
+
+        ```mermaid
+        swimlane-beta LR
+            subgraph dev[Developer]
+                code[Write code]
+                fix(Fix issues)
+            end
+            subgraph ci[CI]
+                build[Build]
+                test{Tests pass?}
+            end
+            code ==> build
+            build --> test
+            test -->|Yes| done([Deploy])
+            test --> fix
+        ```
+        """;
+
+    private const string Cynefin =
+        """
+        # Mermaid — Cynefin diagram
+
+        A `cynefin-beta` diagram places items into the five sense-making domains — `complex` (top-left),
+        `complicated` (top-right), `chaotic` (bottom-left), `clear` (bottom-right) and the central
+        `confusion`. Items are quoted strings in a domain block; the confusion centre shows up to three
+        items with a `+N more` overflow badge. Transitions (`domainA --> domainB : "label"`) draw as
+        labelled arrows.
+
+        ## Making sense of the work
+
+        ```mermaid
+        cynefin-beta
+            title Making sense of the work
+            complex
+                "Investigate root cause"
+                "Run a safe-to-fail experiment"
+            complicated
+                "Consult an expert"
+                "Analyse the trade-offs"
+            clear
+                "Apply the standard runbook"
+            chaotic
+                "Stop the bleeding"
+            confusion
+                "Unclassified incident A"
+                "Unclassified incident B"
+                "Unclassified incident C"
+                "Unclassified incident D"
+            chaotic --> complex : "Stabilised"
+            complex --> complicated : "Pattern found"
+        ```
+
+        ## With domain descriptions and theme colours
+
+        ```mermaid
+        ---
+        config:
+          cynefin:
+            showDomainDescriptions: true
+          themeVariables:
+            cynefin:
+              complexBg: "#4e79a7"
+              clearBg: "#59a14f"
+        ---
+        cynefin-beta
+            complex
+                "Emergent practice"
+            clear
+                "Best practice"
         ```
         """;
 

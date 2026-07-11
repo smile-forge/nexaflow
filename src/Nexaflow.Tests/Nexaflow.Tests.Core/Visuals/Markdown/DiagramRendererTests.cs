@@ -591,4 +591,203 @@ public class DiagramRendererTests
         var d = new MermaidVennParser().Parse("venn-beta\n");
         Assert.IsNotNull(WpfVennRenderer.Render(d, MarkdownPalette.Dark));
     });
+
+    // ── Architecture diagram ──────────────────────────────────────────────
+
+    private const string ArchitectureSrc =
+        """
+        architecture-beta
+            group api(cloud)[API]
+            service db(database)[Database] in api
+            service server(server)[Server] in api
+            db:R -- L:server
+        """;
+
+    [TestMethod]
+    [CoversNode("architecture")]
+    public void Architecture_RendersBorder() => UiThread.Run(() =>
+    {
+        var d = new MermaidArchitectureParser().Parse(ArchitectureSrc);
+        Assert.IsInstanceOfType(WpfArchitectureRenderer.Render(d, MarkdownPalette.Dark), typeof(Border));
+    });
+
+    [TestMethod]
+    [CoversNode("architecture")]
+    public void Architecture_DispatchesToGridRendererNotRawText() => UiThread.Run(() =>
+    {
+        // architecture-beta used to fall through to raw source text; it must now route to the grid
+        // renderer: Border → ScrollViewer → Canvas (the raw fallback is Border → TextBlock).
+        var fe = DiagramRenderer.Render("mermaid", ArchitectureSrc, MarkdownPalette.Dark);
+        Assert.IsInstanceOfType(fe, typeof(Border));
+        var sv = ((Border)fe).Child as ScrollViewer;
+        Assert.IsNotNull(sv, "architecture-beta should route to the architecture renderer");
+        Assert.IsInstanceOfType(sv!.Content, typeof(Canvas));
+    });
+
+    [TestMethod]
+    [CoversNode("architecture")]
+    public void Architecture_GroupsIconsAndCrossGroupEdge_Render() => UiThread.Run(() =>
+    {
+        const string src =
+            """
+            architecture-beta
+                group public(cloud)[Public]
+                group private(cloud)[Private]
+                service gateway(internet)[Gateway] in public
+                service app(server)[App] in private
+                junction j1 in private
+                gateway:R --> L:app
+                app:B -- T:j1
+                gateway{group}:B --> T:app{group}
+            """;
+        Assert.IsNotNull(DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark));
+    });
+
+    [TestMethod]
+    [CoversNode("architecture")]
+    public void Architecture_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
+    {
+        var d = new MermaidArchitectureParser().Parse("architecture-beta\n");
+        Assert.IsNotNull(WpfArchitectureRenderer.Render(d, MarkdownPalette.Dark));
+    });
+
+    // ── Swimlane diagram ──────────────────────────────────────────────────
+
+    private const string SwimlaneSrc =
+        """
+        swimlane-beta
+            subgraph customer[Customer]
+                start([Place order])
+                pay[Pay]
+            end
+            subgraph fulfilment[Fulfilment]
+                pick{In stock?}
+                ship[Ship order]
+            end
+            start --> pay
+            pay --> pick
+            pick -->|Yes| ship
+            pick -.->|No| pay
+        """;
+
+    [TestMethod]
+    [CoversNode("swimlanes")]
+    public void Swimlane_RendersBorder() => UiThread.Run(() =>
+    {
+        var g = new MermaidSwimlaneParser().Parse(SwimlaneSrc);
+        Assert.IsInstanceOfType(WpfSwimlaneRenderer.Render(g, MarkdownPalette.Dark), typeof(Border));
+    });
+
+    [TestMethod]
+    [CoversNode("swimlanes")]
+    public void Swimlane_DispatchesToLaneRendererNotRawText() => UiThread.Run(() =>
+    {
+        var fe = DiagramRenderer.Render("mermaid", SwimlaneSrc, MarkdownPalette.Dark);
+        Assert.IsInstanceOfType(fe, typeof(Border));
+        var sv = ((Border)fe).Child as ScrollViewer;
+        Assert.IsNotNull(sv, "swimlane-beta should route to the swimlane renderer");
+        Assert.IsInstanceOfType(sv!.Content, typeof(Canvas));
+    });
+
+    [TestMethod]
+    [CoversNode("swimlanes")]
+    public void Swimlane_HorizontalDirection_Renders() => UiThread.Run(() =>
+    {
+        const string src =
+            """
+            swimlane-beta LR
+                subgraph dev[Developer]
+                    code[Write code]
+                end
+                subgraph ci[CI]
+                    build[Build]
+                    test{Tests pass?}
+                end
+                code ==> build
+                build --> test
+            """;
+        Assert.IsNotNull(DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark));
+    });
+
+    [TestMethod]
+    [CoversNode("swimlanes")]
+    public void Swimlane_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
+    {
+        var g = new MermaidSwimlaneParser().Parse("swimlane-beta\n");
+        Assert.IsNotNull(WpfSwimlaneRenderer.Render(g, MarkdownPalette.Dark));
+    });
+
+    // ── Cynefin diagram ───────────────────────────────────────────────────
+
+    private const string CynefinSrc =
+        """
+        cynefin-beta
+            title Making sense
+            complex
+                "Investigate root cause"
+            complicated
+                "Consult an expert"
+            clear
+                "Apply the runbook"
+            chaotic
+                "Stop the bleeding"
+            confusion
+                "Incident A"
+                "Incident B"
+                "Incident C"
+                "Incident D"
+            chaotic --> complex : "Stabilised"
+        """;
+
+    [TestMethod]
+    [CoversNode("cynefin")]
+    public void Cynefin_RendersBorder() => UiThread.Run(() =>
+    {
+        var d = new MermaidCynefinParser().Parse(CynefinSrc);
+        Assert.IsInstanceOfType(WpfCynefinRenderer.Render(d, MarkdownPalette.Dark), typeof(Border));
+    });
+
+    [TestMethod]
+    [CoversNode("cynefin")]
+    public void Cynefin_DispatchesToDomainRendererNotRawText() => UiThread.Run(() =>
+    {
+        // cynefin-beta used to fall through to raw source text; it must now route to the domain
+        // renderer: Border → Canvas (the raw fallback is Border → TextBlock).
+        var fe = DiagramRenderer.Render("mermaid", CynefinSrc, MarkdownPalette.Dark);
+        Assert.IsInstanceOfType(fe, typeof(Border));
+        Assert.IsInstanceOfType(((Border)fe).Child, typeof(Canvas));
+    });
+
+    [TestMethod]
+    [CoversNode("cynefin")]
+    public void Cynefin_ConfusionOverflowAndConfig_Render() => UiThread.Run(() =>
+    {
+        const string src =
+            """
+            ---
+            config:
+              cynefin:
+                showDomainDescriptions: true
+              themeVariables:
+                cynefin:
+                  complexBg: "#4e79a7"
+            ---
+            cynefin-beta
+                confusion
+                    "One"
+                    "Two"
+                    "Three"
+                    "Four"
+                    "Five"
+            """;
+        Assert.IsNotNull(DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark));
+    });
+
+    [TestMethod]
+    [CoversNode("cynefin")]
+    public void Cynefin_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
+    {
+        var d = new MermaidCynefinParser().Parse("cynefin-beta\n");
+        Assert.IsNotNull(WpfCynefinRenderer.Render(d, MarkdownPalette.Dark));
+    });
 }
