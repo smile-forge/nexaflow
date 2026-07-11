@@ -5,6 +5,7 @@ using System.Linq;
 using NSubstitute;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Compressed.Handlers;
+using Nexaflow.Features.WindowsFileSystem.Services;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
@@ -15,8 +16,18 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem;
 /// VFS supplies the listing for the archive and its inner folders.</summary>
 [TestClass]
 [CoversNode("winfs-open-entry")]
+[DoNotParallelize]   // OpenEntry consults the process-wide FileMapManager.Instance (the /archive mapping)
 public class ArchiveBrowsingTests
 {
+    [ClassInitialize]
+    public static void Init(TestContext _)
+    {
+        // "A .zip expands in place" is now a filemap decision (DefaultFileOpener.ExpandsInPlace →
+        // FileMapManager /archive extension mapping), so the bundled defaults must be seeded.
+        var dir = Path.Combine(Path.GetTempPath(), "nexa-browse-filemap-" + Guid.NewGuid().ToString("N"));
+        FileMapManager.Instance.Initialize(baseDir: dir);
+    }
+
     [TestMethod]
     public void NavigateInto_Zip_ListsTopLevel()
     {

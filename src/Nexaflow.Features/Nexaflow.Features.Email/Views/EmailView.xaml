@@ -1,0 +1,248 @@
+<UserControl x:Class="Nexaflow.Features.Email.Views.EmailView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
+             xmlns:conv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             x:ClassModifier="internal"
+             AutomationProperties.AutomationId="EmailView"
+             Background="{StaticResource BgBrush}">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <conv:InverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
+        <conv:NullToCollapsedConverter x:Key="NullToCollapsed"/>
+
+        <!-- Muted caption for the envelope field labels -->
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,0,10,2"/>
+            <Setter Property="VerticalAlignment" Value="Top"/>
+        </Style>
+        <Style x:Key="FieldValue" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,0,0,2"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+
+        <!-- Body-view toggle. A per-button DataTrigger (see the toolbar) gives the active mode the accent
+             fill, so the currently-shown representation is unmistakable. -->
+        <Style x:Key="BodyToggle" TargetType="Button">
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <!-- Parse-failure state -->
+        <TextBlock Text="{Binding ErrorMessage}"
+                   Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}"
+                   Foreground="{StaticResource DangerBrush}"
+                   TextWrapping="Wrap" MaxWidth="480"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+        <Grid Visibility="{Binding HasError, Converter={StaticResource InvBoolToVis}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- ── Envelope header ─────────────────────────────────────────── -->
+            <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                    Padding="16,12">
+                <StackPanel>
+                    <TextBlock Text="{Binding Subject, TargetNullValue='(no subject)'}"
+                               FontSize="17" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"
+                               Margin="0,0,0,8"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="From" Style="{StaticResource FieldLabel}"
+                                   Visibility="{Binding From, Converter={StaticResource NullToCollapsed}}"/>
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding From}" Style="{StaticResource FieldValue}"
+                                   Visibility="{Binding From, Converter={StaticResource NullToCollapsed}}"/>
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="To" Style="{StaticResource FieldLabel}"
+                                   Visibility="{Binding To, Converter={StaticResource NullToCollapsed}}"/>
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding To}" Style="{StaticResource FieldValue}"
+                                   Visibility="{Binding To, Converter={StaticResource NullToCollapsed}}"/>
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Cc" Style="{StaticResource FieldLabel}"
+                                   Visibility="{Binding Cc, Converter={StaticResource NullToCollapsed}}"/>
+                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Cc}" Style="{StaticResource FieldValue}"
+                                   Visibility="{Binding Cc, Converter={StaticResource NullToCollapsed}}"/>
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Date" Style="{StaticResource FieldLabel}"
+                                   Visibility="{Binding DateText, Converter={StaticResource NullToCollapsed}}"/>
+                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding DateText}" Style="{StaticResource FieldValue}"
+                                   Visibility="{Binding DateText, Converter={StaticResource NullToCollapsed}}"/>
+                    </Grid>
+
+                    <!-- Full raw header list, collapsed by default. Capped height + scrollbar so a message
+                         with many/long headers (Received chains, DKIM, ARC) can't push the body offscreen. -->
+                    <Expander Header="All headers" IsExpanded="{Binding HeadersExpanded, Mode=TwoWay}"
+                              Margin="0,8,0,0" Foreground="{StaticResource TextMutedBrush}">
+                        <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+                        <ItemsControl ItemsSource="{Binding AllHeaders}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="160"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding Field}"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   FontSize="11" TextWrapping="Wrap" Margin="0,0,10,0"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Value}"
+                                                   Foreground="{StaticResource TextBrush}"
+                                                   FontSize="11" TextWrapping="Wrap"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        </ScrollViewer>
+                    </Expander>
+                </StackPanel>
+            </Border>
+
+            <!-- ── Body-view toolbar ───────────────────────────────────────── -->
+            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="16,8,16,0">
+                <Button Content="Rendered" Command="{Binding ShowRenderedCommand}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource BodyToggle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsRenderedView}" Value="True">
+                                    <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                                    <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button Content="Plain text" Command="{Binding ShowPlainTextCommand}"
+                        Visibility="{Binding HasPlainText, Converter={StaticResource BoolToVis}}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource BodyToggle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsPlainTextView}" Value="True">
+                                    <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                                    <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button Content="HTML source" Command="{Binding ShowHtmlSourceCommand}"
+                        Visibility="{Binding HasHtmlBody, Converter={StaticResource BoolToVis}}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource BodyToggle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsHtmlSourceView}" Value="True">
+                                    <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                                    <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+
+                <Button Content="Open in browser" Style="{StaticResource BodyToggle}"
+                        Command="{Binding OpenInBrowserCommand}"
+                        Visibility="{Binding HasHtmlBody, Converter={StaticResource BoolToVis}}"
+                        HorizontalAlignment="Right" Margin="16,0,0,0"/>
+            </StackPanel>
+
+            <!-- ── Body ────────────────────────────────────────────────────── -->
+            <!-- The message sits on its own surface card rather than floating over the window background. -->
+            <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                    CornerRadius="6" Margin="16,8,16,8">
+                <Grid>
+                    <md:SelectableMarkdownView x:Name="MarkdownBody"
+                                               Markdown="{Binding RenderedMarkdown}"
+                                               FitContentToWidth="True"
+                                               VerticalScrollBarVisibility="Auto"
+                                               Margin="12,10"
+                                               Visibility="{Binding IsRenderedView, Converter={StaticResource BoolToVis}}"/>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  Visibility="{Binding IsPlainTextView, Converter={StaticResource BoolToVis}}">
+                        <TextBox Text="{Binding PlainText, Mode=OneWay}" IsReadOnly="True"
+                                 BorderThickness="0" Background="Transparent"
+                                 Foreground="{StaticResource TextBrush}"
+                                 FontFamily="Consolas, Cascadia Mono, monospace"
+                                 TextWrapping="Wrap" Margin="12,10"/>
+                    </ScrollViewer>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  Visibility="{Binding IsHtmlSourceView, Converter={StaticResource BoolToVis}}">
+                        <TextBox Text="{Binding HtmlSource, Mode=OneWay}" IsReadOnly="True"
+                                 BorderThickness="0" Background="Transparent"
+                                 Foreground="{StaticResource TextMutedBrush}"
+                                 FontFamily="Consolas, Cascadia Mono, monospace"
+                                 TextWrapping="Wrap" Margin="12,10"/>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <!-- ── Attachments ─────────────────────────────────────────────── -->
+            <Border Grid.Row="3" Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0"
+                    Padding="16,10"
+                    Visibility="{Binding HasAttachments, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <TextBlock Text="Attachments" Foreground="{StaticResource TextMutedBrush}"
+                               FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                    <ItemsControl ItemsSource="{Binding Attachments}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Command="{Binding DataContext.OpenAttachmentCommand,
+                                                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        CommandParameter="{Binding}"
+                                        Margin="0,0,8,8" Padding="10,6" Cursor="Hand"
+                                        Background="{StaticResource Surface2Brush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                        ToolTip="{Binding ContentType}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="📎" Margin="0,0,6,0"/>
+                                        <TextBlock Text="{Binding DisplayName}" Foreground="{StaticResource TextBrush}"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding SizeText}" Foreground="{StaticResource TextMutedBrush}"
+                                                   FontSize="11" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

@@ -372,8 +372,9 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
     }
 
     /// <summary>Returns a real on-disk path for the file the (possibly virtual, possibly nested) path
-    /// points to, extracting and caching as needed.</summary>
-    private string MaterializeFile(string path)
+    /// points to, extracting and caching as needed. Public so a caller that needs an actual launchable
+    /// file path — e.g. handing an in-archive entry to a shell "open" verb — can get one.</summary>
+    public string MaterializeFile(string path)
     {
         if (File.Exists(path)) return path;
         var (container, inner) = SplitOutermostContainer(path);

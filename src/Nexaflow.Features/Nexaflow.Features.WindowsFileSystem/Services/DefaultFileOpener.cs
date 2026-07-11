@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.IO.Common;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -23,6 +24,23 @@ public sealed class DefaultFileOpener
 
     public DefaultFileOpener(FileSystemFeatureRegistry registry)
         => _actions = new FileActionManager(registry);
+
+    /// <summary>The bundled experience for archive-primary formats (see default-filemap.json).</summary>
+    private const string ArchiveExperienceId = "/archive";
+
+    /// <summary>
+    /// Whether a browsable container should open <b>in place</b> (browse its contents as a folder) rather
+    /// than in its own viewer, by default. True only when <c>/archive</c> is the container's
+    /// <i>extension-level</i> experience — a real archive (<c>.zip</c>, <c>.tar.gz</c>, <c>.7z</c>). A format
+    /// mapped to <c>/archive</c> only by <see cref="FileActions.CriteriaType.OptionalExtension"/>
+    /// (<c>.docx</c>, <c>.odt</c>, <c>.epub</c>) — or not mapped there at all (<c>.eml</c>) — keeps its own
+    /// viewer, so <see cref="GetMatchSpecificity"/> scores it below the extension level (4) and this is false.
+    /// Works for a virtual (in-archive) path too: <see cref="FileInfo"/> yields the name/extension without
+    /// the file existing, and the magic-number probe inside <see cref="FileMapManager.GetMatchSpecificity"/>
+    /// is guarded by <c>file.Exists</c>.
+    /// </summary>
+    public static bool ExpandsInPlace(string path)
+        => FileMapManager.Instance.GetMatchSpecificity(new FileInfo(path), ArchiveExperienceId) >= 4;
 
     /// <summary>
     /// Opens <paramref name="filePath"/> with its highest-specificity internal action, else the
@@ -87,7 +105,7 @@ public sealed class DefaultFileOpener
         {
             try
             {
-                Process.Start(new ProcessStartInfo(filePath)
+                Process.Start(new ProcessStartInfo(RealizeForShell(filePath))
                 {
                     Verb            = shellOpenVerb.Verb,
                     UseShellExecute = true
@@ -96,6 +114,16 @@ public sealed class DefaultFileOpener
             catch { }
         }
         return false;
+    }
+
+    /// <summary>A real, launchable path for the shell. A virtual (in-archive) path — e.g. a PDF opened from
+    /// an email or a zip — has no real file, so <see cref="Process.Start(ProcessStartInfo)"/> would silently
+    /// fail; materialise it to a temp copy first. Real paths pass straight through.</summary>
+    private static string RealizeForShell(string path)
+    {
+        if (File.Exists(path)) return path;
+        try { return VirtualFileSystem.Instance.MaterializeFile(path); }
+        catch { return path; }
     }
 
     /// <summary>
@@ -120,13 +148,13 @@ public sealed class DefaultFileOpener
             case DefaultActionKind.ExternalApp:
                 var def = ExternalAppRegistry.Instance.FindById(ov.TargetId);
                 if (def is null) return false;
-                new CustomAction(def, ExternalAppRegistry.ResolveIcon(def)).PerformAction(filePath);
+                new CustomAction(def, ExternalAppRegistry.ResolveIcon(def)).PerformAction(RealizeForShell(filePath));
                 return true;
 
             case DefaultActionKind.WindowsVerb:
                 try
                 {
-                    Process.Start(new ProcessStartInfo(filePath) { Verb = ov.TargetId, UseShellExecute = true });
+                    Process.Start(new ProcessStartInfo(RealizeForShell(filePath)) { Verb = ov.TargetId, UseShellExecute = true });
                     return true;
                 }
                 catch { return false; }
