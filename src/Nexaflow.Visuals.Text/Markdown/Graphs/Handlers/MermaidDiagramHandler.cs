@@ -50,6 +50,9 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
     private static readonly MermaidSankeyParser   SankeyParser   = new();
     private static readonly MermaidErParser       ErParser       = new();
     private static readonly MermaidVennParser     VennParser     = new();
+    private static readonly MermaidCynefinParser  CynefinParser  = new();
+    private static readonly MermaidArchitectureParser ArchitectureParser = new();
+    private static readonly MermaidSwimlaneParser  SwimlaneParser = new();
 
     public bool CanHandle(string language) =>
         language.Equals("mermaid", StringComparison.OrdinalIgnoreCase);
@@ -78,6 +81,9 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             MermaidSubtype.Sankey      => RenderSankey(source, body, title, palette),
             MermaidSubtype.Er          => RenderEr(source, body, title, palette),
             MermaidSubtype.Venn        => RenderVenn(source, body, title, palette),
+            MermaidSubtype.Cynefin      => RenderCynefin(source, body, title, palette),
+            MermaidSubtype.Architecture => RenderArchitecture(source, body, title, palette),
+            MermaidSubtype.Swimlane     => RenderSwimlane(body, title, palette),
             MermaidSubtype.Graph       => RenderGraph(body, title, palette),
             _                       => RenderSourceText(body),
         };
@@ -89,7 +95,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 
     // ── Subtype detection ──────────────────────────────────────────────────
 
-    private enum MermaidSubtype { Graph, Pie, Quadrant, Sequence, Gantt, Git, Mindmap, State, Class, Requirement, Kanban, XyChart, Radar, Ishikawa, Sankey, Er, Venn, Unknown }
+    private enum MermaidSubtype { Graph, Pie, Quadrant, Sequence, Gantt, Git, Mindmap, State, Class, Requirement, Kanban, XyChart, Radar, Ishikawa, Sankey, Er, Venn, Cynefin, Architecture, Swimlane, Unknown }
 
     /// <summary>
     /// Reads the first non-blank, non-comment keyword to identify the diagram
@@ -125,6 +131,12 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             if (keyword.StartsWith("erdiagram")) return MermaidSubtype.Er;
             // venn-beta.
             if (keyword.StartsWith("venn")) return MermaidSubtype.Venn;
+            // cynefin-beta (five-domain sense-making framework).
+            if (keyword.StartsWith("cynefin")) return MermaidSubtype.Cynefin;
+            // architecture-beta (grouped services + side-anchored edges).
+            if (keyword.StartsWith("architecture")) return MermaidSubtype.Architecture;
+            // swimlane-beta (flowchart whose top-level subgraphs are lanes).
+            if (keyword.StartsWith("swimlane")) return MermaidSubtype.Swimlane;
 
             return keyword switch
             {
@@ -138,8 +150,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
                 "timeline"
                     or "journey"
                     or "c4context"
-                    or "block-beta"
-                    or "architecture-beta" => MermaidSubtype.Unknown,
+                    or "block-beta" => MermaidSubtype.Unknown,
                 _                          => MermaidSubtype.Unknown,
             };
         }
@@ -260,6 +271,29 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         diagram.Title  = Titled(diagram.Title, title);
         diagram.Config = VennConfigParser.Parse(MermaidFrontmatter.RawBlock(source));
         return WpfVennRenderer.Render(diagram, palette);
+    }
+
+    private static FrameworkElement RenderCynefin(string source, string body, string? title, MarkdownPalette palette)
+    {
+        var diagram = CynefinParser.Parse(body);
+        diagram.Title  = Titled(diagram.Title, title);
+        diagram.Config = CynefinConfigParser.Parse(MermaidFrontmatter.RawBlock(source));
+        return WpfCynefinRenderer.Render(diagram, palette);
+    }
+
+    private static FrameworkElement RenderArchitecture(string source, string body, string? title, MarkdownPalette palette)
+    {
+        var diagram = ArchitectureParser.Parse(body);
+        diagram.Title  = Titled(diagram.Title, title);
+        diagram.Config = ArchitectureConfigParser.Parse(MermaidFrontmatter.RawBlock(source));
+        return WpfArchitectureRenderer.Render(diagram, palette);
+    }
+
+    private static FrameworkElement RenderSwimlane(string source, string? title, MarkdownPalette palette)
+    {
+        var graph = SwimlaneParser.Parse(source);
+        graph.Title = Titled(graph.Title, title);
+        return WpfSwimlaneRenderer.Render(graph, palette);
     }
 
     private static FrameworkElement RenderSourceText(string source) =>

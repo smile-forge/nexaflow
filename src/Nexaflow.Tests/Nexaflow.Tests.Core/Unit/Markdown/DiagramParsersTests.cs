@@ -2289,4 +2289,417 @@ public class DiagramParsersTests
         Assert.AreEqual(12, cfg.Padding, 1e-9);
         Assert.AreEqual(2, cfg.SetPalette.Count);
     }
+
+    // ── Architecture diagram — parser ─────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("architecture")]
+    public void Architecture_ParsesGroupsServicesIconsAndMembership()
+    {
+        var d = new MermaidArchitectureParser().Parse(
+            """
+            architecture-beta
+                group api(cloud)[Public API]
+                service db(database)[My Database] in api
+                service plain
+            """);
+
+        var g = d.FindGroup("api")!;
+        Assert.AreEqual("cloud", g.Icon);
+        Assert.AreEqual("Public API", g.Title);
+
+        var db = d.FindService("db")!;
+        Assert.AreEqual("database", db.Icon);
+        Assert.AreEqual("My Database", db.Title);
+        Assert.AreEqual("api", db.GroupId);
+
+        var plain = d.FindService("plain")!;
+        Assert.IsNull(plain.Icon);
+        Assert.AreEqual(string.Empty, plain.Title);
+        Assert.IsNull(plain.GroupId);
+    }
+
+    [TestMethod]
+    [CoversNode("architecture")]
+    public void Architecture_ParsesNestedGroups()
+    {
+        var d = new MermaidArchitectureParser().Parse(
+            "architecture-beta\n  group public(cloud)[Public]\n  group private(cloud)[Private] in public\n");
+
+        Assert.AreEqual("public", d.FindGroup("private")!.ParentId);
+        Assert.IsNull(d.FindGroup("public")!.ParentId);
+    }
+
+    [TestMethod]
+    [CoversNode("architecture")]
+    public void Architecture_ParsesEdgeSidesAndArrowForms()
+    {
+        var d = new MermaidArchitectureParser().Parse(
+            """
+            architecture-beta
+                service a(server)[A]
+                service b(server)[B]
+                service c(server)[C]
+                a:R -- L:b
+                a:B --> T:c
+                b:R <-- L:c
+                a:T <--> B:c
+            """);
+
+        Assert.AreEqual(4, d.Edges.Count);
+
+        var e0 = d.Edges[0];
+        Assert.AreEqual("a", e0.FromId);
+        Assert.AreEqual(ArchSide.Right, e0.FromSide);
+        Assert.AreEqual(ArchSide.Left, e0.ToSide);
+        Assert.IsFalse(e0.StartArrow);
+        Assert.IsFalse(e0.EndArrow);
+
+        Assert.IsTrue(d.Edges[1].EndArrow);
+        Assert.IsFalse(d.Edges[1].StartArrow);
+
+        Assert.IsTrue(d.Edges[2].StartArrow);
+        Assert.IsFalse(d.Edges[2].EndArrow);
+
+        Assert.IsTrue(d.Edges[3].StartArrow);
+        Assert.IsTrue(d.Edges[3].EndArrow);
+    }
+
+    [TestMethod]
+    [CoversNode("architecture")]
+    public void Architecture_ParsesCrossGroupEdges()
+    {
+        var d = new MermaidArchitectureParser().Parse(
+            """
+            architecture-beta
+                group g1(cloud)[G1]
+                group g2(cloud)[G2]
+                service a(server)[A] in g1
+                service b(server)[B] in g2
+                a{group}:R --> L:b{group}
+            """);
+
+        var e = d.Edges.Single();
+        Assert.IsTrue(e.FromIsGroup);
+        Assert.IsTrue(e.ToIsGroup);
+        Assert.AreEqual("a", e.FromId);
+        Assert.AreEqual("b", e.ToId);
+    }
+
+    [TestMethod]
+    [CoversNode("architecture")]
+    public void Architecture_ParsesJunction()
+    {
+        var d = new MermaidArchitectureParser().Parse(
+            "architecture-beta\n  group g(cloud)[G]\n  junction j1 in g\n");
+
+        var j = d.FindService("j1")!;
+        Assert.IsTrue(j.IsJunction);
+        Assert.AreEqual("g", j.GroupId);
+    }
+
+    [TestMethod]
+    [CoversNode("architecture")]
+    public void Architecture_ParsesAlignmentRowAndColumn()
+    {
+        var d = new MermaidArchitectureParser().Parse(
+            """
+            architecture-beta
+                service a(server)[A]
+                service b(server)[B]
+                service c(server)[C]
+                align row a b c
+                align column a b
+            """);
+
+        Assert.AreEqual(2, d.Alignments.Count);
+        Assert.IsTrue(d.Alignments[0].IsRow);
+        CollectionAssert.AreEqual(new[] { "a", "b", "c" }, d.Alignments[0].Ids.ToArray());
+        Assert.IsFalse(d.Alignments[1].IsRow);
+        CollectionAssert.AreEqual(new[] { "a", "b" }, d.Alignments[1].Ids.ToArray());
+    }
+
+    [TestMethod]
+    [CoversNode("architecture")]
+    public void Architecture_ParsesCustomIconPack()
+    {
+        var d = new MermaidArchitectureParser().Parse(
+            "architecture-beta\n  service q(aws:lambda)[Fn]\n");
+        Assert.AreEqual("aws:lambda", d.FindService("q")!.Icon);
+    }
+
+    [TestMethod]
+    [CoversNode("architecture")]
+    public void Architecture_CommentsAndBlankLinesTolerated()
+    {
+        var d = new MermaidArchitectureParser().Parse(
+            """
+            architecture-beta
+                %% a comment
+
+                service a(server)[A]
+                service b(server)[B]
+                a:R -- L:b   %% trailing comment
+            """);
+        Assert.AreEqual(2, d.Services.Count);
+        Assert.AreEqual(1, d.Edges.Count);
+    }
+
+    [TestMethod]
+    [CoversNode("architecture")]
+    public void Architecture_EmptyOrMalformed_ReturnsEmptyWithoutThrowing()
+    {
+        Assert.AreEqual(0, new MermaidArchitectureParser().Parse("architecture-beta\n").Services.Count);
+        Assert.AreEqual(0, new MermaidArchitectureParser().Parse("architecture-beta\n  service\n  ???\n").Edges.Count);
+    }
+
+    [TestMethod]
+    [CoversNode("architecture")]
+    public void ArchitectureConfig_ParsesKeys()
+    {
+        var cfg = ArchitectureConfigParser.Parse(
+            """
+            config:
+              architecture:
+                nodeSeparation: 60
+                seed: 7
+            """);
+        Assert.AreEqual(60, cfg.NodeSeparation, 1e-9);
+        Assert.AreEqual(7, cfg.Seed);
+    }
+
+    // ── Cynefin diagram — parser ──────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("cynefin")]
+    public void Cynefin_ParsesTitleAndDomainItems()
+    {
+        var d = new MermaidCynefinParser().Parse(
+            """
+            cynefin-beta
+                title Making sense
+                complex
+                    "Investigate root cause"
+                    "Run experiment"
+                clear
+                    "Apply best practice"
+            """);
+
+        Assert.AreEqual("Making sense", d.Title);
+        CollectionAssert.AreEqual(
+            new[] { "Investigate root cause", "Run experiment" },
+            d.ItemsIn(CynefinDomain.Complex).Select(i => i.Text).ToArray());
+        Assert.AreEqual("Apply best practice", d.ItemsIn(CynefinDomain.Clear).Single().Text);
+        Assert.AreEqual(0, d.ItemsIn(CynefinDomain.Chaotic).Count);
+    }
+
+    [TestMethod]
+    [CoversNode("cynefin")]
+    public void Cynefin_RecognisesAllFiveDomains()
+    {
+        var d = new MermaidCynefinParser().Parse(
+            "cynefin-beta\ncomplex\n \"a\"\ncomplicated\n \"b\"\nclear\n \"c\"\nchaotic\n \"d\"\nconfusion\n \"e\"\n");
+
+        Assert.AreEqual("a", d.ItemsIn(CynefinDomain.Complex).Single().Text);
+        Assert.AreEqual("b", d.ItemsIn(CynefinDomain.Complicated).Single().Text);
+        Assert.AreEqual("c", d.ItemsIn(CynefinDomain.Clear).Single().Text);
+        Assert.AreEqual("d", d.ItemsIn(CynefinDomain.Chaotic).Single().Text);
+        Assert.AreEqual("e", d.ItemsIn(CynefinDomain.Confusion).Single().Text);
+    }
+
+    [TestMethod]
+    [CoversNode("cynefin")]
+    public void Cynefin_UnknownDomainKeywordIsNotADomain()
+    {
+        // An unknown keyword before any domain means its "items" have nowhere to go.
+        var d = new MermaidCynefinParser().Parse(
+            "cynefin-beta\n  disorder\n    \"orphan item\"\n  clear\n    \"kept\"\n");
+        Assert.AreEqual("kept", d.ItemsIn(CynefinDomain.Clear).Single().Text);
+        Assert.AreEqual(0, d.ItemsIn(CynefinDomain.Confusion).Count);
+    }
+
+    [TestMethod]
+    [CoversNode("cynefin")]
+    public void Cynefin_ConfusionOverflowCounted()
+    {
+        var d = new MermaidCynefinParser().Parse(
+            "cynefin-beta\nconfusion\n \"a\"\n \"b\"\n \"c\"\n \"d\"\n \"e\"\n");
+        Assert.AreEqual(5, d.ItemsIn(CynefinDomain.Confusion).Count);
+        Assert.AreEqual(5 - CynefinDiagram.ConfusionMaxBadges, d.ConfusionOverflow);
+    }
+
+    [TestMethod]
+    [CoversNode("cynefin")]
+    public void Cynefin_ParsesTransitionsWithAndWithoutLabel()
+    {
+        var d = new MermaidCynefinParser().Parse(
+            """
+            cynefin-beta
+                complex --> complicated : "Pattern found"
+                chaotic --> complex
+            """);
+
+        Assert.AreEqual(2, d.Transitions.Count);
+        Assert.AreEqual(CynefinDomain.Complex, d.Transitions[0].From);
+        Assert.AreEqual(CynefinDomain.Complicated, d.Transitions[0].To);
+        Assert.AreEqual("Pattern found", d.Transitions[0].Label);
+        Assert.AreEqual(CynefinDomain.Chaotic, d.Transitions[1].From);
+        Assert.AreEqual(string.Empty, d.Transitions[1].Label);
+    }
+
+    [TestMethod]
+    [CoversNode("cynefin")]
+    public void Cynefin_CommentsAndWhitespaceTolerated()
+    {
+        var d = new MermaidCynefinParser().Parse(
+            "cynefin-beta\n%% a comment\n  complex\n    \"item\"  %% trailing\n");
+        Assert.AreEqual("item", d.ItemsIn(CynefinDomain.Complex).Single().Text);
+    }
+
+    [TestMethod]
+    [CoversNode("cynefin")]
+    public void Cynefin_EmptyDiagram_ReturnsEmptyWithoutThrowing()
+    {
+        var d = new MermaidCynefinParser().Parse("cynefin-beta\n");
+        Assert.AreEqual(0, d.Transitions.Count);
+        Assert.AreEqual(0, d.ItemsIn(CynefinDomain.Complex).Count);
+    }
+
+    [TestMethod]
+    [CoversNode("cynefin")]
+    public void CynefinConfig_ParsesOptionsAndThemeColours()
+    {
+        var cfg = CynefinConfigParser.Parse(
+            """
+            config:
+              cynefin:
+                width: 600
+                showDomainDescriptions: true
+              themeVariables:
+                cynefin:
+                  complexBg: "#4e79a7"
+                  clearBg: "#59a14f"
+            """);
+        Assert.AreEqual(600, cfg.Width, 1e-9);
+        Assert.IsTrue(cfg.ShowDomainDescriptions);
+        Assert.IsNotNull(cfg.ComplexBg);
+        Assert.IsNotNull(cfg.ClearBg);
+        Assert.IsNull(cfg.ChaoticBg);
+    }
+
+    // ── Swimlane diagram — parser ─────────────────────────────────────────
+
+    private const string SwimlaneSrc =
+        """
+        swimlane-beta
+            subgraph customer[Customer]
+                start([Place order])
+                pay[Pay]
+            end
+            subgraph fulfilment[Fulfilment]
+                pick{In stock?}
+                ship[Ship order]
+            end
+            start --> pay
+            pay --> pick
+            pick -->|Yes| ship
+            pick -.->|No| pay
+        """;
+
+    [TestMethod]
+    [CoversNode("swimlanes")]
+    public void Swimlane_DefaultDirectionIsTopDown()
+    {
+        var g = new MermaidSwimlaneParser().Parse("swimlane-beta\n  subgraph a[A]\n    n1[N]\n  end\n");
+        Assert.AreEqual(GraphDirection.TopDown, g.Direction);
+    }
+
+    [TestMethod]
+    [CoversNode("swimlanes")]
+    public void Swimlane_ExplicitDirectionParsed()
+    {
+        Assert.AreEqual(GraphDirection.LeftRight,
+            new MermaidSwimlaneParser().Parse("swimlane-beta LR\n  n1[N]\n").Direction);
+        Assert.AreEqual(GraphDirection.RightLeft,
+            new MermaidSwimlaneParser().Parse("swimlane-beta RL\n  n1[N]\n").Direction);
+        Assert.AreEqual(GraphDirection.BottomUp,
+            new MermaidSwimlaneParser().Parse("swimlane-beta BT\n  n1[N]\n").Direction);
+    }
+
+    [TestMethod]
+    [CoversNode("swimlanes")]
+    public void Swimlane_TopLevelSubgraphsAreLanes()
+    {
+        var g = new MermaidSwimlaneParser().Parse(SwimlaneSrc);
+        var lanes = g.Subgraphs.Where(s => s.ParentId is null).ToList();
+        Assert.AreEqual(2, lanes.Count);
+
+        var customer = lanes.Single(l => l.Id == "customer");
+        Assert.AreEqual("Customer", customer.Label);
+        CollectionAssert.IsSubsetOf(new[] { "start", "pay" }, customer.NodeIds.ToArray());
+    }
+
+    [TestMethod]
+    [CoversNode("swimlanes")]
+    public void Swimlane_ParsesFlowchartNodeShapes()
+    {
+        var g = new MermaidSwimlaneParser().Parse(
+            "swimlane-beta\n  a[Rect]\n  b(Round)\n  c([Stadium])\n  d{Decision}\n  e((Circle))\n");
+        Assert.AreEqual(NodeShape.Rectangle, g.FindNode("a")!.Shape);
+        Assert.AreEqual(NodeShape.RoundedRect, g.FindNode("b")!.Shape);
+        Assert.AreEqual(NodeShape.Stadium, g.FindNode("c")!.Shape);
+        Assert.AreEqual(NodeShape.Diamond, g.FindNode("d")!.Shape);
+        Assert.AreEqual(NodeShape.Circle, g.FindNode("e")!.Shape);
+    }
+
+    [TestMethod]
+    [CoversNode("swimlanes")]
+    public void Swimlane_ParsesEdgeStylesAndLabels()
+    {
+        var g = new MermaidSwimlaneParser().Parse(SwimlaneSrc);
+
+        var labelled = g.Edges.Single(e => e.SourceId == "pick" && e.TargetId == "ship");
+        Assert.AreEqual("Yes", labelled.Label);
+
+        var dotted = g.Edges.Single(e => e.SourceId == "pick" && e.TargetId == "pay");
+        Assert.AreEqual(EdgeStyle.Dotted, dotted.Style);
+        Assert.AreEqual("No", dotted.Label);
+    }
+
+    [TestMethod]
+    [CoversNode("swimlanes")]
+    public void Swimlane_ThickEdgeParsed()
+    {
+        var g = new MermaidSwimlaneParser().Parse("swimlane-beta LR\n  a[A]\n  b[B]\n  a ==> b\n");
+        Assert.AreEqual(EdgeStyle.Thick, g.Edges.Single().Style);
+    }
+
+    [TestMethod]
+    [CoversNode("swimlanes")]
+    public void Swimlane_CrossLaneEdgeConnectsNodesInDifferentLanes()
+    {
+        var g = new MermaidSwimlaneParser().Parse(SwimlaneSrc);
+        // pay (customer lane) --> pick (fulfilment lane)
+        Assert.IsTrue(g.Edges.Any(e => e.SourceId == "pay" && e.TargetId == "pick"));
+    }
+
+    [TestMethod]
+    [CoversNode("swimlanes")]
+    public void Swimlane_AccessibilityLinesAreNotNodes()
+    {
+        var g = new MermaidSwimlaneParser().Parse(
+            "swimlane-beta\n  accTitle: Order flow\n  accDescr: How an order flows\n  a[A]\n");
+        Assert.IsNull(g.FindNode("accTitle"));
+        Assert.IsNull(g.FindNode("accDescr"));
+        Assert.IsNotNull(g.FindNode("a"));
+    }
+
+    [TestMethod]
+    [CoversNode("swimlanes")]
+    public void Swimlane_EmptyDiagram_ReturnsEmptyWithoutThrowing()
+    {
+        var g = new MermaidSwimlaneParser().Parse("swimlane-beta\n");
+        Assert.AreEqual(0, g.Nodes.Count);
+        Assert.AreEqual(0, g.Edges.Count);
+    }
 }
