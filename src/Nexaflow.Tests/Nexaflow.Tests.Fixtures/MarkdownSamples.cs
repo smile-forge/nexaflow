@@ -5,9 +5,11 @@ namespace Nexaflow.Tests.Fixtures;
 /// (pie, flowchart, quadrant chart, sequence diagram, gantt, git graph, mindmap, state diagram,
 /// class diagram, requirement diagram, kanban board, XY chart, radar chart, Ishikawa/fishbone, Sankey,
 /// ER, Venn, architecture, swimlanes, Cynefin), plus an <c>extensions.md</c> exercising the non-diagram
-/// Markdig extensions (emphasis extras, abbreviations, alert blocks). Each document showcases several
-/// variations, so the fixtures double as a human-readable reference. The <c>mermaid-*</c> naming marks
-/// the diagram docs.
+/// Markdig extensions (emphasis extras, abbreviations, alert blocks) and three <c>latex-math-*.md</c>
+/// references that exercise the LaTeX math renderer (symbols, structures incl. all matrix delimiters,
+/// fonts/styling) — a supported construct typesets, an unsupported one falls back to its raw source, so
+/// the docs double as a live map of engine support. Each document showcases several variations, so the
+/// fixtures double as a human-readable reference. The <c>mermaid-*</c> naming marks the diagram docs.
 /// </summary>
 internal sealed class MarkdownSamples : ISampleSet
 {
@@ -36,7 +38,222 @@ internal sealed class MarkdownSamples : ISampleSet
         SampleFile.Text("mermaid-swimlane.md",    Swimlane),
         SampleFile.Text("mermaid-cynefin.md",     Cynefin),
         SampleFile.Text("extensions.md",          Extensions),
+        SampleFile.Text("latex-math-symbols.md",    LatexMathSymbols),
+        SampleFile.Text("latex-math-structures.md", LatexMathStructures),
+        SampleFile.Text("latex-math-fonts.md",      LatexMathFonts),
     ];
+
+    private const string LatexMathSymbols =
+        """
+        # LaTeX math — symbols & notation
+
+        Nexaflow renders LaTeX inside markdown: **inline** math between single dollars
+        (`$a^2$`) and **display** math between double dollars (`$$ … $$`). Rendering is powered
+        by the WpfMath (`xaml-math`) engine.
+
+        **How to read this reference:** every `$$` block below uses only constructs the engine
+        **supports**, so each should typeset. Standard LaTeX the engine does **not** support is
+        called out under each section as *Not supported*. When a formula does fail, the app shows
+        its raw `$$ … $$` source in an accent-bordered box — like the one just below, which
+        deliberately uses the unsupported `\mathbb` and `\quad`:
+
+        $$ \mathbb{R} \quad \text{blackboard R} $$
+
+        > **Spacing note:** `\quad`, `\qquad`, `~` and `\ ` (control space) are **not** supported,
+        > so this reference separates items with the supported thick space `\;` instead.
+
+        ## Inline math
+
+        Euler's identity $e^{i\pi} + 1 = 0$ reads inline, as do a half $\frac{1}{2}$ and a
+        root $\sqrt{2}$.
+
+        ## Superscripts and subscripts
+
+        $$ x^2 \;\; x_i \;\; x_i^2 \;\; x^{2n} \;\; a_{i,j} \;\; x^{y^{z}} \;\; \sum_{i=1}^{n} i $$
+
+        ## Greek letters — lowercase
+
+        $$ \alpha \; \beta \; \gamma \; \delta \; \epsilon \; \varepsilon \; \zeta \; \eta \; \theta \; \vartheta \; \iota \; \kappa \; \lambda \; \mu \; \nu \; \xi \; \pi \; \varpi \; \rho \; \varrho \; \sigma \; \varsigma \; \tau \; \upsilon \; \phi \; \varphi \; \chi \; \psi \; \omega $$
+
+        ## Greek letters — uppercase
+
+        $$ \Gamma \; \Delta \; \Theta \; \Lambda \; \Xi \; \Pi \; \Sigma \; \Upsilon \; \Phi \; \Psi \; \Omega $$
+
+        ## Binary operators
+
+        $$ a + b \;\; a - b \;\; a \times b \;\; a \div b \;\; a \cdot b \;\; a \pm b \;\; a \mp b \;\; a \ast b \;\; a \star b \;\; a \circ b \;\; a \bullet b \;\; a \oplus b \;\; a \otimes b \;\; a \odot b \;\; a \setminus b $$
+
+        ## Relations
+
+        $$ a = b \;\; a \neq b \;\; a < b \;\; a > b \;\; a \leq b \;\; a \geq b \;\; a \approx b \;\; a \equiv b \;\; a \sim b \;\; a \simeq b \;\; a \cong b \;\; a \propto b \;\; a \ll b \;\; a \gg b \;\; a \prec b \;\; a \succ b \;\; a \perp b \;\; a \parallel b \;\; a \asymp b $$
+
+        ## Set theory and logic
+
+        $$ a \in A \;\; a \ni A \;\; A \subset B \;\; A \subseteq B \;\; A \supset B \;\; A \supseteq B \;\; \emptyset \;\; \forall x \;\; \exists y \;\; \neg p \;\; p \land q \;\; p \lor q \;\; p \to q $$
+
+        *Not supported:* `\notin` · `\varnothing` · `\nexists` · `\implies` · `\iff`
+
+        ## Arrows
+
+        $$ a \to b \;\; a \gets b \;\; a \rightarrow b \;\; a \leftarrow b \;\; a \Rightarrow b \;\; a \Leftarrow b \;\; a \leftrightarrow b \;\; a \Leftrightarrow b \;\; a \uparrow b \;\; a \downarrow b \;\; a \rightharpoonup b $$
+
+        *Not supported:* `\mapsto` · `\longrightarrow` · `\longleftarrow` · `\hookrightarrow`
+
+        ## Accents
+
+        $$ \hat{a} \;\; \bar{a} \;\; \vec{a} \;\; \dot{a} \;\; \ddot{a} \;\; \tilde{a} \;\; \acute{a} \;\; \grave{a} \;\; \check{a} \;\; \breve{a} \;\; \widehat{abc} \;\; \widetilde{abc} \;\; \overline{abc} \;\; \underline{abc} $$
+
+        *Not supported:* `\mathring` · `\overrightarrow` · `\overleftarrow`
+
+        ## Dots and ellipses
+
+        $$ a_1 + a_2 + \cdots + a_n \;\; 1, 2, \ldots, n $$
+
+        *Not supported:* `\vdots` · `\ddots` · `\dots`
+
+        ## Miscellaneous symbols
+
+        $$ \infty \;\; \partial \;\; \nabla \;\; \aleph \;\; \hbar \;\; \ell \;\; \Re \;\; \Im \;\; \wp \;\; \angle \;\; \triangle \;\; \top \;\; \bot \;\; \surd \;\; \flat \;\; \sharp \;\; \natural \;\; \dagger \;\; \ddagger \;\; \clubsuit \;\; \diamondsuit \;\; \heartsuit \;\; \spadesuit $$
+
+        *Not supported:* `\S` · `\P`
+        """;
+
+    private const string LatexMathStructures =
+        """
+        # LaTeX math — structures
+
+        Constructs that arrange sub-expressions: fractions, roots, big operators, integrals,
+        auto-sized delimiters, and **matrices** (all delimiter variants). See the
+        [symbols reference](latex-math-symbols.md) for the reading convention; each `$$` block is
+        supported, with engine gaps flagged as *Not supported*.
+
+        ## Fractions
+
+        $$ \frac{a}{b} \;\; \frac{1}{1 + \frac{1}{x}} \;\; \frac{\partial f}{\partial x} $$
+
+        *Not supported:* `\dfrac` · `\tfrac` · `\cfrac`
+
+        ## Binomial coefficients
+
+        $$ \binom{n}{k} = \frac{n!}{k!\,(n-k)!} $$
+
+        ## Roots
+
+        $$ \sqrt{2} \;\; \sqrt{x^2 + y^2} \;\; \sqrt[3]{x} \;\; \sqrt[n]{a} $$
+
+        ## Sums, products and limits
+
+        $$ \sum_{i=1}^{n} i = \frac{n(n+1)}{2} \;\; \prod_{i=1}^{n} i = n! \;\; \coprod_{i} X_i $$
+
+        $$ \lim_{x \to \infty} \frac{1}{x} = 0 \;\; \lim_{n \to \infty} \left(1 + \frac{1}{n}\right)^{n} = e $$
+
+        ## Integrals and big operators
+
+        $$ \int_0^1 x^2 \, dx \;\; \oint_C \vec{F} \cdot d\vec{r} \;\; \bigcup_{i} A_i \;\; \bigcap_{i} A_i \;\; \bigoplus_{i} V_i $$
+
+        *Not supported:* `\iint` · `\iiint`
+
+        ## Named operators and functions
+
+        $$ \sin x \;\; \cos x \;\; \tan x \;\; \log x \;\; \ln x \;\; \exp x \;\; \gcd(a,b) \;\; \max_i a_i \;\; \min_i a_i \;\; \sup S \;\; \inf S \;\; \det A \;\; \dim V $$
+
+        ## Auto-sized delimiters
+
+        $$ \left( \frac{a}{b} \right) \;\; \left[ \frac{a}{b} \right] \;\; \left\{ \frac{a}{b} \right\} \;\; \left| \frac{a}{b} \right| \;\; \left\| \frac{a}{b} \right\| \;\; \left\langle \frac{a}{b} \right\rangle $$
+
+        $$ \left. \frac{dy}{dx} \right|_{x=0} \;\; \left\lfloor x \right\rfloor \;\; \left\lceil x \right\rceil $$
+
+        ## Matrices
+
+        The matrix environments differ only in the delimiters that surround them. Each works both
+        as a command (`\bmatrix{ … }`) and as an environment (`\begin{bmatrix} … \end{bmatrix}`).
+
+        No delimiters — the `\matrix` command (the `\begin{matrix}` environment is **not** supported):
+
+        $$ \matrix{ a & b \\ c & d } $$
+
+        Parentheses — `pmatrix`:
+
+        $$ \begin{pmatrix} a & b \\ c & d \end{pmatrix} $$
+
+        Square brackets — `bmatrix`:
+
+        $$ \begin{bmatrix} a & b \\ c & d \end{bmatrix} $$
+
+        Curly braces — `Bmatrix`:
+
+        $$ \begin{Bmatrix} a & b \\ c & d \end{Bmatrix} $$
+
+        Single vertical bars, e.g. a determinant — `vmatrix`:
+
+        $$ \begin{vmatrix} a & b \\ c & d \end{vmatrix} = ad - bc $$
+
+        Double vertical bars, e.g. a norm — `Vmatrix`:
+
+        $$ \begin{Vmatrix} \vec{x} \\ \vec{y} \end{Vmatrix} $$
+
+        A 3×3 matrix, and a row vector using `\cdots`:
+
+        $$ \begin{bmatrix} 1 & 2 & 3 \\ 4 & 5 & 6 \\ 7 & 8 & 9 \end{bmatrix} \;\; \begin{pmatrix} a_1 & \cdots & a_n \end{pmatrix} $$
+
+        ## Piecewise definitions (cases)
+
+        The `\cases{ … }` command is supported (the `\begin{cases}` environment is **not**):
+
+        $$ f(x) = \cases{ 1 & x > 0 \\ 0 & x = 0 \\ -1 & x < 0 } $$
+
+        ## Aligned equations
+
+        $$ \begin{align} (a+b)^2 &= a^2 + 2ab + b^2 \\ (a-b)^2 &= a^2 - 2ab + b^2 \end{align} $$
+
+        *Not supported:* `\begin{matrix}` · `\begin{cases}` · `\begin{array}` · `\begin{aligned}` · `\begin{gather}` · `\overbrace` · `\underbrace` · `\overset` · `\underset` · `\substack`
+        """;
+
+    private const string LatexMathFonts =
+        """
+        # LaTeX math — fonts, text & styling
+
+        Math alphabets, embedded text, colour, spacing and cancellation. See the
+        [symbols reference](latex-math-symbols.md) for the reading convention; each `$$` block is
+        supported, with engine gaps flagged as *Not supported*.
+
+        ## Math alphabets
+
+        $$ \mathrm{Abc} \;\; \mathit{Abc} \;\; \mathcal{ABC} $$
+
+        *Not supported:* `\mathbb` · `\mathbf` · `\mathsf` · `\mathtt` · `\mathfrak` · `\boldsymbol`
+        (so no blackboard-bold ℝ/ℂ/ℤ, bold, sans, or Fraktur yet).
+
+        ## Text inside math
+
+        $$ x + y = z \;\; \text{(a labelled equation)} $$
+
+        *Not supported:* `\textrm` · `\mbox` · `\operatorname`
+
+        ## Colour
+
+        $$ \color{red}{a^2} + \color{blue}{b^2} = \color{green}{c^2} $$
+
+        *Not supported:* `\textcolor`
+
+        ## Cancellation
+
+        $$ \frac{\cancel{x}\, y}{\cancel{x}} = y \;\; \bcancel{a + b} \;\; \xcancel{a + b} $$
+
+        ## Spacing
+
+        The thin, negative, medium and thick spaces (`\,` `\!` `\:` `\;`) are supported:
+
+        $$ x\,y \;\; x\!y \;\; x\:y \;\; x\;y $$
+
+        *Not supported:* `\quad` · `\qquad` · `\ ` (control space) · `~` · `\hspace`
+
+        ## Not supported — decorations & phantoms
+
+        These otherwise-standard constructs currently fall back to source rather than rendering:
+
+        `\overbrace` · `\underbrace` · `\overset` · `\underset` · `\stackrel` · `\substack` · `\phantom` · `\hphantom` · `\vphantom`
+        """;
 
     private const string Venn =
         """
