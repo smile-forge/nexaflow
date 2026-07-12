@@ -42,6 +42,9 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Git/Nexaflow.Features.Git.csproj" Id="d5be6955-0a6f-4d3a-927a-1932b7a407c0">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.GraphViewer/Nexaflow.Features.GraphViewer.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Hex/Nexaflow.Features.Hex.csproj" Id="28d33c5c-cfbd-4003-8503-34f8aa00b432">
       <Platform Project="x64" />
     </Project>
