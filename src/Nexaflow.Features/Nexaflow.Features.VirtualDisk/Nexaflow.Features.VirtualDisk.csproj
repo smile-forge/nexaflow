@@ -22,7 +22,10 @@
        fork, nexaflow branch) instead of NuGet, so fixes can be upstreamed. Core + Containers open disk
        images (VHD/VHDX/VDI/VMDK/DMG/ISO/WIM/XVA); FileSystems reads the filesystems inside them
        (NTFS/FAT/exFAT/ext/XFS/…). Each resolves its net10.0 target. VirtualDisk is a stub pending spec.
-       Fork/PR/pin-bump workflow: docs/externals.md (never swap these to a PackageReference). -->
+       Fork/PR/pin-bump workflow: docs/externals.md (never swap these to a PackageReference). The fork's
+       Directory.Build.props defaults an unset $(Configuration) to Release, so Nexaflow always links the
+       optimized Release DiscUtils binaries (from Library\Release\net10.0) and the shared OutputPath never
+       collapses when VS resolves these out-of-solution refs. -->
   <ItemGroup>
     <ProjectReference Include="..\..\..\external\DiscUtils\Library\DiscUtils.Core\DiscUtils.Core.csproj" />
     <ProjectReference Include="..\..\..\external\DiscUtils\Library\DiscUtils.Containers\DiscUtils.Containers.csproj" />
