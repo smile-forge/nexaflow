@@ -74,10 +74,13 @@ Node ids: `product:<slug>` · `code:<relpath>#<astpath>` · `file:<relpath>` · 
 session, `dotnet build` the CLI once and call `nexaflow-initiatives.exe` directly — each invocation reloads the
 graph, so skip the per-call `dotnet run` rebuild.
 
-**Working in a git worktree?** The `.product` graph/tree are gitignored and live only in the **main checkout**, not
-the worktree — so Glob/ripgrep won't list them, and `graph … .` finds nothing. Run the CLI with the **main-repo root**
-(`… graph search <term> d:\codedev\nexaflow`, not `.`) and call the prebuilt
-`src\Nexaflow.Services.Initiatives.Cli\bin\x64\Debug\net10.0\nexaflow-initiatives.exe` directly.
+**Easiest — `tools/graph.ps1 <subcommand> …`.** A thin wrapper that removes all the friction: it resolves the root
+automatically (works from the main checkout **or any git worktree**, where the gitignored `.product` graph/tree live
+only in the main checkout, so Glob/ripgrep won't list them and `graph … .` finds nothing), runs a fast published exe
+(`tools/publish-graph-cli.ps1` refreshes it into `tools/graph-cli/`), emits repo-relative paths, and flags any dumped
+source whose file differs in your working tree. It is exactly the CLI above with the main-repo root supplied for you —
+`tools/graph.ps1 search <term>`, `tools/graph.ps1 context <id>`, `tools/graph.ps1 build`, etc. For repo discovery you
+can also spawn the **`nexaflow-explorer`** sub-agent, which is hardwired to this wrapper.
 
 The product-folder skill has fast-query recipes for deeper questions; the per-release export
 [docs/product/PRODUCT.md](docs/product/PRODUCT.md) is the human dashboard. Per-feature tab parameters are in
