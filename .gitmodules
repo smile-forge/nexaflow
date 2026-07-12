@@ -1,0 +1,4 @@
+[submodule "external/xaml-math"]
+	path = external/xaml-math
+	url = https://github.com/smile-forge/xaml-math.git
+	branch = nexaflow
