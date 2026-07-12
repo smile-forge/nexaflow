@@ -15,7 +15,7 @@ public class MarkdownSampleFilesTests
     public void Dataset_MaterialisesAllMarkdownSamples()
     {
         var files = TestSampleData.Files("markdown");
-        Assert.AreEqual(21, files.Count);
+        Assert.AreEqual(24, files.Count);
 
         foreach (var path in files)
         {

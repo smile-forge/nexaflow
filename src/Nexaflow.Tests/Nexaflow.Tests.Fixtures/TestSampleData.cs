@@ -148,7 +148,8 @@ public static class TestSampleData
 
         Sub-directories:
 
-        - `markdown/` — sample markdown documents, one per supported Mermaid diagram type.
+        - `markdown/` — sample markdown documents: one per supported Mermaid diagram type, plus
+          `latex-math-*.md` LaTeX math references (rendered = supported, bordered fallback = not).
         - `tabular/`  — CSV/TSV variations (separators, quoting, headers, column types).
         - `text/`     — plain-text files: short/long, varied BOMs and line endings.
         - `code/`     — source/config files for the editor's syntax highlighting (cs/js/ts/py/ini/xml/css/html).

@@ -54,4 +54,26 @@ public class MarkdownSampleRenderTests
         Assert.IsTrue(doc.Descendants().OfType<Markdig.Extensions.Abbreviations.AbbreviationInline>().Any(),
             "expected at least one abbreviation occurrence");
     });
+
+    /// <summary>The <c>latex-math-*.md</c> references render every block through
+    /// <see cref="BlockRenderer"/> without throwing. Unsupported LaTeX degrades to a styled
+    /// fallback rather than crashing, so every block still renders to a non-null element —
+    /// which is exactly what lets the docs double as a live support map.</summary>
+    [TestMethod]
+    public void LatexMathSamplesRender() => UiThread.Run(() =>
+    {
+        var files = TestSampleData.Files("markdown")
+            .Where(p => Path.GetFileName(p).StartsWith("latex-math-", StringComparison.Ordinal))
+            .ToList();
+        Assert.AreNotEqual(0, files.Count, "no latex-math-* samples found");
+
+        foreach (var path in files)
+        {
+            string md  = File.ReadAllText(path);
+            var    doc = MdMarkdown.Parse(md, MarkdownPipelineFactory.Default);
+            foreach (var block in doc)
+                Assert.IsNotNull(BlockRenderer.Render(block, md),
+                    $"render returned null in {Path.GetFileName(path)}");
+        }
+    });
 }
