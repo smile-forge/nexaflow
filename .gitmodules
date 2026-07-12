@@ -6,3 +6,4 @@
 	path = external/DiscUtils
 	url = https://github.com/smile-forge/DiscUtils.git
 	branch = nexaflow
+	ignore = untracked
