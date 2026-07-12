@@ -27,7 +27,8 @@
 
     <!-- WpfMath (LaTeX math rendering) built from source: the external/xaml-math submodule (smile-forge fork,
          nexaflow branch) replaces the WpfMath NuGet so matrix-delimiter environments can be added upstream.
-         Resolves WpfMath's net8.0-windows target; XamlMath.Shared flows in transitively. -->
+         Resolves WpfMath's net8.0-windows target; XamlMath.Shared flows in transitively.
+         Fork/PR/pin-bump workflow: docs/externals.md (never swap this back to a PackageReference). -->
     <ProjectReference Include="..\..\external\xaml-math\src\WpfMath\WpfMath.csproj" />
   </ItemGroup>
 
