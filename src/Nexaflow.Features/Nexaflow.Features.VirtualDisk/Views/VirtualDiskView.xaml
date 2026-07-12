@@ -1,0 +1,10 @@
+<UserControl x:Class="Nexaflow.Features.VirtualDisk.Views.VirtualDiskView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             AutomationProperties.AutomationId="VirtualDiskView">
+    <Grid>
+        <TextBlock Text="{Binding Message}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   TextWrapping="Wrap" Margin="24" />
+    </Grid>
+</UserControl>
