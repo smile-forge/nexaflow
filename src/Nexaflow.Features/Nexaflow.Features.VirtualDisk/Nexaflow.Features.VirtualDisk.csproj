@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
+  </ItemGroup>
+
+  <!-- DiscUtils virtual-disk libraries, built from source (external/DiscUtils submodule: smile-forge
+       fork, nexaflow branch) instead of NuGet, so fixes can be upstreamed. Core + Containers open disk
+       images (VHD/VHDX/VDI/VMDK/DMG/ISO/WIM/XVA); FileSystems reads the filesystems inside them
+       (NTFS/FAT/exFAT/ext/XFS/…). Each resolves its net10.0 target. VirtualDisk is a stub pending spec.
+       Fork/PR/pin-bump workflow: docs/externals.md (never swap these to a PackageReference). -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\external\DiscUtils\Library\DiscUtils.Core\DiscUtils.Core.csproj" />
+    <ProjectReference Include="..\..\..\external\DiscUtils\Library\DiscUtils.Containers\DiscUtils.Containers.csproj" />
+    <ProjectReference Include="..\..\..\external\DiscUtils\Library\DiscUtils.FileSystems\DiscUtils.FileSystems.csproj" />
+  </ItemGroup>
+
+</Project>

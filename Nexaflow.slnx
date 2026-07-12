@@ -84,6 +84,9 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.SystemInfo/Nexaflow.Features.SystemInfo.csproj" Id="d67eea32-4436-40b5-bef2-51157aefe8b4">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.VirtualDisk/Nexaflow.Features.VirtualDisk.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Tabular/Nexaflow.Features.Tabular.csproj" Id="cf60da94-6e1c-43b8-a3f2-0e0eca0bd206">
       <Platform Project="x64" />
     </Project>

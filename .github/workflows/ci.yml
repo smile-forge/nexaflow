@@ -25,7 +25,11 @@ jobs:
     runs-on: windows-latest   # WPF / net10.0-windows + WiX MSI need Windows
 
     steps:
+      # submodules: the build ProjectReferences third-party source under external/ (xaml-math, DiscUtils —
+      # public smile-forge forks), so without this the restore/build can't resolve them. See docs/externals.md.
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Set up .NET 10
         uses: actions/setup-dotnet@v4

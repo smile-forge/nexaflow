@@ -12,7 +12,6 @@
   <ItemGroup>
     <PackageReference Include="HtmlAgilityPack" Version="1.12.4" />
     <PackageReference Include="Markdig" Version="1.3.2" />
-    <PackageReference Include="WpfMath" Version="2.1.0" />
     <!-- Editor surface (Editor/): the read-write Edit Text host. -->
     <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
@@ -25,6 +24,12 @@
     <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Syntax\Nexaflow.Syntax.csproj" />
     <ProjectReference Include="..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
+
+    <!-- WpfMath (LaTeX math rendering) built from source: the external/xaml-math submodule (smile-forge fork,
+         nexaflow branch) replaces the WpfMath NuGet so matrix-delimiter environments can be added upstream.
+         Resolves WpfMath's net8.0-windows target; XamlMath.Shared flows in transitively.
+         Fork/PR/pin-bump workflow: docs/externals.md (never swap this back to a PackageReference). -->
+    <ProjectReference Include="..\..\external\xaml-math\src\WpfMath\WpfMath.csproj" />
   </ItemGroup>
 
 </Project>

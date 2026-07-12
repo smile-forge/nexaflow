@@ -62,6 +62,7 @@
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Scratchpad\Nexaflow.Features.Scratchpad.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Svg\Nexaflow.Features.Svg.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.SystemInfo\Nexaflow.Features.SystemInfo.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.VirtualDisk\Nexaflow.Features.VirtualDisk.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Tabular\Nexaflow.Features.Tabular.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Text\Nexaflow.Features.Text.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Video\Nexaflow.Features.Video.csproj" />
