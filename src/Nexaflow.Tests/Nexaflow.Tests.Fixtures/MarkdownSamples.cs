@@ -206,6 +206,11 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \begin{bmatrix} 1 & 2 & 3 \\ 4 & 5 & 6 \\ 7 & 8 & 9 \end{bmatrix} \;\; \begin{pmatrix} a_1 & \cdots & a_n \end{pmatrix} $$
 
+        A general matrix elides its entries with `\cdots` (horizontal), `\vdots` (vertical) and
+        `\ddots` (diagonal):
+
+        $$ \begin{bmatrix} a_{11} & \cdots & a_{1n} \\ \vdots & \ddots & \vdots \\ a_{m1} & \cdots & a_{mn} \end{bmatrix} $$
+
         ## Piecewise definitions (cases)
 
         The `\cases{ … }` command is supported (the `\begin{cases}` environment is **not**):
@@ -252,11 +257,10 @@ internal sealed class MarkdownSamples : ISampleSet
 
         ## Spacing
 
-        The thin, negative, medium and thick spaces (`\,` `\!` `\:` `\;`) are supported:
+        Thin, negative, medium and thick spaces (`\,` `\!` `\:` `\;`), the wider `\quad` and
+        `\qquad`, the tie `~` and control space `\ `, and explicit `\hspace{<length>}`:
 
-        $$ x\,y \;\; x\!y \;\; x\:y \;\; x\;y $$
-
-        *Not supported:* `\quad` · `\qquad` · `\ ` (control space) · `~` · `\hspace`
+        $$ x\,y \;\; x\!y \;\; x\:y \;\; x\;y \;\; x\quad y \;\; x\qquad y \;\; x~y \;\; x\ y \;\; x\hspace{12pt}y $$
 
         ## Not supported — decorations & phantoms
 
