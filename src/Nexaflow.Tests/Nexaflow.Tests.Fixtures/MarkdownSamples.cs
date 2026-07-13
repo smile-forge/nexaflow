@@ -148,7 +148,18 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \frac{a}{b} \;\; \frac{1}{1 + \frac{1}{x}} \;\; \frac{\partial f}{\partial x} $$
 
-        *Not supported:* `\dfrac` · `\tfrac` · `\cfrac`
+        `\dfrac` and `\tfrac` force display or text style — visible on a subscript, where a plain `\frac`
+        shrinks but `\dfrac` stays full size:
+
+        $$ x_{\frac{a}{b}} \;\; x_{\dfrac{a}{b}} \;\; \tfrac{a}{b} $$
+
+        `\cfrac[l|c|r]{…}{…}` builds a continued fraction whose nested levels stay full size:
+
+        $$ \cfrac{1}{2 + \cfrac{1}{3 + \cfrac{1}{4}}} $$
+
+        The inline "slash" fractions `\nicefrac{…}{…}` and `\sfrac{…}{…}`:
+
+        $$ \nicefrac{1}{2} \;\; \sfrac{3}{4} \;\; 2\sfrac{1}{2} $$
 
         ## Binomial coefficients
 
