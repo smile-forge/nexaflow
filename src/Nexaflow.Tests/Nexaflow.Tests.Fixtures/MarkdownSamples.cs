@@ -169,21 +169,39 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \sqrt{2} \;\; \sqrt{x^2 + y^2} \;\; \sqrt[3]{x} \;\; \sqrt[n]{a} $$
 
-        ## Sums, products and limits
+        ## Sums and products
 
         $$ \sum_{i=1}^{n} i = \frac{n(n+1)}{2} \;\; \prod_{i=1}^{n} i = n! \;\; \coprod_{i} X_i $$
 
-        $$ \lim_{x \to \infty} \frac{1}{x} = 0 \;\; \lim_{n \to \infty} \left(1 + \frac{1}{n}\right)^{n} = e $$
+        ## Big operators
 
-        ## Integrals and big operators
+        $$ \bigcup_i A_i \;\; \bigcap_i A_i \;\; \bigsqcup_i S_i \;\; \biguplus_i M_i \;\; \bigvee_i p_i \;\; \bigwedge_i p_i \;\; \bigoplus_i V_i \;\; \bigotimes_i V_i \;\; \bigodot_i x_i $$
 
-        $$ \int_0^1 x^2 \, dx \;\; \oint_C \vec{F} \cdot d\vec{r} \;\; \bigcup_{i} A_i \;\; \bigcap_{i} A_i \;\; \bigoplus_{i} V_i $$
+        ## Integrals
 
-        *Not supported:* `\iint` · `\iiint`
+        $$ \int_0^1 x^2 \, dx \;\; \oint_C \vec{F} \cdot d\vec{r} \;\; \iint_D f \, dA \;\; \iiint_V f \, dV \;\; \iiiint \;\; \idotsint \;\; \oiint_S \vec{F} \cdot d\vec{S} \;\; \oiiint $$
 
-        ## Named operators and functions
+        ## Named functions and operators
 
-        $$ \sin x \;\; \cos x \;\; \tan x \;\; \log x \;\; \ln x \;\; \exp x \;\; \gcd(a,b) \;\; \max_i a_i \;\; \min_i a_i \;\; \sup S \;\; \inf S \;\; \det A \;\; \dim V $$
+        Trigonometric and hyperbolic:
+
+        $$ \sin x \;\; \cos x \;\; \tan x \;\; \cot x \;\; \sec x \;\; \csc x \;\; \sinh x \;\; \cosh x \;\; \tanh x \;\; \coth x \;\; \arcsin x \;\; \arccos x \;\; \arctan x $$
+
+        Logarithms and exponential:
+
+        $$ \log x \;\; \ln x \;\; \lg x \;\; \exp x $$
+
+        Limits and bounds:
+
+        $$ \lim_{x \to \infty} \frac{1}{x} = 0 \;\; \limsup_{n} a_n \;\; \liminf_{n} a_n \;\; \sup S \;\; \inf S \;\; \max_i a_i \;\; \min_i a_i $$
+
+        Algebra and miscellaneous:
+
+        $$ \arg z \;\; \det A \;\; \dim V \;\; \gcd(a,b) \;\; \ker T \;\; \hom(A, B) \;\; \deg f \;\; \Pr(X) $$
+
+        Modulo:
+
+        $$ n \bmod m \;\; a \equiv b \pmod{n} \;\; a \equiv b \pod{n} \;\; x \mod y $$
 
         ## Auto-sized delimiters
 
