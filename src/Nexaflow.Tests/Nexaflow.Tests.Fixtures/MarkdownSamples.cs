@@ -55,12 +55,17 @@ internal sealed class MarkdownSamples : ISampleSet
         **supports**, so each should typeset. Standard LaTeX the engine does **not** support is
         called out under each section as *Not supported*. When a formula does fail, the app shows
         its raw `$$ … $$` source in an accent-bordered box — like the one just below, which
-        deliberately uses the unsupported `\mathbb` and `\quad`:
+        deliberately uses the unsupported `\mathbb` (blackboard bold needs the AMS `msbm` font,
+        which is not bundled):
 
         $$ \mathbb{R} \quad \text{blackboard R} $$
 
-        > **Spacing note:** `\quad`, `\qquad`, `~` and `\ ` (control space) are **not** supported,
-        > so this reference separates items with the supported thick space `\;` instead.
+        ## Spacing
+
+        Horizontal spacing: `\,` `\:` `\;` (thin/medium/thick), `\quad`, `\qquad`, the tie `~`,
+        the control space `\ `, and `\hspace{<length>}`:
+
+        $$ a\,b \;\; a\;b \;\; a\quad b \;\; a\qquad b \;\; a~b \;\; a\ b \;\; a\hspace{15pt}b $$
 
         ## Inline math
 
@@ -69,7 +74,7 @@ internal sealed class MarkdownSamples : ISampleSet
 
         ## Superscripts and subscripts
 
-        $$ x^2 \;\; x_i \;\; x_i^2 \;\; x^{2n} \;\; a_{i,j} \;\; x^{y^{z}} \;\; \sum_{i=1}^{n} i $$
+        $$ x^2 \quad x_i \quad x_i^2 \quad x^{2n} \quad a_{i,j} \quad x^{y^{z}} \quad \sum_{i=1}^{n} i $$
 
         ## Greek letters — lowercase
 
@@ -87,35 +92,40 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ a = b \;\; a \neq b \;\; a < b \;\; a > b \;\; a \leq b \;\; a \geq b \;\; a \approx b \;\; a \equiv b \;\; a \sim b \;\; a \simeq b \;\; a \cong b \;\; a \propto b \;\; a \ll b \;\; a \gg b \;\; a \prec b \;\; a \succ b \;\; a \perp b \;\; a \parallel b \;\; a \asymp b $$
 
+        ## Negated relations
+
+        $$ a \nless b \;\; a \ngtr b \;\; a \nleq b \;\; a \ngeq b \;\; a \nprec b \;\; a \nsucc b \;\; a \nsim b \;\; a \ncong b \;\; a \nmid b \;\; a \nparallel b \;\; a \nvdash b \;\; A \nsubseteq B \;\; A \nsupseteq B \;\; a \nrightarrow b \;\; a \nleftrightarrow b $$
+
+        These overlay the base relation with the zero-width `\not`.
+
+        *Not supported (need the AMS `msbm` font):* `\subsetneq` · `\supsetneq` · `\lneqq` · `\gneqq` · `\varsubsetneq` · `\lnsim`
+
         ## Set theory and logic
 
-        $$ a \in A \;\; a \ni A \;\; A \subset B \;\; A \subseteq B \;\; A \supset B \;\; A \supseteq B \;\; \emptyset \;\; \forall x \;\; \exists y \;\; \neg p \;\; p \land q \;\; p \lor q \;\; p \to q $$
+        $$ a \in A \;\; a \notin A \;\; a \ni A \;\; A \subset B \;\; A \subseteq B \;\; A \supset B \;\; A \supseteq B \;\; \emptyset \;\; \varnothing \;\; \forall x \;\; \exists y \;\; \nexists z \;\; \neg p \;\; p \land q \;\; p \lor q \;\; p \to q \;\; p \implies q \;\; p \iff q $$
 
-        *Not supported:* `\notin` · `\varnothing` · `\nexists` · `\implies` · `\iff`
+        *Not supported (need the AMS `msbm` font):* blackboard bold `\mathbb{R}` · Hebrew `\beth` / `\gimel` / `\daleth`
 
         ## Arrows
 
-        $$ a \to b \;\; a \gets b \;\; a \rightarrow b \;\; a \leftarrow b \;\; a \Rightarrow b \;\; a \Leftarrow b \;\; a \leftrightarrow b \;\; a \Leftrightarrow b \;\; a \uparrow b \;\; a \downarrow b \;\; a \rightharpoonup b $$
-
-        *Not supported:* `\mapsto` · `\longrightarrow` · `\longleftarrow` · `\hookrightarrow`
+        $$ a \to b \;\; a \gets b \;\; a \rightarrow b \;\; a \leftarrow b \;\; a \Rightarrow b \;\; a \Leftarrow b \;\; a \leftrightarrow b \;\; a \Leftrightarrow b \;\; a \mapsto b \;\; a \longrightarrow b \;\; a \longleftarrow b \;\; a \hookrightarrow b \;\; a \Longrightarrow b \;\; a \Longleftrightarrow b \;\; a \uparrow b \;\; a \downarrow b \;\; a \rightharpoonup b $$
 
         ## Accents
 
-        $$ \hat{a} \;\; \bar{a} \;\; \vec{a} \;\; \dot{a} \;\; \ddot{a} \;\; \tilde{a} \;\; \acute{a} \;\; \grave{a} \;\; \check{a} \;\; \breve{a} \;\; \widehat{abc} \;\; \widetilde{abc} \;\; \overline{abc} \;\; \underline{abc} $$
-
-        *Not supported:* `\mathring` · `\overrightarrow` · `\overleftarrow`
+        $$ \hat{a} \;\; \bar{a} \;\; \vec{a} \;\; \dot{a} \;\; \ddot{a} \;\; \tilde{a} \;\; \acute{a} \;\; \grave{a} \;\; \check{a} \;\; \breve{a} \;\; \mathring{a} \;\; \widehat{abc} \;\; \widetilde{abc} \;\; \overline{abc} \;\; \underline{abc} \;\; \overrightarrow{AB} \;\; \overleftarrow{AB} $$
 
         ## Dots and ellipses
 
-        $$ a_1 + a_2 + \cdots + a_n \;\; 1, 2, \ldots, n $$
+        $$ a_1 + a_2 + \cdots + a_n \;\; 1, 2, \ldots, n \;\; 1, 2, \dots, n \;\; \vdots \;\; \ddots $$
 
-        *Not supported:* `\vdots` · `\ddots` · `\dots`
+        `\vdots` and `\ddots` are most at home inside a matrix — see the
+        [structures reference](latex-math-structures.md).
 
         ## Miscellaneous symbols
 
-        $$ \infty \;\; \partial \;\; \nabla \;\; \aleph \;\; \hbar \;\; \ell \;\; \Re \;\; \Im \;\; \wp \;\; \angle \;\; \triangle \;\; \top \;\; \bot \;\; \surd \;\; \flat \;\; \sharp \;\; \natural \;\; \dagger \;\; \ddagger \;\; \clubsuit \;\; \diamondsuit \;\; \heartsuit \;\; \spadesuit $$
+        $$ \infty \;\; \partial \;\; \nabla \;\; \aleph \;\; \hbar \;\; \ell \;\; \Re \;\; \Im \;\; \wp \;\; \angle \;\; \triangle \;\; \top \;\; \bot \;\; \surd \;\; \flat \;\; \sharp \;\; \natural \;\; \dagger \;\; \ddagger \;\; \S \;\; \P \;\; \clubsuit \;\; \diamondsuit \;\; \heartsuit \;\; \spadesuit $$
 
-        *Not supported:* `\S` · `\P`
+        *Not supported (need the AMS `msbm` font):* `\mho` · `\hslash` · `\Bbbk` · `\eth`
         """;
 
     private const string LatexMathStructures =
