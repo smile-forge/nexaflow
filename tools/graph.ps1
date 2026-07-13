@@ -45,16 +45,18 @@ if (-not (Test-Path (Join-Path $graphRoot '.product\graph.json'))) {
     Fail "no .product\graph.json under '$graphRoot' - regenerate it with:  tools/graph.ps1 build"
 }
 
-# -- locate the CLI exe: the published copy that ships next to this script; else `dotnet run` --
+# -- locate the CLI exe under the GRAPH ROOT (the main checkout), not $PSScriptRoot: tools/graph-cli is
+# gitignored, so the published exe exists only in the main checkout - a worktree's own tools/ dir is empty
+# and would wrongly fall through to `dotnet run`. Fall back to `dotnet run` only if it's genuinely absent.
 # Refresh the published copy with tools/publish-graph-cli.ps1 (the setup build also drops it here).
 $cliProj = Join-Path $graphRoot 'src\Nexaflow.Services.Initiatives.Cli'
-$exe = Join-Path $PSScriptRoot 'graph-cli\nexaflow-initiatives.exe'
+$exe = Join-Path $graphRoot 'tools\graph-cli\nexaflow-initiatives.exe'
 
 if (-not $GraphArgs -or $GraphArgs.Count -eq 0) { $GraphArgs = @('help') }
 $full = @('graph') + $GraphArgs + @($graphRoot)     # append the resolved root as the trailing positional
 
 if (Test-Path $exe) { $raw = & $exe @full 2>&1 }
-else                { $raw = & dotnet run --project $cliProj -c Debug --nologo -v quiet -- @full 2>&1 }
+else                { $raw = & dotnet run --project $cliProj -c Debug --verbosity quiet -- @full 2>&1 }
 $exit = $LASTEXITCODE
 
 # -- normalize any absolute graph-root prefix to a repo-relative (caller-valid) path --
