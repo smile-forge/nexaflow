@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Notebook.Models;
+using Nexaflow.IO.Common;
 using Nexaflow.Syntax;
 
 namespace Nexaflow.Features.Notebook.ViewModels;
@@ -36,7 +37,8 @@ public sealed partial class NotebookViewModel : ObservableObject, IPageViewModel
     public async Task LoadAsync()
     {
         string text;
-        try { text = await File.ReadAllTextAsync(FilePath).ConfigureAwait(true); }
+        // Read through the VFS (off the UI thread) so an .ipynb inside a disk image / archive resolves.
+        try { text = await Task.Run(() => VirtualFileSystem.Instance.ReadAllText(FilePath)).ConfigureAwait(true); }
         catch { IsLoaded = true; return; }
 
         var notebook = NotebookDocument.Parse(text);

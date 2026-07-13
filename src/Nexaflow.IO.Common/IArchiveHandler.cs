@@ -60,6 +60,25 @@ public interface IArchiveSession : System.IDisposable
     /// <summary>Opens one entry for reading by its full in-archive path (forward-slash separated).
     /// The returned stream is owned by the caller. Throws if the entry is missing or a directory.</summary>
     Stream OpenEntry(string entryPath);
+
+    /// <summary>
+    /// True when this session answers directory listings and per-path stats <b>lazily</b> — via
+    /// <see cref="ListChildren"/>/<see cref="StatEntry"/> — instead of the full <see cref="Entries"/>
+    /// list. Set by containers whose full recursive enumeration is expensive (e.g. a disk image's
+    /// filesystem): the VFS then browses one directory at a time and never materialises
+    /// <see cref="Entries"/> for navigation. Ordinary archives leave this <c>false</c> and are unaffected.
+    /// </summary>
+    bool SupportsLazyBrowse => false;
+
+    /// <summary>Direct children of one in-container directory (<c>""</c> = the container root),
+    /// forward-slash separated. Only consulted when <see cref="SupportsLazyBrowse"/> is true; each call
+    /// reads a single directory. The default returns <see cref="Entries"/> (never reached for eager
+    /// sessions, which the VFS filters itself).</summary>
+    IReadOnlyList<VirtualEntry> ListChildren(string dirPath) => Entries;
+
+    /// <summary>Metadata for one in-container path (forward-slash separated), or null if it does not
+    /// exist. Only consulted when <see cref="SupportsLazyBrowse"/> is true.</summary>
+    VirtualEntry? StatEntry(string entryPath) => null;
 }
 
 /// <summary>

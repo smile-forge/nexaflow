@@ -74,9 +74,17 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
         NavigationUri = ext == ".url"
             ? ResolveUrlShortcut(filePath)
-            : new Uri(filePath);
+            : new Uri(RealizeLocalFile(filePath));
 
         CurrentUrl = NavigationUri.ToString();
+    }
+
+    /// <summary>A real, WebView2-navigable path. A file inside a disk image / archive is virtual — WebView2
+    /// can't load it, so materialise it to a temp copy first; a real on-disk file passes straight through.</summary>
+    private static string RealizeLocalFile(string filePath)
+    {
+        try { return VirtualFileSystem.Instance.MaterializeFile(filePath); }
+        catch { return filePath; }
     }
 
     /// <summary>

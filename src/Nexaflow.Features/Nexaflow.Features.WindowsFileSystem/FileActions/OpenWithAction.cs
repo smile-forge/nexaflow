@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -24,11 +25,19 @@ public sealed class OpenWithAction : IFileAction, ICacheable
     public bool   ShowsSuccessTick      => false;   // a chooser, not a completed operation
     public string? Tooltip              => "Choose an app to open this file";
 
-    public bool PerformAction(string filePath) => NativeMethods.ShowOpenWithDialog(filePath);
+    // A file inside a disk image / archive is virtual — the Open-With dialog needs a real path, so
+    // materialise it to a temp copy first (a real file passes through unchanged).
+    public bool PerformAction(string filePath) => NativeMethods.ShowOpenWithDialog(RealPath(filePath));
 
     public bool PerformAction(IEnumerable<string> filePaths)
     {
         var first = filePaths.FirstOrDefault();
-        return first is not null && NativeMethods.ShowOpenWithDialog(first);
+        return first is not null && NativeMethods.ShowOpenWithDialog(RealPath(first));
+    }
+
+    private static string RealPath(string path)
+    {
+        try { return VirtualFileSystem.Instance.MaterializeFile(path); }
+        catch { return path; }
     }
 }

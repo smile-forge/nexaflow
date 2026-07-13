@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Font.Decoding;
 
@@ -33,7 +34,9 @@ public sealed class FontSourceResolver : IDisposable
     /// </summary>
     public Uri? ResolveRenderableUri(string path)
     {
-        var full = Path.GetFullPath(path);
+        // A font inside a disk image / archive is virtual — GlyphTypeface / decoders need a real path, so
+        // materialise it first (a real file passes through unchanged).
+        var full = Path.GetFullPath(RealPath(path));
         var ext = Path.GetExtension(full).ToLowerInvariant();
 
         if (RawSfntExtensions.Contains(ext))
@@ -55,6 +58,12 @@ public sealed class FontSourceResolver : IDisposable
         File.WriteAllBytes(temp, sfnt);
         _tempFiles.Add(temp);
         return new Uri(temp);
+    }
+
+    private static string RealPath(string path)
+    {
+        try { return VirtualFileSystem.Instance.MaterializeFile(path); }
+        catch { return path; }
     }
 
     public void Dispose()

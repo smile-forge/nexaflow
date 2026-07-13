@@ -190,7 +190,7 @@ reflect the tab's current state (set it after in-tab navigation so `FindTab` and
 | ProductManager | `path` (folder holding/initialising `.product/`) |
 | Projects | *(none)* |
 | ProjectDetail | `folder` |
-| VirtualDisk | *(none — unimplemented stub; DiscUtils-backed disk mounting pending spec)* |
+| VirtualDisk | `path` (a disk image — vhd/vhdx/vdi/vmdk/dmg/img/iso — opened via "As Disk") |
 
 ---
 

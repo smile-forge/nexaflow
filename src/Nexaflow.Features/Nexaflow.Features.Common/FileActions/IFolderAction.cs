@@ -68,6 +68,12 @@ namespace Nexaflow.Features.Common
         /// on-disk folder — e.g. "Zip It", which has nothing to compress from a virtual location.</summary>
         bool AppliesInsideArchive => true;
 
+        /// <summary>Per-path applicability, evaluated against each selected folder/drive after the structural
+        /// (name / contents glob) checks pass. Defaults to <c>true</c>. Lets an action hide itself for a
+        /// specific path that structural globs can't express — e.g. "Unmount" only on a drive that is backed
+        /// by a currently mounted disk image. Keep it cheap: it runs on every selection change.</summary>
+        bool AppliesToFolder(string folderPath) => true;
+
         bool PerformAction(string folderPath);
         bool PerformAction(IEnumerable<string> folderPaths);
 

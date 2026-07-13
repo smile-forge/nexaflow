@@ -24,6 +24,8 @@ public static class ElevatedOps
     public const string ProcessKill         = "process.kill";
     public const string ProcessSetPriority  = "process.setPriority";
     public const string ProcessInspect      = "process.inspect";
+    public const string DiskMount           = "disk.mount";
+    public const string DiskUnmount         = "disk.unmount";
 }
 
 /// <summary>Well-known argument keys carried in <see cref="ElevatedOperation.Args"/>.</summary>
@@ -62,6 +64,12 @@ public static class ElevatedArgs
     public const string ProcessPriority = "priority";
     /// <summary>What <c>process.inspect</c> should gather: "all" (default — handles + modules + command line) or "handles".</summary>
     public const string InspectWhat     = "inspectWhat";
+
+    // ── Disk-image mount/unmount ─────────────────────────────────────────────
+    /// <summary>Absolute path to the disk image (VHD/VHDX) to attach/detach.</summary>
+    public const string ImagePath       = "imagePath";
+    /// <summary>Result key: the drive letter assigned by a mount (e.g. <c>"E:"</c>).</summary>
+    public const string DriveLetter     = "driveLetter";
 }
 
 /// <summary>Canonical startup-mode values exchanged over the wire (plural to avoid colliding with the

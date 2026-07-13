@@ -8,6 +8,7 @@ using SharpVectors.Converters;
 using SharpVectors.Dom;
 using SharpVectors.Renderers.Wpf;
 using SharpVectors.Runtime;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Svg.Loaders;
 
@@ -74,7 +75,8 @@ public sealed class SvgLoader
     /// content is gzip (covers <c>.svgz</c> and gzip content mislabeled <c>.svg</c>).</summary>
     private static XmlReader OpenSvg(string path)
     {
-        Stream fs = File.OpenRead(path);
+        // Read through the VFS so an .svg inside a disk image / archive resolves (real files pass through).
+        Stream fs = VirtualFileSystem.Instance.OpenRead(path);
         try
         {
             int b0 = fs.ReadByte(), b1 = fs.ReadByte();

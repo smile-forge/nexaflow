@@ -16,6 +16,7 @@ using LibVLCSharp;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Video.ClientTools;
+using Nexaflow.IO.Common;
 using Nexaflow.Features.Video.Interop;
 using Nexaflow.Features.Video.Models;
 using Nexaflow.Features.Video.Rendering;
@@ -77,6 +78,17 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
 
     public string FilePath => _path;
     public string FileName => Path.GetFileName(_path);
+
+    // LibVLC needs a real on-disk path; a video inside a disk image / archive is materialised to a temp copy
+    // once (real files pass through). Cached so the keyframe/caption probes reuse the same extraction. First
+    // touched inside the background init below, so the extraction never blocks the UI thread.
+    private string? _realMediaPath;
+    private string RealMediaPath() => _realMediaPath ??= Materialize(_path);
+    private static string Materialize(string p)
+    {
+        try { return VirtualFileSystem.Instance.MaterializeFile(p); }
+        catch { return p; }
+    }
 
     // ── Observable playback state ───────────────────────────────────────────
 
@@ -174,7 +186,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
                 // Render frames into a WPF WriteableBitmap (no native window → no airspace).
                 _sink = new VlcVideoSink(_mp, OnUi, bmp => VideoFrame = bmp);
 
-                _media = new Media(new Uri(_path));
+                _media = new Media(new Uri(RealMediaPath()));
 
                 _mp.TimeChanged      += OnTimeChanged;
                 _mp.LengthChanged    += OnLengthChanged;
@@ -491,7 +503,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
         if (_libVlc is null) return;
 
         Media thumbMedia;
-        try { thumbMedia = new Media(new Uri(_path)); } catch { return; }
+        try { thumbMedia = new Media(new Uri(RealMediaPath())); } catch { return; }
 
         using (thumbMedia)
         {
@@ -550,7 +562,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
             : 720u;
 
         Media capMedia;
-        try { capMedia = new Media(new Uri(_path)); } catch { return null; }
+        try { capMedia = new Media(new Uri(RealMediaPath())); } catch { return null; }
         using (capMedia)
         using (var linked = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token, ct))
         {

@@ -3,13 +3,9 @@ using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.VirtualDisk;
 
-/// <summary>
-/// Smoke test for the VirtualDisk stub registration. The feature is not yet implemented
-/// (DiscUtils-backed disk mounting is pending specification), so there is no behaviour to cover —
-/// this just holds the page-kind contract and satisfies the per-feature coverage guard.
-/// </summary>
+/// <summary>The page-kind contract for the "As Disk" inspector registration.</summary>
 [TestClass]
-[NoCoverage("VirtualDisk is an unimplemented stub — registration smoke only, no product node yet")]
+[CoversNode("virtualdisk")]
 public class VirtualDiskRegistrationTests
 {
     [TestMethod]
