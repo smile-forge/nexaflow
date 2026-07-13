@@ -4,6 +4,7 @@ using Concentus;
 using Concentus.Oggfile;
 using NAudio.Vorbis;
 using NAudio.Wave;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Audio.Services;
 
@@ -21,13 +22,22 @@ public static class AudioReaderFactory
     public static WaveStream CreateReader(string path)
     {
         var ext = Path.GetExtension(path).ToLowerInvariant();
+        // NAudio needs a real on-disk path; materialise a file that lives inside a disk image / archive first
+        // (a real path passes through unchanged). The temp copy keeps the extension, so detection is unaffected.
+        var real = RealPath(path);
         return ext switch
         {
-            ".wav"  => new WaveFileReader(path),     // pure-managed, no Media Foundation
-            ".ogg"  => new VorbisWaveReader(path),
-            ".opus" => DecodeOpus(path),
-            _       => new MediaFoundationReader(path),
+            ".wav"  => new WaveFileReader(real),     // pure-managed, no Media Foundation
+            ".ogg"  => new VorbisWaveReader(real),
+            ".opus" => DecodeOpus(real),
+            _       => new MediaFoundationReader(real),
         };
+    }
+
+    private static string RealPath(string path)
+    {
+        try { return VirtualFileSystem.Instance.MaterializeFile(path); }
+        catch { return path; }
     }
 
     /// <summary>

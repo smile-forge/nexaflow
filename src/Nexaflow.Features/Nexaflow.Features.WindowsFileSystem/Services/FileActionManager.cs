@@ -128,6 +128,9 @@ public sealed class FileActionManager
             {
                 if (!FolderNameMatches(action, selected)) continue;
                 if (!ContentsMatch(action, selected)) continue;
+                // Per-path gate (e.g. Unmount only on image-backed drives). Default is true, so unaffected
+                // actions cost only one virtual call per selected item.
+                if (!selected.All(e => action.AppliesToFolder(e.FullPath))) continue;
             }
             else if (IsConstrained(action))
             {

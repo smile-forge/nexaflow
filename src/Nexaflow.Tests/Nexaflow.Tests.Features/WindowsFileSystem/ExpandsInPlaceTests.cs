@@ -36,6 +36,17 @@ public class ExpandsInPlaceTests
         => Assert.IsTrue(DefaultFileOpener.ExpandsInPlace(path), $"{path} is a real archive; it should browse in place");
 
     [DataTestMethod]
+    [DataRow(@"C:\x\a.iso")]    // /disk/mountable → satisfies /disk at extension level
+    [DataRow(@"C:\x\a.vhd")]
+    [DataRow(@"C:\x\a.vhdx")]
+    [DataRow(@"C:\x\a.vmdk")]   // mapped directly to /disk
+    [DataRow(@"C:\x\a.vdi")]
+    [DataRow(@"C:\x\a.dmg")]
+    [DataRow(@"C:\x\a.img")]
+    public void DiskImages_ExpandInPlace(string path)
+        => Assert.IsTrue(DefaultFileOpener.ExpandsInPlace(path), $"{path} is a disk image; it should browse in place");
+
+    [DataTestMethod]
     [DataRow(@"C:\x\a.docx")]   // zip-based document: /archive only by OptionalExtension
     [DataRow(@"C:\x\a.xlsx")]
     [DataRow(@"C:\x\a.pptx")]

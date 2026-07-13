@@ -184,6 +184,8 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
             return new VirtualEntry(Path.GetFileName(resolved.RealContainer), true, 0, 0, System.DateTime.Now);
 
         using var session = OpenSession(resolved.RealContainer, resolved.ContainerFileName);
+        if (session.SupportsLazyBrowse)
+            return session.StatEntry(norm);
         return session.Entries.FirstOrDefault(e => PathEquals(e.Name, norm))
             ?? (session.Entries.Any(e => IsUnder(e.Name, norm))
                 ? new VirtualEntry(LastSegment(norm), true, 0, 0, System.DateTime.Now)  // a directory inside the archive
@@ -208,7 +210,9 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
         }
 
         using var session = OpenSession(resolved.RealContainer, resolved.ContainerFileName);
-        return ChildrenOf(session.Entries, Normalize(resolved.Inner));
+        return session.SupportsLazyBrowse
+            ? session.ListChildren(Normalize(resolved.Inner))
+            : ChildrenOf(session.Entries, Normalize(resolved.Inner));
     }
 
     private static IReadOnlyList<VirtualEntry> EnumerateRealDirectory(string path)
@@ -351,8 +355,12 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
                 for (int i = segments.Length; i >= 1; i--)
                 {
                     var candidate = string.Join('/', segments.Take(i));
-                    if (HandlerFor(LastSegment(candidate)) is not null &&
-                        session.Entries.Any(e => !e.IsDirectory && PathEquals(e.Name, candidate)))
+                    if (HandlerFor(LastSegment(candidate)) is null) continue;
+                    // Lazy sessions stat the one candidate path; eager sessions scan their flat list.
+                    bool isFileEntry = session.SupportsLazyBrowse
+                        ? session.StatEntry(candidate) is { IsDirectory: false }
+                        : session.Entries.Any(e => !e.IsDirectory && PathEquals(e.Name, candidate));
+                    if (isFileEntry)
                     {
                         nestedEntry = candidate;
                         break;
@@ -398,11 +406,17 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
         }
 
         using var session = OpenSession(realContainer, containerFileName);
-        var entry = session.Entries.FirstOrDefault(e => !e.IsDirectory && PathEquals(e.Name, norm))
-            ?? throw new FileNotFoundException($"Entry '{entryPath}' not found in '{containerFileName}'.");
+        // Lazy sessions (disk images) resolve the path themselves in OpenEntry — no full-list scan; eager
+        // archives look the entry up first to recover its exact-case name.
+        string openName;
+        if (session.SupportsLazyBrowse)
+            openName = norm;
+        else
+            openName = session.Entries.FirstOrDefault(e => !e.IsDirectory && PathEquals(e.Name, norm))?.Name
+                ?? throw new FileNotFoundException($"Entry '{entryPath}' not found in '{containerFileName}'.");
 
         var temp = NewTempPath(Path.GetFileName(norm));
-        using (var src = session.OpenEntry(entry.Name))
+        using (var src = session.OpenEntry(openName))
         using (var dst = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
             src.CopyTo(dst);
 

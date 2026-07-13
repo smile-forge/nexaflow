@@ -25,22 +25,30 @@ public sealed class DefaultFileOpener
     public DefaultFileOpener(FileSystemFeatureRegistry registry)
         => _actions = new FileActionManager(registry);
 
-    /// <summary>The bundled experience for archive-primary formats (see default-filemap.json).</summary>
-    private const string ArchiveExperienceId = "/archive";
+    /// <summary>The bundled experiences whose formats browse <b>in place</b> as a folder: real archives
+    /// (<c>/archive</c>) and virtual-disk images (<c>/disk</c>, and its descendants like
+    /// <c>/disk/mountable</c>) — see default-filemap.json.</summary>
+    private static readonly string[] BrowseInPlaceExperiences = ["/archive", "/disk"];
 
     /// <summary>
     /// Whether a browsable container should open <b>in place</b> (browse its contents as a folder) rather
-    /// than in its own viewer, by default. True only when <c>/archive</c> is the container's
-    /// <i>extension-level</i> experience — a real archive (<c>.zip</c>, <c>.tar.gz</c>, <c>.7z</c>). A format
-    /// mapped to <c>/archive</c> only by <see cref="FileActions.CriteriaType.OptionalExtension"/>
-    /// (<c>.docx</c>, <c>.odt</c>, <c>.epub</c>) — or not mapped there at all (<c>.eml</c>) — keeps its own
-    /// viewer, so <see cref="GetMatchSpecificity"/> scores it below the extension level (4) and this is false.
+    /// than in its own viewer, by default. True only when a browse-in-place experience is the container's
+    /// <i>extension-level</i> experience — a real archive (<c>.zip</c>, <c>.tar.gz</c>, <c>.7z</c>) or a disk
+    /// image (<c>.vhd</c>, <c>.iso</c>, …). A format mapped to <c>/archive</c> only by
+    /// <see cref="FileActions.CriteriaType.OptionalExtension"/> (<c>.docx</c>, <c>.odt</c>, <c>.epub</c>) — or
+    /// not mapped there at all (<c>.eml</c>) — keeps its own viewer, so <see cref="GetMatchSpecificity"/>
+    /// scores it below the extension level (4) and this is false. A disk's secondary actions ("As Disk",
+    /// "Mount") stay on the action strip / context menu, exactly as "As Archive" does for an archive.
     /// Works for a virtual (in-archive) path too: <see cref="FileInfo"/> yields the name/extension without
     /// the file existing, and the magic-number probe inside <see cref="FileMapManager.GetMatchSpecificity"/>
     /// is guarded by <c>file.Exists</c>.
     /// </summary>
     public static bool ExpandsInPlace(string path)
-        => FileMapManager.Instance.GetMatchSpecificity(new FileInfo(path), ArchiveExperienceId) >= 4;
+    {
+        var fi = new FileInfo(path);
+        return BrowseInPlaceExperiences.Any(exp =>
+            FileMapManager.Instance.GetMatchSpecificity(fi, exp) >= 4);
+    }
 
     /// <summary>
     /// Opens <paramref name="filePath"/> with its highest-specificity internal action, else the

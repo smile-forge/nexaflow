@@ -328,5 +328,24 @@
       { "Type": "Extension", "Value": "*.7z" },
       { "Type": "Extension", "Value": "*.rar" }
     ]
+  },
+  {
+    "ExperienceId": "/disk/mountable",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.iso" },
+      { "Type": "Extension", "Value": "*.vhd" },
+      { "Type": "Extension", "Value": "*.vhdx" }
+    ]
+  },
+  {
+    "ExperienceId": "/disk",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.vdi" },
+      { "Type": "Extension", "Value": "*.vmdk" },
+      { "Type": "Extension", "Value": "*.dmg" },
+      { "Type": "Extension", "Value": "*.img" }
+    ]
   }
 ]

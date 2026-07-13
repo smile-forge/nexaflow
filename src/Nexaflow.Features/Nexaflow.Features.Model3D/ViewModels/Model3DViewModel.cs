@@ -10,6 +10,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Model3D.ClientTools;
 using Nexaflow.Features.Model3D.Loaders;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
 
 namespace Nexaflow.Features.Model3D.ViewModels;
@@ -87,6 +88,12 @@ public sealed partial class Model3DViewModel : ObservableObject, IPageViewModel
 
     /// <summary>Reads + parses the model off the UI thread, then populates geometry, stats and inspector.
     /// Safe to call from the view's Loaded handler — the continuation runs on the UI thread.</summary>
+    private static string RealPath(string path)
+    {
+        try { return VirtualFileSystem.Instance.MaterializeFile(path); }
+        catch { return path; }
+    }
+
     public async Task LoadAsync()
     {
         if (IsLoaded) return;
@@ -104,7 +111,9 @@ public sealed partial class Model3DViewModel : ObservableObject, IPageViewModel
             try { size = new FileInfo(FilePath).Length; } catch { /* size is cosmetic */ }
 
             var palette = CategoricalPalette;
-            var loaded = await Task.Run(() => loader.Load(FilePath, palette)).ConfigureAwait(true);
+            // Materialise a model that lives inside a disk image / archive to a real path off the UI thread —
+            // Assimp/Helix/glTF read from a real file path (a real file passes through unchanged).
+            var loaded = await Task.Run(() => loader.Load(RealPath(FilePath), palette)).ConfigureAwait(true);
 
             Geometry = loaded.Geometry;
             InitialView = loaded.InitialView;

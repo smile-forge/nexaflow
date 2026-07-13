@@ -17,7 +17,9 @@
     <!-- Warm peach (reef/fish warmth) -->
     <Color x:Key="TextColor">#EAFBFF</Color>
     <Color x:Key="TextMutedColor">#9DCEDA</Color>
-    <Color x:Key="TextDimColor">#5C95A4</Color>
+    <!-- Dim text sits a step below muted but stays clearly legible: the old #5C95A4 was a mid-teal that
+         merged into the deep-teal surfaces / reef wash. -->
+    <Color x:Key="TextDimColor">#8FBCCB</Color>
     <Color x:Key="DeepBgColor">#07232E</Color>
 
     <!-- ── Brushes ── -->

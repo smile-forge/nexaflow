@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 
@@ -35,13 +36,21 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
         {
             try
             {
-                NativeMethods.ShowFileProperties(filePath);
+                // A file inside a disk image / archive is virtual — the shell needs a real path, so
+                // materialise it to a temp copy first (a real file/folder passes through unchanged).
+                NativeMethods.ShowFileProperties(RealPath(filePath));
                 return true;
             }
             catch
             {
                 return false;
             }
+        }
+
+        private static string RealPath(string path)
+        {
+            try { return VirtualFileSystem.Instance.MaterializeFile(path); }
+            catch { return path; }
         }
 
         public bool PerformAction(IEnumerable<string> filePaths)
