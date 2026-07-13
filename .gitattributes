@@ -1,0 +1,3 @@
+# Git hooks are executed by git-bash's /bin/sh on Windows, so they must stay LF —
+# core.autocrlf=true would otherwise rewrite them to CRLF on checkout and break the shebang.
+.githooks/** text eol=lf
