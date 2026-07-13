@@ -41,6 +41,7 @@ internal sealed class MarkdownSamples : ISampleSet
         SampleFile.Text("latex-math-symbols.md",    LatexMathSymbols),
         SampleFile.Text("latex-math-structures.md", LatexMathStructures),
         SampleFile.Text("latex-math-fonts.md",      LatexMathFonts),
+        SampleFile.Text("latex-math-amssymb.md",    LatexMathAmssymb),
     ];
 
     private const string LatexMathSymbols =
@@ -83,6 +84,12 @@ internal sealed class MarkdownSamples : ISampleSet
         ## Greek letters — uppercase
 
         $$ \Gamma \; \Delta \; \Theta \; \Lambda \; \Xi \; \Pi \; \Sigma \; \Upsilon \; \Phi \; \Psi \; \Omega $$
+
+        LaTeX gives commands only to the 11 uppercase shapes that differ from Latin letters. The others —
+        Alpha, Beta, Epsilon, Zeta, Eta, Iota, Kappa, Mu, Nu, Omicron, Rho, Tau, Chi — have **no** command;
+        they are typeset with the Latin capitals `A B E Z H I K M N O P T X`:
+
+        $$ A \; B \; E \; Z \; H \; I \; K \; M \; N \; O \; P \; T \; X $$
 
         ## Binary operators
 
@@ -267,6 +274,79 @@ internal sealed class MarkdownSamples : ISampleSet
         These otherwise-standard constructs currently fall back to source rather than rendering:
 
         `\overbrace` · `\underbrace` · `\overset` · `\underset` · `\stackrel` · `\substack` · `\phantom` · `\hphantom` · `\vphantom`
+        """;
+
+    private const string LatexMathAmssymb =
+        """
+        # LaTeX math — AMS symbols (amssymb)
+
+        A coverage map of the AMS `amssymb` symbol set: **167 of 224** symbols render with the bundled
+        fonts. Each `$$` block below uses only symbols the engine **supports**, so it typesets; the symbols it
+        does **not** support are listed after each group as *Not supported*. (In the app an unsupported formula
+        falls back to showing its raw `$$ … $$` source, so nothing here is silently wrong.)
+
+        Almost every gap is a **missing font**, not a layout limitation: the dedicated AMS glyphs live in the
+        `msbm` font (blackboard-bold, Hebrew letters, the "negation-with-its-own-glyph" relations such as
+        `\subsetneq`/`\lneqq`) and a handful of `msam` glyphs (`\ltimes`, `\lessdot`, `\dashrightarrow`, …)
+        that the bundled `jlm_msam10` re-encoding omits. Bundling those fonts is the way to close the gap.
+
+        See the [symbols reference](latex-math-symbols.md) for the core LaTeX symbols and the reading convention.
+
+        ## Relations — 56 of 66 render
+
+        $$ \leqq \;\; \leqslant \;\; \eqslantless \;\; \lesssim \;\; \lessapprox \;\; \lll \;\; \lessgtr \;\; \lesseqgtr \;\; \lesseqqgtr \;\; \doteqdot \;\; \risingdotseq \;\; \fallingdotseq \;\; \backsim $$
+
+        $$ \backsimeq \;\; \subseteqq \;\; \Subset \;\; \sqsubset \;\; \preccurlyeq \;\; \curlyeqprec \;\; \precsim \;\; \vartriangleleft \;\; \trianglelefteq \;\; \vDash \;\; \Vvdash \;\; \smallsmile \;\; \smallfrown $$
+
+        $$ \bumpeq \;\; \Bumpeq \;\; \geqq \;\; \geqslant \;\; \eqslantgtr \;\; \gtrsim \;\; \gtrapprox \;\; \ggg \;\; \gtrless \;\; \gtreqless \;\; \gtreqqless \;\; \eqcirc \;\; \circeq $$
+
+        $$ \triangleq \;\; \supseteqq \;\; \Supset \;\; \sqsupset \;\; \succcurlyeq \;\; \curlyeqsucc \;\; \succsim \;\; \vartriangleright \;\; \trianglerighteq \;\; \Vdash \;\; \between \;\; \pitchfork \;\; \varpropto $$
+
+        $$ \blacktriangleleft \;\; \therefore \;\; \blacktriangleright \;\; \because $$
+
+        *Not supported (glyph absent from the bundled fonts):* `\approxeq` · `\lessdot` · `\precapprox` · `\gtrdot` · `\thicksim` · `\thickapprox` · `\succapprox` · `\shortmid` · `\shortparallel` · `\backepsilon`
+
+        ## Binary operators — 19 of 23 render
+
+        $$ \dotplus \;\; \Cap \;\; \Cup \;\; \barwedge \;\; \veebar \;\; \doublebarwedge \;\; \boxminus \;\; \boxtimes \;\; \boxdot \;\; \boxplus \;\; \leftthreetimes \;\; \rightthreetimes \;\; \curlywedge $$
+
+        $$ \curlyvee \;\; \circleddash \;\; \circledast \;\; \circledcirc \;\; \centerdot \;\; \intercal $$
+
+        *Not supported (glyph absent from the bundled fonts):* `\smallsetminus` · `\divideontimes` · `\ltimes` · `\rtimes`
+
+        ## Arrows — 28 of 32 render
+
+        $$ \leftleftarrows \;\; \leftrightarrows \;\; \Lleftarrow \;\; \twoheadleftarrow \;\; \leftarrowtail \;\; \looparrowleft \;\; \leftrightharpoons \;\; \circlearrowleft \;\; \Lsh \;\; \upuparrows \;\; \upharpoonleft \;\; \downharpoonleft \;\; \multimap $$
+
+        $$ \leftrightsquigarrow \;\; \rightrightarrows \;\; \rightleftarrows \;\; \twoheadrightarrow \;\; \rightarrowtail \;\; \looparrowright \;\; \rightleftharpoons \;\; \circlearrowright \;\; \Rsh \;\; \downdownarrows \;\; \upharpoonright \;\; \downharpoonright \;\; \rightsquigarrow $$
+
+        $$ \Rrightarrow \;\; \leadsto $$
+
+        *Not supported (glyph absent from the bundled fonts):* `\dashrightarrow` · `\dashleftarrow` · `\curvearrowleft` · `\curvearrowright`
+
+        ## Negated relations — 31 of 56 render
+
+        $$ \nless \;\; \nleq \;\; \nleqslant \;\; \nleqq \;\; \nprec \;\; \npreceq \;\; \nsim \;\; \nmid \;\; \nvdash \;\; \nVdash \;\; \ntriangleleft \;\; \ntrianglelefteq \;\; \nsubseteq $$
+
+        $$ \ngtr \;\; \ngeq \;\; \ngeqslant \;\; \ngeqq \;\; \nsucc \;\; \nsucceq \;\; \ncong \;\; \nparallel \;\; \nvDash \;\; \ntriangleright \;\; \ntrianglerighteq \;\; \nsupseteq \;\; \nleftarrow $$
+
+        $$ \nrightarrow \;\; \nLeftarrow \;\; \nRightarrow \;\; \nleftrightarrow \;\; \nLeftrightarrow $$
+
+        *Not supported (glyph absent from the bundled fonts):* `\lneq` · `\lneqq` · `\lvertneqq` · `\lnsim` · `\lnapprox` · `\precnsim` · `\precnapprox` · `\nshortmid` · `\subsetneq` · `\varsubsetneq` · `\subsetneqq` · `\varsubsetneqq` · `\gneq` · `\gneqq` · `\gvertneqq` · `\gnsim` · `\gnapprox` · `\succnsim` · `\succnapprox` · `\nshortparallel` · `\nVDash` · `\supsetneq` · `\varsupsetneq` · `\supsetneqq` · `\varsupsetneqq`
+
+        ## Miscellaneous & letters — 27 of 41 render
+
+        $$ \hbar \;\; \vartriangle \;\; \triangledown \;\; \square \;\; \lozenge \;\; \circledS \;\; \angle \;\; \measuredangle \;\; \sphericalangle \;\; \nexists \;\; \backprime \;\; \varnothing \;\; \blacktriangle $$
+
+        $$ \blacktriangledown \;\; \blacksquare \;\; \blacklozenge \;\; \bigstar \;\; \complement \;\; \yen \;\; \checkmark \;\; \maltese \;\; \ulcorner \;\; \urcorner \;\; \llcorner \;\; \lrcorner \;\; \Box $$
+
+        $$ \Diamond $$
+
+        *Not supported (glyph absent from the bundled fonts):* `\hslash` · `\mho` · `\Finv` · `\Game` · `\Bbbk` · `\eth` · `\diagup` · `\diagdown` · `\digamma` · `\varkappa` · `\beth` · `\gimel` · `\daleth` · `\circledR`
+
+        ## Synonyms for existing symbols — 6 of 6 render
+
+        $$ \doublecap \;\; \doublecup \;\; \restriction \;\; \Doteq \;\; \llless \;\; \gggtr $$
         """;
 
     private const string Venn =
