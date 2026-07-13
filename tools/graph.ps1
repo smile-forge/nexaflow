@@ -1,9 +1,9 @@
 #!/usr/bin/env pwsh
-# tools/graph.ps1 — friction-free front-end to the Nexaflow product knowledge-graph CLI.
+# tools/graph.ps1 - friction-free front-end to the Nexaflow product knowledge-graph CLI.
 #
 # Works the same from the main checkout OR any git worktree. You never pass a root: it finds the
 # tree that holds .product/ (the main checkout when you're in a worktree), locates the CLI exe (or
-# falls back to `dotnet run`), and — key for worktrees — re-serves any dumped source (`code`/`cat`/
+# falls back to `dotnet run`), and - key for worktrees - re-serves any dumped source (`code`/`cat`/
 # `context`) from *your* working tree, so the content matches the branch you're actually on.
 #
 #   tools/graph.ps1 search cynefin
@@ -17,6 +17,9 @@
 # are repo-relative, so they resolve against YOUR tree when you Read them. Any dumped source
 # (`code`/`cat`/`context`) whose file differs in your worktree is flagged so you Read the current copy
 # rather than trust stale content. Regenerate with `build` after code changes.
+#
+# NOTE: keep this file ASCII-only. It must parse in Windows PowerShell 5.1 (the default powershell.exe)
+# as well as pwsh 7; a no-BOM file with non-ASCII glyphs is mis-decoded by 5.1 and fails to parse.
 
 [CmdletBinding()]
 param([Parameter(ValueFromRemainingArguments = $true)] [string[]] $GraphArgs)
@@ -24,12 +27,12 @@ param([Parameter(ValueFromRemainingArguments = $true)] [string[]] $GraphArgs)
 $ErrorActionPreference = 'Stop'
 function Fail($m) { Write-Error $m; exit 2 }
 
-# ── caller root: the tree you're working in ───────────────────────────────────
+# -- caller root: the tree you're working in ----------------------------------
 $callerRoot = (git rev-parse --show-toplevel 2>$null)
 if (-not $callerRoot) { Fail 'not inside a git repository.' }
 $callerRoot = ($callerRoot -replace '/', '\').TrimEnd('\')
 
-# ── graph root: the caller if it holds .product/, else the main checkout ───────
+# -- graph root: the caller if it holds .product/, else the main checkout ------
 if (Test-Path (Join-Path $callerRoot '.product\graph.json')) {
     $graphRoot = $callerRoot
 }
@@ -39,10 +42,10 @@ else {
     $graphRoot = (Split-Path ($commonDir -replace '/', '\').TrimEnd('\') -Parent)
 }
 if (-not (Test-Path (Join-Path $graphRoot '.product\graph.json'))) {
-    Fail "no .product\graph.json under '$graphRoot' — regenerate it with:  tools/graph.ps1 build"
+    Fail "no .product\graph.json under '$graphRoot' - regenerate it with:  tools/graph.ps1 build"
 }
 
-# ── locate the CLI exe: the published copy that ships next to this script; else `dotnet run` ──
+# -- locate the CLI exe: the published copy that ships next to this script; else `dotnet run` --
 # Refresh the published copy with tools/publish-graph-cli.ps1 (the setup build also drops it here).
 $cliProj = Join-Path $graphRoot 'src\Nexaflow.Services.Initiatives.Cli'
 $exe = Join-Path $PSScriptRoot 'graph-cli\nexaflow-initiatives.exe'
@@ -54,10 +57,10 @@ if (Test-Path $exe) { $raw = & $exe @full 2>&1 }
 else                { $raw = & dotnet run --project $cliProj -c Debug --nologo -v quiet -- @full 2>&1 }
 $exit = $LASTEXITCODE
 
-# ── normalize any absolute graph-root prefix to a repo-relative (caller-valid) path ───
+# -- normalize any absolute graph-root prefix to a repo-relative (caller-valid) path --
 $lines = @($raw | ForEach-Object { "$_" -replace [regex]::Escape("$graphRoot\"), '' -replace [regex]::Escape("$graphRoot/"), '' })
 
-# ── worktree only: flag any dumped source block whose file differs in your tree ───
+# -- worktree only: flag any dumped source block whose file differs in your tree --
 if ($graphRoot -ne $callerRoot) {
     $rx = '(?<rel>[^\s:]+\.[A-Za-z0-9_]+):\d+-\d+'   # a `path:start-end` source-block header
     $differs = @{}
