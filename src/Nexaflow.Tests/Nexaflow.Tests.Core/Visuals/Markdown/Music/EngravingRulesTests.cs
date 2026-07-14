@@ -158,6 +158,79 @@ public class EngravingRulesTests
         Assert.IsTrue(max > min * 1.1, "…but a long syllable does still ask for room");
     }
 
+    // ── Layout: a bracketed system ──────────────────────────────────────────
+
+    private const string PartSong =
+        "X:1\nT:Part song\nM:C\nL:1/4\n" +
+        "V: P1 name=\"Soprano\"\nV: P2 name=\"Alto\"\nV: P3 name=\"Bass\"\nK:C\n" +
+        "[V: P1] cdec | gfed | cdec | g4 |]\n" +
+        "[V: P2] GABG | ecBA | GABG | c4 |]\n" +
+        "[V: P3] C,E,G,C, | C,2 G,,2 | C,E,G,C, | C,4 |]\n";
+
+    /// <summary>What makes several voices a <em>system</em> rather than a stack: the same bars at the same x on
+    /// every staff. Without that the bar lines don't line up, and a reader can't tell the parts are sounding
+    /// together.</summary>
+    [TestMethod]
+    public void VoicesThatRunInStep_ShareOneBarGrid()
+    {
+        var layout = Layout(PartSong, 900);
+
+        Assert.AreEqual(1, layout.Groups.Count, "one system, holding all three voices");
+        var group = layout.Groups[0];
+        Assert.AreEqual(3, group.Staves.Count);
+        Assert.IsTrue(group.IsBracketed);
+
+        var lead = group.Staves[0];
+        foreach (var sys in group.Staves)
+        {
+            Assert.AreEqual(lead.ContentStartX, sys.ContentStartX, 0.01, "every voice starts at the same x");
+            Assert.AreEqual(lead.RightX, sys.RightX, 0.01, "…and ends at the same x");
+            Assert.AreEqual(lead.Measures.Count, sys.Measures.Count);
+            for (int k = 0; k < lead.Measures.Count; k++)
+                Assert.AreEqual(lead.Measures[k].EndX, sys.Measures[k].EndX, 0.01,
+                    $"bar {k + 1} must end at the same x on every staff, or the bar lines don't line up");
+        }
+    }
+
+    [TestMethod]
+    public void ABassVoice_GetsABassStaff()
+    {
+        var layout = Layout(PartSong, 900);
+        var staves = layout.Groups[0].Staves;
+        Assert.AreEqual(StaffGeometry.For(ClefKind.Treble).ClefGlyph, staves[0].Geom.ClefGlyph);
+        Assert.AreEqual(StaffGeometry.For(ClefKind.Bass).ClefGlyph, staves[2].Geom.ClefGlyph);
+        Assert.AreEqual("Soprano", staves[0].StaffName);
+        Assert.AreEqual("Bass", staves[2].StaffName);
+    }
+
+    /// <summary>Voices the source barred differently aren't a system — they fall back to an honest stack rather
+    /// than a false alignment.</summary>
+    [TestMethod]
+    public void VoicesThatDoNotRunInStep_AreNotBracketed()
+    {
+        var layout = Layout(
+            "X:1\nM:C\nL:1/4\nV: P1\nV: P2\nK:C\n[V: P1] cdec | gfed |]\n[V: P2] GABG |]\n", 900);
+
+        Assert.AreEqual(2, layout.Groups.Count, "one group per staff — a stack, not a system");
+        foreach (var g in layout.Groups) Assert.IsFalse(g.IsBracketed);
+    }
+
+    // ── Layout: room above the staff ────────────────────────────────────────
+
+    /// <summary>A chord symbol belongs above the <em>music</em>, and how high that is depends on how high the
+    /// music went. Pinned a fixed distance above the top line, it collided with anything reaching over it.</summary>
+    [TestMethod]
+    public void ChordSymbols_ClearTheNotesBeneathThem_HoweverHighTheyReach()
+    {
+        var low = Layout("X:1\nM:C\nL:1/4\nK:C\n\"Dm\"G \"A7\"G G G |]\n", 900).Systems[0];
+        var high = Layout("X:1\nM:C\nL:1/4\nK:C\n\"Dm\"g' \"A7\"g' g' g' |]\n", 900).Systems[0];
+
+        Assert.IsTrue(high.AboveMusic > low.AboveMusic + 2 * 8.0,
+            "notes two octaves higher need more head-room");
+        Assert.IsTrue(high.TopLineY - high.ChordTextTop > low.TopLineY - low.ChordTextTop,
+            "…and the chord symbols move up with them rather than sitting on their ledger lines");
+    }
+
     private static ScoreLayout Layout(string abc, double width) =>
         new ScoreLayoutEngine(new AbcParser().Parse(abc), 8.0, 1.0).Build(width);
 

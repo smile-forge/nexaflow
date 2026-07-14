@@ -50,9 +50,11 @@ internal static class ScoreMetrics
     public const double GraceScale   = 0.60;
     public const double LyricGap     = 0.5 * S;     // between two syllables under adjacent notes
 
-    // Vertical room reserved outside the staff.
-    public const double AbovePad     = 4.5 * S;     // ledger notes, articulations, beams
-    public const double BelowPad     = 4.5 * S;
+    /// <summary>The bracket down the left of a multi-voice system.</summary>
+    public const double BracketWidth = 0.5 * S;
+
+    // Vertical room reserved outside the staff. The head- and foot-room a staff actually gets is measured from
+    // its own notation (SystemLayout.AboveMusic/BelowMusic); these are only the floor and the rows.
     public const double ChordRow     = 1.7 * S;     // chord symbols / annotations above
     public const double VoltaRow     = 1.9 * S;     // repeat brackets above
     public const double SectionRow   = 1.8 * S;     // a mid-tune T: heading

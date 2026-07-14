@@ -34,9 +34,46 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
     public void Paint(DrawingContext dc)
     {
         PaintCredits(dc);
-        foreach (var sys in layout.Systems) PaintSystem(dc, sys);
+        foreach (var group in layout.Groups)
+        {
+            foreach (var sys in group.Staves) PaintSystem(dc, sys);
+            PaintSystemBrace(dc, group);
+        }
         PaintTiesAndSlurs(dc);
         PaintTuplets(dc);
+    }
+
+    /// <summary>What makes several staves one <em>system</em> rather than a stack: a bracket down their left,
+    /// bar lines that run through the gaps between them, and — on the first system — each voice's name.</summary>
+    private void PaintSystemBrace(DrawingContext dc, SystemGroup group)
+    {
+        if (group.ShowNames)
+            foreach (var sys in group.Staves)
+                if (!string.IsNullOrWhiteSpace(sys.StaffName))
+                    ScoreText.Draw(dc, sys.StaffName!, new Point(sys.LeftX - BracketWidth - 0.6 * S,
+                            sys.TopLineY + StaffHeight / 2 - CreditSize * 0.7),
+                        CreditSize, ink, ppd, TextAlignment.Right);
+
+        if (!group.IsBracketed) return;
+
+        double top = group.TopY, bot = group.BottomY;
+        double bx = group.Staves[0].LeftX - BracketWidth / 2 - 0.3 * S;
+
+        dc.DrawRectangle(ink, null, new Rect(bx - BracketWidth / 2, top, BracketWidth, bot - top));
+        var pen = Pen(ThinBarline);
+        dc.DrawLine(pen, new Point(bx, top), new Point(bx + 0.7 * S, top - 0.35 * S));
+        dc.DrawLine(pen, new Point(bx, bot), new Point(bx + 0.7 * S, bot + 0.35 * S));
+
+        // The system's opening bar line, and one through every gap at each bar the staves share.
+        dc.DrawLine(Pen(ThinBarline), new Point(group.Staves[0].LeftX, top), new Point(group.Staves[0].LeftX, bot));
+
+        for (int i = 0; i + 1 < group.Staves.Count; i++)
+        {
+            double y0 = group.Staves[i].BottomLineY;
+            double y1 = group.Staves[i + 1].TopLineY;
+            foreach (var ml in group.Staves[i].Measures)
+                dc.DrawLine(Pen(ThinBarline), new Point(ml.EndX, y0), new Point(ml.EndX, y1));
+        }
     }
 
     // ── Credits ─────────────────────────────────────────────────────────────
@@ -684,7 +721,7 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
         for (int v = 0; v < pe.Ev.Lyrics.Count; v++)
         {
             var syl = pe.Ev.Lyrics[v];
-            double y = sys.BottomLineY + BelowPad - 1.7 * S + v * LyricRow;
+            double y = sys.LyricTop + v * LyricRow;
 
             if (syl.Melisma)
             {

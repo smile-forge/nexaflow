@@ -336,7 +336,7 @@ public sealed class ScoreElement : FrameworkElement, IInteractiveBlock
         double bestDist = double.MaxValue;
         foreach (var sys in layout.Systems)
         {
-            double top = sys.TopLineY - AbovePad, bot = sys.BottomLineY + BelowPad;
+            double top = sys.TopLineY - sys.AboveMusic, bot = sys.BottomLineY + sys.BelowMusic;
             double d = p.Y < top ? top - p.Y : p.Y > bot ? p.Y - bot : 0;
             if (d < bestDist) { bestDist = d; best = sys; }
         }

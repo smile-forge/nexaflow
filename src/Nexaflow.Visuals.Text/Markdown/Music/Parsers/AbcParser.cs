@@ -102,9 +102,10 @@ public sealed class AbcParser
 
                     case 'V':
                         {
-                            var (id, name) = ParseVoiceField(value);
+                            var (id, name, vClef) = ParseVoiceField(value);
                             var v = GetVoice(id);
                             if (name is not null) v.Name = name;
+                            if (vClef is { } vc) v.Clef = vc;
                             if (inBody) current = v;
                             break;
                         }
@@ -125,7 +126,11 @@ public sealed class AbcParser
 
             // A body line may open with an inline voice selector: "[V: P2] B B c/ …".
             string body = line;
-            if (TryLeadingVoice(ref body, out string vid)) current = GetVoice(vid);
+            if (TryLeadingVoice(ref body, out string vid, out var ilClef))
+            {
+                current = GetVoice(vid);
+                if (ilClef is { } ic) current.Clef = ic;
+            }
 
             int lineStart = current.Tokens.Count;
             TokenizeMusicLine(body, unitLen, meter, key, current, warnings);
@@ -139,9 +144,11 @@ public sealed class AbcParser
         foreach (var v in voices)
         {
             if (v.Tokens.Count == 0) continue;
+            // A voice takes the clef it asked for; one that never asked has it read off its own range, so a
+            // part song's lower voices don't end up buried under ledger lines in a treble staff.
             var staff = new Staff
             {
-                Clef = headClef,
+                Clef = v.Clef ?? (voices.Count > 1 ? InferClef(v.Tokens) : headClef),
                 Key  = headKey,
                 Time = headMeterSet ? headMeter : new TimeSignature(4, 4),
                 ShowTime = headMeterSet,
@@ -154,7 +161,6 @@ public sealed class AbcParser
             if (staff.Measures.Count > 0) score.Staves.Add(staff);
         }
 
-        if (score.Staves.Count > 1) warnings.Add($"{score.Staves.Count} voices drawn as separate staves (no bracketed system yet)");
         foreach (var w in warnings) score.Warnings.Add(w);
         return score;
     }
@@ -188,24 +194,26 @@ public sealed class AbcParser
     }
 
     /// <summary>Consumes a leading inline voice selector (<c>[V: P1] …</c>) from a body line.</summary>
-    private static bool TryLeadingVoice(ref string line, out string id)
+    private static bool TryLeadingVoice(ref string line, out string id, out ClefKind? clef)
     {
         id = "";
+        clef = null;
         string t = line.TrimStart();
         if (!t.StartsWith("[V:", StringComparison.OrdinalIgnoreCase)) return false;
         int close = t.IndexOf(']');
         if (close < 0) return false;
-        id = ParseVoiceField(t[3..close]).id;
+        (id, _, clef) = ParseVoiceField(t[3..close]);
         line = t[(close + 1)..];
         return true;
     }
 
-    /// <summary>Splits a <c>V:</c> value into its id and optional display name.</summary>
-    private static (string id, string? name) ParseVoiceField(string value)
+    /// <summary>Splits a <c>V:</c> value into its id, optional display name, and optional clef.</summary>
+    private static (string id, string? name, ClefKind? clef) ParseVoiceField(string value)
     {
         value = value.Trim();
         int sp = value.IndexOfAny([' ', '\t']);
         string id = sp < 0 ? value : value[..sp];
+
         string? name = null;
         int n = value.IndexOf("name=", StringComparison.OrdinalIgnoreCase);
         if (n >= 0)
@@ -222,7 +230,49 @@ public sealed class AbcParser
                 name = end < 0 ? rest : rest[..end];
             }
         }
-        return (id.Length == 0 ? "1" : id, name);
+
+        ClefKind? clef = null;
+        int c = value.IndexOf("clef=", StringComparison.OrdinalIgnoreCase);
+        if (c >= 0)
+        {
+            string rest = value[(c + 5)..];
+            if (rest.StartsWith("bass", StringComparison.OrdinalIgnoreCase)) clef = ClefKind.Bass;
+            else if (rest.StartsWith("alto", StringComparison.OrdinalIgnoreCase)) clef = ClefKind.Alto;
+            else if (rest.StartsWith("tenor", StringComparison.OrdinalIgnoreCase)) clef = ClefKind.Tenor;
+            else if (rest.StartsWith("treble", StringComparison.OrdinalIgnoreCase)) clef = ClefKind.Treble;
+        }
+
+        return (id.Length == 0 ? "1" : id, name, clef);
+    }
+
+    /// <summary>
+    /// The clef a voice that never named one should be read in. ABC's default is treble, and for a single tune
+    /// that is nearly always right — but a part song writes its lower voices with no clef at all and expects the
+    /// engraver to know, and drawing a bass line in treble buries it under six ledger lines. So a voice whose
+    /// music genuinely lives below the treble staff is given the bass clef. The threshold sits low enough that
+    /// an ordinary treble tune, however far it dips, is never moved.
+    /// </summary>
+    private static ClefKind InferClef(List<object> tokens)
+    {
+        double sum = 0;
+        int n = 0;
+        foreach (var t in tokens)
+        {
+            switch (t)
+            {
+                case Note note:
+                    sum += note.Pitch.DiatonicIndex;
+                    n++;
+                    break;
+                case Chord ch:
+                    foreach (var cn in ch.Notes) { sum += cn.Pitch.DiatonicIndex; n++; }
+                    break;
+            }
+        }
+        if (n == 0) return ClefKind.Treble;
+
+        // 27 is B3 — a fourth below the treble staff's bottom line. A voice averaging below that is a bass part.
+        return sum / n < 27 ? ClefKind.Bass : ClefKind.Treble;
     }
 
     private static TimeSignature ParseMeter(string v, ref bool set)
@@ -317,6 +367,11 @@ public sealed class AbcParser
     {
         public string Id { get; } = id;
         public string? Name { get; set; }
+
+        /// <summary>The clef this voice declared (on its <c>V:</c> line). Null means it never said, and the
+        /// engraver has to work it out from the music.</summary>
+        public ClefKind? Clef { get; set; }
+
         public List<object> Tokens { get; } = [];
         public Pending Pending { get; } = new();
         public int LyricAnchor { get; set; } = -1;

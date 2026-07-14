@@ -15,13 +15,36 @@ internal sealed class ScoreLayout
     /// select and copy them (see <see cref="WpfScoreRenderer"/>).</summary>
     public double CreditHeight;
 
+    /// <summary>The systems, in reading order. A system is one line of music: one staff for a single-voice
+    /// tune, or all the voices' staves bracketed together for a part song.</summary>
+    public List<SystemGroup> Groups { get; } = [];
+
+    /// <summary>Every staff line, flattened out of <see cref="Groups"/> — what the painter and the hit-test walk.</summary>
     public List<SystemLayout> Systems { get; } = [];
 
     /// <summary>Every event in reading order — the spine selection, ties and slurs walk.</summary>
     public List<PlacedEvent> Order { get; } = [];
 }
 
-/// <summary>One engraved line of one staff.</summary>
+/// <summary>
+/// One system: the staves that sound together, engraved as one line. A single-voice tune has one staff per
+/// group and nothing to bracket. A part song has one staff per voice, and they are a <em>system</em> in the
+/// real sense — the same bars at the same x, a bracket down the left, and bar lines that run through all of
+/// them — because that is what tells a reader the parts are simultaneous rather than consecutive.
+/// </summary>
+internal sealed class SystemGroup
+{
+    public List<SystemLayout> Staves { get; } = [];
+
+    /// <summary>True on the first system of the score — the one that prints the voice names in full.</summary>
+    public bool ShowNames;
+
+    public bool IsBracketed => Staves.Count > 1;
+    public double TopY => Staves[0].TopLineY;
+    public double BottomY => Staves[^1].BottomLineY;
+}
+
+/// <summary>One engraved staff line of one voice.</summary>
 internal sealed class SystemLayout
 {
     public required StaffGeometry Geom;
@@ -32,21 +55,26 @@ internal sealed class SystemLayout
     public double LeftX, ContentStartX, RightX;
     public double ClefX, KeyStartX, TimeStartX;
     public string? SectionLabel;
+    public string? StaffName;
     public List<MeasureLayout> Measures { get; } = [];
     public double BottomLineY => TopLineY + StaffHeight;
 
-    /// <summary>Top of the block reserved above the staff — head-room for ledger notes and beams, plus a row
-    /// each for a section heading, repeat brackets and chord symbols where the score needs them.</summary>
+    /// <summary>Top of the block reserved above the staff.</summary>
     public double AboveTop;
+
+    /// <summary>How far the notation itself reaches above the top line and below the bottom one — ledger heads,
+    /// stems, beams, the marks stacked over them. Everything else that lives outside the staff is placed
+    /// relative to <em>this</em>, not to a fixed pad: a chord symbol belongs above the music, and how high that
+    /// is depends on how high the music went.</summary>
+    public double AboveMusic, BelowMusic;
+
     public bool HasVoltaRow, HasChordRow;
     public int LyricVerses;
 
-    // The rows above the staff hang off the staff, not off the top of the reserved block: a chord symbol
-    // belongs a fixed distance above the top line, not a fixed distance below whatever ledger head-room the
-    // tallest note in the score happened to need.
-    public double ChordTextTop => TopLineY - 0.9 * S - ChordRow;
-    public double VoltaLineY   => (HasChordRow ? ChordTextTop : TopLineY - 0.9 * S) - 0.7 * S;
+    public double ChordTextTop => TopLineY - AboveMusic - ChordRow;
+    public double VoltaLineY   => (HasChordRow ? ChordTextTop : TopLineY - AboveMusic) - 0.7 * S;
     public double SectionTop   => AboveTop;
+    public double LyricTop     => BottomLineY + BelowMusic + 0.2 * S;
 }
 
 internal sealed class MeasureLayout
@@ -90,6 +118,9 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
     private readonly double _noteW = Smufl.Available ? Smufl.Advance(Smufl.NoteheadBlack, staffSpace) : 1.18 * S;
     private readonly double _dotW = Smufl.Available ? Smufl.Advance(Smufl.AugmentationDot, staffSpace) : 0.3 * S;
 
+    private double _leftInset = LeftMargin;
+    private double _nameWidth;
+
     public double NoteheadWidth => _noteW;
 
     public ScoreLayout Build(double availableWidth)
@@ -102,36 +133,37 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
         bool credits = !string.IsNullOrWhiteSpace(score.Composer) || !string.IsNullOrWhiteSpace(score.Rhythm);
         layout.CreditHeight = credits ? CreditSize + 6 : 0;
 
-        int verses = score.LyricVerses;
-        bool anyChordRow = HasChordRow();
-        bool anyVolta = HasVolta();
+        // Voices that run in step are engraved as one bracketed system. Voices that don't (a source that
+        // barred them differently) fall back to separate staves — better an honest stack than a false system.
+        bool grand = score.Staves.Count > 1 && SameBarring();
+        _nameWidth = grand ? NameColumnWidth() : 0;
+        _leftInset = LeftMargin
+                   + (_nameWidth > 0 ? _nameWidth + 0.6 * S : 0)
+                   + (grand ? BracketWidth + 0.6 * S : 0);
 
         double y = layout.CreditHeight;
-        double maxRight = 0;
 
-        foreach (var staff in score.Staves)
-        {
-            var geom = StaffGeometry.For(staff.Clef);
-            foreach (var sys in BuildSystems(staff, geom, maxW, minW))
+        if (grand) BuildGrand(layout, ref y, maxW, minW);
+        else
+            foreach (var staff in score.Staves)
             {
-                sys.HasVoltaRow = anyVolta;
-                sys.HasChordRow = anyChordRow;
-                sys.LyricVerses = verses;
-                sys.AboveTop = y;
+                foreach (var sys in BuildStaffSystems(staff, maxW, minW))
+                {
+                    var group = new SystemGroup { ShowNames = false };
+                    group.Staves.Add(sys);
+                    PlaceVertically(group, ref y);
+                    layout.Groups.Add(group);
+                }
+                y += StaffGap;
+            }
 
-                double above = AbovePad
-                             + (sys.SectionLabel is not null ? SectionRow : 0)
-                             + (anyVolta ? VoltaRow : 0)
-                             + (anyChordRow ? ChordRow : 0);
-
-                sys.TopLineY = y + above;
+        double maxRight = 0;
+        foreach (var g in layout.Groups)
+            foreach (var sys in g.Staves)
+            {
                 layout.Systems.Add(sys);
                 maxRight = Math.Max(maxRight, sys.RightX);
-
-                y = sys.BottomLineY + BelowPad + verses * LyricRow + SystemGap;
             }
-            y += StaffGap;
-        }
 
         // Reading order — assigned once the systems are final, so a note's index is stable for selection.
         int idx = 0;
@@ -144,8 +176,88 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
                 }
 
         layout.Width = Math.Min(Math.Max(maxRight + RightMargin, minW), Math.Max(availableWidth, minW));
-        layout.Height = Math.Max(y, layout.CreditHeight + AbovePad + StaffHeight + BelowPad);
+        layout.Height = Math.Max(y, layout.CreditHeight + 6 * S);
         return layout;
+    }
+
+    private bool SameBarring()
+    {
+        int n = score.Staves[0].Measures.Count;
+        if (n == 0) return false;
+        foreach (var s in score.Staves)
+            if (s.Measures.Count != n)
+                return false;
+        return true;
+    }
+
+    private double NameColumnWidth()
+    {
+        double w = 0;
+        foreach (var s in score.Staves)
+            if (!string.IsNullOrWhiteSpace(s.Name))
+                w = Math.Max(w, ScoreText.Width(s.Name!, CreditSize, _ppd));
+        return w;
+    }
+
+    // ── Vertical placement ──────────────────────────────────────────────────
+
+    /// <summary>Stacks a system's staves down the page, giving each exactly the head- and foot-room its own
+    /// notation needs plus whatever rows (heading, brackets, chord symbols, lyrics) it carries.</summary>
+    private void PlaceVertically(SystemGroup group, ref double y)
+    {
+        int verses = score.LyricVerses;
+        bool anyChordRow = HasChordRow();
+        bool anyVolta = HasVolta();
+
+        foreach (var sys in group.Staves)
+        {
+            var (rise, drop) = InkExtent(sys);
+            sys.AboveMusic = Math.Max(2.0 * S, rise + 0.9 * S);
+            sys.BelowMusic = Math.Max(2.0 * S, drop + 0.9 * S);
+            sys.HasVoltaRow = anyVolta;
+            sys.HasChordRow = anyChordRow;
+            sys.LyricVerses = verses;
+            sys.AboveTop = y;
+
+            double above = sys.AboveMusic
+                         + (sys.SectionLabel is not null ? SectionRow : 0)
+                         + (anyVolta ? VoltaRow : 0)
+                         + (anyChordRow ? ChordRow : 0);
+
+            sys.TopLineY = y + above;
+            y = sys.BottomLineY + sys.BelowMusic + verses * LyricRow + StaffGap;
+        }
+        y += SystemGap - StaffGap;
+    }
+
+    /// <summary>How far a staff line's own notation reaches above its top line and below its bottom one.</summary>
+    private static (double rise, double drop) InkExtent(SystemLayout sys)
+    {
+        double rise = 0, drop = 0;
+        foreach (var ml in sys.Measures)
+            foreach (var pe in ml.Events)
+            {
+                var (lo, hi) = Engraving.Span(pe.Ev, sys.Geom);
+                bool down = Engraving.StemDown(pe.Ev, sys.Geom);
+                bool stemmed = !pe.Ev.Duration.IsBreve && pe.Ev.Duration.Base >= 2;
+
+                double up = (hi - 8) * (S / 2) + (stemmed && !down ? StemLen : 0);
+                double dn = -lo * (S / 2) + (stemmed && down ? StemLen : 0);
+
+                foreach (var gn in pe.Ev.Graces)
+                    up = Math.Max(up, (sys.Geom.HalfSpacesAbove(gn.Pitch) - 8) * (S / 2) + StemLen * 0.8);
+
+                int staffMarks = 0;
+                foreach (var a in pe.Ev.Articulations)
+                    if (a is not (ArticulationKind.Staccato or ArticulationKind.Tenuto))
+                        staffMarks++;
+                if (staffMarks > 0) up = Math.Max(up, 0) + staffMarks * 1.4 * S;
+                if (pe.Ev.TupletId != 0) up = Math.Max(up, StemLen + 1.6 * S);
+
+                rise = Math.Max(rise, up);
+                drop = Math.Max(drop, dn);
+            }
+        return (rise, drop);
     }
 
     private bool HasChordRow()
@@ -168,12 +280,165 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
         return false;
     }
 
-    // ── Systems ─────────────────────────────────────────────────────────────
+    // ── A bracketed system ──────────────────────────────────────────────────
 
-    /// <summary>Breaks a staff into systems, places every measure, then justifies. The running key and meter are
-    /// carried across measures here — a mid-tune change alters the header of every system after it.</summary>
-    private List<SystemLayout> BuildSystems(Staff staff, StaffGeometry geom, double maxW, double minW)
+    /// <summary>
+    /// Lays every voice out against one shared grid: the same bars, at the same x, on every staff. A measure's
+    /// width is whichever voice needs the most room in it, so the bar lines line up down the page — which is
+    /// the whole point of a system, and the reason this can't just stack the single-staff layout N times.
+    /// </summary>
+    private void BuildGrand(ScoreLayout layout, ref double y, double maxW, double minW)
     {
+        var staves = score.Staves;
+        int mCount = staves[0].Measures.Count;
+
+        // The width of bar k is the widest any voice needs it to be.
+        var widths = new double[mCount];
+        for (int k = 0; k < mCount; k++)
+            foreach (var s in staves)
+                widths[k] = Math.Max(widths[k], MeasureWidth(s.Measures[k], inlineSig: false));
+
+        double contentStart = 0;
+        foreach (var s in staves)
+            contentStart = Math.Max(contentStart,
+                Header(StaffGeometry.For(s.Clef), s.Key.Fifths, s.ShowTime).contentStartX);
+
+        double budget = Math.Max(6 * S, maxW - contentStart - RightMargin);
+        var ranges = LineRanges(staves[0], widths, budget);
+
+        int fullest = 0;
+        foreach (var r in ranges) fullest = Math.Max(fullest, r.Count);
+
+        var keys = new KeySignature[staves.Count];
+        var times = new TimeSignature[staves.Count];
+        var shown = new bool[staves.Count];
+        for (int s = 0; s < staves.Count; s++) { keys[s] = staves[s].Key; times[s] = staves[s].Time; }
+
+        for (int li = 0; li < ranges.Count; li++)
+        {
+            var (start, count) = ranges[li];
+            var group = new SystemGroup { ShowNames = li == 0 && _nameWidth > 0 };
+
+            for (int s = 0; s < staves.Count; s++)
+            {
+                var staff = staves[s];
+                var first = staff.Measures[start];
+
+                bool showTime = staff.ShowTime &&
+                    (!shown[s] || first.TimeChange is not null || first.SectionLabel is not null);
+
+                var sys = new SystemLayout
+                {
+                    Geom = StaffGeometry.For(staff.Clef),
+                    Key = first.KeyChange ?? keys[s],
+                    Time = first.TimeChange ?? times[s],
+                    ShowTime = showTime,
+                    LeftX = _leftInset,
+                    SectionLabel = s == 0 ? first.SectionLabel : null,
+                    StaffName = staff.Name,
+                };
+                keys[s] = sys.Key;
+                times[s] = sys.Time;
+                shown[s] |= showTime;
+
+                var (clefX, keyStartX, timeStartX, _) = Header(sys.Geom, sys.Key.Fifths, sys.ShowTime);
+                sys.ClefX = clefX;
+                sys.KeyStartX = keyStartX;
+                sys.TimeStartX = timeStartX;
+                sys.ContentStartX = contentStart;
+
+                double x = contentStart;
+                for (int i = 0; i < count; i++)
+                {
+                    int k = start + i;
+                    var m = staff.Measures[k];
+                    bool inlineSig = i > 0 && (m.KeyChange is not null || m.TimeChange is not null);
+                    if (i > 0)
+                    {
+                        if (m.KeyChange is { } kc) keys[s] = kc;
+                        if (m.TimeChange is { } tc) times[s] = tc;
+                    }
+
+                    var ml = PlaceMeasure(m, x, inlineSig);
+                    Stretch(ml, widths[k]);                 // …to the shared width, so the bar lines align
+                    ml.System = sys;
+                    foreach (var pe in ml.Events) { pe.Measure = ml; pe.System = sys; }
+                    sys.Measures.Add(ml);
+                    x = ml.EndX;
+                }
+                sys.RightX = x;
+                group.Staves.Add(sys);
+            }
+
+            // Every staff in the system spans the same x, so one scale keeps them aligned.
+            bool shortTail = li == ranges.Count - 1 && count < fullest;
+            double scale = ScaleFor(group.Staves[0], maxW);
+            if (ranges.Count == 1) scale = ScaleFor(group.Staves[0], Math.Clamp(group.Staves[0].RightX, minW, maxW));
+            else if (shortTail) scale = Math.Min(MeanScale(ranges, fullest, group.Staves[0], maxW), scale);
+            foreach (var sys in group.Staves) Apply(sys, scale);
+
+            PlaceVertically(group, ref y);
+            layout.Groups.Add(group);
+        }
+    }
+
+    /// <summary>The stretch a full system gets — a short tail borrows it so its note spacing matches.</summary>
+    private static double MeanScale(List<(int Start, int Count)> ranges, int fullest, SystemLayout tail, double maxW)
+    {
+        // Every full system has the same span (the widths are shared), so the tail's siblings all share one
+        // scale; recovering it from the tail's own span would be wrong, so use the target directly.
+        double span = tail.RightX - tail.ContentStartX;
+        return span <= 1 ? 1.0 : Math.Max((maxW - tail.ContentStartX) / span, 0.5);
+    }
+
+    /// <summary>Scales a measure's contents to a target width, keeping its left edge.</summary>
+    private static void Stretch(MeasureLayout ml, double target)
+    {
+        double natural = ml.EndX - ml.StartX;
+        if (natural <= 1 || Math.Abs(target - natural) < 0.01) return;
+        double k = target / natural;
+        double c = ml.StartX;
+        double At(double x) => c + (x - c) * k;
+
+        foreach (var pe in ml.Events)
+        {
+            pe.HeadX = At(pe.HeadX);
+            pe.SlotLeft = At(pe.SlotLeft);
+            pe.SlotRight = At(pe.SlotRight);
+            pe.AccX = pe.HeadX - pe.AccW;
+            pe.GraceX = pe.AccX - pe.GraceW;
+        }
+        ml.EndX = c + target;
+    }
+
+    /// <summary>Groups measure <em>indices</em> into lines — the grouping every voice then shares.</summary>
+    private static List<(int Start, int Count)> LineRanges(Staff lead, double[] widths, double budget)
+    {
+        var ranges = new List<(int, int)>();
+        int start = 0;
+        double used = 0;
+
+        for (int k = 0; k < widths.Length; k++)
+        {
+            if (k > start && used + widths[k] > budget) { ranges.Add((start, k - start)); start = k; used = 0; }
+            used += widths[k];
+
+            if (lead.Measures[k].SystemBreak && k + 1 < widths.Length)
+            {
+                ranges.Add((start, k - start + 1));
+                start = k + 1;
+                used = 0;
+            }
+        }
+        if (start < widths.Length) ranges.Add((start, widths.Length - start));
+        return ranges;
+    }
+
+    // ── A single staff's systems ────────────────────────────────────────────
+
+    private List<SystemLayout> BuildStaffSystems(Staff staff, double maxW, double minW)
+    {
+        var geom = StaffGeometry.For(staff.Clef);
         var lines = BuildLines(staff, geom, maxW);
         var systems = new List<SystemLayout>();
 
@@ -186,9 +451,6 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
 
         foreach (var line in lines)
         {
-            // The signatures a system opens with are whatever is in force at its first measure. The meter is
-            // reprinted whenever it changes, and at the head of every new section — a section heading starts a
-            // fresh strain, and a reader arriving at one should not have to look back up the page for the meter.
             bool showTime = staff.ShowTime &&
                 (!timeShown || line[0].TimeChange is not null || line[0].SectionLabel is not null);
 
@@ -198,8 +460,9 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
                 Key = line[0].KeyChange ?? key,
                 Time = line[0].TimeChange ?? time,
                 ShowTime = showTime,
-                LeftX = LeftMargin,
+                LeftX = _leftInset,
                 SectionLabel = line[0].SectionLabel,
+                StaffName = staff.Name,
             };
             key = sys.Key;
             time = sys.Time;
@@ -215,7 +478,6 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
             for (int i = 0; i < line.Count; i++)
             {
                 var m = line[i];
-                // The system header already prints the change that lands on its first measure.
                 bool inlineSig = i > 0 && (m.KeyChange is not null || m.TimeChange is not null);
                 if (i > 0)
                 {
@@ -236,8 +498,6 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
         return systems;
     }
 
-    /// <summary>Fills every system but a short final one to <paramref name="maxW"/>; the short one keeps the
-    /// note spacing of its siblings by taking their average stretch (see the class remarks).</summary>
     private static void Justify(List<SystemLayout> systems, List<List<Measure>> lines, int fullest,
         double maxW, double minW)
     {
@@ -246,8 +506,7 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
         if (systems.Count == 1)
         {
             var only = systems[0];
-            double fill = Math.Clamp(only.RightX, minW, maxW);
-            Apply(only, ScaleFor(only, fill));
+            Apply(only, ScaleFor(only, Math.Clamp(only.RightX, minW, maxW)));
             return;
         }
 
@@ -255,8 +514,7 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
         int n = 0;
         for (int i = 0; i < systems.Count; i++)
         {
-            bool last = i == systems.Count - 1;
-            if (last && lines[i].Count < fullest) continue;     // genuinely short tail — scaled below
+            if (i == systems.Count - 1 && lines[i].Count < fullest) continue;   // short tail — scaled below
             sum += ScaleFor(systems[i], maxW);
             n++;
         }
@@ -302,10 +560,6 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
         sys.RightX = At(sys.RightX);
     }
 
-    /// <summary>Groups a staff's measures into systems. A notation-requested break (an ABC source-line end) and
-    /// a section heading are hard boundaries; each resulting run is kept on ONE line when it fits the width
-    /// budget (allowing mild compression, which preserves the source's phrasing), and only wrapped by width when
-    /// it genuinely doesn't.</summary>
     private List<List<Measure>> BuildLines(Staff staff, StaffGeometry geom, double maxW)
     {
         double budget = maxW - Header(geom, staff.Key.Fifths, showTime: true).contentStartX - RightMargin;
@@ -351,7 +605,7 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
     internal (double clefX, double keyStartX, double timeStartX, double contentStartX) Header(
         StaffGeometry geom, int fifths, bool showTime)
     {
-        double clefX = LeftMargin + 0.5 * S;
+        double clefX = _leftInset + 0.5 * S;
         double clefAdv = Smufl.Available ? Smufl.Advance(geom.ClefGlyph, S) : 2.6 * S;
         double keyStartX = clefX + clefAdv + 0.9 * S;
         double keyEndX = keyStartX + KeyWidth(fifths);

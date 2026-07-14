@@ -424,7 +424,7 @@ degrades to a themed source-text box; unsupported constructs render what they ca
 | Meter | `M:4/4` `M:C` `M:C\|` `M:none` | Figures, or the **C / ¢ symbols** when the source asked for them; free meter prints none |
 | Mid-tune changes | `K:` `M:` `T:` in the body, `[K:G]` inline | Key/meter change printed in place and carried into the next system's header; `T:` becomes a section heading |
 | Rests | `z2` `x2` `Z` | Visible, invisible (time only), whole-bar (centred) |
-| Voices | `V:` / `[V: P1]` | One staff per voice (not yet bracketed into a system — the score says so) |
+| Voices | `V:` / `[V: P1]` | A **bracketed system**: one staff per voice, sharing one bar grid, with the bar lines running through and the voice names at the left. A voice that names no clef has one read off its range, so a bass part isn't buried in ledger lines. Voices the source barred differently fall back to an honest stack |
 | Lyrics | `w:` with `-` `_` `*` `\|` `~` `\-` | Syllables under the notes, hyphens, melisma extenders, bar sync, stacked verses |
 | Header fields | `T:` `C:` `O:` `R:` `S:` `Z:` `N:` `W:` | Title + subtitles centred; `R:` italic top-left; `C: (O:)` top-right; `N:`/`S:`/`Z:`/`W:` under the score |
 
@@ -443,6 +443,10 @@ drawing so they can be asserted rather than eyeballed:
 - **Note spacing** follows `base + rate × √duration` — the classical proportional-but-compressed curve, so a
   whole note is about three times an eighth rather than eight times it — with a floor of a note head plus air
   so a septuplet's heads can't touch.
+- **Room outside the staff** is measured from the notation, not fixed: `AboveMusic`/`BelowMusic` are how far
+  the ledger heads, stems, beams and marks actually reach, and everything that lives outside the staff (chord
+  symbols, repeat brackets, lyrics) is placed against *that*. A chord symbol belongs above the music, and how
+  high that is depends on how high the music went.
 - **Lyrics** charge a note only *half* its syllable plus half its neighbour's, because a syllable is centred
   under its head. Charging the full width made a line of long and short words lurch.
 - **Glyphs** are drawn as filled outlines, not as text: WPF's text pipeline gamma-corrects glyph coverage,

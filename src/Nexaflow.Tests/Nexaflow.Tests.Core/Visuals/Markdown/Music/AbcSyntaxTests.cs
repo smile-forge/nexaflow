@@ -403,15 +403,42 @@ public class AbcSyntaxTests
     // ── Voices ──────────────────────────────────────────────────────────────
 
     [TestMethod]
-    public void Voices_BecomeSeparateStaves_AndSayThatTheyDid()
+    public void Voices_BecomeOneStaffEach()
     {
         var score = new AbcParser().Parse(
-            "X:1\nM:C\nV: P1 name=\"Soprano\"\nV: P2 name=\"Bass\"\nK:C\n[V: P1] CDEF |]\n[V: P2] C,D,E,F, |]\n");
+            "X:1\nM:C\nV: P1 name=\"Soprano\"\nV: P2 name=\"Bass\"\nK:C\n[V: P1] cdef |]\n[V: P2] C,,D,,E,,F,, |]\n");
 
         Assert.AreEqual(2, score.Staves.Count);
         Assert.AreEqual("Soprano", score.Staves[0].Name);
         Assert.AreEqual("Bass", score.Staves[1].Name);
-        Assert.IsTrue(score.Warnings.Any(w => w.Contains("voices")), "the reader is told they aren't bracketed yet");
+        Assert.AreEqual(0, score.Warnings.Count, "voices are engraved as a bracketed system, not warned about");
+    }
+
+    [TestMethod]
+    public void AVoiceTakesTheClefItAsksFor()
+    {
+        var score = new AbcParser().Parse(
+            "X:1\nM:C\nV: P1\nV: P2 clef=bass\nK:C\n[V: P1] CDEF |]\n[V: P2] CDEF |]\n");
+        Assert.AreEqual(ClefKind.Treble, score.Staves[0].Clef);
+        Assert.AreEqual(ClefKind.Bass, score.Staves[1].Clef, "clef=bass on the V: line");
+    }
+
+    /// <summary>A part song writes its lower voices with no clef at all and expects the engraver to know.
+    /// Reading it off the range keeps a bass line out of six ledger lines — without moving an ordinary tune.</summary>
+    [TestMethod]
+    public void AVoiceThatNamesNoClef_HasOneReadOffItsRange()
+    {
+        var score = new AbcParser().Parse(
+            "X:1\nM:C\nV: P1\nV: P2\nK:C\n[V: P1] cdef gabc' |]\n[V: P2] C,,D,,E,,F,, |]\n");
+        Assert.AreEqual(ClefKind.Treble, score.Staves[0].Clef);
+        Assert.AreEqual(ClefKind.Bass, score.Staves[1].Clef, "a voice living below the treble staff is a bass part");
+    }
+
+    [TestMethod]
+    public void ASingleVoiceTune_StaysInTreble_HoweverLowItDips()
+    {
+        // The inference is for part songs only. A one-voice tune takes ABC's default, as the standard says.
+        Assert.AreEqual(ClefKind.Treble, new AbcParser().Parse("X:1\nM:C\nK:C\nC,,D,,E,,F,, |]\n").Staves[0].Clef);
     }
 
     // ── Rests ───────────────────────────────────────────────────────────────
