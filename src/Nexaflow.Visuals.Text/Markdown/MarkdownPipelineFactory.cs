@@ -1,4 +1,5 @@
 using Markdig;
+using Nexaflow.Visuals.Text.Markdown.Music;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -29,5 +30,6 @@ public static class MarkdownPipelineFactory
             .UseCitations()
             .UseMathematics()
             .UseDiagrams()
+            .UseMusicNotation()   // #%abc … #% / #%lilypond … #% → sheet music
             .Build();
 }

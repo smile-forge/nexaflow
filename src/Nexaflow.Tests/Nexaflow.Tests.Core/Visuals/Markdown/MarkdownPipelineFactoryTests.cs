@@ -28,6 +28,16 @@ public class MarkdownPipelineFactoryTests
     }
 
     [TestMethod]
+    public void Pipeline_ParsesMusicBlocks()
+    {
+        const string src = "#%abc\nX:1\nK:C\nCDEF\n#%\n";
+        var doc = MdMarkdown.Parse(src, MarkdownPipelineFactory.Default);
+        var mb = doc.OfType<Nexaflow.Visuals.Text.Markdown.Music.MusicBlock>().FirstOrDefault();
+        Assert.IsNotNull(mb, "Music block not recognised");
+        Assert.AreEqual(Nexaflow.Visuals.Text.Markdown.Music.MusicDialect.Abc, mb.Dialect);
+    }
+
+    [TestMethod]
     public void Pipeline_ParsesFencedDiagrams()
     {
         const string src = "```mermaid\ngraph LR\nA-->B\n```\n";

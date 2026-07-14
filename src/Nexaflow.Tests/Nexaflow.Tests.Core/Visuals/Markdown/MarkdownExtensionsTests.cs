@@ -398,6 +398,22 @@ public class MarkdownExtensionsTests
         StringAssert.Contains(AllText(border), "Important");
     });
 
+    [TestMethod]
+    public void Alert_FlowDocument_RendersNativeSelectableSection() => UiThread.Run(() =>
+    {
+        // The selectable path renders alerts as a real FlowDocument Section (text drag-selectable),
+        // not a BlockUIContainer UIElement island.
+        var doc = MarkdownFlowDocument.Build("> [!WARNING]\n> Be careful here.\n", MarkdownPalette.Dark);
+        var section = doc.Blocks.OfType<System.Windows.Documents.Section>().FirstOrDefault();
+        Assert.IsNotNull(section, "alert should render as a native Section");
+        Assert.AreSame(MarkdownPalette.Dark.Warning, section.BorderBrush, "warning accent expected");
+        Assert.IsFalse(doc.Blocks.OfType<System.Windows.Documents.BlockUIContainer>().Any(),
+            "alert must not fall back to a UIElement island");
+        var text = new System.Windows.Documents.TextRange(section.ContentStart, section.ContentEnd).Text;
+        StringAssert.Contains(text, "Warning");
+        StringAssert.Contains(text, "Be careful here.");
+    });
+
     // ── YAML front matter (UseYamlFrontMatter) ──────────────────────────────
 
     [TestMethod]

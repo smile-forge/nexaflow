@@ -86,13 +86,14 @@ unless noted otherwise.
 | Definition lists | `UseDefinitionLists()` | ✅ | ✅ | Term + definition styling. |
 | List extras | `UseListExtras()` | ✅ | ✅ | `a.`/`A.` alphabetic and `i.`/`I.` roman ordered markers. |
 | Abbreviations | `UseAbbreviations()` | ✅ | ✅ | `MarkdownExtensionsTests`. `*[HTML]: HyperText…` defines an abbreviation; each occurrence renders dotted-underlined with the definition as a hover tooltip. The definition line itself is consumed (not shown). |
-| Alert blocks | `UseAlertBlocks()` | ✅ | ✅ | `MarkdownExtensionsTests` + `extensions.md` sample render. GitHub callouts `> [!NOTE]` / `[!TIP]` / `[!IMPORTANT]` / `[!WARNING]` / `[!CAUTION]` → coloured left-border callout with a bold kind label. Each kind maps to a semantic accent (`Accent`/`Success`/`Important`/`Warning`/`Danger` palette tokens). `AlertBlock` extends `QuoteBlock`, so it's matched before the generic quote case. Selectable path falls back to `BlockRenderer`. |
+| Alert blocks | `UseAlertBlocks()` | ✅ | ✅ | `MarkdownExtensionsTests` + `extensions.md` sample render. GitHub callouts `> [!NOTE]` / `[!TIP]` / `[!IMPORTANT]` / `[!WARNING]` / `[!CAUTION]` → coloured left-border callout with a bold kind label. Each kind maps to a semantic accent (`Accent`/`Success`/`Important`/`Warning`/`Danger` palette tokens). `AlertBlock` extends `QuoteBlock`, so it's matched before the generic quote case. The selectable path renders alerts **natively** (a styled `Section`, mirroring the quote path) so callout text is drag-selectable. |
 | YAML front matter | `UseYamlFrontMatter()` | ✅ (stripped) | ✅ | `MarkdownExtensionsTests`. A leading `--- … ---` metadata block is parsed as a `YamlFrontMatterBlock` and **not rendered** (matches Markdig's HTML renderer). Both paths suppress it — block renderer returns a collapsed placeholder, the selectable path emits nothing. |
 | Figures | `UseFigures()` | ✅ | ✅ | `^^^` figure block + caption. |
 | Footers | `UseFooters()` | ✅ | ✅ | `^^ footer`. |
 | Citations | `UseCitations()` | ✅ | ✅ | `""text""` → raised, coloured citation text. **Delimiter is a doubled double-quote, not `^^`** (see note below). |
 | Mathematics | `UseMathematics()` | ✅ | ✅ | Block `$$…$$` (`MarkdownPipelineFactoryTests` + `BlockRendererTests`) and inline `$…$` (`MarkdownExtensionsTests`). Rendered with **WpfMath** (LaTeX); falls back to the LaTeX source if unparseable. |
 | Diagrams | `UseDiagrams()` | ✅ (custom) | ✅ | `MarkdownPipelineFactoryTests`, `BlockRendererTests`, `MarkdownSampleRenderTests`. Rendering is **fully custom** (see below). |
+| Musical notation | `UseMusicNotation()` (custom) | ✅ (custom) | ✅ | `MusicBlockParserTests`, `AbcParserTests`, `LilyPondParserTests`, `WpfScoreRendererTests`, `MusicRendererTests`, `MarkdownSampleRenderTests`. The repo's own `#% … #%` block extension → engraved sheet music (see below). |
 
 > **Citation delimiter.** `UseCitations()` emits `""text""` with `DelimiterChar == '"'`, so the
 > citation delimiter the renderer matches is a doubled double-quote (`""…""`), not `^^`.
@@ -102,10 +103,15 @@ unless noted otherwise.
 > Covered by tests in both `BlockRenderer` and `MarkdownFlowDocument`.
 
 > Note: in `MarkdownFlowDocument` (the selectable path), definition lists, figures, footers,
-> alert blocks, math and diagrams are rendered via the `BlockRenderer` UIElement fallback, so they
-> display correctly but are **not text-selectable**. Headings, paragraphs, lists, code, quotes and
-> tables are fully selectable. The selectable path has table tests (`MarkdownExtensionsTests`);
-> its non-table block rendering is otherwise untested.
+> math and diagrams are rendered via the `BlockRenderer` UIElement fallback, so they display
+> correctly but their text is **not drag-selectable**. Headings, paragraphs, lists, code, quotes,
+> tables and **alert blocks** are fully selectable (alerts render as a native styled `Section`).
+> Music blocks are a special case: not text-selectable, but **interactively selectable** — the
+> embedded score owns its own click/drag (measure / note-group selection, see Musical Notation
+> below); both `InlineMarkdownEditor` and `SelectableMarkdownView` locate the score under the
+> mouse with a geometric visual hit-test (the text container's event-source attribution over
+> embedded UIElement islands is unreliable) and drive it directly. Making diagram label text
+> selectable is tracked as backlog (`product:diagram-text-selection`).
 
 ---
 
@@ -362,6 +368,50 @@ discarded for every diagram **except `xychart`, `radar-beta`, `ishikawa-beta`, `
 A document-level YAML front-matter block is handled separately (`UseYamlFrontMatter`, parsed but
 not rendered — see the extensions table above); this Mermaid front-matter is a different, fence-local
 mechanism.
+
+---
+
+## Musical Notation — sub-support
+
+Musical notation is written in a **`#% … #%`** block — the repo's only custom Markdig block extension
+([`MusicBlockExtension`](../src/Nexaflow.Visuals.Text/Markdown/Music/MusicBlockExtension.cs), registered
+via `UseMusicNotation()`). The opening fence carries an optional dialect tag; the dialect is
+auto-detected when omitted:
+
+```
+#%abc                     #%lilypond                 #%
+X:1                       \relative c' {             X:1
+T:Speed the Plough          \clef treble             K:C
+M:4/4                       c4 d e f | g1            CDEF
+K:G                       }                          #%
+GABc dedB|c2A2 A2BA|      #%                        (untagged → auto-detected as ABC)
+#%
+```
+
+**Two parsers, one renderer.** Both notations parse into a shared, WPF-free score model
+([`Music/Model/`](../src/Nexaflow.Visuals.Text/Markdown/Music/Model)) which a single native-WPF engraver
+([`WpfScoreRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Music/Rendering/WpfScoreRenderer.cs)) draws
+with the bundled **Bravura** SMuFL font (SIL OFL) plus WPF geometry — no browser, no JS, matching the
+diagram engine's native approach. Ink follows the `MarkdownPalette`; the score sizes to **40–80% of the
+column, centred**, and wraps to 3–6 measures per line (honouring notation line breaks first). Unparseable
+notation degrades to a themed source-text box; unsupported constructs render what they can and note the
+rest.
+
+| Dialect | Parser | v1 support | Not yet |
+|---|---|---|---|
+| **ABC** ([spec](https://abcnotation.com/wiki/abc:standard:v2.1)) | [`AbcParser`](../src/Nexaflow.Visuals.Text/Markdown/Music/Parsers/AbcParser.cs) | Header fields (`X/T/C/M/L/K`), single voice, notes + octave marks + explicit accidentals + note lengths, rests, whitespace beam grouping, bar lines incl. repeats, source-line system breaks. | Multiple voices (`V:`), ties/slurs, ornaments/decorations, chords (rendered as lowest note), tuplets, broken rhythm, lyrics. |
+| **LilyPond** ([docs](https://lilypond.org/doc/v2.26/Documentation/notation/index)) | [`LilyPondParser`](../src/Nexaflow.Visuals.Text/Markdown/Music/Parsers/LilyPondParser.cs) | `\relative`/absolute pitch, notes + accidentals + octave marks + durations, `\clef`/`\key`/`\time`, bar lines, rests, variable definitions with `\name` substitution (so `\global` flows into a voice), `\markup` title. Renders the voice with the most notes. | Multi-staff `\score`/`PianoStaff`, simultaneous `<< >>`, `\figuremode`, tuplets, `\repeat`, embedded Scheme (tolerated + skipped). |
+
+The engraver itself draws: staff, treble/bass clefs, key & time signatures, note heads
+(whole/half/quarter/eighth…), stems, **slope-following beams**, flags, dots, accidentals, rests, and
+bar lines (single/double/final/repeat). Lines are justified so **every line but the last shares one
+width** (a full last line is justified too). The score is **interactive**: click a note head to select
+that note, click a measure's background to select the whole measure (highlighted barline-to-barline), or
+drag to select a note range — a themed accent wash, exposed via `ScoreElement.SelectedRange` /
+`SelectionChanged`. Inside a RichTextBox host the whole gesture is driven by the host through
+`IInteractiveBlock` (Begin/Extend/EndPointerSelect), since mouse events never reach an embedded element
+reliably. Grand staff, figured bass, slurs/ties and lyrics are on the roadmap (tracked as `should` nodes
+under `product:score-renderer`).
 
 ---
 

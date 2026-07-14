@@ -10,6 +10,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Bravura (SMuFL music font, SIL OFL 1.1) — the native score engraver draws its glyphs. Bundled as
+         an asset (not a submodule: it's a font, not ProjectReference'd source) and copied beside the
+         assembly so WpfScoreRenderer can load a GlyphTypeface from disk (works headless + in-app).
+         Flows transitively into the host app's output. License: MusicFonts\Bravura-OFL.txt. -->
+    <None Include="Markdown\Music\Assets\Fonts\Bravura.otf" Link="MusicFonts\Bravura.otf" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Markdown\Music\Assets\Fonts\OFL.txt" Link="MusicFonts\Bravura-OFL.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="HtmlAgilityPack" Version="1.12.4" />
     <PackageReference Include="Markdig" Version="1.3.2" />
     <!-- Editor surface (Editor/): the read-write Edit Text host. -->

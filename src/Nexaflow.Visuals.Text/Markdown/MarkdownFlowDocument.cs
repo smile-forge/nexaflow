@@ -70,12 +70,15 @@ public static class MarkdownFlowDocument
                 ThematicBreakBlock => [Hr(ctx)],
                 // YAML front matter is metadata, not content — emit nothing (matches Markdig's HTML output).
                 Markdig.Extensions.Yaml.YamlFrontMatterBlock => [],
-                // AlertBlock extends QuoteBlock — match first; styled callout falls back to BlockRenderer.
-                Markdig.Extensions.Alerts.AlertBlock => [UiFallback(block, raw, ctx)],
+                // AlertBlock extends QuoteBlock — match first. Rendered natively (a styled Section) so the
+                // callout text is drag-selectable like any other text, unlike the BlockRenderer fallback.
+                Markdig.Extensions.Alerts.AlertBlock ab => [Alert(ab, ctx)],
                 QuoteBlock      qb => [Quote(qb, ctx)],
                 ListBlock       lb => [ListOf(lb, ctx)],
                 // MathBlock extends FencedCodeBlock — match first
                 MathBlock          => [UiFallback(block, raw, ctx)],
+                // Musical notation block — the engraver sizes + centres itself (40–80% of the column)
+                Music.MusicBlock   => [UiFallback(block, raw, ctx)],
                 FencedCodeBlock fc when DiagramRenderer.IsDiagramLanguage(fc.Info)
                                    => [DiagramFallback(block, raw, ctx)],
                 FencedCodeBlock fc => [Code(fc.Lines.ToString(), fc.Span, ctx)],
@@ -154,6 +157,37 @@ public static class MarkdownFlowDocument
             Tag             = qb.Span,
         };
         foreach (var child in qb)
+            foreach (var b in RenderBlock(child, string.Empty, ctx))
+                section.Blocks.Add(b);
+        return section;
+    }
+
+    /// <summary>A GitHub alert callout (<c>&gt; [!TIP]</c> …) rendered natively — a coloured-border
+    /// <see cref="Section"/> with a bold kind label, mirroring <see cref="BlockRenderer"/>'s styling but
+    /// keeping the content real FlowDocument text (drag-selectable).</summary>
+    private static WpfBlock Alert(Markdig.Extensions.Alerts.AlertBlock ab, MarkdownRenderContext ctx)
+    {
+        var p = ctx.Palette;
+        var (accent, label) = BlockRenderer.AlertStyle(ab.Kind.ToString(), p);
+
+        var section = new Section
+        {
+            Background      = p.QuoteBg,
+            BorderBrush     = accent,
+            BorderThickness = new Thickness(4, 0, 0, 0),
+            Padding         = new Thickness(12, 6, 12, 8),
+            Margin          = new Thickness(0, 4, 0, 8),
+            Tag             = ab.Span,
+        };
+
+        section.Blocks.Add(new Paragraph(new Run(label))
+        {
+            FontWeight = FontWeights.Bold,
+            Foreground = accent,
+            Margin     = new Thickness(0, 0, 0, 4),
+        });
+
+        foreach (var child in ab)
             foreach (var b in RenderBlock(child, string.Empty, ctx))
                 section.Blocks.Add(b);
         return section;
