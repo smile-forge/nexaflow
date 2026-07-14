@@ -1,3 +1,4 @@
+using System.Linq;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Music.Model;
 using Nexaflow.Visuals.Text.Markdown.Music.Parsers;
@@ -5,10 +6,12 @@ using Nexaflow.Visuals.Text.Markdown.Music.Parsers;
 namespace Nexaflow.Tests.Core.Visuals.Markdown.Music;
 
 /// <summary>
-/// The LilyPond subset parser: a simple top-level tune, and the complex "Exercise 3" example — which it
-/// must not choke on. From the exercise it renders the cantus-firmus (<c>cf</c>) staff, resolving
-/// <c>\global</c> (time/key) and <c>\relative</c>, while tolerating Scheme, <c>\score</c>/PianoStaff,
-/// <c>\figuremode</c> and <c>\markup</c>.
+/// The LilyPond parser end to end: a simple top-level tune, and the complex "Exercise 3" example — a real
+/// worksheet, with Scheme, a <c>\score</c>, a <c>PianoStaff</c>, figured bass and a <c>\markup</c> title around
+/// the music. Both staves of the exercise are engraved (the empty upper one the student writes into, and the
+/// given cantus firmus below it), resolving <c>\global</c> and <c>\relative</c> along the way.
+///
+/// The language itself is covered construct-by-construct in <see cref="LilyPondSyntaxTests"/>.
 /// </summary>
 [TestClass]
 [CoversNode("ly-core")]
@@ -31,7 +34,9 @@ public class LilyPondParserTests
         Assert.AreEqual(1, score.Staves.Count);
         var st = score.Staves[0];
         Assert.AreEqual(ClefKind.Treble, st.Clef);
-        Assert.AreEqual(new TimeSignature(4, 4), st.Time);
+        Assert.AreEqual(4, st.Time.Numerator);
+        Assert.AreEqual(4, st.Time.Denominator);
+        Assert.AreEqual(TimeSymbol.Common, st.Time.Symbol, "LilyPond draws 4/4 as the C symbol");
         Assert.AreEqual(2, st.Measures.Count, "c d e f | g1 → two measures");
         Assert.AreEqual(4, st.Measures[0].Events.Count);
         var first = (Note)st.Measures[0].Events[0];
@@ -39,19 +44,24 @@ public class LilyPondParserTests
     }
 
     [TestMethod]
-    public void Exercise3_DoesNotThrow_AndRendersCantusFirmus()
+    public void Exercise3_EngravesBothStavesOfThePianoStaff()
     {
         var score = new LilyPondParser().Parse(Exercise3);
-        Assert.AreEqual(1, score.Staves.Count, "renders exactly one staff (the cf)");
-        var st = score.Staves[0];
-        Assert.AreEqual(ClefKind.Bass, st.Clef, "\\clef bass");
-        Assert.AreEqual(0, st.Key.Fifths, "\\key c \\major via \\global");
-        Assert.AreEqual(new TimeSignature(4, 4), st.Time, "\\time 4/4 via \\global");
-        Assert.AreEqual(4, st.Measures.Count, "cf is four bars");
+        Assert.AreEqual(2, score.Staves.Count, "the PianoStaff holds the blank upper staff and the given bass");
 
-        int notes = 0;
-        foreach (var m in st.Measures) foreach (var e in m.Events) if (e is Note) notes++;
-        Assert.AreEqual(13, notes, "cf has 13 notes (4+4+4+1)");
+        var upper = score.Staves[0];
+        Assert.AreEqual(4, upper.Measures.Count);
+        Assert.IsFalse(upper.Measures.SelectMany(m => m.Events).OfType<Note>().Any(),
+            "the upper staff is the one the student fills in — rests and spacers only");
+        Assert.AreEqual(BarlineKind.Double, upper.Measures[^1].EndBarline, "\\bar \"||\" closes it");
+
+        var cf = score.Staves[1];
+        Assert.AreEqual(ClefKind.Bass, cf.Clef, "\\clef bass");
+        Assert.AreEqual(0, cf.Key.Fifths, "\\key c \\major via \\global");
+        Assert.AreEqual(4, cf.Time.Numerator, "\\time 4/4 via \\global");
+        Assert.AreEqual(TimeSymbol.Numeric, cf.Time.Symbol, "…which \\numericTimeSignature prints as figures");
+        Assert.AreEqual(4, cf.Measures.Count, "cf is four bars");
+        Assert.AreEqual(13, cf.Measures.SelectMany(m => m.Events).OfType<Note>().Count(), "cf has 13 notes (4+4+4+1)");
     }
 
     [TestMethod]
