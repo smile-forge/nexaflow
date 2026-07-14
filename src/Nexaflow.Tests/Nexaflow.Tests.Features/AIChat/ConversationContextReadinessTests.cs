@@ -45,9 +45,18 @@ public class ConversationContextReadinessTests
         public IPageViewModel? ViewModel { get; init; }
     }
 
-    private static Page PinnedPage(IPageViewModel vm)
+    /// <param name="id">Distinguishes two pinned pages. The strip dedups by page kind + parameters (so a
+    /// restored conversation doesn't stack a second copy of its own context), which makes two pages with
+    /// the same kind and no parameters genuinely the <em>same</em> item — hence the id.</param>
+    private static Page PinnedPage(IPageViewModel vm, string id = "1")
     {
-        var page = new Page { PageKind = "Fake", Title = "Fake", ContentFactory = () => new FakePageView { ViewModel = vm } };
+        var page = new Page
+        {
+            PageKind       = "Fake",
+            Title          = "Fake",
+            PageParams     = new Dictionary<string, string> { ["id"] = id },
+            ContentFactory = () => new FakePageView { ViewModel = vm },
+        };
         page.GetOrCreateContent();   // realize Content so the aggregate can read its ViewModel
         return page;
     }
@@ -92,8 +101,8 @@ public class ConversationContextReadinessTests
     public void IsContextReady_AllPinnedReady_True() => Sta(() =>
     {
         var convo = NewConversation();
-        convo.AddContextItem(PinnedPage(new FakeContextVm { Ready = true }));
-        convo.AddContextItem(PinnedPage(new FakeContextVm { Ready = true }));
+        convo.AddContextItem(PinnedPage(new FakeContextVm { Ready = true }, "a"));
+        convo.AddContextItem(PinnedPage(new FakeContextVm { Ready = true }, "b"));
 
         Assert.IsTrue(convo.IsContextReady);
     });
@@ -102,8 +111,8 @@ public class ConversationContextReadinessTests
     public void IsContextReady_OneOfManyNotReady_False() => Sta(() =>
     {
         var convo = NewConversation();
-        convo.AddContextItem(PinnedPage(new FakeContextVm { Ready = true }));
-        convo.AddContextItem(PinnedPage(new FakeContextVm { Ready = false }));
+        convo.AddContextItem(PinnedPage(new FakeContextVm { Ready = true }, "a"));
+        convo.AddContextItem(PinnedPage(new FakeContextVm { Ready = false }, "b"));
 
         Assert.IsFalse(convo.IsContextReady);
     });

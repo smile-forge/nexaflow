@@ -5,6 +5,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Windows;
+// Aliased, not imported: System.Windows.Controls also has a `Page`, which would collide with ours.
+using UserControl = System.Windows.Controls.UserControl;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.AIChat.ViewModels.Timeline;
@@ -49,9 +51,30 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     [ObservableProperty] private int   _estimatedTokens;
     [ObservableProperty] private int?  _contextWindow;
 
-    public ObservableCollection<ConversationMessage> Messages    { get; } = [];
-    public ObservableCollection<Page>                ContextItems { get; } = [];
-    public ObservableCollection<string>              Attachments  { get; } = [];
+    public ObservableCollection<ConversationMessage>  Messages     { get; } = [];
+    public ObservableCollection<ContextItemViewModel> ContextItems { get; } = [];
+    public ObservableCollection<string>               Attachments  { get; } = [];
+
+    /// <summary>The chip whose preview is open, or null when the panel is collapsed.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPreviewOpen))]
+    [NotifyPropertyChangedFor(nameof(PreviewTitle))]
+    private ContextItemViewModel? _selectedContextItem;
+
+    /// <summary>The selected page's own read-only view (<see cref="IContextPreview"/>), or null when it
+    /// offers none — in which case the panel falls back to an identity placeholder.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPreviewContent))]
+    private UserControl? _previewContent;
+
+    public bool   IsPreviewOpen     => SelectedContextItem is not null;
+    public bool   HasPreviewContent => PreviewContent is not null;
+    public string PreviewTitle      => SelectedContextItem?.Page.Title ?? string.Empty;
+
+    /// <summary>The context text this page contributes to the prompt — shown in the placeholder so an
+    /// un-previewable page still tells you what the AI actually sees of it.</summary>
+    public string PreviewFallbackText =>
+        SelectedContextItem is { } item ? GetContextFor(item.Page) : string.Empty;
 
     /// <summary>The rendered thread: user/assistant bubbles plus live agent activity (tool batches,
     /// approval prompts, the "considering/running" line). Tool/activity items are session-only — only
@@ -127,14 +150,19 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         foreach (var m in rec.Messages.OrderBy(m => m.Timestamp))
         {
             Messages.Add(m);
-            Timeline.Add(m.IsUser ? new TimelineUserMessage(m.Text) : (object)new TimelineAssistantMessage(m.Text));
+            Timeline.Add(m.IsUser ? new TimelineUserMessage(m) : (object)new TimelineAssistantMessage(m.Text));
         }
+        MarkLastUserMessage();
 
         // Repopulate attachments + the pinned-context panel from the saved record. Guarded so the
         // collection-changed handlers don't re-persist (and briefly write an empty state) mid-restore.
         _restoring = true;
         try
         {
+            // Reactivating the tab re-runs this (IPageView.Reinitialize), so start from empty — otherwise
+            // every reactivation stacks another copy of the saved context onto the strip.
+            ClearContext();
+
             Attachments.Clear();
             foreach (var a in rec.Attachments)
                 Attachments.Add(a);
@@ -230,10 +258,12 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         _pendingUserMessages.Add(user);
         Messages.Add(user);                                      // token counting
 
-        AddTurnItem(new TimelineUserMessage(userText));
+        // Before MarkLastUserMessage: it suppresses the rewind affordance while a turn is in flight.
+        IsAgentRunning = true;
+        AddTurnItem(new TimelineUserMessage(user));
+        MarkLastUserMessage();
         _activity = new TimelineActivity { Text = "Considering" };
         AddTurnItem(_activity);
-        IsAgentRunning = true;
     });
 
     /// <summary>Queue a message submitted mid-response; delivered to the model at the next turn boundary.</summary>
@@ -257,10 +287,11 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
                 var msg = new ConversationMessage { Text = t, IsUser = true, Timestamp = DateTime.Now };
                 _pendingUserMessages.Add(msg);
                 Messages.Add(msg);
-                var bubble = new TimelineUserMessage(t);
+                var bubble = new TimelineUserMessage(msg);
                 InsertBeforeActivity(bubble);
                 _turnItems.Add(bubble);
             }
+            MarkLastUserMessage();
             _currentToolBatch = null;   // tools after an interjection form a new group below it
             taken = texts;
         });
@@ -305,12 +336,14 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         if (_activity is not null) _activity.Text = "Considering";   // back to thinking
     });
 
+    // The model's prose is the *explanation* and the tool list is the *question* — passing the prose as both
+    // (as this used to) meant an approval prompt could only ever show the bare "Run x?" and the reason was
+    // dropped on the floor. An empty explanation now simply collapses in the template.
     public Task<bool> RequestToolBatchApprovalAsync(string explanationMarkdown, IReadOnlyList<ToolCall> batch, CancellationToken ct)
-        => RequestApproval(string.IsNullOrWhiteSpace(explanationMarkdown) ? "Run these tools?" : explanationMarkdown,
-                           BuildBatchSummary(batch), ct);
+        => RequestApproval(explanationMarkdown, BuildBatchSummary(batch), ct);
 
     public Task<bool> RequestPlanApprovalAsync(ClientPlan plan, CancellationToken ct)
-        => RequestApproval($"Plan: {plan.Title}", $"Approve plan: {plan.Title}", ct);
+        => RequestApproval(plan.Title, $"Approve plan: {plan.Title}?", ct);
 
     private Task<bool> RequestApproval(string explanation, string summary, CancellationToken ct)
         => _shell.RunOnUiAsync(() =>
@@ -322,14 +355,33 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
             return item.Decision;
         });
 
-    /// <summary>Render the final answer and persist the exchange (original prompt + any interjections).</summary>
+    /// <summary>
+    /// Render the final answer and persist the exchange (original prompt + any interjections).
+    /// <para>
+    /// A model can end a turn saying nothing — most often after a denied or exhausted tool batch. Rendering
+    /// that verbatim produced an empty bubble and wrote an empty message to disk, so the conversation
+    /// carried a permanent blank. An empty answer is now reported as what it is (a session-only notice) and
+    /// only the user's message is kept.
+    /// </para>
+    /// </summary>
     public void ShowFinal(string finalMarkdown) => OnUi(async () =>
     {
         RemoveActivity();
-        AddTurnItem(new TimelineAssistantMessage(finalMarkdown));
 
-        var assistant = new ConversationMessage { Text = finalMarkdown, IsUser = false, Timestamp = DateTime.Now };
-        Messages.Add(assistant);
+        var empty = string.IsNullOrWhiteSpace(finalMarkdown);
+        ConversationMessage? assistant = null;
+
+        if (empty)
+        {
+            AddTurnItem(new TimelineNotice("The assistant ended the turn without a reply."));
+        }
+        else
+        {
+            AddTurnItem(new TimelineAssistantMessage(finalMarkdown));
+            assistant = new ConversationMessage { Text = finalMarkdown, IsUser = false, Timestamp = DateTime.Now };
+            Messages.Add(assistant);
+        }
+
         IsAgentRunning = false;
 
         var users = _pendingUserMessages.ToList();
@@ -350,16 +402,20 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         PendingInterjections.Clear();
         _currentToolBatch = null;
         IsAgentRunning = false;
+        MarkLastUserMessage();
     });
 
-    private async Task PersistExchangeAsync(IReadOnlyList<ConversationMessage> users, ConversationMessage assistant)
+    /// <param name="assistant">Null when the model said nothing — the user's message is still kept, because
+    /// it happened; inventing an assistant message to pair with it would not be true.</param>
+    private async Task PersistExchangeAsync(IReadOnlyList<ConversationMessage> users, ConversationMessage? assistant)
     {
         if (Conversation is null) return;
 
         foreach (var u in users) Conversation.Messages.Add(u);
-        Conversation.Messages.Add(assistant);
+        if (assistant is not null) Conversation.Messages.Add(assistant);
         Conversation.Attachments = [.. Attachments];
         _contentAddedThisSession = true;
+        MarkLastUserMessage();
 
         // A fresh conversation keeps the placeholder title until its first user message names it.
         if (string.Equals(Conversation.Title, DefaultTitle, StringComparison.Ordinal))
@@ -371,6 +427,76 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
 
         try { await _aiService.SaveConversationAsync(Conversation); }
         catch { /* persistence failures shouldn't kill the UI */ }
+    }
+
+    // ── Timestamps + rewind ───────────────────────────────────────────────
+
+    /// <summary>Rewind is offered on the newest user message only, so exactly one bubble carries the button.
+    /// Also re-reads every relative timestamp ("5 minutes ago" ages), which is cheap and only needs to be
+    /// right when the thread actually changes.</summary>
+    private void MarkLastUserMessage()
+    {
+        TimelineUserMessage? last = null;
+        foreach (var item in Timeline)
+        {
+            if (item is not TimelineUserMessage user) continue;
+            user.IsLast = false;
+            user.RefreshTimestamp();
+            last = user;
+        }
+        if (last is not null && !IsAgentRunning) last.IsLast = true;
+    }
+
+    /// <summary>
+    /// Rewinds the conversation to <paramref name="target"/>: everything from that message onward is
+    /// dropped — from the timeline, the token count and the saved record — and its text is handed back to
+    /// the AI input box so it can be edited and re-sent.
+    /// <para>
+    /// Disabled while a turn is in flight: a running agent owns <see cref="Messages"/> through
+    /// <c>_pendingUserMessages</c>, and truncating underneath it would leave the turn writing into a
+    /// conversation that no longer exists.
+    /// </para>
+    /// </summary>
+    [RelayCommand]
+    private async Task RewindTo(TimelineUserMessage? target)
+    {
+        if (target is null || IsAgentRunning || Conversation is null) return;
+
+        var cut = Messages.IndexOf(target.Message);
+        if (cut < 0) return;
+
+        for (int i = Messages.Count - 1; i >= cut; i--) Messages.RemoveAt(i);
+
+        var recordCut = Conversation.Messages.IndexOf(target.Message);
+        if (recordCut >= 0)
+            Conversation.Messages.RemoveRange(recordCut, Conversation.Messages.Count - recordCut);
+
+        // The resume analysis indexes into the message list by count, so a truncation that lands before it
+        // would make it summarize messages that no longer exist.
+        if (_analyzedMessageCount > Conversation.Messages.Count)
+        {
+            _analyzedMessageCount = 0;
+            _resumeAnalysis       = null;
+        }
+
+        RebuildTimeline();
+        _contentAddedThisSession = true;
+
+        _shell.InsertChatInput(target.Text);
+
+        try { await _aiService.SaveConversationAsync(Conversation); }
+        catch { /* the in-memory rewind already happened; a failed write shouldn't undo it */ }
+    }
+
+    /// <summary>Re-renders the thread from <see cref="Messages"/>. Live agent items (tool batches, the
+    /// activity line, approvals) are session-only and there is no turn in flight when this runs.</summary>
+    private void RebuildTimeline()
+    {
+        Timeline.Clear();
+        foreach (var m in Messages)
+            Timeline.Add(m.IsUser ? new TimelineUserMessage(m) : (object)new TimelineAssistantMessage(m.Text));
+        MarkLastUserMessage();
+        RecomputeTokens();
     }
 
     private void AddTurnItem(object item) { Timeline.Add(item); _turnItems.Add(item); }
@@ -406,7 +532,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     {
         if (_restoring || Conversation is null) return;
 
-        _aiService.SetConversationContext(Conversation, ContextItems);
+        _aiService.SetConversationContext(Conversation, ContextItems.Select(c => c.Page));
 
         if (Conversation.Messages.Count > 0)
             _ = _aiService.SaveConversationAsync(Conversation);
@@ -427,23 +553,122 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
             _ = _aiService.SaveConversationAsync(Conversation);
     }
 
-    /// <summary>Adds a page-as-context drop target. No-op if already present.</summary>
+    /// <summary>How long a duplicate-add pulse stays lit.</summary>
+    private const int FlashMs = 900;
+
+    /// <summary>
+    /// Adds a page-as-context chip. A page that's already pinned isn't added twice — instead the existing
+    /// chip pulses, so a repeated drag reads as "it's already there" rather than as nothing happening.
+    /// </summary>
     public void AddContextItem(Page page)
     {
         if (page is null || ReferenceEquals(page, _ownerPage)) return;
-        if (ContextItems.Contains(page)) return;
-        ContextItems.Add(page);
+
+        if (FindExisting(page) is { } existing)
+        {
+            Flash(existing);
+            return;
+        }
+
+        ContextItems.Add(new ContextItemViewModel(page));
         TrackRisk(page);
+    }
+
+    /// <summary>
+    /// Identity, not reference. Restoring a saved conversation rebuilds its context as <em>fresh</em>
+    /// <see cref="Page"/> objects, and the same folder can be open as two different tab objects — in both
+    /// cases reference equality says "new" when the user means "same thing". Two pages are the same context
+    /// when they'd be restored from the same <c>ContextRef</c>: identical page kind and parameters.
+    /// </summary>
+    private ContextItemViewModel? FindExisting(Page page)
+        => ContextItems.FirstOrDefault(c => ReferenceEquals(c.Page, page) || SameTarget(c.Page, page));
+
+    private static bool SameTarget(Page a, Page b)
+        => !string.IsNullOrEmpty(a.PageKind)
+           && string.Equals(a.PageKind, b.PageKind, StringComparison.Ordinal)
+           && SameParams(a.PageParams, b.PageParams);
+
+    private static bool SameParams(Dictionary<string, string>? a, Dictionary<string, string>? b)
+    {
+        var left  = a ?? [];
+        var right = b ?? [];
+        if (left.Count != right.Count) return false;
+        foreach (var (key, value) in left)
+            if (!right.TryGetValue(key, out var other) || !string.Equals(value, other, StringComparison.Ordinal))
+                return false;
+        return true;
+    }
+
+    private void Flash(ContextItemViewModel item) => _ = FlashAsync(item);
+
+    private async Task FlashAsync(ContextItemViewModel item)
+    {
+        await _shell.RunOnUiAsync(() => item.IsFlashing = true);
+        await Task.Delay(FlashMs);
+        await _shell.RunOnUiAsync(() => item.IsFlashing = false);
     }
 
     public void RemoveContextItem(Page page)
     {
-        ContextItems.Remove(page);
-        UntrackRisk(page);
+        if (FindExisting(page) is { } item) RemoveContextItem(item);
+    }
+
+    private void RemoveContextItem(ContextItemViewModel item)
+    {
+        if (ReferenceEquals(item, SelectedContextItem)) SelectedContextItem = null;
+
+        ContextItems.Remove(item);
+        UntrackRisk(item.Page);
 
         // A detached page we created has no tab — close it when it leaves the context area.
-        if (_ownedContextPages.Remove(page))
-            page.RaiseClosed();
+        if (_ownedContextPages.Remove(item.Page))
+            item.Page.RaiseClosed();
+    }
+
+    /// <summary>
+    /// Empties the strip: drops risk subscriptions and closes every page we own (a restored or
+    /// menu-added page has no tab to own its lifetime). Called before a (re)load — without it a second
+    /// <c>Reinitialize</c> restores the saved context <em>again</em>, as new Page objects, and the strip
+    /// grows a duplicate set every time the tab is reactivated.
+    /// </summary>
+    private void ClearContext()
+    {
+        SelectedContextItem = null;
+
+        foreach (var item in ContextItems) UntrackRisk(item.Page);
+        foreach (var page in _ownedContextPages) page.RaiseClosed();
+
+        _ownedContextPages.Clear();
+        ContextItems.Clear();
+    }
+
+    // ── Selection + preview panel ─────────────────────────────────────────
+
+    /// <summary>Clicking a chip selects it (and opens the preview); clicking the selected one closes it.</summary>
+    [RelayCommand]
+    private void SelectContextItem(ContextItemViewModel? item)
+        => SelectedContextItem = ReferenceEquals(item, SelectedContextItem) ? null : item;
+
+    /// <summary>The panel's own close button — deselects, which collapses it.</summary>
+    [RelayCommand]
+    private void ClosePreview() => SelectedContextItem = null;
+
+    partial void OnSelectedContextItemChanged(ContextItemViewModel? oldValue, ContextItemViewModel? newValue)
+    {
+        if (oldValue is not null) oldValue.IsSelected = false;
+        if (newValue is not null) newValue.IsSelected = true;
+
+        // Built fresh per selection and dropped on deselect — a page's live tab content is already parented
+        // in the tab host and cannot be re-hosted here, so IContextPreview hands back a separate element.
+        PreviewContent = newValue is null ? null : BuildPreview(newValue.Page);
+        OnPropertyChanged(nameof(PreviewFallbackText));
+    }
+
+    private static UserControl? BuildPreview(Page page)
+    {
+        if ((page.Content as IPageView)?.ViewModel is not IContextPreview previewable) return null;
+        try   { return previewable.CreateContextPreview(); }
+        catch { return null; }   // a broken preview must not take the conversation down with it
     }
 
     // ── Live security-risk badge + context readiness ──────────────────────
@@ -490,13 +715,13 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         => page.SecurityRisk = (page.Content as IPageView)?.ViewModel?.GetContextSecurityRisk() ?? ContextSecurityRisk.Low;
 
     [RelayCommand]
-    private void RemoveContextItemCmd(Page page) => RemoveContextItem(page);
+    private void RemoveContextItemCmd(ContextItemViewModel item) => RemoveContextItem(item);
 
     /// <summary>Lightweight page definitions that can be created context-free and pinned here (e.g.
     /// "Projects" when enabled), for the context-area menu — which reads each page's Title/Icon.
     /// Evaluated fresh each access (reflects live enablement) and excludes already-pinned kinds.</summary>
     public IReadOnlyList<Page> AvailableContextPages
-        => [.. _shell.GetContextItemPages().Where(cand => ContextItems.All(c => c.PageKind != cand.PageKind))];
+        => [.. _shell.GetContextItemPages().Where(cand => ContextItems.All(c => c.Page.PageKind != cand.PageKind))];
 
     /// <summary>Pins a context-free page (built by the menu) as a context item: realizes its content
     /// and takes ownership of its lifecycle (closed when removed / when this conversation closes).</summary>
@@ -504,7 +729,13 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     private void AddContextPage(Page page)
     {
         if (page is null) return;
-        if (page.PageKind is { } kind && ContextItems.Any(p => p.PageKind == kind)) return;   // already pinned
+
+        // Already pinned — pulse the chip rather than build a second page we'd then have to throw away.
+        if (FindExisting(page) is { } existing)
+        {
+            Flash(existing);
+            return;
+        }
 
         page.GetOrCreateContent();   // realize VM so GetContext/GetClientTools resolve
         _ownedContextPages.Add(page);
@@ -528,7 +759,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         // 1.1 tokens per word, summed over messages + context-item-derived context strings.
         long words = 0;
         foreach (var m in Messages)          words += CountWords(m.Text);
-        foreach (var p in ContextItems)      words += CountWords(GetContextFor(p));
+        foreach (var c in ContextItems)      words += CountWords(GetContextFor(c.Page));
         foreach (var a in Attachments)       words += CountWords(a);
 
         EstimatedTokens = (int)Math.Min(int.MaxValue, words * 11 / 10);
@@ -611,7 +842,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     /// (e.g. SystemInfo's background scan) holds the whole conversation's send. Re-evaluated whenever a
     /// pinned page changes (risk subscription) or the set of items changes.</summary>
     public bool IsContextReady =>
-        ContextItems.All(p => (p.Content as IPageView)?.ViewModel?.IsContextReady ?? true);
+        ContextItems.All(c => (c.Page.Content as IPageView)?.ViewModel?.IsContextReady ?? true);
 
     /// <summary>
     /// Combined context handed to the AI on every call: pinned context items, attachments, then
@@ -628,20 +859,21 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         // When ≥2 pinned pages have DISTINCT security contexts, label each block with its context
         // handle so the agent can match a listing to a tool's security_context selector.
         var multiContext = ContextItems
-            .Select(p => (p.Content as IPageView)?.ViewModel?.GetSecurityContext())
+            .Select(c => (c.Page.Content as IPageView)?.ViewModel?.GetSecurityContext())
             .Where(s => s is not null)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count() >= 2;
 
-        foreach (var p in ContextItems)
+        foreach (var c in ContextItems)
         {
-            var part = GetContextFor(p);
+            var page = c.Page;
+            var part = GetContextFor(page);
             if (string.IsNullOrWhiteSpace(part)) continue;
             sb.AppendLine("---");
-            var security = (p.Content as IPageView)?.ViewModel?.GetSecurityContext();
+            var security = (page.Content as IPageView)?.ViewModel?.GetSecurityContext();
             sb.AppendLine(multiContext && security is not null
-                ? $"[Context item: {p.Title} — security context: {NameFor(security)} (scope: {security})]"
-                : $"[Context item: {p.Title}]");
+                ? $"[Context item: {page.Title} — security context: {NameFor(security)} (scope: {security})]"
+                : $"[Context item: {page.Title}]");
             sb.AppendLine(part);
         }
 
@@ -740,9 +972,9 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     {
         // Every tool across pinned pages, tagged with its page's security context (null = none).
         var entries = new List<(string? Security, IClientTool Tool)>();
-        foreach (var p in ContextItems)
+        foreach (var c in ContextItems)
         {
-            if ((p.Content as IPageView)?.ViewModel is not IPageViewModel vm) continue;
+            if ((c.Page.Content as IPageView)?.ViewModel is not IPageViewModel vm) continue;
             var security = vm.GetSecurityContext();
             foreach (var t in vm.GetClientTools())
                 entries.Add((security, t));

@@ -75,7 +75,17 @@ public partial class ConversationView : UserControl, IPageView
         if (e.PropertyName is nameof(ConversationViewModel.EstimatedTokens)
                            or nameof(ConversationViewModel.ContextWindow))
             Dispatcher.Invoke(RefreshFooter);
+
+        if (e.PropertyName == nameof(ConversationViewModel.IsPreviewOpen))
+            Dispatcher.Invoke(UpdatePreviewColumn);
     }
+
+    /// <summary>A ColumnDefinition's width isn't a bindable target worth a converter for one call site —
+    /// the panel is 35% of the width when open and collapsed to nothing when not.</summary>
+    private void UpdatePreviewColumn()
+        => PreviewColumn.Width = ViewModel.IsPreviewOpen
+            ? new GridLength(35, GridUnitType.Star)
+            : new GridLength(0);
 
     private void ScrollToBottom()
     {
