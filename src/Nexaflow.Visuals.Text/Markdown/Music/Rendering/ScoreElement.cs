@@ -62,9 +62,15 @@ public sealed class ScoreElement : FrameworkElement, IInteractiveBlock
         _ink = palette.Text;
         _selFill = SelectionBrush(palette);
         SnapsToDevicePixels = true;
-        Focusable = true;
         HorizontalAlignment = HorizontalAlignment.Center;
         Cursor = Cursors.Hand;
+
+        // Never take keyboard focus. A score is hosted inside a RichTextBox's FlowDocument, and an embedded
+        // element that can be focused ends up as the focus target the window restores to on re-activation —
+        // at which point the RichTextBox reconciles its caret against a text-tree node that holds no text, and
+        // faults deep inside the splay tree. Nothing here needs focus anyway: the host drives the whole
+        // selection gesture through IInteractiveBlock, and the element captures the mouse for a standalone drag.
+        Focusable = false;
     }
 
     /// <summary>A translucent wash from the theme accent (falling back to the highlight token) — never a literal.</summary>

@@ -47,15 +47,17 @@ public static class WpfScoreRenderer
 
     /// <summary>The score as FlowDocument blocks — the staff in a <see cref="BlockUIContainer"/>, everything
     /// else as ordinary paragraphs the reader can drag-select.</summary>
-    public static IEnumerable<Block> RenderBlocks(Score score, MarkdownPalette palette)
+    public static IReadOnlyList<Block> RenderBlocks(Score score, MarkdownPalette palette)
     {
         var above = new List<TextBlock>();
         var below = new List<TextBlock>();
         Collect(score, palette, above, below);
 
-        foreach (var t in above) yield return Para(t);
-        yield return new BlockUIContainer(new ScoreElement(score, palette)) { Margin = new Thickness(0) };
-        foreach (var t in below) yield return Para(t);
+        var blocks = new List<Block>(above.Count + below.Count + 1);
+        foreach (var t in above) blocks.Add(Para(t));
+        blocks.Add(new BlockUIContainer(new ScoreElement(score, palette)) { Margin = new Thickness(0) });
+        foreach (var t in below) blocks.Add(Para(t));
+        return blocks;
     }
 
     private static Paragraph Para(TextBlock t) => new(new Run(t.Text))
@@ -86,8 +88,11 @@ public static class WpfScoreRenderer
             below.Add(Line($"Source: {score.Source}", palette.Text, ScoreMetrics.FooterSize, FontWeights.Normal));
         if (!string.IsNullOrWhiteSpace(score.Transcription))
             below.Add(Line($"Transcription: {score.Transcription}", palette.Text, ScoreMetrics.FooterSize, FontWeights.Normal));
+
+        // A blank W: line is a verse break. It stays a break — but as a space, never as an empty string: an
+        // empty Run is a paragraph with no text symbols, which is a node the FlowDocument text tree stumbles on.
         foreach (var v in score.Verses)
-            below.Add(Line(v, palette.Text, ScoreMetrics.FooterSize, FontWeights.Normal));
+            below.Add(Line(v.Length == 0 ? " " : v, palette.Text, ScoreMetrics.FooterSize, FontWeights.Normal));
 
         if (score.Warnings.Count > 0)
             below.Add(Line("⚠ " + string.Join("  ·  ", score.Warnings), palette.TextMuted,

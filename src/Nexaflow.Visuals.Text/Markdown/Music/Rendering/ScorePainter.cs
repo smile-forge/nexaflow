@@ -501,10 +501,15 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
 
     // ── Grace notes ─────────────────────────────────────────────────────────
 
-    /// <summary>Grace notes: cue-size heads with their own stems and beam, and a slur into the note they lead
-    /// to — the curve is what says "these belong to that note". An acciaccatura's slash is drawn across the
-    /// stem of the first grace note only, which is where it belongs; drawn across the heads (as it was) it read
-    /// as if the notes had been struck out.</summary>
+    /// <summary>
+    /// Grace notes: cue-size heads with their own stems and beam, joined to the note they lead into by a slur.
+    /// The slur is the whole point — it is what says "these belong to that note" — so it leaves from the
+    /// <em>middle</em> of the grace group (not its far edge) and climbs to the main note's head, however far
+    /// above or below the graces sit.
+    ///
+    /// There is no acciaccatura slash. Struck across a cue-size head at this staff size it doesn't read as a
+    /// slash, it reads as a note that has been crossed out.
+    /// </summary>
     private void DrawGraces(DrawingContext dc, PlacedEvent pe, SystemLayout sys)
     {
         if (pe.Ev.Graces.Count == 0) return;
@@ -543,20 +548,14 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
         else if (Smufl.Available)
             Smufl.Draw(dc, Smufl.Flag8thUp, new Point(stems[0].x, stems[0].y), S, ink, GraceScale);
 
-        if (pe.Ev.GraceSlashed)
-        {
-            // Across the stem, between head and beam — not across the heads.
-            var (sx, sy) = stems[0];
-            double mid = (heads[0].y + sy) / 2;
-            dc.DrawLine(Pen(StemThick * 0.9),
-                new Point(sx - 0.55 * S, mid + 0.45 * S), new Point(sx + 0.55 * S, mid - 0.45 * S));
-        }
-
-        // …and the slur that ties the group to its note.
-        var (hx, hy) = heads[0];
+        // The slur: from the middle of the grace group, climbing to the main note's head.
+        double fromX = (heads[0].x + heads[^1].x) / 2;
+        double fromY = 0;
+        foreach (var h in heads) fromY = Math.Max(fromY, h.y);      // clear the lowest grace head
         double toX = pe.HeadX + _noteW / 2;
         double toY = Y(sys, Engraving.Span(pe.Ev, sys.Geom).Lo);
-        Arc(dc, hx, toX, Math.Max(hy, toY) + 0.7 * S, under: true, depth: 0.6 * S);
+
+        Arc(dc, fromX, fromY + 0.75 * S, toX, toY + 0.75 * S, under: true, depth: 0.6 * S);
     }
 
     /// <summary>How far above the staff a group's grace notes reach — a beam has to clear them.</summary>
@@ -713,20 +712,14 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
     {
         var order = layout.Order;
         var open = new Stack<PlacedEvent>();
+        var slurs = new List<(PlacedEvent From, PlacedEvent To)>();
 
         for (int i = 0; i < order.Count; i++)
         {
             var pe = order[i];
 
             for (int k = 0; k < pe.Ev.SlurOpen; k++) open.Push(pe);
-
-            // Nested slurs pop innermost-first, so the depth left on the stack is how many slurs still frame
-            // this one: the inner curve hugs the notes and each outer one arches over it.
-            for (int k = 0; k < pe.Ev.SlurClose && open.Count > 0; k++)
-            {
-                var from = open.Pop();
-                DrawSlur(dc, from, pe, open.Count);
-            }
+            for (int k = 0; k < pe.Ev.SlurClose && open.Count > 0; k++) slurs.Add((open.Pop(), pe));
 
             foreach (var n in TiedNotes(pe.Ev))
             {
@@ -734,6 +727,23 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
                 if (to is not null) DrawTie(dc, pe, to, n.Pitch);
             }
         }
+
+        // A nested slur is drawn by how deeply it is nested *from the inside*: the innermost curve hugs the
+        // notes and each one that frames it stands further out. (The stack depth at close-time says the
+        // opposite — how many slurs enclose this one — which put the small inner curve outside its own frame.)
+        slurs.Sort((a, b) => Width(a).CompareTo(Width(b)));
+        var depth = new int[slurs.Count];
+        for (int i = 0; i < slurs.Count; i++)
+            for (int j = 0; j < i; j++)
+                if (Contains(slurs[i], slurs[j]))
+                    depth[i] = Math.Max(depth[i], depth[j] + 1);
+
+        for (int i = 0; i < slurs.Count; i++)
+            DrawSlur(dc, slurs[i].From, slurs[i].To, depth[i]);
+
+        static int Width((PlacedEvent From, PlacedEvent To) s) => s.To.Index - s.From.Index;
+        static bool Contains((PlacedEvent From, PlacedEvent To) outer, (PlacedEvent From, PlacedEvent To) inner) =>
+            outer.From.Index <= inner.From.Index && inner.To.Index <= outer.To.Index;
     }
 
     private static IEnumerable<Note> TiedNotes(MusicalEvent ev)
@@ -772,22 +782,21 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
     private void DrawTie(DrawingContext dc, PlacedEvent from, PlacedEvent to, Pitch pitch)
     {
         var sys = from.System;
-        double y = Y(sys, sys.Geom.HalfSpacesAbove(pitch));
         bool under = !StemDown([from], sys.Geom);
+        double y = Y(sys, sys.Geom.HalfSpacesAbove(pitch)) + (under ? 0.5 * S : -0.5 * S);
         double cx = from.HeadX + _noteW / 2;
 
         if (ReferenceEquals(to.System, sys))
         {
-            Arc(dc, cx, to.HeadX + _noteW / 2, y + (under ? 0.5 * S : -0.5 * S), under, 0.55 * S);
+            Arc(dc, cx, y, to.HeadX + _noteW / 2, y, under, 0.55 * S);
             return;
         }
 
-        Arc(dc, cx, from.Measure.EndX - 0.3 * S, y + (under ? 0.5 * S : -0.5 * S), under, 0.55 * S);
+        Arc(dc, cx, y, from.Measure.EndX - 0.3 * S, y, under, 0.55 * S);
 
-        double y2 = Y(to.System, to.System.Geom.HalfSpacesAbove(pitch));
         bool under2 = !StemDown([to], to.System.Geom);
-        Arc(dc, to.System.ContentStartX - 0.6 * S, to.HeadX + _noteW / 2,
-            y2 + (under2 ? 0.5 * S : -0.5 * S), under2, 0.55 * S);
+        double y2 = Y(to.System, to.System.Geom.HalfSpacesAbove(pitch)) + (under2 ? 0.5 * S : -0.5 * S);
+        Arc(dc, to.System.ContentStartX - 0.6 * S, y2, to.HeadX + _noteW / 2, y2, under2, 0.55 * S);
     }
 
     /// <summary>A slur bows away from the stems, so it never crosses them: over a passage of down-stemmed notes
@@ -820,13 +829,14 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
             bot = Math.Max(bot, Y(sys, lo));
         }
 
+        // A slur hugs the notes it covers — it clears the outermost head by a space and no more. Dropping it
+        // clear of the whole staff (as it did) leaves it stranded a long way from music that never went near
+        // the bottom line.
         bool under = stemsUp * 2 >= span.Count;          // mostly up-stemmed → the slur goes below
-        double out_ = 0.9 * S + nesting * 0.9 * S;
-        double y = under
-            ? Math.Max(bot, sys.BottomLineY) + out_
-            : Math.Min(top, sys.TopLineY) - out_;
+        double stand = 0.85 * S + nesting * 0.95 * S;
+        double y = under ? bot + stand : top - stand;
 
-        Arc(dc, x0, x1, y, under, depth: 0.85 * S);
+        Arc(dc, x0, y, x1, y, under, depth: 0.8 * S);
     }
 
     private PlacedEvent? LastOn(SystemLayout sys)
@@ -838,17 +848,19 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
         return last;
     }
 
-    /// <summary>A tie/slur arc: a filled crescent, thick at the middle and tapering to its ends.</summary>
-    private void Arc(DrawingContext dc, double x0, double x1, double y, bool under, double depth)
+    /// <summary>A tie/slur arc: a filled crescent, thick at the middle and tapering to its ends. The two ends
+    /// carry their own y, so a curve can climb — a grace note sitting high above the note it leads into needs
+    /// to be joined to it, not merely to hover level with it.</summary>
+    private void Arc(DrawingContext dc, double x0, double y0, double x1, double y1, bool under, double depth)
     {
         double dir = under ? 1 : -1;
         double mx = (x0 + x1) / 2;
-        double cy = y + dir * depth * 2;
+        double cy = (y0 + y1) / 2 + dir * depth * 2;
         double thick = 0.22 * S;
 
-        var fig = new PathFigure { StartPoint = new Point(x0, y), IsClosed = true };
-        fig.Segments.Add(new QuadraticBezierSegment(new Point(mx, cy), new Point(x1, y), true));
-        fig.Segments.Add(new QuadraticBezierSegment(new Point(mx, cy - dir * thick), new Point(x0, y), true));
+        var fig = new PathFigure { StartPoint = new Point(x0, y0), IsClosed = true };
+        fig.Segments.Add(new QuadraticBezierSegment(new Point(mx, cy), new Point(x1, y1), true));
+        fig.Segments.Add(new QuadraticBezierSegment(new Point(mx, cy - dir * thick), new Point(x0, y0), true));
         var geo = new PathGeometry([fig]);
         geo.Freeze();
         dc.DrawGeometry(ink, null, geo);
