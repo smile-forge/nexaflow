@@ -69,6 +69,8 @@ public static class BlockRenderer
                 ListBlock          lb  => RenderList(lb, ctx),
                 // MathBlock extends FencedCodeBlock — must match first
                 MathBlock          mb  => RenderMathBlock(mb, rawMarkdown, ctx),
+                // Musical notation (#%abc … #% / #%lilypond … #%) → sheet music
+                Music.MusicBlock   mus => Music.MusicRenderer.Render(mus, ctx),
                 // Diagram blocks: check Info before falling through to generic code
                 FencedCodeBlock    fc when DiagramRenderer.IsDiagramLanguage(fc.Info)
                                        => DiagramRenderer.Render(fc.Info!, ExtractFencedContent(fc, rawMarkdown), p, ctx.OnNavigate),
@@ -202,8 +204,9 @@ public static class BlockRenderer
     }
 
     /// <summary>Maps an alert kind to its accent brush + title-cased label. The five GitHub kinds
-    /// get distinct semantic colours; any other kind falls back to the accent colour.</summary>
-    private static (Brush accent, string label) AlertStyle(string kind, MarkdownPalette p) =>
+    /// get distinct semantic colours; any other kind falls back to the accent colour. Shared with
+    /// <see cref="MarkdownFlowDocument"/>'s native (text-selectable) alert rendering.</summary>
+    internal static (Brush accent, string label) AlertStyle(string kind, MarkdownPalette p) =>
         kind.Trim().ToUpperInvariant() switch
         {
             "NOTE"      => (p.Accent,   "Note"),

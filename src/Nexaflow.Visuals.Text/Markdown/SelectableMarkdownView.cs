@@ -40,8 +40,60 @@ public class SelectableMarkdownView : UserControl
         // the wheel bubble to the host scroller instead of being swallowed.
         _rtb.PreviewMouseWheel += OnPreviewMouseWheel;
 
+        // Interactive blocks (e.g. a music score) own their own click/drag. Mouse events never reach an
+        // embedded UIElement island reliably (the text container attributes them to the container, the
+        // document, or a neighbouring paragraph), so locate the element with a geometric visual hit-test
+        // and drive the whole gesture (down/move/up) from here — same contract as the editor.
+        _rtb.PreviewMouseLeftButtonDown += OnPreviewMouseLeftButtonDown;
+        _rtb.PreviewMouseLeftButtonUp   += OnPreviewMouseLeftButtonUp;
+        _rtb.PreviewMouseMove           += OnPreviewMouseMove;
+
         Background = Brushes.Transparent;
         Content    = _rtb;
+    }
+
+    private IInteractiveBlock? _pointerBlock;   // block owning the in-progress click/drag gesture
+
+    private void OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount != 1) return;
+        var hit = VisualTreeHelper.HitTest(_rtb, e.GetPosition(_rtb))?.VisualHit;
+        for (DependencyObject? d = hit; d is not null; d = VisualTreeHelper.GetParent(d))
+        {
+            if (d is IInteractiveBlock ib && ib is UIElement uie)
+            {
+                _pointerBlock = ib;
+                ib.BeginPointerSelect(e.GetPosition(uie));
+                Mouse.Capture(_rtb);   // keep the drag flowing to our move/up handlers
+                e.Handled = true;
+                return;
+            }
+            if (ReferenceEquals(d, _rtb)) break;   // stop at the host
+        }
+        InteractiveSelection.ClearActive();        // a click on text drops any music selection
+    }
+
+    private void OnPreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_pointerBlock is not { } pb) return;
+        if (e.LeftButton != MouseButtonState.Pressed) { EndPointerGesture(); return; }
+        pb.ExtendPointerSelect(e.GetPosition((UIElement)pb));
+        e.Handled = true;
+    }
+
+    private void OnPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_pointerBlock is null) return;
+        EndPointerGesture();
+        e.Handled = true;
+    }
+
+    private void EndPointerGesture()
+    {
+        var pb = _pointerBlock;
+        _pointerBlock = null;
+        if (Mouse.Captured == _rtb) Mouse.Capture(null);
+        pb?.EndPointerSelect();
     }
 
     // ── Markdown ────────────────────────────────────────────────────────────

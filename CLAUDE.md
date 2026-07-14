@@ -240,6 +240,8 @@ ObservableCollection.Clear() + N × Add() fires N+1 CollectionChanged events —
 
 A bare string assigned to ToolTip inherits the parent's TextAlignment when WPF wraps it in the default popup TextBlock. Assign an explicit TextBlock if you care about alignment
 
+A UIElement embedded in a RichTextBox (BlockUIContainer) does not reliably receive mouse events, and the routed event's OriginalSource over it is unreliable too — the text container attributes clicks to the container, the FlowDocument, or even a NEIGHBOURING Paragraph/Run depending on the region. To give an embedded element its own mouse interaction, hook the RichTextBox's Preview event, find the element with a geometric VisualTreeHelper.HitTest, and drive it directly (see IInteractiveBlock + InlineMarkdownEditor/SelectableMarkdownView)
+
 ## Other design considerations
 
 **Large-file reading** — there are four established strategies; pick the one whose access pattern matches your data shape before inventing a fifth. Each reader's *strategy* is deliberately feature-specific (the data structure differs). The mechanical leaves now live in `Nexaflow.IO.Common`: `EncodingDetector` (BOM/UTF-8 sniff — Tabular's detector, the canonical one) and `FileChangeWatcher` (the debounced `FileSystemWatcher` wrapper used by Logs and Text). Reuse those rather than re-rolling them — current architectural findings live in [docs/arch_review_2026-07.md](docs/arch_review_2026-07.md).

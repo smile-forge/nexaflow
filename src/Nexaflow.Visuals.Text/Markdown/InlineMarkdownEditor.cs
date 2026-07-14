@@ -62,6 +62,7 @@ public partial class InlineMarkdownEditor : UserControl
     private bool       _navQueued;
     private bool       _menuOpen;             // a context menu is open → don't treat the focus loss as leaving edit mode
     private Point?     _pendingClickPoint;    // where the last left-click landed, consumed by the deferred activation
+    private IInteractiveBlock? _pointerBlock; // interactive block owning the in-progress click/drag gesture
     private Point?     _dragArm;              // press point when it landed on the selection — a potential copy drag-out
     private bool       _renderPending;        // a RenderAll was requested while hidden → run it once the editor is shown
 
@@ -97,6 +98,7 @@ public partial class InlineMarkdownEditor : UserControl
         _rtb.PreviewTextInput  += OnPreviewTextInput;
         _rtb.PreviewKeyDown    += OnPreviewKeyDown;
         _rtb.PreviewMouseLeftButtonDown  += OnPreviewMouseLeftButtonDown;
+        _rtb.PreviewMouseLeftButtonUp    += OnPreviewMouseLeftButtonUp;  // ends an interactive-block gesture
         _rtb.PreviewMouseMove            += OnPreviewMouseMove;   // pre-empt the native (move) drag-out with a copy
         _rtb.PreviewMouseRightButtonDown += OnPreviewMouseRightButtonDown;
         _rtb.PreviewMouseRightButtonUp   += OnPreviewMouseRightButtonUp;
@@ -438,6 +440,29 @@ public partial class InlineMarkdownEditor : UserControl
             && hit.CompareTo(_rtb.Selection.Start) >= 0 && hit.CompareTo(_rtb.Selection.End) <= 0)
             _dragArm = e.GetPosition(_rtb);
 
+        // A single click on a self-handling block (e.g. a music score) belongs to that element — it owns
+        // measure/note selection. The event's source can't be trusted here: the RichTextBox's text container
+        // attributes clicks over an embedded UIElement island to the container — or even to a NEIGHBOURING
+        // Paragraph/Run for parts of the island — so we locate the element with a geometric visual hit-test
+        // instead and drive it directly (it captures the mouse for the drag). Disarm the copy-drag and
+        // suppress the caret/activation so the whole block isn't selected. Double-click still falls through
+        // to enter source-edit mode.
+        if (e.ClickCount == 1 && InteractiveBlockAtPoint(e.GetPosition(_rtb)) is { } ib && ib is UIElement uie)
+        {
+            _pendingClickPoint = null;
+            _dragArm = null;                    // a score drag must not become the RTB's copy-drag
+            _pointerBlock = ib;
+            ib.BeginPointerSelect(e.GetPosition(uie));
+            // Capture to the RTB so the drag keeps flowing to our move/up handlers even when the pointer
+            // leaves the element or the control (the embedded element itself can't hold capture reliably).
+            Mouse.Capture(_rtb);
+            e.Handled = true;
+            return;
+        }
+
+        // A plain click elsewhere on the page drops any active interactive-block (e.g. music) selection.
+        InteractiveSelection.ClearActive();
+
         if (EditOnDoubleClick)
         {
             if (e.ClickCount == 2)
@@ -533,8 +558,36 @@ public partial class InlineMarkdownEditor : UserControl
     // document, desyncing the model and crashing on the post-drop cleanup. Pre-empt it: once a press that
     // landed on the selection (armed in OnPreviewMouseLeftButtonDown) crosses the drag threshold, run our
     // own COPY drag. The external app still receives the text; the source document is never mutated.
+    private void OnPreviewMouseLeftButtonUp(object? sender, MouseButtonEventArgs e)
+    {
+        if (_pointerBlock is null) return;
+        EndPointerGesture();
+        e.Handled = true;
+    }
+
+    /// <summary>Finishes an interactive-block gesture: releases the RTB's capture and notifies the block.</summary>
+    private void EndPointerGesture()
+    {
+        var pb = _pointerBlock;
+        _pointerBlock = null;
+        if (Mouse.Captured == _rtb) Mouse.Capture(null);
+        pb?.EndPointerSelect();
+    }
+
     private void OnPreviewMouseMove(object? sender, MouseEventArgs e)
     {
+        // An in-progress interactive-block gesture (music note/measure selection) owns the moves.
+        if (_pointerBlock is { } pb)
+        {
+            if (e.LeftButton == MouseButtonState.Pressed)
+            {
+                pb.ExtendPointerSelect(e.GetPosition((UIElement)pb));
+                e.Handled = true;
+                return;
+            }
+            EndPointerGesture();   // button no longer down (up happened off-element) — finish cleanly
+        }
+
         if (_dragArm is not { } start || e.LeftButton != MouseButtonState.Pressed) { _dragArm = null; return; }
 
         var now = e.GetPosition(_rtb);
@@ -604,6 +657,25 @@ public partial class InlineMarkdownEditor : UserControl
         for (DependencyObject? el = pos.Parent; el is not null;
              el = el is FrameworkContentElement fce ? fce.Parent : null)
             if (el is Hyperlink h) return h;
+        return null;
+    }
+
+    /// <summary>True when the mouse hit lands on (or within) an <see cref="IInteractiveBlock"/> embedded in the
+    /// document — a block that owns its own click/drag input (e.g. a music score).</summary>
+    /// <summary>The <see cref="IInteractiveBlock"/> under <paramref name="pointInRtb"/>, or null. Found by a
+    /// geometric visual hit-test rather than the routed event's source: the text container attributes clicks
+    /// over an embedded UIElement island to the <see cref="BlockUIContainer"/> — or even to a neighbouring
+    /// Paragraph/Run for parts of the island — so source-based detection misses regions of the element. The
+    /// hit-test also sees through wrappers (e.g. the score's warnings StackPanel), since it lands on the
+    /// element itself and walks up.</summary>
+    private IInteractiveBlock? InteractiveBlockAtPoint(Point pointInRtb)
+    {
+        var hit = VisualTreeHelper.HitTest(_rtb, pointInRtb)?.VisualHit;
+        for (DependencyObject? d = hit; d is not null; d = VisualTreeHelper.GetParent(d))
+        {
+            if (d is IInteractiveBlock ib) return ib;
+            if (ReferenceEquals(d, _rtb)) break;   // stop at the host
+        }
         return null;
     }
 

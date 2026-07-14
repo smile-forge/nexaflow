@@ -76,4 +76,27 @@ public class MarkdownSampleRenderTests
                     $"render returned null in {Path.GetFileName(path)}");
         }
     });
+
+    /// <summary>The <c>music-*.md</c> references parse into <c>#% … #%</c> music blocks and engrave (or
+    /// gracefully fall back) through <see cref="BlockRenderer"/> without throwing — the docs double as a
+    /// live map of the notation engine's support.</summary>
+    [TestMethod]
+    public void MusicSamplesRender() => UiThread.Run(() =>
+    {
+        var files = TestSampleData.Files("markdown")
+            .Where(p => Path.GetFileName(p).StartsWith("music-", StringComparison.Ordinal))
+            .ToList();
+        Assert.AreNotEqual(0, files.Count, "no music-* samples found");
+
+        foreach (var path in files)
+        {
+            string md  = File.ReadAllText(path);
+            var    doc = MdMarkdown.Parse(md, MarkdownPipelineFactory.Default);
+            Assert.IsTrue(doc.OfType<Nexaflow.Visuals.Text.Markdown.Music.MusicBlock>().Any(),
+                $"no music block parsed in {Path.GetFileName(path)}");
+            foreach (var block in doc)
+                Assert.IsNotNull(BlockRenderer.Render(block, md),
+                    $"render returned null in {Path.GetFileName(path)}");
+        }
+    });
 }
