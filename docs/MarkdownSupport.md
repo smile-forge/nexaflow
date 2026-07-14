@@ -393,25 +393,120 @@ GABc dedB|c2A2 A2BA|      #%                        (untagged → auto-detected 
 ([`WpfScoreRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Music/Rendering/WpfScoreRenderer.cs)) draws
 with the bundled **Bravura** SMuFL font (SIL OFL) plus WPF geometry — no browser, no JS, matching the
 diagram engine's native approach. Ink follows the `MarkdownPalette`; the score sizes to **40–80% of the
-column, centred**, and wraps to 3–6 measures per line (honouring notation line breaks first). Unparseable
-notation degrades to a themed source-text box; unsupported constructs render what they can and note the
-rest.
+column, centred**, and wraps by width (honouring notation line breaks first). Unparseable notation
+degrades to a themed source-text box; unsupported constructs render what they can and note the rest.
 
-| Dialect | Parser | v1 support | Not yet |
+| Dialect | Parser | Support | Not yet |
 |---|---|---|---|
-| **ABC** ([spec](https://abcnotation.com/wiki/abc:standard:v2.1)) | [`AbcParser`](../src/Nexaflow.Visuals.Text/Markdown/Music/Parsers/AbcParser.cs) | Header fields (`X/T/C/M/L/K`), single voice, notes + octave marks + explicit accidentals + note lengths, rests, whitespace beam grouping, bar lines incl. repeats, source-line system breaks. | Multiple voices (`V:`), ties/slurs, ornaments/decorations, chords (rendered as lowest note), tuplets, broken rhythm, lyrics. |
-| **LilyPond** ([docs](https://lilypond.org/doc/v2.26/Documentation/notation/index)) | [`LilyPondParser`](../src/Nexaflow.Visuals.Text/Markdown/Music/Parsers/LilyPondParser.cs) | `\relative`/absolute pitch, notes + accidentals + octave marks + durations, `\clef`/`\key`/`\time`, bar lines, rests, variable definitions with `\name` substitution (so `\global` flows into a voice), `\markup` title. Renders the voice with the most notes. | Multi-staff `\score`/`PianoStaff`, simultaneous `<< >>`, `\figuremode`, tuplets, `\repeat`, embedded Scheme (tolerated + skipped). |
+| **ABC** ([spec](https://abcnotation.com/wiki/abc:standard:v2.1)) | [`AbcParser`](../src/Nexaflow.Visuals.Text/Markdown/Music/Parsers/AbcParser.cs) | **Complete for the practical language** — see the table below. | Voice overlays (`&`), inline `[L:]`/`[Q:]`, `%%` stylesheet directives, per-voice clef inference, `P:` parts. |
+| **LilyPond** ([docs](https://lilypond.org/doc/v2.26/Documentation/notation/index)) | [`LilyPondParser`](../src/Nexaflow.Visuals.Text/Markdown/Music/Parsers/LilyPondParser.cs) | **Complete for the practical language, at par with ABC** — see the table below. | Polyphony within one staff (`<< … \\ … >>` — the first voice is engraved, the rest reported), dynamics and hairpins, figured bass, `\transpose`, mid-staff clef changes, note names other than Dutch, embedded Scheme (tolerated + skipped). |
 
-The engraver itself draws: staff, treble/bass clefs, key & time signatures, note heads
-(whole/half/quarter/eighth…), stems, **slope-following beams**, flags, dots, accidentals, rests, and
-bar lines (single/double/final/repeat). Lines are justified so **every line but the last shares one
-width** (a full last line is justified too). The score is **interactive**: click a note head to select
-that note, click a measure's background to select the whole measure (highlighted barline-to-barline), or
-drag to select a note range — a themed accent wash, exposed via `ScoreElement.SelectedRange` /
-`SelectionChanged`. Inside a RichTextBox host the whole gesture is driven by the host through
-`IInteractiveBlock` (Begin/Extend/EndPointerSelect), since mouse events never reach an embedded element
-reliably. Grand staff, figured bass, slurs/ties and lyrics are on the roadmap (tracked as `should` nodes
-under `product:score-renderer`).
+**The two parsers are held to each other.** `TheSameTune_WrittenInBothDialects_LandsOnTheSameScore` parses *Speed
+the Plough* — the tune both sample docs print — from ABC and from LilyPond and asserts the two scores agree note for
+note, duration for duration, bar line for bar line. It is the only test that can catch one parser drifting from the
+other, and it doubles as the guarantee that neither sample document contains a wrong note.
+
+### ABC coverage
+
+| Construct | Written | Engraved as |
+|---|---|---|
+| Pitches | `C,, … C … c … c''` | Note heads with ledger lines, any octave |
+| Note lengths | `A/4 A/2 A/ A A2 A3 A6 A7 A12 A16` | 32nd → **breve** (double whole), with up to 3 augmentation dots |
+| Unit note length | `L:1/16`, `L:1/8`, `L:1/4` | Rescales every multiplier; defaults from the meter when absent |
+| Beams | whitespace grouping | Primary + secondary beams; **flat unless the group's contour is monotonic** |
+| Bar lines | `\|` `\|\|` `[\|` `\|]` `\|:` `:\|` `::` | Single, double, thick-thin, thin-thick, both repeat forms |
+| Repeat brackets | `\|1 … :\|2 …`, `[1` | Numbered bracket above the staff, closing at the repeat |
+| Broken rhythm | `A>A` `A<A` `A>>A` `A>>>A` | Dots one side, halves the other; the short note keeps a stub beam |
+| Tuplets | `(2 (3 (4 … (p:q:r` | Compressed spacing + the number above; a bracket when unbeamed. `q` reads the meter |
+| Ties & slurs | `A-A`, `(AB)`, nested `((AA)A)` | Curves; ties cross bar lines and system breaks, slurs bow away from the stems |
+| Accidentals | `__A _A =A ^A ^^A` | 𝄫 ♭ ♮ ♯ 𝄪, sized so a double-flat clears its note head |
+| Chord symbols | `"Gm7"D` | Text above the staff |
+| Annotations | `"^Fine"` `"_x"` `"<x"` `">x"` | Text placed above / below / left / right |
+| Decorations | `.` `~` `H` `L` `M` `O` `P` `S` `T` `u` `v`, `!name!` | Staccato, roll, fermata, accent, mordents, coda, segno, trill, bowings — note marks hug the head, staff marks stack above |
+| Grace notes | `{g}A`, `{gAGAG}A`, `{/g}A` | Cue-size heads, beamed, slashed for an acciaccatura |
+| Chords | `[CEG]2` `[A4d4]` | Stacked heads on one stem; seconds displaced across it |
+| Keys & modes | `K:C` `K:Cm` `K:C Lydian` `K:Bb` `K:F# clef=bass` | Full circle of fifths from tonic + mode, in any case, glued or spaced |
+| Meter | `M:4/4` `M:C` `M:C\|` `M:none` | Figures, or the **C / ¢ symbols** when the source asked for them; free meter prints none |
+| Mid-tune changes | `K:` `M:` `T:` in the body, `[K:G]` inline | Key/meter change printed in place and carried into the next system's header; `T:` becomes a section heading |
+| Rests | `z2` `x2` `Z` | Visible, invisible (time only), whole-bar (centred) |
+| Voices | `V:` / `[V: P1]` | A **bracketed system**: one staff per voice, sharing one bar grid, with the bar lines running through and the voice names at the left. A voice that names no clef has one read off its range, so a bass part isn't buried in ledger lines. Voices the source barred differently fall back to an honest stack |
+| Lyrics | `w:` with `-` `_` `*` `\|` `~` `\-` | Syllables under the notes, hyphens, melisma extenders, bar sync, stacked verses |
+| Header fields | `T:` `C:` `O:` `R:` `S:` `Z:` `N:` `W:` | Title + subtitles centred; `R:` italic top-left; `C: (O:)` top-right; `N:`/`S:`/`Z:`/`W:` under the score |
+
+### LilyPond coverage
+
+Three things LilyPond does have **no ABC counterpart**, and they are where a LilyPond parse can be wrong in a way an
+ABC parse cannot — so they are the ones worth knowing:
+
+- **Bar lines come from the meter.** A `|` is a bar *check*, not a bar line; a tune with none in it still bars
+  itself. `\partial` shortens the pickup, `\cadenzaOn` suspends barring altogether, and a `\bar "…"` may arrive
+  *after* the meter has already closed the bar it belongs to — so it has to reach back to it.
+- **Beams come from the meter too**, rather than from how the source is spaced, so they are worked out after the
+  fact ([`AutoBeam`](../src/Nexaflow.Visuals.Text/Markdown/Music/Parsers/LilyPondParser.cs)).
+- **Accidentals are printed, not written.** A note name carries its own alteration — `fis` is F sharp whatever the
+  key — so unlike ABC the source never says "print a sharp here". That is an engraving decision, and it follows the
+  ordinary rule: print one only where the note departs from what is already in force in that bar.
+
+| Construct | Written | Engraved as |
+|---|---|---|
+| Pitch entry | `\relative c'`, `\fixed c'`, absolute | Nearest-octave tracking; `c` is C3 and `c'` middle C |
+| Note names | `c cis cisis ces ceses`, `as` `es` | Dutch names, including the contracted flats |
+| Note lengths | `\breve 1 2 4 8 16 32 64`, `4.`, `2*3` | Breve → 64th, dots, duration scaling; a bare note inherits the last length |
+| Beams | the meter, or a manual `[ … ]` | Eighths in fours in common time, threes in a compound one, pairs otherwise; shorter values by the beat. A tuplet beams as one group |
+| Bar lines | `\bar "\|\|" "\|." ".\|:" ":\|." ":\|.\|:"` | Double, final, both repeat forms — reaching back to the bar the meter already closed |
+| Bar checks / pickup | `\|`, `\partial 4`, `\cadenzaOn` | A check closes its bar; a pickup shortens the first; a cadenza suspends barring and prints no meter |
+| Repeats | `\repeat volta 2 { … }`, `\alternative` | Repeat bar lines + numbered brackets; `\repeat unfold n` is written out |
+| Tuplets | `\tuplet 3/2 { … }`, `\times 2/3 { … }` | Compressed spacing + the number; the *time* is scaled, so the bar still adds up |
+| Ties & slurs | `c~ c`, `c( d e)`, phrasing `\(` `\)` | Curves; `(` opens on the note it *follows*, where ABC's precedes |
+| Chords | `<c e g>2`, `<c e g>~` | Stacked heads on one stem; `\relative` tracks the chord's *first* note |
+| Grace notes | `\grace`, `\acciaccatura`, `\appoggiatura` | Cue-size heads, beamed, slashed for an acciaccatura |
+| Articulations | `-.` `->` `--` `-^`, `\staccato` `\fermata` `\trill` `\upbow` … | Note marks hug the head; staff marks stack above |
+| Text | `c^"Fine"`, `c_"dolce"`, `\markup` | Placed above / below the note |
+| Chord symbols | `\new ChordNames \chordmode { c1 g:7 }` | Placed above the note they start on, matched by *time* against the melody |
+| Keys & modes | `\key c \major`, `\minor` `\dorian` `\lydian` … | Full circle of fifths from tonic + mode |
+| Meter | `\time 4/4` `2/2` `6/8`, `\numericTimeSignature` | 4/4 and 2/2 print as **C / ¢** — LilyPond's default — until the source asks for figures, which it may do *after* the `\time` it applies to |
+| Rests | `r2` `R1*3` `s4` | Visible; whole-bar (written out one bar at a time); invisible spacer |
+| Staves | `\new Staff`, `\with { instrumentName = … }`, `StaffGroup`/`ChoirStaff`/`PianoStaff` | One staff per `\new Staff`; voices that run in step are **bracketed into one system** with a shared bar grid |
+| Lyrics | `\addlyrics`, `\new Lyrics \lyricsto "id"`, `--` `__` `_` | Syllables under the notes, hyphens, melisma extenders, stacked verses |
+| Header | `\header { title composer opus poet source … }` | Mapped by *where LilyPond prints each field*: title centred, poet/meter top-left, composer (and opus) top-right |
+| Structure | `\score`, `\book`, `name = { … }` + `\name`, `%` and `%{ … %}` | Definitions substituted inline (so `\global` flows into a voice); Scheme `#( … )` skipped |
+
+**Engraving rules.** The judgement calls live in
+[`Engraving`](../src/Nexaflow.Visuals.Text/Markdown/Music/Rendering/Engraving.cs), separate from the
+drawing so they can be asserted rather than eyeballed:
+
+- **Stems** flip *strictly above* the middle line — a note on the middle line stems up — and in a beam
+  group the note reaching furthest from the middle line decides for all of them.
+- **Beams** take half the group's interval, capped in both rise and steepness, and go **flat whenever the
+  contour isn't monotonic**: `ABcdABcd` climbs twice but zig-zags, so a leaning beam would assert a
+  direction the music doesn't have.
+- **Justification**: every system but a short final one fills the same width. The short one is *not*
+  stretched to match, but nor is it left at its natural width — it is scaled by the same factor its
+  siblings were, so its note spacing is continuous with the lines above and only the right edge is ragged.
+- **Note spacing** follows `base + rate × √duration` — the classical proportional-but-compressed curve, so a
+  whole note is about three times an eighth rather than eight times it — with a floor of a note head plus air
+  so a septuplet's heads can't touch.
+- **Room outside the staff** is measured from the notation, not fixed: `AboveMusic`/`BelowMusic` are how far
+  the ledger heads, stems, beams and marks actually reach, and everything that lives outside the staff (chord
+  symbols, repeat brackets, lyrics) is placed against *that*. A chord symbol belongs above the music, and how
+  high that is depends on how high the music went.
+- **Lyrics** charge a note only *half* its syllable plus half its neighbour's, because a syllable is centred
+  under its head. Charging the full width made a line of long and short words lurch.
+- **Glyphs** are drawn as filled outlines, not as text: WPF's text pipeline gamma-corrects glyph coverage,
+  which visibly fattens a music font's thin strokes.
+
+**A score's prose is text, not pixels.** The title, subtitles and the notes/source/verses under the score are
+*not* painted into the engraved element — they come back as real FlowDocument paragraphs either side of it
+(`WpfScoreRenderer.RenderBlocks`), so the reader can drag-select and copy them like any other markdown text.
+Only the notation itself is engraved. (The syllables under the notes are the exception: they are glued to head
+positions, so they stay part of the drawing.)
+
+The score is **interactive**: click a note head to select that note, click a measure's background to select
+the whole measure (highlighted barline-to-barline), or drag to select a note range — a themed accent wash,
+exposed via `ScoreElement.SelectedRange` / `SelectionChanged`. Inside a RichTextBox host the whole gesture
+is driven by the host through `IInteractiveBlock` (Begin/Extend/EndPointerSelect), since mouse events never
+reach an embedded element reliably. Figured bass, polyphony within a single staff, dynamics and MIDI playback
+remain on the roadmap (tracked as `should` nodes under `product:score-renderer`).
 
 ---
 

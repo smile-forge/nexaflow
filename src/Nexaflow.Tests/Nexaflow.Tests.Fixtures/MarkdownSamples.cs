@@ -2762,14 +2762,272 @@ internal sealed class MarkdownSamples : ISampleSet
         """
         # Musical notation — LilyPond
 
-        A `#%lilypond … #%` block engraves a LilyPond subset. A simple tune:
+        A `#%lilypond … #%` block engraves LilyPond to sheet music. It draws the same
+        engraver as the ABC blocks, so the two notations reach the same page — but three
+        things LilyPond does are worth knowing, because they have no ABC counterpart:
+
+        - **Bar lines come from the meter.** A `|` is a *check*, not a bar line; a tune with
+          none in it still bars itself. `\partial` shortens the pickup.
+        - **Beams come from the meter too.** Eighths group by the half-bar in common time and
+          by the dotted quarter in a compound one. A manual `[ ]` beam wins where one is written.
+        - **Accidentals are printed, not written.** A note name carries its own alteration
+          (`fis` is F sharp whatever the key), so the engraver prints an accidental only where
+          the note departs from what is already in force in the bar.
+
+        ## features
 
         #%lilypond
-        \relative c' { \clef treble \key g \major \time 4/4 g4 a b c | d2 g,2 | d'1 }
+        \header { title = "Notes / pitches" }
+        {
+          \time 4/4
+          c4 d e f | g a b c' | d' e' f' g' | a' b' c'' d'' |
+          e'' f'' g'' a'' | b'' c''' d''' e''' \bar "|."
+        }
         #%
 
-        The complex "Exercise 3" — the renderer engraves the cantus-firmus staff and
-        tolerates the Scheme, `\score`/`PianoStaff`, figured bass and `\markup` around it:
+        #%lilypond
+        \header { title = "Note lengths" }
+        { \cadenzaOn \autoBeamOff c'\breve c'1 c'2 c'4 c'8 c'16 c'32 c'64 \bar "|." }
+        #%
+
+        #%lilypond
+        \header { title = "Beams — the meter decides" }
+        \relative c'' {
+          \time 4/4 c8 d e f g a b c |
+          \time 6/8 c,8 d e f g a |
+          \time 3/4 c,8 d e f g a |
+          \time 4/4 c,8[ d e] f[ g a b c] \bar "|."
+        }
+        #%
+
+        #%lilypond
+        \header { title = "Bar lines" }
+        \relative c'' {
+          \time 4/4
+          c1 c \bar "||"
+          c c \bar ".|:"
+          c c \bar ":|.|:"
+          c c \bar ":|."
+          c c \bar "|."
+        }
+        #%
+
+        #%lilypond
+        \header { title = "Repeats and voltas" }
+        \relative c'' {
+          \time 4/4
+          \repeat volta 2 { c4 d e f | g a b c }
+          \repeat volta 2 { c4 b a g }
+          \alternative { { f4 e d c } { a'4 b c d } }
+        }
+        #%
+
+        #%lilypond
+        \header { title = "Tuplets" }
+        \relative c'' {
+          \time 4/4
+          \tuplet 3/2 { c8 d e } \tuplet 3/2 { f g a } \tuplet 3/2 { b c d } \tuplet 3/2 { e d c } |
+          \tuplet 5/4 { c,16 d e f g } \tuplet 6/4 { a b c d e f } c4 c \bar "|."
+        }
+        #%
+
+        #%lilypond
+        \header { title = "Ties and slurs" }
+        \relative c'' {
+          \time 4/4
+          c4( d e f) | g4( a) b( c) | c2~ c | c4\( d( e) f\) \bar "|."
+        }
+        #%
+
+        #%lilypond
+        \header { title = "Accidentals" }
+        \header { subtitle = "printed only where the note departs from the bar" }
+        \relative c'' {
+          \time 5/4
+          ceses4 ces c cis cisis \bar "||"
+          \key d \major
+          fis4 f fis fis fis \bar "|."
+        }
+        #%
+
+        #%lilypond
+        \header { title = "Chord symbols" }
+        <<
+          \new ChordNames \chordmode { c1 | a1:m | d1:m7 | g1:7 }
+          \new Staff \relative c' { \time 4/4 c4 d e f | e f g a | f g a b | b a g f \bar "|." }
+        >>
+        #%
+
+        #%lilypond
+        \header { title = "Articulations" }
+        \relative c'' {
+          \time 4/4
+          c4-. d-> e-- f-^ | g\staccato a\accent b\tenuto c\marcato |
+          c\fermata b\trill a\upbow g\downbow | f\mordent e\prall d\turn c\coda \bar "|."
+        }
+        #%
+
+        #%lilypond
+        \header { title = "Grace notes" }
+        \relative c'' {
+          \time 6/8
+          \grace d8 c4. \grace { d16 e } c4. |
+          \acciaccatura d8 c4. \appoggiatura d8 c4. \bar "|."
+        }
+        #%
+
+        #%lilypond
+        \header { title = "Chords" }
+        \relative c' {
+          \time 2/4
+          <c e g c'>2 | <c e>4 <d f> | <e g>4 <f a> | <g b>4 <a c> | <c e g>2 \bar "|."
+        }
+        #%
+
+        #%lilypond
+        \header { title = "Keys and modes" }
+        \relative c'' {
+          \time 4/4
+          \key c \major      c4 d e f |
+          \key c \minor      c4 d es f |
+          \key c \dorian     c4 d es f |
+          \key c \mixolydian c4 d e f |
+          \key c \lydian     c4 d e fis |
+          \key c \phrygian   c4 des es f |
+          \key c \locrian    c4 des es f |
+          \key c \aeolian    c4 d es f \bar "|."
+        }
+        #%
+
+        #%lilypond
+        \header { title = "Meter" }
+        \relative c'' {
+          \time 4/4 c1 |
+          \time 2/2 c |
+          \numericTimeSignature \time 4/4 c |
+          \time 3/4 c2. |
+          \time 6/8 c4. c \bar "|."
+        }
+        #%
+
+        #%lilypond
+        \header { title = "Rests" }
+        \relative c'' {
+          \time 4/4
+          c4 r c2 | r1 | R1 | c4 s c s \bar "|."
+        }
+        #%
+
+        #%lilypond
+        \header { title = "Lyrics" }
+        <<
+          \new Staff \new Voice = "melody" \relative c' {
+            \time 4/4
+            c4 c g' g | a a g2 | f4 f e e | d d c2
+          }
+          \new Lyrics \lyricsto "melody" {
+            Twin -- kle, twin -- kle, lit -- tle star,
+            How I won -- der what you are.
+          }
+          \new Lyrics \lyricsto "melody" {
+            Up a -- bove the world so high,
+            Like a dia -- mond in the sky.
+          }
+        >>
+        #%
+
+        #%lilypond
+        \header { title = "Lyrics — extenders and skips" }
+        <<
+          \new Staff \new Voice = "tune" \relative c' {
+            \time 4/4
+            c4 d e f | g a b c | d1 | c1
+          }
+          \new Lyrics \lyricsto "tune" {
+            Held o -- ver __ two notes, then a _ skip.
+          }
+        >>
+        #%
+
+        ## songs
+
+        #%lilypond
+        \header {
+          title = "Speed the Plough"
+          composer = "Trad."
+          poet = "Reel"
+        }
+        \relative c'' {
+          \numericTimeSignature \time 4/4 \key g \major
+          \repeat volta 2 {
+            g8 a b c d e d b | d e d b d e d b | c4 e8 c b4 d8 b | c4 a a b8 a |
+            g8 a b c d e d b | d e d b d e d b | c4 e8 c b4 d8 b | a4 fis g2
+          }
+          \repeat volta 2 {
+            g'4 g8 fis g d b d | g4 fis e d | c4 e8 c b4 d8 b | c4 a a d8 fis |
+            g4 g8 fis g4 b,8 d | g4 fis e d | c4 e8 c b4 d8 b | a4 fis g2
+          }
+        }
+        #%
+
+        #%lilypond
+        \header {
+          title = "Ah! vous dirai-je, maman"
+          subtitle = "with a pickup, a chord line and two verses"
+          composer = "Trad."
+        }
+        \score {
+          <<
+            \new ChordNames \chordmode { s4 | c2 f4 c | f4 c g2 | c1 }
+            \new Staff \new Voice = "air" \relative c' {
+              \time 4/4 \key c \major \partial 4
+              g'4 | c c g g | a a g2 | f4 f e e | d d c2 \bar "|."
+            }
+            \new Lyrics \lyricsto "air" {
+              _ Twin -- kle, twin -- kle, lit -- tle star,
+              How I won -- der what you are.
+            }
+            \new Lyrics \lyricsto "air" {
+              _ Up a -- bove the world so high,
+              Like a dia -- mond in the sky.
+            }
+          >>
+        }
+        #%
+
+        Each `\new Staff` is a staff, and voices that run in step are bracketed into one
+        system, sharing a bar grid with the bar lines running through:
+
+        #%lilypond
+        \header {
+          title = "Four-part harmony"
+          subtitle = "four voices, one bracketed system"
+        }
+        \score {
+          \new ChoirStaff <<
+            \new Staff \with { instrumentName = "Soprano" } \relative c'' {
+              \time 4/4 \key g \major \partial 4
+              d4 | g g a b | b a g2 | g4 g a b | b a g2 \bar "|."
+            }
+            \new Staff \with { instrumentName = "Alto" } \relative c' {
+              \time 4/4 \key g \major \partial 4
+              d4 | d e e d | g fis d2 | d4 e e d | g fis d2 \bar "|."
+            }
+            \new Staff \with { instrumentName = "Tenor" } \relative c' {
+              \clef bass \time 4/4 \key g \major \partial 4
+              b4 | b c c b | d d b2 | b4 c c b | d d b2 \bar "|."
+            }
+            \new Staff \with { instrumentName = "Bass" } \relative c {
+              \clef bass \time 4/4 \key g \major \partial 4
+              g4 | g c a g | e d g2 | g4 c a g | e d g2 \bar "|."
+            }
+          >>
+        }
+        #%
+
+        The complex "Exercise 3" — a real worksheet. Both staves of the `PianoStaff` engrave
+        (the blank upper one the student writes into, and the given cantus firmus below it),
+        and the Scheme, figured bass and `\markup` around them are tolerated and reported:
 
         #%lilypond
         #(set-global-staff-size 24)
@@ -2779,8 +3037,24 @@ internal sealed class MarkdownSamples : ISampleSet
           \global
           c4 c' b a | g a f d | e f g g, | c1
         }
+        upper = \relative c'' {
+          \global
+          r4 s4 s2 | s1*2 | s2 s4 s
+          \bar "||"
+        }
+        bassFigures = \figuremode {
+          s1*2 | s4 <6> <6 4> <7> | s1
+        }
         \markup { "Exercise 3: Write 8th notes against the given bass line." }
-        \score { \new PianoStaff << \new Staff { \cf } >> }
+        \score {
+          \new PianoStaff <<
+            \new Staff { \upper }
+            \new Staff = lower { << \cf \new FiguredBass \bassFigures >> }
+          >>
+          \layout {}
+        }
         #%
+
+        The dialect is auto-detected when the tag is omitted (`#%` alone).
         """;
 }

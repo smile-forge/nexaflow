@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
+using System.Windows.Documents;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Nexaflow.Visuals.Text.Markdown.Music.Model;
@@ -21,27 +23,51 @@ public static class MusicRenderer
     {
         var ctx = context ?? (MarkdownRenderContext)MarkdownPalette.FromTheme();
         var p   = ctx.Palette;
-        var dialect = block.Dialect;
         try
         {
-            var score = dialect switch
-            {
-                MusicDialect.Abc      => new AbcParser().Parse(block.Source),
-                MusicDialect.LilyPond => new LilyPondParser().Parse(block.Source),
-                _                     => null,
-            };
-
+            var score = Parse(block);
             if (score is null || score.IsEmpty)
-                return SourceFallback(dialect, block.Source, p,
+                return SourceFallback(block.Dialect, block.Source, p,
                     score?.Warnings.Count > 0 ? string.Join("  ·  ", score.Warnings) : "nothing to render");
 
             return WpfScoreRenderer.Render(score, p);
         }
         catch (Exception ex)
         {
-            return SourceFallback(dialect, block.Source, p, ex.Message);
+            return SourceFallback(block.Dialect, block.Source, p, ex.Message);
         }
     }
+
+    /// <summary>The FlowDocument form: the staff as an embedded element, but the score's prose — title,
+    /// subtitles, the notes underneath — as real paragraphs, so it drag-selects like any other text.</summary>
+    public static IEnumerable<Block> RenderBlocks(MusicBlock block, MarkdownRenderContext ctx)
+    {
+        var p = ctx.Palette;
+        Score? score;
+        try
+        {
+            score = Parse(block);
+        }
+        catch (Exception ex)
+        {
+            return [Embed(SourceFallback(block.Dialect, block.Source, p, ex.Message))];
+        }
+
+        if (score is null || score.IsEmpty)
+            return [Embed(SourceFallback(block.Dialect, block.Source, p,
+                score?.Warnings.Count > 0 ? string.Join("  ·  ", score.Warnings) : "nothing to render"))];
+
+        return WpfScoreRenderer.RenderBlocks(score, p);
+    }
+
+    private static Block Embed(FrameworkElement fe) => new BlockUIContainer(fe) { Margin = new Thickness(0) };
+
+    private static Score? Parse(MusicBlock block) => block.Dialect switch
+    {
+        MusicDialect.Abc      => new AbcParser().Parse(block.Source),
+        MusicDialect.LilyPond => new LilyPondParser().Parse(block.Source),
+        _                     => null,
+    };
 
     // ── Source-text fallback ────────────────────────────────────────────────
 
