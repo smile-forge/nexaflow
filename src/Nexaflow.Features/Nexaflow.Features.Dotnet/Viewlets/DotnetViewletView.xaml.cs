@@ -3,11 +3,14 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Threading;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Common.Viewlets;
+using Nexaflow.Features.Dotnet.Models;
 using Nexaflow.Features.Dotnet.ViewModels;
 
 namespace Nexaflow.Features.Dotnet.Viewlets;
@@ -55,6 +58,38 @@ public partial class DotnetViewletView : UserControl, IViewletAiSurface, IViewle
         }
         _phase = (_phase + 1) % 3;
         EllipsisText.Text = new string('.', _phase + 1);
+    }
+
+    // ── Dropdown menus ────────────────────────────────────────────────────────────────────────────
+    // ContextMenu and MenuItem carry keyless styles in Core's Styles.xaml, so a hand-built menu is themed
+    // for free — same idiom as the Git viewlet's branch picker.
+
+    private void TargetButton_Click(object sender, RoutedEventArgs e)
+        => ShowMenu(TargetButton, _vm.Targets, _vm.SelectedTarget, t => _vm.SelectedTarget = t);
+
+    private void StartupButton_Click(object sender, RoutedEventArgs e)
+        => ShowMenu(StartupButton, _vm.RunnableProjects, _vm.StartupProject, _vm.ChooseStartupProject);
+
+    private static void ShowMenu(
+        UIElement anchor, IEnumerable<DotnetTarget> items, DotnetTarget? current, Action<DotnetTarget> onPick)
+    {
+        var menu = new ContextMenu { PlacementTarget = anchor, Placement = PlacementMode.Bottom };
+
+        foreach (var target in items)
+        {
+            var item = new MenuItem
+            {
+                Header    = target.DisplayName,
+                ToolTip   = target.Path,
+                IsChecked = target == current,
+            };
+            var captured = target;
+            item.Click += (_, _) => onPick(captured);
+            menu.Items.Add(item);
+        }
+
+        if (menu.Items.Count > 0)
+            menu.IsOpen = true;
     }
 
     // ── IViewletAiSurface — delegate to the VM, which owns the target + verb runner ──────────────

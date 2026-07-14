@@ -27,19 +27,19 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
     private readonly IShellServices _shell;
     private readonly string _folderPath;
     private CancellationTokenSource? _nugetCts;
+    private CancellationTokenSource? _verbCts;
 
     public ObservableCollection<DotnetTarget> Targets { get; } = [];
+
+    /// <summary>The projects of the selected solution that <c>dotnet run</c> could launch. Empty when the
+    /// selected target is itself a project (it <em>is</em> the run target) or has nothing runnable.</summary>
+    public ObservableCollection<DotnetTarget> RunnableProjects { get; } = [];
 
     public bool ShowTargetPicker => Targets.Count > 1;
     public bool ShowTargetLabel  => Targets.Count == 1;
 
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(RestoreCommand))]
-    [NotifyCanExecuteChangedFor(nameof(BuildCommand))]
-    [NotifyCanExecuteChangedFor(nameof(RunCommand))]
-    [NotifyCanExecuteChangedFor(nameof(TestCommand))]
-    [NotifyCanExecuteChangedFor(nameof(CleanCommand))]
-    private DotnetTarget? _selectedTarget;
+    /// <summary>Show the caret beside Run only when the choice of project is genuinely open.</summary>
+    public bool ShowStartupPicker => SelectedTarget is { IsSolution: true } && RunnableProjects.Count > 1;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RestoreCommand))]
@@ -47,6 +47,24 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(RunCommand))]
     [NotifyCanExecuteChangedFor(nameof(TestCommand))]
     [NotifyCanExecuteChangedFor(nameof(CleanCommand))]
+    [NotifyCanExecuteChangedFor(nameof(OpenTargetCommand))]
+    private DotnetTarget? _selectedTarget;
+
+    /// <summary>The project <c>Run</c> launches when a solution is selected — <c>dotnet run</c> cannot take
+    /// a solution. Guessed by <see cref="SolutionReader.RunnableProjects"/>, overridden by the user's
+    /// remembered pick.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RunCommand))]
+    [NotifyPropertyChangedFor(nameof(RunTooltip))]
+    private DotnetTarget? _startupProject;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RestoreCommand))]
+    [NotifyCanExecuteChangedFor(nameof(BuildCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RunCommand))]
+    [NotifyCanExecuteChangedFor(nameof(TestCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CleanCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CancelVerbCommand))]
     private bool _isBusy;
 
     /// <summary>Transient status glyph: "✓" on success, "✗" on failure, empty otherwise.</summary>
@@ -80,27 +98,84 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
         SelectedTarget = Targets.FirstOrDefault(t => t.IsSolution) ?? Targets.FirstOrDefault();
     }
 
-    // Selecting a different target invalidates the caution — clear it and re-check so we never
-    // show stale data for the wrong target.
+    // Selecting a different target invalidates the caution and the run target — clear both and re-derive
+    // so we never show stale data for the wrong target.
     partial void OnSelectedTargetChanged(DotnetTarget? value)
     {
         HasUpdates = false;
         UpdatesTooltip = string.Empty;
+        ResolveRunnableProjects(value);
         if (value is not null)
             QueueNugetCheck();
     }
 
+    /// <summary>Rebuilds <see cref="RunnableProjects"/> for the newly selected target and picks the startup
+    /// project: whatever the user last chose for this solution, else the best guess.</summary>
+    private void ResolveRunnableProjects(DotnetTarget? target)
+    {
+        RunnableProjects.Clear();
+
+        if (target is { IsSolution: true })
+            foreach (var p in SolutionReader.RunnableProjects(target.Path))
+                RunnableProjects.Add(p);
+
+        StartupProject = Remembered(target) ?? RunnableProjects.FirstOrDefault();
+        OnPropertyChanged(nameof(ShowStartupPicker));
+        OnPropertyChanged(nameof(RunTooltip));
+    }
+
+    private DotnetTarget? Remembered(DotnetTarget? target)
+    {
+        if (target is not { IsSolution: true } || !StartupProjectCache.TryGet(target.Path, out var stored))
+            return null;
+
+        // Only honour a remembered pick that's still a runnable project of this solution.
+        return RunnableProjects.FirstOrDefault(
+            p => string.Equals(p.Path, stored, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Sets the startup project <em>because the user picked it</em>, and remembers it for this
+    /// solution. Distinct from assigning <see cref="StartupProject"/>, which also happens for a guess —
+    /// persisting a guess would freeze it.</summary>
+    public void ChooseStartupProject(DotnetTarget project)
+    {
+        StartupProject = project;
+        if (SelectedTarget is { IsSolution: true } solution)
+            StartupProjectCache.Store(solution.Path, project.Path);
+    }
+
     private bool CanRun() => !IsBusy && SelectedTarget is not null;
 
-    [RelayCommand(CanExecute = nameof(CanRun))] private Task Restore() => RunVerbAsync("restore");
-    [RelayCommand(CanExecute = nameof(CanRun))] private Task Build()   => RunVerbAsync("build");
-    [RelayCommand(CanExecute = nameof(CanRun))] private Task Run()     => RunVerbAsync("run");
-    [RelayCommand(CanExecute = nameof(CanRun))] private Task Test()    => RunVerbAsync("test");
-    [RelayCommand(CanExecute = nameof(CanRun))] private Task Clean()   => RunVerbAsync("clean");
+    private bool HasTarget() => SelectedTarget is not null;
+
+    /// <summary>Run needs an actual project: the selected target itself, or — for a solution — a resolved
+    /// startup project. A solution with nothing runnable in it leaves Run disabled.</summary>
+    private bool CanRunApp() => !IsBusy && RunTarget is not null;
+
+    private DotnetTarget? RunTarget =>
+        SelectedTarget is { IsSolution: true } ? StartupProject : SelectedTarget;
+
+    public string RunTooltip => SelectedTarget switch
+    {
+        null                                        => "dotnet run",
+        { IsSolution: true } s when RunTarget is null => $"No runnable project in {s.DisplayName}",
+        _                                           => $"dotnet run — {RunTarget!.DisplayName}",
+    };
+
+    [RelayCommand(CanExecute = nameof(CanRun))]    private Task Restore() => RunVerbAsync("restore");
+    [RelayCommand(CanExecute = nameof(CanRun))]    private Task Build()   => RunVerbAsync("build");
+    [RelayCommand(CanExecute = nameof(CanRunApp))] private Task Run()     => RunVerbAsync("run");
+    [RelayCommand(CanExecute = nameof(CanRun))]    private Task Test()    => RunVerbAsync("test");
+    [RelayCommand(CanExecute = nameof(CanRun))]    private Task Clean()   => RunVerbAsync("clean");
+
+    /// <summary>Stops the running verb by killing its process tree — for <c>run</c> that means closing the
+    /// app it launched, which is the only way out of a <c>run</c> now that it has no inactivity watchdog.</summary>
+    [RelayCommand(CanExecute = nameof(IsBusy))]
+    private void CancelVerb() => _verbCts?.Cancel();
 
     /// <summary>Opens the selected target (solution/project) file with its default OS handler
     /// (e.g. Visual Studio for a <c>.sln</c>/<c>.slnx</c>).</summary>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(HasTarget))]
     private void OpenTarget()
     {
         if (SelectedTarget is not { } target) return;
@@ -121,7 +196,9 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
     /// </summary>
     public async Task<DotnetCli.Result?> RunVerbAsync(string verb, CancellationToken ct = default)
     {
-        var target = SelectedTarget;
+        // `run` launches a project, so a selected solution resolves to its startup project; every other
+        // verb takes the solution itself.
+        var target = verb == "run" ? RunTarget : SelectedTarget;
         if (target is null || IsBusy)
             return null;
 
@@ -130,9 +207,12 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
         RunningLabel = Gerund(verb);
         ProgressDetail = string.Empty;
         var progress = new Progress<string>(line => ProgressDetail = Truncate(line));
+
+        // Linked so both the caller (an AI tool) and the Stop button can end the process tree.
+        _verbCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         try
         {
-            var result = await DotnetCli.RunAsync(verb, target, _folderPath, progress, ct);
+            var result = await DotnetCli.RunAsync(verb, target, _folderPath, progress, _verbCts.Token);
             if (result.Succeeded)
             {
                 StatusGlyph = "✓";
@@ -147,8 +227,17 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
             }
             return result;
         }
+        catch (OperationCanceledException)
+        {
+            // The user pressed Stop (or the folder is being mutated). Deliberate — no error toast, and the
+            // exception must not escape or it faults the command's task unobserved.
+            StatusGlyph = string.Empty;
+            return new DotnetCli.Result(-1, $"dotnet {verb} cancelled.");
+        }
         finally
         {
+            _verbCts?.Dispose();
+            _verbCts = null;
             IsBusy = false;
             RunningLabel = string.Empty;
             ProgressDetail = string.Empty;
@@ -258,19 +347,26 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
         }, ct: token);
     }
 
-    /// <summary>Aborts any in-flight NuGet check; called when the viewlet's view unloads (folder change).</summary>
+    /// <summary>Aborts any in-flight NuGet check; called when the viewlet's view unloads (folder change).
+    /// A running verb is deliberately left alone — navigating away shouldn't kill a build you started, and
+    /// an app you launched with Run should keep running.</summary>
     public void CancelPending() => _nugetCts?.Cancel();
 
     /// <summary>
-    /// Releases this viewlet's hold on the folder before it's mutated/deleted. Because the NuGet check runs
-    /// from a neutral working directory (see <see cref="DotnetCli.RunListOutdatedAsync"/>) it never locks the
-    /// folder, so this just <em>cancels</em> the pending check — no process to force-kill, so no UI stall and
-    /// no first-chance-exception flood. Any already-running <c>dotnet</c> is left to exit on its own.
+    /// Releases this viewlet's hold on the folder before it's mutated/deleted. The NuGet check runs from a
+    /// neutral working directory (see <see cref="DotnetCli.RunListOutdatedAsync"/>) so it never locks the
+    /// folder and only needs cancelling. A <em>verb</em> does: its working directory is the folder, which
+    /// Windows locks against rename/delete, so its process tree has to go. Cancelling runs the tree-kill
+    /// synchronously inside <c>Cancel()</c>, hence the hop off the UI thread.
     /// </summary>
     public Task QuiesceAsync(CancellationToken ct)
     {
         _nugetCts?.Cancel();
-        return Task.CompletedTask;
+        var verbCts = _verbCts;
+        return verbCts is null ? Task.CompletedTask : Task.Run(() =>
+        {
+            try { verbCts.Cancel(); } catch (ObjectDisposedException) { /* finished on its own */ }
+        }, ct);
     }
 
     private void ApplyUpdates(IReadOnlyList<NugetUpdateChecker.PackageUpdate> updates)

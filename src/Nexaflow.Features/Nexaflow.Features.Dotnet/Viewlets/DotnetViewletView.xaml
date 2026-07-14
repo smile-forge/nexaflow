@@ -1,21 +1,9 @@
 <UserControl x:Class="Nexaflow.Features.Dotnet.Viewlets.DotnetViewletView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             AutomationProperties.AutomationId="Dotnet_Viewlet">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolVis"/>
-
-        <!-- Target label rendered as a link: accent-coloured, underline on hover, hand cursor.
-             Overrides the default Hyperlink template's hard-coded hover colour to stay theme-correct. -->
-        <Style x:Key="TargetLink" TargetType="Hyperlink">
-            <Setter Property="Foreground"      Value="{DynamicResource AccentBrush}"/>
-            <Setter Property="TextDecorations" Value="{x:Null}"/>
-            <Setter Property="Cursor"          Value="Hand"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="TextDecorations" Value="Underline"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
 
         <Style x:Key="FlatBtn" TargetType="Button">
             <Setter Property="Background"      Value="Transparent"/>
@@ -78,19 +66,46 @@
                 <ColumnDefinition Width="Auto"/>  <!-- caution -->
             </Grid.ColumnDefinitions>
 
-            <!-- Target picker (multiple targets) + open button for the selected file -->
+            <!-- Target: a caret menu-button when there's a choice, a plain label when there isn't — but the
+                 open-in-default-app button is always there, so the affordance never moves. -->
             <StackPanel Grid.Column="0"
                         Orientation="Horizontal"
                         VerticalAlignment="Center"
-                        Margin="0,0,8,0"
+                        Margin="0,0,8,0">
+                <Button x:Name="TargetButton"
+                        AutomationProperties.AutomationId="Dotnet_TargetButton"
+                        Style="{StaticResource FlatBtn}"
+                        Padding="4,2"
+                        MaxWidth="220"
+                        Click="TargetButton_Click"
+                        ToolTip="Target solution / project"
                         Visibility="{Binding ShowTargetPicker, Converter={StaticResource BoolVis}}">
-                <ComboBox VerticalAlignment="Center"
-                          MinWidth="120" MaxWidth="220"
-                          ItemsSource="{Binding Targets}"
-                          SelectedItem="{Binding SelectedTarget}"
-                          DisplayMemberPath="DisplayName"
-                          ToolTip="Target solution / project"/>
-                <Button Style="{StaticResource FlatBtn}"
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding SelectedTarget.DisplayName}"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   TextTrimming="CharacterEllipsis"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock Text=" ▾"
+                                   FontSize="9"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <TextBlock VerticalAlignment="Center"
+                           Margin="4,0,0,0"
+                           FontSize="11"
+                           FontWeight="SemiBold"
+                           TextTrimming="CharacterEllipsis"
+                           MaxWidth="220"
+                           Foreground="{DynamicResource TextBrush}"
+                           Text="{Binding SelectedTarget.DisplayName}"
+                           ToolTip="{Binding SelectedTarget.Path}"
+                           Visibility="{Binding ShowTargetLabel, Converter={StaticResource BoolVis}}"/>
+
+                <Button AutomationProperties.AutomationId="Dotnet_OpenTargetButton"
+                        Style="{StaticResource FlatBtn}"
                         Content="↗"
                         FontSize="13"
                         Margin="2,0,0,0"
@@ -98,30 +113,27 @@
                         ToolTip="{Binding SelectedTarget.Path}"/>
             </StackPanel>
 
-            <!-- Target label (single target) — a link that opens the file with its default OS handler -->
-            <TextBlock Grid.Column="0"
-                       VerticalAlignment="Center"
-                       Margin="0,0,8,0"
-                       FontSize="11"
-                       FontWeight="SemiBold"
-                       TextTrimming="CharacterEllipsis"
-                       MaxWidth="220"
-                       Visibility="{Binding ShowTargetLabel, Converter={StaticResource BoolVis}}">
-                <Hyperlink Style="{StaticResource TargetLink}"
-                           Command="{Binding OpenTargetCommand}"
-                           ToolTip="{Binding SelectedTarget.Path}">
-                    <Run Text="{Binding SelectedTarget.DisplayName}"/>
-                </Hyperlink>
-            </TextBlock>
-
             <!-- Verb buttons -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                 <Button Style="{StaticResource FlatBtn}" Content="Restore"
                         Command="{Binding RestoreCommand}" ToolTip="dotnet restore"/>
                 <Button Style="{StaticResource FlatBtn}" Content="Build"
                         Command="{Binding BuildCommand}"   ToolTip="dotnet build"/>
-                <Button Style="{StaticResource FlatBtn}" Content="Run"
-                        Command="{Binding RunCommand}"     ToolTip="dotnet run"/>
+                <Button AutomationProperties.AutomationId="Dotnet_RunButton"
+                        Style="{StaticResource FlatBtn}" Content="Run"
+                        Command="{Binding RunCommand}"     ToolTip="{Binding RunTooltip}"/>
+                <!-- Which project a solution runs is a guess until the user says otherwise — offer the
+                     choice only when there is one. -->
+                <Button x:Name="StartupButton"
+                        AutomationProperties.AutomationId="Dotnet_StartupButton"
+                        Style="{StaticResource FlatBtn}"
+                        Content="▾"
+                        FontSize="9"
+                        Padding="3,3"
+                        Margin="-5,0,0,0"
+                        Click="StartupButton_Click"
+                        ToolTip="Choose the project to run"
+                        Visibility="{Binding ShowStartupPicker, Converter={StaticResource BoolVis}}"/>
                 <Button Style="{StaticResource FlatBtn}" Content="Test"
                         Command="{Binding TestCommand}"    ToolTip="dotnet test"/>
                 <Button Style="{StaticResource FlatBtn}" Content="Clean"
@@ -172,6 +184,15 @@
                            VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis"
                            Foreground="{DynamicResource TextMutedBrush}"/>
+                <!-- Stop: kills the process tree. The only way out of a `run`, which has no watchdog. -->
+                <Button AutomationProperties.AutomationId="Dotnet_StopButton"
+                        Style="{StaticResource FlatBtn}"
+                        Content="✕"
+                        FontSize="11"
+                        Margin="6,0,0,0"
+                        Foreground="{DynamicResource DangerBrush}"
+                        Command="{Binding CancelVerbCommand}"
+                        ToolTip="Stop"/>
             </StackPanel>
 
             <!-- Caution: NuGet updates available -->
