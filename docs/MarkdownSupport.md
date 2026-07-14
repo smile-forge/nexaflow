@@ -393,25 +393,61 @@ GABc dedB|c2A2 A2BA|      #%                        (untagged → auto-detected 
 ([`WpfScoreRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Music/Rendering/WpfScoreRenderer.cs)) draws
 with the bundled **Bravura** SMuFL font (SIL OFL) plus WPF geometry — no browser, no JS, matching the
 diagram engine's native approach. Ink follows the `MarkdownPalette`; the score sizes to **40–80% of the
-column, centred**, and wraps to 3–6 measures per line (honouring notation line breaks first). Unparseable
-notation degrades to a themed source-text box; unsupported constructs render what they can and note the
-rest.
+column, centred**, and wraps by width (honouring notation line breaks first). Unparseable notation
+degrades to a themed source-text box; unsupported constructs render what they can and note the rest.
 
-| Dialect | Parser | v1 support | Not yet |
+| Dialect | Parser | Support | Not yet |
 |---|---|---|---|
-| **ABC** ([spec](https://abcnotation.com/wiki/abc:standard:v2.1)) | [`AbcParser`](../src/Nexaflow.Visuals.Text/Markdown/Music/Parsers/AbcParser.cs) | Header fields (`X/T/C/M/L/K`), single voice, notes + octave marks + explicit accidentals + note lengths, rests, whitespace beam grouping, bar lines incl. repeats, source-line system breaks. | Multiple voices (`V:`), ties/slurs, ornaments/decorations, chords (rendered as lowest note), tuplets, broken rhythm, lyrics. |
+| **ABC** ([spec](https://abcnotation.com/wiki/abc:standard:v2.1)) | [`AbcParser`](../src/Nexaflow.Visuals.Text/Markdown/Music/Parsers/AbcParser.cs) | **Complete for the practical language** — see the table below. | Voice overlays (`&`), inline `[L:]`/`[Q:]`, `%%` stylesheet directives, per-voice clef inference, `P:` parts. |
 | **LilyPond** ([docs](https://lilypond.org/doc/v2.26/Documentation/notation/index)) | [`LilyPondParser`](../src/Nexaflow.Visuals.Text/Markdown/Music/Parsers/LilyPondParser.cs) | `\relative`/absolute pitch, notes + accidentals + octave marks + durations, `\clef`/`\key`/`\time`, bar lines, rests, variable definitions with `\name` substitution (so `\global` flows into a voice), `\markup` title. Renders the voice with the most notes. | Multi-staff `\score`/`PianoStaff`, simultaneous `<< >>`, `\figuremode`, tuplets, `\repeat`, embedded Scheme (tolerated + skipped). |
 
-The engraver itself draws: staff, treble/bass clefs, key & time signatures, note heads
-(whole/half/quarter/eighth…), stems, **slope-following beams**, flags, dots, accidentals, rests, and
-bar lines (single/double/final/repeat). Lines are justified so **every line but the last shares one
-width** (a full last line is justified too). The score is **interactive**: click a note head to select
-that note, click a measure's background to select the whole measure (highlighted barline-to-barline), or
-drag to select a note range — a themed accent wash, exposed via `ScoreElement.SelectedRange` /
-`SelectionChanged`. Inside a RichTextBox host the whole gesture is driven by the host through
-`IInteractiveBlock` (Begin/Extend/EndPointerSelect), since mouse events never reach an embedded element
-reliably. Grand staff, figured bass, slurs/ties and lyrics are on the roadmap (tracked as `should` nodes
-under `product:score-renderer`).
+### ABC coverage
+
+| Construct | Written | Engraved as |
+|---|---|---|
+| Pitches | `C,, … C … c … c''` | Note heads with ledger lines, any octave |
+| Note lengths | `A/4 A/2 A/ A A2 A3 A6 A7 A12 A16` | 32nd → **breve** (double whole), with up to 3 augmentation dots |
+| Unit note length | `L:1/16`, `L:1/8`, `L:1/4` | Rescales every multiplier; defaults from the meter when absent |
+| Beams | whitespace grouping | Primary + secondary beams; **flat unless the group's contour is monotonic** |
+| Bar lines | `\|` `\|\|` `[\|` `\|]` `\|:` `:\|` `::` | Single, double, thick-thin, thin-thick, both repeat forms |
+| Repeat brackets | `\|1 … :\|2 …`, `[1` | Numbered bracket above the staff, closing at the repeat |
+| Broken rhythm | `A>A` `A<A` `A>>A` `A>>>A` | Dots one side, halves the other; the short note keeps a stub beam |
+| Tuplets | `(2 (3 (4 … (p:q:r` | Compressed spacing + the number above; a bracket when unbeamed. `q` reads the meter |
+| Ties & slurs | `A-A`, `(AB)`, nested `((AA)A)` | Curves; ties cross bar lines and system breaks, slurs bow away from the stems |
+| Accidentals | `__A _A =A ^A ^^A` | 𝄫 ♭ ♮ ♯ 𝄪, sized so a double-flat clears its note head |
+| Chord symbols | `"Gm7"D` | Text above the staff |
+| Annotations | `"^Fine"` `"_x"` `"<x"` `">x"` | Text placed above / below / left / right |
+| Decorations | `.` `~` `H` `L` `M` `O` `P` `S` `T` `u` `v`, `!name!` | Staccato, roll, fermata, accent, mordents, coda, segno, trill, bowings — note marks hug the head, staff marks stack above |
+| Grace notes | `{g}A`, `{gAGAG}A`, `{/g}A` | Cue-size heads, beamed, slashed for an acciaccatura |
+| Chords | `[CEG]2` `[A4d4]` | Stacked heads on one stem; seconds displaced across it |
+| Keys & modes | `K:C` `K:Cm` `K:C Lydian` `K:Bb` `K:F# clef=bass` | Full circle of fifths from tonic + mode, in any case, glued or spaced |
+| Mid-tune changes | `K:` `M:` `T:` in the body, `[K:G]` inline | Key/meter change printed in place and carried into the next system's header; `T:` becomes a section heading |
+| Rests | `z2` `x2` `Z` | Visible, invisible (time only), whole-bar (centred) |
+| Voices | `V:` / `[V: P1]` | One staff per voice (not yet bracketed into a system — the score says so) |
+| Lyrics | `w:` with `-` `_` `*` `\|` `~` `\-` | Syllables under the notes, hyphens, melisma extenders, bar sync, stacked verses |
+| Header fields | `T:` `C:` `O:` `R:` `S:` `Z:` `N:` `W:` | Title + subtitles centred; `R:` italic top-left; `C: (O:)` top-right; `N:`/`S:`/`Z:`/`W:` under the score |
+
+**Engraving rules.** The judgement calls live in
+[`Engraving`](../src/Nexaflow.Visuals.Text/Markdown/Music/Rendering/Engraving.cs), separate from the
+drawing so they can be asserted rather than eyeballed:
+
+- **Stems** flip *strictly above* the middle line — a note on the middle line stems up — and in a beam
+  group the note reaching furthest from the middle line decides for all of them.
+- **Beams** take half the group's interval, capped in both rise and steepness, and go **flat whenever the
+  contour isn't monotonic**: `ABcdABcd` climbs twice but zig-zags, so a leaning beam would assert a
+  direction the music doesn't have.
+- **Justification**: every system but a short final one fills the same width. The short one is *not*
+  stretched to match, but nor is it left at its natural width — it is scaled by the same factor its
+  siblings were, so its note spacing is continuous with the lines above and only the right edge is ragged.
+- **Glyphs** are drawn as filled outlines, not as text: WPF's text pipeline gamma-corrects glyph coverage,
+  which visibly fattens a music font's thin strokes.
+
+The score is **interactive**: click a note head to select that note, click a measure's background to select
+the whole measure (highlighted barline-to-barline), or drag to select a note range — a themed accent wash,
+exposed via `ScoreElement.SelectedRange` / `SelectionChanged`. Inside a RichTextBox host the whole gesture
+is driven by the host through `IInteractiveBlock` (Begin/Extend/EndPointerSelect), since mouse events never
+reach an embedded element reliably. Grand staff, bracketed multi-voice systems, figured bass and MIDI
+playback remain on the roadmap (tracked as `should` nodes under `product:score-renderer`).
 
 ---
 

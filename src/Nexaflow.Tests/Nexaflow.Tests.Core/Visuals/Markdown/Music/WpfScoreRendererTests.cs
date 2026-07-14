@@ -19,12 +19,28 @@ namespace Nexaflow.Tests.Core.Visuals.Markdown.Music;
 [TestClass]
 [TestCategory("UI")]
 [CoversNode("score-renderer")]
+[CoversNode("sr-selection")]
+[CoversNode("sr-slursties")]
+[CoversNode("sr-lyrics")]
+// InteractiveSelection owns a single selection for the whole page — a process-wide static. Two ScoreElements
+// selecting on different UI threads at once would each clear the other, so these run on their own.
+[DoNotParallelize]
 public class WpfScoreRendererTests
 {
     private const string SpeedThePlough =
         "X:1\nT:Speed the Plough\nM:4/4\nC:Trad.\nK:G\n" +
         "|:GABc dedB|dedB dedB|c2ec B2dB|c2A2 A2BA|\n" +
         "  GABc dedB|dedB dedB|c2ec B2dB|A2F2 G4:|\n";
+
+    /// <summary>Every construct the ABC parser can emit, in one tune — so the paint pass is exercised end to
+    /// end: breve, chords, grace notes, tuplets, ties, slurs, decorations, chord symbols, repeat brackets,
+    /// a mid-tune key and meter change, and lyrics.</summary>
+    private const string TheWorks =
+        "X:1\nT:The works\nT:a subtitle\nC:Anon.\nO:Nowhere\nR:Reel\nS:Nowhere MSS\nZ:transcribed\n" +
+        "N:a note\nM:4/4\nL:1/8\nK:G\n" +
+        "[| \"Gm7\"{g}A>B (3cde ~f.g |1 [CEG]2 A-A A2 :|2 (AB) __c =d |]\n" +
+        "M:3/4\nK:Dm\nA16 z2 x2 Z |]\n" +
+        "w:one two-syl-la-ble * held_\nW:a verse\n";
 
     private static void ForceRender(FrameworkElement fe, double width)
     {
@@ -156,6 +172,24 @@ public class WpfScoreRendererTests
 
         InteractiveSelection.ClearActive();   // a plain text/background click on the page
         Assert.IsNull(b.SelectedRange, "ClearActive drops the remaining selection");
+    });
+
+    [TestMethod]
+    public void EveryEngravedConstruct_PaintsWithoutFaulting() => UiThread.Run(() =>
+    {
+        var score = new AbcParser().Parse(TheWorks);
+        Assert.IsTrue(score.Staves[0].Measures.Count >= 4);
+        foreach (var palette in new[] { MarkdownPalette.Light, MarkdownPalette.Dark })
+            ForceRender(WpfScoreRenderer.Render(score, palette), 720);
+    });
+
+    [TestMethod]
+    public void ScoreWithNoWarnings_IsTheBareElement_SoTheHostCanDriveItsSelection() => UiThread.Run(() =>
+    {
+        // The markdown host hit-tests for an IInteractiveBlock; a warnings wrapper must not be the only thing
+        // it finds. (It walks up through wrappers, but the common case should still be the element itself.)
+        var fe = WpfScoreRenderer.Render(new AbcParser().Parse(SpeedThePlough), MarkdownPalette.Light);
+        Assert.IsInstanceOfType<ScoreElement>(fe);
     });
 
     [TestMethod]
