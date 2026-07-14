@@ -43,6 +43,7 @@ internal sealed class MarkdownSamples : ISampleSet
         SampleFile.Text("latex-math-symbols.md",    LatexMathSymbols),
         SampleFile.Text("latex-math-structures.md", LatexMathStructures),
         SampleFile.Text("latex-math-fonts.md",      LatexMathFonts),
+        SampleFile.Text("latex-math-amssymb.md",    LatexMathAmssymb),
         SampleFile.Text("music-abc.md",             MusicAbc),
         SampleFile.Text("music-lilypond.md",        MusicLilyPond),
     ];
@@ -59,12 +60,17 @@ internal sealed class MarkdownSamples : ISampleSet
         **supports**, so each should typeset. Standard LaTeX the engine does **not** support is
         called out under each section as *Not supported*. When a formula does fail, the app shows
         its raw `$$ … $$` source in an accent-bordered box — like the one just below, which
-        deliberately uses the unsupported `\mathbb` and `\quad`:
+        deliberately uses the unsupported `\mathbb` (blackboard bold needs the AMS `msbm` font,
+        which is not bundled):
 
         $$ \mathbb{R} \quad \text{blackboard R} $$
 
-        > **Spacing note:** `\quad`, `\qquad`, `~` and `\ ` (control space) are **not** supported,
-        > so this reference separates items with the supported thick space `\;` instead.
+        ## Spacing
+
+        Horizontal spacing: `\,` `\:` `\;` (thin/medium/thick), `\quad`, `\qquad`, the tie `~`,
+        the control space `\ `, and `\hspace{<length>}`:
+
+        $$ a\,b \;\; a\;b \;\; a\quad b \;\; a\qquad b \;\; a~b \;\; a\ b \;\; a\hspace{15pt}b $$
 
         ## Inline math
 
@@ -73,7 +79,7 @@ internal sealed class MarkdownSamples : ISampleSet
 
         ## Superscripts and subscripts
 
-        $$ x^2 \;\; x_i \;\; x_i^2 \;\; x^{2n} \;\; a_{i,j} \;\; x^{y^{z}} \;\; \sum_{i=1}^{n} i $$
+        $$ x^2 \quad x_i \quad x_i^2 \quad x^{2n} \quad a_{i,j} \quad x^{y^{z}} \quad \sum_{i=1}^{n} i $$
 
         ## Greek letters — lowercase
 
@@ -83,6 +89,12 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \Gamma \; \Delta \; \Theta \; \Lambda \; \Xi \; \Pi \; \Sigma \; \Upsilon \; \Phi \; \Psi \; \Omega $$
 
+        LaTeX gives commands only to the 11 uppercase shapes that differ from Latin letters. The others —
+        Alpha, Beta, Epsilon, Zeta, Eta, Iota, Kappa, Mu, Nu, Omicron, Rho, Tau, Chi — have **no** command;
+        they are typeset with the Latin capitals `A B E Z H I K M N O P T X`:
+
+        $$ A \; B \; E \; Z \; H \; I \; K \; M \; N \; O \; P \; T \; X $$
+
         ## Binary operators
 
         $$ a + b \;\; a - b \;\; a \times b \;\; a \div b \;\; a \cdot b \;\; a \pm b \;\; a \mp b \;\; a \ast b \;\; a \star b \;\; a \circ b \;\; a \bullet b \;\; a \oplus b \;\; a \otimes b \;\; a \odot b \;\; a \setminus b $$
@@ -91,35 +103,40 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ a = b \;\; a \neq b \;\; a < b \;\; a > b \;\; a \leq b \;\; a \geq b \;\; a \approx b \;\; a \equiv b \;\; a \sim b \;\; a \simeq b \;\; a \cong b \;\; a \propto b \;\; a \ll b \;\; a \gg b \;\; a \prec b \;\; a \succ b \;\; a \perp b \;\; a \parallel b \;\; a \asymp b $$
 
+        ## Negated relations
+
+        $$ a \nless b \;\; a \ngtr b \;\; a \nleq b \;\; a \ngeq b \;\; a \nprec b \;\; a \nsucc b \;\; a \nsim b \;\; a \ncong b \;\; a \nmid b \;\; a \nparallel b \;\; a \nvdash b \;\; A \nsubseteq B \;\; A \nsupseteq B \;\; a \nrightarrow b \;\; a \nleftrightarrow b $$
+
+        These overlay the base relation with the zero-width `\not`.
+
+        *Not supported (need the AMS `msbm` font):* `\subsetneq` · `\supsetneq` · `\lneqq` · `\gneqq` · `\varsubsetneq` · `\lnsim`
+
         ## Set theory and logic
 
-        $$ a \in A \;\; a \ni A \;\; A \subset B \;\; A \subseteq B \;\; A \supset B \;\; A \supseteq B \;\; \emptyset \;\; \forall x \;\; \exists y \;\; \neg p \;\; p \land q \;\; p \lor q \;\; p \to q $$
+        $$ a \in A \;\; a \notin A \;\; a \ni A \;\; A \subset B \;\; A \subseteq B \;\; A \supset B \;\; A \supseteq B \;\; \emptyset \;\; \varnothing \;\; \forall x \;\; \exists y \;\; \nexists z \;\; \neg p \;\; p \land q \;\; p \lor q \;\; p \to q \;\; p \implies q \;\; p \iff q $$
 
-        *Not supported:* `\notin` · `\varnothing` · `\nexists` · `\implies` · `\iff`
+        *Not supported (need the AMS `msbm` font):* blackboard bold `\mathbb{R}` · Hebrew `\beth` / `\gimel` / `\daleth`
 
         ## Arrows
 
-        $$ a \to b \;\; a \gets b \;\; a \rightarrow b \;\; a \leftarrow b \;\; a \Rightarrow b \;\; a \Leftarrow b \;\; a \leftrightarrow b \;\; a \Leftrightarrow b \;\; a \uparrow b \;\; a \downarrow b \;\; a \rightharpoonup b $$
-
-        *Not supported:* `\mapsto` · `\longrightarrow` · `\longleftarrow` · `\hookrightarrow`
+        $$ a \to b \;\; a \gets b \;\; a \rightarrow b \;\; a \leftarrow b \;\; a \Rightarrow b \;\; a \Leftarrow b \;\; a \leftrightarrow b \;\; a \Leftrightarrow b \;\; a \mapsto b \;\; a \longrightarrow b \;\; a \longleftarrow b \;\; a \hookrightarrow b \;\; a \Longrightarrow b \;\; a \Longleftrightarrow b \;\; a \uparrow b \;\; a \downarrow b \;\; a \rightharpoonup b $$
 
         ## Accents
 
-        $$ \hat{a} \;\; \bar{a} \;\; \vec{a} \;\; \dot{a} \;\; \ddot{a} \;\; \tilde{a} \;\; \acute{a} \;\; \grave{a} \;\; \check{a} \;\; \breve{a} \;\; \widehat{abc} \;\; \widetilde{abc} \;\; \overline{abc} \;\; \underline{abc} $$
-
-        *Not supported:* `\mathring` · `\overrightarrow` · `\overleftarrow`
+        $$ \hat{a} \;\; \bar{a} \;\; \vec{a} \;\; \dot{a} \;\; \ddot{a} \;\; \tilde{a} \;\; \acute{a} \;\; \grave{a} \;\; \check{a} \;\; \breve{a} \;\; \mathring{a} \;\; \widehat{abc} \;\; \widetilde{abc} \;\; \overline{abc} \;\; \underline{abc} \;\; \overrightarrow{AB} \;\; \overleftarrow{AB} $$
 
         ## Dots and ellipses
 
-        $$ a_1 + a_2 + \cdots + a_n \;\; 1, 2, \ldots, n $$
+        $$ a_1 + a_2 + \cdots + a_n \;\; 1, 2, \ldots, n \;\; 1, 2, \dots, n \;\; \vdots \;\; \ddots $$
 
-        *Not supported:* `\vdots` · `\ddots` · `\dots`
+        `\vdots` and `\ddots` are most at home inside a matrix — see the
+        [structures reference](latex-math-structures.md).
 
         ## Miscellaneous symbols
 
-        $$ \infty \;\; \partial \;\; \nabla \;\; \aleph \;\; \hbar \;\; \ell \;\; \Re \;\; \Im \;\; \wp \;\; \angle \;\; \triangle \;\; \top \;\; \bot \;\; \surd \;\; \flat \;\; \sharp \;\; \natural \;\; \dagger \;\; \ddagger \;\; \clubsuit \;\; \diamondsuit \;\; \heartsuit \;\; \spadesuit $$
+        $$ \infty \;\; \partial \;\; \nabla \;\; \aleph \;\; \hbar \;\; \ell \;\; \Re \;\; \Im \;\; \wp \;\; \angle \;\; \triangle \;\; \top \;\; \bot \;\; \surd \;\; \flat \;\; \sharp \;\; \natural \;\; \dagger \;\; \ddagger \;\; \S \;\; \P \;\; \clubsuit \;\; \diamondsuit \;\; \heartsuit \;\; \spadesuit $$
 
-        *Not supported:* `\S` · `\P`
+        *Not supported (need the AMS `msbm` font):* `\mho` · `\hslash` · `\Bbbk` · `\eth`
         """;
 
     private const string LatexMathStructures =
@@ -135,7 +152,18 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \frac{a}{b} \;\; \frac{1}{1 + \frac{1}{x}} \;\; \frac{\partial f}{\partial x} $$
 
-        *Not supported:* `\dfrac` · `\tfrac` · `\cfrac`
+        `\dfrac` and `\tfrac` force display or text style — visible on a subscript, where a plain `\frac`
+        shrinks but `\dfrac` stays full size:
+
+        $$ x_{\frac{a}{b}} \;\; x_{\dfrac{a}{b}} \;\; \tfrac{a}{b} $$
+
+        `\cfrac[l|c|r]{…}{…}` builds a continued fraction whose nested levels stay full size:
+
+        $$ \cfrac{1}{2 + \cfrac{1}{3 + \cfrac{1}{4}}} $$
+
+        The inline "slash" fractions `\nicefrac{…}{…}` and `\sfrac{…}{…}`:
+
+        $$ \nicefrac{1}{2} \;\; \sfrac{3}{4} \;\; 2\sfrac{1}{2} $$
 
         ## Binomial coefficients
 
@@ -145,21 +173,39 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \sqrt{2} \;\; \sqrt{x^2 + y^2} \;\; \sqrt[3]{x} \;\; \sqrt[n]{a} $$
 
-        ## Sums, products and limits
+        ## Sums and products
 
         $$ \sum_{i=1}^{n} i = \frac{n(n+1)}{2} \;\; \prod_{i=1}^{n} i = n! \;\; \coprod_{i} X_i $$
 
-        $$ \lim_{x \to \infty} \frac{1}{x} = 0 \;\; \lim_{n \to \infty} \left(1 + \frac{1}{n}\right)^{n} = e $$
+        ## Big operators
 
-        ## Integrals and big operators
+        $$ \bigcup_i A_i \;\; \bigcap_i A_i \;\; \bigsqcup_i S_i \;\; \biguplus_i M_i \;\; \bigvee_i p_i \;\; \bigwedge_i p_i \;\; \bigoplus_i V_i \;\; \bigotimes_i V_i \;\; \bigodot_i x_i $$
 
-        $$ \int_0^1 x^2 \, dx \;\; \oint_C \vec{F} \cdot d\vec{r} \;\; \bigcup_{i} A_i \;\; \bigcap_{i} A_i \;\; \bigoplus_{i} V_i $$
+        ## Integrals
 
-        *Not supported:* `\iint` · `\iiint`
+        $$ \int_0^1 x^2 \, dx \;\; \oint_C \vec{F} \cdot d\vec{r} \;\; \iint_D f \, dA \;\; \iiint_V f \, dV \;\; \iiiint \;\; \idotsint \;\; \oiint_S \vec{F} \cdot d\vec{S} \;\; \oiiint $$
 
-        ## Named operators and functions
+        ## Named functions and operators
 
-        $$ \sin x \;\; \cos x \;\; \tan x \;\; \log x \;\; \ln x \;\; \exp x \;\; \gcd(a,b) \;\; \max_i a_i \;\; \min_i a_i \;\; \sup S \;\; \inf S \;\; \det A \;\; \dim V $$
+        Trigonometric and hyperbolic:
+
+        $$ \sin x \;\; \cos x \;\; \tan x \;\; \cot x \;\; \sec x \;\; \csc x \;\; \sinh x \;\; \cosh x \;\; \tanh x \;\; \coth x \;\; \arcsin x \;\; \arccos x \;\; \arctan x $$
+
+        Logarithms and exponential:
+
+        $$ \log x \;\; \ln x \;\; \lg x \;\; \exp x $$
+
+        Limits and bounds:
+
+        $$ \lim_{x \to \infty} \frac{1}{x} = 0 \;\; \limsup_{n} a_n \;\; \liminf_{n} a_n \;\; \sup S \;\; \inf S \;\; \max_i a_i \;\; \min_i a_i $$
+
+        Algebra and miscellaneous:
+
+        $$ \arg z \;\; \det A \;\; \dim V \;\; \gcd(a,b) \;\; \ker T \;\; \hom(A, B) \;\; \deg f \;\; \Pr(X) $$
+
+        Modulo:
+
+        $$ n \bmod m \;\; a \equiv b \pmod{n} \;\; a \equiv b \pod{n} \;\; x \mod y $$
 
         ## Auto-sized delimiters
 
@@ -199,6 +245,11 @@ internal sealed class MarkdownSamples : ISampleSet
         A 3×3 matrix, and a row vector using `\cdots`:
 
         $$ \begin{bmatrix} 1 & 2 & 3 \\ 4 & 5 & 6 \\ 7 & 8 & 9 \end{bmatrix} \;\; \begin{pmatrix} a_1 & \cdots & a_n \end{pmatrix} $$
+
+        A general matrix elides its entries with `\cdots` (horizontal), `\vdots` (vertical) and
+        `\ddots` (diagonal):
+
+        $$ \begin{bmatrix} a_{11} & \cdots & a_{1n} \\ \vdots & \ddots & \vdots \\ a_{m1} & \cdots & a_{mn} \end{bmatrix} $$
 
         ## Piecewise definitions (cases)
 
@@ -246,17 +297,89 @@ internal sealed class MarkdownSamples : ISampleSet
 
         ## Spacing
 
-        The thin, negative, medium and thick spaces (`\,` `\!` `\:` `\;`) are supported:
+        Thin, negative, medium and thick spaces (`\,` `\!` `\:` `\;`), the wider `\quad` and
+        `\qquad`, the tie `~` and control space `\ `, and explicit `\hspace{<length>}`:
 
-        $$ x\,y \;\; x\!y \;\; x\:y \;\; x\;y $$
-
-        *Not supported:* `\quad` · `\qquad` · `\ ` (control space) · `~` · `\hspace`
+        $$ x\,y \;\; x\!y \;\; x\:y \;\; x\;y \;\; x\quad y \;\; x\qquad y \;\; x~y \;\; x\ y \;\; x\hspace{12pt}y $$
 
         ## Not supported — decorations & phantoms
 
         These otherwise-standard constructs currently fall back to source rather than rendering:
 
         `\overbrace` · `\underbrace` · `\overset` · `\underset` · `\stackrel` · `\substack` · `\phantom` · `\hphantom` · `\vphantom`
+        """;
+
+    private const string LatexMathAmssymb =
+        """
+        # LaTeX math — AMS symbols (amssymb)
+
+        A coverage map of the AMS `amssymb` symbol set: **167 of 224** symbols render with the bundled
+        fonts. Each `$$` block below uses only symbols the engine **supports**, so it typesets; the symbols it
+        does **not** support are listed after each group as *Not supported*. (In the app an unsupported formula
+        falls back to showing its raw `$$ … $$` source, so nothing here is silently wrong.)
+
+        Almost every gap is a **missing font**, not a layout limitation: the dedicated AMS glyphs live in the
+        `msbm` font (blackboard-bold, Hebrew letters, the "negation-with-its-own-glyph" relations such as
+        `\subsetneq`/`\lneqq`) and a handful of `msam` glyphs (`\ltimes`, `\lessdot`, `\dashrightarrow`, …)
+        that the bundled `jlm_msam10` re-encoding omits. Bundling those fonts is the way to close the gap.
+
+        See the [symbols reference](latex-math-symbols.md) for the core LaTeX symbols and the reading convention.
+
+        ## Relations — 56 of 66 render
+
+        $$ \leqq \;\; \leqslant \;\; \eqslantless \;\; \lesssim \;\; \lessapprox \;\; \lll \;\; \lessgtr \;\; \lesseqgtr \;\; \lesseqqgtr \;\; \doteqdot \;\; \risingdotseq \;\; \fallingdotseq \;\; \backsim $$
+
+        $$ \backsimeq \;\; \subseteqq \;\; \Subset \;\; \sqsubset \;\; \preccurlyeq \;\; \curlyeqprec \;\; \precsim \;\; \vartriangleleft \;\; \trianglelefteq \;\; \vDash \;\; \Vvdash \;\; \smallsmile \;\; \smallfrown $$
+
+        $$ \bumpeq \;\; \Bumpeq \;\; \geqq \;\; \geqslant \;\; \eqslantgtr \;\; \gtrsim \;\; \gtrapprox \;\; \ggg \;\; \gtrless \;\; \gtreqless \;\; \gtreqqless \;\; \eqcirc \;\; \circeq $$
+
+        $$ \triangleq \;\; \supseteqq \;\; \Supset \;\; \sqsupset \;\; \succcurlyeq \;\; \curlyeqsucc \;\; \succsim \;\; \vartriangleright \;\; \trianglerighteq \;\; \Vdash \;\; \between \;\; \pitchfork \;\; \varpropto $$
+
+        $$ \blacktriangleleft \;\; \therefore \;\; \blacktriangleright \;\; \because $$
+
+        *Not supported (glyph absent from the bundled fonts):* `\approxeq` · `\lessdot` · `\precapprox` · `\gtrdot` · `\thicksim` · `\thickapprox` · `\succapprox` · `\shortmid` · `\shortparallel` · `\backepsilon`
+
+        ## Binary operators — 19 of 23 render
+
+        $$ \dotplus \;\; \Cap \;\; \Cup \;\; \barwedge \;\; \veebar \;\; \doublebarwedge \;\; \boxminus \;\; \boxtimes \;\; \boxdot \;\; \boxplus \;\; \leftthreetimes \;\; \rightthreetimes \;\; \curlywedge $$
+
+        $$ \curlyvee \;\; \circleddash \;\; \circledast \;\; \circledcirc \;\; \centerdot \;\; \intercal $$
+
+        *Not supported (glyph absent from the bundled fonts):* `\smallsetminus` · `\divideontimes` · `\ltimes` · `\rtimes`
+
+        ## Arrows — 28 of 32 render
+
+        $$ \leftleftarrows \;\; \leftrightarrows \;\; \Lleftarrow \;\; \twoheadleftarrow \;\; \leftarrowtail \;\; \looparrowleft \;\; \leftrightharpoons \;\; \circlearrowleft \;\; \Lsh \;\; \upuparrows \;\; \upharpoonleft \;\; \downharpoonleft \;\; \multimap $$
+
+        $$ \leftrightsquigarrow \;\; \rightrightarrows \;\; \rightleftarrows \;\; \twoheadrightarrow \;\; \rightarrowtail \;\; \looparrowright \;\; \rightleftharpoons \;\; \circlearrowright \;\; \Rsh \;\; \downdownarrows \;\; \upharpoonright \;\; \downharpoonright \;\; \rightsquigarrow $$
+
+        $$ \Rrightarrow \;\; \leadsto $$
+
+        *Not supported (glyph absent from the bundled fonts):* `\dashrightarrow` · `\dashleftarrow` · `\curvearrowleft` · `\curvearrowright`
+
+        ## Negated relations — 31 of 56 render
+
+        $$ \nless \;\; \nleq \;\; \nleqslant \;\; \nleqq \;\; \nprec \;\; \npreceq \;\; \nsim \;\; \nmid \;\; \nvdash \;\; \nVdash \;\; \ntriangleleft \;\; \ntrianglelefteq \;\; \nsubseteq $$
+
+        $$ \ngtr \;\; \ngeq \;\; \ngeqslant \;\; \ngeqq \;\; \nsucc \;\; \nsucceq \;\; \ncong \;\; \nparallel \;\; \nvDash \;\; \ntriangleright \;\; \ntrianglerighteq \;\; \nsupseteq \;\; \nleftarrow $$
+
+        $$ \nrightarrow \;\; \nLeftarrow \;\; \nRightarrow \;\; \nleftrightarrow \;\; \nLeftrightarrow $$
+
+        *Not supported (glyph absent from the bundled fonts):* `\lneq` · `\lneqq` · `\lvertneqq` · `\lnsim` · `\lnapprox` · `\precnsim` · `\precnapprox` · `\nshortmid` · `\subsetneq` · `\varsubsetneq` · `\subsetneqq` · `\varsubsetneqq` · `\gneq` · `\gneqq` · `\gvertneqq` · `\gnsim` · `\gnapprox` · `\succnsim` · `\succnapprox` · `\nshortparallel` · `\nVDash` · `\supsetneq` · `\varsupsetneq` · `\supsetneqq` · `\varsupsetneqq`
+
+        ## Miscellaneous & letters — 27 of 41 render
+
+        $$ \hbar \;\; \vartriangle \;\; \triangledown \;\; \square \;\; \lozenge \;\; \circledS \;\; \angle \;\; \measuredangle \;\; \sphericalangle \;\; \nexists \;\; \backprime \;\; \varnothing \;\; \blacktriangle $$
+
+        $$ \blacktriangledown \;\; \blacksquare \;\; \blacklozenge \;\; \bigstar \;\; \complement \;\; \yen \;\; \checkmark \;\; \maltese \;\; \ulcorner \;\; \urcorner \;\; \llcorner \;\; \lrcorner \;\; \Box $$
+
+        $$ \Diamond $$
+
+        *Not supported (glyph absent from the bundled fonts):* `\hslash` · `\mho` · `\Finv` · `\Game` · `\Bbbk` · `\eth` · `\diagup` · `\diagdown` · `\digamma` · `\varkappa` · `\beth` · `\gimel` · `\daleth` · `\circledR`
+
+        ## Synonyms for existing symbols — 6 of 6 render
+
+        $$ \doublecap \;\; \doublecup \;\; \restriction \;\; \Doteq \;\; \llless \;\; \gggtr $$
         """;
 
     private const string Venn =

@@ -86,6 +86,26 @@ git -C <repo> submodule update --init --recursive
 ```
 (In a new worktree the submodule working trees may need this too.)
 
+**This is normally automatic — a new worktree self-populates.** Because the `external/*`
+submodules are wired as `ProjectReference`s, an empty submodule directory means the referenced
+`.csproj` doesn't exist and Visual Studio / `dotnet build` fails to resolve it. Two committed
+safety nets fix this so "create a worktree, open VS, hit F5" just works:
+
+- **`.githooks/post-checkout`** runs after `git worktree add` (and any checkout) and initialises
+  any *uninitialised* submodule via `tools/ensure-submodules.ps1` — before the IDE opens. It only
+  touches submodules that aren't checked out, so it never resets one you're editing. Install it
+  **once per clone** with `pwsh tools/install-hooks.ps1` (it copies the committed hooks into the
+  shared `.git/hooks` that every worktree uses, and clears any stale `core.hooksPath`). A relative
+  `core.hooksPath` is deliberately *not* used — git resolves it against the invoking checkout, so it
+  wouldn't fire for a freshly-added worktree.
+- **`EnsureSubmodulesInitialized`** in `Directory.Build.targets` is a build-time self-heal: if a
+  submodule `.csproj` is still missing when a build starts, it runs the same helper before project
+  references are resolved. Covers clones where the hook path wasn't set, and CI. (Opt out with
+  `-p:NexaflowSkipSubmoduleInit=true`.) The submodule projects have their own `Directory.Build.*`,
+  so this target never runs inside them — only for Nexaflow's own projects.
+
+`tools/ensure-submodules.ps1` is safe to run by hand anytime; it's a no-op once submodules exist.
+
 ### 1. I'm only building Nexaflow (not changing external source)
 Nothing special — the pinned commit is already checked out. Just build (see **Verify** below). If the
 submodule folder is empty, run recipe 0.

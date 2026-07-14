@@ -1,5 +1,27 @@
 <Project>
 
+  <!-- A fresh `git worktree` starts with EMPTY submodule directories (external/DiscUtils,
+       external/xaml-math), so the ProjectReferences into them point at .csproj files that don't
+       exist yet and the build (or Visual Studio) can't resolve them. Populate any missing submodule
+       before project references are resolved, so creating a new worktree and hitting Build/F5 "just
+       works". This is a build-time SELF-HEAL: normally the committed .githooks/post-checkout hook
+       does this at worktree-creation time (see docs/externals.md); this target is the safety net for
+       when the hook hasn't run (hooks not yet configured on a clone, or a CI checkout). The shared
+       helper only initialises submodules that aren't checked out, so it never clobbers in-progress
+       submodule work. No-op once the submodules are present (a cheap file-exists check). Set
+       NexaflowSkipSubmoduleInit=true to opt out. -->
+  <Target Name="EnsureSubmodulesInitialized"
+          BeforeTargets="_SplitProjectReferencesByFileExistence;ResolveProjectReferences;PrepareForBuild"
+          Condition="'$(NexaflowSkipSubmoduleInit)' != 'true'
+                     And ( !Exists('$(MSBuildThisFileDirectory)external\DiscUtils\Library\DiscUtils.Core\DiscUtils.Core.csproj')
+                           Or !Exists('$(MSBuildThisFileDirectory)external\xaml-math\src\WpfMath\WpfMath.csproj') )">
+    <Message Importance="high"
+             Text="Nexaflow: external/ submodules are not initialised — populating them (fresh worktree)…" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)tools\ensure-submodules.ps1&quot;"
+          WorkingDirectory="$(MSBuildThisFileDirectory)"
+          ContinueOnError="true" />
+  </Target>
+
   <!-- The Email feature's MsgReader → Microsoft.Maui.Graphics → Microsoft.WindowsAppSDK chain adds a second,
        native_uap copy of Microsoft.Web.WebView2.Core.dll to windows-targeted projects. In any project that
        also pulls the Web feature's WPF WebView2 (Core, the Features test project, the installer) the two
