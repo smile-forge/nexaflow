@@ -421,6 +421,7 @@ degrades to a themed source-text box; unsupported constructs render what they ca
 | Grace notes | `{g}A`, `{gAGAG}A`, `{/g}A` | Cue-size heads, beamed, slashed for an acciaccatura |
 | Chords | `[CEG]2` `[A4d4]` | Stacked heads on one stem; seconds displaced across it |
 | Keys & modes | `K:C` `K:Cm` `K:C Lydian` `K:Bb` `K:F# clef=bass` | Full circle of fifths from tonic + mode, in any case, glued or spaced |
+| Meter | `M:4/4` `M:C` `M:C\|` `M:none` | Figures, or the **C / ¢ symbols** when the source asked for them; free meter prints none |
 | Mid-tune changes | `K:` `M:` `T:` in the body, `[K:G]` inline | Key/meter change printed in place and carried into the next system's header; `T:` becomes a section heading |
 | Rests | `z2` `x2` `Z` | Visible, invisible (time only), whole-bar (centred) |
 | Voices | `V:` / `[V: P1]` | One staff per voice (not yet bracketed into a system — the score says so) |
@@ -439,8 +440,19 @@ drawing so they can be asserted rather than eyeballed:
 - **Justification**: every system but a short final one fills the same width. The short one is *not*
   stretched to match, but nor is it left at its natural width — it is scaled by the same factor its
   siblings were, so its note spacing is continuous with the lines above and only the right edge is ragged.
+- **Note spacing** follows `base + rate × √duration` — the classical proportional-but-compressed curve, so a
+  whole note is about three times an eighth rather than eight times it — with a floor of a note head plus air
+  so a septuplet's heads can't touch.
+- **Lyrics** charge a note only *half* its syllable plus half its neighbour's, because a syllable is centred
+  under its head. Charging the full width made a line of long and short words lurch.
 - **Glyphs** are drawn as filled outlines, not as text: WPF's text pipeline gamma-corrects glyph coverage,
   which visibly fattens a music font's thin strokes.
+
+**A score's prose is text, not pixels.** The title, subtitles and the notes/source/verses under the score are
+*not* painted into the engraved element — they come back as real FlowDocument paragraphs either side of it
+(`WpfScoreRenderer.RenderBlocks`), so the reader can drag-select and copy them like any other markdown text.
+Only the notation itself is engraved. (The syllables under the notes are the exception: they are glued to head
+positions, so they stay part of the drawing.)
 
 The score is **interactive**: click a note head to select that note, click a measure's background to select
 the whole measure (highlighted barline-to-barline), or drag to select a note range — a themed accent wash,

@@ -9,9 +9,12 @@ namespace Nexaflow.Visuals.Text.Markdown.Music.Rendering;
 internal sealed class ScoreLayout
 {
     public double Width, Height;
-    public double TitleHeight;                    // ink above the first system (title, subtitles, credits)
-    public double CreditY;                        // baseline of the rhythm/composer row
-    public double FooterY;                        // top of the notes/verses block under the last system
+
+    /// <summary>Ink above the first staff — just the rhythm/composer credit row. The title, subtitles and the
+    /// notes under the score are <em>not</em> drawn here: the host emits them as real text so a reader can
+    /// select and copy them (see <see cref="WpfScoreRenderer"/>).</summary>
+    public double CreditHeight;
+
     public List<SystemLayout> Systems { get; } = [];
 
     /// <summary>Every event in reading order — the spine selection, ties and slurs walk.</summary>
@@ -32,14 +35,18 @@ internal sealed class SystemLayout
     public List<MeasureLayout> Measures { get; } = [];
     public double BottomLineY => TopLineY + StaffHeight;
 
-    /// <summary>Top of the block reserved above the staff. The rows stack downward from here — section
-    /// heading, then repeat brackets, then chord symbols — and the staff's own head-room follows.</summary>
+    /// <summary>Top of the block reserved above the staff — head-room for ledger notes and beams, plus a row
+    /// each for a section heading, repeat brackets and chord symbols where the score needs them.</summary>
     public double AboveTop;
     public bool HasVoltaRow, HasChordRow;
     public int LyricVerses;
 
-    public double VoltaTop => AboveTop + (SectionLabel is not null ? SectionRow : 0);
-    public double ChordTop => VoltaTop + (HasVoltaRow ? VoltaRow : 0);
+    // The rows above the staff hang off the staff, not off the top of the reserved block: a chord symbol
+    // belongs a fixed distance above the top line, not a fixed distance below whatever ledger head-room the
+    // tallest note in the score happened to need.
+    public double ChordTextTop => TopLineY - 0.9 * S - ChordRow;
+    public double VoltaLineY   => (HasChordRow ? ChordTextTop : TopLineY - 0.9 * S) - 0.7 * S;
+    public double SectionTop   => AboveTop;
 }
 
 internal sealed class MeasureLayout
@@ -92,13 +99,14 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
         double maxW = Math.Max(0.8 * availableWidth, 320);
         double minW = Math.Max(0.4 * availableWidth, 220);
 
-        layout.TitleHeight = MeasureFrontMatter(layout);
+        bool credits = !string.IsNullOrWhiteSpace(score.Composer) || !string.IsNullOrWhiteSpace(score.Rhythm);
+        layout.CreditHeight = credits ? CreditSize + 6 : 0;
 
         int verses = score.LyricVerses;
         bool anyChordRow = HasChordRow();
         bool anyVolta = HasVolta();
 
-        double y = layout.TitleHeight;
+        double y = layout.CreditHeight;
         double maxRight = 0;
 
         foreach (var staff in score.Staves)
@@ -135,34 +143,9 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
                     layout.Order.Add(pe);
                 }
 
-        layout.FooterY = y;
-        y += MeasureFooter();
-
         layout.Width = Math.Min(Math.Max(maxRight + RightMargin, minW), Math.Max(availableWidth, minW));
-        layout.Height = Math.Max(y, layout.TitleHeight + AbovePad + StaffHeight + BelowPad);
+        layout.Height = Math.Max(y, layout.CreditHeight + AbovePad + StaffHeight + BelowPad);
         return layout;
-    }
-
-    // ── Front matter and footer ─────────────────────────────────────────────
-
-    private double MeasureFrontMatter(ScoreLayout layout)
-    {
-        double h = 2;
-        if (!string.IsNullOrWhiteSpace(score.Title)) h += TitleSize + 6;
-        foreach (var _ in score.Subtitles) h += SubtitleSize + 3;
-
-        bool credits = !string.IsNullOrWhiteSpace(score.Composer) || !string.IsNullOrWhiteSpace(score.Rhythm);
-        layout.CreditY = h;
-        if (credits) h += CreditSize + 5;
-        return h;
-    }
-
-    private double MeasureFooter()
-    {
-        int lines = score.Notes.Count + score.Verses.Count;
-        if (!string.IsNullOrWhiteSpace(score.Source)) lines++;
-        if (!string.IsNullOrWhiteSpace(score.Transcription)) lines++;
-        return lines == 0 ? 0 : 6 + lines * (FooterSize + 4);
     }
 
     private bool HasChordRow()
@@ -203,20 +186,24 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
 
         foreach (var line in lines)
         {
-            // The signatures a system opens with are whatever is in force at its first measure. The meter prints
-            // once, on the first system — and again on any system that opens on a meter change.
+            // The signatures a system opens with are whatever is in force at its first measure. The meter is
+            // reprinted whenever it changes, and at the head of every new section — a section heading starts a
+            // fresh strain, and a reader arriving at one should not have to look back up the page for the meter.
+            bool showTime = staff.ShowTime &&
+                (!timeShown || line[0].TimeChange is not null || line[0].SectionLabel is not null);
+
             var sys = new SystemLayout
             {
                 Geom = geom,
                 Key = line[0].KeyChange ?? key,
                 Time = line[0].TimeChange ?? time,
-                ShowTime = staff.ShowTime && (!timeShown || line[0].TimeChange is not null),
+                ShowTime = showTime,
                 LeftX = LeftMargin,
                 SectionLabel = line[0].SectionLabel,
             };
             key = sys.Key;
             time = sys.Time;
-            timeShown |= sys.ShowTime;
+            timeShown |= showTime;
 
             var (clefX, keyStartX, timeStartX, contentStartX) = Header(geom, sys.Key.Fifths, sys.ShowTime);
             sys.ClefX = clefX;
@@ -235,7 +222,7 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
                     if (m.KeyChange is { } kc) key = kc;
                     if (m.TimeChange is { } tc) time = tc;
                 }
-                var ml = PlaceMeasure(m, x, geom, inlineSig);
+                var ml = PlaceMeasure(m, x, inlineSig);
                 ml.System = sys;
                 foreach (var pe in ml.Events) { pe.Measure = ml; pe.System = sys; }
                 sys.Measures.Add(ml);
@@ -259,8 +246,7 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
         if (systems.Count == 1)
         {
             var only = systems[0];
-            double natural = only.RightX;
-            double fill = Math.Clamp(natural, minW, maxW);
+            double fill = Math.Clamp(only.RightX, minW, maxW);
             Apply(only, ScaleFor(only, fill));
             return;
         }
@@ -271,16 +257,14 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
         {
             bool last = i == systems.Count - 1;
             if (last && lines[i].Count < fullest) continue;     // genuinely short tail — scaled below
-            double s = ScaleFor(systems[i], maxW);
-            sum += s;
+            sum += ScaleFor(systems[i], maxW);
             n++;
         }
 
         double mean = n > 0 ? sum / n : 1.0;
         for (int i = 0; i < systems.Count; i++)
         {
-            bool last = i == systems.Count - 1;
-            bool shortTail = last && lines[i].Count < fullest;
+            bool shortTail = i == systems.Count - 1 && lines[i].Count < fullest;
             double s = shortTail ? Math.Min(mean, ScaleFor(systems[i], maxW)) : ScaleFor(systems[i], maxW);
             Apply(systems[i], s);
         }
@@ -306,8 +290,8 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
             ml.EndX = At(ml.EndX);
             foreach (var pe in ml.Events)
             {
-                // Stretch the gaps, not the glyphs: the head moves, and its accidental / grace notes / dots
-                // keep their measured widths and stay clamped to it.
+                // Stretch the gaps, not the glyphs: the head moves, and its accidental / grace notes keep
+                // their measured widths and stay clamped to it.
                 pe.HeadX = At(pe.HeadX);
                 pe.SlotLeft = At(pe.SlotLeft);
                 pe.SlotRight = At(pe.SlotRight);
@@ -388,7 +372,7 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
     private static double TrailPad(Measure m) =>
         m.EndBarline is BarlineKind.Final or BarlineKind.RepeatEnd or BarlineKind.RepeatBoth ? 2.2 * S : 1.0 * S;
 
-    private double SigWidth(Measure m, bool inlineSig)
+    private static double SigWidthOf(Measure m, bool inlineSig)
     {
         if (!inlineSig) return 0;
         double w = 0;
@@ -399,12 +383,13 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
 
     private double MeasureWidth(Measure m, bool inlineSig)
     {
-        double w = LeadPad(m) + SigWidth(m, inlineSig) + TrailPad(m);
-        foreach (var ev in m.Events) w += EventSlot(ev);
+        double w = LeadPad(m) + SigWidthOf(m, inlineSig) + TrailPad(m);
+        for (int i = 0; i < m.Events.Count; i++)
+            w += EventSlot(m.Events[i], i + 1 < m.Events.Count ? m.Events[i + 1] : null);
         return w;
     }
 
-    private MeasureLayout PlaceMeasure(Measure m, double startX, StaffGeometry geom, bool inlineSig)
+    private MeasureLayout PlaceMeasure(Measure m, double startX, bool inlineSig)
     {
         var ml = new MeasureLayout
         {
@@ -412,13 +397,14 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
             StartX = startX,
             StartBarline = m.StartBarline,
             EndBarline = m.EndBarline,
-            SigWidth = SigWidth(m, inlineSig),
+            SigWidth = SigWidthOf(m, inlineSig),
         };
 
         double x = startX + LeadPad(m) + ml.SigWidth;
-        foreach (var ev in m.Events)
+        for (int i = 0; i < m.Events.Count; i++)
         {
-            double slot = EventSlot(ev);
+            var ev = m.Events[i];
+            double slot = EventSlot(ev, i + 1 < m.Events.Count ? m.Events[i + 1] : null);
             double graceW = GraceWidth(ev);
             double accW = AccWidth(ev);
 
@@ -439,26 +425,41 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
         return ml;
     }
 
-    /// <summary>The horizontal room one event needs: a duration-driven core (compressed if it's in a tuplet),
-    /// plus whatever hangs off it, plus enough not to collide with its own chord symbol or syllable.</summary>
-    private double EventSlot(MusicalEvent ev)
+    /// <summary>
+    /// The horizontal room one event needs: a duration-driven core (compressed if it's in a tuplet), plus
+    /// whatever hangs off it, and never less than a note head's width plus air.
+    ///
+    /// A syllable widens the slot only by <em>half</em> of itself plus half of its neighbour's, because lyrics
+    /// are centred under their note heads — charging each note the full width of its own syllable made a line
+    /// of long and short words lurch, which is what "the note spacing is all over the place" was.
+    /// </summary>
+    private double EventSlot(MusicalEvent ev, MusicalEvent? next)
     {
-        double core = 1.0 * S + 0.85 * S * Math.Sqrt(Math.Max(0.25, ev.Duration.QuarterLength));
+        double core = SlotBase + SlotRate * Math.Sqrt(Math.Max(0.125, ev.Duration.QuarterLength));
         if (ev.TupletNumber > 1 && ev.TupletTime > 0)
-            core *= (double)ev.TupletTime / ev.TupletNumber;    // 3 notes into 2 notes' worth of space
-
-        // …but never tighter than a note head plus air, or a septuplet's heads would overlap each other.
-        core = Math.Max(core, _noteW + 0.22 * S);
+            core *= Math.Max(TupletFloor, (double)ev.TupletTime / ev.TupletNumber);
 
         double w = GraceWidth(ev) + AccWidth(ev) + core + DotsWidth(ev);
+        w = Math.Max(w, _noteW + SlotFloor);
 
         if (ev.ChordSymbol is { } cs)
             w = Math.Max(w, ScoreText.Width(cs, ChordSize, _ppd) + 0.6 * S);
-        foreach (var syl in ev.Lyrics)
-            if (syl.Text.Length > 0)
-                w = Math.Max(w, ScoreText.Width(syl.Text, LyricSize, _ppd) + 0.5 * S);
+
+        double lyric = LyricHalf(ev) + LyricHalf(next) + LyricGap;
+        if (lyric > LyricGap) w = Math.Max(w, lyric);
 
         return w;
+    }
+
+    /// <summary>Half the widest syllable this event carries — its share of the gap to its neighbour.</summary>
+    private double LyricHalf(MusicalEvent? ev)
+    {
+        if (ev is null) return 0;
+        double widest = 0;
+        foreach (var syl in ev.Lyrics)
+            if (syl.Text.Length > 0)
+                widest = Math.Max(widest, ScoreText.Width(syl.Text, LyricSize, _ppd));
+        return widest / 2;
     }
 
     internal double AccWidth(MusicalEvent ev)
@@ -506,5 +507,5 @@ internal sealed class ScoreLayoutEngine(Score score, double staffSpace, double p
         ev.Duration.Dots == 0 ? 0 : DotGap + ev.Duration.Dots * (_dotW + DotSpacing);
 
     internal double GraceWidth(MusicalEvent ev) =>
-        ev.Graces.Count == 0 ? 0 : ev.Graces.Count * (_noteW * GraceScale + 0.3 * S) + GraceGap;
+        ev.Graces.Count == 0 ? 0 : ev.Graces.Count * (_noteW * GraceScale + GraceStep) + GraceGap;
 }

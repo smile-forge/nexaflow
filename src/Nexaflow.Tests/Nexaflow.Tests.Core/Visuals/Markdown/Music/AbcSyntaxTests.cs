@@ -310,6 +310,21 @@ public class AbcSyntaxTests
     }
 
     [TestMethod]
+    public void CommonAndCutTime_KeepTheirSymbols()
+    {
+        // M:C means the symbol. Engraving it as "4/4" would print something the writer didn't ask for.
+        var common = new AbcParser().Parse("X:1\nM:C\nK:C\nCDEF |]\n").Staves[0].Time;
+        Assert.AreEqual(TimeSymbol.Common, common.Symbol);
+        Assert.AreEqual(4.0, common.QuarterLengthPerMeasure, 0.001, "…while still counting as 4/4");
+
+        var cut = new AbcParser().Parse("X:1\nM:C|\nK:C\nCDEF |]\n").Staves[0].Time;
+        Assert.AreEqual(TimeSymbol.Cut, cut.Symbol);
+
+        Assert.AreEqual(TimeSymbol.Numeric, new AbcParser().Parse("X:1\nM:4/4\nK:C\nCDEF |]\n").Staves[0].Time.Symbol,
+            "a tune that wrote the figures gets the figures");
+    }
+
+    [TestMethod]
     public void FreeMeter_PrintsNoTimeSignature()
     {
         Assert.IsFalse(new AbcParser().Parse("X:1\nM:none\nK:C\nCDEF |]\n").Staves[0].ShowTime);

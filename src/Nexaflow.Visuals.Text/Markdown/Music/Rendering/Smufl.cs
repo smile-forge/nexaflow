@@ -56,6 +56,8 @@ internal static class Smufl
     public const int Rest32nd        = 0xE4E8;
 
     public const int TimeSig0 = 0xE080;          // 0..9 are contiguous: TimeSig0 + digit
+    public const int TimeSigCommon    = 0xE08A;  // the C of common time…
+    public const int TimeSigCutCommon = 0xE08B;  // …and the struck C of cut time
     public const int AugmentationDot = 0xE1E7;
 
     // Articulations. Each has an "Above" and a "Below" form; the Below glyph is the next codepoint up.

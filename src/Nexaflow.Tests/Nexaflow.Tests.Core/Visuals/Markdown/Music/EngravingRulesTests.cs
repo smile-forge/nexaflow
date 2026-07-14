@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Music.Model;
@@ -123,5 +124,48 @@ public class EngravingRulesTests
         double total = 0;
         for (int i = 1; i < xs.Length; i++) total += xs[i] - xs[i - 1];
         return total / (xs.Length - 1);
+    }
+
+    // ── Layout: note spacing ────────────────────────────────────────────────
+
+    [TestMethod]
+    public void ShorterNotes_TakeLessRoomThanLongerOnes()
+    {
+        // A whole note is not eight times an eighth — the curve is compressed — but it is decidedly wider,
+        // and every step up the ladder gains room.
+        var layout = Layout("X:1\nM:C\nL:1/16\nK:C\nA/2 A A2 A4 A8 A16 |]\n", 900);
+        var gaps = Gaps(layout.Systems[0].Measures[0]);
+
+        for (int i = 1; i < gaps.Count; i++)
+            Assert.IsTrue(gaps[i] > gaps[i - 1] + 0.5,
+                $"a note of {i + 1} steps' value should sit wider than the one before it ({gaps[i - 1]:F1} → {gaps[i]:F1})");
+    }
+
+    /// <summary>
+    /// A syllable is centred under its note head, so it only needs half of itself on each side. Charging a note
+    /// the <em>full</em> width of its own syllable — which is what made a sung line lurch — over-pays by about
+    /// double: on this line it would push the first gap to roughly 4× the plain one instead of 2×.
+    /// </summary>
+    [TestMethod]
+    public void ASungNote_IsChargedHalfItsSyllable_NotAllOfIt()
+    {
+        var layout = Layout("X:1\nM:4/4\nL:1/4\nK:C\nA A A A A A |\nw:extraordinarily by a to be it\n", 900);
+        var gaps = Gaps(layout.Systems[0].Measures[0]);
+
+        double min = gaps.Min(), max = gaps.Max();
+        Assert.IsTrue(max <= min * 2.5,
+            $"even the longest syllable should not blow the line apart (gaps {min:F1}–{max:F1})");
+        Assert.IsTrue(max > min * 1.1, "…but a long syllable does still ask for room");
+    }
+
+    private static ScoreLayout Layout(string abc, double width) =>
+        new ScoreLayoutEngine(new AbcParser().Parse(abc), 8.0, 1.0).Build(width);
+
+    private static List<double> Gaps(MeasureLayout ml)
+    {
+        var gaps = new List<double>();
+        for (int i = 1; i < ml.Events.Count; i++)
+            gaps.Add(ml.Events[i].HeadX - ml.Events[i - 1].HeadX);
+        return gaps;
     }
 }

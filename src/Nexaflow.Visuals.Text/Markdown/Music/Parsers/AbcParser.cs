@@ -229,8 +229,9 @@ public sealed class AbcParser
     {
         v = v.Trim();
         set = true;
-        if (v is "C") return new TimeSignature(4, 4);
-        if (v is "C|") return new TimeSignature(2, 2);
+        if (v is "C") return TimeSignature.Common;      // the ¢/C symbols are what the writer asked for —
+        if (v is "C|") return TimeSignature.Cut;         // printing "4/4" instead would lose that
+
         int slash = v.IndexOf('/');
         if (slash > 0 &&
             int.TryParse(v[..slash], out int n) &&

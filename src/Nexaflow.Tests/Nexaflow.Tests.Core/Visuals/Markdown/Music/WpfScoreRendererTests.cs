@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -41,6 +42,11 @@ public class WpfScoreRendererTests
         "[| \"Gm7\"{g}A>B (3cde ~f.g |1 [CEG]2 A-A A2 :|2 (AB) __c =d |]\n" +
         "M:3/4\nK:Dm\nA16 z2 x2 Z |]\n" +
         "w:one two-syl-la-ble * held_\nW:a verse\n";
+
+    /// <summary>The staff itself. A score with a title comes back wrapped — the title and the notes under the
+    /// score are real text blocks so the reader can select them, and only the notation is an engraved element.</summary>
+    private static ScoreElement StaffOf(string abc) =>
+        new(new AbcParser().Parse(abc), MarkdownPalette.Light);
 
     private static void ForceRender(FrameworkElement fe, double width)
     {
@@ -104,7 +110,7 @@ public class WpfScoreRendererTests
             "  GABc dedB|dedB dedB|c2ec B2dB|A2F2 G4:|\n" +
             "|:g2gf gdBd|g2f2 e2d2|c2ec B2dB|c2A2 A2df|\n" +
             "  g2gf g2Bd|g2f2 e2d2|c2ec B2dB|A2F2 G4:|\n";
-        var se = (ScoreElement)WpfScoreRenderer.Render(new AbcParser().Parse(fourLines), MarkdownPalette.Dark);
+        var se = StaffOf(fourLines);
         ForceRender(se, 1000);
         var rights = se.SystemRightEdges;
         Assert.IsTrue(rights.Count >= 3, "expected several systems");
@@ -115,8 +121,7 @@ public class WpfScoreRendererTests
     [TestMethod]
     public void Selection_NoteClick_MeasureClick_DragExtends_Clear() => UiThread.Run(() =>
     {
-        var score = new AbcParser().Parse(SpeedThePlough);
-        var se = (ScoreElement)WpfScoreRenderer.Render(score, MarkdownPalette.Light);
+        var se = StaffOf(SpeedThePlough);
         se.Measure(new Size(700, double.PositiveInfinity));
         se.Arrange(new Rect(new Point(0, 0), se.DesiredSize));
         se.UpdateLayout();
@@ -154,8 +159,8 @@ public class WpfScoreRendererTests
     [TestMethod]
     public void Selection_IsCleared_WhenAnotherBlockOrTextTakesIt() => UiThread.Run(() =>
     {
-        var a = (ScoreElement)WpfScoreRenderer.Render(new AbcParser().Parse(SpeedThePlough), MarkdownPalette.Light);
-        var b = (ScoreElement)WpfScoreRenderer.Render(new AbcParser().Parse(SpeedThePlough), MarkdownPalette.Light);
+        var a = StaffOf(SpeedThePlough);
+        var b = StaffOf(SpeedThePlough);
         foreach (var se in new[] { a, b })
         {
             se.Measure(new Size(700, double.PositiveInfinity));
@@ -184,11 +189,32 @@ public class WpfScoreRendererTests
     });
 
     [TestMethod]
-    public void ScoreWithNoWarnings_IsTheBareElement_SoTheHostCanDriveItsSelection() => UiThread.Run(() =>
+    public void ScoreProse_IsText_NotPixels() => UiThread.Run(() =>
     {
-        // The markdown host hit-tests for an IInteractiveBlock; a warnings wrapper must not be the only thing
-        // it finds. (It walks up through wrappers, but the common case should still be the element itself.)
-        var fe = WpfScoreRenderer.Render(new AbcParser().Parse(SpeedThePlough), MarkdownPalette.Light);
+        // The title and the notes under a score have to be selectable, which means they cannot be painted into
+        // the score element. RenderBlocks puts them in FlowDocument paragraphs either side of the staff.
+        var score = new AbcParser().Parse(TheWorks);
+        var blocks = WpfScoreRenderer.RenderBlocks(score, MarkdownPalette.Light).ToList();
+
+        var text = blocks.OfType<System.Windows.Documents.Paragraph>()
+            .SelectMany(p => p.Inlines.OfType<System.Windows.Documents.Run>())
+            .Select(r => r.Text)
+            .ToList();
+
+        Assert.AreEqual(1, blocks.OfType<System.Windows.Documents.BlockUIContainer>().Count(), "one engraved staff");
+        CollectionAssert.Contains(text, "The works", "the title is real text");
+        CollectionAssert.Contains(text, "a subtitle");
+        CollectionAssert.Contains(text, "Notes: a note");
+        CollectionAssert.Contains(text, "Source: Nowhere MSS");
+        CollectionAssert.Contains(text, "a verse");
+    });
+
+    [TestMethod]
+    public void ScoreWithNoTitleOrNotes_IsTheBareElement() => UiThread.Run(() =>
+    {
+        // Nothing to wrap it in — the host hit-tests for an IInteractiveBlock, and the common case should be
+        // the element itself.
+        var fe = WpfScoreRenderer.Render(new AbcParser().Parse("X:1\nM:C\nK:C\nCDEF|]"), MarkdownPalette.Light);
         Assert.IsInstanceOfType<ScoreElement>(fe);
     });
 

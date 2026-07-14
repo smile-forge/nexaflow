@@ -29,7 +29,15 @@ internal static class ScoreMetrics
     public const double LedgerThick    = 0.16 * S;
     public const double LedgerExt      = 0.32 * S;  // how far a ledger line reaches past the head
 
-    // Spacing.
+    // Spacing. The horizontal room a note takes is `SlotBase + SlotRate × √(quarter-lengths)` — the classical
+    // proportional-but-compressed curve, so a whole note is roughly three times an eighth rather than eight
+    // times it. SlotFloor is the collision guard: no note head may come closer to the next than this, which is
+    // what stops a septuplet's heads from touching.
+    public const double SlotBase  = 0.85 * S;
+    public const double SlotRate  = 2.1 * S;
+    public const double SlotFloor = 0.5 * S;        // added to the note-head width
+    public const double TupletFloor = 0.55;         // …and a tuplet never compresses below this fraction
+
     public const double LeftMargin   = 2.0;
     public const double RightMargin  = 6.0;
     public const double SystemGap    = 1.5 * S;
@@ -37,8 +45,10 @@ internal static class ScoreMetrics
     public const double AccGap       = 0.16 * S;    // accidental → note head
     public const double DotGap       = 0.42 * S;    // note head → first augmentation dot
     public const double DotSpacing   = 0.20 * S;    // between dots
-    public const double GraceGap     = 0.35 * S;    // grace group → its main note
+    public const double GraceGap     = 0.45 * S;    // grace group → its main note
+    public const double GraceStep    = 0.5 * S;     // …and between two grace note heads
     public const double GraceScale   = 0.60;
+    public const double LyricGap     = 0.5 * S;     // between two syllables under adjacent notes
 
     // Vertical room reserved outside the staff.
     public const double AbovePad     = 4.5 * S;     // ledger notes, articulations, beams
@@ -56,4 +66,8 @@ internal static class ScoreMetrics
     public const double LyricSize    = 11;
     public const double VoltaSize    = 9.5;
     public const double FooterSize   = 11;
+
+    /// <summary>Articulations and ornaments are drawn a size down from the notes — at full staff scale a
+    /// Bravura accent reads as big as the note head it belongs to.</summary>
+    public const double MarkScale = 0.78;
 }

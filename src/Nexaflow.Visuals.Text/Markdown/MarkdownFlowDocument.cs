@@ -77,8 +77,9 @@ public static class MarkdownFlowDocument
                 ListBlock       lb => [ListOf(lb, ctx)],
                 // MathBlock extends FencedCodeBlock — match first
                 MathBlock          => [UiFallback(block, raw, ctx)],
-                // Musical notation block — the engraver sizes + centres itself (40–80% of the column)
-                Music.MusicBlock   => [UiFallback(block, raw, ctx)],
+                // Musical notation. The staff is an embedded element (it has to be — it's engraved), but the
+                // score's prose comes back as real paragraphs, so the title and the notes under it drag-select.
+                Music.MusicBlock mus => Music.MusicRenderer.RenderBlocks(mus, ctx),
                 FencedCodeBlock fc when DiagramRenderer.IsDiagramLanguage(fc.Info)
                                    => [DiagramFallback(block, raw, ctx)],
                 FencedCodeBlock fc => [Code(fc.Lines.ToString(), fc.Span, ctx)],

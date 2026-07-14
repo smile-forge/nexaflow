@@ -33,57 +33,32 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
 
     public void Paint(DrawingContext dc)
     {
-        PaintFrontMatter(dc);
+        PaintCredits(dc);
         foreach (var sys in layout.Systems) PaintSystem(dc, sys);
         PaintTiesAndSlurs(dc);
         PaintTuplets(dc);
-        PaintFooter(dc);
     }
 
-    // ── Front matter ────────────────────────────────────────────────────────
+    // ── Credits ─────────────────────────────────────────────────────────────
 
-    private void PaintFrontMatter(DrawingContext dc)
+    /// <summary>The rhythm/composer row immediately above the first staff. The title, subtitles and the notes
+    /// under the score are the host's job, not this one's — drawn here they would be pixels, and the reader
+    /// could not select or copy them.</summary>
+    private void PaintCredits(DrawingContext dc)
     {
-        double y = 2;
-        if (!string.IsNullOrWhiteSpace(score.Title))
-        {
-            ScoreText.Draw(dc, score.Title!, new Point(layout.Width / 2, y), TitleSize, ink, ppd,
-                TextAlignment.Center, FontWeights.SemiBold);
-            y += TitleSize + 6;
-        }
-        foreach (var sub in score.Subtitles)
-        {
-            ScoreText.Draw(dc, sub, new Point(layout.Width / 2, y), SubtitleSize, ink, ppd, TextAlignment.Center);
-            y += SubtitleSize + 3;
-        }
+        if (layout.CreditHeight <= 0) return;
+        double y = 1;
 
-        // The credit row sits immediately above the first staff: rhythm on the left in italics, composer on
-        // the right with the origin bracketed after it.
         if (!string.IsNullOrWhiteSpace(score.Rhythm))
-            ScoreText.Draw(dc, score.Rhythm!, new Point(LeftMargin, layout.CreditY), CreditSize, ink, ppd,
+            ScoreText.Draw(dc, score.Rhythm!, new Point(LeftMargin, y), CreditSize, ink, ppd,
                 TextAlignment.Left, style: FontStyles.Italic);
 
         if (!string.IsNullOrWhiteSpace(score.Composer))
         {
             string credit = string.IsNullOrWhiteSpace(score.Origin) ? score.Composer! : $"{score.Composer} ({score.Origin})";
-            ScoreText.Draw(dc, credit, new Point(layout.Width - RightMargin, layout.CreditY), CreditSize, ink, ppd,
+            ScoreText.Draw(dc, credit, new Point(layout.Width - RightMargin, y), CreditSize, ink, ppd,
                 TextAlignment.Right);
         }
-    }
-
-    private void PaintFooter(DrawingContext dc)
-    {
-        double y = layout.FooterY + 6;
-        void Line(string s)
-        {
-            ScoreText.Draw(dc, s, new Point(LeftMargin, y), FooterSize, ink, ppd);
-            y += FooterSize + 4;
-        }
-
-        foreach (var n in score.Notes) Line($"Notes: {n}");
-        if (!string.IsNullOrWhiteSpace(score.Source)) Line($"Source: {score.Source}");
-        if (!string.IsNullOrWhiteSpace(score.Transcription)) Line($"Transcription: {score.Transcription}");
-        foreach (var v in score.Verses) Line(v);
     }
 
     // ── A system ────────────────────────────────────────────────────────────
@@ -93,7 +68,7 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
         var linePen = Pen(StaffLineThick);
 
         if (sys.SectionLabel is not null)
-            ScoreText.Draw(dc, sys.SectionLabel, new Point(sys.LeftX, sys.AboveTop), SubtitleSize, ink, ppd,
+            ScoreText.Draw(dc, sys.SectionLabel, new Point(sys.LeftX, sys.SectionTop), SubtitleSize, ink, ppd,
                 TextAlignment.Left, FontWeights.SemiBold);
 
         for (int k = 0; k <= 4; k++)
@@ -208,6 +183,14 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
 
     private void DrawTimeSignature(DrawingContext dc, SystemLayout sys, double startX, TimeSignature time)
     {
+        // A source that wrote M:C asked for the symbol, not the figures.
+        if (time.Symbol is TimeSymbol.Common or TimeSymbol.Cut)
+        {
+            int glyph = time.Symbol == TimeSymbol.Common ? Smufl.TimeSigCommon : Smufl.TimeSigCutCommon;
+            double w = Smufl.Advance(glyph, S);
+            DrawGlyph(dc, glyph, startX + 1.1 * S - w / 2, sys.BottomLineY - 2 * S);
+            return;
+        }
         DrawDigits(dc, time.Numerator, startX, sys.BottomLineY - 3 * S);
         DrawDigits(dc, time.Denominator, startX, sys.BottomLineY - 1 * S);
     }
@@ -274,8 +257,9 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
     }
 
     /// <summary>Repeat brackets. One runs from the measure that opens it to the measure that ends the repeat
-    /// (or to the one before the next bracket), and it closes with a down-tick only when the repeat sends the
-    /// reader back — an open-ended bracket is the last time through.</summary>
+    /// (or to the one before the next bracket), and it closes with a down-tick wherever the music stops — at a
+    /// repeat that sends the reader back, or at the final bar line. Only a bracket that runs on into more music
+    /// is left open.</summary>
     private void PaintVoltas(DrawingContext dc, SystemLayout sys)
     {
         var pen = Pen(ThinBarline);
@@ -289,10 +273,11 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
                    sys.Measures[j + 1].Source.Volta is null)
                 j++;
 
-            bool closed = sys.Measures[j].EndBarline is BarlineKind.RepeatEnd or BarlineKind.RepeatBoth;
+            bool closed = sys.Measures[j].EndBarline
+                is BarlineKind.RepeatEnd or BarlineKind.RepeatBoth or BarlineKind.Final;
             double x0 = sys.Measures[i].StartX;
             double x1 = sys.Measures[j].EndX;
-            double y = sys.ChordTop + VoltaRow - 0.35 * S;
+            double y = sys.VoltaLineY;
 
             dc.DrawLine(pen, new Point(x0, y), new Point(x1, y));
             dc.DrawLine(pen, new Point(x0, y), new Point(x0, y + 0.9 * S));
@@ -460,6 +445,11 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
         {
             double want = (down ? outerY[i] + StemLen : outerY[i] - StemLen) - slope * (x[i] - x[0]);
             a = down ? Math.Max(a, want) : Math.Min(a, want);
+
+            // An up beam must also clear any grace notes crushed in before a member of the group — otherwise
+            // the beam cuts straight through them.
+            if (!down && g[i].Ev.Graces.Count > 0)
+                a = Math.Min(a, GraceTop(g[i], sys) - 0.4 * S - slope * (x[i] - x[0]));
         }
         double BeamY(double px) => a + slope * (px - x[0]);
 
@@ -511,16 +501,21 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
 
     // ── Grace notes ─────────────────────────────────────────────────────────
 
+    /// <summary>Grace notes: cue-size heads with their own stems and beam, and a slur into the note they lead
+    /// to — the curve is what says "these belong to that note". An acciaccatura's slash is drawn across the
+    /// stem of the first grace note only, which is where it belongs; drawn across the heads (as it was) it read
+    /// as if the notes had been struck out.</summary>
     private void DrawGraces(DrawingContext dc, PlacedEvent pe, SystemLayout sys)
     {
         if (pe.Ev.Graces.Count == 0) return;
 
         double gw = _noteW * GraceScale;
-        double step = gw + 0.3 * S;
+        double step = gw + GraceStep;
         double x = pe.GraceX;
-        double stemLen = StemLen * 0.75;
+        double stemLen = StemLen * 0.8;
         var pen = Pen(StemThick * 0.85);
 
+        var heads = new List<(double x, double y)>();
         var stems = new List<(double x, double y)>();
         foreach (var gn in pe.Ev.Graces)
         {
@@ -530,29 +525,47 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
             else dc.DrawEllipse(ink, null, new Point(x + gw / 2, cy), 0.38 * S, 0.3 * S);
 
             double sx = x + gw - StemThick / 2;
-            dc.DrawLine(pen, new Point(sx, cy), new Point(sx, cy - stemLen));
+            heads.Add((x + gw / 2, cy));
             stems.Add((sx, cy - stemLen));
             x += step;
         }
 
+        // The beam sits above every stem end in the group, so a leaping grace run doesn't poke through it.
+        double beamY = double.MaxValue;
+        foreach (var s in stems) beamY = Math.Min(beamY, s.y);
+
+        for (int i = 0; i < stems.Count; i++)
+            dc.DrawLine(pen, new Point(stems[i].x, heads[i].y), new Point(stems[i].x, stems.Count >= 2 ? beamY : stems[i].y));
+
         if (stems.Count >= 2)
-        {
-            // Beam the group with one thin bar rather than flagging each note.
-            double top = double.MaxValue;
-            foreach (var s in stems) top = Math.Min(top, s.y);
-            var thick = BeamThick * GraceScale;
-            dc.DrawRectangle(ink, null, new Rect(stems[0].x, top, stems[^1].x - stems[0].x, thick));
-        }
-        else if (stems.Count == 1 && Smufl.Available)
-        {
+            dc.DrawRectangle(ink, null,
+                new Rect(stems[0].x, beamY, stems[^1].x - stems[0].x, BeamThick * GraceScale));
+        else if (Smufl.Available)
             Smufl.Draw(dc, Smufl.Flag8thUp, new Point(stems[0].x, stems[0].y), S, ink, GraceScale);
+
+        if (pe.Ev.GraceSlashed)
+        {
+            // Across the stem, between head and beam — not across the heads.
+            var (sx, sy) = stems[0];
+            double mid = (heads[0].y + sy) / 2;
+            dc.DrawLine(Pen(StemThick * 0.9),
+                new Point(sx - 0.55 * S, mid + 0.45 * S), new Point(sx + 0.55 * S, mid - 0.45 * S));
         }
 
-        if (pe.Ev.GraceSlashed && stems.Count > 0)
-        {
-            var (sx, sy) = stems[0];
-            dc.DrawLine(Pen(StemThick), new Point(sx - 0.5 * S, sy + 1.1 * S), new Point(sx + 0.7 * S, sy + 0.1 * S));
-        }
+        // …and the slur that ties the group to its note.
+        var (hx, hy) = heads[0];
+        double toX = pe.HeadX + _noteW / 2;
+        double toY = Y(sys, Engraving.Span(pe.Ev, sys.Geom).Lo);
+        Arc(dc, hx, toX, Math.Max(hy, toY) + 0.7 * S, under: true, depth: 0.6 * S);
+    }
+
+    /// <summary>How far above the staff a group's grace notes reach — a beam has to clear them.</summary>
+    private double GraceTop(PlacedEvent pe, SystemLayout sys)
+    {
+        double top = double.MaxValue;
+        foreach (var gn in pe.Ev.Graces)
+            top = Math.Min(top, Y(sys, sys.Geom.HalfSpacesAbove(gn.Pitch)) - StemLen * 0.8);
+        return top;
     }
 
     // ── Rests ───────────────────────────────────────────────────────────────
@@ -595,24 +608,26 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
         double cx = pe.HeadX + _noteW / 2;
 
         // A mark that belongs to the note hugs it on the side the stem isn't; everything else stacks above
-        // the staff, clear of any high notes.
-        double nearY = down ? Y(sys, hi) - 1.25 * S : Y(sys, lo) + 1.25 * S;
-        double staffY = Math.Min(sys.TopLineY, Y(sys, hi)) - 1.6 * S;
+        // the staff, clear of any high notes. All of them are drawn a size down — at full staff scale a
+        // Bravura accent reads as heavy as the note head it decorates.
+        double nearY = down ? Y(sys, hi) - 1.15 * S : Y(sys, lo) + 1.15 * S;
+        double staffY = Math.Min(sys.TopLineY, Y(sys, hi)) - 1.5 * S;
 
         foreach (var art in pe.Ev.Articulations)
         {
             bool onNote = art is ArticulationKind.Staccato or ArticulationKind.Tenuto;
             int glyph = ArticulationGlyph(art, above: onNote ? down : true);
+            double w = Smufl.Advance(glyph, S, MarkScale);
 
             if (onNote)
             {
-                DrawGlyph(dc, glyph, cx - Smufl.Advance(glyph, S) / 2, nearY);
-                nearY += down ? -1.0 * S : 1.0 * S;
+                Smufl.Draw(dc, glyph, new Point(cx - w / 2, nearY), S, ink, MarkScale);
+                nearY += down ? -0.9 * S : 0.9 * S;
             }
             else
             {
-                DrawGlyph(dc, glyph, cx - Smufl.Advance(glyph, S) / 2, staffY);
-                staffY -= 1.5 * S;
+                Smufl.Draw(dc, glyph, new Point(cx - w / 2, staffY), S, ink, MarkScale);
+                staffY -= 1.35 * S;
             }
         }
     }
@@ -638,7 +653,7 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
     private void DrawChordSymbolAndAnnotation(DrawingContext dc, PlacedEvent pe, SystemLayout sys)
     {
         if (pe.Ev.ChordSymbol is { } cs)
-            ScoreText.Draw(dc, cs, new Point(pe.HeadX, sys.ChordTop), ChordSize, ink, ppd,
+            ScoreText.Draw(dc, cs, new Point(pe.HeadX, sys.ChordTextTop), ChordSize, ink, ppd,
                 TextAlignment.Left, FontWeights.SemiBold);
 
         if (pe.Ev.Annotation is not { } an) return;
@@ -656,7 +671,7 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
                 ScoreText.Draw(dc, an, new Point(pe.HeadX + _noteW + 0.4 * S, sys.TopLineY + S), ChordSize, ink, ppd);
                 break;
             default:
-                ScoreText.Draw(dc, an, new Point(pe.HeadX, sys.ChordTop), ChordSize, ink, ppd,
+                ScoreText.Draw(dc, an, new Point(pe.HeadX, sys.ChordTextTop), ChordSize, ink, ppd,
                     TextAlignment.Left, style: FontStyles.Italic);
                 break;
         }
@@ -704,7 +719,14 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
             var pe = order[i];
 
             for (int k = 0; k < pe.Ev.SlurOpen; k++) open.Push(pe);
-            for (int k = 0; k < pe.Ev.SlurClose && open.Count > 0; k++) DrawSlur(dc, open.Pop(), pe);
+
+            // Nested slurs pop innermost-first, so the depth left on the stack is how many slurs still frame
+            // this one: the inner curve hugs the notes and each outer one arches over it.
+            for (int k = 0; k < pe.Ev.SlurClose && open.Count > 0; k++)
+            {
+                var from = open.Pop();
+                DrawSlur(dc, from, pe, open.Count);
+            }
 
             foreach (var n in TiedNotes(pe.Ev))
             {
@@ -743,32 +765,36 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
         return null;
     }
 
+    /// <summary>A tie runs from the centre of one head to the centre of the next, curving away from the stem
+    /// and sitting close to the heads it joins. When the two notes fall on different systems it is drawn twice —
+    /// leading off the end of the first line, and leading into the note on the next — which is what the reader
+    /// needs to follow it across the break.</summary>
     private void DrawTie(DrawingContext dc, PlacedEvent from, PlacedEvent to, Pitch pitch)
     {
         var sys = from.System;
-        int hs = sys.Geom.HalfSpacesAbove(pitch);
-        double y = Y(sys, hs);
-        bool under = !StemDown([from], sys.Geom);          // a tie curves away from the stem
-        double x0 = from.HeadX + _noteW + 0.15 * S;
-        double x1 = ReferenceEquals(to.System, sys) ? to.HeadX - 0.15 * S : from.Measure.EndX - 0.3 * S;
-        if (x1 <= x0 + 0.4 * S) x1 = x0 + 1.2 * S;
+        double y = Y(sys, sys.Geom.HalfSpacesAbove(pitch));
+        bool under = !StemDown([from], sys.Geom);
+        double cx = from.HeadX + _noteW / 2;
 
-        Arc(dc, x0, x1, y + (under ? 0.55 * S : -0.55 * S), under, 0.8 * S);
-
-        // Across a system break the second half of the tie leads into the note on the next line.
-        if (!ReferenceEquals(to.System, sys))
+        if (ReferenceEquals(to.System, sys))
         {
-            double y2 = Y(to.System, to.System.Geom.HalfSpacesAbove(pitch));
-            bool under2 = !StemDown([to], to.System.Geom);
-            Arc(dc, to.HeadX - 1.3 * S, to.HeadX - 0.15 * S,
-                y2 + (under2 ? 0.55 * S : -0.55 * S), under2, 0.8 * S);
+            Arc(dc, cx, to.HeadX + _noteW / 2, y + (under ? 0.5 * S : -0.5 * S), under, 0.55 * S);
+            return;
         }
+
+        Arc(dc, cx, from.Measure.EndX - 0.3 * S, y + (under ? 0.5 * S : -0.5 * S), under, 0.55 * S);
+
+        double y2 = Y(to.System, to.System.Geom.HalfSpacesAbove(pitch));
+        bool under2 = !StemDown([to], to.System.Geom);
+        Arc(dc, to.System.ContentStartX - 0.6 * S, to.HeadX + _noteW / 2,
+            y2 + (under2 ? 0.5 * S : -0.5 * S), under2, 0.55 * S);
     }
 
     /// <summary>A slur bows away from the stems, so it never crosses them: over a passage of down-stemmed notes
     /// it arches above, under an up-stemmed one it hangs below. The span votes, and it clears the outermost note
-    /// on whichever side it lands.</summary>
-    private void DrawSlur(DrawingContext dc, PlacedEvent from, PlacedEvent to)
+    /// on whichever side it lands. <paramref name="nesting"/> is how many slurs still frame this one — each
+    /// stands its curve further out, so an inner slur reads inside its outer one rather than on top of it.</summary>
+    private void DrawSlur(DrawingContext dc, PlacedEvent from, PlacedEvent to, int nesting)
     {
         var sys = from.System;
         if (!ReferenceEquals(to.System, sys)) to = LastOn(sys) ?? to;
@@ -795,11 +821,12 @@ internal sealed class ScorePainter(Score score, ScoreLayout layout, Brush ink, d
         }
 
         bool under = stemsUp * 2 >= span.Count;          // mostly up-stemmed → the slur goes below
+        double out_ = 0.9 * S + nesting * 0.9 * S;
         double y = under
-            ? Math.Max(bot, sys.BottomLineY) + 0.9 * S
-            : Math.Min(top, sys.TopLineY) - 0.9 * S;
+            ? Math.Max(bot, sys.BottomLineY) + out_
+            : Math.Min(top, sys.TopLineY) - out_;
 
-        Arc(dc, x0, x1, y, under, depth: 1.0 * S);
+        Arc(dc, x0, x1, y, under, depth: 0.85 * S);
     }
 
     private PlacedEvent? LastOn(SystemLayout sys)

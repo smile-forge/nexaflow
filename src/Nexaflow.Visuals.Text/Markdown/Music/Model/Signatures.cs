@@ -21,9 +21,19 @@ public sealed class KeySignature
     public static readonly int[] FlatOrder = [6, 2, 5, 1, 4, 0, 3];
 }
 
+/// <summary>How a time signature is printed. 4/4 and 2/2 have their own glyphs — a source that wrote
+/// <c>M:C</c> means the <em>symbol</em>, and engraving it as "4/4" loses what the writer said.</summary>
+public enum TimeSymbol { Numeric, Common, Cut }
+
 /// <summary>A time signature. <see cref="QuarterLengthPerMeasure"/> gives a bar's length in quarter
 /// notes so parsers can split an event stream into <see cref="Measure"/>s.</summary>
 public readonly record struct TimeSignature(int Numerator, int Denominator)
 {
+    /// <summary>Which way to print it. Defaults to the figures.</summary>
+    public TimeSymbol Symbol { get; init; }
+
+    public static TimeSignature Common => new(4, 4) { Symbol = TimeSymbol.Common };
+    public static TimeSignature Cut    => new(2, 2) { Symbol = TimeSymbol.Cut };
+
     public double QuarterLengthPerMeasure => Numerator * (4.0 / Denominator);
 }
