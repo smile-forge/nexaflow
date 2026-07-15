@@ -1150,12 +1150,12 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     private void EvaluateHandlers(string text, CancellationToken token)
     {
-        var pageVm               = (CurrentPage as IPageView)?.ViewModel;
-        var (_, clearWinner, _)  = CurrentRuntime.AiService!.ScoreHandlers(text, pageVm);
+        var pageVm = (CurrentPage as IPageView)?.ViewModel;
+        var (_, clearWinner, effectiveText, prefixed) = CurrentRuntime.AiService!.ScoreHandlers(text, pageVm);
 
-        if (clearWinner?.DisplaySymbol is not null)
+        if (clearWinner?.Symbol is not null)
         {
-            AiHandlerSymbol = clearWinner.DisplaySymbol;
+            AiHandlerSymbol = clearWinner.Symbol;
             AiIsListening   = false;
         }
         else
@@ -1166,21 +1166,22 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
         // Inline completion is only offered by the clear-winner handler.
         if (clearWinner is not null)
-            _ = UpdateCompletionAsync(clearWinner, text, pageVm, token);
+            _ = UpdateCompletionAsync(clearWinner, text, effectiveText, prefixed, pageVm, token);
         else
             AiCompletionSuggestion = null;
     }
 
-    private async Task UpdateCompletionAsync(IQueryHandler handler, string text,
-                                             IPageViewModel? pageVm, CancellationToken token)
+    private async Task UpdateCompletionAsync(IQueryHandler handler, string rawText, string effectiveText,
+                                             bool prefixed, IPageViewModel? pageVm, CancellationToken token)
     {
         string? suggestion;
-        try { suggestion = await handler.CompleteAsync(text, pageVm); }
+        try { suggestion = await handler.CompleteAsync(effectiveText, prefixed, pageVm); }
         catch { return; }
 
-        // Discard if cancelled or the input moved on while we were computing.
+        // Discard if cancelled or the input moved on while we were computing. The suggestion completes the
+        // stripped query, but the box shows the raw text (symbol included) — so staleness checks the raw.
         if (token.IsCancellationRequested) return;
-        if (!string.Equals(AiInputText, text, StringComparison.Ordinal)) return;
+        if (!string.Equals(AiInputText, rawText, StringComparison.Ordinal)) return;
 
         AiCompletionSuggestion = string.IsNullOrEmpty(suggestion) ? null : suggestion;
     }
@@ -1344,7 +1345,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
             await WaitForContextAsync(handler, pageVm, sendToken);
             if (sendToken.IsCancellationRequested) { handler.Abort(); return TurnOutcome.Cancelled; }
 
-            var (scored, clearWinner, effectiveText) = svc.ScoreHandlers(input, pageVm);
+            var (scored, clearWinner, effectiveText, prefixed) = svc.ScoreHandlers(input, pageVm);
             var selected = clearWinner;
             var effective = effectiveText;
 
@@ -1358,7 +1359,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
             if (selected is not null)
             {
                 string? result;
-                try   { result = await selected.ProcessAsync(effective, pageVm); }
+                try   { result = await selected.ProcessAsync(effective, prefixed, pageVm); }
                 catch (Exception ex) { handler.Abort(); ShowError("AI error", ex.Message); return TurnOutcome.Error; }
 
                 if (result is not null) handler.ShowFinal(result);

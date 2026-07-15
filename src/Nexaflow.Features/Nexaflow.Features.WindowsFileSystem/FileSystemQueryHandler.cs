@@ -21,7 +21,7 @@ public sealed class FileSystemQueryHandler : IQueryHandler
         "Navigates the file browser to a directory. " +
         "Use when the user types a full path (C:\\data), a relative path, or an environment variable path (%AppData%).";
 
-    public float CanProcess(string input, IPageViewModel? pageVm = null)
+    public float CanProcess(string input, bool prefixed, IPageViewModel? pageVm = null)
     {
         if (pageVm is not FileSystemViewModel fs) return 0f;
 
@@ -43,7 +43,7 @@ public sealed class FileSystemQueryHandler : IQueryHandler
         return ResolveRelative(trimmed, fs) is not null ? 0.6f : 0f;
     }
 
-    public Task<string?> ProcessAsync(string input, IPageViewModel? pageVm = null)
+    public Task<string?> ProcessAsync(string input, bool prefixed, IPageViewModel? pageVm = null)
     {
         if (pageVm is not FileSystemViewModel fs)
             return Task.FromResult<string?>("No file system context available.");

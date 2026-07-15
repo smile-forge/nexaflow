@@ -47,7 +47,7 @@ public class FileSystemQueryHandlerTests
             Directory.CreateDirectory(Path.Combine(dir, "My Stuff"));
             var vm = AtPath(dir);
 
-            var score = new FileSystemQueryHandler().CanProcess("My Stuff", vm);
+            var score = new FileSystemQueryHandler().CanProcess("My Stuff", false, vm);
 
             Assert.IsTrue(score > 0f, "an existing relative folder with a space should be handled");
         }
@@ -63,7 +63,7 @@ public class FileSystemQueryHandlerTests
             Directory.CreateDirectory(Path.Combine(dir, "src"));
             var vm = AtPath(dir);
 
-            Assert.IsTrue(new FileSystemQueryHandler().CanProcess("src", vm) > 0f);
+            Assert.IsTrue(new FileSystemQueryHandler().CanProcess("src", false, vm) > 0f);
         }
         finally { Directory.Delete(dir, recursive: true); }
     }
@@ -77,7 +77,7 @@ public class FileSystemQueryHandlerTests
             var vm = AtPath(dir);
 
             // Real folder name shape, but nothing on disk — must not be claimed.
-            Assert.AreEqual(0f, new FileSystemQueryHandler().CanProcess("no such folder", vm));
+            Assert.AreEqual(0f, new FileSystemQueryHandler().CanProcess("no such folder", false, vm));
         }
         finally { Directory.Delete(dir, recursive: true); }
     }
@@ -91,7 +91,7 @@ public class FileSystemQueryHandlerTests
             Directory.CreateDirectory(Path.Combine(dir, "logs"));
             var vm = AtPath(dir);
 
-            Assert.AreEqual(0f, new FileSystemQueryHandler().CanProcess("logs\\*.txt", vm));
+            Assert.AreEqual(0f, new FileSystemQueryHandler().CanProcess("logs\\*.txt", false, vm));
         }
         finally { Directory.Delete(dir, recursive: true); }
     }
@@ -103,7 +103,7 @@ public class FileSystemQueryHandlerTests
         var vm = FileSystemViewModel.CreateThisPc(shell, ai, configs);
 
         // No folder root to resolve against.
-        Assert.AreEqual(0f, new FileSystemQueryHandler().CanProcess("anything", vm));
+        Assert.AreEqual(0f, new FileSystemQueryHandler().CanProcess("anything", false, vm));
     }
 
     // ── ProcessAsync ───────────────────────────────────────────────────────────
@@ -118,7 +118,7 @@ public class FileSystemQueryHandlerTests
             Directory.CreateDirectory(target);
             var vm = AtPath(dir);
 
-            var error = await new FileSystemQueryHandler().ProcessAsync("My Stuff", vm);
+            var error = await new FileSystemQueryHandler().ProcessAsync("My Stuff", false, vm);
 
             Assert.IsNull(error, "navigation should succeed without an error message");
             Assert.AreEqual(Path.GetFullPath(target), Path.GetFullPath(vm.CurrentPath));
@@ -134,7 +134,7 @@ public class FileSystemQueryHandlerTests
         {
             var vm = AtPath(dir);
 
-            var error = await new FileSystemQueryHandler().ProcessAsync("no such folder", vm);
+            var error = await new FileSystemQueryHandler().ProcessAsync("no such folder", false, vm);
 
             Assert.IsNotNull(error);
             StringAssert.Contains(error, "not found");

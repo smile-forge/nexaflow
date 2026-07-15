@@ -13,10 +13,10 @@ public sealed class WindowsAppsQueryHandler : IQueryHandler
         "Filters the installed applications list by name. Use when an Installed Apps tab is active and " +
         "the user types part of an application name.";
 
-    public float CanProcess(string input, IPageViewModel? pageVm = null) =>
+    public float CanProcess(string input, bool prefixed, IPageViewModel? pageVm = null) =>
         pageVm is WindowsAppsViewModel ? 0.7f : 0f;
 
-    public Task<string?> ProcessAsync(string input, IPageViewModel? pageVm = null)
+    public Task<string?> ProcessAsync(string input, bool prefixed, IPageViewModel? pageVm = null)
     {
         if (pageVm is not WindowsAppsViewModel vm)
             return Task.FromResult<string?>("No Installed Apps tab is active.");

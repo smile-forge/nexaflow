@@ -71,11 +71,15 @@ defaults, so a context-only page overrides almost nothing.
 
 Intercepts the AI input bar before text reaches the LLM. Handlers are **auto-discovered** (the
 `FeatureCatalog` index) and built per `WorkspaceRuntime` — there is **no registration step**. Scope is
-expressed inside `CanProcess(input, pageVm)`: the active page's ViewModel is passed in, so a page-scoped
-handler is a type check returning 0 for pages it doesn't own. `Symbol` claims a single-char prefix
-for exact routing (e.g. `>` → console); otherwise `CanProcess` returns a 0–1 score and
-`IAIService.DisambiguateToolSelection` breaks ties via the LLM. `ProcessAsync` returns null (handled silently)
-or a string (shown in AI Chat). Canonical example: `Nexaflow.Features.WindowsSearch`.
+expressed inside `CanProcess(input, prefixed, pageVm)`: the active page's ViewModel is passed in, so a
+page-scoped handler is a type check returning 0 for pages it doesn't own. `Symbol` claims a single-char prefix
+(e.g. `>` → console, `/` → page quick-open, `\` → text regex, `$` → JSONPath): when the user types it, the
+router strips it, narrows to the owning handler(s), and passes `prefixed: true` — so a handler can score
+explicit invocation higher, or interpret the input differently, than the same text typed bare. Otherwise
+`CanProcess` returns a 0–1 score and `IAIService.DisambiguateToolSelection` breaks ties via the LLM.
+`ProcessAsync` returns null (handled silently) or a string (shown in AI Chat). It also receives `prefixed`, so
+a handler whose symbol is part of the payload (JSONPath's `$`) can restore it. Canonical example:
+`Nexaflow.Features.WindowsSearch`.
 
 The terminal also shows the richer chat-bar hooks — `IChatKeyHandler` (history/Tab-completion),
 `IChatInputPreview` (echo a `>` command), `IChatDropHandler` (dropped file → quoted path); see the interface

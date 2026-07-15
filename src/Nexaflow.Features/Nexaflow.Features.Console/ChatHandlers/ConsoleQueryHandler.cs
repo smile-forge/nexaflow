@@ -16,10 +16,10 @@ public sealed class ConsoleQueryHandler : IQueryHandler
 
     public string? Symbol => ">";
 
-    public float CanProcess(string input, IPageViewModel? pageVm = null)
-        => pageVm is TerminalViewModel vm && vm.IsConsoleCommand(input) ? 0.95f : 0f;
+    public float CanProcess(string input, bool prefixed, IPageViewModel? pageVm = null)
+        => pageVm is TerminalViewModel vm && (prefixed || vm.IsConsoleCommand(input)) ? 0.95f : 0f;
 
-    public Task<string?> ProcessAsync(string input, IPageViewModel? pageVm = null)
+    public Task<string?> ProcessAsync(string input, bool prefixed, IPageViewModel? pageVm = null)
     {
         (pageVm as TerminalViewModel)?.SendCommand(input);
         return Task.FromResult<string?>(null);   // silent — the output is the terminal itself

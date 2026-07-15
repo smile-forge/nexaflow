@@ -41,7 +41,7 @@ public class ConsoleQueryHandlerTests
     [TestMethod]
     public void CanProcess_RecognisedCommand_OnTerminal_HighScore()
     {
-        var score = new ConsoleQueryHandler().CanProcess("dir", new TestTerminal());
+        var score = new ConsoleQueryHandler().CanProcess("dir", false, new TestTerminal());
         Assert.IsTrue(score > 0.8f, $"a recognised command should be a clear winner, got {score}");
     }
 
@@ -49,14 +49,23 @@ public class ConsoleQueryHandlerTests
     public void CanProcess_NaturalLanguage_OnTerminal_Zero()
     {
         // PR#95 regression: a plain question must fall through to the AI, not be run as a command.
-        var score = new ConsoleQueryHandler().CanProcess("what does this folder contain", new TestTerminal());
+        var score = new ConsoleQueryHandler().CanProcess("what does this folder contain", false, new TestTerminal());
         Assert.AreEqual(0f, score);
+    }
+
+    [TestMethod]
+    public void CanProcess_ExplicitPrefix_OnTerminal_ForcesRouting_EvenNaturalLanguage()
+    {
+        // The ">" symbol is stripped before we're called; `prefixed` says the user typed it explicitly, so
+        // route to the terminal regardless of the classifier (matching the handler's documented contract).
+        var score = new ConsoleQueryHandler().CanProcess("what does this folder contain", true, new TestTerminal());
+        Assert.IsTrue(score > 0.8f, $"an explicit '>' prefix should route to the terminal, got {score}");
     }
 
     [TestMethod]
     public void CanProcess_OffTerminalPage_Zero()
     {
-        var score = new ConsoleQueryHandler().CanProcess("dir", Substitute.For<IPageViewModel>());
+        var score = new ConsoleQueryHandler().CanProcess("dir", false, Substitute.For<IPageViewModel>());
         Assert.AreEqual(0f, score);
     }
 
@@ -65,7 +74,7 @@ public class ConsoleQueryHandlerTests
     {
         var vm = new TestTerminal();
 
-        var result = await new ConsoleQueryHandler().ProcessAsync("dir", vm);
+        var result = await new ConsoleQueryHandler().ProcessAsync("dir", false, vm);
 
         Assert.IsNull(result, "running a command in the terminal produces no AI message");
         Assert.AreEqual("dir", vm.CommandHistory[0], "the command should have been sent to the terminal");

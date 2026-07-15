@@ -13,21 +13,15 @@ public sealed class TextConventionalQueryHandler : IQueryHandler
     private static readonly Regex TermSplitter =
         new(@"""[^""]*""|'[^']*'|\S+", RegexOptions.Compiled);
 
-    // /pattern/ syntax is exclusively handled by the regex handler
-    private static readonly Regex SlashSyntax = new(@"^/.*/$", RegexOptions.Compiled);
-
     public string Description =>
         "Searches the open text file for the entered text using plain-text matching.";
 
-    public float CanProcess(string input, IPageViewModel? pageVm = null)
+    public float CanProcess(string input, bool prefixed, IPageViewModel? pageVm = null)
     {
         if (pageVm is not TextViewModel) return 0f;
 
         var trimmed = input.Trim();
         if (trimmed.Length == 0) return 0f;
-
-        // Yield to the regex handler for /pattern/ syntax
-        if (SlashSyntax.IsMatch(trimmed)) return 0f;
 
         var terms = TermSplitter.Matches(trimmed).Count;
         return terms switch
@@ -40,7 +34,7 @@ public sealed class TextConventionalQueryHandler : IQueryHandler
         };
     }
 
-    public async Task<string?> ProcessAsync(string input, IPageViewModel? pageVm = null)
+    public async Task<string?> ProcessAsync(string input, bool prefixed, IPageViewModel? pageVm = null)
     {
         if (pageVm is TextViewModel vm)
             await vm.SearchConventionalAsync(input.Trim(), CancellationToken.None);
