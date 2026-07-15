@@ -16,6 +16,12 @@ public partial class NotificationItem : ObservableObject
     /// toasts (and auto-dismisses); set false only for a deliberately inbox-only message.</summary>
     public bool ShowToast { get; init; } = true;
 
+    /// <summary>Toast-only: shown as a toast but <b>not</b> kept in the inbox. For a passing offer (e.g.
+    /// "Restore last session?") that is meaningless once it has scrolled past — persisting it would leave a
+    /// dead entry in the notifications list. A transient message is fire-and-forget: if no window surfaces
+    /// it, it's simply gone.</summary>
+    public bool Transient { get; init; }
+
     /// <summary>Set by the first window that toasts this message, so others don't re-toast it.</summary>
     [ObservableProperty] private bool _shownAsToast;
 

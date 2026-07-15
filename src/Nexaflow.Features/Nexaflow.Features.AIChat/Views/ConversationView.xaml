@@ -203,8 +203,11 @@
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="65*"/>                  <!-- conversation -->
-            <!-- Preview: 35% of the width while a context item is selected, collapsed to nothing otherwise. -->
+            <ColumnDefinition Width="65*" MinWidth="320"/>   <!-- conversation (never crushed by the drag) -->
+            <ColumnDefinition x:Name="PreviewSplitterColumn" Width="0"/>   <!-- drag handle -->
+            <!-- Preview: 35% of the width while a context item is selected, collapsed to nothing otherwise.
+                 Width + MinWidth are driven from code so the column can both collapse (MinWidth 0) and, when
+                 open, resist being dragged to nothing. -->
             <ColumnDefinition x:Name="PreviewColumn" Width="0"/>
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
@@ -545,11 +548,21 @@
                        Foreground="{StaticResource TextMutedBrush}"/>
         </Border>
 
+        <!-- Drag handle between the thread and the preview. Only hit-testable while the preview is open. -->
+        <GridSplitter Grid.Row="0" Grid.RowSpan="3" Grid.Column="1"
+                      Width="5"
+                      HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                      Background="{StaticResource BorderBrush}"
+                      ResizeBehavior="PreviousAndNext"
+                      ResizeDirection="Columns"
+                      Cursor="SizeWE"
+                      Visibility="{Binding IsPreviewOpen, Converter={StaticResource BoolVis}}"/>
+
         <!-- ── Context preview panel ─────────────────────────────────────
              Opens when a context chip is selected. Shows the page's own read-only view when it implements
              IContextPreview; otherwise an identity placeholder with the context text the AI actually sees
              (a live tab's content is already parented in the tab host and cannot be re-hosted here). -->
-        <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="1"
+        <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="2"
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="1,0,0,0"

@@ -462,7 +462,10 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
 
     public IReadOnlyList<FileActionViewModel> BuildContextActions(IReadOnlyList<FileSystemEntry> entries)
     {
-        if (_isThisPcMode) return [];
+        // In This PC mode the only entries are drives, and a drive is a valid folder-action target (the
+        // anyDrives path below resolves through FilterFolderActions). Bail only when nothing was clicked —
+        // right-clicking a drive here used to fall through to an empty menu.
+        if (_isThisPcMode && !entries.Any(e => e.IsDrive)) return [];
 
         var canPerform = _actionRegistry.SnapshotCanPerform();
 
@@ -514,7 +517,9 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
         // Restart the debounce window; the strip rebuild is deferred.
         _actionDebounceTimer.Stop();
 
-        if (_isThisPcMode)
+        // In This PC mode, a selected drive still gets folder actions (the debounce builder handles
+        // anyDrives). Only an empty selection there yields an empty strip — which is correct.
+        if (_isThisPcMode && !selected.Any(e => e.IsDrive))
         {
             FileActions.Clear();
             return;

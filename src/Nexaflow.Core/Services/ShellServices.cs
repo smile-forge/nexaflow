@@ -362,18 +362,17 @@ public sealed class ShellServices : IShellServices
     {
         if (_workspace.Workspace.LastSessionTabs is not { Count: > 0 } session) return;
 
-        NotificationItem? note = null;
-        var restore = new RelayCommand(() =>
-        {
-            RestoreSession(session);
-            if (note is not null) MessageCenter.Instance.Remove(note);   // clear the toast + its inbox entry
-        });
-        note = new NotificationItem
+        // Transient: a passing offer, not a message worth keeping. Once it scrolls past it's meaningless,
+        // so it toasts but never lands in the inbox (clicking Restore dismisses the toast via the toast
+        // runner). Half the old 12s — long enough to notice, short enough not to linger.
+        var restore = new RelayCommand(() => RestoreSession(session));
+        var note = new NotificationItem
         {
             Title         = "Restore last session?",
             Body          = "Reopen the tabs you had open when you last closed this workspace.",
             Severity      = MessageSeverity.Info,
-            ToastDuration = TimeSpan.FromSeconds(12),
+            Transient     = true,
+            ToastDuration = TimeSpan.FromSeconds(6),
             Actions       = [new MessageAction("Restore", restore, IsPrimary: true)],
         };
         MessageCenter.Instance.Post(note);
