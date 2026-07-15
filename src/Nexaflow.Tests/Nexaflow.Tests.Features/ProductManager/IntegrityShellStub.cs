@@ -42,6 +42,7 @@ internal sealed class IntegrityShellStub : IShellServices
     // ── Unused surface ──
     public void CloseTab(Page tab) => throw new NotSupportedException();
     public IReadOnlyList<Page> GetContextItemPages() => throw new NotSupportedException();
+    public IReadOnlyList<QuickOpenTarget> GetQuickOpenTargets() => throw new NotSupportedException();
     public Task RunOnUiAsync(Action action) => throw new NotSupportedException();
     public Task<T> RunOnUiAsync<T>(Func<Task<T>> action) => throw new NotSupportedException();
     public Page? FindTab(string pageKind, Dictionary<string, string>? pageParams = null) => throw new NotSupportedException();

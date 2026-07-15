@@ -169,21 +169,25 @@ public sealed class AIService : IAIService
             string EffectiveText)
         ScoreHandlers(string text, IPageViewModel? pageVm)
     {
-        var allHandlers   = FeatureManager.Instance.GetQueryHandlers(_workspace).ToList();
-        var effectiveText = text;
+        var allHandlers = FeatureManager.Instance.GetQueryHandlers(_workspace).ToList();
 
-        // Symbol prefix → narrow to matching handlers and strip the prefix character
+        // Symbol prefix → narrow to matching handlers, scored on the prefix-stripped text.
         var symbolMatches = allHandlers
             .Where(h => h.Symbol is { Length: 1 } s && text.StartsWith(s))
             .ToList();
-        if (symbolMatches.Count > 0)
-        {
-            allHandlers   = symbolMatches;
-            effectiveText = text[1..].TrimStart();
-        }
+        var stripped = symbolMatches.Count > 0 ? text[1..].TrimStart() : text;
 
-        var scored = allHandlers
-            .Select(h => (Handler: h, Score: h.CanProcess(effectiveText, pageVm)))
+        // When a symbol narrowed the set, those handlers are considered (on the stripped text) PLUS any
+        // handler that opts to always be considered (on the RAW text — so it can claim input a symbol would
+        // otherwise monopolise). With no symbol, every handler is considered on the raw text as normal.
+        var considered = symbolMatches.Count > 0
+            ? symbolMatches.Concat(allHandlers.Where(h => h.AlwaysConsidered && !symbolMatches.Contains(h)))
+            : allHandlers;
+
+        string EffectiveFor(IQueryHandler h) => symbolMatches.Contains(h) ? stripped : text;
+
+        var scored = considered
+            .Select(h => (Handler: h, Score: h.CanProcess(EffectiveFor(h), pageVm)))
             .Where(x => x.Score > 0f)
             .OrderByDescending(x => x.Score)
             .ToList();
@@ -197,6 +201,9 @@ public sealed class AIService : IAIService
                 clearWinner = scored[0].Handler;
         }
 
+        // The effective text follows the winner: a symbol handler gets the stripped text, an always-considered
+        // handler the raw text (so ProcessAsync sees the "/" it matched on).
+        var effectiveText = clearWinner is not null ? EffectiveFor(clearWinner) : stripped;
         return (scored, clearWinner, effectiveText);
     }
 

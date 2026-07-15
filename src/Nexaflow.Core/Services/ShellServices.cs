@@ -681,6 +681,26 @@ public sealed class ShellServices : IShellServices
     public IReadOnlyList<Page> GetContextItemPages()
         => FeatureManager.Instance.GetContextItemPages(_workspace);
 
+    public IReadOnlyList<QuickOpenTarget> GetQuickOpenTargets()
+    {
+        var targets = new List<QuickOpenTarget>();
+        var seen    = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Default-openable pages first, so a page wins a label clash with a ribbon shortcut.
+        foreach (var page in FeatureManager.Instance.GetRibbonCatalogPages(_workspace))
+        {
+            if (page.PageKind is not { } kind || !seen.Add(page.Title)) continue;
+            var pageParams = page.PageParams;
+            targets.Add(new QuickOpenTarget(page.Title, () => OpenTab(kind, pageParams)));
+        }
+
+        // Then the focused window's ribbon buttons (the ribbon is per-window shell chrome).
+        foreach (var target in FocusedWindow?.GetRibbonQuickOpenTargets() ?? [])
+            if (seen.Add(target.Label)) targets.Add(target);
+
+        return targets;
+    }
+
     private Page? CreateTab(string pageKind, Dictionary<string, string>? pageParams)
     {
         if (FeatureManager.Instance.IsRegistered(pageKind))

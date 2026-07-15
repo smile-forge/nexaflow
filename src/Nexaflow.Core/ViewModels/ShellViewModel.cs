@@ -90,6 +90,18 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     void IWindowHost.InsertChatInput(string text) => ChatInputInsertRequested?.Invoke(text);
 
+    IReadOnlyList<QuickOpenTarget> IWindowHost.GetRibbonQuickOpenTargets()
+    {
+        var targets = new List<QuickOpenTarget>();
+        foreach (var item in Ribbon?.Items ?? [])
+        {
+            if (item.Kind != RibbonItemKind.Button || string.IsNullOrWhiteSpace(item.Label)) continue;
+            var captured = item;
+            targets.Add(new QuickOpenTarget(item.Label, () => OpenRibbonItem(captured)));
+        }
+        return targets;
+    }
+
     /// <summary>Raised when a tab is added or activated, so the window moves focus to its AI bar — a request
     /// can be typed straight away. The window owns the actual input control.</summary>
     public event Action? ChatInputFocusRequested;
@@ -213,12 +225,6 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     /// <summary>Inline completion proposed by the clear-winner query handler; null = none.</summary>
     [ObservableProperty] private string? _aiCompletionSuggestion;
-
-    // ── Page/ribbon quick-open ────────────────────────────────────────────
-    // Typing "/name" (or a bare exact page name) resolves a jump target, shown through the shell's standard
-    // status-dot symbol + ghost-text completion — no popup. Enter opens the resolved target instead of
-    // sending to the AI. The match logic lives in QuickOpen so it's testable without the whole shell.
-    private QuickOpenCandidate? _pendingQuickOpen;
 
     private CancellationTokenSource? _handlerEvalCts;
 
@@ -1126,20 +1132,6 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
             AiHandlerSymbol        = null;
             AiIsListening          = false;
             AiCompletionSuggestion = null;
-            _pendingQuickOpen      = null;
-            return;
-        }
-
-        // Page/ribbon quick-open owns the bar when it resolves a target: the status dot shows "/" and the
-        // ghost text completes the name. A "/query" that matches nothing (e.g. a real /regex/) resolves to
-        // null and falls through to normal handler scoring.
-        var quickOpen = QuickOpen.Resolve(value, BuildQuickOpenCandidates());
-        _pendingQuickOpen = quickOpen?.Target;
-        if (quickOpen is not null)
-        {
-            AiHandlerSymbol        = "/";
-            AiIsListening          = false;
-            AiCompletionSuggestion = quickOpen.Completion;
             return;
         }
 
@@ -1161,9 +1153,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         var pageVm               = (CurrentPage as IPageView)?.ViewModel;
         var (_, clearWinner, _)  = CurrentRuntime.AiService!.ScoreHandlers(text, pageVm);
 
-        if (clearWinner?.Symbol is not null)
+        if (clearWinner?.DisplaySymbol is not null)
         {
-            AiHandlerSymbol = clearWinner.Symbol;
+            AiHandlerSymbol = clearWinner.DisplaySymbol;
             AiIsListening   = false;
         }
         else
@@ -1177,49 +1169,6 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
             _ = UpdateCompletionAsync(clearWinner, text, pageVm, token);
         else
             AiCompletionSuggestion = null;
-    }
-
-    // ── Page/ribbon quick-open ────────────────────────────────────────────
-
-    /// <summary>Every jump target quick-open can match: default-openable pages (listed first, so a page
-    /// wins a label clash on dedup) then the live ribbon buttons. Rebuilt per keystroke — the set is small.</summary>
-    private IReadOnlyList<QuickOpenCandidate> BuildQuickOpenCandidates()
-    {
-        if (CurrentRuntime is null) return [];
-
-        var candidates = new List<QuickOpenCandidate>();
-        var seen       = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var page in FeatureManager.Instance.GetRibbonCatalogPages(CurrentRuntime))
-        {
-            if (page.PageKind is not { } kind || !seen.Add(page.Title)) continue;
-            var pageParams = page.PageParams;
-            candidates.Add(new QuickOpenCandidate(page.Title, () => _shellServices.OpenTab(kind, pageParams)));
-        }
-
-        foreach (var item in Ribbon?.Items ?? [])
-        {
-            if (item.Kind != RibbonItemKind.Button || string.IsNullOrWhiteSpace(item.Label)) continue;
-            if (!seen.Add(item.Label)) continue;
-            var captured = item;
-            candidates.Add(new QuickOpenCandidate(item.Label, () => OpenRibbonItemCommand.Execute(captured)));
-        }
-
-        return candidates;
-    }
-
-    /// <summary>Opens the pending quick-open target (if any), clears the bar, and returns true — the caller
-    /// then skips normal AI send. Backs Enter and the Send button.</summary>
-    private bool TryQuickOpen()
-    {
-        if (_pendingQuickOpen is not { } target) return false;
-
-        _pendingQuickOpen      = null;
-        AiInputText            = string.Empty;
-        AiHandlerSymbol        = null;
-        AiCompletionSuggestion = null;
-        target.Open();
-        return true;
     }
 
     private async Task UpdateCompletionAsync(IQueryHandler handler, string text,
@@ -1344,9 +1293,6 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     [RelayCommand]
     private async Task SendAiMessage()
     {
-        // A resolved quick-open target: Enter/Send opens it instead of sending "/query" to the AI.
-        if (TryQuickOpen()) return;
-
         var text = AiInputText.Trim();
         if (string.IsNullOrEmpty(text)) return;
 

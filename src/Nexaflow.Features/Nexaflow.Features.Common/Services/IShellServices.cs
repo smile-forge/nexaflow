@@ -40,6 +40,10 @@ public interface IShellServices
     /// </summary>
     IReadOnlyList<Page> GetContextItemPages();
 
+    /// <summary>Every page + ribbon shortcut the AI-input quick-open can jump to (label + open action),
+    /// deduped by label. Lets a query handler match by name and open one without touching shell chrome.</summary>
+    IReadOnlyList<QuickOpenTarget> GetQuickOpenTargets();
+
     /// <summary>
     /// Hands <paramref name="task"/> to the shell's background-activity manager: it is reported in
     /// the activity area and its <see cref="IBackgroundTask.RunAsync"/> runs off the UI thread.

@@ -66,6 +66,11 @@ internal interface IWindowHost
     /// <summary>Inserts text into this window's AI input bar at the caret (focusing it).</summary>
     void InsertChatInput(string text);
 
+    /// <summary>This window's ribbon buttons as quick-open targets (label + an action that opens the item
+    /// via the same executor-or-open-tab path as a click). The ribbon is per-window shell chrome, so only a
+    /// window can supply it.</summary>
+    IReadOnlyList<QuickOpenTarget> GetRibbonQuickOpenTargets();
+
     /// <summary>Submits a query through this window's AI pipeline (as if typed in the bar).</summary>
     void SubmitAiQuery(string query);
 }

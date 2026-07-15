@@ -15,6 +15,17 @@ public interface IQueryHandler
     /// <summary>Optional single-character prefix that explicitly routes input to this handler.</summary>
     string? Symbol => null;
 
+    /// <summary>The symbol shown in the AI-bar status dot when this handler wins, if it should differ from
+    /// the routing <see cref="Symbol"/>. Defaults to <see cref="Symbol"/>. Lets a handler that must read the
+    /// raw input (so it can't use <see cref="Symbol"/> routing) still surface a dot glyph.</summary>
+    string? DisplaySymbol => Symbol;
+
+    /// <summary>When true, this handler is scored on the <b>raw</b> input even when another handler's
+    /// <see cref="Symbol"/> would otherwise narrow the candidate set — so it can claim input a symbol would
+    /// monopolise (e.g. a "/"-prefixed quick-open competing with the regex handler's "/"). Default false:
+    /// the handler is excluded once a symbol matches, as normal.</summary>
+    bool AlwaysConsidered => false;
+
     /// <summary>
     /// Returns a confidence score (0–1) that this handler can process the given input.
     /// <paramref name="pageVm"/> is the active tab's ViewModel; use <c>pageVm?.GetContextObject()</c>
