@@ -687,7 +687,7 @@
                                                               RelativeSource={RelativeSource AncestorType=Window}}"
                                             CommandParameter="{Binding}">
                                         <TextBlock Text="✕" FontSize="10"
-                                                   Foreground="{StaticResource TextDimBrush}"/>
+                                                   Foreground="{StaticResource TextMutedBrush}"/>
                                     </Button>
                                 </Grid>
                             </Border>
@@ -695,7 +695,7 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
                 <TextBlock Text="No notifications"
-                           Foreground="{StaticResource TextDimBrush}"
+                           Foreground="{StaticResource TextMutedBrush}"
                            FontSize="12" HorizontalAlignment="Center" Margin="0,12"
                            Visibility="{Binding Notifications.Count,
                                                 Converter={StaticResource ZeroCountVis}}"/>
@@ -760,6 +760,27 @@
                         <DataTrigger Binding="{Binding Severity}" Value="Update">
                             <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
                         </DataTrigger>
+
+                        <!-- Fade-out tail: opacity 1→0 over 2s once the visible duration elapses; reset to 1
+                             when a fresh toast takes over (ToastFading back to false). -->
+                        <DataTrigger Binding="{Binding DataContext.ToastFading, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="0:0:2"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.EnterActions>
+                            <DataTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="0"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.ExitActions>
+                        </DataTrigger>
                     </Style.Triggers>
                 </Style>
             </Border.Style>
@@ -813,7 +834,7 @@
                             Margin="10,0,0,0"
                             Command="{Binding DataContext.DismissActiveToastCommand,
                                               RelativeSource={RelativeSource AncestorType=Window}}">
-                        <TextBlock Text="✕" FontSize="11" Foreground="{StaticResource TextDimBrush}"/>
+                        <TextBlock Text="✕" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
                     </Button>
                 </Grid>
 

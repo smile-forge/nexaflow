@@ -16,7 +16,6 @@
     <Color x:Key="Accent2Color">#7C3AED</Color>
     <Color x:Key="TextColor">#172230</Color>       <!-- near-black: strong contrast -->
     <Color x:Key="TextMutedColor">#54637A</Color>
-    <Color x:Key="TextDimColor">#8593A6</Color>
     <Color x:Key="DeepBgColor">#DAE1EB</Color>     <!-- chrome wings / drag bar / footer: a step deeper -->
 
     <!-- ── Brushes ── -->
@@ -29,7 +28,6 @@
     <SolidColorBrush x:Key="Accent2Brush"    Color="{StaticResource Accent2Color}"/>
     <SolidColorBrush x:Key="TextBrush"       Color="{StaticResource TextColor}"/>
     <SolidColorBrush x:Key="TextMutedBrush"  Color="{StaticResource TextMutedColor}"/>
-    <SolidColorBrush x:Key="TextDimBrush"    Color="{StaticResource TextDimColor}"/>
     <SolidColorBrush x:Key="DeepBgBrush"     Color="{StaticResource DeepBgColor}"/>
 
     <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0,0" EndPoint="1,1">

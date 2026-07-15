@@ -258,7 +258,7 @@ public partial class ImageView : UserControl, IPageView
         double offX = (mmW - cw * scale) / 2, offY = (mmH - ch * scale) / 2;
         _mmScale = scale; _mmOffX = offX; _mmOffY = offY; _mmMinX = minX; _mmMinY = minY; _mmHasMapping = true;
 
-        var thumbBrush = (Brush)FindResource("TextDimBrush");
+        var thumbBrush = (Brush)FindResource("TextMutedBrush");
         var viewBrush  = (Brush)FindResource("AccentBrush");
 
         CollageMiniMapCanvas.Children.Clear();

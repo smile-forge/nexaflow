@@ -37,6 +37,10 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     private Point _listDragStartPoint;
     private bool  _listDragPending;
 
+    // Click-to-deselect is deferred to mouse-up so a mouse-down on the selected item can still begin a
+    // drag; holds the list awaiting that deselect, cleared once a drag fires (see the mouse handlers).
+    private ListView? _deselectOnMouseUp;
+
     // Drag-from-ActionStrip tracking
     private Point _actionDragStartPoint;
     private bool  _actionDragPending;
@@ -512,11 +516,12 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         ViewModel.OnSelectionChanged(selected);
     }
 
-    // Clicking an already-selected item deselects it (works for single and multi-selection);
+    // Clicking the sole-selected item deselects it (deferred to mouse-up so it can still be dragged);
     // clicking the empty area below the rows clears the selection.
     private void FileListView_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is not ListView lv) return;
+        _deselectOnMouseUp = null;
 
         // Walk up from the clicked element, noting whether we hit a row, a column header, or chrome.
         var element = e.OriginalSource as DependencyObject;
@@ -548,14 +553,28 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         _listDragStartPoint = e.GetPosition(null);
         _listDragPending    = lv == FileListView;
 
-        // Only deselect when it's the sole selected item and no modifier is held
+        // Deselect an already-selected sole item — but on mouse-UP, not here. Deselecting on mouse-down
+        // clears the selection before PreviewMouseMove can start a drag, making a selected file
+        // impossible to drag. Leave it selected so the drag can arm; if the click turns out to be a
+        // plain click (no drag), FileListView_PreviewMouseLeftButtonUp clears it.
         bool noModifiers = Keyboard.Modifiers == ModifierKeys.None;
         bool isAlreadySelected = lv.SelectedItems.Count == 1 && lv.SelectedItem == entry;
         if (isAlreadySelected && noModifiers)
-        {
+            _deselectOnMouseUp = lv;
+    }
+
+    // Deferred deselect: a plain click (no drag) on the already-selected sole item clears it here, on
+    // mouse-up. A real drag clears _deselectOnMouseUp in PreviewMouseMove, so this no-ops after a drag.
+    private void FileListView_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_deselectOnMouseUp is not { } lv) return;
+        _deselectOnMouseUp = null;
+
+        // Selection is a mouse-DOWN gesture in WPF, so nothing re-selects on up and clearing here
+        // sticks without handling the event — handling PreviewMouseUp would swallow the item's own up
+        // and leave the mouse captured. Re-check the guard in case selection shifted between down/up.
+        if (Keyboard.Modifiers == ModifierKeys.None && lv.SelectedItems.Count == 1)
             lv.SelectedItem = null;
-            e.Handled = true;
-        }
     }
 
     // ── Context menus ─────────────────────────────────────────────────────────
@@ -839,7 +858,8 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
             Math.Abs(pos.Y - _listDragStartPoint.Y) < SystemParameters.MinimumVerticalDragDistance)
             return;
 
-        _listDragPending = false;
+        _listDragPending   = false;
+        _deselectOnMouseUp = null;  // a drag is not a click — keep the dragged item selected
 
         var paths = FileListView.SelectedItems
             .OfType<FileSystemEntry>()

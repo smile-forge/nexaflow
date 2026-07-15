@@ -16,7 +16,7 @@
         <!-- Empty state -->
         <TextBlock DockPanel.Dock="Top"
                    Text="No templates yet. Open a CSV/TSV file, reshape it, then use Template This."
-                   Foreground="{StaticResource TextDimBrush}" FontSize="12" TextWrapping="Wrap"
+                   Foreground="{StaticResource TextMutedBrush}" FontSize="12" TextWrapping="Wrap"
                    Visibility="{Binding TemplateCount, RelativeSource={RelativeSource AncestorType=UserControl},
                                         Converter={StaticResource ZeroVis}}"/>
 
@@ -39,7 +39,7 @@
                                                  HorizontalAlignment="Left" MinWidth="200"/>
                                         <TextBlock Foreground="{StaticResource TextMutedBrush}" FontSize="10"
                                                    Margin="2,3,0,0" Text="{Binding ScopeSummary}"/>
-                                        <TextBlock Foreground="{StaticResource TextDimBrush}" FontSize="10"
+                                        <TextBlock Foreground="{StaticResource TextMutedBrush}" FontSize="10"
                                                    Margin="2,1,0,0" Text="{Binding ColumnsSummary}"/>
                                     </StackPanel>
 

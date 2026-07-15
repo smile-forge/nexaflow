@@ -75,6 +75,35 @@ public partial class ConversationView : UserControl, IPageView
         if (e.PropertyName is nameof(ConversationViewModel.EstimatedTokens)
                            or nameof(ConversationViewModel.ContextWindow))
             Dispatcher.Invoke(RefreshFooter);
+
+        if (e.PropertyName == nameof(ConversationViewModel.IsPreviewOpen))
+            Dispatcher.Invoke(UpdatePreviewColumn);
+    }
+
+    /// <summary>The width the preview had when last open, so a user's drag survives close/reopen within
+    /// the session (default 35% on first open).</summary>
+    private GridLength _lastPreviewWidth = new(35, GridUnitType.Star);
+
+    /// <summary>
+    /// Opens/closes the preview column. A ColumnDefinition's width isn't a bindable target worth a converter
+    /// for one call site. MinWidth is toggled with it: a closed column must reach 0, but an open one should
+    /// resist being dragged to nothing.
+    /// </summary>
+    private void UpdatePreviewColumn()
+    {
+        if (ViewModel.IsPreviewOpen)
+        {
+            PreviewColumn.MinWidth = 220;
+            PreviewColumn.Width    = _lastPreviewWidth;
+        }
+        else
+        {
+            // Remember a real dragged width (not the collapsed 0) before tearing the column down.
+            if (PreviewColumn.Width.IsStar && PreviewColumn.Width.Value > 0)
+                _lastPreviewWidth = PreviewColumn.Width;
+            PreviewColumn.MinWidth = 0;
+            PreviewColumn.Width    = new GridLength(0);
+        }
     }
 
     private void ScrollToBottom()

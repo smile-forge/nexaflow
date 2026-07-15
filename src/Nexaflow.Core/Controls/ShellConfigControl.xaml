@@ -45,7 +45,7 @@
             <!-- Restart notice -->
             <TextBlock Margin="180,2,0,12"
                        Text="A restart is required for theme changes to take effect."
-                       Foreground="{StaticResource TextDimBrush}"
+                       Foreground="{StaticResource TextMutedBrush}"
                        FontSize="11"/>
 
             <!-- ── Language ── -->
@@ -85,7 +85,7 @@
             </Grid>
             <TextBlock Margin="180,2,0,12"
                        Text="Runs Nexaflow in the background when you sign in so windows open instantly. Takes effect at next login."
-                       Foreground="{StaticResource TextDimBrush}"
+                       Foreground="{StaticResource TextMutedBrush}"
                        FontSize="11" TextWrapping="Wrap"/>
 
         </StackPanel>

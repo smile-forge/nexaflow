@@ -61,4 +61,23 @@ public class MessageCenterTests
 
         Assert.AreEqual(0, MessageCenter.Instance.Messages.Count);
     }
+
+    [TestMethod]
+    public void Post_TransientMessage_ToastsButDoesNotPersistToInbox()
+    {
+        NotificationItem? raised = null;
+        void Handler(object? s, NotificationItem m) => raised = m;
+        MessageCenter.Instance.MessagePosted += Handler;
+        try
+        {
+            // A transient offer (e.g. "Restore last session?") should toast but leave no dead entry in the
+            // notifications list once it has passed.
+            var transient = new NotificationItem { Title = "restore?", Transient = true };
+            MessageCenter.Instance.Post(transient);
+
+            Assert.AreSame(transient, raised, "a transient message must still raise MessagePosted (to toast)");
+            Assert.AreEqual(0, MessageCenter.Instance.Messages.Count, "a transient message must not land in the inbox");
+        }
+        finally { MessageCenter.Instance.MessagePosted -= Handler; }
+    }
 }

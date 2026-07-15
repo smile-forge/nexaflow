@@ -40,11 +40,14 @@ namespace Nexaflow.Features.Common
         /// Fetches all query handlers for the owning context, applies symbol-prefix filtering,
         /// scores survivors against <paramref name="text"/>, and returns the positive-score
         /// candidates (sorted descending), the clear winner (top score ≥ 0.8 leading the next
-        /// by &gt; 0.2), and the effective text after any symbol prefix has been stripped.
+        /// by &gt; 0.2), the effective text after any symbol prefix has been stripped, and whether
+        /// a symbol prefix was present (pass it on to <see cref="IQueryHandler.ProcessAsync"/> /
+        /// <see cref="IQueryHandler.CompleteAsync"/> so the handler interprets the text the same way).
         /// </summary>
         (IReadOnlyList<(IQueryHandler Handler, float Score)> Scored,
          IQueryHandler? ClearWinner,
-         string EffectiveText)
+         string EffectiveText,
+         bool Prefixed)
             ScoreHandlers(string text, IPageViewModel? pageVm);
 
         /// <summary>

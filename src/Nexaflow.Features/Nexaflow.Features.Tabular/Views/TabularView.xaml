@@ -50,7 +50,7 @@
                                VerticalAlignment="Center" Margin="2,0,12,0"
                                FontSize="11"/>
                     <TextBlock Text="Click a column header to select it; right-click for column actions."
-                               Foreground="{StaticResource TextDimBrush}"
+                               Foreground="{StaticResource TextMutedBrush}"
                                VerticalAlignment="Center" Margin="0,0,12,0"
                                FontSize="11"/>
                     <TextBlock Text="{Binding StatusMessage}"
@@ -80,7 +80,7 @@
                                  Content="Auto-apply to any file in this folder"
                                  IsChecked="{Binding SelectedScope, Converter={StaticResource EnumBool}, ConverterParameter=Folder}"/>
                     <TextBlock Text="{Binding TemplateFolderPath}" TextTrimming="CharacterEllipsis"
-                               Foreground="{StaticResource TextDimBrush}" FontSize="10"
+                               Foreground="{StaticResource TextMutedBrush}" FontSize="10"
                                Margin="20,1,0,8"/>
 
                     <RadioButton GroupName="TmplScope" Foreground="{StaticResource TextBrush}"
@@ -172,7 +172,7 @@
 
                     <!-- Empty state -->
                     <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap"
-                               Foreground="{StaticResource TextDimBrush}" FontSize="11"
+                               Foreground="{StaticResource TextMutedBrush}" FontSize="11"
                                Text="No templates to show."
                                Visibility="{Binding PanelTemplates.Count, Converter={StaticResource ZeroVis}}"/>
 
@@ -244,15 +244,15 @@
                 <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}">
                     <Run Text="{Binding FileName, Mode=OneWay}"/>
                 </TextBlock>
-                <TextBlock FontSize="11" Foreground="{StaticResource TextDimBrush}" Margin="12,0,0,0">
+                <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="12,0,0,0">
                     <Run Text="rows: "/>
                     <Run Text="{Binding KnownRowCount, Mode=OneWay, TargetNullValue=counting…}"/>
                 </TextBlock>
-                <TextBlock FontSize="11" Foreground="{StaticResource TextDimBrush}" Margin="12,0,0,0">
+                <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="12,0,0,0">
                     <Run Text="encoding: "/>
                     <Run Text="{Binding EncodingName, Mode=OneWay}"/>
                 </TextBlock>
-                <TextBlock FontSize="11" Foreground="{StaticResource TextDimBrush}" Margin="12,0,0,0"
+                <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="12,0,0,0"
                            Visibility="{Binding IsSmallMode, Converter={StaticResource BoolVis}}">
                     <Run Text="(small — sort enabled)"/>
                 </TextBlock>

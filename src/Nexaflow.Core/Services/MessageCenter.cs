@@ -34,12 +34,13 @@ public sealed class MessageCenter
     public IEnumerable<NotificationItem> PendingToasts =>
         Messages.Where(m => m.ShowToast && !m.ShownAsToast);
 
-    /// <summary>Adds a message to the inbox (newest first) and notifies listeners. Thread-safe.</summary>
+    /// <summary>Adds a message to the inbox (newest first) and notifies listeners. Thread-safe.
+    /// A <see cref="NotificationItem.Transient"/> message skips the inbox — it toasts and is gone.</summary>
     public void Post(NotificationItem message)
     {
         OnUi(() =>
         {
-            Messages.Insert(0, message);
+            if (!message.Transient) Messages.Insert(0, message);
             MessagePosted?.Invoke(this, message);
         });
     }

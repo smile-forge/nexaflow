@@ -5,9 +5,10 @@ using Nexaflow.Features.VirtualDisk.Services;
 
 namespace Nexaflow.Features.VirtualDisk.FileActions;
 
-/// <summary>Ejects a mounted disk image. Offered as a drive action, but only on drives actually backed by a
-/// mounted image (via <see cref="AppliesToFolder"/> — a fast, cached WMI check), so it never shows on ordinary
-/// drives. Resolves the drive's backing image, then detaches it (ISO in-process, VHD/VHDX elevated).</summary>
+/// <summary>Ejects a mounted disk image. Offered as a drive action, but only on drives backed by an image
+/// this app mounted (via <see cref="AppliesToFolder"/> — a dictionary lookup, so it never blocks a
+/// selection), so it never shows on ordinary drives. Resolves the drive's backing image, then detaches it
+/// (ISO in-process, VHD/VHDX elevated).</summary>
 public sealed class UnmountDiskAction(IShellServices shell) : IFolderAction, ICacheable
 {
     private readonly DiskMounter _mounter = new();

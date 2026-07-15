@@ -166,24 +166,24 @@ public sealed class AIService : IAIService
 
     public (IReadOnlyList<(IQueryHandler Handler, float Score)> Scored,
             IQueryHandler? ClearWinner,
-            string EffectiveText)
+            string EffectiveText,
+            bool Prefixed)
         ScoreHandlers(string text, IPageViewModel? pageVm)
     {
-        var allHandlers   = FeatureManager.Instance.GetQueryHandlers(_workspace).ToList();
-        var effectiveText = text;
+        var allHandlers = FeatureManager.Instance.GetQueryHandlers(_workspace).ToList();
 
-        // Symbol prefix → narrow to matching handlers and strip the prefix character
+        // A leading Symbol character explicitly routes to the handler(s) that own it: narrow to them and
+        // strip the character. Every narrowed handler is then scored as "prefixed" on the stripped text.
+        // With no such prefix, every handler competes on the raw text (prefixed: false).
         var symbolMatches = allHandlers
             .Where(h => h.Symbol is { Length: 1 } s && text.StartsWith(s))
             .ToList();
-        if (symbolMatches.Count > 0)
-        {
-            allHandlers   = symbolMatches;
-            effectiveText = text[1..].TrimStart();
-        }
+        var prefixed      = symbolMatches.Count > 0;
+        var considered    = prefixed ? symbolMatches : allHandlers;
+        var effectiveText = prefixed ? text[1..].TrimStart() : text;
 
-        var scored = allHandlers
-            .Select(h => (Handler: h, Score: h.CanProcess(effectiveText, pageVm)))
+        var scored = considered
+            .Select(h => (Handler: h, Score: h.CanProcess(effectiveText, prefixed, pageVm)))
             .Where(x => x.Score > 0f)
             .OrderByDescending(x => x.Score)
             .ToList();
@@ -197,7 +197,7 @@ public sealed class AIService : IAIService
                 clearWinner = scored[0].Handler;
         }
 
-        return (scored, clearWinner, effectiveText);
+        return (scored, clearWinner, effectiveText, prefixed);
     }
 
     public async Task<IQueryHandler?> DisambiguateToolSelection(

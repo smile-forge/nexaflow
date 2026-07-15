@@ -19,7 +19,7 @@ public sealed class WindowsSearchQueryHandler(IShellServices shellServices) : IQ
         "Opens a new Search tab with results. " +
         "Use for globs (*.cs), quoted terms (\"TODO\"), or filters (size:>1mb, +required -excluded).";
 
-    public float CanProcess(string input, IPageViewModel? pageVm = null)
+    public float CanProcess(string input, bool prefixed, IPageViewModel? pageVm = null)
     {
         if (pageVm?.GetContextObject() is not FileSystemContext fs) return 0f;
         if (string.IsNullOrEmpty(fs.RootPath) && fs.AvailableDrives.Count == 0) return 0f;
@@ -42,7 +42,7 @@ public sealed class WindowsSearchQueryHandler(IShellServices shellServices) : IQ
         return Path.IsPathRooted(input);
     }
 
-    public Task<string?> ProcessAsync(string input, IPageViewModel? pageVm = null)
+    public Task<string?> ProcessAsync(string input, bool prefixed, IPageViewModel? pageVm = null)
     {
         if (pageVm?.GetContextObject() is not FileSystemContext fs)
             return Task.FromResult<string?>("No file system context is available for search.");

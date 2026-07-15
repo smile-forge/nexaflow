@@ -28,15 +28,16 @@ public static class DiskMountService
             var drive = res.Operations.Count > 0
                 ? res.Operations[0].Data.GetValueOrDefault(ElevatedArgs.DriveLetter)
                 : null;
+            DiskMounter.NoteMounted(drive, imagePath);   // the bridge did the mount; record it for Unmount
             Notify(shell, name, drive);
         }
         else
         {
+            // DiskMounter.Mount records the mount itself.
             var outcome = await Task.Run(() => new DiskMounter().Mount(imagePath), ct);
             if (!outcome.Success) { shell.ShowError($"Couldn't mount {name}: {outcome.Error}"); return; }
             Notify(shell, name, outcome.DriveLetter);
         }
-        DiskMounter.InvalidateCache();
     }
 
     /// <summary>Unmounts <paramref name="imagePath"/> (ISO in-process, VHD/VHDX elevated).</summary>
@@ -52,10 +53,11 @@ public static class DiskMountService
         }
         else
         {
+            // DiskMounter.Dismount forgets the mount itself.
             var ok = await Task.Run(() => new DiskMounter().Dismount(imagePath), ct);
             if (!ok) { shell.ShowError($"Couldn't unmount {name}."); return; }
         }
-        DiskMounter.InvalidateCache();
+        DiskMounter.NoteUnmounted(imagePath);   // covers the elevated path (bridge did the dismount)
         shell.ShowNotification($"Unmounted {name}.");
     }
 

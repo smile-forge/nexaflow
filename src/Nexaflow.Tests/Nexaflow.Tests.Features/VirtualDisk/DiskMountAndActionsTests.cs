@@ -32,14 +32,6 @@ public class DiskMountAndActionsTests
     }
 
     [TestMethod]
-    public void ParseDrive_ExtractsAssignedLetter()
-    {
-        Assert.AreEqual("E:", DiskMounter.ParseDrive("DRIVE=E"));
-        Assert.AreEqual("F:", DiskMounter.ParseDrive("noise\nDRIVE=f\n"));
-        Assert.IsNull(DiskMounter.ParseDrive("no marker here"));
-    }
-
-    [TestMethod]
     public void OpenAsDisk_OpensInspectorTabForThePath()
     {
         var shell = Substitute.For<IShellServices>();
@@ -72,9 +64,43 @@ public class DiskMountAndActionsTests
         var action = new UnmountDiskAction(Substitute.For<IShellServices>());
         Assert.IsTrue(action.AppliesToDrives);
         Assert.IsFalse(action.AppliesToRoot);
-        // Non-drive-root paths can't parse a root letter → not applicable (and never touch WMI):
+        // Non-drive-root paths can't parse a root letter → not applicable:
         Assert.IsFalse(action.AppliesToFolder(@"\\server\share"));
         Assert.IsFalse(action.AppliesToFolder("relative-path"));
         Assert.IsFalse(action.AppliesToFolder(@"E:\sub\folder"));   // a subfolder, not the drive root
+    }
+
+    // ── Session mount registry (the source of truth for the Unmount action) ──
+
+    [TestMethod]
+    public void NoteMounted_MarksDriveImageBacked_AndResolvesPath_UntilUnmounted()
+    {
+        var mounter = new DiskMounter();
+        const string image = @"C:\images\unit-test-Q.iso";
+
+        DiskMounter.NoteMounted("Q:", image);
+        try
+        {
+            Assert.IsTrue(mounter.IsImageBacked('Q'), "a drive this app mounted must report image-backed");
+            Assert.IsTrue(mounter.IsImageBacked('q'), "detection is case-insensitive");
+            Assert.AreEqual(image, mounter.ImagePathForDrive('Q'),
+                "the backing path is known without any query for an app-mounted drive");
+        }
+        finally { DiskMounter.NoteUnmounted(image); }
+
+        Assert.IsFalse(mounter.IsImageBacked('Q'), "after unmount the drive is no longer image-backed");
+        Assert.IsNull(mounter.ImagePathForDrive('Q'));
+    }
+
+    [TestMethod]
+    public void NoteMounted_AcceptsLetterColonAndTrailingSlashForms()
+    {
+        var mounter = new DiskMounter();
+        foreach (var form in new[] { "R", "R:", @"R:\" })
+        {
+            DiskMounter.NoteMounted(form, @"C:\x.vhdx");
+            try { Assert.IsTrue(mounter.IsImageBacked('R'), $"drive-letter form '{form}' should register R"); }
+            finally { DiskMounter.NoteUnmounted(@"C:\x.vhdx"); }
+        }
     }
 }

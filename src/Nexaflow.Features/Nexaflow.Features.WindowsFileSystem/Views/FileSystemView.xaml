@@ -151,12 +151,12 @@
                                                 <Grid Width="16" Height="16" Background="Transparent">
                                                     <Path x:Name="ArrowRight"
                                                           Data="M 6 4 L 10 8 L 6 12"
-                                                          Stroke="{StaticResource TextDimBrush}"
+                                                          Stroke="{StaticResource TextMutedBrush}"
                                                           StrokeThickness="1.5" StrokeLineJoin="Round"
                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                     <Path x:Name="ArrowDown"
                                                           Data="M 4 6 L 8 10 L 12 6"
-                                                          Stroke="{StaticResource TextDimBrush}"
+                                                          Stroke="{StaticResource TextMutedBrush}"
                                                           StrokeThickness="1.5" StrokeLineJoin="Round"
                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
                                                           Visibility="Collapsed"/>
@@ -467,6 +467,7 @@
                       SelectionMode="Extended"
                       SelectionChanged="FileListView_SelectionChanged"
                       PreviewMouseLeftButtonDown="FileListView_PreviewMouseLeftButtonDown"
+                      PreviewMouseLeftButtonUp="FileListView_PreviewMouseLeftButtonUp"
                       PreviewMouseRightButtonDown="FileListView_PreviewMouseRightButtonDown"
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling"
@@ -640,6 +641,7 @@
                       SelectionMode="Extended"
                       SelectionChanged="FileListView_SelectionChanged"
                       PreviewMouseLeftButtonDown="FileListView_PreviewMouseLeftButtonDown"
+                      PreviewMouseLeftButtonUp="FileListView_PreviewMouseLeftButtonUp"
                       PreviewMouseRightButtonDown="FileListView_PreviewMouseRightButtonDown"
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling"

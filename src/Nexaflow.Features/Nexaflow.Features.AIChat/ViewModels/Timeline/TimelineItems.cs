@@ -1,17 +1,39 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Formatting;
 
 namespace Nexaflow.Features.AIChat.ViewModels.Timeline;
 
-/// <summary>A committed user message bubble.</summary>
-public sealed class TimelineUserMessage(string text)
+/// <summary>A committed user message bubble. Holds the underlying <see cref="ConversationMessage"/> rather
+/// than a copy of its text, so the rewind affordance has something to rewind <em>to</em>.</summary>
+public sealed partial class TimelineUserMessage(ConversationMessage message) : ObservableObject
 {
-    public string Text => text;
+    public ConversationMessage Message => message;
+
+    public string   Text      => message.Text;
+    public DateTime Timestamp => message.Timestamp;
+
+    /// <summary>Recomputed rather than stored: "5 minutes ago" is only true for five minutes.</summary>
+    public string TimestampDisplay => RelativeTimeFormatter.Format(message.Timestamp);
+
+    /// <summary>Only the newest user message offers rewind — rewinding to an earlier one would silently
+    /// discard everything after it, which is a different (and much sharper) gesture.</summary>
+    [ObservableProperty] private bool _isLast;
+
+    public void RefreshTimestamp() => OnPropertyChanged(nameof(TimestampDisplay));
 }
 
 /// <summary>A committed assistant message bubble (markdown).</summary>
 public sealed class TimelineAssistantMessage(string text)
+{
+    public string Text => text;
+}
+
+/// <summary>A muted, session-only line — e.g. the model finished a turn without saying anything. Never
+/// persisted: it records the absence of a message, not a message.</summary>
+public sealed class TimelineNotice(string text)
 {
     public string Text => text;
 }
@@ -55,8 +77,15 @@ public sealed partial class TimelineApproval : ObservableObject
         Summary     = summary;
     }
 
+    /// <summary>The model's own prose for why it wants to run these tools. Rendered above the question —
+    /// without it an approval prompt is a bare "Run x?" with no stated reason.</summary>
     public string Explanation { get; }
+
     public string Summary     { get; }
+
+    /// <summary>False when the model gave no reason, so the template can collapse the row rather than
+    /// leave an empty gap.</summary>
+    public bool HasExplanation => !string.IsNullOrWhiteSpace(Explanation);
 
     [ObservableProperty] private bool _resolved;
     [ObservableProperty] private bool _approved;

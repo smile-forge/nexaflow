@@ -323,7 +323,7 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Title" FontSize="11" Foreground="{StaticResource TextDimBrush}"/>
+                                        <TextBlock Text="Title" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
                                         <TextBox Text="{Binding DetailTitle, UpdateSourceTrigger=LostFocus}" Style="{StaticResource DarkTextBox}" Margin="0,2,0,0"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Bottom" Margin="8,0,0,0">
@@ -339,15 +339,15 @@
                                             </Button.Template>
                                         </Button>
                                         <!-- a parent's status is rolled up from its children — read-only -->
-                                        <TextBlock Text="derived" FontSize="9" Foreground="{StaticResource TextDimBrush}"
+                                        <TextBlock Text="derived" FontSize="9" Foreground="{StaticResource TextMutedBrush}"
                                                    HorizontalAlignment="Right" Margin="0,2,2,0"
                                                    Visibility="{Binding IsStatusDerived, Converter={StaticResource BoolVis}}"/>
                                     </StackPanel>
                                 </Grid>
-                                <TextBlock Text="Description" FontSize="11" Foreground="{StaticResource TextDimBrush}"/>
+                                <TextBlock Text="Description" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
                                 <TextBox Text="{Binding DetailDescription, UpdateSourceTrigger=LostFocus}" Style="{StaticResource DarkTextBox}"
                                          AcceptsReturn="True" TextWrapping="Wrap" MinLines="2" Margin="0,2,0,8"/>
-                                <TextBlock Text="Note (rationale / repro)" FontSize="11" Foreground="{StaticResource TextDimBrush}"/>
+                                <TextBlock Text="Note (rationale / repro)" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
                                 <TextBox Text="{Binding DetailNote, UpdateSourceTrigger=LostFocus}" Style="{StaticResource DarkTextBox}"
                                          AcceptsReturn="True" TextWrapping="Wrap" MinLines="2" Margin="0,2,0,0"/>
 
@@ -399,7 +399,7 @@
                                FontSize="13" FontWeight="SemiBold" Margin="0,0,0,4"/>
                     <TextBlock Text="Exports the current tree to the export folder and, if the folder is a git repo, commits it and creates a tag."
                                FontSize="11" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
-                    <TextBlock Text="Version number (also the git tag)" FontSize="11" Foreground="{StaticResource TextDimBrush}"/>
+                    <TextBlock Text="Version number (also the git tag)" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
                     <TextBox Text="{Binding NewSnapshotVersion, UpdateSourceTrigger=PropertyChanged}"
                              Style="{StaticResource DarkTextBox}" Margin="0,2,0,16">
                         <TextBox.InputBindings>
@@ -422,7 +422,7 @@
                 <StackPanel>
                     <TextBlock Text="Product settings" Foreground="{StaticResource TextBrush}"
                                FontSize="13" FontWeight="SemiBold" Margin="0,0,0,12"/>
-                    <TextBlock Text="Export folder (relative to the product root)" FontSize="11" Foreground="{StaticResource TextDimBrush}"/>
+                    <TextBlock Text="Export folder (relative to the product root)" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
                     <TextBox Text="{Binding SettingsExportDir, UpdateSourceTrigger=PropertyChanged}"
                              Style="{StaticResource DarkTextBox}" Margin="0,2,0,16">
                         <TextBox.InputBindings>
@@ -430,7 +430,7 @@
                         </TextBox.InputBindings>
                     </TextBox>
                     <TextBlock Text="Cross-cutting concerns  (✓ = auto-added to new nodes · 🔗 = needs a snaplink when done)" FontSize="11"
-                               Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,4"/>
+                               Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
                     <ItemsControl ItemsSource="{Binding SettingsConcerns}" MaxHeight="180">
                         <ItemsControl.Template>
                             <ControlTemplate TargetType="ItemsControl">
@@ -570,7 +570,7 @@
                         <TabItem Header="Link file">
                             <StackPanel Margin="0,10,0,0">
                                 <TextBlock Text="Pick a file, then a heading / class / method" FontSize="11"
-                                           Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,4"/>
+                                           Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
                                 <Grid Height="230" DataContext="{Binding Picker}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -632,7 +632,7 @@
                                 <Border AllowDrop="True" DragOver="UrlDrop_DragOver" Drop="UrlDrop_Drop"
                                         Height="150" CornerRadius="6" Background="{StaticResource BgBrush}"
                                         BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1" Margin="0,0,0,8">
-                                    <TextBlock Text="Drop a URL here" Foreground="{StaticResource TextDimBrush}" FontSize="12"
+                                    <TextBlock Text="Drop a URL here" Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                                                HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"/>
                                 </Border>
                                 <Button Command="{Binding AddConcernUrlCommand}" HorizontalAlignment="Left">
@@ -680,7 +680,7 @@
                             <TextBlock Text="✕" FontSize="12"/>
                         </Button>
                     </Grid>
-                    <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,8"
+                    <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8"
                                Text="Drag a node onto another to re-parent it. Drop on the product (or empty space) to make it top-level."/>
                     <Button DockPanel.Dock="Bottom" Content="Done" Margin="0,10,0,0"
                             Command="{Binding CloseRestructureCommand}" Style="{StaticResource GhostButton}"/>

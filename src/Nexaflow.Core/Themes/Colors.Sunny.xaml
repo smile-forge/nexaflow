@@ -17,7 +17,6 @@
     <!-- Sunny yellow -->
     <Color x:Key="TextColor">#2D3444</Color>
     <Color x:Key="TextMutedColor">#6B7488</Color>
-    <Color x:Key="TextDimColor">#9AA2B2</Color>
     <Color x:Key="DeepBgColor">#F4ECDA</Color>
 
     <!-- ── Brushes ── -->
@@ -30,7 +29,6 @@
     <SolidColorBrush x:Key="Accent2Brush"    Color="{StaticResource Accent2Color}"/>
     <SolidColorBrush x:Key="TextBrush"       Color="{StaticResource TextColor}"/>
     <SolidColorBrush x:Key="TextMutedBrush"  Color="{StaticResource TextMutedColor}"/>
-    <SolidColorBrush x:Key="TextDimBrush"    Color="{StaticResource TextDimColor}"/>
     <SolidColorBrush x:Key="DeepBgBrush"     Color="{StaticResource DeepBgColor}"/>
 
     <!-- Rainbow logo — fun is here. -->

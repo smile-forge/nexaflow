@@ -11,7 +11,6 @@
     <Color x:Key="Accent2Color">#7C5CFC</Color>
     <Color x:Key="TextColor">#E8EAF2</Color>
     <Color x:Key="TextMutedColor">#7880A0</Color>
-    <Color x:Key="TextDimColor">#4A5270</Color>
     <Color x:Key="DeepBgColor">#080C16</Color>
 
     <!-- ── Brushes ── -->
@@ -24,7 +23,6 @@
     <SolidColorBrush x:Key="Accent2Brush"    Color="{StaticResource Accent2Color}"/>
     <SolidColorBrush x:Key="TextBrush"       Color="{StaticResource TextColor}"/>
     <SolidColorBrush x:Key="TextMutedBrush"  Color="{StaticResource TextMutedColor}"/>
-    <SolidColorBrush x:Key="TextDimBrush"    Color="{StaticResource TextDimColor}"/>
     <SolidColorBrush x:Key="DeepBgBrush"     Color="{StaticResource DeepBgColor}"/>
 
     <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0,0" EndPoint="1,1">

@@ -362,18 +362,17 @@ public sealed class ShellServices : IShellServices
     {
         if (_workspace.Workspace.LastSessionTabs is not { Count: > 0 } session) return;
 
-        NotificationItem? note = null;
-        var restore = new RelayCommand(() =>
-        {
-            RestoreSession(session);
-            if (note is not null) MessageCenter.Instance.Remove(note);   // clear the toast + its inbox entry
-        });
-        note = new NotificationItem
+        // Transient: a passing offer, not a message worth keeping. Once it scrolls past it's meaningless,
+        // so it toasts but never lands in the inbox (clicking Restore dismisses the toast via the toast
+        // runner). 3s visible, then the shared 2s fade-out.
+        var restore = new RelayCommand(() => RestoreSession(session));
+        var note = new NotificationItem
         {
             Title         = "Restore last session?",
             Body          = "Reopen the tabs you had open when you last closed this workspace.",
             Severity      = MessageSeverity.Info,
-            ToastDuration = TimeSpan.FromSeconds(12),
+            Transient     = true,
+            ToastDuration = TimeSpan.FromSeconds(3),
             Actions       = [new MessageAction("Restore", restore, IsPrimary: true)],
         };
         MessageCenter.Instance.Post(note);
@@ -681,6 +680,26 @@ public sealed class ShellServices : IShellServices
 
     public IReadOnlyList<Page> GetContextItemPages()
         => FeatureManager.Instance.GetContextItemPages(_workspace);
+
+    public IReadOnlyList<QuickOpenTarget> GetQuickOpenTargets()
+    {
+        var targets = new List<QuickOpenTarget>();
+        var seen    = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Default-openable pages first, so a page wins a label clash with a ribbon shortcut.
+        foreach (var page in FeatureManager.Instance.GetRibbonCatalogPages(_workspace))
+        {
+            if (page.PageKind is not { } kind || !seen.Add(page.Title)) continue;
+            var pageParams = page.PageParams;
+            targets.Add(new QuickOpenTarget(page.Title, () => OpenTab(kind, pageParams)));
+        }
+
+        // Then the focused window's ribbon buttons (the ribbon is per-window shell chrome).
+        foreach (var target in FocusedWindow?.GetRibbonQuickOpenTargets() ?? [])
+            if (seen.Add(target.Label)) targets.Add(target);
+
+        return targets;
+    }
 
     private Page? CreateTab(string pageKind, Dictionary<string, string>? pageParams)
     {

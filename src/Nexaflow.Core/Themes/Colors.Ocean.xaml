@@ -19,7 +19,6 @@
     <Color x:Key="TextMutedColor">#9DCEDA</Color>
     <!-- Dim text sits a step below muted but stays clearly legible: the old #5C95A4 was a mid-teal that
          merged into the deep-teal surfaces / reef wash. -->
-    <Color x:Key="TextDimColor">#8FBCCB</Color>
     <Color x:Key="DeepBgColor">#07232E</Color>
 
     <!-- ── Brushes ── -->
@@ -32,7 +31,6 @@
     <SolidColorBrush x:Key="Accent2Brush"    Color="{StaticResource Accent2Color}"/>
     <SolidColorBrush x:Key="TextBrush"       Color="{StaticResource TextColor}"/>
     <SolidColorBrush x:Key="TextMutedBrush"  Color="{StaticResource TextMutedColor}"/>
-    <SolidColorBrush x:Key="TextDimBrush"    Color="{StaticResource TextDimColor}"/>
     <SolidColorBrush x:Key="DeepBgBrush"     Color="{StaticResource DeepBgColor}"/>
 
     <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0,0" EndPoint="1,1">

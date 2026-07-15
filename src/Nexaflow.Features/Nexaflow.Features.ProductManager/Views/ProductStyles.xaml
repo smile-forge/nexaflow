@@ -7,7 +7,7 @@
     app swaps themes at runtime anyway. Styles needing BasedOn (which requires StaticResource) stay in the
     view that uses them.
 
-    Note the deliberate use of TextMutedBrush rather than TextDimBrush for secondary text: Dim is the dimmest
+    Note the deliberate use of TextMutedBrush rather than TextMutedBrush for secondary text: Dim is the dimmest
     tier and falls below comfortable contrast on several themes (Sunny #9AA2B2, Light #8593A6).
 -->
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"

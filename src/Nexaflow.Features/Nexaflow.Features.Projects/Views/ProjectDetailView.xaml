@@ -91,7 +91,7 @@
         <Style x:Key="SectionLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="10"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="{StaticResource TextDimBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
             <Setter Property="Margin" Value="0,0,0,5"/>
         </Style>
 
@@ -197,7 +197,7 @@
                                          FontSize="20" FontWeight="Bold" Style="{StaticResource DarkTextBox}"
                                          BorderThickness="0" Background="Transparent" Padding="0" ToolTip="Project name"/>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="Modified" FontSize="10" Foreground="{StaticResource TextDimBrush}" HorizontalAlignment="Right"/>
+                                    <TextBlock Text="Modified" FontSize="10" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Right"/>
                                     <TextBlock Text="{Binding LastModified}" FontSize="11" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Right"/>
                                 </StackPanel>
                             </Grid>

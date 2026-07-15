@@ -53,9 +53,13 @@ bootstrap merge for the designer; `Apply` rebuilds the list deterministically.
 
 Every `Colors.<Theme>.xaml` supplies the same key set — both a `Color` and a matching `…Brush`:
 `Bg`, `Surface`, `Surface2`, `Border`, `BorderLight`, `Accent`, `Accent2`, `Text`, `TextMuted`,
-`TextDim`, `DeepBg`, plus `AccentGradientBrush` / `BarGradientBrush` and the
+`DeepBg`, plus `AccentGradientBrush` / `BarGradientBrush` and the
 `TopBarHeight` / `TabBarHeight` / `InteractionHeight` dimensions. This is the legacy contract — most
 feature views still bind these directly, and that's fine (see *Feature participation*).
+
+> There is exactly one muted-text tier: `TextMuted`. A former `TextDim` tier was removed — it was too
+> low-contrast to read in most themes, and having two "muted" tokens invited picking the wrong one. Use
+> `TextMutedBrush` for secondary/meta text.
 
 > **No tone-named colour keys.** The palette is deliberately structural/neutral — there is **no**
 > `GreenBrush`/`OrangeBrush`. A "green" or "amber" need is a *purpose*: use the semantic

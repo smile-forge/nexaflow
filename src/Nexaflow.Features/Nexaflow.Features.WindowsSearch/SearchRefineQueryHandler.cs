@@ -18,14 +18,14 @@ public sealed class SearchRefineQueryHandler : IQueryHandler
         "Refines the current search by adding more constraints to the existing query. " +
         "Merges with the original search term and re-queries Windows Search.";
 
-    public float CanProcess(string input, IPageViewModel? pageVm = null)
+    public float CanProcess(string input, bool prefixed, IPageViewModel? pageVm = null)
     {
         if (pageVm is not SearchViewModel vm) return 0f;
         if (vm.IsSearching || string.IsNullOrEmpty(vm.SearchRoot)) return 0f;
         return SearchQueryScorer.Score(input);
     }
 
-    public async Task<string?> ProcessAsync(string input, IPageViewModel? pageVm = null)
+    public async Task<string?> ProcessAsync(string input, bool prefixed, IPageViewModel? pageVm = null)
     {
         if (pageVm is not SearchViewModel vm)
             return "No active Search tab.";

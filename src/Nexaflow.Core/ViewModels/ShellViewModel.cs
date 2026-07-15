@@ -43,7 +43,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     // A new tab follows focus (it lands in the pane the user is working in); operations on an existing
     // tab follow the pane that owns it. This keeps ShellServices pane-agnostic — it deals in windows,
     // and the window resolves which of its panes the tab lives in.
-    void IWindowHost.AddTab(Page tab) => FocusedPane.Add(tab);
+    void IWindowHost.AddTab(Page tab) { FocusedPane.Add(tab); ChatInputFocusRequested?.Invoke(); }
 
     // Split off (or focus the existing) right pane so the next AddTab lands there — backs "Open in
     // right pane". SplitEmpty already creates the pane and focuses it; when already split we just refocus.
@@ -67,6 +67,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         pane.BringToFront(tab);
         pane.ActivePage = tab;
         FocusedPane = pane;          // activating a tab focuses its pane
+        ChatInputFocusRequested?.Invoke();
     }
 
     void IWindowHost.ShowError(string message) => ShowError("Error", message);
@@ -88,6 +89,22 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     public event Action<string>? ChatInputInsertRequested;
 
     void IWindowHost.InsertChatInput(string text) => ChatInputInsertRequested?.Invoke(text);
+
+    IReadOnlyList<QuickOpenTarget> IWindowHost.GetRibbonQuickOpenTargets()
+    {
+        var targets = new List<QuickOpenTarget>();
+        foreach (var item in Ribbon?.Items ?? [])
+        {
+            if (item.Kind != RibbonItemKind.Button || string.IsNullOrWhiteSpace(item.Label)) continue;
+            var captured = item;
+            targets.Add(new QuickOpenTarget(item.Label, () => OpenRibbonItem(captured)));
+        }
+        return targets;
+    }
+
+    /// <summary>Raised when a tab is added or activated, so the window moves focus to its AI bar — a request
+    /// can be typed straight away. The window owns the actual input control.</summary>
+    public event Action? ChatInputFocusRequested;
 
     void IWindowHost.SubmitAiQuery(string query)
     {
@@ -223,6 +240,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     public bool ToastVisible => ActiveToast is not null;
 
+    /// <summary>True during the toast's fade-out tail — the view animates opacity to 0 over
+    /// <see cref="ToastFadeMs"/>ms; the message stays "active" until the fade completes.</summary>
+    [ObservableProperty] private bool _toastFading;
+
+    /// <summary>How long the fade-out tail runs after a toast's visible duration elapses.</summary>
+    private const int ToastFadeMs = 2000;
+
     private readonly Queue<NotificationItem> _toastQueue = new();
     private CancellationTokenSource? _toastDismissCts;
 
@@ -247,19 +271,29 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     private void DisplayNextToast()
     {
         _toastDismissCts?.Cancel();
-        if (_toastQueue.Count == 0) { ActiveToast = null; return; }
+        if (_toastQueue.Count == 0) { ActiveToast = null; ToastFading = false; return; }
 
         var message = _toastQueue.Dequeue();
-        ActiveToast = message;
+        ActiveToast  = message;
+        ToastFading  = false;   // fully opaque until its visible duration elapses
 
         _toastDismissCts = new CancellationTokenSource();
-        var token = _toastDismissCts.Token;
-        var duration = message.ToastDuration ?? DefaultToastDuration(message);
-        _ = Task.Delay(duration, token).ContinueWith(t =>
+        _ = RunToastLifetimeAsync(message, _toastDismissCts.Token);
+    }
+
+    /// <summary>Holds the toast for its visible duration, fades it over <see cref="ToastFadeMs"/>ms, then
+    /// advances. Cancelled (manual dismiss / a newer toast) short-circuits without fading.</summary>
+    private async Task RunToastLifetimeAsync(NotificationItem message, CancellationToken token)
+    {
+        try
         {
-            if (!t.IsCanceled)
-                _ui.Invoke(() => { if (ActiveToast == message) DisplayNextToast(); });
-        }, TaskScheduler.Default);
+            await Task.Delay(message.ToastDuration ?? DefaultToastDuration(message), token);
+            await _ui.InvokeAsync(() => { if (ActiveToast == message) ToastFading = true; });
+            await Task.Delay(ToastFadeMs, token);
+        }
+        catch (OperationCanceledException) { return; }
+
+        _ui.Invoke(() => { if (ActiveToast == message) DisplayNextToast(); });
     }
 
     private void ShowError(string title, string message)
@@ -1116,8 +1150,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     private void EvaluateHandlers(string text, CancellationToken token)
     {
-        var pageVm               = (CurrentPage as IPageView)?.ViewModel;
-        var (_, clearWinner, _)  = CurrentRuntime.AiService!.ScoreHandlers(text, pageVm);
+        var pageVm = (CurrentPage as IPageView)?.ViewModel;
+        var (_, clearWinner, effectiveText, prefixed) = CurrentRuntime.AiService!.ScoreHandlers(text, pageVm);
 
         if (clearWinner?.Symbol is not null)
         {
@@ -1132,21 +1166,22 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
         // Inline completion is only offered by the clear-winner handler.
         if (clearWinner is not null)
-            _ = UpdateCompletionAsync(clearWinner, text, pageVm, token);
+            _ = UpdateCompletionAsync(clearWinner, text, effectiveText, prefixed, pageVm, token);
         else
             AiCompletionSuggestion = null;
     }
 
-    private async Task UpdateCompletionAsync(IQueryHandler handler, string text,
-                                             IPageViewModel? pageVm, CancellationToken token)
+    private async Task UpdateCompletionAsync(IQueryHandler handler, string rawText, string effectiveText,
+                                             bool prefixed, IPageViewModel? pageVm, CancellationToken token)
     {
         string? suggestion;
-        try { suggestion = await handler.CompleteAsync(text, pageVm); }
+        try { suggestion = await handler.CompleteAsync(effectiveText, prefixed, pageVm); }
         catch { return; }
 
-        // Discard if cancelled or the input moved on while we were computing.
+        // Discard if cancelled or the input moved on while we were computing. The suggestion completes the
+        // stripped query, but the box shows the raw text (symbol included) — so staleness checks the raw.
         if (token.IsCancellationRequested) return;
-        if (!string.Equals(AiInputText, text, StringComparison.Ordinal)) return;
+        if (!string.Equals(AiInputText, rawText, StringComparison.Ordinal)) return;
 
         AiCompletionSuggestion = string.IsNullOrEmpty(suggestion) ? null : suggestion;
     }
@@ -1310,7 +1345,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
             await WaitForContextAsync(handler, pageVm, sendToken);
             if (sendToken.IsCancellationRequested) { handler.Abort(); return TurnOutcome.Cancelled; }
 
-            var (scored, clearWinner, effectiveText) = svc.ScoreHandlers(input, pageVm);
+            var (scored, clearWinner, effectiveText, prefixed) = svc.ScoreHandlers(input, pageVm);
             var selected = clearWinner;
             var effective = effectiveText;
 
@@ -1324,7 +1359,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
             if (selected is not null)
             {
                 string? result;
-                try   { result = await selected.ProcessAsync(effective, pageVm); }
+                try   { result = await selected.ProcessAsync(effective, prefixed, pageVm); }
                 catch (Exception ex) { handler.Abort(); ShowError("AI error", ex.Message); return TurnOutcome.Error; }
 
                 if (result is not null) handler.ShowFinal(result);

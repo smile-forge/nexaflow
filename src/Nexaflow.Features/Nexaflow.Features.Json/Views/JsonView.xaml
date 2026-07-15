@@ -134,7 +134,7 @@
                                 </Button>
                                 <TextBlock Text=" / "
                                            FontSize="11"
-                                           Foreground="{StaticResource TextDimBrush}"
+                                           Foreground="{StaticResource TextMutedBrush}"
                                            VerticalAlignment="Center"/>
                             </StackPanel>
                         </DataTemplate>
@@ -312,11 +312,11 @@
                     <StackPanel Orientation="Horizontal"
                                 Margin="{Binding Depth, Converter={StaticResource DepthMargin}}">
                         <TextBlock Text="⟳"
-                                   Foreground="{StaticResource TextDimBrush}"
+                                   Foreground="{StaticResource TextMutedBrush}"
                                    FontSize="12"
                                    Margin="18,0,4,0"/>
                         <TextBlock Text="Loading…"
-                                   Foreground="{StaticResource TextDimBrush}"
+                                   Foreground="{StaticResource TextMutedBrush}"
                                    FontSize="12"
                                    FontStyle="Italic"/>
                     </StackPanel>

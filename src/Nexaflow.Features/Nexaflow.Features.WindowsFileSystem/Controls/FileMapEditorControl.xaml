@@ -37,10 +37,10 @@
                                             <ControlTemplate TargetType="ToggleButton">
                                                 <Grid Width="16" Height="16" Background="Transparent">
                                                     <Path x:Name="AR" Data="M 6 4 L 10 8 L 6 12"
-                                                          Stroke="{StaticResource TextDimBrush}" StrokeThickness="1.5"
+                                                          Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1.5"
                                                           StrokeLineJoin="Round" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                     <Path x:Name="AD" Data="M 4 6 L 8 10 L 12 6"
-                                                          Stroke="{StaticResource TextDimBrush}" StrokeThickness="1.5"
+                                                          Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1.5"
                                                           StrokeLineJoin="Round" HorizontalAlignment="Center" VerticalAlignment="Center"
                                                           Visibility="Collapsed"/>
                                                 </Grid>

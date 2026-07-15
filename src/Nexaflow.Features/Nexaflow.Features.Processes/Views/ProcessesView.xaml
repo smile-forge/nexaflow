@@ -208,7 +208,7 @@
                            Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                            Text="{Binding Rows.Count, StringFormat={}{0} shown}"/>
                 <TextBlock VerticalAlignment="Bottom" Margin="4,0,0,2"
-                           Foreground="{StaticResource TextDimBrush}" FontSize="12"
+                           Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                            Text="{Binding ProcessCount, StringFormat={}· {0} total}"/>
             </StackPanel>
 

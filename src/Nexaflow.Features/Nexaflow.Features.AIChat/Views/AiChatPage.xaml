@@ -42,7 +42,7 @@
                             Command="{Binding DataContext.DeleteConversationCommand,
                                       RelativeSource={RelativeSource AncestorType=UserControl}}"
                             CommandParameter="{Binding}">
-                        <TextBlock Text="&#x2715;" FontSize="11" Foreground="{StaticResource TextDimBrush}"/>
+                        <TextBlock Text="&#x2715;" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
                     </Button>
 
                     <!-- Left: title + start/end + message count -->
@@ -51,10 +51,10 @@
                                    FontSize="13" FontWeight="Medium"
                                    Foreground="{StaticResource TextBrush}"
                                    TextTrimming="CharacterEllipsis"/>
-                        <TextBlock FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,3,0,0">
+                        <TextBlock FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,0">
                             <Run Text="{Binding StartDisplay, Mode=OneWay}"/><Run Text=" → "/><Run Text="{Binding EndDisplay, Mode=OneWay}"/>
                         </TextBlock>
-                        <TextBlock FontSize="10" Foreground="{StaticResource TextDimBrush}" Margin="0,1,0,0">
+                        <TextBlock FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,1,0,0">
                             <Run Text="{Binding MessageCount, Mode=OneWay}"/><Run Text=" messages"/>
                         </TextBlock>
                     </StackPanel>
