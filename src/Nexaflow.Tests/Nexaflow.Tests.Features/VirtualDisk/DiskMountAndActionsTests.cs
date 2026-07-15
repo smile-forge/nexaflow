@@ -32,14 +32,6 @@ public class DiskMountAndActionsTests
     }
 
     [TestMethod]
-    public void ParseDrive_ExtractsAssignedLetter()
-    {
-        Assert.AreEqual("E:", DiskMounter.ParseDrive("DRIVE=E"));
-        Assert.AreEqual("F:", DiskMounter.ParseDrive("noise\nDRIVE=f\n"));
-        Assert.IsNull(DiskMounter.ParseDrive("no marker here"));
-    }
-
-    [TestMethod]
     public void OpenAsDisk_OpensInspectorTabForThePath()
     {
         var shell = Substitute.For<IShellServices>();
@@ -72,13 +64,13 @@ public class DiskMountAndActionsTests
         var action = new UnmountDiskAction(Substitute.For<IShellServices>());
         Assert.IsTrue(action.AppliesToDrives);
         Assert.IsFalse(action.AppliesToRoot);
-        // Non-drive-root paths can't parse a root letter → not applicable (and never touch the probe):
+        // Non-drive-root paths can't parse a root letter → not applicable:
         Assert.IsFalse(action.AppliesToFolder(@"\\server\share"));
         Assert.IsFalse(action.AppliesToFolder("relative-path"));
         Assert.IsFalse(action.AppliesToFolder(@"E:\sub\folder"));   // a subfolder, not the drive root
     }
 
-    // ── App-mounted fast path (native probe can't be unit-tested without a real mounted image) ──
+    // ── Session mount registry (the source of truth for the Unmount action) ──
 
     [TestMethod]
     public void NoteMounted_MarksDriveImageBacked_AndResolvesPath_UntilUnmounted()
@@ -96,8 +88,8 @@ public class DiskMountAndActionsTests
         }
         finally { DiskMounter.NoteUnmounted(image); }
 
-        // Q: is not a real mounted image on the test machine, so once forgotten the native probe says no.
         Assert.IsFalse(mounter.IsImageBacked('Q'), "after unmount the drive is no longer image-backed");
+        Assert.IsNull(mounter.ImagePathForDrive('Q'));
     }
 
     [TestMethod]
