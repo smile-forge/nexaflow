@@ -274,7 +274,7 @@ public partial class TabStrip : UserControl
             Opacity  = 0,
             Margin   = new Thickness(6, 0, 0, 0),
             Cursor   = Cursors.Hand,
-            Foreground = (Brush)FindResource("TextDimBrush")
+            Foreground = (Brush)FindResource("TextMutedBrush")
         };
 
         var row = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
@@ -302,7 +302,7 @@ public partial class TabStrip : UserControl
             closeBtn.Foreground = (Brush)FindResource("TextBrush");
             closeBtn.Opacity    = 1;
         };
-        closeBtn.MouseLeave += (_, _) => closeBtn.Foreground = (Brush)FindResource("TextDimBrush");
+        closeBtn.MouseLeave += (_, _) => closeBtn.Foreground = (Brush)FindResource("TextMutedBrush");
 
         // Drag to ribbon — begin drag after a small movement while LMB is held.
         // Activation happens on mouse-UP (not down) so the drag-arm closure is still

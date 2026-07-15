@@ -55,6 +55,10 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     public ObservableCollection<ContextItemViewModel> ContextItems { get; } = [];
     public ObservableCollection<string>               Attachments  { get; } = [];
 
+    /// <summary>Drives the "drag tabs or files here" empty-state — the count binding went through a bool
+    /// converter (always Visible), so the hint never cleared once an item was pinned.</summary>
+    public bool HasContextItems => ContextItems.Count > 0;
+
     /// <summary>The chip whose preview is open, or null when the panel is collapsed.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPreviewOpen))]
@@ -103,7 +107,13 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         _ownerPage = ownerPage;
 
         Messages.CollectionChanged    += (_, _) => RecomputeTokens();
-        ContextItems.CollectionChanged += (_, _) => { RecomputeTokens(); OnPropertyChanged(nameof(IsContextReady)); SyncContext(); };
+        ContextItems.CollectionChanged += (_, _) =>
+        {
+            RecomputeTokens();
+            OnPropertyChanged(nameof(IsContextReady));
+            OnPropertyChanged(nameof(HasContextItems));
+            SyncContext();
+        };
         Attachments.CollectionChanged  += (_, _) => { RecomputeTokens(); SyncAttachments(); };
 
         _ownerPage.Closed += OnOwnerClosed;

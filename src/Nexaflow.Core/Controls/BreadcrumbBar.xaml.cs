@@ -165,7 +165,7 @@ public partial class BreadcrumbBar : UserControl
         CrumbPanel.Children.Add(new TextBlock
         {
             Text       = "›",
-            Foreground = (Brush)FindResource("TextDimBrush"),
+            Foreground = (Brush)FindResource("TextMutedBrush"),
             FontSize   = 12,
             Margin     = new Thickness(2, 0, 2, 0),
             VerticalAlignment = VerticalAlignment.Center
@@ -176,7 +176,7 @@ public partial class BreadcrumbBar : UserControl
         new TextBlock
         {
             Text       = "(long path)",
-            Foreground = (Brush)FindResource("TextDimBrush"),
+            Foreground = (Brush)FindResource("TextMutedBrush"),
             FontSize   = 12,
             FontStyle  = FontStyles.Italic,
             Margin     = new Thickness(6, 0, 6, 0),

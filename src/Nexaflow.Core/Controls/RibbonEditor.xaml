@@ -30,7 +30,7 @@
                                    FontSize="16" FontWeight="Bold"
                                    Foreground="{StaticResource TextBrush}"/>
                         <TextBlock Text="Drag to reorder · click an item to edit · Done to apply"
-                                   FontSize="11" Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="11" Foreground="{StaticResource TextMutedBrush}"
                                    Margin="0,4,0,0"/>
                     </StackPanel>
                     <Button HorizontalAlignment="Right" VerticalAlignment="Top"
@@ -67,7 +67,7 @@
                         <!-- State 1: nothing selected -->
                         <TextBlock x:Name="NoSelectionMsg"
                                    Text="Click an item above to edit it"
-                                   FontSize="12" Foreground="{StaticResource TextDimBrush}"
+                                   FontSize="12" Foreground="{StaticResource TextMutedBrush}"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
 
                         <!-- State 2: separator selected -->
@@ -101,7 +101,7 @@
                             <!-- Name -->
                             <StackPanel Grid.Column="0" VerticalAlignment="Top">
                                 <TextBlock Text="NAME" FontSize="9" FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,6"/>
+                                           Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
                                 <TextBox x:Name="NameInput"
                                          Style="{StaticResource DarkTextBox}"
                                          Width="150" Padding="6,4" FontSize="12"
@@ -111,7 +111,7 @@
                             <!-- Size toggle -->
                             <StackPanel Grid.Column="2" VerticalAlignment="Top">
                                 <TextBlock Text="SIZE" FontSize="9" FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,6"/>
+                                           Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
                                 <Button x:Name="SizeToggleBtn"
                                         Style="{StaticResource RibbonHalfButton}"
                                         Padding="12,6" MinWidth="90"
@@ -121,7 +121,7 @@
                             <!-- Icon picker: 6-column scrolling grid -->
                             <StackPanel Grid.Column="4" VerticalAlignment="Top">
                                 <TextBlock Text="ICON" FontSize="9" FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,6"/>
+                                           Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
                                 <Border Background="{StaticResource Surface2Brush}"
                                         BorderBrush="{StaticResource BorderBrush}"
                                         BorderThickness="1" CornerRadius="4"
@@ -138,7 +138,7 @@
                             <!-- Colour swatches + hex input -->
                             <StackPanel Grid.Column="6" VerticalAlignment="Top">
                                 <TextBlock Text="COLOUR" FontSize="9" FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,6"/>
+                                           Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
                                 <WrapPanel x:Name="ColorSwatches" Width="160" Margin="0,0,0,6"/>
                                 <TextBox x:Name="HexInput"
                                          Style="{StaticResource DarkTextBox}"
@@ -150,7 +150,7 @@
                             <!-- Delete -->
                             <StackPanel Grid.Column="8" VerticalAlignment="Top">
                                 <TextBlock Text="REMOVE" FontSize="9" FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,6"/>
+                                           Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
                                 <Button Style="{StaticResource RibbonHalfButton}"
                                         Padding="12,6" Click="DeleteSelected_Click">
                                     <TextBlock Text="✕  Delete" FontSize="12" Foreground="{StaticResource DangerBrush}"/>
@@ -171,7 +171,7 @@
                     <!-- Add a button for any openable (CanBeContextItem) page -->
                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="Add page:" FontSize="12"
-                                   Foreground="{StaticResource TextDimBrush}"
+                                   Foreground="{StaticResource TextMutedBrush}"
                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="PageCatalogCombo"
                                   Style="{StaticResource DarkComboBox}"

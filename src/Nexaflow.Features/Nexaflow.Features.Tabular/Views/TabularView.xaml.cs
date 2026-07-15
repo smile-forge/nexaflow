@@ -212,7 +212,7 @@ public partial class TabularView : UserControl, IPageView
             FiltersHost.Items.Add(new TextBlock
             {
                 Text       = "Select a column header to filter it.",
-                Foreground = (Brush)FindResource("TextDimBrush"),
+                Foreground = (Brush)FindResource("TextMutedBrush"),
                 FontSize   = 11,
             });
     }
@@ -256,8 +256,8 @@ public partial class TabularView : UserControl, IPageView
                 var labels = new Grid();
                 labels.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 labels.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                var minLabel = new TextBlock { Text = "Min", FontSize = 10, Foreground = (Brush)FindResource("TextDimBrush"), Margin = new Thickness(2, 0, 0, 2) };
-                var maxLabel = new TextBlock { Text = "Max", FontSize = 10, Foreground = (Brush)FindResource("TextDimBrush"), Margin = new Thickness(6, 0, 0, 2) };
+                var minLabel = new TextBlock { Text = "Min", FontSize = 10, Foreground = (Brush)FindResource("TextMutedBrush"), Margin = new Thickness(2, 0, 0, 2) };
+                var maxLabel = new TextBlock { Text = "Max", FontSize = 10, Foreground = (Brush)FindResource("TextMutedBrush"), Margin = new Thickness(6, 0, 0, 2) };
                 Grid.SetColumn(minLabel, 0); Grid.SetColumn(maxLabel, 1);
                 labels.Children.Add(minLabel); labels.Children.Add(maxLabel);
 
@@ -281,7 +281,7 @@ public partial class TabularView : UserControl, IPageView
                 // user can constrain to a sub-day time range (matters for DateTime columns).
                 FrameworkElement BuildRangeRow(string label, DateTime? initial, System.Action<DateTime?> apply)
                 {
-                    var lbl = new TextBlock { Text = label, FontSize = 10, Foreground = (Brush)FindResource("TextDimBrush"), Margin = new Thickness(2, 4, 0, 2) };
+                    var lbl = new TextBlock { Text = label, FontSize = 10, Foreground = (Brush)FindResource("TextMutedBrush"), Margin = new Thickness(2, 4, 0, 2) };
                     var dp  = new DatePicker { SelectedDate = initial?.Date };
                     var tb  = new TextBox
                     {
@@ -330,7 +330,7 @@ public partial class TabularView : UserControl, IPageView
                 return stk;
             }
         }
-        return new TextBlock { Text = "(no filter)", Foreground = (Brush)FindResource("TextDimBrush") };
+        return new TextBlock { Text = "(no filter)", Foreground = (Brush)FindResource("TextMutedBrush") };
     }
 
     private static decimal? ParseDec(string s) =>

@@ -183,7 +183,7 @@
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="Transparent">
                                                     <TextBlock Text="{Binding Chevron}" FontSize="11"
-                                                               Foreground="{StaticResource TextDimBrush}"
+                                                               Foreground="{StaticResource TextMutedBrush}"
                                                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                 </Border>
                                             </ControlTemplate>
@@ -233,7 +233,7 @@
                                 <TextBlock Grid.Column="1" Text="{Binding SizeText}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="2" Text="{Binding CompressedText}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="3" Text="{Binding RatioText}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="4" Text="{Binding ModifiedText}" FontSize="12" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="4" Text="{Binding ModifiedText}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
                             </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>

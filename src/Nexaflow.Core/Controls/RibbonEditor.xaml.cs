@@ -357,14 +357,14 @@ public partial class RibbonEditor : UserControl
         {
             Text                = "│",
             FontSize            = 16,
-            Foreground          = (Brush)FindResource("TextDimBrush"),
+            Foreground          = (Brush)FindResource("TextMutedBrush"),
             HorizontalAlignment = HorizontalAlignment.Center
         });
         inner.Children.Add(new TextBlock
         {
             Text                = "sep",
             FontSize            = 9,
-            Foreground          = (Brush)FindResource("TextDimBrush"),
+            Foreground          = (Brush)FindResource("TextMutedBrush"),
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin              = new Thickness(0, 1, 0, 0)
         });

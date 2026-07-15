@@ -89,6 +89,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     void IWindowHost.InsertChatInput(string text) => ChatInputInsertRequested?.Invoke(text);
 
+    /// <summary>Raised to move focus to this window's AI bar (no text change); the window owns the control.</summary>
+    public event Action? ChatInputFocusRequested;
+
+    void IWindowHost.FocusChatInput() => ChatInputFocusRequested?.Invoke();
+
     void IWindowHost.SubmitAiQuery(string query)
     {
         if (string.IsNullOrWhiteSpace(query)) return;

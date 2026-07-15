@@ -164,11 +164,19 @@ public partial class MainWindow : Window
         AiInput.KeyInterceptor = _vm.HandleChatKey;
 
         _vm.ChatInputInsertRequested += InsertIntoAiBar;
+        _vm.ChatInputFocusRequested  += FocusAiBar;
 
         AiInput.AllowDrop        = true;
         AiInput.PreviewDragOver += OnAiInputDragOver;
         AiInput.Drop            += OnAiInputDrop;
     }
+
+    // Opening a tab moves focus to the AI bar (so the user can type a request straight away). Deferred to
+    // Background priority — below Loaded/Input — so it runs after the tab's own content has realized and
+    // taken focus, and we end up with it.
+    private void FocusAiBar()
+        => Dispatcher.BeginInvoke(new Action(() => AiInput.Focus()),
+                                  System.Windows.Threading.DispatcherPriority.Background);
 
     private void InsertIntoAiBar(string text)
     {

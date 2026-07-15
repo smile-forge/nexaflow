@@ -41,7 +41,7 @@ public sealed class SortBrushConverter : IMultiValueConverter
         bool active = values.Length >= 2
                       && values[1] is string key && !string.IsNullOrEmpty(key)
                       && string.Equals(values[0] as string, key, StringComparison.Ordinal);
-        return Application.Current.Resources[active ? "AccentBrush" : "TextDimBrush"];
+        return Application.Current.Resources[active ? "AccentBrush" : "TextMutedBrush"];
     }
 
     public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)

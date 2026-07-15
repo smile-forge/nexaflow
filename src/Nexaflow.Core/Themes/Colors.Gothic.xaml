@@ -18,7 +18,6 @@
     <!-- Indigo-violet (the colder second purple) -->
     <Color x:Key="TextColor">#ECE4F7</Color>
     <Color x:Key="TextMutedColor">#ADA0C4</Color>
-    <Color x:Key="TextDimColor">#6E6188</Color>
     <Color x:Key="DeepBgColor">#0A0612</Color>
 
     <!-- ── Brushes ── -->
@@ -31,7 +30,6 @@
     <SolidColorBrush x:Key="Accent2Brush"    Color="{StaticResource Accent2Color}"/>
     <SolidColorBrush x:Key="TextBrush"       Color="{StaticResource TextColor}"/>
     <SolidColorBrush x:Key="TextMutedBrush"  Color="{StaticResource TextMutedColor}"/>
-    <SolidColorBrush x:Key="TextDimBrush"    Color="{StaticResource TextDimColor}"/>
     <SolidColorBrush x:Key="DeepBgBrush"     Color="{StaticResource DeepBgColor}"/>
 
     <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0,0" EndPoint="1,1">

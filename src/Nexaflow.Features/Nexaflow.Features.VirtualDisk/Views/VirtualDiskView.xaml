@@ -115,7 +115,7 @@
                                                    FontSize="12" FontWeight="SemiBold"/>
                                         <TextBlock Text="{Binding Detail}" Foreground="{StaticResource TextMutedBrush}"
                                                    FontSize="11" Margin="0,1,0,0" TextWrapping="Wrap"/>
-                                        <TextBlock Text="{Binding Usage}" Foreground="{StaticResource TextDimBrush}"
+                                        <TextBlock Text="{Binding Usage}" Foreground="{StaticResource TextMutedBrush}"
                                                    FontSize="11" Margin="0,1,0,0"/>
                                     </StackPanel>
                                 </Border>
@@ -176,7 +176,7 @@
                                         <ControlTemplate TargetType="Button">
                                             <Border Background="Transparent">
                                                 <TextBlock Text="{Binding Chevron}" FontSize="11"
-                                                           Foreground="{StaticResource TextDimBrush}"
+                                                           Foreground="{StaticResource TextMutedBrush}"
                                                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                             </Border>
                                         </ControlTemplate>
@@ -223,7 +223,7 @@
                             </StackPanel>
 
                             <TextBlock Grid.Column="1" Text="{Binding SizeText}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Column="2" Text="{Binding ModifiedText}" FontSize="12" Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="{Binding ModifiedText}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
                         </Grid>
                     </DataTemplate>
                 </ListBox.ItemTemplate>

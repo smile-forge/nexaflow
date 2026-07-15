@@ -49,6 +49,36 @@ public class TabTests : UITestBase
     }
 
     [TestMethod]
+    [CoversNode("chrome-ai-input")]
+    public void OpeningATab_FocusesTheAiInput()
+    {
+        // Open a tab deterministically through the "/" palette (proven to open the Services page). The
+        // Services view realizes and could take focus itself — the point of the test is that focus lands
+        // back on the AI input once the tab is open.
+        var ai = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("AiInputBox"));
+        Assert.IsNotNull(ai, "AI input box not found.");
+        ai!.Focus();
+        Thread.Sleep(150);
+        Keyboard.Type("/services");
+        Wait.UntilInputIsProcessed();
+        Thread.Sleep(400);
+        Keyboard.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.RETURN);
+        Wait.UntilInputIsProcessed();
+
+        // Wait for the Services tab to actually be open, then let focus settle.
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (sw.Elapsed < TimeSpan.FromSeconds(8) &&
+               MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("TabItem_SystemServices")) is null)
+            Thread.Sleep(150);
+        Thread.Sleep(600);   // focus is handed to the AI bar at Background priority, after the view realizes
+
+        Assert.IsNotNull(MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("TabItem_SystemServices")),
+            "The Services tab did not open.");
+        Assert.IsTrue(ai.Properties.HasKeyboardFocus.ValueOrDefault,
+            "Opening a tab did not leave keyboard focus on the AI input.");
+    }
+
+    [TestMethod]
     public void ClickTab_ActivatesIt()
     {
         var ribbon = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("RibbonControl"));

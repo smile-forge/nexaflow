@@ -16,7 +16,7 @@
 
         <!-- One-line helper text under a field -->
         <Style x:Key="FieldHint" TargetType="TextBlock">
-            <Setter Property="Foreground"   Value="{StaticResource TextDimBrush}"/>
+            <Setter Property="Foreground"   Value="{StaticResource TextMutedBrush}"/>
             <Setter Property="FontSize"     Value="10"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="Margin"       Value="0,3,0,0"/>
@@ -110,7 +110,7 @@
 
                 <!-- Empty state -->
                 <TextBlock x:Name="NoBindingsText" Margin="20,2,0,4"
-                           Foreground="{StaticResource TextDimBrush}" FontSize="11" TextWrapping="Wrap"
+                           Foreground="{StaticResource TextMutedBrush}" FontSize="11" TextWrapping="Wrap"
                            Text="No locations have a saved default yet. Open a console with “Cmd here” and tick “Always use this environment for this location” to add one."/>
 
                 <Border x:Name="BindingsBorder" Margin="20,0,0,0"

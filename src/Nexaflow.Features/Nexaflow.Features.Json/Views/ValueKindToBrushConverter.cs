@@ -18,7 +18,7 @@ internal sealed class ValueKindToBrushConverter : IValueConverter
             JsonValueKind.Number            => GetResource("TextBrush"),
             JsonValueKind.True or
             JsonValueKind.False             => GetResource("Swatch.Orange"),
-            JsonValueKind.Null              => GetResource("TextDimBrush"),
+            JsonValueKind.Null              => GetResource("TextMutedBrush"),
             _                              => GetResource("TextMutedBrush"),
         };
     }

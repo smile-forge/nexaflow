@@ -181,7 +181,7 @@
                 <!-- List -->
                 <Grid Grid.Row="1">
                     <TextBlock Text="No projects here" HorizontalAlignment="Center" VerticalAlignment="Center"
-                               Foreground="{StaticResource TextDimBrush}" FontSize="13"
+                               Foreground="{StaticResource TextMutedBrush}" FontSize="13"
                                Visibility="{Binding ProjectCount, Converter={StaticResource ZeroVis}}"/>
 
                     <ListView ItemsSource="{Binding Projects}"
@@ -200,7 +200,7 @@
                                                Foreground="{StaticResource TextMutedBrush}"
                                                TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Margin="0,2,0,0"/>
                                     <TextBlock Text="{Binding CountsText}" FontSize="10"
-                                               Foreground="{StaticResource TextDimBrush}" Margin="0,3,0,0"/>
+                                               Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,0"/>
                                 </StackPanel>
                             </DataTemplate>
                         </ListView.ItemTemplate>
@@ -240,7 +240,7 @@
                                    FontSize="22" FontWeight="Bold" Foreground="{StaticResource TextBrush}"
                                    TextTrimming="CharacterEllipsis"/>
                         <StackPanel Grid.Column="1" VerticalAlignment="Bottom" Margin="16,0,0,0">
-                            <TextBlock Text="Last modified" FontSize="10" Foreground="{StaticResource TextDimBrush}" HorizontalAlignment="Right"/>
+                            <TextBlock Text="Last modified" FontSize="10" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Right"/>
                             <TextBlock Text="{Binding SelectedProject.LastModified}" FontSize="12"
                                        Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Right"/>
                         </StackPanel>

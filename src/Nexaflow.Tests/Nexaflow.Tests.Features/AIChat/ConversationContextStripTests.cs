@@ -85,6 +85,22 @@ public class ConversationContextStripTests
     });
 
     [TestMethod]
+    public void HasContextItems_TracksTheStrip_DrivingTheEmptyStateHint() => Sta(() =>
+    {
+        // The "drag tabs or files here" hint binds to this — it used to bind Count through a bool converter
+        // (always Visible), so it never cleared once an item was pinned.
+        var convo = NewConversation();
+        Assert.IsFalse(convo.HasContextItems, "no items → the hint shows");
+
+        var page = PageOf("Fake", "a");
+        convo.AddContextItem(page);
+        Assert.IsTrue(convo.HasContextItems, "an item is pinned → the hint hides");
+
+        convo.RemoveContextItem(page);
+        Assert.IsFalse(convo.HasContextItems, "back to empty → the hint shows again");
+    });
+
+    [TestMethod]
     public void AddContextItem_DifferentObjectSameKindAndParams_PinnedOnce() => Sta(() =>
     {
         // This is the restore case: RestoreContextPages rebuilds saved context as *new* Page objects, so

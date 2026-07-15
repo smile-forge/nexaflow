@@ -25,7 +25,7 @@
         <!-- What the selected size is suited for -->
         <TextBlock Text="{Binding SelectedDescription}"
                    TextWrapping="Wrap" MaxWidth="380" HorizontalAlignment="Left"
-                   Foreground="{StaticResource TextDimBrush}"
+                   Foreground="{StaticResource TextMutedBrush}"
                    FontSize="11" Margin="0,0,0,18"/>
 
         <!-- Download status -->

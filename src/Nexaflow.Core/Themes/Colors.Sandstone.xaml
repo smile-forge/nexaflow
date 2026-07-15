@@ -16,7 +16,6 @@
     <!-- Warm sand -->
     <Color x:Key="TextColor">#F4ECDC</Color>
     <Color x:Key="TextMutedColor">#B7A793</Color>
-    <Color x:Key="TextDimColor">#82715E</Color>
     <Color x:Key="DeepBgColor">#18110A</Color>
 
     <!-- ── Brushes ── -->
@@ -29,7 +28,6 @@
     <SolidColorBrush x:Key="Accent2Brush"    Color="{StaticResource Accent2Color}"/>
     <SolidColorBrush x:Key="TextBrush"       Color="{StaticResource TextColor}"/>
     <SolidColorBrush x:Key="TextMutedBrush"  Color="{StaticResource TextMutedColor}"/>
-    <SolidColorBrush x:Key="TextDimBrush"    Color="{StaticResource TextDimColor}"/>
     <SolidColorBrush x:Key="DeepBgBrush"     Color="{StaticResource DeepBgColor}"/>
 
     <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0,0" EndPoint="1,1">

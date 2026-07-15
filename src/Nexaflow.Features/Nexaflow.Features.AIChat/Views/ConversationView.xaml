@@ -30,7 +30,7 @@
                     <TextBlock Text="{Binding TimestampDisplay}"
                                FontSize="10"
                                VerticalAlignment="Center"
-                               Foreground="{StaticResource TextDimBrush}"/>
+                               Foreground="{StaticResource TextMutedBrush}"/>
                     <Button Margin="7,0,0,0"
                             Padding="6,1"
                             Cursor="Hand"
@@ -50,7 +50,7 @@
                                         CornerRadius="8"
                                         Padding="{TemplateBinding Padding}">
                                     <ContentPresenter VerticalAlignment="Center"
-                                                      TextElement.Foreground="{StaticResource TextDimBrush}"/>
+                                                      TextElement.Foreground="{StaticResource TextMutedBrush}"/>
                                 </Border>
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsMouseOver" Value="True">
@@ -242,7 +242,7 @@
                 <Grid Grid.Row="1" Background="Transparent">
                     <!-- Empty-state placeholder, centred. Non-hit-testable so it
                          doesn't interfere with drop targeting. -->
-                    <Border Visibility="{Binding ContextItems.Count, Converter={StaticResource InvBoolVis}}"
+                    <Border Visibility="{Binding HasContextItems, Converter={StaticResource InvBoolVis}}"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
                             BorderBrush="{StaticResource BorderBrush}"
@@ -251,7 +251,7 @@
                             Padding="14,10"
                             IsHitTestVisible="False">
                         <TextBlock Text="Drag tabs or files here"
-                                   Foreground="{StaticResource TextDimBrush}"
+                                   Foreground="{StaticResource TextMutedBrush}"
                                    FontSize="12"/>
                     </Border>
 

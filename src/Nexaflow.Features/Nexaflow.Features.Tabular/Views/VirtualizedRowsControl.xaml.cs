@@ -243,7 +243,7 @@ public partial class VirtualizedRowsControl : UserControl
         var label = new TextBlock
         {
             Text          = hasComments ? "ⓘ" : "#",
-            Foreground    = (Brush)FindResource(hasComments ? "AccentBrush" : "TextDimBrush"),
+            Foreground    = (Brush)FindResource(hasComments ? "AccentBrush" : "TextMutedBrush"),
             FontWeight    = FontWeights.SemiBold,
             TextAlignment = TextAlignment.Right,
             Cursor        = hasComments ? Cursors.Help : Cursors.Arrow,
@@ -331,7 +331,7 @@ public partial class VirtualizedRowsControl : UserControl
         {
             Text              = SortGlyphFor(col.SortDirection, IsSortable),
             Foreground        = col.SortDirection == SortDirection.None
-                                    ? (Brush)FindResource("TextDimBrush")
+                                    ? (Brush)FindResource("TextMutedBrush")
                                     : (Brush)FindResource("AccentBrush"),
             VerticalAlignment = VerticalAlignment.Center,
             FontSize          = 11,
@@ -448,7 +448,7 @@ public partial class VirtualizedRowsControl : UserControl
         if (!_headerCells.TryGetValue(col, out var hc)) return;
         hc.SortGlyph.Text       = SortGlyphFor(col.SortDirection, IsSortable);
         hc.SortGlyph.Foreground = col.SortDirection == SortDirection.None
-            ? (Brush)FindResource("TextDimBrush")
+            ? (Brush)FindResource("TextMutedBrush")
             : (Brush)FindResource("AccentBrush");
     }
 
@@ -564,7 +564,7 @@ public partial class VirtualizedRowsControl : UserControl
     {
         var idx = new TextBlock
         {
-            Foreground    = (Brush)FindResource("TextDimBrush"),
+            Foreground    = (Brush)FindResource("TextMutedBrush"),
             Width         = IndexColumnWidth,
             Padding       = new Thickness(8, 4, 8, 4),
             FontFamily    = new FontFamily("Cascadia Code, Consolas, monospace"),

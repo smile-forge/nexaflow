@@ -194,7 +194,7 @@
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Bottom" Text="{Binding FileName}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="6,4"/>
                     <Grid Margin="6,6,6,2">
-                        <TextBlock Text="🖼" FontSize="36" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource TextDimBrush}">
+                        <TextBlock Text="🖼" FontSize="36" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Visibility" Value="Collapsed"/>
@@ -246,7 +246,7 @@
                                 </Style.Triggers>
                             </Style>
                         </Border.Style>
-                        <TextBlock Text="🖼" FontSize="32" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource TextDimBrush}"/>
+                        <TextBlock Text="🖼" FontSize="32" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
                     </Border>
                     <Image Source="{Binding Thumbnail}" Height="150" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
                 </Grid>
@@ -490,7 +490,7 @@
                                                 <Style TargetType="Ellipse">
                                                     <Setter Property="Width" Value="8"/>
                                                     <Setter Property="Height" Value="8"/>
-                                                    <Setter Property="Fill" Value="{StaticResource TextDimBrush}"/>
+                                                    <Setter Property="Fill" Value="{StaticResource TextMutedBrush}"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsCurrent}" Value="True">
                                                             <Setter Property="Fill" Value="Transparent"/>

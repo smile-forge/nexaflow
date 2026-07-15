@@ -482,11 +482,14 @@
                             <ItemsControl ItemsSource="{Binding Slash.Items}" KeyboardNavigation.TabNavigation="None">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type m:SlashCommandItem}">
+                                        <!-- AncestorType=ItemsControl, not Window: the popup has its own visual
+                                             tree that doesn't chain up to the Window, but the ItemsControl (in
+                                             that tree) still carries the shell DataContext. -->
                                         <Button Cursor="Hand"
                                                 Focusable="False"
                                                 HorizontalContentAlignment="Stretch"
                                                 Command="{Binding DataContext.ActivateSlashItemCommand,
-                                                                  RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                  RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                 CommandParameter="{Binding}">
                                             <Button.Template>
                                                 <ControlTemplate TargetType="Button">
@@ -758,7 +761,7 @@
                                                               RelativeSource={RelativeSource AncestorType=Window}}"
                                             CommandParameter="{Binding}">
                                         <TextBlock Text="✕" FontSize="10"
-                                                   Foreground="{StaticResource TextDimBrush}"/>
+                                                   Foreground="{StaticResource TextMutedBrush}"/>
                                     </Button>
                                 </Grid>
                             </Border>
@@ -766,7 +769,7 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
                 <TextBlock Text="No notifications"
-                           Foreground="{StaticResource TextDimBrush}"
+                           Foreground="{StaticResource TextMutedBrush}"
                            FontSize="12" HorizontalAlignment="Center" Margin="0,12"
                            Visibility="{Binding Notifications.Count,
                                                 Converter={StaticResource ZeroCountVis}}"/>
@@ -884,7 +887,7 @@
                             Margin="10,0,0,0"
                             Command="{Binding DataContext.DismissActiveToastCommand,
                                               RelativeSource={RelativeSource AncestorType=Window}}">
-                        <TextBlock Text="✕" FontSize="11" Foreground="{StaticResource TextDimBrush}"/>
+                        <TextBlock Text="✕" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
                     </Button>
                 </Grid>
 

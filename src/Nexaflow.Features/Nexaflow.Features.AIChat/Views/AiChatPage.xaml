@@ -42,7 +42,7 @@
                             Command="{Binding DataContext.DeleteConversationCommand,
                                       RelativeSource={RelativeSource AncestorType=UserControl}}"
                             CommandParameter="{Binding}">
-                        <TextBlock Text="&#x2715;" FontSize="11" Foreground="{StaticResource TextDimBrush}"/>
+                        <TextBlock Text="&#x2715;" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
                     </Button>
 
                     <!-- Left: title + start/end + message count -->
@@ -51,9 +51,6 @@
                                    FontSize="13" FontWeight="Medium"
                                    Foreground="{StaticResource TextBrush}"
                                    TextTrimming="CharacterEllipsis"/>
-                        <!-- Muted, not Dim: Dim is too low-contrast to read against the row background in
-                             most themes. Muted is the readable step — brighter in dark themes, darker in
-                             light ones. -->
                         <TextBlock FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,0">
                             <Run Text="{Binding StartDisplay, Mode=OneWay}"/><Run Text=" → "/><Run Text="{Binding EndDisplay, Mode=OneWay}"/>
                         </TextBlock>

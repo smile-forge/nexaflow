@@ -192,9 +192,15 @@ public sealed class ShellServices : IShellServices
 
         current.Window.Close();   // synchronously unregisters its tabs from _tabToWindow
 
-        // Reopen in reverse (Pane.Add prepends) so the original left-to-right order is preserved.
-        for (int i = snapshot.Count - 1; i >= 0; i--)
-            OpenTabCore(snapshot[i].Kind, snapshot[i].PageParams, null, inRightPane: false);
+        // Reopen in reverse (Pane.Add prepends) so the original left-to-right order is preserved. A theme
+        // restart is a bulk restore, not a user open — don't yank focus to the AI bar.
+        _suppressChatFocus = true;
+        try
+        {
+            for (int i = snapshot.Count - 1; i >= 0; i--)
+                OpenTabCore(snapshot[i].Kind, snapshot[i].PageParams, null, inRightPane: false);
+        }
+        finally { _suppressChatFocus = false; }
 
         var active = snapshot.FirstOrDefault(s => s.IsActive);
         if (active.Kind is not null && FindTabCore(active.Kind, active.PageParams) is { } activeTab)
@@ -253,6 +259,7 @@ public sealed class ShellServices : IShellServices
             if (fresh is null) return;
             _tabToWindow[fresh] = targetWindow;
             targetWindow.AddTab(fresh);
+            FocusChatOnOpen(targetWindow);
             return;
         }
 
@@ -268,6 +275,7 @@ public sealed class ShellServices : IShellServices
 
             targetWindow.BringToFront(existing);
             targetWindow.SetActiveTab(existing);
+            FocusChatOnOpen(targetWindow);
             return;
         }
 
@@ -277,6 +285,17 @@ public sealed class ShellServices : IShellServices
 
         _tabToWindow[tab] = targetWindow;
         targetWindow.AddTab(tab);
+        FocusChatOnOpen(targetWindow);
+    }
+
+    // Opening a tab hands focus to the AI bar so a request can be typed immediately. Suppressed during bulk
+    // tab restore (startup / session-restore / theme restart / workspace switch), which opens many tabs
+    // through this same path — there, focus shouldn't be yanked to the bar after the last one.
+    private bool _suppressChatFocus;
+
+    private void FocusChatOnOpen(IWindowHost window)
+    {
+        if (!_suppressChatFocus) window.FocusChatInput();
     }
 
     // ── Default-tab restore (debounced) ───────────────────────────────────
@@ -328,8 +347,15 @@ public sealed class ShellServices : IShellServices
         // A right-only layout collapses to a single pane rather than splitting off an empty left one.
         if (left.Count == 0 && right.Count > 0) { left = right; right = []; }
 
-        foreach (var t in left)  OpenTab(t.PageKind, CloneParams(t.PageParams), inRightPane: false);
-        foreach (var t in right) OpenTab(t.PageKind, CloneParams(t.PageParams), inRightPane: true);
+        // Bulk restore — don't steal focus to the AI bar per tab (OpenTab uses a synchronous UI Invoke,
+        // so the flag holds through each OpenTabCore).
+        _suppressChatFocus = true;
+        try
+        {
+            foreach (var t in left)  OpenTab(t.PageKind, CloneParams(t.PageParams), inRightPane: false);
+            foreach (var t in right) OpenTab(t.PageKind, CloneParams(t.PageParams), inRightPane: true);
+        }
+        finally { _suppressChatFocus = false; }
     }
 
     // Fresh dict per open so a page mutating its PageParams can't corrupt the shared saved descriptor.
