@@ -209,6 +209,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     /// <summary>Inline completion proposed by the clear-winner query handler; null = none.</summary>
     [ObservableProperty] private string? _aiCompletionSuggestion;
 
+    // ── "/" command palette ───────────────────────────────────────────────
+    // Typing "/" in the AI bar turns it into a quick-open: match ribbon items + default-openable pages by
+    // name and jump to one. Owned here (not a query handler) so it can intercept before the handler chain —
+    // '/' is also TextRegexQueryHandler's symbol, and the palette must win when it has matches. The matching
+    // + selection logic lives in SlashCommandPalette so it's testable without the whole shell.
+    public SlashCommandPalette Slash { get; } = new();
+
     private CancellationTokenSource? _handlerEvalCts;
 
     // Created when a send begins; CancelAi cancels it. Token plumbing into the
@@ -1098,7 +1105,27 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
             AiHandlerSymbol        = null;
             AiIsListening          = false;
             AiCompletionSuggestion = null;
+            Slash.Close();
             return;
+        }
+
+        // "/" opens the command palette. When it has matches it owns the bar (skip handler scoring so it
+        // doesn't collide with TextRegexQueryHandler's '/'); with no matches it falls through so a real
+        // regex like /foo/ still routes normally.
+        if (value.StartsWith('/'))
+        {
+            Slash.Update(value[1..], BuildSlashCandidates());
+            if (Slash.IsOpen)
+            {
+                AiHandlerSymbol        = null;
+                AiIsListening          = false;
+                AiCompletionSuggestion = null;
+                return;
+            }
+        }
+        else
+        {
+            Slash.Close();
         }
 
         // A stale suggestion no longer matches the edited text — drop it until
@@ -1137,6 +1164,82 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
             AiCompletionSuggestion = null;
     }
 
+    // ── "/" command palette ───────────────────────────────────────────────
+
+    /// <summary>Every jump target the palette can match: default-openable pages (canonical, so listed
+    /// first for the dedup) then the live ribbon buttons. The palette filters/ranks these by the query.</summary>
+    private IReadOnlyList<SlashCommandItem> BuildSlashCandidates()
+    {
+        if (CurrentRuntime is null) return [];
+
+        var candidates = new List<SlashCommandItem>();
+
+        foreach (var page in FeatureManager.Instance.GetRibbonCatalogPages(CurrentRuntime))
+        {
+            if (page.PageKind is not { } kind) continue;
+            var pageParams = page.PageParams;
+            candidates.Add(new SlashCommandItem
+            {
+                Icon     = string.IsNullOrEmpty(page.Icon) ? "📄" : page.Icon,
+                Label    = page.Title,
+                Category = "Page",
+                Invoke   = () => _shellServices.OpenTab(kind, pageParams),
+            });
+        }
+
+        foreach (var item in Ribbon?.Items ?? [])
+        {
+            if (item.Kind != RibbonItemKind.Button || string.IsNullOrWhiteSpace(item.Label)) continue;
+            var captured = item;
+            candidates.Add(new SlashCommandItem
+            {
+                Icon     = string.IsNullOrEmpty(item.Icon) ? "▦" : item.Icon,
+                Label    = item.Label,
+                Category = "Ribbon",
+                Invoke   = () => OpenRibbonItemCommand.Execute(captured),
+            });
+        }
+
+        return candidates;
+    }
+
+    /// <summary>Opens a palette row: runs its action, then clears the bar and closes the palette.</summary>
+    public void InvokeSlashItem(SlashCommandItem? item)
+    {
+        if (item is null) return;
+        Slash.Close();
+        AiInputText = string.Empty;
+        item.Invoke();
+    }
+
+    [RelayCommand]
+    private void ActivateSlashItem(SlashCommandItem? item) => InvokeSlashItem(item);
+
+    /// <summary>Palette keyboard nav, consulted before the feature key handlers so it wins while open.
+    /// Returns null when the palette isn't handling the key.</summary>
+    private ChatKeyResult? HandleSlashPaletteKey(System.Windows.Input.Key key)
+    {
+        if (!Slash.IsOpen) return null;
+
+        switch (key)
+        {
+            case System.Windows.Input.Key.Down:
+                Slash.MoveDown();
+                return new ChatKeyResult(true);
+            case System.Windows.Input.Key.Up:
+                Slash.MoveUp();
+                return new ChatKeyResult(true);
+            case System.Windows.Input.Key.Enter or System.Windows.Input.Key.Tab:
+                InvokeSlashItem(Slash.Selected);
+                return new ChatKeyResult(true, NewText: string.Empty);
+            case System.Windows.Input.Key.Escape:
+                Slash.Close();
+                return new ChatKeyResult(true);
+            default:
+                return null;
+        }
+    }
+
     private async Task UpdateCompletionAsync(IQueryHandler handler, string text,
                                              IPageViewModel? pageVm, CancellationToken token)
     {
@@ -1164,6 +1267,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
                                        System.Windows.Input.ModifierKeys modifiers,
                                        string text, int caretIndex)
     {
+        // The "/" palette gets first crack while it's open, so it claims Up/Down/Enter/Escape ahead of a
+        // page feature (e.g. the terminal's history keys).
+        if (HandleSlashPaletteKey(key) is { } paletteResult) return paletteResult;
+
         var pageVm = (CurrentPage as IPageView)?.ViewModel;
         foreach (var h in FeatureManager.Instance.GetChatKeyHandlers(CurrentRuntime))
         {
@@ -1259,6 +1366,14 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     [RelayCommand]
     private async Task SendAiMessage()
     {
+        // With the palette open, the Send button opens the highlighted entry rather than sending "/query"
+        // to the AI (Enter already routes here through HandleSlashPaletteKey).
+        if (Slash.IsOpen)
+        {
+            InvokeSlashItem(Slash.Selected);
+            return;
+        }
+
         var text = AiInputText.Trim();
         if (string.IsNullOrEmpty(text)) return;
 
