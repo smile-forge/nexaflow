@@ -462,79 +462,6 @@
                         Background="{StaticResource AiBar.InputBg}"
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="1" CornerRadius="10">
-                  <Grid>
-                    <!-- "/" command palette — opens above the input, matching entries first -->
-                    <Popup PlacementTarget="{Binding ElementName=AiInput}"
-                           Placement="Top"
-                           IsOpen="{Binding Slash.IsOpen, Mode=OneWay}"
-                           StaysOpen="True"
-                           AllowsTransparency="True"
-                           PopupAnimation="Slide"
-                           Focusable="False"
-                           Width="{Binding ActualWidth, ElementName=AiInput}">
-                        <Border Margin="0,0,0,6"
-                                Background="{StaticResource Surface2Brush}"
-                                BorderBrush="{StaticResource BorderLightBrush}"
-                                BorderThickness="1" CornerRadius="8" Padding="4">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="16" ShadowDepth="3" Opacity="0.5" Color="Black"/>
-                            </Border.Effect>
-                            <ItemsControl ItemsSource="{Binding Slash.Items}" KeyboardNavigation.TabNavigation="None">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type m:SlashCommandItem}">
-                                        <!-- AncestorType=ItemsControl, not Window: the popup has its own visual
-                                             tree that doesn't chain up to the Window, but the ItemsControl (in
-                                             that tree) still carries the shell DataContext. -->
-                                        <Button Cursor="Hand"
-                                                Focusable="False"
-                                                HorizontalContentAlignment="Stretch"
-                                                Command="{Binding DataContext.ActivateSlashItemCommand,
-                                                                  RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                CommandParameter="{Binding}">
-                                            <Button.Template>
-                                                <ControlTemplate TargetType="Button">
-                                                    <Border x:Name="row"
-                                                            Background="Transparent"
-                                                            CornerRadius="6" Padding="9,7">
-                                                        <Grid>
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                                <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                            </Grid.ColumnDefinitions>
-                                                            <TextBlock Grid.Column="0" Text="{Binding Icon}"
-                                                                       FontSize="14" Margin="0,0,9,0"
-                                                                       VerticalAlignment="Center"/>
-                                                            <TextBlock Grid.Column="1" Text="{Binding Label}"
-                                                                       FontSize="13"
-                                                                       Foreground="{StaticResource TextBrush}"
-                                                                       VerticalAlignment="Center"
-                                                                       TextTrimming="CharacterEllipsis"/>
-                                                            <TextBlock Grid.Column="2" Text="{Binding Category}"
-                                                                       FontSize="10"
-                                                                       Foreground="{StaticResource TextMutedBrush}"
-                                                                       VerticalAlignment="Center"/>
-                                                        </Grid>
-                                                    </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
-                                                            <Setter TargetName="row" Property="Background"
-                                                                    Value="{StaticResource AccentBrush}"/>
-                                                        </DataTrigger>
-                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="row" Property="Background"
-                                                                    Value="{StaticResource BorderLightBrush}"/>
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
-                                                </ControlTemplate>
-                                            </Button.Template>
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </Border>
-                    </Popup>
-
                     <ctrl:PlaceholderTextBox
                         x:Name="AiInput"
                         AutomationProperties.AutomationId="AiInputBox"
@@ -569,7 +496,6 @@
                             </Style>
                         </ctrl:PlaceholderTextBox.Style>
                     </ctrl:PlaceholderTextBox>
-                  </Grid>
                 </Border>
 
                 <!-- Submit / Cancel (swaps on AiIsBusy) + a Queue button that appears while busy so the
@@ -833,6 +759,27 @@
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Severity}" Value="Update">
                             <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                        </DataTrigger>
+
+                        <!-- Fade-out tail: opacity 1→0 over 2s once the visible duration elapses; reset to 1
+                             when a fresh toast takes over (ToastFading back to false). -->
+                        <DataTrigger Binding="{Binding DataContext.ToastFading, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="0:0:2"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.EnterActions>
+                            <DataTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="0"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.ExitActions>
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>

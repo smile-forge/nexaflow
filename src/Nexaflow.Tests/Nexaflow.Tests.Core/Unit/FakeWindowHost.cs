@@ -32,8 +32,4 @@ internal sealed class FakeWindowHost : IWindowHost
     public void AddRibbonPin(RibbonPinRequest request) { }
     public void InsertChatInput(string text) { }
     public void SubmitAiQuery(string query) { }
-
-    /// <summary>How many times a tab-open asked to focus the AI bar — asserted by the focus-on-open tests.</summary>
-    public int FocusChatInputCount { get; private set; }
-    public void FocusChatInput() => FocusChatInputCount++;
 }

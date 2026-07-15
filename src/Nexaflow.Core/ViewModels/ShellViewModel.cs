@@ -43,7 +43,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     // A new tab follows focus (it lands in the pane the user is working in); operations on an existing
     // tab follow the pane that owns it. This keeps ShellServices pane-agnostic — it deals in windows,
     // and the window resolves which of its panes the tab lives in.
-    void IWindowHost.AddTab(Page tab) => FocusedPane.Add(tab);
+    void IWindowHost.AddTab(Page tab) { FocusedPane.Add(tab); ChatInputFocusRequested?.Invoke(); }
 
     // Split off (or focus the existing) right pane so the next AddTab lands there — backs "Open in
     // right pane". SplitEmpty already creates the pane and focuses it; when already split we just refocus.
@@ -67,6 +67,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         pane.BringToFront(tab);
         pane.ActivePage = tab;
         FocusedPane = pane;          // activating a tab focuses its pane
+        ChatInputFocusRequested?.Invoke();
     }
 
     void IWindowHost.ShowError(string message) => ShowError("Error", message);
@@ -89,10 +90,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     void IWindowHost.InsertChatInput(string text) => ChatInputInsertRequested?.Invoke(text);
 
-    /// <summary>Raised to move focus to this window's AI bar (no text change); the window owns the control.</summary>
+    /// <summary>Raised when a tab is added or activated, so the window moves focus to its AI bar — a request
+    /// can be typed straight away. The window owns the actual input control.</summary>
     public event Action? ChatInputFocusRequested;
-
-    void IWindowHost.FocusChatInput() => ChatInputFocusRequested?.Invoke();
 
     void IWindowHost.SubmitAiQuery(string query)
     {
@@ -214,12 +214,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     /// <summary>Inline completion proposed by the clear-winner query handler; null = none.</summary>
     [ObservableProperty] private string? _aiCompletionSuggestion;
 
-    // ── "/" command palette ───────────────────────────────────────────────
-    // Typing "/" in the AI bar turns it into a quick-open: match ribbon items + default-openable pages by
-    // name and jump to one. Owned here (not a query handler) so it can intercept before the handler chain —
-    // '/' is also TextRegexQueryHandler's symbol, and the palette must win when it has matches. The matching
-    // + selection logic lives in SlashCommandPalette so it's testable without the whole shell.
-    public SlashCommandPalette Slash { get; } = new();
+    // ── Page/ribbon quick-open ────────────────────────────────────────────
+    // Typing "/name" (or a bare exact page name) resolves a jump target, shown through the shell's standard
+    // status-dot symbol + ghost-text completion — no popup. Enter opens the resolved target instead of
+    // sending to the AI. The match logic lives in QuickOpen so it's testable without the whole shell.
+    private QuickOpenCandidate? _pendingQuickOpen;
 
     private CancellationTokenSource? _handlerEvalCts;
 
@@ -234,6 +233,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     private NotificationItem? _activeToast;
 
     public bool ToastVisible => ActiveToast is not null;
+
+    /// <summary>True during the toast's fade-out tail — the view animates opacity to 0 over
+    /// <see cref="ToastFadeMs"/>ms; the message stays "active" until the fade completes.</summary>
+    [ObservableProperty] private bool _toastFading;
+
+    /// <summary>How long the fade-out tail runs after a toast's visible duration elapses.</summary>
+    private const int ToastFadeMs = 2000;
 
     private readonly Queue<NotificationItem> _toastQueue = new();
     private CancellationTokenSource? _toastDismissCts;
@@ -259,19 +265,29 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     private void DisplayNextToast()
     {
         _toastDismissCts?.Cancel();
-        if (_toastQueue.Count == 0) { ActiveToast = null; return; }
+        if (_toastQueue.Count == 0) { ActiveToast = null; ToastFading = false; return; }
 
         var message = _toastQueue.Dequeue();
-        ActiveToast = message;
+        ActiveToast  = message;
+        ToastFading  = false;   // fully opaque until its visible duration elapses
 
         _toastDismissCts = new CancellationTokenSource();
-        var token = _toastDismissCts.Token;
-        var duration = message.ToastDuration ?? DefaultToastDuration(message);
-        _ = Task.Delay(duration, token).ContinueWith(t =>
+        _ = RunToastLifetimeAsync(message, _toastDismissCts.Token);
+    }
+
+    /// <summary>Holds the toast for its visible duration, fades it over <see cref="ToastFadeMs"/>ms, then
+    /// advances. Cancelled (manual dismiss / a newer toast) short-circuits without fading.</summary>
+    private async Task RunToastLifetimeAsync(NotificationItem message, CancellationToken token)
+    {
+        try
         {
-            if (!t.IsCanceled)
-                _ui.Invoke(() => { if (ActiveToast == message) DisplayNextToast(); });
-        }, TaskScheduler.Default);
+            await Task.Delay(message.ToastDuration ?? DefaultToastDuration(message), token);
+            await _ui.InvokeAsync(() => { if (ActiveToast == message) ToastFading = true; });
+            await Task.Delay(ToastFadeMs, token);
+        }
+        catch (OperationCanceledException) { return; }
+
+        _ui.Invoke(() => { if (ActiveToast == message) DisplayNextToast(); });
     }
 
     private void ShowError(string title, string message)
@@ -1110,27 +1126,21 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
             AiHandlerSymbol        = null;
             AiIsListening          = false;
             AiCompletionSuggestion = null;
-            Slash.Close();
+            _pendingQuickOpen      = null;
             return;
         }
 
-        // "/" opens the command palette. When it has matches it owns the bar (skip handler scoring so it
-        // doesn't collide with TextRegexQueryHandler's '/'); with no matches it falls through so a real
-        // regex like /foo/ still routes normally.
-        if (value.StartsWith('/'))
+        // Page/ribbon quick-open owns the bar when it resolves a target: the status dot shows "/" and the
+        // ghost text completes the name. A "/query" that matches nothing (e.g. a real /regex/) resolves to
+        // null and falls through to normal handler scoring.
+        var quickOpen = QuickOpen.Resolve(value, BuildQuickOpenCandidates());
+        _pendingQuickOpen = quickOpen?.Target;
+        if (quickOpen is not null)
         {
-            Slash.Update(value[1..], BuildSlashCandidates());
-            if (Slash.IsOpen)
-            {
-                AiHandlerSymbol        = null;
-                AiIsListening          = false;
-                AiCompletionSuggestion = null;
-                return;
-            }
-        }
-        else
-        {
-            Slash.Close();
+            AiHandlerSymbol        = "/";
+            AiIsListening          = false;
+            AiCompletionSuggestion = quickOpen.Completion;
+            return;
         }
 
         // A stale suggestion no longer matches the edited text — drop it until
@@ -1169,80 +1179,47 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
             AiCompletionSuggestion = null;
     }
 
-    // ── "/" command palette ───────────────────────────────────────────────
+    // ── Page/ribbon quick-open ────────────────────────────────────────────
 
-    /// <summary>Every jump target the palette can match: default-openable pages (canonical, so listed
-    /// first for the dedup) then the live ribbon buttons. The palette filters/ranks these by the query.</summary>
-    private IReadOnlyList<SlashCommandItem> BuildSlashCandidates()
+    /// <summary>Every jump target quick-open can match: default-openable pages (listed first, so a page
+    /// wins a label clash on dedup) then the live ribbon buttons. Rebuilt per keystroke — the set is small.</summary>
+    private IReadOnlyList<QuickOpenCandidate> BuildQuickOpenCandidates()
     {
         if (CurrentRuntime is null) return [];
 
-        var candidates = new List<SlashCommandItem>();
+        var candidates = new List<QuickOpenCandidate>();
+        var seen       = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var page in FeatureManager.Instance.GetRibbonCatalogPages(CurrentRuntime))
         {
-            if (page.PageKind is not { } kind) continue;
+            if (page.PageKind is not { } kind || !seen.Add(page.Title)) continue;
             var pageParams = page.PageParams;
-            candidates.Add(new SlashCommandItem
-            {
-                Icon     = string.IsNullOrEmpty(page.Icon) ? "📄" : page.Icon,
-                Label    = page.Title,
-                Category = "Page",
-                Invoke   = () => _shellServices.OpenTab(kind, pageParams),
-            });
+            candidates.Add(new QuickOpenCandidate(page.Title, () => _shellServices.OpenTab(kind, pageParams)));
         }
 
         foreach (var item in Ribbon?.Items ?? [])
         {
             if (item.Kind != RibbonItemKind.Button || string.IsNullOrWhiteSpace(item.Label)) continue;
+            if (!seen.Add(item.Label)) continue;
             var captured = item;
-            candidates.Add(new SlashCommandItem
-            {
-                Icon     = string.IsNullOrEmpty(item.Icon) ? "▦" : item.Icon,
-                Label    = item.Label,
-                Category = "Ribbon",
-                Invoke   = () => OpenRibbonItemCommand.Execute(captured),
-            });
+            candidates.Add(new QuickOpenCandidate(item.Label, () => OpenRibbonItemCommand.Execute(captured)));
         }
 
         return candidates;
     }
 
-    /// <summary>Opens a palette row: runs its action, then clears the bar and closes the palette.</summary>
-    public void InvokeSlashItem(SlashCommandItem? item)
+    /// <summary>Opens the pending quick-open target (if any), clears the bar, and returns true — the caller
+    /// then skips normal AI send. Backs Enter and the Send button.</summary>
+    private bool TryQuickOpen()
     {
-        if (item is null) return;
-        Slash.Close();
-        AiInputText = string.Empty;
-        item.Invoke();
-    }
+        if (_pendingQuickOpen is not { } target) return false;
 
-    [RelayCommand]
-    private void ActivateSlashItem(SlashCommandItem? item) => InvokeSlashItem(item);
-
-    /// <summary>Palette keyboard nav, consulted before the feature key handlers so it wins while open.
-    /// Returns null when the palette isn't handling the key.</summary>
-    private ChatKeyResult? HandleSlashPaletteKey(System.Windows.Input.Key key)
-    {
-        if (!Slash.IsOpen) return null;
-
-        switch (key)
-        {
-            case System.Windows.Input.Key.Down:
-                Slash.MoveDown();
-                return new ChatKeyResult(true);
-            case System.Windows.Input.Key.Up:
-                Slash.MoveUp();
-                return new ChatKeyResult(true);
-            case System.Windows.Input.Key.Enter or System.Windows.Input.Key.Tab:
-                InvokeSlashItem(Slash.Selected);
-                return new ChatKeyResult(true, NewText: string.Empty);
-            case System.Windows.Input.Key.Escape:
-                Slash.Close();
-                return new ChatKeyResult(true);
-            default:
-                return null;
-        }
+        _pendingQuickOpen      = null;
+        AiInputText            = string.Empty;
+        AiHandlerSymbol        = null;
+        AiCompletionSuggestion = null;
+        target.Open();
+        return true;
     }
 
     private async Task UpdateCompletionAsync(IQueryHandler handler, string text,
@@ -1272,10 +1249,6 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
                                        System.Windows.Input.ModifierKeys modifiers,
                                        string text, int caretIndex)
     {
-        // The "/" palette gets first crack while it's open, so it claims Up/Down/Enter/Escape ahead of a
-        // page feature (e.g. the terminal's history keys).
-        if (HandleSlashPaletteKey(key) is { } paletteResult) return paletteResult;
-
         var pageVm = (CurrentPage as IPageView)?.ViewModel;
         foreach (var h in FeatureManager.Instance.GetChatKeyHandlers(CurrentRuntime))
         {
@@ -1371,13 +1344,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     [RelayCommand]
     private async Task SendAiMessage()
     {
-        // With the palette open, the Send button opens the highlighted entry rather than sending "/query"
-        // to the AI (Enter already routes here through HandleSlashPaletteKey).
-        if (Slash.IsOpen)
-        {
-            InvokeSlashItem(Slash.Selected);
-            return;
-        }
+        // A resolved quick-open target: Enter/Send opens it instead of sending "/query" to the AI.
+        if (TryQuickOpen()) return;
 
         var text = AiInputText.Trim();
         if (string.IsNullOrEmpty(text)) return;

@@ -66,10 +66,6 @@ internal interface IWindowHost
     /// <summary>Inserts text into this window's AI input bar at the caret (focusing it).</summary>
     void InsertChatInput(string text);
 
-    /// <summary>Moves keyboard focus to this window's AI input bar (no text change). Raised when a tab is
-    /// opened so the user can type a request straight away.</summary>
-    void FocusChatInput();
-
     /// <summary>Submits a query through this window's AI pipeline (as if typed in the bar).</summary>
     void SubmitAiQuery(string query);
 }

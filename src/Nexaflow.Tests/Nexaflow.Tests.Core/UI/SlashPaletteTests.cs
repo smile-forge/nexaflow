@@ -8,11 +8,9 @@ namespace Nexaflow.Tests.Core.UI;
 
 /// <summary>
 /// End-to-end for the AI input's "/" quick-open, asserted by its <em>outcome</em>: typing "/serv" then Enter
-/// opens the Services page. This exercises the whole pipeline — candidate match, palette open+select, Enter
-/// routed through the palette, tab open. The palette itself is a WPF <c>Popup</c> (a separate top-level HWND
-/// that FlaUI can't reliably enumerate), so the observable proof is the tab that Enter opens: if the palette
-/// hadn't matched/selected, Enter would have sent "/serv" to the AI instead and no Services tab would appear.
-/// The ranking/nav mechanics are covered directly by <c>SlashCommandPaletteTests</c>.
+/// opens the Services page. Exercises the whole pipeline — candidate match, ghost completion, Enter routed to
+/// the resolved target, tab open. If quick-open hadn't matched, Enter would have sent "/serv" to the AI and
+/// no Services tab would appear. The matching mechanics are covered directly by <c>QuickOpenTests</c>.
 ///
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
