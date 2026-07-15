@@ -62,15 +62,18 @@ public sealed class DiskMounter
     public MountOutcome Mount(string imagePath)
     {
         var (exit, output, error) = RunPowerShell(MountScript, (ImageEnvVar, imagePath));
-        InvalidateCache();
-        return exit == 0 ? MountOutcome.Ok(ParseDrive(output)) : MountOutcome.Failed(FirstLine(error));
+        if (exit != 0) return MountOutcome.Failed(FirstLine(error));
+
+        var drive = ParseDrive(output);
+        NoteMounted(drive, imagePath);
+        return MountOutcome.Ok(drive);
     }
 
     /// <summary>Dismounts <paramref name="imagePath"/>. Un-elevated path (ISO).</summary>
     public bool Dismount(string imagePath)
     {
         var (exit, _, _) = RunPowerShell(DismountScript, (ImageEnvVar, imagePath));
-        InvalidateCache();
+        if (exit == 0) NoteUnmounted(imagePath);
         return exit == 0;
     }
 
@@ -83,36 +86,56 @@ public sealed class DiskMounter
         return c == default ? null : $"{char.ToUpperInvariant(c)}:";
     }
 
-    // ── Reads (cached — run on folder selection) ──────────────────────────────────
+    // ── Reads ─────────────────────────────────────────────────────────────────────
+    // Detection (per folder selection — the hot path) is a native bus-type probe: no process, microseconds.
+    // Drives this app mounted this session are also remembered outright, so their Unmount action is always
+    // offered regardless of any probe edge case. Resolving the backing image *path* (needed only when the
+    // user actually clicks Unmount) is the one thing still worth a Storage query — and it runs at click
+    // time, never per selection.
 
-    private static Dictionary<char, string>? _cache;
-    private static long _cacheStamp;
-    private const long CacheTtlMs = 2000;
-    private static readonly object CacheLock = new();
+    /// <summary>Drives this app mounted this session → their image path. Guarantees a just-mounted image
+    /// shows Unmount without depending on the native probe, and gives its path without a query.</summary>
+    private static readonly Dictionary<char, string> _appMounted = new();
+    private static readonly object _appMountedLock = new();
 
-    public static void InvalidateCache()
+    /// <summary>Records a mount this app performed. Called for both the in-process (ISO) path and the
+    /// elevated (VHD/VHDX) bridge path — <paramref name="driveLetter"/> may be <c>"E:"</c>, <c>"E"</c> or null.</summary>
+    public static void NoteMounted(string? driveLetter, string imagePath)
     {
-        lock (CacheLock) _cache = null;
+        var letter = driveLetter?.TrimEnd(':', '\\', '/');
+        if (!string.IsNullOrEmpty(letter) && char.IsLetter(letter[0]))
+            lock (_appMountedLock) _appMounted[char.ToUpperInvariant(letter[0])] = imagePath;
     }
 
-    /// <summary>True if <paramref name="driveLetter"/> (a single A–Z) is a volume of a mounted disk image.</summary>
-    public bool IsImageBacked(char driveLetter) =>
-        CachedDrives().ContainsKey(char.ToUpperInvariant(driveLetter));
-
-    /// <summary>The image file backing <paramref name="driveLetter"/>, or null if the drive isn't image-backed.</summary>
-    public string? ImagePathForDrive(char driveLetter) =>
-        CachedDrives().GetValueOrDefault(char.ToUpperInvariant(driveLetter));
-
-    private static Dictionary<char, string> CachedDrives()
+    /// <summary>Forgets a mount this app dismounted, so its Unmount action stops being offered at once.</summary>
+    public static void NoteUnmounted(string imagePath)
     {
-        long now = Environment.TickCount64;
-        lock (CacheLock)
-            if (_cache is not null && now - _cacheStamp < CacheTtlMs) return _cache;
+        lock (_appMountedLock)
+            foreach (var letter in _appMounted.Where(kv => string.Equals(kv.Value, imagePath, StringComparison.OrdinalIgnoreCase))
+                                              .Select(kv => kv.Key).ToList())
+                _appMounted.Remove(letter);
+    }
 
-        var fresh = QueryImageBackedDrives();
+    /// <summary>True if <paramref name="driveLetter"/> (a single A–Z) is a volume of a mounted disk image.
+    /// Native + in-process; safe to call on every selection.</summary>
+    public bool IsImageBacked(char driveLetter)
+    {
+        var letter = char.ToUpperInvariant(driveLetter);
+        lock (_appMountedLock)
+            if (_appMounted.ContainsKey(letter)) return true;
+        return VirtualDriveProbe.IsFileBackedVirtual(letter);
+    }
 
-        lock (CacheLock) { _cache = fresh; _cacheStamp = Environment.TickCount64; }
-        return fresh;
+    /// <summary>The image file backing <paramref name="driveLetter"/>, or null if the drive isn't image-backed.
+    /// Only called when the user clicks Unmount, so the (rare) Storage query for an externally-mounted image
+    /// is off the selection hot path.</summary>
+    public string? ImagePathForDrive(char driveLetter)
+    {
+        var letter = char.ToUpperInvariant(driveLetter);
+        lock (_appMountedLock)
+            if (_appMounted.TryGetValue(letter, out var known)) return known;
+
+        return QueryImageBackedDrives().GetValueOrDefault(letter);
     }
 
     private static Dictionary<char, string> QueryImageBackedDrives()

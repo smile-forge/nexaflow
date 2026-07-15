@@ -72,9 +72,43 @@ public class DiskMountAndActionsTests
         var action = new UnmountDiskAction(Substitute.For<IShellServices>());
         Assert.IsTrue(action.AppliesToDrives);
         Assert.IsFalse(action.AppliesToRoot);
-        // Non-drive-root paths can't parse a root letter → not applicable (and never touch WMI):
+        // Non-drive-root paths can't parse a root letter → not applicable (and never touch the probe):
         Assert.IsFalse(action.AppliesToFolder(@"\\server\share"));
         Assert.IsFalse(action.AppliesToFolder("relative-path"));
         Assert.IsFalse(action.AppliesToFolder(@"E:\sub\folder"));   // a subfolder, not the drive root
+    }
+
+    // ── App-mounted fast path (native probe can't be unit-tested without a real mounted image) ──
+
+    [TestMethod]
+    public void NoteMounted_MarksDriveImageBacked_AndResolvesPath_UntilUnmounted()
+    {
+        var mounter = new DiskMounter();
+        const string image = @"C:\images\unit-test-Q.iso";
+
+        DiskMounter.NoteMounted("Q:", image);
+        try
+        {
+            Assert.IsTrue(mounter.IsImageBacked('Q'), "a drive this app mounted must report image-backed");
+            Assert.IsTrue(mounter.IsImageBacked('q'), "detection is case-insensitive");
+            Assert.AreEqual(image, mounter.ImagePathForDrive('Q'),
+                "the backing path is known without any query for an app-mounted drive");
+        }
+        finally { DiskMounter.NoteUnmounted(image); }
+
+        // Q: is not a real mounted image on the test machine, so once forgotten the native probe says no.
+        Assert.IsFalse(mounter.IsImageBacked('Q'), "after unmount the drive is no longer image-backed");
+    }
+
+    [TestMethod]
+    public void NoteMounted_AcceptsLetterColonAndTrailingSlashForms()
+    {
+        var mounter = new DiskMounter();
+        foreach (var form in new[] { "R", "R:", @"R:\" })
+        {
+            DiskMounter.NoteMounted(form, @"C:\x.vhdx");
+            try { Assert.IsTrue(mounter.IsImageBacked('R'), $"drive-letter form '{form}' should register R"); }
+            finally { DiskMounter.NoteUnmounted(@"C:\x.vhdx"); }
+        }
     }
 }
