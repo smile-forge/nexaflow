@@ -19,4 +19,8 @@ public sealed class AudioConfig : IFeatureConfig
 
     /// <summary>Number of bars drawn by the spectrum analyser.</summary>
     public int SpectrumBarCount { get; set; } = 64;
+
+    /// <summary>When true, leaving the audio tab hands playback to a transport control in the shell chrome
+    /// (playback keeps running) instead of pausing; the page retakes over when it becomes active again.</summary>
+    public bool BackgroundPlay { get; set; }
 }

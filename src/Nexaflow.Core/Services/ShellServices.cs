@@ -9,6 +9,7 @@ using Nexaflow.IO.Common;
 using Nexaflow.Providers.Common;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -83,6 +84,35 @@ public sealed class ShellServices : IShellServices
                     _ui.Invoke(() => onComplete(ok));
             }
         });
+    }
+
+    // ── User-mediated background tasks (chrome controls shown beside the activity ticker) ──
+
+    /// <summary>
+    /// Controls registered by pages via <see cref="RegisterMediatedTask"/>. Shared across this workspace's
+    /// windows — every <see cref="MainWindow"/> binds this one collection, mirroring the activity ticker — so a
+    /// torn-off window shows the control with no replay logic and a workspace switch clears it as tabs dispose.
+    /// </summary>
+    internal ObservableCollection<MediatedTaskRegistration> MediatedTasks { get; } = [];
+
+    public IDisposable RegisterMediatedTask(MediatedTaskRegistration registration)
+    {
+        ArgumentNullException.ThrowIfNull(registration);
+        _ = RunOnUiAsync(() => MediatedTasks.Add(registration));
+        return new MediatedTaskHandle(this, registration);
+    }
+
+    /// <summary>Removes a registered mediated-task control from the chrome; idempotent.</summary>
+    private sealed class MediatedTaskHandle(ShellServices owner, MediatedTaskRegistration registration) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _ = owner.RunOnUiAsync(() => owner.MediatedTasks.Remove(registration));
+        }
     }
 
     // ── Window registry ───────────────────────────────────────────────────

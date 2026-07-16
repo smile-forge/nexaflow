@@ -201,6 +201,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     public ObservableCollection<BackgroundTask> BackgroundTasks => _activityManager.Tasks;
 
+    /// <summary>Page-registered controls shown just left of the activity ticker (per-workspace, shared across
+    /// this workspace's windows). See <see cref="ShellServices.MediatedTasks"/> / <c>RegisterMediatedTask</c>.</summary>
+    public ObservableCollection<MediatedTaskRegistration> MediatedTasks => _shellServices.MediatedTasks;
+
     // ── AI interaction ────────────────────────────────────────────────────
     [ObservableProperty] private string  _aiInputText      = string.Empty;
 

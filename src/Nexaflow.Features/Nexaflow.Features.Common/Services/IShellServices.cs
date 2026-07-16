@@ -56,6 +56,15 @@ public interface IShellServices
                              CancellationToken ct = default);
 
     /// <summary>
+    /// Registers a user-mediated background task: the shell shows <paramref name="registration"/>'s control just
+    /// left of the background-activity ticker so the user can keep driving a page's work (e.g. audio transport)
+    /// after switching away from its tab. Shared across the workspace's windows (each realizes its own control
+    /// instance via the registration's factory). Dispose the returned handle to remove it — typically when the
+    /// page reactivates and retakes ownership, or when it closes. Safe to call off the UI thread.
+    /// </summary>
+    IDisposable RegisterMediatedTask(MediatedTaskRegistration registration);
+
+    /// <summary>
     /// Watches <paramref name="path"/> for content changes, invoking <paramref name="onChanged"/> on this
     /// workspace's UI thread (debounced). One underlying watcher is shared across all callers of the same
     /// path, and watchers are torn down with the workspace. Disable the returned handle while your view is

@@ -206,6 +206,34 @@ public class ShellServicesTests
         Assert.AreEqual(0, vm.DisposeCount);
     }
 
+    // ── User-mediated background-task registry (chrome controls beside the activity ticker) ──
+
+    [TestMethod]
+    public void RegisterMediatedTask_AddsToCollection_AndDisposeRemoves()
+    {
+        var svc = CreateSvc();
+        var reg = new MediatedTaskRegistration("Playing", static () => null!);
+
+        var handle = svc.RegisterMediatedTask(reg);
+        CollectionAssert.Contains(svc.MediatedTasks, reg);
+
+        handle.Dispose();
+        CollectionAssert.DoesNotContain(svc.MediatedTasks, reg);
+    }
+
+    [TestMethod]
+    public void RegisterMediatedTask_DisposeIsIdempotent()
+    {
+        var svc = CreateSvc();
+        var reg = new MediatedTaskRegistration("Playing", static () => null!);
+        var handle = svc.RegisterMediatedTask(reg);
+
+        handle.Dispose();
+        handle.Dispose();   // second dispose must be a no-op, not remove a re-registered instance
+
+        Assert.AreEqual(0, svc.MediatedTasks.Count);
+    }
+
     // A page view-model that records how many times it was disposed (to prove idempotent, single teardown).
     private sealed class DisposableVm : IPageViewModel, IDisposable
     {

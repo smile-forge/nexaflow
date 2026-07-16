@@ -316,11 +316,35 @@
                         ⬡ NexaFlow
                     </TextBlock>
 
-                    <!-- Activity ticker -->
-                    <ctrl:ActivityTicker Grid.Row="1"
-                                         x:Name="ActivityTicker"
-                                         Margin="0,0,0,10"
-                                         ItemsSource="{Binding BackgroundTasks}"/>
+                    <!-- Row 1: page-registered mediated-task controls (left) + activity ticker (right) -->
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- User-mediated background controls (e.g. audio transport when Background play is on) -->
+                        <ItemsControl Grid.Column="0"
+                                      VerticalAlignment="Bottom" Margin="0,0,6,10"
+                                      ItemsSource="{Binding MediatedTasks}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <ctrl:MediatedTaskHost Registration="{Binding}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Activity ticker -->
+                        <ctrl:ActivityTicker Grid.Column="1"
+                                             x:Name="ActivityTicker"
+                                             Margin="0,0,0,10"
+                                             ItemsSource="{Binding BackgroundTasks}"/>
+                    </Grid>
                 </Grid>
             </Border>
 
