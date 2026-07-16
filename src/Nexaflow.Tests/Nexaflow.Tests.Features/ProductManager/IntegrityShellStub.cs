@@ -40,6 +40,7 @@ internal sealed class IntegrityShellStub : IShellServices
     }
 
     // ── Unused surface ──
+    public IDisposable RegisterMediatedTask(MediatedTaskRegistration registration) => throw new NotSupportedException();
     public void CloseTab(Page tab) => throw new NotSupportedException();
     public IReadOnlyList<Page> GetContextItemPages() => throw new NotSupportedException();
     public IReadOnlyList<QuickOpenTarget> GetQuickOpenTargets() => throw new NotSupportedException();

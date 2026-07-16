@@ -33,6 +33,7 @@ internal sealed class FakeShellServices : IShellServices
     public IReadOnlyList<Page> GetContextItemPages() => throw new NotSupportedException();
     public IReadOnlyList<QuickOpenTarget> GetQuickOpenTargets() => throw new NotSupportedException();
     public void QueueBackgroundTask(IBackgroundTask task, Action<bool>? onComplete = null, CancellationToken ct = default) => throw new NotSupportedException();
+    public IDisposable RegisterMediatedTask(MediatedTaskRegistration registration) => throw new NotSupportedException();
     public IFileWatch WatchFile(string path, Action onChanged) => throw new NotSupportedException();
     public Task RunOnUiAsync(Action action) => throw new NotSupportedException();
     public Task<T> RunOnUiAsync<T>(Func<Task<T>> action) => throw new NotSupportedException();

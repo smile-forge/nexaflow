@@ -177,6 +177,10 @@
                               Command="{Binding TogglePlaylistCommand}"
                               IsChecked="{Binding IsPlaylistOpen, Mode=OneWay}"/>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <ToggleButton Style="{StaticResource TbToggle}" Content="🎧 Background"
+                                  AutomationProperties.AutomationId="Audio_BackgroundToggle"
+                                  ToolTip="Keep playing in the background when you leave this tab"
+                                  IsChecked="{Binding BackgroundPlay}"/>
                     <ToggleButton Style="{StaticResource TbToggle}" Content="Tags"
                                   AutomationProperties.AutomationId="Audio_TagsToggle"
                                   Command="{Binding TogglePanelCommand}" CommandParameter="Tags"

@@ -9,6 +9,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Nexaflow.Features.Audio.Controls;
 using Nexaflow.Features.Audio.Models;
 using Nexaflow.Features.Audio.Services;
 using Nexaflow.Features.Common;
@@ -59,6 +60,11 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
     private bool _resumeOnActivate;
     private bool _autoPlayPending;
 
+    // Background play: while the tab is hidden with Background play on, the engine keeps running and a
+    // transport control is hosted in the shell chrome; _mediatedHandle removes it when we retake the tab.
+    private bool _backgrounded;
+    private IDisposable? _mediatedHandle;
+
     public AudioViewModel(IReadOnlyList<string> paths, int startIndex, IShellServices shell, AudioConfig config,
                           bool autoPlay = false)
     {
@@ -67,6 +73,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         _paths = paths.Where(AudioFileTypes.IsAudio).ToList();
         _index = _paths.Count == 0 ? -1 : Math.Clamp(startIndex, 0, _paths.Count - 1);
         _volume = config.Volume;
+        _backgroundPlay = config.BackgroundPlay;
         _autoPlayPending = autoPlay && _paths.Count > 0;
 
         _renderTimer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };
@@ -164,12 +171,24 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
 
     // ── Now-playing display ──────────────────────────────────────────────────
 
-    [ObservableProperty] private string _fileName = string.Empty;
-    [ObservableProperty] private string _title = string.Empty;
-    [ObservableProperty] private string _artist = string.Empty;
+    [ObservableProperty][NotifyPropertyChangedFor(nameof(NowPlayingText))] private string _fileName = string.Empty;
+    [ObservableProperty][NotifyPropertyChangedFor(nameof(NowPlayingText))] private string _title = string.Empty;
+    [ObservableProperty][NotifyPropertyChangedFor(nameof(NowPlayingText))] private string _artist = string.Empty;
     [ObservableProperty] private string _album = string.Empty;
     [ObservableProperty] private BitmapSource? _albumArt;
     [ObservableProperty] private TagEditorViewModel? _tagEditor;
+
+    /// <summary>Artist + title (or filename) for the now-playing line; used as the chrome remote's tooltip and
+    /// stays fresh across background auto-advance since it recomputes from <see cref="Title"/>/<see cref="Artist"/>.</summary>
+    public string NowPlayingText
+    {
+        get
+        {
+            var name = string.IsNullOrWhiteSpace(Title) ? FileName : Title;
+            if (string.IsNullOrWhiteSpace(name)) return "Audio player";
+            return string.IsNullOrWhiteSpace(Artist) ? name : $"{Artist} — {name}";
+        }
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(QueueText))]
@@ -194,6 +213,10 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PlayPauseGlyph))]
     private bool _isPlaying;
+
+    /// <summary>When on, leaving the tab hands playback to a chrome transport control instead of pausing.
+    /// Persisted; has no effect while the page is active (the page owns playback).</summary>
+    [ObservableProperty] private bool _backgroundPlay;
 
     [ObservableProperty] private double _volume;
     [ObservableProperty] private float[]? _spectrumBands;
@@ -225,16 +248,28 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         await LoadCurrentAsync();
     }
 
-    /// <summary>The tab became visible: resume playback if it was paused by leaving, and restart the loop.</summary>
+    /// <summary>The tab became visible: reclaim playback from the chrome remote (or resume if it was paused by
+    /// leaving), and restart the render loop.</summary>
     public void OnActivated()
     {
+        // Background play: the engine never stopped while backgrounded, so play/pause state and position carry
+        // over untouched — just drop the chrome remote and resume the render loop. Do NOT call Play().
+        if (_mediatedHandle is not null)
+        {
+            _backgrounded = false;
+            _mediatedHandle.Dispose();
+            _mediatedHandle = null;
+            StartRenderTimerIfVisible();
+            return;
+        }
+
         if (_resumeOnActivate && _engine is not null)
         {
             _resumeOnActivate = false;
             _engine.Play();
             IsPlaying = true;
         }
-        if (IsPlaying) _renderTimer.Start();
+        StartRenderTimerIfVisible();
     }
 
     /// <summary>Window minimized/restored: suspend only the spectrum/waveform repaint — playback
@@ -242,13 +277,24 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
     public void SetRenderSuspended(bool suspended)
     {
         if (suspended) _renderTimer.Stop();
-        else if (IsPlaying) _renderTimer.Start();
+        else StartRenderTimerIfVisible();
     }
 
-    /// <summary>The tab was hidden (tab switch): pause playback (to resume on return) and stop the loop.</summary>
+    /// <summary>The tab was hidden (tab switch). With Background play on and a track loaded, hand the engine to a
+    /// transport control in the shell chrome — playback keeps running in whatever play/pause state it's in, so the
+    /// remote can pause/resume/skip — instead of pausing. Otherwise pause playback to resume on return.</summary>
     public void OnDeactivated()
     {
         _renderTimer.Stop();
+
+        if (BackgroundPlay && CurrentPath is not null)
+        {
+            _backgrounded = true;
+            _mediatedHandle = _shell.RegisterMediatedTask(
+                new MediatedTaskRegistration(NowPlayingText, () => new AudioMiniTransport { DataContext = this }));
+            return;   // don't pause — the chrome remote drives play/pause/skip; the engine keeps its position
+        }
+
         if (_engine is { IsPlaying: true })
         {
             _engine.Pause();
@@ -257,13 +303,26 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         }
     }
 
+    /// <summary>Starts the ~30 fps render loop only when the page is visible and playing — never while
+    /// backgrounded (playback continues via the chrome remote, but the spectrum/lyrics repaint would be wasted).</summary>
+    private void StartRenderTimerIfVisible()
+    {
+        if (!_backgrounded && IsPlaying) _renderTimer.Start();
+    }
+
     /// <summary>Re-points the tab at a new queue/track (shell tab reuse). A no-op if the queue is unchanged,
     /// so re-selecting the tab never interrupts playback.</summary>
     public async Task ReinitializeAsync(IReadOnlyList<string> paths, int startIndex)
     {
         var list = paths.Where(AudioFileTypes.IsAudio).ToList();
         if (list.Count == 0) return;
-        if (list.SequenceEqual(_paths) && Math.Clamp(startIndex, 0, list.Count - 1) == _index) return;
+
+        // The queue identifies the tab, so an unchanged queue is a no-op — re-selecting the tab re-pushes its
+        // ORIGINAL params, and we must never rewind to the start track or interrupt playback. The user may have
+        // skipped ahead since (including from the chrome remote while backgrounded), so ignore the frozen
+        // startIndex here; a real jump arrives as a different queue. (Tab adoption requires an exact param match,
+        // so a same-queue-different-index request never reaches here — it opens a fresh tab instead.)
+        if (list.SequenceEqual(_paths)) return;
 
         _engine?.Release();
         _engineLoadedPath = null;
@@ -402,7 +461,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         if (!EnsureEngineLoaded()) return;
         _engine!.Play();
         IsPlaying = true;
-        _renderTimer.Start();
+        StartRenderTimerIfVisible();
     }
 
     private async Task SwitchToAsync(int newIndex, bool keepPlaying)
@@ -502,7 +561,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
             _engine!.Seek(resumeAt);
             _engine.Play();
             IsPlaying = true;
-            _renderTimer.Start();
+            StartRenderTimerIfVisible();
         }
         return ok;
     }
@@ -523,6 +582,12 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
     partial void OnVolumeChanged(double value)
     {
         if (_engine is not null) _engine.Volume = (float)value;
+    }
+
+    partial void OnBackgroundPlayChanged(bool value)
+    {
+        _config.BackgroundPlay = value;
+        try { _shell.SaveFeatureConfig(_config); } catch { /* best-effort persistence */ }
     }
 
     private void NotifyQueue()
@@ -557,6 +622,8 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         if (_disposed) return;
         _disposed = true;
 
+        _mediatedHandle?.Dispose();   // remove the chrome remote if the tab is closed while backgrounded
+        _mediatedHandle = null;
         _renderTimer.Stop();
         _engine?.Dispose();
         _engine = null;
