@@ -7,6 +7,7 @@ using Nexaflow.Features.Text.ClientTools;
 using Nexaflow.Features.Text.Services;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Visuals.Common.Controls;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -24,7 +25,7 @@ public sealed record SplitModeOption(SplitMode Mode, string Label)
     public override string ToString() => Label;
 }
 
-public sealed partial class TextViewModel : ObservableObject, IDisposable, IPageViewModel
+public sealed partial class TextViewModel : ObservableObject, IDisposable, IPageViewModel, IContextPreview
 {
     private const long SmallFileSizeLimit = 100 * 1024; // 100 KB
     private const int  LinesPerPage       = 2000;        // page granularity for the line index
@@ -931,6 +932,22 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
             CurrentPath   = dir,
             SelectedItems = [FilePath]
         };
+    }
+
+    /// <summary>The file this page's tools act within — disambiguates two Text tabs on different files when
+    /// both are pinned into one conversation (so their identically-named tools don't collapse first-wins).</summary>
+    public string? GetSecurityContext() => string.IsNullOrEmpty(FilePath) ? null : FilePath;
+
+    /// <summary>A compact, read-only preview for the conversation's context panel: the file name, a meta line,
+    /// and a capped snippet of the resident text. Built fresh each time — it never re-hosts the live editor.</summary>
+    public System.Windows.Controls.UserControl CreateContextPreview()
+    {
+        var meta = $"{LineCount:N0} line{(LineCount == 1 ? "" : "s")} · {SelectedEncoding.Name}" +
+                   (IsDirty ? " · unsaved edits" : IsEditing ? " · editing" : string.Empty);
+        const int cap = 8000;
+        var text = Document.Text;
+        var body = text.Length > cap ? text[..cap] + "\n… (preview truncated)" : text;
+        return new ReadOnlyTextPreview(string.IsNullOrEmpty(FileName) ? "Text" : FileName, meta, body);
     }
 
     public string? GetAiSystemPromptGuidance() =>
