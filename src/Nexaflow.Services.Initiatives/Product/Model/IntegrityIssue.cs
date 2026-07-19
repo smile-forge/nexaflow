@@ -20,11 +20,14 @@ public enum IntegrityKind
     /// <summary>The method is no longer declared on that class (or at file top level).</summary>
     MissingMethod,
 
-    /// <summary>A <c>url</c> link with no target.</summary>
+    /// <summary>A <c>url</c> or <c>node</c> link with no target.</summary>
     EmptyTarget,
 
     /// <summary>A <c>url</c> link whose target isn't a well-formed absolute URI.</summary>
     InvalidUrl,
+
+    /// <summary>A <c>node</c> link whose target node id is not in the tree (node deleted, renamed, or a typo).</summary>
+    MissingNode,
 
     /// <summary>
     /// A concern link is <c>done</c>/<c>faulted</c> but carries no snaplink, and its concern def is marked

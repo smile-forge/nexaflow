@@ -46,6 +46,14 @@ public class SnaplinkValidatorTests
         }
     };
 
+    /// <summary>A tree whose node "n" carries the given snaplinks, plus a sibling node per id in <paramref name="alsoNodes"/>.</summary>
+    private static ProductState TreeWith(IEnumerable<string> alsoNodes, params Snaplink[] links)
+    {
+        var nodes = new Dictionary<string, ProductNode> { ["n"] = new() { Title = "Node", Snaplinks = [.. links] } };
+        foreach (var id in alsoNodes) nodes[id] = new() { Title = id };
+        return new ProductState { Nodes = nodes };
+    }
+
     private IntegrityReport Validate(ProductState state) => SnaplinkValidator.Validate(state, _root);
 
     private const string Csharp = """
@@ -224,5 +232,49 @@ public class SnaplinkValidatorTests
 
         link.Method = "Spin";   // the user re-points it in the Integrity page
         Assert.IsNull(SnaplinkValidator.CheckLink(link, _root).Detail, "repair should verify without a full scan");
+    }
+
+    // ── node → node snaplinks (logical dependency edges) ─────────────────────
+
+    [TestMethod]
+    public void NodeLink_ToExistingNode_IsClean()
+    {
+        var report = Validate(TreeWith(["visuals-text"], new Snaplink { Type = "node", Target = "visuals-text" }));
+        Assert.IsTrue(report.IsClean, string.Join("; ", report.Issues.Select(i => i.Detail)));
+    }
+
+    [TestMethod]
+    public void NodeLink_ToMissingNode_IsReported()
+    {
+        var report = Validate(TreeWith([], new Snaplink { Type = "node", Target = "ghost-node" }));
+        Assert.AreEqual(1, report.IssueCount);
+        Assert.AreEqual(IntegrityKind.MissingNode, report.Issues[0].Kind);
+    }
+
+    [TestMethod]
+    public void NodeLink_WithEmptyTarget_IsReported()
+    {
+        var report = Validate(TreeWith([], new Snaplink { Type = "node", Target = "" }));
+        Assert.AreEqual(IntegrityKind.EmptyTarget, report.Issues.Single().Kind);
+    }
+
+    [TestMethod]
+    public void CheckLink_NodeLink_WithoutTheNodeSet_IsUnverifiable_NotBroken()
+    {
+        // The tree-less single-link path can't know which node ids exist, so a node link is deferred to the
+        // next full scan rather than falsely failed — same conservatism as a no-grammar code file.
+        var (_, detail) = SnaplinkValidator.CheckLink(new Snaplink { Type = "node", Target = "ghost-node" }, _root);
+        Assert.IsNull(detail);
+    }
+
+    [TestMethod]
+    public void CheckLink_NodeLink_WithTheNodeSet_VerifiesExistence()
+    {
+        var ids = new HashSet<string>(StringComparer.Ordinal) { "n", "visuals-text" };
+        Assert.IsNull(SnaplinkValidator.CheckLink(new Snaplink { Type = "node", Target = "visuals-text" }, _root, ids).Detail);
+
+        var (kind, detail) = SnaplinkValidator.CheckLink(new Snaplink { Type = "node", Target = "ghost-node" }, _root, ids);
+        Assert.AreEqual(IntegrityKind.MissingNode, kind);
+        Assert.IsNotNull(detail);
     }
 }

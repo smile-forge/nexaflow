@@ -23,7 +23,9 @@ public interface IClientTool
     /// <summary>Named arguments the tool accepts.</summary>
     IReadOnlyList<ClientToolParameter> Parameters { get; }
 
-    /// <summary>Risk classification. <see cref="ToolSafety.ReadOnly"/> tools auto-run; others need approval.</summary>
+    /// <summary>Whether the harness may auto-run this tool. <see cref="ToolSafety.SafeOperation"/> tools
+    /// auto-run (even if they mutate visible/uncommitted state); <see cref="ToolSafety.RequiresApproval"/>
+    /// tools are approved first.</summary>
     ToolSafety Safety { get; }
 
     /// <summary>True when several invocations of this tool may run together in one batch.</summary>

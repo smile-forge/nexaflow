@@ -1342,7 +1342,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
             "format_json",
             "Re-indent the JSON document.",
             [],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (arguments, ct) =>
             {
                 FormatJsonCommand.Execute(null);

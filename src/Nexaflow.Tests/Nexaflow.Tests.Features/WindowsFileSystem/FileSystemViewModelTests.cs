@@ -155,7 +155,7 @@ public class FileSystemViewModelTests
     }
 
     private static IClientTool StubTool(string name) =>
-        new DelegateClientTool(name, "stub", [], ToolSafety.ReadOnly,
+        new DelegateClientTool(name, "stub", [], ToolSafety.SafeOperation,
             (_, _) => Task.FromResult(ToolResult.Ok("ok")));
 
     [TestMethod]

@@ -169,7 +169,8 @@ so checks stay side-effect-free; it only queries the **active** page.
 
 Tools a page exposes to the agent via `IPageViewModel.GetClientTools()`. Use `DelegateClientTool` for
 one-liners, or derive from `ClientToolBase` for richer ones (abstract `Name`/`Description`; defaults:
-no parameters, `ReadOnly`, non-parallelizable — override what differs). `ToolSafety.ReadOnly` tools auto-run; mutating ones are
+no parameters, `SafeOperation`, non-parallelizable — override what differs). `ToolSafety.SafeOperation` tools auto-run
+(even ones that mutate visible or not-yet-committed state); `ToolSafety.RequiresApproval` ones are
 approved via `IToolApprovalCoordinator` before running, and each `ToolResult` is fed back to the model. Return
 an error `ToolResult` (don't throw) for an expected failure. Canonical example:
 `Nexaflow.Features.Video/ClientTools/VideoCaptureFrameTool.cs`.

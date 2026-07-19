@@ -11,7 +11,7 @@ public sealed class GetRibbonButtonsTool(WorkspaceRuntime workspace) : IClientTo
     public string Name => "get_ribbon_buttons";
     public string Description => "List the user's ribbon buttons: each button's label, the page it opens, and its parameters.";
     public IReadOnlyList<ClientToolParameter> Parameters => [];
-    public ToolSafety Safety => ToolSafety.ReadOnly;
+    public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => true;
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)

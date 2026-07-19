@@ -15,7 +15,7 @@ public sealed class GetOpenWindowsTool(IShellServices shell, SecurityConfig secu
     public string Name => "get_open_windows";
     public string Description => "List the titles of other application windows the user currently has open on their desktop.";
     public IReadOnlyList<ClientToolParameter> Parameters => [];
-    public ToolSafety Safety => ToolSafety.ReadOnly;
+    public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => false;   // may show a confirmation prompt
 
     public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)

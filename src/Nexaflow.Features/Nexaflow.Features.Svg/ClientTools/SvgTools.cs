@@ -26,7 +26,7 @@ internal static class SvgTools
             "render_svg_image",
             "Render this SVG to a raster image and return it so you can see the artwork.",
             [],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (_, ct) => Render(vm, ct),
             exemptFromRepeatGuard: true),
 
@@ -34,7 +34,7 @@ internal static class SvgTools
             "get_svg_info",
             "Get the SVG's dimensions, viewBox and drawable-element count.",
             [],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (_, _) => Task.FromResult(ToolResult.Ok(
                 $"{vm.FileName}: {vm.DimensionsText}, {vm.ElementCount:N0} elements.", vm.DescribeInfo())),
             parallelizable: true),

@@ -23,7 +23,7 @@ public static class ProductTools
             // ── Read ──────────────────────────────────────────────────────────
             new DelegateClientTool("product_survey",
                 "Summarise the whole product: node count and the leaf status distribution (by rolled-up effective status).",
-                [], ToolSafety.ReadOnly,
+                [], ToolSafety.SafeOperation,
                 (_, _) => Task.FromResult(ToolResult.Ok("Product survey", Survey(Load())))),
 
             new DelegateClientTool("product_zoom",
@@ -31,12 +31,12 @@ public static class ProductTools
                 + "details (status, description, note, concerns, snaplinks), and its children (one ring down). Call "
                 + "repeatedly with different node ids to explore the tree a ring at a time. Omit node_id for the product root.",
                 [new ClientToolParameter("node_id", "The node id to inspect (omit / empty for the whole product).", Required: false)],
-                ToolSafety.ReadOnly,
+                ToolSafety.SafeOperation,
                 (a, _) => Task.FromResult(ToolResult.Ok("Zoom", Zoom(Load(), Str(a, "node_id"))))),
 
             new DelegateClientTool("product_needs_attention",
                 "List the faulted sources: each node that is itself faulted (a faulted leaf, or any node with a faulted concern), with its note.",
-                [], ToolSafety.ReadOnly,
+                [], ToolSafety.SafeOperation,
                 (_, _) => Task.FromResult(ToolResult.Ok("Needs attention", NeedsAttention(Load())))),
 
             // ── Edit (no prompt) ──────────────────────────────────────────────
@@ -46,7 +46,7 @@ public static class ProductTools
                 + "with a note when something is broken. Only 'done' or 'faulted' are allowed.",
                 [new ClientToolParameter("node_id", "The node id."),
                  new ClientToolParameter("status", "'done' or 'faulted'.")],
-                ToolSafety.ReadOnly,
+                ToolSafety.SafeOperation,
                 (a, _) => Task.FromResult(SetNodeStatus(productRoot, a))),
 
             new DelegateClientTool("product_edit_node",
@@ -55,7 +55,7 @@ public static class ProductTools
                 [new ClientToolParameter("node_id", "The node id."),
                  new ClientToolParameter("description", "New description (optional).", Required: false),
                  new ClientToolParameter("note", "New note / rationale / repro (optional).", Required: false)],
-                ToolSafety.ReadOnly,
+                ToolSafety.SafeOperation,
                 (a, _) => Task.FromResult(EditNode(productRoot, a))),
 
             new DelegateClientTool("product_add_node_snaplink",
@@ -63,7 +63,7 @@ public static class ProductTools
                 + "folder) for markdown/code, or the URL for url. detail is optional: for markdown a heading path "
                 + "(\"A > B\"), for code a Class or Class.Method.",
                 SnaplinkParams(forConcern: false),
-                ToolSafety.ReadOnly,
+                ToolSafety.SafeOperation,
                 (a, _) => Task.FromResult(AddSnaplink(productRoot, a, forConcern: false))),
 
             new DelegateClientTool("product_set_concern_status",
@@ -71,13 +71,13 @@ public static class ProductTools
                 [new ClientToolParameter("node_id", "The node id."),
                  new ClientToolParameter("concern", "The concern tag on that node."),
                  new ClientToolParameter("status", "'done' or 'faulted'.")],
-                ToolSafety.ReadOnly,
+                ToolSafety.SafeOperation,
                 (a, _) => Task.FromResult(SetConcernStatus(productRoot, a))),
 
             new DelegateClientTool("product_add_concern_snaplink",
                 "Attach a snaplink to one of a node's concerns. Same type/target/detail as product_add_node_snaplink, plus the concern tag.",
                 SnaplinkParams(forConcern: true),
-                ToolSafety.ReadOnly,
+                ToolSafety.SafeOperation,
                 (a, _) => Task.FromResult(AddSnaplink(productRoot, a, forConcern: true))),
 
             // ── Edit (asks first) ─────────────────────────────────────────────

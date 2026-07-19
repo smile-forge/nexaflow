@@ -23,7 +23,7 @@ internal static class Model3DTools
             "capture_viewport_image",
             "Render the current 3D viewport and return it as an image so you can see the model.",
             [],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (_, ct) => Capture(vm, ct),
             exemptFromRepeatGuard: true),
 
@@ -31,7 +31,7 @@ internal static class Model3DTools
             "get_model_info",
             "Get exact triangle/vertex/mesh counts, the material list, and any file contents that aren't rendered.",
             [],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (_, _) => Task.FromResult(ToolResult.Ok(
                 $"{vm.FileName}: {vm.TriangleCount:N0} triangles, {vm.VertexCount:N0} vertices.", vm.DescribeInfo())),
             parallelizable: true),
@@ -43,21 +43,21 @@ internal static class Model3DTools
                 new ClientToolParameter("yaw", "Degrees to orbit horizontally, e.g. 90 or -45.", Required: false, Type: "number"),
                 new ClientToolParameter("pitch", "Degrees to orbit vertically, e.g. 30 or -15.", Required: false, Type: "number"),
             ],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (args, ct) => Orbit(vm, args, ct)),
 
         new DelegateClientTool(
             "roll_model",
             "Roll the camera about the line of sight (the third rotation axis). 'degrees' positive = the model turns clockwise as you look at it.",
             [new ClientToolParameter("degrees", "Degrees to roll, e.g. 90 (clockwise) or -45 (counter-clockwise).", Type: "number")],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (args, ct) => Roll(vm, args, ct)),
 
         new DelegateClientTool(
             "zoom_model",
             "Zoom the camera. 'factor' > 1 zooms in (2 = twice as close); between 0 and 1 zooms out.",
             [new ClientToolParameter("factor", "Zoom factor, e.g. 2 to zoom in, 0.5 to zoom out.", Type: "number")],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (args, ct) => Zoom(vm, args, ct)),
 
         new DelegateClientTool(
@@ -67,21 +67,21 @@ internal static class Model3DTools
                 new ClientToolParameter("dx", "Horizontal pan as a viewport fraction; right is positive.", Required: false, Type: "number"),
                 new ClientToolParameter("dy", "Vertical pan as a viewport fraction; up is positive.", Required: false, Type: "number"),
             ],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (args, ct) => Pan(vm, args, ct)),
 
         new DelegateClientTool(
             "reset_view",
             "Re-frame the model so the whole thing fits in the viewport.",
             [],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (_, ct) => Reset(vm, ct)),
 
         new DelegateClientTool(
             "set_render_mode",
             "Switch between solid and wireframe rendering.",
             [new ClientToolParameter("wireframe", "true for wireframe, false for solid shaded.", Type: "boolean")],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (args, _) => SetRenderMode(vm, args)),
     ];
 

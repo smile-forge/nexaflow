@@ -121,9 +121,9 @@ public class ProductToolsTests
     public void Safety_ReadAndLowRiskAreAuto_StructuralAsks()
     {
         var byName = ProductTools.ForRoot(_root).ToDictionary(t => t.Name, t => t.Safety);
-        Assert.AreEqual(ToolSafety.ReadOnly, byName["product_zoom"]);
-        Assert.AreEqual(ToolSafety.ReadOnly, byName["product_set_node_status"]);   // edits run without prompt (per design)
-        Assert.AreEqual(ToolSafety.ReadOnly, byName["product_add_node_snaplink"]);
+        Assert.AreEqual(ToolSafety.SafeOperation, byName["product_zoom"]);
+        Assert.AreEqual(ToolSafety.SafeOperation, byName["product_set_node_status"]);   // edits run without prompt (per design)
+        Assert.AreEqual(ToolSafety.SafeOperation, byName["product_add_node_snaplink"]);
         Assert.AreEqual(ToolSafety.RequiresApproval, byName["product_remove_node_snaplink"]);
         Assert.AreEqual(ToolSafety.RequiresApproval, byName["product_add_concern"]);
         Assert.AreEqual(ToolSafety.RequiresApproval, byName["product_remove_concern"]);

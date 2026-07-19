@@ -30,8 +30,8 @@ public class ProcessToolsTests
         using (vm)
         {
             var tools = vm.GetClientTools().ToDictionary(t => t.Name);
-            Assert.AreEqual(ToolSafety.ReadOnly, tools["list_processes"].Safety);
-            Assert.AreEqual(ToolSafety.ReadOnly, tools["get_process_details"].Safety);
+            Assert.AreEqual(ToolSafety.SafeOperation, tools["list_processes"].Safety);
+            Assert.AreEqual(ToolSafety.SafeOperation, tools["get_process_details"].Safety);
             Assert.AreEqual(ToolSafety.RequiresApproval, tools["kill_process"].Safety);
             Assert.AreEqual(ToolSafety.RequiresApproval, tools["set_process_priority"].Safety);
         }

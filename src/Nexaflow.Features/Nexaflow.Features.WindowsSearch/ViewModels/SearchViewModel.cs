@@ -188,7 +188,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel
             "modified:2023, before:2024, after:2023-06), and boolean prefix syntax " +
             "(+required -excluded).",
             [new ClientToolParameter("query", "The search query to run.")],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (arguments, ct) =>
             {
                 var query = arguments["query"]?.GetValue<string>();

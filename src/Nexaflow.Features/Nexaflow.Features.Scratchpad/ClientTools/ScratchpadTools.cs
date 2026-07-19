@@ -21,7 +21,7 @@ public sealed class ScratchpadListNotesTool(ScratchpadViewModel vm) : IClientToo
         new("color", "Only list notes of this colour (e.g. Green). Omit for all colours.", Required: false),
         new("shape", "Only list notes of this shape. Omit for all shapes.", Required: false),
     ];
-    public ToolSafety Safety => ToolSafety.ReadOnly;
+    public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => true;
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
@@ -59,7 +59,7 @@ public sealed class ScratchpadReadNotesTool(ScratchpadViewModel vm) : IClientToo
         new("color", "Only read notes of this colour (e.g. Green).", Required: false),
         new("shape", "Only read notes of this shape.", Required: false),
     ];
-    public ToolSafety Safety => ToolSafety.ReadOnly;
+    public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => true;
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
@@ -89,7 +89,7 @@ public sealed class ScratchpadReadNotesTool(ScratchpadViewModel vm) : IClientToo
 /// <summary>
 /// Adds a new sticky note to the board with the given content. New notes get a fixed appearance (white,
 /// diagonally-rounded) so AI-authored notes are recognisable and the tool stays single-argument. Classified
-/// <see cref="ToolSafety.ReadOnly"/> so it auto-runs without an approval prompt — creating a note has no
+/// <see cref="ToolSafety.SafeOperation"/> so it auto-runs without an approval prompt — creating a note has no
 /// material impact (it lives only on the user's own corkboard and expires like any other note).
 /// </summary>
 public sealed class ScratchpadAddNoteTool(ScratchpadViewModel vm) : IClientTool
@@ -102,7 +102,7 @@ public sealed class ScratchpadAddNoteTool(ScratchpadViewModel vm) : IClientTool
     [
         new("content", "The note's text (markdown is supported)."),
     ];
-    public ToolSafety Safety => ToolSafety.ReadOnly;
+    public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => false;   // each call mutates the board (placement cascade, z-order)
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)

@@ -53,7 +53,7 @@ public sealed class DotnetOutdatedPackagesTool(DotnetViewletViewModel vm) : ICli
     public string Name => "dotnet_check_outdated_packages";
     public string Description => "Check the .NET target for outdated NuGet packages, returning each package's current and latest version.";
     public IReadOnlyList<ClientToolParameter> Parameters => [];
-    public ToolSafety Safety => ToolSafety.ReadOnly;
+    public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => true;
 
     public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
