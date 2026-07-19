@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.Json.Nodes;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Json.Models;
 using Nexaflow.Features.Json.Services;
@@ -39,6 +40,59 @@ public class JsonViewModelTests
                                      Substitute.For<IShellServices>());
         await vm.LoadAsync(CancellationToken.None);
         return (vm, path);
+    }
+
+    // ── AI integration: context + the read/query act tools ───────────────────
+
+    [TestMethod]
+    [CoversNode("json-ai-act")]
+    [CoversNode("json-ai-context")]
+    public async Task AiTools_ReadAndQuery_ThroughToolSurface()
+    {
+        var (vm, path) = await LoadVmAsync("""{ "store": { "book": [ { "title": "A" } ] }, "count": 2 }""");
+        try
+        {
+            // aspect 4: two JSON tabs on different files stay distinguishable when pinned together
+            Assert.AreEqual(path, vm.GetSecurityContext());
+            // context is honest about the file + root shape
+            StringAssert.Contains(vm.GetContext(), vm.FileName);
+            StringAssert.Contains(vm.GetContext(), "object");
+
+            var tools = vm.GetClientTools();
+            CollectionAssert.AreEquivalent(
+                new[] { "query_json_path", "read_json", "format_json" },
+                tools.Select(t => t.Name).ToArray(),
+                "the Json AI act tool surface changed — update the tree's json-ai-act leaves to match");
+
+            // read_json returns the whole loaded document
+            var read = tools.Single(t => t.Name == "read_json");
+            var r = await read.InvokeAsync(new JsonObject(), CancellationToken.None);
+            Assert.IsFalse(r.IsError);
+            StringAssert.Contains(r.ModelText, "\"store\"");
+            StringAssert.Contains(r.ModelText, "\"title\"");
+
+            // query_json_path reads a value at a path — data now flows back to the model
+            var query = tools.Single(t => t.Name == "query_json_path");
+            var q = await query.InvokeAsync(new JsonObject { ["path"] = "$.count" }, CancellationToken.None);
+            Assert.IsFalse(q.IsError);
+            StringAssert.Contains(q.ModelText, "2");
+
+            var deep = await query.InvokeAsync(new JsonObject { ["path"] = "$.store.book[0].title" }, CancellationToken.None);
+            Assert.IsFalse(deep.IsError);
+            StringAssert.Contains(deep.ModelText, "A");
+
+            // an unmatched path is reported, not an error
+            var none = await query.InvokeAsync(new JsonObject { ["path"] = "$.nope" }, CancellationToken.None);
+            Assert.IsFalse(none.IsError);
+            StringAssert.Contains(none.ModelText, "No node matched");
+
+            // format_json re-indents in place and marks the document modified
+            var fmt = tools.Single(t => t.Name == "format_json");
+            var f = await fmt.InvokeAsync(new JsonObject(), CancellationToken.None);
+            Assert.IsFalse(f.IsError);
+            Assert.IsTrue(vm.IsModified);
+        }
+        finally { File.Delete(path); }
     }
 
     // ── Load populates the flat display list ─────────────────────────────────

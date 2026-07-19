@@ -37,7 +37,6 @@ public class AiSurfaceRulesTests
         "Nexaflow.Features.AIChat.ViewModels.ConversationViewModel",   // the hub itself; aggregates pinned tools
         "Nexaflow.Features.Console.ViewModels.CmdTerminalViewModel",
         "Nexaflow.Features.Font.ViewModels.FontViewModel",
-        "Nexaflow.Features.Json.ViewModels.JsonViewModel",
         "Nexaflow.Features.ProductManager.ViewModels.ProductViewModel",
         "Nexaflow.Features.Scratchpad.ViewModels.ScratchpadViewModel",
         "Nexaflow.Features.Tabular.ViewModels.TabularViewModel",
