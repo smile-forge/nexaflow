@@ -12,6 +12,11 @@ internal static class NativeMethods
     internal const uint WAIT_OBJECT_0                       = 0x00000000;
     internal const int  PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE = 0x00020016;
 
+    // Process enumeration / termination — used by the foreground-tree hard-stop
+    internal const uint TH32CS_SNAPPROCESS                  = 0x00000002;
+    internal const uint PROCESS_TERMINATE                   = 0x00000001;
+    internal static readonly IntPtr INVALID_HANDLE_VALUE    = new(-1);
+
     // Job-object limits (winnt.h)
     internal const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE  = 0x00002000;
     internal const int  JobObjectExtendedLimitInformation   = 9;
@@ -97,6 +102,26 @@ internal static class NativeMethods
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool AssignProcessToJobObject(IntPtr hJob, IntPtr hProcess);
+
+    // ── Process tree enumeration / termination (foreground hard-stop) ───────
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern IntPtr CreateToolhelp32Snapshot(uint dwFlags, uint th32ProcessID);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool Process32First(IntPtr hSnapshot, ref PROCESSENTRY32 lppe);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool Process32Next(IntPtr hSnapshot, ref PROCESSENTRY32 lppe);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, uint dwProcessId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool CloseHandle(IntPtr hObject);
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -113,6 +138,23 @@ internal struct PROCESS_INFORMATION
     public IntPtr hThread;
     public uint   dwProcessId;
     public uint   dwThreadId;
+}
+
+// PROCESSENTRY32W (CharSet.Unicode → Process32FirstW/NextW). dwSize must be set before the first call.
+[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+internal struct PROCESSENTRY32
+{
+    public uint   dwSize;
+    public uint   cntUsage;
+    public uint   th32ProcessID;
+    public IntPtr th32DefaultHeapID;
+    public uint   th32ModuleID;
+    public uint   cntThreads;
+    public uint   th32ParentProcessID;
+    public int    pcPriClassBase;
+    public uint   dwFlags;
+    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+    public string szExeFile;
 }
 
 [StructLayout(LayoutKind.Sequential)]

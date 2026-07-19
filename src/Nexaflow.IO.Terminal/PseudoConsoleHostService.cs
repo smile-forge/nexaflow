@@ -69,6 +69,7 @@ public class PseudoConsoleHostService : IDisposable
     // Process
     private SafeProcessHandle?  _processHandle;
     private SafeFileHandle?     _threadHandle;
+    private uint               _shellPid;
     private IntPtr              _startupInfoBuffer = IntPtr.Zero;
     private IntPtr              _environmentBlock  = IntPtr.Zero;
 
@@ -145,6 +146,7 @@ public class PseudoConsoleHostService : IDisposable
 
         _processHandle = new SafeProcessHandle(pi.hProcess, ownsHandle: true);
         _threadHandle  = new SafeFileHandle(pi.hThread,   ownsHandle: true);
+        _shellPid      = pi.dwProcessId;
 
         // ── 6. Bind the child to the kill-on-close job BEFORE it runs ─────
         TerminalJobObject.Assign(pi.hProcess);
@@ -219,6 +221,74 @@ public class PseudoConsoleHostService : IDisposable
         if (_inputWriter is null) return;
         try { _inputWriter.Write('\x03'); }
         catch (IOException) { }
+    }
+
+    /// <summary>
+    /// Hard-stop: force-terminates every descendant of the hosted shell (the foreground command and anything
+    /// it spawned) while leaving the shell itself alive, so the pane falls back to a fresh prompt. This is the
+    /// escalation for a wedged child that ignored Ctrl-C (a native process blocked in a syscall, or an MSYS2
+    /// helper that mishandles <c>CTRL_C_EVENT</c>). Best-effort — a process we can't open is skipped.
+    /// </summary>
+    public virtual void TerminateForegroundChildren()
+    {
+        if (_shellPid == 0) return;
+        foreach (var pid in ComputeDescendants(_shellPid, SnapshotProcesses()))
+            TryTerminate(pid);
+    }
+
+    /// <summary>Flat (pid, parentPid) list of every process, via a ToolHelp snapshot. Empty on failure.</summary>
+    private static IReadOnlyList<(uint Pid, uint ParentPid)> SnapshotProcesses()
+    {
+        var list = new List<(uint, uint)>();
+        var snapshot = NativeMethods.CreateToolhelp32Snapshot(NativeMethods.TH32CS_SNAPPROCESS, 0);
+        if (snapshot == NativeMethods.INVALID_HANDLE_VALUE || snapshot == IntPtr.Zero) return list;
+
+        try
+        {
+            var entry = new PROCESSENTRY32 { dwSize = (uint)Marshal.SizeOf<PROCESSENTRY32>() };
+            if (NativeMethods.Process32First(snapshot, ref entry))
+                do { list.Add((entry.th32ProcessID, entry.th32ParentProcessID)); }
+                while (NativeMethods.Process32Next(snapshot, ref entry));
+        }
+        finally { NativeMethods.CloseHandle(snapshot); }
+        return list;
+    }
+
+    /// <summary>Breadth-first descendants of <paramref name="rootPid"/> from a flat (pid, parentPid) snapshot,
+    /// excluding the root. A <c>seen</c> set makes it cycle- and reuse-safe (a pid is visited at most once, so a
+    /// self-parent or a stale parent loop can't recurse). Pure — unit-tested.</summary>
+    internal static IReadOnlyList<uint> ComputeDescendants(
+        uint rootPid, IReadOnlyList<(uint Pid, uint ParentPid)> processes)
+    {
+        var childrenByParent = new Dictionary<uint, List<uint>>();
+        foreach (var (pid, parentPid) in processes)
+        {
+            if (pid == parentPid) continue;                 // guard: PID 0 / self-parent
+            if (!childrenByParent.TryGetValue(parentPid, out var kids))
+                childrenByParent[parentPid] = kids = [];
+            kids.Add(pid);
+        }
+
+        var descendants = new List<uint>();
+        var seen        = new HashSet<uint> { rootPid };
+        var queue       = new Queue<uint>();
+        queue.Enqueue(rootPid);
+        while (queue.Count > 0)
+        {
+            if (!childrenByParent.TryGetValue(queue.Dequeue(), out var kids)) continue;
+            foreach (var kid in kids)
+                if (seen.Add(kid)) { descendants.Add(kid); queue.Enqueue(kid); }
+        }
+        return descendants;
+    }
+
+    private static void TryTerminate(uint pid)
+    {
+        var handle = NativeMethods.OpenProcess(NativeMethods.PROCESS_TERMINATE, bInheritHandle: false, pid);
+        if (handle == IntPtr.Zero) return;
+        try { NativeMethods.TerminateProcess(handle, 0); }
+        catch { /* already gone / access denied */ }
+        finally { NativeMethods.CloseHandle(handle); }
     }
 
     /// <summary>
