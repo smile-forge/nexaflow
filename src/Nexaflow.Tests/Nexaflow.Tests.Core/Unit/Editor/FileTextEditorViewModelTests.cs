@@ -66,6 +66,7 @@ public class FileTextEditorViewModelTests
 
     [TestMethod]
     [CoversNode("code-ai-act")]
+    [CoversNode("code-ai-context")]
     public void AiTools_ReadEditReplaceSave_AndScopeReadinessPreview() => AsyncPump.Run(async () =>
     {
         var path = Temp();
@@ -78,11 +79,18 @@ public class FileTextEditorViewModelTests
             Assert.IsTrue(vm.IsContextReady);                     // gated on load completing
             Assert.AreEqual(path, vm.GetSecurityContext());       // aspect 4: file-scoped
             Assert.IsInstanceOfType(vm, typeof(IContextPreview)); // offers a read-only preview
+            StringAssert.Contains(vm.GetContext(), Path.GetFileName(path));  // context names the file…
+            StringAssert.Contains(vm.GetContext(), "alpha");                 // …and carries its content
 
             var tools = vm.GetClientTools();
+            var get  = tools.Single(t => t.Name == "get_editor_text");
             var set  = tools.Single(t => t.Name == "set_editor_text");
             var repl = tools.Single(t => t.Name == "replace_all");
             var save = tools.Single(t => t.Name == "save_file");
+
+            // get_editor_text returns the current document (its summary carries the text)
+            var g = await get.InvokeAsync(new JsonObject(), CancellationToken.None);
+            Assert.AreEqual("alpha\nbeta\n", g.Summary);
 
             // set_editor_text replaces the whole document (unsaved)
             await set.InvokeAsync(new JsonObject { ["text"] = "one\ntwo\nthree\n" }, CancellationToken.None);

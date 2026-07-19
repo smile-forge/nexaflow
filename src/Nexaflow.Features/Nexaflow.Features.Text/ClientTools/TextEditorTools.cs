@@ -86,7 +86,9 @@ internal static class TextEditorTools
                 vm.EnsureEditing();
                 int start = ToolArgs.Int(args, "start_line", 1);
                 int end   = ToolArgs.Int(args, "end_line", start);
-                var text  = ToolArgs.Str(args, "new_text", "text", "content") ?? string.Empty;
+                // Raw, not Str: line content is whitespace/newline-significant (a trailing '\n' keeps the line
+                // break; Str would trim it and merge the replacement into the following line).
+                var text  = ToolArgs.Raw(args, "new_text", "text", "content") ?? string.Empty;
                 await vm.ApplyAiLineEditAsync(start - 1, end - 1, text, ct);
                 return ToolResult.Ok($"edited lines {start}–{end}", $"Replaced lines {start}–{end}. Unsaved — call save_file to persist.");
             },
