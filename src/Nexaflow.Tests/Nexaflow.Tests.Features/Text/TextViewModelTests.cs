@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.Json.Nodes;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Text.ViewModels;
 using Nexaflow.Tests.Features.Infrastructure;
@@ -70,6 +71,60 @@ public class TextViewModelTests
 
             // The page advertises a read-only context preview for the conversation panel.
             Assert.IsInstanceOfType(vm, typeof(IContextPreview));
+        }
+        finally { File.Delete(path); }
+    });
+
+    /// <summary>A shell whose RunOnUiAsync actually runs the delegate — the substitute's default swallows it,
+    /// silently no-opping every UI-marshalled tool path (read/replace/save all funnel through it).</summary>
+    private static IShellServices RunningShell()
+    {
+        var shell = Substitute.For<IShellServices>();
+        shell.RunOnUiAsync(Arg.Any<Action>())
+             .Returns(ci => { ci.Arg<Action>()(); return Task.CompletedTask; });
+        shell.RunOnUiAsync(Arg.Any<Func<Task<string>>>())
+             .Returns(ci => ci.Arg<Func<Task<string>>>()());
+        return shell;
+    }
+
+    [TestMethod]
+    [CoversNode("text-viewer-ai-act")]
+    public void AiTools_ReadReplaceSave_ThroughClientToolSurface() => AsyncPump.Run(async () =>
+    {
+        var path = WriteTemp("alpha\nbeta\ngamma\n");
+        try
+        {
+            using var vm = new TextViewModel(path, RunningShell()) { IsMonitoring = false };
+            await vm.LoadAsync(CancellationToken.None);
+
+            // Exercise the AI act surface exactly as the conversation hub does — via GetClientTools(),
+            // not the VM's internal methods — so the tools' arg-parsing and wiring are covered too.
+            var tools = vm.GetClientTools();
+            CollectionAssert.AreEquivalent(
+                new[] { "copy_visible_text", "read_lines", "find_text", "edit_lines", "replace_in_range", "replace_all", "save_file" },
+                tools.Select(t => t.Name).ToArray(),
+                "the Text AI act tool surface changed — update the tree's text-viewer-ai-act leaves to match");
+
+            // read_lines: numbered, reflects current content
+            var read = tools.Single(t => t.Name == "read_lines");
+            var r = await read.InvokeAsync(new JsonObject { ["start_line"] = 1, ["count"] = 3 }, CancellationToken.None);
+            Assert.IsFalse(r.IsError);
+            StringAssert.Contains(r.ModelText, "alpha");
+            StringAssert.Contains(r.ModelText, "gamma");
+
+            // replace_all: edits in place (case-insensitive default), marks the document dirty (unsaved)
+            var replace = tools.Single(t => t.Name == "replace_all");
+            var rep = await replace.InvokeAsync(new JsonObject { ["find"] = "beta", ["replace"] = "BETA" }, CancellationToken.None);
+            Assert.IsFalse(rep.IsError);
+            StringAssert.Contains(vm.Document.Text, "BETA");
+            Assert.IsTrue(vm.IsDirty);
+
+            // save_file: takes the save branch on a dirty document (persistence itself is covered by the
+            // direct-save tests above; the tool's write is fire-and-forget through the dispatcher).
+            var save = tools.Single(t => t.Name == "save_file");
+            var s = await save.InvokeAsync(new JsonObject(), CancellationToken.None);
+            Assert.IsFalse(s.IsError);
+            Assert.AreEqual("saved", s.Summary);
         }
         finally { File.Delete(path); }
     });
