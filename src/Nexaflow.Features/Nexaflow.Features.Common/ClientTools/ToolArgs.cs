@@ -21,6 +21,17 @@ public static class ToolArgs
         return null;
     }
 
+    /// <summary>First present argument among <paramref name="keys"/>, read as a RAW (untrimmed) string —
+    /// for content-setting tools where leading/trailing whitespace and newlines are significant (e.g.
+    /// replacing a whole document). Unlike <see cref="Str"/>, it never trims or skips a blank value.</summary>
+    public static string? Raw(JsonObject args, params string[] keys)
+    {
+        foreach (var k in keys)
+            if (args.TryGetPropertyValue(k, out var n) && n is not null)
+                return n is JsonValue v && v.TryGetValue<string>(out var sv) ? sv : n.ToString();
+        return null;
+    }
+
     /// <summary>Reads a boolean (JSON bool or "true"/"false" string); <paramref name="fallback"/> if absent/invalid.</summary>
     public static bool Bool(JsonObject args, string key, bool fallback = false)
     {

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.Json.Nodes;
 using Nexaflow.Features.Common;
 using Nexaflow.IO.Common;
 using Nexaflow.Tests.Core.Infrastructure;
@@ -59,6 +60,44 @@ public class FileTextEditorViewModelTests
             Assert.IsFalse(vm.IsDirty);
             Assert.IsFalse(HasUtf8Bom(File.ReadAllBytes(path)));
             Assert.AreEqual("alpha\nbeta\ngamma\n", File.ReadAllText(path));
+        }
+        finally { File.Delete(path); }
+    });
+
+    [TestMethod]
+    [CoversNode("code-ai-act")]
+    public void AiTools_ReadEditReplaceSave_AndScopeReadinessPreview() => AsyncPump.Run(async () =>
+    {
+        var path = Temp();
+        File.WriteAllText(path, "alpha\nbeta\n", new UTF8Encoding(false));
+        try
+        {
+            using var vm = new FileTextEditorViewModel(path, Shell(), Big);
+            await vm.LoadAsync();
+
+            Assert.IsTrue(vm.IsContextReady);                     // gated on load completing
+            Assert.AreEqual(path, vm.GetSecurityContext());       // aspect 4: file-scoped
+            Assert.IsInstanceOfType(vm, typeof(IContextPreview)); // offers a read-only preview
+
+            var tools = vm.GetClientTools();
+            var set  = tools.Single(t => t.Name == "set_editor_text");
+            var repl = tools.Single(t => t.Name == "replace_all");
+            var save = tools.Single(t => t.Name == "save_file");
+
+            // set_editor_text replaces the whole document (unsaved)
+            await set.InvokeAsync(new JsonObject { ["text"] = "one\ntwo\nthree\n" }, CancellationToken.None);
+            Assert.AreEqual("one\ntwo\nthree\n", vm.Document.Text);
+            Assert.IsTrue(vm.IsDirty);
+
+            // replace_all edits in place (case-insensitive by default) and reports the count
+            var r = await repl.InvokeAsync(new JsonObject { ["find"] = "o", ["replace"] = "0" }, CancellationToken.None);
+            Assert.IsFalse(r.IsError);
+            StringAssert.Contains(vm.Document.Text, "0ne");   // "one" → "0ne", "two" → "tw0"
+
+            // save_file persists to disk and clears the dirty flag
+            await save.InvokeAsync(new JsonObject(), CancellationToken.None);
+            Assert.IsFalse(vm.IsDirty);
+            StringAssert.Contains(File.ReadAllText(path), "0ne");
         }
         finally { File.Delete(path); }
     });

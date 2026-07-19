@@ -35,7 +35,6 @@ public class AiSurfaceRulesTests
         // Each of these exposes tools but returns GetSecurityContext() == null today — pinning two of the
         // same kind collapses their tools first-wins. Give each a stable scope and delete it from here.
         "Nexaflow.Features.AIChat.ViewModels.ConversationViewModel",   // the hub itself; aggregates pinned tools
-        "Nexaflow.Features.Code.ViewModels.CodeViewModel",
         "Nexaflow.Features.Console.ViewModels.CmdTerminalViewModel",
         "Nexaflow.Features.Font.ViewModels.FontViewModel",
         "Nexaflow.Features.Json.ViewModels.JsonViewModel",
