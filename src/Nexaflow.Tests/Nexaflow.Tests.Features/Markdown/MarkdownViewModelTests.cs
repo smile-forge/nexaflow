@@ -1,5 +1,7 @@
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Markdown.ViewModels;
 using Nexaflow.Tests.Fixtures;
+using NSubstitute;
 using System.IO;
 using System.Linq;
 
@@ -12,8 +14,8 @@ namespace Nexaflow.Tests.Features.Markdown;
 /// <see cref="MarkdownViewModelEditingTests"/>; this file adds the toggle round-trip, the
 /// Save-when-clean no-op, and the context string/object reflecting dirty + file state.
 ///
-/// The view-model constructs headless from a file path alone (no <c>IShellServices</c>) — the
-/// shell dependency lives in the registration/action, not the VM — so nothing here touches WPF.
+/// The view-model takes an <c>IShellServices</c> (used only to marshal AI-tool edits to the UI
+/// thread); none of these pure-state tests invoke a tool, so a bare substitute suffices.
 /// </summary>
 [TestClass]
 [CoversNode("markdown-toolbar")]
@@ -33,7 +35,7 @@ public class MarkdownViewModelTests
         var path = Path.GetTempFileName();
         File.WriteAllText(path, content);
         _tempFiles.Add(path);
-        return new MarkdownViewModel(path);
+        return new MarkdownViewModel(path, Substitute.For<IShellServices>());
     }
 
     // ── Source / preview toggle (pure state) ──────────────────────────────────

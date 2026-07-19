@@ -1,5 +1,7 @@
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Markdown.ViewModels;
 using Nexaflow.Tests.Fixtures;
+using NSubstitute;
 using System.IO;
 
 namespace Nexaflow.Tests.Features.Markdown;
@@ -31,7 +33,7 @@ public class MarkdownViewModelEditingTests
         var path = Path.GetTempFileName();
         File.WriteAllText(path, content);
         _tempFiles.Add(path);
-        return new MarkdownViewModel(path);
+        return new MarkdownViewModel(path, Substitute.For<IShellServices>());
     }
 
     private const string ThreeBlock = "# Heading\n\nA paragraph.\n\n- item one\n- item two\n";
@@ -66,7 +68,7 @@ public class MarkdownViewModelEditingTests
     public void MissingFile_LoadsEmpty_NotDirty()
     {
         var path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".md");
-        var vm   = new MarkdownViewModel(path);   // file does not exist
+        var vm   = new MarkdownViewModel(path, Substitute.For<IShellServices>());   // file does not exist
 
         Assert.AreEqual(string.Empty, vm.Markdown);
         Assert.IsFalse(vm.IsDirty);
@@ -114,7 +116,7 @@ public class MarkdownViewModelEditingTests
         var path = Path.GetTempFileName();
         _tempFiles.Add(path);
         File.WriteAllText(path, ThreeBlock);
-        var vm = new MarkdownViewModel(path);
+        var vm = new MarkdownViewModel(path, Substitute.For<IShellServices>());
 
         vm.Markdown = "# Saved Heading";
         vm.SaveCommand.Execute(null);
