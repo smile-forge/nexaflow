@@ -393,14 +393,14 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
             "get_editor_text",
             "Return the full current text of the open editor document.",
             [],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (_, _) => Task.FromResult(ToolResult.Ok(Document.Text, "Read the editor contents."))),
 
         new DelegateClientTool(
             "get_syntax_tree",
             "Return the tree-sitter parse tree (s-expression) of the current code document for structural understanding. Empty if the file has no code grammar.",
             [],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (_, _) =>
             {
                 var grammar = HighlightingRegistry.Resolve(FileName).TreeSitterLanguage;

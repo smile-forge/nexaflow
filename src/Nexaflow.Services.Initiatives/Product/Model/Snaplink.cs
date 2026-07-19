@@ -12,6 +12,8 @@ namespace Nexaflow.Services.Initiatives.Product.Model;
 /// <list type="bullet">
 ///   <item><c>markdown</c> → <see cref="Doc"/> + <see cref="TitlePath"/> (heading path, not a line number).</item>
 ///   <item><c>code</c> → <see cref="Class"/> + optional <see cref="Method"/>.</item>
+///   <item><c>node</c> → <see cref="Target"/> holds the id of another product node — a logical dependency
+///   the parent/child hierarchy doesn't express (e.g. a feature's reliance on a shared library node).</item>
 ///   <item>other → <see cref="Target"/> (a free string, e.g. a URL).</item>
 /// </list>
 /// </remarks>
@@ -39,6 +41,7 @@ public sealed class Snaplink
     {
         "markdown" => TitlePath is { Count: > 0 } ? $"{Doc} › {string.Join(" › ", TitlePath)}" : Doc ?? "(markdown)",
         "code"     => Method is { Length: > 0 } ? $"{Class}.{Method}" : Class ?? Doc ?? "(code)",
+        "node"     => Target is { Length: > 0 } ? $"→ {Target}" : "(node)",
         _          => Target ?? Type
     };
 }

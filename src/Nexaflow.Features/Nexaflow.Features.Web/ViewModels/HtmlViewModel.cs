@@ -134,7 +134,7 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel
             "see what's actually rendered (text, layout, images). The result also tells you how much of " +
             "the whole page this view covers. Call it when the user asks about the page's content or appearance.",
             [],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (_, ct) => BuildCaptureResultAsync(ct),
             parallelizable: false),
 
@@ -144,7 +144,7 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel
             "Use this to read a page taller than the viewport — scroll \"down\" repeatedly to walk to the " +
             "bottom (the result says when you've reached it), or \"up\" to go back.",
             [new ClientToolParameter("direction", "Which way to scroll: \"down\" (default) or \"up\".", Required: false)],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             ScrollWebPageToolAsync,
             parallelizable: false,
             exemptFromRepeatGuard: true),   // repeated "scroll down" is real progress, not spinning

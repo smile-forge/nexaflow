@@ -22,7 +22,7 @@ public sealed class GitStatusTool(GitService git) : IClientTool
     public string Name => "git_status";
     public string Description => "Show git status: current branch, ahead/behind vs upstream, and the staged, modified, and untracked files.";
     public IReadOnlyList<ClientToolParameter> Parameters => [];
-    public ToolSafety Safety => ToolSafety.ReadOnly;
+    public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => true;
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) => Task.Run(() =>
@@ -69,7 +69,7 @@ public sealed class GitLogTool(GitService git) : IClientTool
         new("branch", "Branch to read history from (default: current HEAD).", Required: false),
         new("path",   "Limit history to commits touching this file/folder path.", Required: false),
     ];
-    public ToolSafety Safety => ToolSafety.ReadOnly;
+    public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => true;
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) => Task.Run(() =>
@@ -100,7 +100,7 @@ public sealed class GitDiffTool(GitService git) : IClientTool
         new("path",   "Limit the diff to this file/folder path.", Required: false),
         new("staged", "True for staged (index) changes; false (default) for all working-tree changes.", Required: false, Type: "boolean"),
     ];
-    public ToolSafety Safety => ToolSafety.ReadOnly;
+    public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => true;
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) => Task.Run(() =>
@@ -121,7 +121,7 @@ public sealed class GitBranchesTool(GitService git) : IClientTool
     public string Name => "git_branches";
     public string Description => "List local and remote branches; the current branch is marked, with upstream and ahead/behind where tracked.";
     public IReadOnlyList<ClientToolParameter> Parameters => [];
-    public ToolSafety Safety => ToolSafety.ReadOnly;
+    public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => true;
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) => Task.Run(() =>
@@ -154,7 +154,7 @@ public sealed class GitShowTool(GitService git) : IClientTool
     [
         new("commit", "Commit hash (full or abbreviated) to show.", Required: true),
     ];
-    public ToolSafety Safety => ToolSafety.ReadOnly;
+    public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => true;
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) => Task.Run(() =>
@@ -183,7 +183,7 @@ public sealed class GitRemotesTool(GitService git) : IClientTool
     public string Name => "git_remotes";
     public string Description => "List the repository's configured remotes (name and URL).";
     public IReadOnlyList<ClientToolParameter> Parameters => [];
-    public ToolSafety Safety => ToolSafety.ReadOnly;
+    public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => true;
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) => Task.Run(() =>

@@ -332,7 +332,7 @@ independently shippable. Full model — region tokens, `ThemedRegion` scenes, au
 
 `IPageView` is the shell's typed handle to a tab `UserControl` — implement it on your `UserControl`. It exposes the ViewModel and handles shell lifecycle. `Reinitialize` is called on first load and whenever the shell activates the tab with a new param set (including re-clicking the active tab).
 
-`IPageViewModel` is the AI pipeline contract — implement it on your ViewModel so the shell can query context and expose **client tools** the AI agent may invoke. A client tool is a self-contained `IClientTool` (use `DelegateClientTool` for one-liners) carrying its own metadata and execution. Read-only tools (`ToolSafety.ReadOnly`) auto-run; mutating tools (`ToolSafety.RequiresApproval`) are approved first. `GetClientTools()` and `GetContextObject()` have defaults, so a page that only supplies context overrides nothing else.
+`IPageViewModel` is the AI pipeline contract — implement it on your ViewModel so the shell can query context and expose **client tools** the AI agent may invoke. A client tool is a self-contained `IClientTool` (use `DelegateClientTool` for one-liners) carrying its own metadata and execution. Safe tools (`ToolSafety.SafeOperation` — observers, or changes the user can see / must still save) auto-run; tools with real consequence (`ToolSafety.RequiresApproval`) are approved first. `GetClientTools()` and `GetContextObject()` have defaults, so a page that only supplies context overrides nothing else.
 
 ```csharp
 // The View — thin shell-lifecycle wrapper
@@ -353,7 +353,7 @@ public partial class MyViewModel : ObservableObject, IPageViewModel
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
         new DelegateClientTool(
-            "refresh", "Reload the current view.", [], ToolSafety.ReadOnly,
+            "refresh", "Reload the current view.", [], ToolSafety.SafeOperation,
             (args, ct) => { Reload(); return Task.FromResult(ToolResult.Ok("reloaded")); })
     ];
 }
@@ -593,7 +593,7 @@ User submits text in AI input bar
       → client-side agent loop: the LLM emits fenced ```client_tool / ```client_plan /
         ```client_prefill blocks (JSON bodies); the harness executes the page's IClientTool
         objects and feeds results back, looping until a final message or a prefill
-      → read-only tools auto-run; mutating batches and plans need per-batch/plan approval
+      → safe tools auto-run; approval-required batches and plans need per-batch/plan approval
         via IToolApprovalCoordinator (the AiResponseOverlay)
   → Response text (if any) added to AI Chat conversation
 ```

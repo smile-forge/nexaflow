@@ -47,6 +47,11 @@ public sealed class SnaplinkValidator(string productRoot)
 
     private readonly Dictionary<string, FileFacts> _cache = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Every node id in the tree, for validating <c>node</c> snaplink targets. Null in the
+    /// single-link <see cref="CheckLink(Snaplink, string)"/> path (no tree in scope) — a node link is then
+    /// treated as unverifiable, deferred to the next full scan, which stays true to the "prove it broken" bar.</summary>
+    private IReadOnlySet<string>? _nodeIds;
+
     /// <summary>Validates every snaplink in <paramref name="state"/> against the files under <paramref name="productRoot"/>.</summary>
     public static IntegrityReport Validate(ProductState state, string productRoot)
         => new SnaplinkValidator(productRoot).Run(state);
@@ -59,6 +64,16 @@ public sealed class SnaplinkValidator(string productRoot)
     public static (IntegrityKind Kind, string? Detail) CheckLink(Snaplink link, string productRoot)
         => new SnaplinkValidator(productRoot).Check(link);
 
+    /// <summary>
+    /// Single-link recheck that can also verify a <c>node</c> link, given the set of live node ids. The
+    /// Integrity page uses this after editing a node snaplink so the fix confirms without a full rescan.
+    /// </summary>
+    public static (IntegrityKind Kind, string? Detail) CheckLink(Snaplink link, string productRoot, IReadOnlySet<string> nodeIds)
+    {
+        var validator = new SnaplinkValidator(productRoot) { _nodeIds = nodeIds };
+        return validator.Check(link);
+    }
+
     private IntegrityReport Run(ProductState state)
     {
         var report = new IntegrityReport
@@ -66,6 +81,8 @@ public sealed class SnaplinkValidator(string productRoot)
             Generated = DateTime.Now.ToString("o"),
             ScannedNodes = state.Nodes.Count
         };
+
+        _nodeIds = state.Nodes.Keys.ToHashSet(StringComparer.Ordinal);
 
         foreach (var (id, node) in state.Nodes)
         {
@@ -136,6 +153,16 @@ public sealed class SnaplinkValidator(string productRoot)
             return Uri.TryCreate(link.Target, UriKind.Absolute, out _)
                 ? (default, null)
                 : (IntegrityKind.InvalidUrl, $"'{link.Target}' is not a well-formed absolute URL");
+        }
+
+        if (link.Type == "node")
+        {
+            if (string.IsNullOrWhiteSpace(link.Target))
+                return (IntegrityKind.EmptyTarget, "node snaplink has no target node id");
+            if (_nodeIds is null) return (default, null);   // no tree in scope → unverifiable, not broken
+            return _nodeIds.Contains(link.Target)
+                ? (default, null)
+                : (IntegrityKind.MissingNode, $"node '{link.Target}' is not in the tree");
         }
 
         if (string.IsNullOrWhiteSpace(link.Doc))

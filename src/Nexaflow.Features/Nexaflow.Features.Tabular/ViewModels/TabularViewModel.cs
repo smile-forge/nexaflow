@@ -159,7 +159,7 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
             "open_filter",
             "Open the filter side panel",
             [],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (arguments, ct) =>
             {
                 if (Columns.Count > 0) Columns[0].IsSelected = true;
@@ -169,7 +169,7 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
             "scroll_to_top",
             "Scroll to the first row",
             [],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (arguments, ct) =>
             {
                 FocalRow = 0;
@@ -180,7 +180,7 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
             "scroll_to_end",
             "Scroll to the last row",
             [],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (arguments, ct) =>
             {
                 FocalRow = (KnownRowCount ?? 0) - 1;

@@ -27,7 +27,7 @@ public sealed class FontDetailsTool(FontViewModel vm) : IClientTool
                     "Omit for the currently selected font.", Required: false),
     ];
 
-    public ToolSafety Safety => ToolSafety.ReadOnly;
+    public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => true;
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)

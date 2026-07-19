@@ -123,7 +123,7 @@ public class AgentLoopTests
         public string Name => "capture_web_page";
         public string Description => "capture the current page as an image";
         public IReadOnlyList<ClientToolParameter> Parameters => [];
-        public ToolSafety Safety => ToolSafety.ReadOnly;
+        public ToolSafety Safety => ToolSafety.SafeOperation;
         public bool Parallelizable => false;
 
         public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
@@ -187,7 +187,7 @@ public class AgentLoopTests
     [TestMethod]
     public async Task ReadOnlyTool_AutoRuns_WithoutApproval_AndFinishes()
     {
-        var tool     = new RecordingTool("get_x", ToolSafety.ReadOnly);
+        var tool     = new RecordingTool("get_x", ToolSafety.SafeOperation);
         var provider = new ScriptedLlmProvider([ToolBlock("get_x"), "All done."]);
         var approver = new FakeApprover();
 
@@ -246,7 +246,7 @@ public class AgentLoopTests
     public async Task RepeatedIdenticalBatch_ReturnsStoppedMessage()
     {
         // The model keeps emitting the SAME tool call → the loop guard stops it after a few repeats.
-        var tool     = new RecordingTool("get_x", ToolSafety.ReadOnly);
+        var tool     = new RecordingTool("get_x", ToolSafety.SafeOperation);
         var provider = new ScriptedLlmProvider(Enumerable.Repeat(ToolBlock("get_x"), 50));
         var approver = new FakeApprover();
 
@@ -261,7 +261,7 @@ public class AgentLoopTests
     {
         // A scroll-like tool whose identical repeats are real progress: it must run past the repeat
         // guard, bounded only by the overall step cap — not stopped after 2 like a normal tool.
-        var tool     = new RecordingTool("scroll", ToolSafety.ReadOnly, exempt: true);
+        var tool     = new RecordingTool("scroll", ToolSafety.SafeOperation, exempt: true);
         var provider = new ScriptedLlmProvider(Enumerable.Repeat(ToolBlock("scroll"), 50));
         var approver = new FakeApprover();
 
@@ -275,7 +275,7 @@ public class AgentLoopTests
     public async Task IterationCap_ReturnsStoppedMessage()
     {
         // Distinct calls each step (so the repeat guard never fires) → the hard step cap stops it.
-        var tool     = new RecordingTool("get_x", ToolSafety.ReadOnly);
+        var tool     = new RecordingTool("get_x", ToolSafety.SafeOperation);
         var provider = new ScriptedLlmProvider(Enumerable.Range(0, 50).Select(i => ToolBlock("get_x", $"{{\"i\":{i}}}")));
         var approver = new FakeApprover();
 
@@ -288,7 +288,7 @@ public class AgentLoopTests
     [TestMethod]
     public async Task PreCancelledToken_ReturnsNull()
     {
-        var tool     = new RecordingTool("get_x", ToolSafety.ReadOnly);
+        var tool     = new RecordingTool("get_x", ToolSafety.SafeOperation);
         var provider = new ScriptedLlmProvider([ToolBlock("get_x"), "done"]);
         using var cts = new CancellationTokenSource();
         cts.Cancel();
@@ -319,7 +319,7 @@ public class AgentLoopTests
     public async Task ManyTools_AreFilteredToFourPlusGetCommands()
     {
         var tools    = Enumerable.Range(1, 6)
-                                 .Select(i => (IClientTool)new RecordingTool($"tool_{i}", ToolSafety.ReadOnly))
+                                 .Select(i => (IClientTool)new RecordingTool($"tool_{i}", ToolSafety.SafeOperation))
                                  .ToArray();
         var provider = new ScriptedLlmProvider(["done"], rankReply: "1,2");
 

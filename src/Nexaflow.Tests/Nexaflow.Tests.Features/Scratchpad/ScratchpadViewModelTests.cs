@@ -338,7 +338,7 @@ public class ScratchpadViewModelTests
         var names = tools.Select(t => t.Name).ToList();
         CollectionAssert.Contains(names, "scratchpad_list_notes");
         CollectionAssert.Contains(names, "scratchpad_read_notes");
-        Assert.IsTrue(tools.All(t => t.Safety == ToolSafety.ReadOnly));
+        Assert.IsTrue(tools.All(t => t.Safety == ToolSafety.SafeOperation));
     }
 
     private IClientTool Tool(ScratchpadViewModel vm, string name)
@@ -390,7 +390,7 @@ public class ScratchpadViewModelTests
     {
         using var vm = NewVm();
         var tool = Tool(vm, "scratchpad_add_note");
-        Assert.AreEqual(ToolSafety.ReadOnly, tool.Safety);   // auto-runs, no approval
+        Assert.AreEqual(ToolSafety.SafeOperation, tool.Safety);   // auto-runs, no approval
 
         var result = await tool.InvokeAsync(new JsonObject { ["content"] = "remember the milk" }, default);
 

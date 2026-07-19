@@ -18,7 +18,7 @@ internal sealed class RegistryListSubkeysTool(RegistryViewModel vm) : IClientToo
     [
         new("path", "Optional relative key path below the current key (e.g. \"Software\\Microsoft\"). Omit for the current key.", Required: false),
     ];
-    public ToolSafety Safety => ToolSafety.ReadOnly;
+    public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => true;
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
@@ -47,7 +47,7 @@ internal sealed class RegistryGetValuesTool(RegistryViewModel vm) : IClientTool
     [
         new("path", "Optional relative key path below the current key. Omit for the current key.", Required: false),
     ];
-    public ToolSafety Safety => ToolSafety.ReadOnly;
+    public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => true;
 
     public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)

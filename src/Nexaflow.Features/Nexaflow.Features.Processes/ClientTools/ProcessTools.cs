@@ -24,7 +24,7 @@ internal static class ProcessTools
                 new ClientToolParameter("top", "Maximum number of rows to return.", Required: false, Type: "number"),
                 new ClientToolParameter("filter", "Only processes whose name contains this text.", Required: false),
             ],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (args, _) => Task.FromResult(ListProcesses(vm, args)),
             parallelizable: true),
 
@@ -35,7 +35,7 @@ internal static class ProcessTools
                 new ClientToolParameter("metric", "cpu | memory.", Required: false),
                 new ClientToolParameter("count", "How many to return (default 5).", Required: false, Type: "number"),
             ],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (args, _) => Task.FromResult(TopConsumers(vm, args)),
             parallelizable: true),
 
@@ -43,7 +43,7 @@ internal static class ProcessTools
             "get_process_details",
             "Full details for one process (path, command line, user, CPU, memory, threads, handles, priority). Arg: process (name or PID).",
             [new ClientToolParameter("process", "Process name or PID.")],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (args, _) => Task.FromResult(Details(vm, args)),
             parallelizable: true),
 
@@ -51,7 +51,7 @@ internal static class ProcessTools
             "get_process_modules",
             "List the DLLs / modules loaded by a process. Arg: process (name or PID).",
             [new ClientToolParameter("process", "Process name or PID.")],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (args, _) => Task.FromResult(Modules(vm, args)),
             parallelizable: true),
 
@@ -59,7 +59,7 @@ internal static class ProcessTools
             "get_process_tree",
             "Show the parent/child process tree, optionally rooted at one process. Arg: process (name or PID, optional).",
             [new ClientToolParameter("process", "Root process name or PID; omit for the whole tree.", Required: false)],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (args, _) => Task.FromResult(Tree(vm, args)),
             parallelizable: true),
 

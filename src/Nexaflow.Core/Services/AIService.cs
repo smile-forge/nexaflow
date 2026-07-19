@@ -679,7 +679,7 @@ public sealed class AIService : IAIService
             "get_client_commands",
             "List every client tool available here, with descriptions and parameters.",
             [],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (_, _) => Task.FromResult(ToolResult.Ok(
                 $"{pageTools.Count} tool(s) available", DescribeCatalog(pageTools))),
             parallelizable: true);

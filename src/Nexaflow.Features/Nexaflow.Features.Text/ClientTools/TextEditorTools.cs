@@ -20,7 +20,7 @@ internal static class TextEditorTools
             "copy_visible_text",
             "Copy the text currently visible in the editor to the clipboard.",
             [],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (_, _) =>
             {
                 System.Windows.Clipboard.SetText(vm.GetVisibleText());
@@ -35,7 +35,7 @@ internal static class TextEditorTools
                 new ClientToolParameter("start_line", "First line to read (1-based).", Type: "number"),
                 new ClientToolParameter("count", "How many lines to read (max 1000).", Required: false, Type: "number"),
             ],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             async (args, ct) =>
             {
                 int start = System.Math.Max(1, ToolArgs.Int(args, "start_line", 1));
@@ -57,7 +57,7 @@ internal static class TextEditorTools
                 new ClientToolParameter("case_sensitive", "Match case.", Required: false, Type: "boolean"),
                 new ClientToolParameter("max_results", "Maximum matches to return (default 50).", Required: false, Type: "number"),
             ],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             async (args, ct) =>
             {
                 var query = ToolArgs.Str(args, "query", "q", "text");

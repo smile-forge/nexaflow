@@ -36,7 +36,7 @@ public static class EnvVarTools
         [
             new("scope", "Optional: user or machine. Omit for both scopes.", Required: false),
         ];
-        public ToolSafety Safety => ToolSafety.ReadOnly;
+        public ToolSafety Safety => ToolSafety.SafeOperation;
         public bool Parallelizable => true;
 
         public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
@@ -71,7 +71,7 @@ public static class EnvVarTools
             new("name", "Variable name (e.g. PATH)."),
             new("scope", "Optional: user or machine. Omit to search both scopes.", Required: false),
         ];
-        public ToolSafety Safety => ToolSafety.ReadOnly;
+        public ToolSafety Safety => ToolSafety.SafeOperation;
         public bool Parallelizable => true;
 
         public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)

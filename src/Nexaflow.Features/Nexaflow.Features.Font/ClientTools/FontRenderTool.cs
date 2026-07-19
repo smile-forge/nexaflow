@@ -38,7 +38,7 @@ public sealed class FontRenderTool(FontViewModel vm) : IClientTool
             Required: false, Type: "number"),
     ];
 
-    public ToolSafety Safety => ToolSafety.ReadOnly;
+    public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => false;   // renders on the UI thread
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)

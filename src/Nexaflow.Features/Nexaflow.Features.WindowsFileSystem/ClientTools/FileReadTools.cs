@@ -20,7 +20,7 @@ public sealed class GetFileListTool(FileSystemViewModel vm) : IClientTool
     [
         new("path", "Optional subdirectory (within the current folder) to list instead of the current folder.", Required: false),
     ];
-    public ToolSafety Safety => ToolSafety.ReadOnly;
+    public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => true;
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
@@ -74,7 +74,7 @@ public sealed class GetLineCountTool(FileSystemViewModel vm) : IClientTool
     [
         new("name", "File name (or path within the current folder)."),
     ];
-    public ToolSafety Safety => ToolSafety.ReadOnly;
+    public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => true;
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
@@ -106,7 +106,7 @@ public sealed class GetFileStatsTool(FileSystemViewModel vm) : IClientTool
     [
         new("name", "File or folder name (or path within the current folder)."),
     ];
-    public ToolSafety Safety => ToolSafety.ReadOnly;
+    public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => true;
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
@@ -157,7 +157,7 @@ public sealed class FindFilesByNameTool(FileSystemViewModel vm) : IClientTool
         new("pattern", "Glob (george*, *.txt) or plain substring to match against names."),
         new("recursive", "Search subfolders too.", Required: false, Type: "boolean"),
     ];
-    public ToolSafety Safety => ToolSafety.ReadOnly;
+    public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => true;
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
@@ -214,7 +214,7 @@ public sealed class GetFileContentsTool(FileSystemViewModel vm) : IClientTool
         new("start_line", "First line to read (1-based). Default 1.", Required: false, Type: "integer"),
         new("end_line", "Last line to read (inclusive). Default start_line + 99.", Required: false, Type: "integer"),
     ];
-    public ToolSafety Safety => ToolSafety.ReadOnly;
+    public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => true;
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)

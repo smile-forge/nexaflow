@@ -23,7 +23,7 @@ public sealed class VideoCaptureFrameTool(VideoViewModel vm) : IClientTool
 
     public IReadOnlyList<ClientToolParameter> Parameters => [];
 
-    public ToolSafety Safety => ToolSafety.ReadOnly;
+    public ToolSafety Safety => ToolSafety.SafeOperation;
 
     public bool Parallelizable => false;
 

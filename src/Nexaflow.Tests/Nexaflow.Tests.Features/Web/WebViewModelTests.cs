@@ -159,7 +159,7 @@ public class WebViewModelTests
         var vm   = new HtmlViewModel(Write("t.html", "<html></html>"));
         var tool = vm.GetClientTools().Single(t => t.Name == "scroll_web_page");
 
-        Assert.AreEqual(ToolSafety.ReadOnly, tool.Safety);   // scrolling never needs approval
+        Assert.AreEqual(ToolSafety.SafeOperation, tool.Safety);   // scrolling never needs approval
         Assert.IsTrue(tool.ExemptFromRepeatGuard);           // repeated "scroll down" is real progress
     }
 }

@@ -226,14 +226,14 @@ public sealed partial class WindowsAppsViewModel : ObservableObject, IPageViewMo
             "get_application_details",
             "Get details (publisher, version, install date, size, location, source) for one installed application by name.",
             [new ClientToolParameter("name", "The application name (case-insensitive, exact or partial match).")],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (args, _) => Task.FromResult(GetApplicationDetails(args))),
 
         new DelegateClientTool(
             "list_installed_applications",
             "List the names of all installed applications (ignores the current selection and filter).",
             [],
-            ToolSafety.ReadOnly,
+            ToolSafety.SafeOperation,
             (_, _) => Task.FromResult(ListInstalledApplications())),
     ];
 
