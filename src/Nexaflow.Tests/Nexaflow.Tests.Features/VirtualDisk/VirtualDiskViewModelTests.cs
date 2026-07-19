@@ -80,4 +80,36 @@ public class VirtualDiskViewModelTests
         Assert.IsTrue(vm.CanMount);
         StringAssert.Contains(vm.GetContext(), "ISO 9660");
     }
+
+    // ── AI context readiness (regression: a valid disk mid-load must not read as "unreadable") ──
+
+    [TestMethod]
+    public void Context_WhileNotLoaded_ReadsAsReading_NotUnreadable()
+    {
+        // A non-existent path makes LoadAsync complete synchronously (no background continuation to race),
+        // so forcing the not-yet-loaded state is deterministic. IsRecognised is false while loading AND on a
+        // genuine failure — the fix keys GetContext off IsLoaded so the two are no longer conflated.
+        var vm = new VirtualDiskViewModel(@"Z:\does-not-exist.vhd", Substitute.For<IShellServices>(), DiskVfs());
+        Assert.IsTrue(vm.IsLoaded, "precondition: the synchronous no-file load has finished");
+
+        vm.IsLoaded = false;   // simulate the mid-load window
+
+        Assert.IsFalse(vm.IsContextReady, "the send must be held while loading");
+        StringAssert.Contains(vm.GetContext(), "reading");
+        Assert.IsFalse(vm.GetContext().Contains("unrecognised"),
+            "a still-loading disk must not be reported as unrecognised/unreadable");
+    }
+
+    [TestMethod]
+    public async Task Context_AfterLoad_IsReady_AndReflectsTheDisk()
+    {
+        using var fix = new DiskSampleFactory.Fixtures();
+        var vm = new VirtualDiskViewModel(fix.VhdPath, Substitute.For<IShellServices>(), DiskVfs());
+        await vm.WhenLoaded;
+
+        Assert.IsTrue(vm.IsContextReady);
+        Assert.IsTrue(vm.IsRecognised);
+        StringAssert.Contains(vm.GetContext(), "VHD");
+        Assert.IsFalse(vm.GetContext().Contains("reading"));
+    }
 }

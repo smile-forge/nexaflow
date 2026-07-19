@@ -42,7 +42,6 @@ public class AiSurfaceRulesTests
         "Nexaflow.Features.ProductManager.ViewModels.ProductViewModel",
         "Nexaflow.Features.Scratchpad.ViewModels.ScratchpadViewModel",
         "Nexaflow.Features.Tabular.ViewModels.TabularViewModel",
-        "Nexaflow.Features.Text.ViewModels.TextViewModel",
         "Nexaflow.Features.Video.ViewModels.VideoViewModel",
         "Nexaflow.Features.Web.ViewModels.HtmlViewModel",
         "Nexaflow.Features.WindowsApps.ViewModels.WindowsAppsViewModel",

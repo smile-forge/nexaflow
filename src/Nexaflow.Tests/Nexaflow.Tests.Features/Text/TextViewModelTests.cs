@@ -55,6 +55,26 @@ public class TextViewModelTests
     });
 
     [TestMethod]
+    [CoversNode("text-viewer-ai-preview")]
+    public void SecurityContext_IsTheFilePath_AndOffersAContextPreview() => AsyncPump.Run(async () =>
+    {
+        var path = WriteTemp("alpha\nbeta\ngamma\n");
+        try
+        {
+            using var vm = new TextViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+            await vm.LoadAsync(CancellationToken.None);
+
+            // Aspect 4: two Text tabs on different files must be distinguishable when pinned together, so
+            // their identically-named tools don't collapse first-wins in MultiContextClientTool.
+            Assert.AreEqual(path, vm.GetSecurityContext());
+
+            // The page advertises a read-only context preview for the conversation panel.
+            Assert.IsInstanceOfType(vm, typeof(IContextPreview));
+        }
+        finally { File.Delete(path); }
+    });
+
+    [TestMethod]
     public void LoadAsync_LargeFile_IndexesLineCountAndWindowsFromTop() => AsyncPump.Run(async () =>
     {
         var path = WriteManyLines(out var lineCount);

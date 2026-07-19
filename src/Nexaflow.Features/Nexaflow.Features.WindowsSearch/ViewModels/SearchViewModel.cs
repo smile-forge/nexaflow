@@ -173,9 +173,14 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel
 
     public string GetContext()
     {
-        if (string.IsNullOrWhiteSpace(SearchQuery) || string.IsNullOrEmpty(SearchRoot))
-            return $"Search tab: no search performed yet. Root: {(string.IsNullOrEmpty(SearchRoot) ? "not set" : $"'{SearchRoot}'")}";
-        return $"Search tab: '{SearchQuery}' in '{SearchRoot}'. {ResultCount} result(s).";
+        // A This-PC search has an empty SearchRoot but searches every drive — keying "performed" off the
+        // query (not the root) so a cross-drive search with results is no longer reported as "no search".
+        if (string.IsNullOrWhiteSpace(SearchQuery))
+            return "Search tab: no search performed yet.";
+        var scope = string.IsNullOrEmpty(SearchRoot)
+            ? (_drives.Count > 0 ? "This PC (all drives)" : "no scope set")
+            : $"'{SearchRoot}'";
+        return $"Search tab: '{SearchQuery}' in {scope}. {ResultCount} result(s).";
     }
 
     public IReadOnlyList<IClientTool> GetClientTools() =>
