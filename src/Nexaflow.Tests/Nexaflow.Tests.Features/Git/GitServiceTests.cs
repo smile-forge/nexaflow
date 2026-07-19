@@ -6,7 +6,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.Git;
 
 [TestClass]
-[CoversNode("git-ai-tools")]
+[CoversNode("git-ai-act")]
 public class GitServiceTests
 {
     private static readonly Signature Sig = new("Tester", "test@example.com", DateTimeOffset.Now);

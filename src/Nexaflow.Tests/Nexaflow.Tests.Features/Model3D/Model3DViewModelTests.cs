@@ -58,7 +58,7 @@ public class Model3DViewModelTests
     }
 
     [TestMethod]
-    [CoversNode("model3d-ai-tools")]
+    [CoversNode("model3d-ai-act")]
     public void GetContext_GatedUntilLoaded()
     {
         var vm = Make();
@@ -67,7 +67,7 @@ public class Model3DViewModelTests
     }
 
     [TestMethod]
-    [CoversNode("model3d-ai-tools")]
+    [CoversNode("model3d-ai-act")]
     [CoversNode("model3d-wireframe")]
     public async Task SetRenderMode_Tool_TogglesAndSetsWireframe()
     {
@@ -88,7 +88,7 @@ public class Model3DViewModelTests
     }
 
     [TestMethod]
-    [CoversNode("model3d-ai-tools")]
+    [CoversNode("model3d-ai-act")]
     public async Task CameraTools_FailGracefully_WithoutViewport()
     {
         var vm = Make(); // no view attached → camera/capture delegates are null

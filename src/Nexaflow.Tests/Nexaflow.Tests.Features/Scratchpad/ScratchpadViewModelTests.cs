@@ -330,7 +330,7 @@ public class ScratchpadViewModelTests
     }
 
     [TestMethod]
-    [CoversNode("scratchpad-ai-tools")]
+    [CoversNode("scratchpad-ai-act")]
     public void GetClientTools_ExposesReadOnlyNoteTools()
     {
         using var vm = NewVm();
@@ -345,7 +345,7 @@ public class ScratchpadViewModelTests
         => ((IPageViewModel)vm).GetClientTools().First(t => t.Name == name);
 
     [TestMethod]
-    [CoversNode("ai-read-notes")]
+    [CoversNode("scratchpad-ai-act-scratchpad-read-notes")]
     public async Task ReadNotes_FiltersByColour()
     {
         _store.Save(new PostItNote { Content = "buy milk",   Color = "Green"  });
@@ -361,7 +361,7 @@ public class ScratchpadViewModelTests
     }
 
     [TestMethod]
-    [CoversNode("ai-list-notes")]
+    [CoversNode("scratchpad-ai-act-scratchpad-list-notes")]
     public async Task ListNotes_ReportsColourShapeAndOneLinePreview()
     {
         _store.Save(new PostItNote { Content = "first line\nsecond line", Color = "Green", Shape = "SpeechBubble" });
@@ -376,7 +376,7 @@ public class ScratchpadViewModelTests
     }
 
     [TestMethod]
-    [CoversNode("ai-read-notes")]
+    [CoversNode("scratchpad-ai-act-scratchpad-read-notes")]
     public async Task ReadNotes_EmptyBoard_SaysSo()
     {
         using var vm = NewVm();
@@ -385,7 +385,7 @@ public class ScratchpadViewModelTests
     }
 
     [TestMethod]
-    [CoversNode("ai-add-note")]
+    [CoversNode("scratchpad-ai-act-scratchpad-add-note")]
     public async Task AddNote_CreatesFixedWhiteDiagonalNote()
     {
         using var vm = NewVm();
@@ -403,7 +403,7 @@ public class ScratchpadViewModelTests
     }
 
     [TestMethod]
-    [CoversNode("ai-add-note")]
+    [CoversNode("scratchpad-ai-act-scratchpad-add-note")]
     public async Task AddNote_EmptyContent_IsRejected()
     {
         using var vm = NewVm();

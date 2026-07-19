@@ -11,7 +11,7 @@ namespace Nexaflow.Tests.Features.ProductManager;
 
 /// <summary>The AI tool surface — read renderers + the write tools (which load .product/, mutate, and save).</summary>
 [TestClass]
-[CoversNode("product-ai-tools")]
+[CoversNode("product-ai-act")]
 public class ProductToolsTests
 {
     private string _root = string.Empty;

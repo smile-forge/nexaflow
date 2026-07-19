@@ -13,7 +13,7 @@ namespace Nexaflow.Tests.Features.VirtualDisk;
 /// <summary>The "As Disk" inspector view-model: metadata + volume rows, and lazy-expand of the contents tree
 /// (a folder's children are read only when it's opened).</summary>
 [TestClass]
-[CoversNode("virtualdisk")]
+[CoversNode("virtual-disk-viewer")]
 public class VirtualDiskViewModelTests
 {
     private static VirtualFileSystem DiskVfs()

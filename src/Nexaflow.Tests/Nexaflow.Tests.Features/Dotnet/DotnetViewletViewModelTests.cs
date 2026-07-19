@@ -94,7 +94,7 @@ public class DotnetViewletViewModelTests
     // ── GetClientTools ────────────────────────────────────────────────────────
 
     [TestMethod]
-    [CoversNode("dotnet-ai-tools")]
+    [CoversNode("dotnet-ai-act")]
     public void GetClientTools_ExposesVerbsAndOutdatedCheck()
     {
         var names = Vm(TempDir("Foo.csproj")).GetClientTools().Select(t => t.Name).ToList();
@@ -107,7 +107,7 @@ public class DotnetViewletViewModelTests
     }
 
     [TestMethod]
-    [CoversNode("dotnet-ai-tools")]
+    [CoversNode("dotnet-ai-act")]
     public void GetClientTools_DoesNotExposeRun()
     {
         var names = Vm(TempDir("Foo.csproj")).GetClientTools().Select(t => t.Name).ToList();

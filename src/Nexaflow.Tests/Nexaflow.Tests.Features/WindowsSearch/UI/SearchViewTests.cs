@@ -15,7 +15,7 @@ namespace Nexaflow.Tests.Features.WindowsSearch.UI;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
-[CoversNode("search-ai-launch")]
+[CoversNode("win-search-ai-act")]
 public class SearchViewTests : UITestBase
 {
     private AutomationElement? _searchTab;
