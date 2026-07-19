@@ -62,6 +62,15 @@ public partial class TerminalView : UserControl, IPageView
             return;
         }
 
+        // Ctrl+Break is the forceful escalation: kill the wedged foreground command's process tree (keeping
+        // the shell) when Ctrl+C didn't take. WPF surfaces Break as Key.Cancel.
+        if (e.Key == Key.Cancel && (Keyboard.Modifiers & ModifierKeys.Control) != 0)
+        {
+            ViewModel.HardStop();
+            e.Handled = true;
+            return;
+        }
+
         // Ctrl+V (and Ctrl+Shift+V) pastes, as modern terminals do, rather than sending a literal ^V.
         if (e.Key == Key.V && (Keyboard.Modifiers & ModifierKeys.Control) != 0)
         {

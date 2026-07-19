@@ -223,6 +223,19 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         IsBusy = false;
     }
 
+    /// <summary>
+    /// Hard-stop (Ctrl+Break): force-kills the foreground command's process tree while keeping the shell alive,
+    /// so a wedged command that ignored Ctrl-C can always be recovered from — the pane falls back to a prompt.
+    /// There is deliberately no automatic timeout; a legitimately long, silent command is left to run.
+    /// </summary>
+    public void HardStop()
+    {
+        EngagementInvalidated?.Invoke();
+        StopWatcher();
+        _pty.TerminateForegroundChildren();
+        IsBusy = false;
+    }
+
     /// <summary>Re-runs a history entry when the user clicks it.</summary>
     [RelayCommand]
     private void Rerun(string command) => SendCommand(command);

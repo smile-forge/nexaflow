@@ -23,6 +23,7 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
     private readonly IViewletController  _controller;
     private readonly GitService          _git;
     private readonly GitWorktreeService  _worktreeService;
+    private readonly GitCredentialHelper _credHelper;
 
     private string            _currentBranch = string.Empty;
     private List<string>      _localBranches = [];
@@ -46,6 +47,7 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
         _controller      = controller;
         _git             = new GitService(folderPath);
         _worktreeService = new GitWorktreeService(folderPath);
+        _credHelper      = new GitCredentialHelper(folderPath);
 
         GitManagerButton.Visibility = string.IsNullOrWhiteSpace(options.GitManagerPath)
             ? Visibility.Collapsed
@@ -319,84 +321,103 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
 
     // ── Pull ──────────────────────────────────────────────────────────────
 
+    private enum PullOutcome { Ok, UpToDate, Failed, AuthFailed }
+
     private async void PullButton_Click(object sender, RoutedEventArgs e)
     {
         PullButton.IsEnabled = false;
         PullButton.Content   = "···";
-        using var repo = new Repository(_folderPath);
 
-        var signature = repo.Config.BuildSignature(DateTimeOffset.Now) ?? new Signature(
-        Environment.UserName,
-        $"{Environment.UserName}@local",
-        DateTimeOffset.Now);
-        var options = new PullOptions
-        {
-            MergeOptions = new MergeOptions
-            {
-                FastForwardStrategy = FastForwardStrategy.FastForwardOnly
-            }
-        };
+        // Fetch + merge run off the UI thread: LibGit2Sharp invokes the CredentialsProvider synchronously on
+        // the fetching thread, and that spawns `git credential fill` — doing it on the UI thread would freeze
+        // the window. Results marshal back onto the awaited (UI-thread) continuation.
+        var (outcome, message) = await Task.Run(RunPull);
 
-        try
+        // GCM had nothing stored (or the token is stale): offer to capture one, store it, and retry once.
+        if (outcome == PullOutcome.AuthFailed)
         {
-            MergeResult result = Commands.Pull(repo, signature, options);
-            switch (result.Status)
-            {
-                case MergeStatus.UpToDate:
-                    ShowActionResult("Already up to date", true);
-                    break;
-                case MergeStatus.FastForward:
-                case MergeStatus.NonFastForward:
-                    ShowActionResult("Pull complete", true);
-                    break;
-                default:
-                    ShowActionResult($"Pull failed: {result.Status}", false);
-                    break;
-            }
-        }
-        catch (Exception ex)
-        {
-            ShowActionResult($"Pull failed: {ex.Message}", false);
+            var retried = await TryCredentialFallbackAsync();
+            if (retried is { } r) (outcome, message) = r;
         }
 
-        PullButton.Content = "Pull";
+        PullButton.Content   = "Pull";
         PullButton.IsEnabled = true;
-
-        /*
-        bool success;
-        try
-        {
-            int exitCode = await Task.Run(() =>
-            {
-                var psi = new ProcessStartInfo("git", "pull")
-                {
-                    WorkingDirectory       = _folderPath,
-                    UseShellExecute        = false,
-                    CreateNoWindow         = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError  = true
-                };
-                using var proc = Process.Start(psi)!;
-                proc.WaitForExit(30_000);
-                return proc.ExitCode;
-            });
-            success = exitCode == 0;
-        }
-        catch
-        {
-            success = false;
-        }
-        finally
-        {
-            PullButton.Content   = "Pull";
-            PullButton.IsEnabled = true;
-        }
-
-        ShowPullResult(success ? "Pull complete" : "Pull failed", success);
-        */
+        ShowActionResult(message, outcome is PullOutcome.Ok or PullOutcome.UpToDate);
 
         await RefreshAsync();
     }
+
+    /// <summary>Opens the repo and pulls with the GCM-backed credentials provider. Pure background work —
+    /// no UI access — so it is safe to run inside <see cref="Task.Run(Action)"/>.</summary>
+    private (PullOutcome outcome, string message) RunPull()
+    {
+        try
+        {
+            using var repo = new Repository(_folderPath);
+            var signature = repo.Config.BuildSignature(DateTimeOffset.Now)
+                ?? new Signature(Environment.UserName, $"{Environment.UserName}@local", DateTimeOffset.Now);
+
+            var options = new PullOptions
+            {
+                FetchOptions = new FetchOptions { CredentialsProvider = _credHelper.Provider },
+                MergeOptions = new MergeOptions { FastForwardStrategy = FastForwardStrategy.FastForwardOnly }
+            };
+
+            var result = Commands.Pull(repo, signature, options);
+            return result.Status switch
+            {
+                MergeStatus.UpToDate                             => (PullOutcome.UpToDate, "Already up to date"),
+                MergeStatus.FastForward or MergeStatus.NonFastForward => (PullOutcome.Ok, "Pull complete"),
+                _                                                => (PullOutcome.Failed, $"Pull failed: {result.Status}")
+            };
+        }
+        catch (Exception ex) when (IsAuthFailure(ex))
+        {
+            return (PullOutcome.AuthFailed, $"Pull failed: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            return (PullOutcome.Failed, $"Pull failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>Fallback when no credential is stored: prompt for a token, write it into the system store
+    /// (GCM) keyed by the remote URL, then retry the pull once. Returns null if there's nothing to retry
+    /// (no remote, or the user cancelled). Runs on the UI thread (the prompt is window-modal).</summary>
+    private async Task<(PullOutcome, string)?> TryCredentialFallbackAsync()
+    {
+        var remotes   = _git.GetRemotes();
+        var remoteUrl = (remotes.FirstOrDefault(r => r.Name == "origin") ?? remotes.FirstOrDefault())?.Url;
+        if (string.IsNullOrWhiteSpace(remoteUrl)) return null;
+
+        var host  = Uri.TryCreate(remoteUrl, UriKind.Absolute, out var u) ? u.Host : remoteUrl;
+        var token = await PromptAsync("Git access token", $"Access token for {host}");
+        if (string.IsNullOrWhiteSpace(token)) return null;
+
+        // Bitbucket repository/project/workspace access tokens authenticate with the fixed username
+        // "x-token-auth"; the token is the password. Store it so subsequent pulls resolve natively via GCM.
+        var cred = new GitCredential("x-token-auth", token.Trim());
+        await Task.Run(() => _credHelper.Approve(remoteUrl, cred));
+
+        return await Task.Run(RunPull);
+    }
+
+    private Task<string?> PromptAsync(string title, string label)
+    {
+        var tcs = new TaskCompletionSource<string?>();
+        _shell.ShowPrompt(title, label, string.Empty,
+            onConfirm: value => tcs.TrySetResult(value),
+            onCancel:  () => tcs.TrySetResult(null));
+        return tcs.Task;
+    }
+
+    /// <summary>True for a fetch/pull failure caused by authentication (missing/invalid credentials), so the
+    /// caller can offer the token-capture fallback rather than treating it as a hard error.</summary>
+    private static bool IsAuthFailure(Exception ex)
+        => ex.Message.Contains("authentication", StringComparison.OrdinalIgnoreCase)
+        || ex.Message.Contains("credential",     StringComparison.OrdinalIgnoreCase)
+        || ex.Message.Contains("401")
+        || ex.Message.Contains("403");
 
     private void ShowActionResult(string message, bool success)
     {
