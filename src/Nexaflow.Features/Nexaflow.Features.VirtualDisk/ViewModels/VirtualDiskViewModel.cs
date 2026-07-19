@@ -34,6 +34,12 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
     [ObservableProperty] private string _statusText = string.Empty;
     [ObservableProperty] private bool _isBusy;
 
+    /// <summary>False until the initial superblock read finishes (success OR failure). Gates the AI send so
+    /// the model is never handed the "unrecognised" fallback for a disk that is simply still loading.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsContextReady))]
+    private bool _isLoaded;
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ExtractCommand))]
     private bool _isRecognised;
@@ -67,41 +73,47 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
 
     private async Task LoadAsync()
     {
-        if (string.IsNullOrEmpty(_diskPath) || !File.Exists(_diskPath))
+        // IsLoaded flips true on every exit path (incl. the early returns below), so the readiness gate
+        // always releases and GetContext can tell "still loading" apart from "genuinely unreadable".
+        try
         {
-            IsRecognised = false;
-            Format = "No file";
-            StatusText = "No disk image to show.";
-            return;
+            if (string.IsNullOrEmpty(_diskPath) || !File.Exists(_diskPath))
+            {
+                IsRecognised = false;
+                Format = "No file";
+                StatusText = "No disk image to show.";
+                return;
+            }
+
+            DiskInfo? info = null;
+            string? error = null;
+            await RunBusy("Reading disk…", () =>
+            {
+                try { using var reader = DiskImageReader.Open(_diskPath); info = reader.Describe(); }
+                catch (Exception ex) { error = ex.Message; }
+            });
+
+            if (info is null || info.Volumes.Count == 0)
+            {
+                IsRecognised = false;
+                Format = info?.Format ?? "Unrecognised";
+                StatusText = error is null
+                    ? "No readable filesystem found in this image."
+                    : $"Couldn't read image: {error}";
+                return;
+            }
+
+            IsRecognised = true;
+            Format = info.Format;
+            CapacityText = info.Capacity > 0 ? SizeFormatter.FormatBytes(info.Capacity) : "—";
+            PartitionScheme = info.PartitionScheme;
+            Volumes.Clear();
+            foreach (var v in info.Volumes) Volumes.Add(DiskVolumeRow.From(v));
+
+            await LoadRootAsync();
+            StatusText = $"{info.Volumes.Count} volume{(info.Volumes.Count == 1 ? "" : "s")}";
         }
-
-        DiskInfo? info = null;
-        string? error = null;
-        await RunBusy("Reading disk…", () =>
-        {
-            try { using var reader = DiskImageReader.Open(_diskPath); info = reader.Describe(); }
-            catch (Exception ex) { error = ex.Message; }
-        });
-
-        if (info is null || info.Volumes.Count == 0)
-        {
-            IsRecognised = false;
-            Format = info?.Format ?? "Unrecognised";
-            StatusText = error is null
-                ? "No readable filesystem found in this image."
-                : $"Couldn't read image: {error}";
-            return;
-        }
-
-        IsRecognised = true;
-        Format = info.Format;
-        CapacityText = info.Capacity > 0 ? SizeFormatter.FormatBytes(info.Capacity) : "—";
-        PartitionScheme = info.PartitionScheme;
-        Volumes.Clear();
-        foreach (var v in info.Volumes) Volumes.Add(DiskVolumeRow.From(v));
-
-        await LoadRootAsync();
-        StatusText = $"{info.Volumes.Count} volume{(info.Volumes.Count == 1 ? "" : "s")}";
+        finally { IsLoaded = true; }
     }
 
     private async Task LoadRootAsync()
@@ -210,9 +222,16 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
 
     // ── IPageViewModel ───────────────────────────────────────────────────────
 
-    public string GetContext() =>
-        IsRecognised
+    /// <summary>Held until the superblock read finishes, so the AI never sees a mid-load state.</summary>
+    public bool IsContextReady => IsLoaded;
+
+    public string GetContext()
+    {
+        if (!IsLoaded)
+            return $"Virtual disk image '{FileName}' — still reading…";
+        return IsRecognised
             ? $"Virtual disk image '{FileName}' ({Format}, {PartitionScheme}) — " +
               $"{Volumes.Count} volume{(Volumes.Count == 1 ? "" : "s")}, capacity {CapacityText}."
             : $"Virtual disk image '{FileName}' — unrecognised or unreadable.";
+    }
 }

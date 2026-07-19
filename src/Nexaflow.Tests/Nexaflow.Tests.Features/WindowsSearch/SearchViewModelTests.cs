@@ -98,6 +98,20 @@ public class SearchViewModelTests
     }
 
     [TestMethod]
+    public void GetContext_ThisPcSearch_ReportsQueryAndScope_NotNoSearch()
+    {
+        // A This-PC / cross-drive search has an empty SearchRoot but a populated drive list. Regression:
+        // the old guard keyed "performed" off SearchRoot and mis-reported this as "no search performed".
+        var vm = new SearchViewModel("budget", "", [@"C:\", @"D:\"], Shell());
+
+        var ctx = vm.GetContext();
+
+        StringAssert.Contains(ctx, "budget");
+        StringAssert.Contains(ctx, "This PC");
+        Assert.IsFalse(ctx.Contains("no search performed"), ctx);
+    }
+
+    [TestMethod]
     public void GetClientTools_ContainsSearchTool()
     {
         var vm = new SearchViewModel("", "", [], Shell());
