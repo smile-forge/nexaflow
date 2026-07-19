@@ -27,13 +27,19 @@ internal static class Program
 
         return args[0] switch
         {
-            "validate"   => Validate(args[1..]),
-            "find"       => Find(args[1..]),
-            "describe"   => Describe(args[1..]),
-            "remap"      => Remap(args[1..]),
-            "scan-tests" => ScanTests(args[1..]),
-            "add-node"   => AddNode(args[1..]),
-            "graph"      => Graph(args[1..]),
+            "validate"    => Validate(args[1..]),
+            "find"        => Find(args[1..]),
+            "describe"    => Describe(args[1..]),
+            "remap"       => Remap(args[1..]),
+            "scan-tests"  => ScanTests(args[1..]),
+            "add-node"    => AddNode(args[1..]),
+            "set-status"  => SetStatus(args[1..]),
+            "set-concern" => SetConcern(args[1..]),
+            "add-snaplink"=> AddSnaplink(args[1..]),
+            "set-node"    => SetNode(args[1..]),
+            "batch"       => Batch(args[1..]),
+            "doctor"      => Doctor(args[1..]),
+            "graph"       => Graph(args[1..]),
             _ => Usage($"unknown command '{args[0]}'")
         };
     }
@@ -51,6 +57,13 @@ internal static class Program
               nexaflow-initiatives remap      <old-path> <new-path> [<root>] [--class <name>] [--method <name>]
               nexaflow-initiatives scan-tests [<root>] [--test-dll <path>]... [--suggest-attributes]
               nexaflow-initiatives add-node   <parent-id> <title> [<root>] [--id <slug>] [--desc <text>] [--status <s>]
+              nexaflow-initiatives set-status  <node-id> <status> [<root>]
+              nexaflow-initiatives set-concern <node-id> <tag> <status> [<root>]
+              nexaflow-initiatives add-snaplink <node-id> --type <code|markdown|node|url> [<root>] [--concern <tag>]
+                                                [--doc <p>] [--class <c>] [--method <m>] [--target <id>] [--url <u>] [--title-path a>b] [--status <s>]
+              nexaflow-initiatives set-node   <node-id> [<root>] [--title <t>] [--desc <d>] [--note <n>]
+              nexaflow-initiatives batch      <script-file> [<root>] [--dry-run]
+              nexaflow-initiatives doctor     [<root>] [--fix]
               nexaflow-initiatives graph      [<root>] [--json] [--product-anchored]   (see: graph help — build + explore)
 
             validate   Checks every snaplink still points at a real target (file exists, md heading resolves,
@@ -68,6 +81,25 @@ internal static class Program
             add-node   Adds a child node under <parent-id> (id defaults to a slug of <title>) — the headless way
                        to grow the tree finer when a leaf needs sub-nodes. Attaches the default concerns, then
                        re-validates. --status defaults to 'should'.
+            set-status Sets a node's status (should|done|shouldnt|faulted), cascading into should-only
+                       descendant leaves + every should concern in the subtree (deliberate shouldnt/faulted and
+                       already-done are protected). The typed, safe alternative to editing tree.json by hand.
+            set-concern Adds or updates a node's link to a concern <tag> (must be in the product vocabulary),
+                       setting its status. Creates the concern link if absent.
+            add-snaplink Attaches a snaplink to the node — or, with --concern <tag>, to that concern's link.
+                       --type picks the shape: code (--doc/--class/--method), markdown (--doc/--title-path),
+                       node (--target = another node id), url (--url). --status is optional.
+            set-node   Edits a node's scalar fields (--title/--desc/--note); an empty --desc/--note clears it.
+            batch      Applies a whole script of instructions to the tree in ONE load/save/validate — the batch
+                       replacement for hand-editing tree.json. One instruction per line, each the same syntax as
+                       a standalone verb minus <root>: set-status / set-concern / add-snaplink / set-node /
+                       add-node. Blank lines and '#' comments are skipped; "quote" a value with spaces. It is
+                       transactional — if any line is invalid, NOTHING is written (the error names the line).
+                       --dry-run parses + applies in memory and reports, writing nothing.
+            doctor     Checks structural integrity — every child id resolves, every node is listed by its parent
+                       — and with --fix rebuilds each parent's children[] from the child→parent back-references
+                       (splitting an accidentally-concatenated id, re-attaching orphans). Use it after any tree
+                       corruption. exit: 0 clean/fixed, 1 issues found without --fix.
             graph      Builds the knowledge graph (product tree ⊕ code AST ⊕ snaplinks) → .product/graph.json,
                        the file the Graph viewer opens. --json writes it to stdout instead of the file.
                        --product-anchored limits the code layer to snaplinked files (default: whole repo).
@@ -880,28 +912,28 @@ internal static class Program
     private static int AddNode(string[] args)
     {
         var positional = args.Where(a => !a.StartsWith('-') && !FollowsFlag(args, a, "--id", "--desc", "--status")).ToArray();
-        if (positional.Length < 2) return Usage("add-node needs <parent-id> <title>.");
+        var root = ResolveRoot(positional.Skip(2));
+        if (!TryLoad(root, out var state, out var code)) return code;
+        var (ok, msg) = ApplyAddNode(state, args);
+        if (!ok) { Console.Error.WriteLine($"error: {msg}"); return Error; }
+        return SaveAndValidate(state, root, msg);
+    }
+
+    private static (bool Ok, string Message) ApplyAddNode(ProductState state, string[] args)
+    {
+        var positional = args.Where(a => !a.StartsWith('-') && !FollowsFlag(args, a, "--id", "--desc", "--status")).ToArray();
+        if (positional.Length < 2) return (false, "add-node needs <parent-id> <title>");
         var parentId = positional[0];
         var title    = positional[1];
-        var root     = ResolveRoot(positional.Skip(2));
-        if (!TryLoad(root, out var state, out var code)) return code;
-
-        if (!state.Nodes.TryGetValue(parentId, out var parent))
-        {
-            Console.Error.WriteLine($"error: no parent node '{parentId}' (try: find).");
-            return Error;
-        }
+        if (!state.Nodes.TryGetValue(parentId, out var parent)) return (false, $"no parent node '{parentId}'");
 
         string id;
         if (Option(args, "--id") is { Length: > 0 } explicitId)
         {
             id = Slug(explicitId);
-            if (state.Nodes.ContainsKey(id)) { Console.Error.WriteLine($"error: node id '{id}' already exists."); return Error; }
+            if (state.Nodes.ContainsKey(id)) return (false, $"node id '{id}' already exists");
         }
-        else
-        {
-            id = UniqueId(state, Slug(title));
-        }
+        else id = UniqueId(state, Slug(title));
 
         var defaults = state.Product.Concerns.Where(c => c.IsDefault).Select(c => c.Name).ToList();
         state.Nodes[id] = new ProductNode
@@ -914,17 +946,7 @@ internal static class Program
             Concerns    = defaults.Count > 0 ? [.. defaults.Select(n => new ConcernLink { Tag = n, Status = Status.Should })] : null
         };
         parent.Children.Add(id);
-
-        var store = new ProductStore(root);
-        store.SaveTree(state.Nodes);
-        var report = SnaplinkValidator.Validate(state, root);
-        store.SaveIntegrity(report);
-
-        Console.WriteLine($"Added node '{id}' under '{parentId}': {title}");
-        Console.WriteLine(report.IsClean
-            ? $"Snaplinks OK — scanned {report.ScannedSnaplinks}."
-            : $"{report.IssueCount} broken snaplink(s) remain — run: validate .");
-        return report.IsClean ? Clean : Broken;
+        return (true, $"Added node '{id}' under '{parentId}': {title}");
     }
 
     /// <summary>True when <paramref name="arg"/> is the value immediately following one of <paramref name="flags"/>.</summary>
@@ -932,6 +954,255 @@ internal static class Program
     {
         var i = Array.IndexOf(args, arg);
         return i > 0 && flags.Contains(args[i - 1]);
+    }
+
+    // ── typed tree mutations (set-status / set-concern / add-snaplink / set-node / doctor) ──
+    // All go through the typed model + ProductStore.SaveTree (the canonical serializer), so a hand-edit's
+    // structural hazards (a stray string concat in children[], a malformed concern) simply can't happen.
+
+    private static bool TryParseStatus(string? s, out Status status)
+    {
+        (status, var ok) = s?.Trim().ToLowerInvariant() switch
+        {
+            "should"   => (Status.Should, true),
+            "done"     => (Status.Done, true),
+            "shouldnt" => (Status.Shouldnt, true),
+            "faulted"  => (Status.Faulted, true),
+            _          => (Status.Should, false),
+        };
+        return ok;
+    }
+
+    /// <summary>Persist the mutated tree via the canonical serializer, re-validate, and print the outcome —
+    /// the same "edit then show the effect" contract as remap/add-node.</summary>
+    private static int SaveAndValidate(ProductState state, string root, string message)
+    {
+        var store = new ProductStore(root);
+        store.SaveTree(state.Nodes);
+        var report = SnaplinkValidator.Validate(state, root);
+        store.SaveIntegrity(report);
+        Console.WriteLine(message);
+        Console.WriteLine(report.IsClean
+            ? $"Snaplinks OK — scanned {report.ScannedSnaplinks}."
+            : $"{report.IssueCount} broken snaplink(s) — run: validate .");
+        return report.IsClean ? Clean : Broken;
+    }
+
+    /// <summary>The standalone-verb path: load, apply one mutation, then save + re-validate.</summary>
+    private static int RunOne(string[] args, string root, Func<ProductState, string[], (bool Ok, string Message)> apply)
+    {
+        if (!TryLoad(root, out var state, out var code)) return code;
+        var (ok, msg) = apply(state, args);
+        if (!ok) { Console.Error.WriteLine($"error: {msg}"); return Error; }
+        return SaveAndValidate(state, root, msg);
+    }
+
+    private static int SetStatus(string[] args) =>
+        RunOne(args, ResolveRoot(args.Where(a => !a.StartsWith('-')).Skip(2)), ApplySetStatus);
+
+    private static (bool Ok, string Message) ApplySetStatus(ProductState s, string[] args)
+    {
+        var pos = args.Where(a => !a.StartsWith('-')).ToArray();
+        if (pos.Length < 2) return (false, "set-status needs <node-id> <status> (should|done|shouldnt|faulted)");
+        if (!TryParseStatus(pos[1], out var status)) return (false, $"unknown status '{pos[1]}' (should|done|shouldnt|faulted)");
+        if (!s.Nodes.ContainsKey(pos[0])) return (false, $"no node '{pos[0]}' (try: find)");
+        ProductTreeOps.CascadeStatus(s, pos[0], status);
+        return (true, $"Set '{pos[0]}' → {status.ToString().ToLowerInvariant()} (cascaded into should-only descendants + concerns).");
+    }
+
+    private static int SetConcern(string[] args) =>
+        RunOne(args, ResolveRoot(args.Where(a => !a.StartsWith('-')).Skip(3)), ApplySetConcern);
+
+    private static (bool Ok, string Message) ApplySetConcern(ProductState s, string[] args)
+    {
+        var pos = args.Where(a => !a.StartsWith('-')).ToArray();
+        if (pos.Length < 3) return (false, "set-concern needs <node-id> <tag> <status>");
+        if (!TryParseStatus(pos[2], out var status)) return (false, $"unknown status '{pos[2]}' (should|done|shouldnt|faulted)");
+        if (!s.Nodes.ContainsKey(pos[0])) return (false, $"no node '{pos[0]}' (try: find)");
+        if (!s.Product.Concerns.Any(c => c.Name == pos[1]))
+            return (false, $"'{pos[1]}' is not a concern (valid: {string.Join(", ", s.Product.Concerns.Select(c => c.Name))})");
+        ProductTreeOps.SetConcern(s, pos[0], pos[1], status);
+        return (true, $"Set concern '{pos[1]}' on '{pos[0]}' → {status.ToString().ToLowerInvariant()}.");
+    }
+
+    private static readonly string[] SnaplinkFlags =
+        ["--type", "--concern", "--doc", "--class", "--method", "--ast", "--target", "--url", "--title-path", "--status"];
+
+    private static int AddSnaplink(string[] args) =>
+        RunOne(args, ResolveRoot(args.Where(a => !a.StartsWith('-') && !FollowsFlag(args, a, SnaplinkFlags)).Skip(1)), ApplyAddSnaplink);
+
+    private static (bool Ok, string Message) ApplyAddSnaplink(ProductState s, string[] args)
+    {
+        var pos = args.Where(a => !a.StartsWith('-') && !FollowsFlag(args, a, SnaplinkFlags)).ToArray();
+        var id = pos.ElementAtOrDefault(0);
+        if (string.IsNullOrWhiteSpace(id)) return (false, "add-snaplink needs <node-id> --type <code|markdown|node|url> [flags]");
+        if (!s.Nodes.ContainsKey(id)) return (false, $"no node '{id}' (try: find)");
+
+        var type = Option(args, "--type") ?? "code";
+        var link = new Snaplink { Type = type };
+        if (Option(args, "--status") is { } st)
+        {
+            if (!TryParseStatus(st, out var sv)) return (false, $"unknown --status '{st}'");
+            link.Status = sv;
+        }
+        switch (type)
+        {
+            case "code":
+                link.Doc = Option(args, "--doc"); link.Class = Option(args, "--class");
+                link.Method = Option(args, "--method"); link.Ast = Option(args, "--ast");
+                if (string.IsNullOrWhiteSpace(link.Doc)) return (false, "code snaplink needs --doc <file> [--class <c>] [--method <m>]");
+                break;
+            case "markdown":
+                link.Doc = Option(args, "--doc");
+                if (Option(args, "--title-path") is { Length: > 0 } tp)
+                    link.TitlePath = [.. tp.Split('>', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)];
+                if (string.IsNullOrWhiteSpace(link.Doc)) return (false, "markdown snaplink needs --doc <file> [--title-path a>b]");
+                break;
+            case "node":
+                link.Target = Option(args, "--target");
+                if (string.IsNullOrWhiteSpace(link.Target)) return (false, "node snaplink needs --target <node-id>");
+                break;
+            case "url":
+                link.Target = Option(args, "--url") ?? Option(args, "--target");
+                if (string.IsNullOrWhiteSpace(link.Target)) return (false, "url snaplink needs --url <url>");
+                break;
+            default:
+                return (false, $"unknown snaplink --type '{type}' (code|markdown|node|url)");
+        }
+
+        var concern = Option(args, "--concern");
+        if (!ProductTreeOps.AddSnaplink(s, id, link, concern))
+            return (false, $"node '{id}' has no concern '{concern}' — add it first: set-concern {id} {concern} should");
+        var where = concern is null ? "the node" : $"concern '{concern}'";
+        return (true, $"Added {type} snaplink to {where} of '{id}': {link.Display}.");
+    }
+
+    private static int SetNode(string[] args) =>
+        RunOne(args, ResolveRoot(args.Where(a => !a.StartsWith('-') && !FollowsFlag(args, a, "--title", "--desc", "--note")).Skip(1)), ApplySetNode);
+
+    private static (bool Ok, string Message) ApplySetNode(ProductState s, string[] args)
+    {
+        var pos = args.Where(a => !a.StartsWith('-') && !FollowsFlag(args, a, "--title", "--desc", "--note")).ToArray();
+        var id = pos.ElementAtOrDefault(0);
+        if (string.IsNullOrWhiteSpace(id)) return (false, "set-node needs <node-id> [--title <t>] [--desc <d>] [--note <n>]");
+        if (!s.Nodes.ContainsKey(id)) return (false, $"no node '{id}' (try: find)");
+        ProductTreeOps.EditNode(s, id, Option(args, "--title"), Option(args, "--desc"), Option(args, "--note"));
+        return (true, $"Edited '{id}'.");
+    }
+
+    // ── batch: apply a whole script of instructions in one load/save/validate (transactional) ──
+
+    /// <summary>Dispatches one instruction line (verb + its args, no &lt;root&gt;) to its Apply* core.</summary>
+    private static (bool Ok, string Message) ApplyOne(ProductState state, string[] args) => args switch
+    {
+        [] => (false, "empty instruction"),
+        ["set-status",   .. var r] => ApplySetStatus(state, r),
+        ["set-concern",  .. var r] => ApplySetConcern(state, r),
+        ["add-snaplink", .. var r] => ApplyAddSnaplink(state, r),
+        ["set-node",     .. var r] => ApplySetNode(state, r),
+        ["add-node",     .. var r] => ApplyAddNode(state, r),
+        [var verb, ..] => (false, $"unknown instruction '{verb}' (batch supports: set-status, set-concern, add-snaplink, set-node, add-node)"),
+    };
+
+    private static int Batch(string[] args)
+    {
+        var dryRun = args.Contains("--dry-run");
+        var pos = args.Where(a => !a.StartsWith('-')).ToArray();
+        var file = pos.ElementAtOrDefault(0);
+        if (string.IsNullOrWhiteSpace(file)) return Usage("batch needs <script-file> [<root>] [--dry-run].");
+        if (!File.Exists(file)) return Usage($"no such script file: {file}");
+        var root = ResolveRoot(pos.Skip(1));
+        if (!TryLoad(root, out var state, out var code)) return code;
+
+        var lines = File.ReadAllLines(file);
+        var applied = new List<string>();
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i].Trim();
+            if (line.Length == 0 || line.StartsWith('#')) continue;   // blank lines + # comments
+            var (ok, msg) = ApplyOne(state, [.. Tokenize(line)]);
+            if (!ok)
+            {
+                Console.Error.WriteLine($"error: line {i + 1}: {msg}");
+                Console.Error.WriteLine($"  >> {line}");
+                Console.Error.WriteLine($"Aborted — {applied.Count} earlier instruction(s) parsed but NOTHING was written (batch is all-or-nothing).");
+                return Error;
+            }
+            applied.Add(msg);
+        }
+
+        if (applied.Count == 0) { Console.WriteLine($"No instructions in {Path.GetFileName(file)} (blank/comments only)."); return Clean; }
+        foreach (var m in applied) Console.WriteLine($"  ✓ {m}");
+        if (dryRun)
+        {
+            Console.WriteLine($"Dry run — {applied.Count} instruction(s) valid, nothing written. Drop --dry-run to apply.");
+            return Clean;
+        }
+        return SaveAndValidate(state, root, $"Applied {applied.Count} instruction(s) from {Path.GetFileName(file)}.");
+    }
+
+    /// <summary>Shell-lite tokenizer: splits on whitespace, with double-quotes grouping a value that
+    /// contains spaces (e.g. <c>--desc "two words"</c>). No escape handling — tree text rarely needs it.</summary>
+    private static List<string> Tokenize(string line)
+    {
+        var tokens = new List<string>();
+        var sb = new System.Text.StringBuilder();
+        var inQuote = false;
+        foreach (var ch in line)
+        {
+            if (ch == '"') { inQuote = !inQuote; continue; }
+            if (char.IsWhiteSpace(ch) && !inQuote)
+            {
+                if (sb.Length > 0) { tokens.Add(sb.ToString()); sb.Clear(); }
+            }
+            else sb.Append(ch);
+        }
+        if (sb.Length > 0) tokens.Add(sb.ToString());
+        return tokens;
+    }
+
+    private static int Doctor(string[] args)
+    {
+        var fix = args.Contains("--fix");
+        var root = ResolveRoot(args.Where(a => !a.StartsWith('-')));
+        if (!TryLoad(root, out var state, out var code)) return code;
+
+        var repairs = ProductTreeOps.RepairChildren(state, apply: fix);
+        var missingParent = state.Nodes
+            .Where(kv => kv.Value.Parent is { } p && !state.Nodes.ContainsKey(p))
+            .Select(kv => (Node: kv.Key, Parent: kv.Value.Parent!))
+            .ToList();
+
+        if (repairs.Count == 0 && missingParent.Count == 0)
+        {
+            Console.WriteLine("Tree structure OK — every child id resolves and every node is listed by its parent.");
+            return Clean;
+        }
+
+        foreach (var r in repairs)
+        {
+            Console.WriteLine($"  {r.Parent}");
+            Console.WriteLine($"      before: [{string.Join(", ", r.Before)}]");
+            Console.WriteLine($"      after:  [{string.Join(", ", r.After)}]");
+            if (r.Dropped.Count > 0) Console.WriteLine($"      dropped (unrecoverable): {string.Join(", ", r.Dropped)}");
+        }
+        foreach (var (node, parent) in missingParent)
+            Console.Error.WriteLine($"  {node}: parent '{parent}' does not exist — re-parent it in-app (structural, not a children[] issue).");
+
+        if (!fix)
+        {
+            Console.Error.WriteLine($"{repairs.Count} parent(s) need repair — re-run with --fix.");
+            return Broken;
+        }
+
+        var store = new ProductStore(root);
+        store.SaveTree(state.Nodes);
+        var report = SnaplinkValidator.Validate(state, root);
+        store.SaveIntegrity(report);
+        Console.WriteLine($"Repaired {repairs.Count} parent(s)." + (report.IsClean
+            ? $" Snaplinks OK — scanned {report.ScannedSnaplinks}."
+            : $" ({report.IssueCount} pre-existing snaplink issue(s) remain — unrelated to structure.)"));
+        return Clean;
     }
 
     /// <summary><paramref name="baseId"/> if free, else the first <c>baseId-2</c>, <c>baseId-3</c>… that isn't taken.</summary>
