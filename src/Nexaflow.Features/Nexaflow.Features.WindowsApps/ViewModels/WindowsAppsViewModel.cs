@@ -220,6 +220,11 @@ public sealed partial class WindowsAppsViewModel : ObservableObject, IPageViewMo
     /// isn't context-blocking. Tied to IsLoading so a failed scan still releases the send.</summary>
     public bool IsContextReady => !IsLoading;
 
+    /// <summary>The machine's installed-application set is a single, machine-wide scope — the tools here
+    /// query all installed apps, with no per-file/per-folder boundary. A stable constant (not null) so two
+    /// installed-apps tabs pinned together collapse to one boundary instead of first-wins.</summary>
+    public string? GetSecurityContext() => "installed-applications";
+
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
         new DelegateClientTool(

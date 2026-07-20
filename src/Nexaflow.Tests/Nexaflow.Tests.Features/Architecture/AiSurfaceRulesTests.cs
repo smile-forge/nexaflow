@@ -39,9 +39,7 @@ public class AiSurfaceRulesTests
         "Nexaflow.Features.Font.ViewModels.FontViewModel",
         "Nexaflow.Features.ProductManager.ViewModels.ProductViewModel",
         "Nexaflow.Features.Scratchpad.ViewModels.ScratchpadViewModel",
-        "Nexaflow.Features.Tabular.ViewModels.TabularViewModel",
         "Nexaflow.Features.Web.ViewModels.HtmlViewModel",
-        "Nexaflow.Features.WindowsApps.ViewModels.WindowsAppsViewModel",
         "Nexaflow.Features.WindowsSearch.ViewModels.SearchViewModel",
     };
 

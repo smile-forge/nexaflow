@@ -124,7 +124,7 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
     public string GetContext()
     {
         var sb = new System.Text.StringBuilder();
-        sb.Append($"Tabular file '{FileName}' — {EncodingName}, " +
+        sb.Append($"Tabular file '{FileName}' — {EncodingName}, {DescribeDelimiter()}-delimited, " +
                   $"{KnownRowCount?.ToString() ?? "still counting"} rows, " +
                   $"{Columns.Count} columns. Detected shape: {DetectedShapeLabel}. " +
                   $"Mode: {(IsSmallMode ? "small (full-file, sortable)" : "large (windowed)")}.");
@@ -136,13 +136,23 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
                 sb.Append($"\n  [{i + 1}] {Columns[i].Header} ({Columns[i].DisplayType})");
         }
 
-        // Prefer selected rows for the sample; fall back to the currently visible window.
+        // Current column filter(s) — so the model knows the grid it's reading may be narrowed.
+        var activeFilters = Columns.Where(c => c.Filter.IsActive).Select(c => c.Header).ToList();
+        sb.Append(activeFilters.Count > 0
+            ? $"\nActive filter on: {string.Join(", ", activeFilters)}."
+            : "\nNo column filter is active.");
+
+        // Which rows are currently loaded in the viewport window.
+        if (Window.Count > 0)
+            sb.Append($"\nVisible rows {Window[0].AbsoluteIndex + 1}–{Window[^1].AbsoluteIndex + 1} of {TotalRowCount}.");
+
+        // A small peek at the data; read_rows (below) is the way to read any range in full.
         var sampleRows = SelectedRowIndices.Count > 0
             ? Window.Where(r => SelectedRowIndices.Contains(r.AbsoluteIndex)).Take(20).ToList()
-            : Window.Take(10).ToList();
+            : Window.Take(5).ToList();
         if (sampleRows.Count > 0)
         {
-            sb.Append($"\n{(SelectedRowIndices.Count > 0 ? "Selected" : "Visible")} rows:");
+            sb.Append($"\n{(SelectedRowIndices.Count > 0 ? "Selected" : "First visible")} rows:");
             foreach (var r in sampleRows)
             {
                 sb.Append($"\n  row {r.AbsoluteIndex + 1}: ");
@@ -150,11 +160,59 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
                 if (r.Cells.Count > 8) sb.Append(" | …");
             }
         }
+
+        sb.Append("\nUse read_rows to read the actual cell values for any range of rows.");
         return sb.ToString();
     }
 
+    public string? GetSecurityContext() => FilePath;
+
+    /// <summary>Human-readable name of the detected field separator, for <see cref="GetContext"/>.</summary>
+    private string DescribeDelimiter() => _data?.Separator switch
+    {
+        ','  => "comma",
+        '\t' => "tab",
+        ';'  => "semicolon",
+        '|'  => "pipe",
+        ' '  => "space",
+        null => "unknown",
+        var c => $"'{c}'",
+    };
+
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
+        // ── Read (auto-run) — the actual cell data the view-move tools can't return ──
+        new DelegateClientTool(
+            "read_rows",
+            "Read the real cell values for a range of rows (honours the active column filter) — the way to read "
+          + "data out of the grid. 'start' is the 1-based row number to begin at; 'count' is how many rows to return.",
+            [
+                new ClientToolParameter("start", "1-based row number to start at (default 1).", Required: false, Type: "number"),
+                new ClientToolParameter("count", "How many rows to return (default 20, max 200).", Required: false, Type: "number"),
+            ],
+            ToolSafety.SafeOperation,
+            async (arguments, ct) =>
+            {
+                if (_source is null) return ToolResult.Error("No tabular data is loaded.");
+                int start   = System.Math.Max(1, ToolArgs.Int(arguments, "start", 1));
+                int count   = System.Math.Clamp(ToolArgs.Int(arguments, "count", 20), 1, 200);
+                int fromRow = start - 1;
+
+                List<HydratedRow> rows;
+                try { rows = await _source.GetVisibleAsync(fromRow, count, BuildFilter(), ct); }
+                catch (Exception ex) { return ToolResult.Error($"Failed to read rows: {ex.Message}"); }
+
+                if (rows.Count == 0)
+                    return ToolResult.Ok("no rows", $"No rows at or after row {start}.");
+
+                var body = new System.Text.StringBuilder();
+                if (Columns.Count > 0)
+                    body.Append(string.Join(" | ", Columns.Select(c => c.Header))).Append('\n');
+                foreach (var r in rows)
+                    body.Append($"row {r.AbsoluteIndex + 1}: ").Append(string.Join(" | ", r.Cells)).Append('\n');
+
+                return ToolResult.Ok($"read {rows.Count} row(s) from {start}", body.ToString().TrimEnd());
+            }),
         new DelegateClientTool(
             "open_filter",
             "Open the filter side panel",
