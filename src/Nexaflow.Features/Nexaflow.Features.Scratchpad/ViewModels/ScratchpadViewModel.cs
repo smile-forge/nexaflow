@@ -391,6 +391,10 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
         return $"Scratchpad: {Notes.Count} note(s) ({string.Join(", ", byColour)}).";
     }
 
+    /// <summary>The scratchpad is a single per-workspace board — a stable constant scope so its note tools
+    /// don't collapse first-wins against another pinned page (aspect-4 disambiguation).</summary>
+    public string? GetSecurityContext() => "scratchpad";
+
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
         new ScratchpadListNotesTool(this),

@@ -331,6 +331,7 @@ public class ScratchpadViewModelTests
 
     [TestMethod]
     [CoversNode("scratchpad-ai-act")]
+    [CoversNode("scratchpad-ai-context")]
     public void GetClientTools_ExposesReadOnlyNoteTools()
     {
         using var vm = NewVm();
@@ -339,6 +340,8 @@ public class ScratchpadViewModelTests
         CollectionAssert.Contains(names, "scratchpad_list_notes");
         CollectionAssert.Contains(names, "scratchpad_read_notes");
         Assert.IsTrue(tools.All(t => t.Safety == ToolSafety.SafeOperation));
+        StringAssert.StartsWith(((IPageViewModel)vm).GetContext(), "Scratchpad");  // context names the board
+        Assert.AreEqual("scratchpad", ((IPageViewModel)vm).GetSecurityContext());  // stable scope (aspect 4)
     }
 
     private IClientTool Tool(ScratchpadViewModel vm, string name)

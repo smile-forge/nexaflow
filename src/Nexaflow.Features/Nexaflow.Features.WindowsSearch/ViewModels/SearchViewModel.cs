@@ -183,6 +183,10 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel
         return $"Search tab: '{SearchQuery}' in {scope}. {ResultCount} result(s).";
     }
 
+    /// <summary>The search scope — its root path (or a This-PC sentinel) — so two pinned Search tabs on
+    /// different roots stay distinguishable (aspect-4 disambiguation).</summary>
+    public string? GetSecurityContext() => string.IsNullOrEmpty(SearchRoot) ? "search:this-pc" : SearchRoot;
+
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
         new DelegateClientTool(

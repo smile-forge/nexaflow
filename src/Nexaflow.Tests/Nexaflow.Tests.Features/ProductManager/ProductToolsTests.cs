@@ -45,6 +45,16 @@ public class ProductToolsTests
     private ProductState Reload() => new ProductStore(_root).Load();
 
     [TestMethod]
+    [CoversNode("product-ai-context")]
+    public void GetContext_Describe_SummarizesTheTree()
+    {
+        // ProductViewModel.GetContext() delegates to ProductTools.Describe — assert it produces a real
+        // summary of the loaded tree (names the product / a node), not an empty or error string.
+        var ctx = ProductTools.Describe(Reload(), null);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(ctx));
+    }
+
+    [TestMethod]
     public void SetNodeStatus_Done_CascadesShouldItems()
     {
         var r = Invoke(ProductTools.ForRoot(_root), "product_set_node_status",
