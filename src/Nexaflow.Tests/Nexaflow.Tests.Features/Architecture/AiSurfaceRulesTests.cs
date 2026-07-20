@@ -32,12 +32,10 @@ public class AiSurfaceRulesTests
     /// </summary>
     private static readonly HashSet<string> KnownNullScope = new(StringComparer.Ordinal)
     {
-        // Each of these exposes tools but returns GetSecurityContext() == null today — pinning two of the
-        // same kind collapses their tools first-wins. Give each a stable scope and delete it from here.
+        // Exposes tools but returns GetSecurityContext() == null — pinning two of the same kind collapses
+        // their tools first-wins. The conversation hub aggregates every pinned page's tools, so it has no
+        // single scope of its own; it is the one legitimate terminal entry here (not debt to burn down).
         "Nexaflow.Features.AIChat.ViewModels.ConversationViewModel",   // the hub itself; aggregates pinned tools
-        "Nexaflow.Features.Console.ViewModels.CmdTerminalViewModel",
-        "Nexaflow.Features.Font.ViewModels.FontViewModel",
-        "Nexaflow.Features.Web.ViewModels.HtmlViewModel",
     };
 
     private static IEnumerable<Type> PageViewModels()

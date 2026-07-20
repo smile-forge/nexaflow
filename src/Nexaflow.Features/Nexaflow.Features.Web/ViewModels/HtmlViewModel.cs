@@ -118,8 +118,26 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel
     public string GetContext()
     {
         var loading = IsLoading ? " (loading)" : string.Empty;
-        return $"Web view: '{CurrentUrl}'{loading}.";
+        var title   = string.IsNullOrWhiteSpace(PageTitle) ? string.Empty : $" titled \"{PageTitle}\"";
+        return $"Web view: '{CurrentUrl}'{title}{loading}.";
     }
+
+    /// <summary>
+    /// The security/trust boundary these tools act within is the page itself: its current URL. Distinct per
+    /// page and updated on navigation (a new page is a genuinely new boundary), so two web tabs pinned into one
+    /// AI conversation stay distinguishable in the hub instead of collapsing first-wins (aspect 4). Falls back
+    /// to the initial navigation target on the off chance the live URL hasn't been reported yet.
+    /// </summary>
+    public string? GetSecurityContext()
+        => string.IsNullOrWhiteSpace(CurrentUrl) ? NavigationUri.ToString() : CurrentUrl;
+
+    /// <summary>
+    /// Tells the model up front that the URL and title alone don't convey the page — it has to look, using the
+    /// two visual tools this page exposes.
+    /// </summary>
+    public string? GetAiSystemPromptGuidance()
+        => "You can't read this web page from its URL and title alone. Call capture_web_page to see what's "
+         + "actually rendered, and scroll_web_page to walk through a page taller than the viewport.";
 
     /// <summary>
     /// Tools the AI can call to <em>see</em> the page (the URL and title alone don't convey the content):

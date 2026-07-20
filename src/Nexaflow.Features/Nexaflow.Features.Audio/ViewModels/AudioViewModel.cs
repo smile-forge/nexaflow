@@ -2,6 +2,7 @@ using Nexaflow.Visuals.Common.Formatting;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -13,6 +14,7 @@ using Nexaflow.Features.Audio.Controls;
 using Nexaflow.Features.Audio.Models;
 using Nexaflow.Features.Audio.Services;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
 
 namespace Nexaflow.Features.Audio.ViewModels;
 
@@ -615,6 +617,195 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         var who = string.IsNullOrWhiteSpace(Artist) ? "" : $" by {Artist}";
         var queue = _paths.Count > 1 ? $" (track {_index + 1} of {_paths.Count})" : "";
         return $"Audio player — {state} \"{name}\"{who}{queue}.";
+    }
+
+    /// <summary>Scope boundary = the loaded track's path, so two pinned players on different files stay
+    /// distinguishable; null when the queue is empty (nothing to act on).</summary>
+    public string? GetSecurityContext() => CurrentPath;
+
+    public string? GetAiSystemPromptGuidance() =>
+        "An audio player tab is open. You cannot hear the audio — call read_now_playing to read the current "
+      + "track, play state, position and queue, and control_playback / seek / next_track / previous_track to "
+      + "drive playback. Report what the transport reports; never claim to have listened to the sound.";
+
+    /// <summary>
+    /// Client tools for the player. All are reversible view-state changes (play/pause/seek/skip) or pure
+    /// reads, so every one is <see cref="ToolSafety.SafeOperation"/>. The AI can't hear the audio — these
+    /// tools drive and report the transport, they don't "listen". Every tool that mutates UI-bound playback
+    /// state marshals the change through <see cref="IShellServices.RunOnUiAsync(System.Action)"/> because
+    /// client tools run off the UI thread and features must never touch the dispatcher.
+    /// </summary>
+    public IReadOnlyList<IClientTool> GetClientTools() =>
+    [
+        // ── Pure read: report transport state (no UI mutation, so no marshalling) ──
+        new DelegateClientTool(
+            "read_now_playing",
+            "Report the audio player's state: playing/paused, the resolved track title and artist, "
+          + "position and duration, and the track's place in the queue. Read-only — you cannot hear the audio.",
+            [],
+            ToolSafety.SafeOperation,
+            (_, _) => Task.FromResult(ReadNowPlaying()),
+            parallelizable: true),
+
+        // ── Transport control (reversible; marshalled to the UI thread) ──
+        new DelegateClientTool(
+            "control_playback",
+            "Start, pause, toggle or stop playback of the current track.",
+            [new ClientToolParameter("action", "One of: play, pause, toggle, stop.")],
+            ToolSafety.SafeOperation,
+            (args, _) => ControlPlaybackAsync(ToolArgs.Str(args, "action"))),
+
+        new DelegateClientTool(
+            "seek",
+            "Seek the current track to a position given as whole seconds (e.g. 90) or mm:ss / h:mm:ss (e.g. 1:30).",
+            [new ClientToolParameter("position", "Target position: seconds, or mm:ss.")],
+            ToolSafety.SafeOperation,
+            (args, _) => SeekAsync(ToolArgs.Str(args, "position"))),
+
+        new DelegateClientTool(
+            "next_track",
+            "Advance to the next track in the queue (stops at the last one).",
+            [],
+            ToolSafety.SafeOperation,
+            (_, _) => NavigateAsync(forward: true)),
+
+        new DelegateClientTool(
+            "previous_track",
+            "Go back to the previous track in the queue (stops at the first one).",
+            [],
+            ToolSafety.SafeOperation,
+            (_, _) => NavigateAsync(forward: false)),
+    ];
+
+    /// <summary>Resolved display name for the current track — the tag title, else the loaded file name,
+    /// else the current path's basename (so a not-yet-loaded track still reads honestly, not blank).</summary>
+    private string ResolvedName()
+    {
+        if (!string.IsNullOrWhiteSpace(Title)) return Title;
+        if (!string.IsNullOrWhiteSpace(FileName)) return FileName;
+        return CurrentPath is null ? "(no track)" : System.IO.Path.GetFileName(CurrentPath);
+    }
+
+    /// <summary>read_now_playing body — a pure read of transport state (never mutates, so never marshals).</summary>
+    private ToolResult ReadNowPlaying()
+    {
+        if (CurrentPath is null)
+            return ToolResult.Ok("no track", "No track is loaded in the audio player.");
+
+        var name = ResolvedName();
+        var lines = new List<string>
+        {
+            $"State: {(IsPlaying ? "playing" : "paused")}",
+            $"Track: {name}",
+            $"Artist: {(string.IsNullOrWhiteSpace(Artist) ? "unknown" : Artist)}",
+        };
+        if (!string.IsNullOrWhiteSpace(Album)) lines.Add($"Album: {Album}");
+        lines.Add($"Position: {PositionText} / {DurationText}");
+        lines.Add(_paths.Count > 1 ? $"Queue: track {_index + 1} of {_paths.Count}" : "Queue: single track");
+
+        return ToolResult.Ok($"{(IsPlaying ? "playing" : "paused")} \"{name}\"{ArtistSuffix()}", string.Join("\n", lines));
+    }
+
+    /// <summary>control_playback body — sets/toggles playback through the existing transport methods. The state
+    /// change touches UI-bound properties, so it is marshalled to the UI thread; errors when nothing is loaded.</summary>
+    private async Task<ToolResult> ControlPlaybackAsync(string? action)
+    {
+        var verb = action?.ToLowerInvariant();
+        if (verb is not ("play" or "pause" or "toggle" or "stop"))
+            return ToolResult.Error("invalid action",
+                $"Unknown action '{action}'. Use one of: play, pause, toggle, stop.");
+
+        if (CurrentPath is null)
+            return ToolResult.Error("no track", "No track is loaded, so there is nothing to control.");
+
+        await _shell.RunOnUiAsync(() =>
+        {
+            switch (verb)
+            {
+                case "play":   if (!IsPlaying) StartPlayback(); break;
+                case "pause":  if (IsPlaying)  PlayPause();     break;   // PlayPause pauses when currently playing
+                case "toggle": PlayPause();                     break;
+                case "stop":   Stop();                          break;
+            }
+        });
+
+        var state = IsPlaying ? "playing" : verb == "stop" ? "stopped" : "paused";
+        return ToolResult.Ok(state, $"Playback {state} — \"{ResolvedName()}\" at {PositionText} / {DurationText}.");
+    }
+
+    /// <summary>seek body — parses a seconds/mm:ss position and seeks the engine. UI-bound (Position/lyrics), so
+    /// the seek is marshalled; errors when nothing is loaded or the position can't be parsed.</summary>
+    private async Task<ToolResult> SeekAsync(string? positionText)
+    {
+        if (CurrentPath is null)
+            return ToolResult.Error("no track", "No track is loaded to seek.");
+
+        if (ParsePosition(positionText) is not { } target)
+            return ToolResult.Error("invalid position",
+                $"Couldn't read a position from '{positionText}'. Give whole seconds (e.g. 90) or mm:ss (e.g. 1:30).");
+
+        bool ok = false;
+        await _shell.RunOnUiAsync(() =>
+        {
+            if (!EnsureEngineLoaded()) return;
+            _engine!.Seek(target);
+            Position = _engine.Position;
+            Lyrics.UpdatePosition(Position);
+            ok = true;
+        });
+
+        return ok
+            ? ToolResult.Ok($"seeked to {PositionText}", $"Seeked to {PositionText} of {DurationText}.")
+            : ToolResult.Error("couldn't seek", "The track couldn't be loaded to seek to that position.");
+    }
+
+    /// <summary>next_track / previous_track body — steps the queue through the existing Next/Previous logic
+    /// (which changes CurrentPath and reloads UI-bound metadata), marshalled to the UI thread; no-ops at the ends.</summary>
+    private async Task<ToolResult> NavigateAsync(bool forward)
+    {
+        if (CurrentPath is null)
+            return ToolResult.Error("no track", "No track is loaded to navigate.");
+
+        if (forward ? !HasNext : !HasPrevious)
+            return ToolResult.Ok(
+                forward ? "already at the last track" : "already at the first track",
+                $"Already at the {(forward ? "last" : "first")} track ({_index + 1} of {_paths.Count}).");
+
+        Task? nav = null;
+        await _shell.RunOnUiAsync(() => nav = forward ? Next() : Previous());
+        if (nav is not null) await nav;
+
+        return ToolResult.Ok(
+            $"track {_index + 1} of {_paths.Count}",
+            $"Now on \"{ResolvedName()}\"{ArtistSuffix()} — track {_index + 1} of {_paths.Count}.");
+    }
+
+    /// <summary>" by {Artist}" when an artist is known, else empty — for one-line now-playing summaries.</summary>
+    private string ArtistSuffix() => string.IsNullOrWhiteSpace(Artist) ? "" : $" by {Artist}";
+
+    /// <summary>Parses a seek position: whole/fractional seconds, or mm:ss / h:mm:ss. Null if unparseable.</summary>
+    private static TimeSpan? ParsePosition(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        var s = text.Trim();
+
+        if (s.Contains(':'))
+        {
+            var parts = s.Split(':');
+            if (parts.Length is < 2 or > 3) return null;
+            double total = 0;
+            foreach (var part in parts)
+            {
+                if (!double.TryParse(part, NumberStyles.Any, CultureInfo.InvariantCulture, out var v) || v < 0)
+                    return null;
+                total = total * 60 + v;
+            }
+            return TimeSpan.FromSeconds(total);
+        }
+
+        return double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var secs) && secs >= 0
+            ? TimeSpan.FromSeconds(secs)
+            : null;
     }
 
     public void Dispose()

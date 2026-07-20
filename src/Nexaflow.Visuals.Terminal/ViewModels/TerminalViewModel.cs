@@ -768,6 +768,11 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         return ctx;
     }
 
+    /// <summary>Aspect-4 scope: the live working directory these tools act against, so two pinned terminals
+    /// at different folders don't collapse first-wins in the conversation hub. Null before the shell reports
+    /// a path (nothing to disambiguate yet).</summary>
+    public string? GetSecurityContext() => string.IsNullOrEmpty(CurrentPath) ? null : CurrentPath;
+
     public string? GetAiSystemPromptGuidance() =>
         $"You are attached to a live terminal at '{CurrentPath}' running {ShellDescription}. You can run " +
         "commands directly with the approval-gated `run_command` tool and you receive the actual output " +

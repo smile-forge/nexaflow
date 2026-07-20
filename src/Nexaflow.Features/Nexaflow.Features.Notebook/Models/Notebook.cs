@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.Json;
@@ -8,8 +9,19 @@ namespace Nexaflow.Features.Notebook.Models;
 /// markdown; raw cells are verbatim text.</summary>
 public enum NotebookCellKind { Code, Markdown, Raw }
 
-/// <summary>One parsed cell: its kind, its (decoded, joined) source, and a code cell's execution count.</summary>
-public sealed record NotebookCell(NotebookCellKind Kind, string Source, int? ExecutionCount);
+/// <summary>What a stored code-cell output is: console <see cref="Stream"/> text, a <see cref="Text"/>
+/// (execute-result / display-data text/plain) payload, a rendered <see cref="Image"/> (noted by MIME type
+/// only — the pixels aren't surfaced to text tools), or an <see cref="Error"/> (exception + traceback).</summary>
+public enum NotebookOutputKind { Stream, Text, Image, Error }
+
+/// <summary>One decoded code-cell output. <see cref="Text"/> is the human-readable payload; for an
+/// <see cref="NotebookOutputKind.Image"/> output it is a short note of the image's MIME type.</summary>
+public sealed record NotebookOutput(NotebookOutputKind Kind, string Text);
+
+/// <summary>One parsed cell: its kind, its (decoded, joined) source, a code cell's execution count, and any
+/// stored outputs (empty for markdown/raw cells and un-run code cells).</summary>
+public sealed record NotebookCell(
+    NotebookCellKind Kind, string Source, int? ExecutionCount, IReadOnlyList<NotebookOutput> Outputs);
 
 /// <summary>A parsed notebook: the kernel's tree-sitter grammar id (e.g. "python") and its cells in order.</summary>
 public sealed record NotebookDocument(string GrammarId, IReadOnlyList<NotebookCell> Cells)
@@ -36,7 +48,7 @@ public sealed record NotebookDocument(string GrammarId, IReadOnlyList<NotebookCe
                     if (cell.ValueKind != JsonValueKind.Object) continue;
                     int? exec = cell.TryGetProperty("execution_count", out var ec) && ec.ValueKind == JsonValueKind.Number
                         ? ec.GetInt32() : null;
-                    cells.Add(new NotebookCell(CellKind(cell), DecodeSource(cell), exec));
+                    cells.Add(new NotebookCell(CellKind(cell), DecodeSource(cell), exec, DecodeOutputs(cell)));
                 }
             return new NotebookDocument(grammar, cells);
         }
@@ -51,14 +63,69 @@ public sealed record NotebookDocument(string GrammarId, IReadOnlyList<NotebookCe
 
     /// <summary>Joins a cell's <c>source</c> (a string or array of line-strings), decoding JSON escapes.</summary>
     private static string DecodeSource(JsonElement cell)
+        => cell.TryGetProperty("source", out var src) ? JoinStringOrArray(src) : "";
+
+    /// <summary>Joins an nbformat value that may be a single string or an array of line-strings
+    /// (<c>source</c>, stream <c>text</c>, a traceback…), decoding JSON escapes.</summary>
+    private static string JoinStringOrArray(JsonElement el)
     {
-        if (!cell.TryGetProperty("source", out var src)) return "";
-        if (src.ValueKind == JsonValueKind.String) return src.GetString() ?? "";
-        if (src.ValueKind != JsonValueKind.Array) return "";
+        if (el.ValueKind == JsonValueKind.String) return el.GetString() ?? "";
+        if (el.ValueKind != JsonValueKind.Array) return "";
         var sb = new StringBuilder();
-        foreach (var el in src.EnumerateArray())
-            if (el.ValueKind == JsonValueKind.String) sb.Append(el.GetString());
+        foreach (var line in el.EnumerateArray())
+            if (line.ValueKind == JsonValueKind.String) sb.Append(line.GetString());
         return sb.ToString();
+    }
+
+    /// <summary>Decodes a code cell's <c>outputs</c> array (nbformat 4): stream text, execute-result /
+    /// display-data text (image mimetypes noted by name), and errors (ename/evalue + traceback). Non-code
+    /// cells and un-run cells have no <c>outputs</c> and yield an empty list.</summary>
+    private static IReadOnlyList<NotebookOutput> DecodeOutputs(JsonElement cell)
+    {
+        if (!cell.TryGetProperty("outputs", out var outs) || outs.ValueKind != JsonValueKind.Array)
+            return [];
+
+        var list = new List<NotebookOutput>();
+        foreach (var o in outs.EnumerateArray())
+        {
+            if (o.ValueKind != JsonValueKind.Object) continue;
+            var type = o.TryGetProperty("output_type", out var ot) && ot.ValueKind == JsonValueKind.String
+                ? ot.GetString() : null;
+            switch (type)
+            {
+                case "stream":
+                {
+                    var name = o.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String
+                        ? n.GetString() : null;
+                    var text = o.TryGetProperty("text", out var t) ? JoinStringOrArray(t) : "";
+                    list.Add(new NotebookOutput(NotebookOutputKind.Stream,
+                        string.IsNullOrEmpty(name) ? text : $"[{name}] {text}"));
+                    break;
+                }
+                case "execute_result":
+                case "display_data":
+                    if (o.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object)
+                    {
+                        if (data.TryGetProperty("text/plain", out var tp))
+                            list.Add(new NotebookOutput(NotebookOutputKind.Text, JoinStringOrArray(tp)));
+                        foreach (var prop in data.EnumerateObject())
+                            if (prop.Name.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                                list.Add(new NotebookOutput(NotebookOutputKind.Image, prop.Name));
+                    }
+                    break;
+                case "error":
+                {
+                    var ename  = o.TryGetProperty("ename",  out var en) && en.ValueKind == JsonValueKind.String ? en.GetString() : "";
+                    var evalue = o.TryGetProperty("evalue", out var ev) && ev.ValueKind == JsonValueKind.String ? ev.GetString() : "";
+                    var header = $"{ename}: {evalue}".Trim(':', ' ');
+                    var trace  = o.TryGetProperty("traceback", out var tb) ? JoinStringOrArray(tb) : "";
+                    list.Add(new NotebookOutput(NotebookOutputKind.Error,
+                        string.IsNullOrEmpty(trace) ? header : $"{header}\n{trace}"));
+                    break;
+                }
+            }
+        }
+        return list;
     }
 
     /// <summary>The kernel language (<c>metadata.kernelspec.language</c> / <c>language_info.name</c>) mapped to

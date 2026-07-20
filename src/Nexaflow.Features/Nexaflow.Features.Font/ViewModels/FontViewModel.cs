@@ -202,6 +202,18 @@ public sealed partial class FontViewModel : ObservableObject, IPageViewModel, ID
         return sb.ToString();
     }
 
+    /// <summary>
+    /// The scope this page's tools act within — a signature of the compared font set, so two font pages
+    /// pinned together don't collapse first-wins in the conversation hub. There's no single backing file
+    /// (fonts are installed or loaded from files), so the scope is each font's source path — or its
+    /// display name when installed (no path) — joined in list order, with a constant for the empty
+    /// compare list. Deterministic for a given set.
+    /// </summary>
+    public string? GetSecurityContext() =>
+        Fonts.Count == 0
+            ? "font-viewer (empty)"
+            : "fonts: " + string.Join(" | ", Fonts.Select(f => f.SourcePath ?? f.DisplayName));
+
     public IReadOnlyList<IClientTool> GetClientTools() =>
         [new FontDetailsTool(this), new FontRenderTool(this)];
 
