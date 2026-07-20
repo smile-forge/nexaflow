@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.GraphViewer.Converters;
 using Nexaflow.Features.GraphViewer.Layout;
 using Nexaflow.Features.GraphViewer.Loaders;
@@ -508,6 +510,110 @@ public sealed partial class GraphViewModel : ObservableObject, IPageViewModel
     }
 
     public string? GetSecurityContext() => FilePath;
+
+    /// <summary>
+    /// The read-only act surface. Both tools are <see cref="ToolSafety.SafeOperation"/>: <c>read_graph</c> is a pure
+    /// observer of the in-memory neighbourhood, and <c>focus_node</c> only re-centres the view (a camera/selection
+    /// move, nothing committed to disk). Focusing mutates the UI-bound node/edge collections, so it is marshalled to
+    /// the UI thread via <see cref="IShellServices.RunOnUiAsync(Action)"/> — a feature never touches the dispatcher.
+    /// </summary>
+    public IReadOnlyList<IClientTool> GetClientTools() =>
+    [
+        new DelegateClientTool(
+            "read_graph",
+            "Read the currently-visible graph neighbourhood: the focused node, the whole-graph summary, and the "
+          + "visible neighbour nodes with their kind and relationship to the focus. Pure read of what is on screen.",
+            [],
+            ToolSafety.SafeOperation,
+            (_, _) =>
+            {
+                if (!IsLoaded) return Task.FromResult(ToolResult.Error("The graph is still loading."));
+                if (HasError) return Task.FromResult(ToolResult.Error($"The graph failed to load: {ErrorMessage}"));
+                if (FocusNodeId is null || !_byId.TryGetValue(FocusNodeId, out var focus))
+                    return Task.FromResult(ToolResult.Ok(
+                        "no focus", $"Knowledge graph '{FileName}': {Summary}. No node is focused."));
+
+                var sb = new StringBuilder();
+                sb.Append($"Knowledge graph '{FileName}' — {Summary}.\n");
+                sb.Append($"Focused on [{focus.Kind}] \"{focus.Label}\" ({focus.Id}), showing the {HopRadius}-hop neighbourhood.\n");
+                sb.Append($"{Nodes.Count} node(s) and {Edges.Count} edge(s) visible");
+                if (ShowHyperEdges && HyperEdges.Count > 0) sb.Append($", {HyperEdges.Count} hyperedge(s)");
+                sb.Append('.');
+                if (HiddenByCap > 0) sb.Append($" ({HiddenByCap:N0} more beyond the display cap.)");
+
+                var neighbours = Nodes
+                    .Where(n => n.Id != FocusNodeId)
+                    .OrderBy(n => _dist.TryGetValue(n.Id, out var d) ? d : int.MaxValue)
+                    .ThenBy(n => n.Label, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                if (neighbours.Count == 0)
+                {
+                    sb.Append("\nNo neighbour nodes are visible.");
+                    return Task.FromResult(ToolResult.Ok($"focused on {focus.Label}, no neighbours", sb.ToString()));
+                }
+
+                sb.Append($"\nNeighbours ({neighbours.Count}):");
+                foreach (var n in neighbours)
+                {
+                    var hop = _dist.TryGetValue(n.Id, out var d) ? d : -1;
+                    sb.Append($"\n  [{n.Kind}] {n.Label} ({n.Id}) — {DescribeRelationToFocus(FocusNodeId, n.Id, hop)}");
+                }
+
+                return Task.FromResult(ToolResult.Ok(
+                    $"{neighbours.Count} neighbour(s) of {focus.Label}", sb.ToString()));
+            },
+            parallelizable: true),
+
+        new DelegateClientTool(
+            "focus_node",
+            "Re-centre the graph on a node, matched by exact id first then by a case-insensitive label substring. "
+          + "The neighbourhood is recomputed around the new focus.",
+            [
+                new ClientToolParameter("node", "Node id (e.g. 'product:root', 'code:src/A.cs#Foo') or a label substring."),
+            ],
+            ToolSafety.SafeOperation,
+            async (arguments, ct) =>
+            {
+                if (!IsLoaded) return ToolResult.Error("The graph is still loading.");
+                if (HasError) return ToolResult.Error($"The graph failed to load: {ErrorMessage}");
+
+                var query = ToolArgs.Str(arguments, "node");
+                if (string.IsNullOrWhiteSpace(query))
+                    return ToolResult.Error("Provide a 'node' — a node id or a label substring to focus on.");
+
+                var match = _byId.TryGetValue(query, out var byId) ? byId : null;
+                match ??= _allNodes.FirstOrDefault(n => n.Label.Contains(query, StringComparison.OrdinalIgnoreCase));
+                match ??= _allNodes.FirstOrDefault(n => n.Id.Contains(query, StringComparison.OrdinalIgnoreCase));
+                if (match is null)
+                    return ToolResult.Error($"No node matches \"{query}\".");
+
+                if (FocusNodeId == match.Id)
+                    return ToolResult.Ok(
+                        $"already focused on {match.Label}",
+                        $"The graph is already focused on [{match.Kind}] \"{match.Label}\" ({match.Id}).");
+
+                if (_shell is not null) await _shell.RunOnUiAsync(() => SelectedNode = match);
+                else SelectedNode = match;
+
+                return ToolResult.Ok(
+                    $"focused on {FocusLabel}",
+                    $"Re-centred on [{match.Kind}] \"{match.Label}\" ({match.Id}). "
+                  + $"Showing its {HopRadius}-hop neighbourhood ({Nodes.Count} node(s)).");
+            }),
+    ];
+
+    /// <summary>Describes a neighbour's relation to the focus for <c>read_graph</c>: names the direct binary edge
+    /// (with direction) when one is visible, otherwise falls back to its BFS hop distance.</summary>
+    private string DescribeRelationToFocus(string focusId, string neighbourId, int hop)
+    {
+        foreach (var e in Edges)
+        {
+            if (e.From.Id == focusId && e.To.Id == neighbourId) return $"focus {e.Relationship} it";
+            if (e.From.Id == neighbourId && e.To.Id == focusId) return $"it {e.Relationship} focus";
+        }
+        return hop >= 0 ? $"{hop} hop(s) from focus" : "reachable from focus";
+    }
 
     public string? GetAiSystemPromptGuidance() =>
         "A knowledge-graph viewer: the product tree linked into code files, types and members. It shows the " +
