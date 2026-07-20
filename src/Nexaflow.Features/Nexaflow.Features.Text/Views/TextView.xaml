@@ -35,7 +35,8 @@
 
                 <!-- Left: encoding selector -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <ComboBox AutomationProperties.AutomationId="Text_Encoding"
+                    <ComboBox Style="{StaticResource DarkComboBox}"
+                              AutomationProperties.AutomationId="Text_Encoding"
                               ItemsSource="{Binding AvailableEncodings}"
                               SelectedItem="{Binding SelectedEncoding}"
                               DisplayMemberPath="Name"
