@@ -2,9 +2,11 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ICSharpCode.AvalonEdit.Document;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Logs.Parsing;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -97,6 +99,11 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
     [ObservableProperty] private string    _filterEndTime   = string.Empty;
     [ObservableProperty] private DateTime? _filterStart;
     [ObservableProperty] private DateTime? _filterEnd;
+
+    // Detected timestamp span of the loaded lines, cached on load/head/append (all on the UI thread) so
+    // GetContext can report it without reading the thread-affine document off the UI thread.
+    private DateTime? _detectedFirstTimestamp;
+    private DateTime? _detectedLastTimestamp;
 
     // ── Navigation ────────────────────────────────────────────────────────────
 
@@ -290,6 +297,25 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
     // pre-populates the date/time filter fields (without applying the filter).
     private void ScanForTimeRange()
     {
+        var (first, last) = ScanTimestampRange();
+        _detectedFirstTimestamp = first;
+        _detectedLastTimestamp  = last;
+
+        if (first.HasValue)
+        {
+            FilterStartDate = first.Value.Date;
+            FilterStartTime = first.Value.ToString("HH:mm:ss");
+        }
+        if (last.HasValue)
+        {
+            FilterEndDate = last.Value.Date;
+            FilterEndTime = last.Value.ToString("HH:mm:ss");
+        }
+    }
+
+    // Finds the first and last parseable timestamps across the loaded lines (document read — UI thread).
+    private (DateTime? First, DateTime? Last) ScanTimestampRange()
+    {
         DateTime? first = null, last = null;
 
         for (var i = 1; i <= Document.LineCount && !first.HasValue; i++)
@@ -314,16 +340,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
             catch { break; }
         }
 
-        if (first.HasValue)
-        {
-            FilterStartDate = first.Value.Date;
-            FilterStartTime = first.Value.ToString("HH:mm:ss");
-        }
-        if (last.HasValue)
-        {
-            FilterEndDate = last.Value.Date;
-            FilterEndTime = last.Value.ToString("HH:mm:ss");
-        }
+        return (first, last);
     }
 
     // ── File monitoring ───────────────────────────────────────────────────────
@@ -584,7 +601,260 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
     public string GetContext()
     {
         if (string.IsNullOrEmpty(FilePath)) return "Log viewer: no file loaded.";
-        return $"Log file: '{FileName}' at '{FilePath}'. {LineCount} line(s).";
+
+        var sb = new StringBuilder();
+        sb.Append($"Log file '{FileName}' ({FileSizeText}) at '{FilePath}'. ");
+        sb.Append($"{LineCount} line(s) loaded");
+        if (IsLoadingHead)
+            sb.Append(" — currently only the tail (most recent lines); the head is still streaming in");
+        sb.Append($". Format: {ActiveParser.FormatName}. ");
+
+        if (_detectedFirstTimestamp.HasValue && _detectedLastTimestamp.HasValue)
+            sb.Append($"Timestamps span {_detectedFirstTimestamp:yyyy-MM-dd HH:mm:ss} to {_detectedLastTimestamp:yyyy-MM-dd HH:mm:ss}. ");
+        else if (HasTimestamps)
+            sb.Append("Lines carry timestamps. ");
+        else
+            sb.Append("No timestamps detected. ");
+
+        if (IsMonitoring)
+            sb.Append(IsPaused ? "The live tail is paused. " : "Live-tailing the file for new lines. ");
+        else
+            sb.Append("Live monitoring is off. ");
+
+        var active = new List<string>();
+        if (IsFilterActive && !string.IsNullOrWhiteSpace(FilterRegex))
+            active.Add($"regex filter /{FilterRegex}/");
+        if (FilterStart.HasValue || FilterEnd.HasValue)
+            active.Add($"time filter {(FilterStart?.ToString("yyyy-MM-dd HH:mm:ss") ?? "…")} .. {(FilterEnd?.ToString("yyyy-MM-dd HH:mm:ss") ?? "…")}");
+        var levels = EnabledHighlightLevels();
+        if (levels.Count > 0)
+            active.Add($"level highlight: {string.Join(", ", levels)}");
+        if (!string.IsNullOrWhiteSpace(CustomHighlightTerm))
+            active.Add($"term highlight \"{CustomHighlightTerm}\"");
+
+        sb.Append(active.Count > 0
+            ? $"Active view filters/highlights — {string.Join("; ", active)} (non-matching lines are faded, not removed). "
+            : "No filters or highlights active. ");
+
+        if (SelectedLineCount > 0)
+            sb.Append($"{SelectedLineCount} line(s) selected. ");
+
+        sb.Append("Use read_tail / read_lines / search_log to read the log content; "
+                + "set_regex_filter / set_time_filter / highlight_levels / set_tail_paused mirror the toolbar controls.");
+        return sb.ToString();
+    }
+
+    /// <summary>File-path scope boundary — keeps two log tabs on different files distinguishable when pinned.</summary>
+    public string? GetSecurityContext() => FilePath;
+
+    public IReadOnlyList<IClientTool> GetClientTools() =>
+    [
+        // ── Read / explore (auto-run) — the log content the model couldn't reach before ──
+        new DelegateClientTool(
+            "read_tail",
+            "Read the most recent (bottom) lines of the loaded log — the live tail. For a large file only the "
+          + "already-loaded portion is available until the head finishes streaming in.",
+            [ new ClientToolParameter("lines", "How many trailing lines to return (default 100).", Required: false, Type: "number") ],
+            ToolSafety.SafeOperation,
+            (args, _) => OnUi(() =>
+            {
+                var total = Document.LineCount;
+                if (total == 0) return ToolResult.Ok("empty", "(the log is empty)");
+                var n     = Math.Clamp(ToolArgs.Int(args, "lines", 100), 1, 5000);
+                var start = Math.Max(1, total - n + 1);
+                return ToolResult.Ok($"read lines {start}–{total} of {total}", ReadLineRange(start, total));
+            })),
+
+        new DelegateClientTool(
+            "read_lines",
+            "Read a specific 1-based line range from the loaded log.",
+            [
+                new ClientToolParameter("start", "First line number (1-based)."),
+                new ClientToolParameter("count", "How many lines to read (default 100).", Required: false, Type: "number"),
+            ],
+            ToolSafety.SafeOperation,
+            (args, _) => OnUi(() =>
+            {
+                var total = Document.LineCount;
+                if (total == 0) return ToolResult.Ok("empty", "(the log is empty)");
+                var start = Math.Clamp(ToolArgs.Int(args, "start", 1), 1, total);
+                var count = Math.Clamp(ToolArgs.Int(args, "count", 100), 1, 5000);
+                var end   = Math.Min(total, start + count - 1);
+                return ToolResult.Ok($"read lines {start}–{end} of {total}", ReadLineRange(start, end));
+            })),
+
+        new DelegateClientTool(
+            "search_log",
+            "Search the whole loaded log for a substring or regular expression; returns matching lines with "
+          + "their line numbers (capped). Reads across the entire loaded document, not just the visible viewport.",
+            [
+                new ClientToolParameter("query", "Text or regular expression to find."),
+                new ClientToolParameter("regex", "Treat 'query' as a regular expression.", Required: false, Type: "boolean"),
+                new ClientToolParameter("max", "Maximum matches to return (default 100).", Required: false, Type: "number"),
+            ],
+            ToolSafety.SafeOperation,
+            (args, _) => OnUi(() =>
+            {
+                var query = ToolArgs.Str(args, "query", "pattern", "search", "term");
+                if (string.IsNullOrEmpty(query)) return ToolResult.Error("No 'query' provided.");
+
+                Regex? rx = null;
+                if (ToolArgs.Bool(args, "regex"))
+                {
+                    try   { rx = new Regex(query, RegexOptions.IgnoreCase); }
+                    catch (Exception ex) { return ToolResult.Error($"Invalid regular expression: {ex.Message}"); }
+                }
+
+                var max   = Math.Clamp(ToolArgs.Int(args, "max", 100), 1, 1000);
+                var total = Document.LineCount;
+                var hits  = new List<string>();
+                for (var i = 1; i <= total && hits.Count < max; i++)
+                {
+                    var dl   = Document.GetLineByNumber(i);
+                    var text = Document.GetText(dl.Offset, dl.Length);
+                    var ok   = rx is not null ? rx.IsMatch(text) : text.Contains(query, StringComparison.OrdinalIgnoreCase);
+                    if (ok) hits.Add($"{i}: {text}");
+                }
+                if (hits.Count == 0) return ToolResult.Ok($"no match for {query}", $"No loaded line matched '{query}'.");
+                var note = hits.Count >= max ? $"\n(stopped at {max} matches; more may exist.)" : string.Empty;
+                return ToolResult.Ok($"{hits.Count} match(es) for {query}", string.Join("\n", hits) + note);
+            })),
+
+        new DelegateClientTool(
+            "read_selected_lines",
+            "Read the lines the user has selected (checked in the gutter), in order.",
+            [],
+            ToolSafety.SafeOperation,
+            (_, _) => OnUi(() =>
+            {
+                if (_selectedLineNumbers.Count == 0)
+                    return ToolResult.Ok("no selection", "The user has not selected any lines.");
+                var total = Document.LineCount;
+                var lines = _selectedLineNumbers.OrderBy(n => n)
+                    .Where(n => n >= 1 && n <= total)
+                    .Select(n => { var dl = Document.GetLineByNumber(n); return $"{n}: {Document.GetText(dl.Offset, dl.Length)}"; });
+                return ToolResult.Ok($"{_selectedLineNumbers.Count} selected line(s)", string.Join("\n", lines));
+            })),
+
+        // ── View state (auto-run) — mirror the user's filter / highlight / tail controls (reversible, faded) ──
+        new DelegateClientTool(
+            "set_regex_filter",
+            "Set or clear the regex filter that fades non-matching lines — the same box the user types in. Pass "
+          + "an empty pattern to clear it. Lines are faded, never removed from the file.",
+            [ new ClientToolParameter("pattern", "A regular expression; empty clears the filter.", Required: false) ],
+            ToolSafety.SafeOperation,
+            async (args, _) =>
+            {
+                var pattern = ToolArgs.Str(args, "pattern", "regex", "filter") ?? string.Empty;
+                await _shell.RunOnUiAsync(() => FilterRegex = pattern);
+                if (pattern.Length == 0) return ToolResult.Ok("filter cleared", "Cleared the regex filter.");
+                return IsFilterActive
+                    ? ToolResult.Ok($"filtering /{pattern}/", $"Applied regex filter '{pattern}'. Non-matching lines are faded.")
+                    : ToolResult.Error($"'{pattern}' is not a valid regular expression.");
+            }),
+
+        new DelegateClientTool(
+            "set_time_filter",
+            "Fade lines whose timestamp falls outside a range (only meaningful when the log has timestamps), or "
+          + "clear it. Pass ISO-8601 date/times; omit both start and end to clear.",
+            [
+                new ClientToolParameter("start", "Range start, e.g. 2024-01-15T10:00:00 (optional).", Required: false),
+                new ClientToolParameter("end", "Range end, e.g. 2024-01-15T11:00:00 (optional).", Required: false),
+            ],
+            ToolSafety.SafeOperation,
+            async (args, _) =>
+            {
+                var startStr = ToolArgs.Str(args, "start", "from");
+                var endStr   = ToolArgs.Str(args, "end", "to");
+                if (startStr is null && endStr is null)
+                {
+                    await _shell.RunOnUiAsync(() => ClearTimeFilterCommand.Execute(null));
+                    return ToolResult.Ok("time filter cleared", "Cleared the time filter.");
+                }
+
+                DateTime start = default, end = default;
+                if (startStr is not null &&
+                    !DateTime.TryParse(startStr, CultureInfo.InvariantCulture, DateTimeStyles.None, out start))
+                    return ToolResult.Error($"Could not parse start time '{startStr}'.");
+                if (endStr is not null &&
+                    !DateTime.TryParse(endStr, CultureInfo.InvariantCulture, DateTimeStyles.None, out end))
+                    return ToolResult.Error($"Could not parse end time '{endStr}'.");
+
+                await _shell.RunOnUiAsync(() =>
+                {
+                    if (startStr is not null) { FilterStartDate = start.Date; FilterStartTime = start.ToString("HH:mm:ss"); }
+                    if (endStr   is not null) { FilterEndDate   = end.Date;   FilterEndTime   = end.ToString("HH:mm:ss"); }
+                    ApplyTimeFilterCommand.Execute(null);
+                });
+                return ToolResult.Ok("time filter applied",
+                    $"Filtering to timestamps in [{FilterStart?.ToString("s") ?? "…"} .. {FilterEnd?.ToString("s") ?? "…"}]. "
+                  + "Lines outside the range are faded.");
+            }),
+
+        new DelegateClientTool(
+            "highlight_levels",
+            "Set which severity levels are colour-highlighted (Fatal, Error, Warning, Info, Debug). Pass a "
+          + "comma-separated list to enable exactly those; an empty value turns all level highlighting off.",
+            [ new ClientToolParameter("levels", "Comma-separated levels, e.g. \"error,warning\"; empty turns all off.", Required: false) ],
+            ToolSafety.SafeOperation,
+            async (args, _) =>
+            {
+                var raw    = ToolArgs.Str(args, "levels", "level") ?? string.Empty;
+                var wanted = raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                .Select(x => x.ToLowerInvariant()).ToHashSet();
+                await _shell.RunOnUiAsync(() =>
+                {
+                    HighlightFatal   = wanted.Contains("fatal")   || wanted.Contains("critical");
+                    HighlightError   = wanted.Contains("error")   || wanted.Contains("err");
+                    HighlightWarning = wanted.Contains("warning") || wanted.Contains("warn");
+                    HighlightInfo    = wanted.Contains("info");
+                    HighlightDebug   = wanted.Contains("debug")   || wanted.Contains("trace");
+                });
+                var on = EnabledHighlightLevels();
+                return ToolResult.Ok(
+                    on.Count > 0 ? $"highlighting {string.Join(", ", on)}" : "highlighting off",
+                    on.Count > 0 ? $"Highlighting levels: {string.Join(", ", on)}." : "Turned off all level highlighting.");
+            }),
+
+        new DelegateClientTool(
+            "set_tail_paused",
+            "Pause or resume the live tail (whether newly-appended lines are shown as the file grows). Resuming "
+          + "flushes lines that arrived while paused. Display only — the file is untouched.",
+            [ new ClientToolParameter("paused", "true to pause, false to resume.", Type: "boolean") ],
+            ToolSafety.SafeOperation,
+            async (args, _) =>
+            {
+                var paused = ToolArgs.Bool(args, "paused", true);
+                await _shell.RunOnUiAsync(() => IsPaused = paused);
+                return ToolResult.Ok(paused ? "tail paused" : "tail resumed",
+                    paused ? "Paused the live tail." : "Resumed the live tail.");
+            }),
+    ];
+
+    // Runs a document-reading tool body on the workspace UI thread (the document is thread-affine),
+    // returning its result — features never touch the dispatcher directly.
+    private Task<ToolResult> OnUi(Func<ToolResult> read) => _shell.RunOnUiAsync(() => Task.FromResult(read()));
+
+    private string ReadLineRange(int startLine, int endLine)
+    {
+        var sb = new StringBuilder();
+        for (var i = startLine; i <= endLine; i++)
+        {
+            var dl = Document.GetLineByNumber(i);
+            sb.Append(i).Append(": ").Append(Document.GetText(dl.Offset, dl.Length)).Append('\n');
+        }
+        return sb.ToString();
+    }
+
+    private List<string> EnabledHighlightLevels()
+    {
+        var levels = new List<string>(5);
+        if (HighlightFatal)   levels.Add("Fatal");
+        if (HighlightError)   levels.Add("Error");
+        if (HighlightWarning) levels.Add("Warning");
+        if (HighlightInfo)    levels.Add("Info");
+        if (HighlightDebug)   levels.Add("Debug");
+        return levels;
     }
 
     public IContext? GetContextObject()
