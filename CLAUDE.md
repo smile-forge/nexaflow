@@ -48,39 +48,40 @@ inventory and per-component status (incl. the `tests` / `AI Ready` / `theming` /
 **product tree**. **To locate a feature's code/tests/docs, query the tree first** (it beats grepping — every
 node carries snaplinks to its source):
 
+**`nexaflow-initiatives.exe` self-locates the `.product` tree — it follows a git worktree to its main checkout (where
+the gitignored tree lives) — so run it from any checkout or worktree with NO root arg.** Build it once, then call the
+exe directly (fast; no per-call rebuild). In the main checkout a prebuilt copy also sits at `tools/graph-cli/`
+(`tools/publish-graph-cli.ps1` refreshes it). `$ni` below is that exe:
+
 ```powershell
-dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- find <term>        # nodes matching id/title/description
-dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- describe <node-id> # path, concerns, code/test/doc snaplinks
+dotnet build src/Nexaflow.Services.Initiatives.Cli    # once
+$ni = "src/Nexaflow.Services.Initiatives.Cli/bin/x64/Debug/net10.0/nexaflow-initiatives.exe"   # or tools/graph-cli/nexaflow-initiatives.exe
+& $ni find <term>                # nodes matching id/title/description
+& $ni describe <node-id>         # path, concerns, code/test/doc snaplinks
+& $ni describe <node-id> --code  # …plus every code snaplink resolved to its real source block (from YOUR working tree)
+& $ni diff                       # what changed in the tree since the last release snapshot (nodes added/removed, status, concerns)
 ```
 
-**Code discovery is graph-first — reach for the graph CLI before Read/Grep, and before spawning an Explore/Plan
+**Code discovery is graph-first — reach for the graph before Read/Grep, and before spawning an Explore/Plan
 agent (and require any sub-agent you do spawn to use it too).** The `graph` command builds
 `.product/graph.json` — the product tree ⊕ whole-repo AST ⊕ their snaplinks — and queries it headlessly. It's more
 token-efficient than reading files and surfaces relationships grep can't (who calls/instantiates a type, a project's
 `depends_on`, a view's `view_of` code-behind, the file a member `mentions`, the product feature that owns a code
-node). Regenerate with `graph .` (incremental) after code changes, then explore (`graph help` lists the full set):
+node). Regenerate with `graph build` (incremental) after code changes, then explore (`graph help` lists the full set):
 
 ```powershell
-$cli = "src/Nexaflow.Services.Initiatives.Cli"
-dotnet run --project $cli -- graph search <term> .     # find nodes (product/type/member/file) by id/label
-dotnet run --project $cli -- graph node <id> .         # a node + ALL its edges (both directions) + hyperedges
-dotnet run --project $cli -- graph context <id> .      # ONE-SHOT: node + its source + neighbours + owning feature
-dotnet run --project $cli -- graph walk <id> . --hops 2                               # its N-hop neighbourhood
-dotnet run --project $cli -- graph grep <regex> . --from <id> --hops 2 --mode content  # grep source of nodes near <id>
-dotnet run --project $cli -- graph code <code-id> .    # a code node's source block; `graph cat file:<path> .` = whole file
+& $ni graph search <term>     # find nodes (product/type/member/file) by id/label
+& $ni graph node <id>         # a node + ALL its edges (both directions) + hyperedges
+& $ni graph context <id>      # ONE-SHOT: node + its source + neighbours + owning feature
+& $ni graph walk <id> --hops 2                                # its N-hop neighbourhood
+& $ni graph grep <regex> --from <id> --hops 2 --mode content  # grep source of nodes near <id>
+& $ni graph code <code-id>    # a code node's source block; `graph cat file:<path>` = whole file
+& $ni graph build             # regenerate .product/graph.json after code changes (incremental)
 ```
 
-Node ids: `product:<slug>` · `code:<relpath>#<astpath>` · `file:<relpath>` · `external:<name>`. For a multi-query
-session, `dotnet build` the CLI once and call `nexaflow-initiatives.exe` directly — each invocation reloads the
-graph, so skip the per-call `dotnet run` rebuild.
-
-**Easiest — `tools/graph.ps1 <subcommand> …`.** A thin wrapper that removes all the friction: it resolves the root
-automatically (works from the main checkout **or any git worktree**, where the gitignored `.product` graph/tree live
-only in the main checkout, so Glob/ripgrep won't list them and `graph … .` finds nothing), runs a fast published exe
-(`tools/publish-graph-cli.ps1` refreshes it into `tools/graph-cli/`), emits repo-relative paths, and flags any dumped
-source whose file differs in your working tree. It is exactly the CLI above with the main-repo root supplied for you —
-`tools/graph.ps1 search <term>`, `tools/graph.ps1 context <id>`, `tools/graph.ps1 build`, etc. For repo discovery you
-can also spawn the **`nexaflow-explorer`** sub-agent, which is hardwired to this wrapper.
+Node ids: `product:<slug>` · `code:<relpath>#<astpath>` · `file:<relpath>` · `external:<name>`. `graph`'s dumped
+source comes from the graphed (main-checkout) copy; `describe --code` prefers YOUR working tree. For repo discovery
+you can also spawn the **`nexaflow-explorer`** sub-agent, which drives this exe.
 
 The product-folder skill has fast-query recipes for deeper questions; the per-release export
 [docs/product/PRODUCT.md](docs/product/PRODUCT.md) is the human dashboard. Per-feature tab parameters are in

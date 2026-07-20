@@ -20,6 +20,7 @@ namespace Nexaflow.Services.Initiatives.Cli;
 internal static class Program
 {
     private const int Clean = 0, Broken = 1, Error = 2;
+    private const int WholeFilePreview = 40;   // describe --code: cap for a whole-file (no class/method) snaplink
 
     private static int Main(string[] args)
     {
@@ -30,6 +31,7 @@ internal static class Program
             "validate"    => Validate(args[1..]),
             "find"        => Find(args[1..]),
             "describe"    => Describe(args[1..]),
+            "diff"        => Diff(args[1..]),
             "remap"       => Remap(args[1..]),
             "scan-tests"  => ScanTests(args[1..]),
             "add-node"    => AddNode(args[1..]),
@@ -53,7 +55,8 @@ internal static class Program
             usage:
               nexaflow-initiatives validate   [<root>] [--json] [--save]
               nexaflow-initiatives find       <term> [<root>] [--json]
-              nexaflow-initiatives describe   <node-id> [<root>] [--json]
+              nexaflow-initiatives describe   <node-id> [<root>] [--json] [--code]
+              nexaflow-initiatives diff       [<root>] [--from <version>]
               nexaflow-initiatives remap      <old-path> <new-path> [<root>] [--class <name>] [--method <name>]
               nexaflow-initiatives scan-tests [<root>] [--test-dll <path>]... [--suggest-attributes]
               nexaflow-initiatives add-node   <parent-id> <title> [<root>] [--id <slug>] [--desc <text>] [--status <s>]
@@ -71,6 +74,12 @@ internal static class Program
                        done/faulted with nothing backing it. --save writes .product/integrity.json.
             find       Lists nodes whose id/title/description contains <term> — "where is feature X".
             describe   Prints one node: path, status, concerns, and its code/test/doc snaplinks.
+                       --code also resolves each code snaplink to its actual source block (the class/method
+                       via tree-sitter, or a whole-file preview), read from your working tree — so "show me
+                       the code behind this node" is one call; a link that no longer resolves prints why.
+            diff       What changed in the live tree since the last committed release snapshot
+                       (<export-dir>/<version>.json): nodes added/removed, node-status and concern-status
+                       changes. --from <version> diffs against a specific snapshot instead of the newest.
             remap      Rewrites snaplink doc paths from <old-path> to <new-path> (an exact file, or a
                        directory prefix) — the safe way to follow a rename/move — then re-validates.
                        --class/--method also set those on every affected link (single-file remaps).
@@ -110,9 +119,75 @@ internal static class Program
         return error is null ? Clean : Error;
     }
 
-    /// <summary>The first non-flag arg after those already consumed, or "." — the product root.</summary>
+    /// <summary>The product root from the first non-flag arg (or "."), resolved to where <c>.product/</c>
+    /// actually lives — see <see cref="ResolveProductRoot"/> (which follows a git worktree to its main checkout).</summary>
     private static string ResolveRoot(IEnumerable<string> args) =>
-        Path.GetFullPath(args.FirstOrDefault(a => !a.StartsWith('-')) ?? ".");
+        ResolveProductRoot(args.FirstOrDefault(a => !a.StartsWith('-')) ?? ".");
+
+    private static bool _rootNoteShown;
+
+    /// <summary>Resolves the directory that holds the (gitignored) <c>.product/</c> tree, so the CLI "just works"
+    /// from anywhere — including a git worktree, whose <c>.product/</c> lives only in the main checkout. Order:
+    /// the given path if it already has <c>.product/</c>; else, walking up to the enclosing git repo, the main
+    /// working tree it links to; else the given path unchanged (the caller then reports "no .product/"). This is
+    /// what lets you drop the trailing <c>&lt;root&gt;</c> and call the exe directly from any checkout or worktree.</summary>
+    private static string ResolveProductRoot(string candidate)
+    {
+        candidate = Path.GetFullPath(candidate);
+        if (ProductStore.Exists(candidate)) return candidate;
+        if (TryFindMainCheckout(candidate, out var main) && ProductStore.Exists(main))
+        {
+            if (!_rootNoteShown && !PathsEqual(main, candidate))
+            {
+                _rootNoteShown = true;
+                Console.Error.WriteLine($"note: using the .product/ tree in the main checkout {main} " +
+                    "(you're in a linked worktree — tree edits land there, and any dumped source is that copy).");
+            }
+            return main;
+        }
+        return candidate;
+    }
+
+    /// <summary>Walks up from <paramref name="start"/> to the enclosing git working tree and returns the MAIN
+    /// checkout: a <c>.git</c> directory marks the main tree itself; a <c>.git</c> file marks a linked worktree —
+    /// follow its <c>gitdir:</c> pointer to <c>&lt;main&gt;/.git/worktrees/&lt;name&gt;</c>, read its <c>commondir</c>
+    /// to reach the shared <c>&lt;main&gt;/.git</c>, whose parent is the main checkout. Pure file reads, no git process.</summary>
+    private static bool TryFindMainCheckout(string start, out string mainRoot)
+    {
+        mainRoot = "";
+        for (var dir = new DirectoryInfo(start); dir is not null; dir = dir.Parent)
+        {
+            var dotGit = Path.Combine(dir.FullName, ".git");
+            if (Directory.Exists(dotGit)) { mainRoot = dir.FullName; return true; }
+            if (!File.Exists(dotGit)) continue;
+
+            var gitdir = ReadGitdirPointer(dotGit, dir.FullName);
+            if (gitdir is null) return false;
+            var commonFile = Path.Combine(gitdir, "commondir");
+            var commonRel  = File.Exists(commonFile) ? File.ReadAllText(commonFile).Trim() : "../..";
+            var sharedGit  = Path.GetFullPath(Path.Combine(gitdir, commonRel));   // <main>/.git
+            mainRoot = Path.GetDirectoryName(sharedGit.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)) ?? "";
+            return mainRoot.Length > 0;
+        }
+        return false;
+    }
+
+    /// <summary>The absolute target of a linked-worktree <c>.git</c> file's <c>gitdir: &lt;path&gt;</c> line.</summary>
+    private static string? ReadGitdirPointer(string dotGitFile, string baseDir)
+    {
+        foreach (var line in File.ReadAllLines(dotGitFile))
+            if (line.StartsWith("gitdir:", StringComparison.Ordinal))
+            {
+                var p = line["gitdir:".Length..].Trim();
+                return Path.GetFullPath(Path.IsPathRooted(p) ? p : Path.Combine(baseDir, p));
+            }
+        return null;
+    }
+
+    private static bool PathsEqual(string a, string b) =>
+        string.Equals(a.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                      b.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                      StringComparison.OrdinalIgnoreCase);
 
     private static string? Option(string[] args, string name)
     {
@@ -124,7 +199,7 @@ internal static class Program
     {
         var json = args.Contains("--json");
         var save = args.Contains("--save");
-        var root = Path.GetFullPath(args.FirstOrDefault(a => !a.StartsWith("--")) ?? ".");
+        var root = ResolveProductRoot(args.FirstOrDefault(a => !a.StartsWith("--")) ?? ".");
 
         if (!Directory.Exists(root)) return Usage($"no such directory: {root}");
 
@@ -198,7 +273,7 @@ internal static class Program
         var json = args.Contains("--json");
         var wholeRepo = !args.Contains("--product-anchored");
         var incremental = !args.Contains("--no-incremental");
-        var root = Path.GetFullPath(args.FirstOrDefault(a => !a.StartsWith("--")) ?? ".");
+        var root = ResolveProductRoot(args.FirstOrDefault(a => !a.StartsWith("--")) ?? ".");
 
         if (!Directory.Exists(root)) return Usage($"no such directory: {root}");
         if (!ProductStore.Exists(root))
@@ -766,7 +841,8 @@ internal static class Program
         var id = args.FirstOrDefault(a => !a.StartsWith('-'));
         if (string.IsNullOrWhiteSpace(id)) return Usage("describe needs a <node-id>.");
         var rest = args.Where(a => a != id).ToArray();
-        if (!TryLoad(ResolveRoot(rest), out var state, out var code)) return code;
+        var root = ResolveRoot(rest);
+        if (!TryLoad(root, out var state, out var code)) return code;
 
         var d = ProductQuery.Describe(state, id);
         if (d is null) { Console.Error.WriteLine($"error: no node '{id}' (try: find)."); return Error; }
@@ -788,6 +864,178 @@ internal static class Program
                 Console.WriteLine($"  {g.Key,-6} {l.Display}");
         if (d.Children.Count > 0)
             Console.WriteLine("  children: " + string.Join(", ", d.Children.Select(c => c.Id)));
+
+        if (args.Contains("--code") && state.Nodes.TryGetValue(d.Id, out var raw))
+        {
+            // Resolve snaplink source from the CALLER's working tree first (so a worktree shows the code on
+            // the branch you're editing, incl. files not yet in the main checkout), then the product root.
+            var caller = WorkingTreeRootOf(Directory.GetCurrentDirectory());
+            var fileRoots = new[] { caller, root }.Where(r => r is { Length: > 0 }).Distinct().ToArray()!;
+            PrintResolvedCode(fileRoots!, raw);
+        }
+        return Clean;
+    }
+
+    /// <summary>The git working-tree root enclosing <paramref name="dir"/> — the directory that holds a <c>.git</c>
+    /// entry (a linked worktree's own root, or the main checkout), or null if not in a repo.</summary>
+    private static string? WorkingTreeRootOf(string dir)
+    {
+        for (var d = new DirectoryInfo(dir); d is not null; d = d.Parent)
+            if (Directory.Exists(Path.Combine(d.FullName, ".git")) || File.Exists(Path.Combine(d.FullName, ".git")))
+                return d.FullName;
+        return null;
+    }
+
+    // ── describe --code: resolve every code snaplink to the actual source, so "what backs this node" is
+    //    one call. A link that no longer resolves prints WHY — a targeted validate over just this node. ──
+
+    private static void PrintResolvedCode(string[] fileRoots, ProductNode node)
+    {
+        var links = new List<(string? Concern, Snaplink Link)>();
+        foreach (var l in node.Snaplinks ?? []) links.Add((null, l));
+        foreach (var c in node.Concerns ?? []) foreach (var l in c.Snaplinks ?? []) links.Add((c.Tag, l));
+        var code = links.Where(x => x.Link.Type == "code").ToList();
+
+        Console.WriteLine();
+        if (code.Count == 0) { Console.WriteLine("  --code: no code snaplinks on this node."); return; }
+
+        foreach (var (concern, link) in code)
+        {
+            var member = link.Class is { Length: > 0 } cls
+                ? $"  {cls}{(link.Method is { Length: > 0 } m ? "." + m : "")}"
+                : "";
+            Console.WriteLine($"  --- [{concern ?? "node"}] {link.Doc}{member} ---");
+            var (ok, header, body) = ResolveBlock(fileRoots, link);
+            Console.WriteLine(ok ? $"  {header}" : $"  !! {header}");
+            foreach (var line in body) Console.WriteLine(line);
+        }
+    }
+
+    /// <summary>Resolves one code snaplink to its actual source block (header + numbered lines), or a reason it
+    /// no longer resolves. The file is taken from the first of <paramref name="fileRoots"/> that has it (caller's
+    /// working tree first). Class/method are located via the same tree-sitter outline the validator checks
+    /// against, so "resolves here" and "passes validate" agree.</summary>
+    private static (bool Ok, string Header, IReadOnlyList<string> Body) ResolveBlock(string[] fileRoots, Snaplink link)
+    {
+        if (string.IsNullOrWhiteSpace(link.Doc)) return (false, "code snaplink has no doc path", []);
+        var full = Path.IsPathRooted(link.Doc) ? link.Doc
+            : fileRoots.Select(r => Path.Combine(r, link.Doc)).FirstOrDefault(File.Exists)
+              ?? Path.Combine(fileRoots.FirstOrDefault() ?? ".", link.Doc);
+        if (!File.Exists(full)) return (false, $"file not found: {link.Doc}", []);
+        var text = SnaplinkTargets.ReadText(full);
+        if (text is null) return (false, $"unreadable or too large: {link.Doc}", []);
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+
+        int s0, e0;
+        if (!string.IsNullOrWhiteSpace(link.Class) || !string.IsNullOrWhiteSpace(link.Method))
+        {
+            var outline = SnaplinkTargets.Outline(full, text, Path.GetDirectoryName(full));
+            if (outline is not { HasContent: true }) return (false, $"no tree-sitter structure for {link.Doc} (unverifiable)", []);
+            var line = ResolveMemberLine(outline, link.Class, link.Method);
+            if (line is null)
+            {
+                var what = link.Class is { Length: > 0 } c ? $"{c}{(link.Method is { Length: > 0 } mm ? "." + mm : "")}" : link.Method;
+                return (false, $"'{what}' not found in {link.Doc}", []);
+            }
+            s0 = line.Value - 1;
+            e0 = BlockEnd(lines, s0, 400);
+        }
+        else   // whole-file link — preview only; the member-scoped blocks are the point of --code
+        {
+            s0 = 0;
+            e0 = Math.Min(lines.Length - 1, WholeFilePreview - 1);
+        }
+
+        var body = new List<string>();
+        for (var i = Math.Max(0, s0); i <= e0 && i < lines.Length; i++) body.Add($"  {i + 1,5}  {lines[i]}");
+        var more = lines.Length - 1 - e0;
+        var header = link.Class is null && link.Method is null && more > 0
+            ? $"{link.Doc}:1-{e0 + 1}  (whole file — +{more} more lines: graph cat file:{link.Doc})"
+            : $"{link.Doc}:{s0 + 1}-{e0 + 1}";
+        return (true, header, body);
+    }
+
+    /// <summary>The declaration line of <paramref name="cls"/>.<paramref name="method"/> in an outline (the class
+    /// line when no method; the top-level function when no class), or null if it isn't declared.</summary>
+    private static int? ResolveMemberLine(CodeOutline outline, string? cls, string? method)
+    {
+        if (!string.IsNullOrWhiteSpace(cls))
+        {
+            var type = outline.Types.FirstOrDefault(t => t.Name == cls);
+            if (type is null) return null;
+            if (string.IsNullOrWhiteSpace(method)) return type.Line;
+            return outline.Types.Where(t => t.Name == cls)
+                .SelectMany(t => t.Members).FirstOrDefault(mem => mem.Name == method)?.Line;
+        }
+        return outline.TopLevel.FirstOrDefault(mem => mem.Name == method)?.Line;
+    }
+
+    // ── diff: what changed in the tree since the last committed release snapshot (docs/product/<ver>.json) ──
+
+    private static int Diff(string[] args)
+    {
+        var root = ResolveProductRoot(args.FirstOrDefault(a => !a.StartsWith("--")) ?? ".");
+        if (!TryLoad(root, out var state, out var code)) return code;
+
+        var exportDir = Path.Combine(root, state.Product.ExportDir);
+        if (!Directory.Exists(exportDir)) { Console.Error.WriteLine($"error: no export dir {state.Product.ExportDir} (nothing to diff against)."); return Error; }
+
+        var want = Option(args, "--from");
+        var snapshots = Directory.GetFiles(exportDir, "*.json").OrderBy(p => p, StringComparer.Ordinal).ToList();
+        var file = want is not null
+            ? snapshots.FirstOrDefault(p => Path.GetFileNameWithoutExtension(p).Contains(want, StringComparison.OrdinalIgnoreCase))
+            : snapshots.LastOrDefault();
+        if (file is null) { Console.Error.WriteLine($"error: no release snapshot{(want is null ? "" : $" matching '{want}'")} under {state.Product.ExportDir}."); return Error; }
+
+        ProductSnapshot? snap;
+        try { snap = JsonSerializer.Deserialize<ProductSnapshot>(File.ReadAllText(file), ProductJson.Options); }
+        catch (Exception ex) { Console.Error.WriteLine($"error: can't read {Path.GetFileName(file)}: {ex.Message}"); return Error; }
+        if (snap is null) { Console.Error.WriteLine($"error: empty snapshot {Path.GetFileName(file)}."); return Error; }
+
+        var old = snap.Nodes;
+        var cur = state.Nodes;
+        static string S(Status s) => s.ToString().ToLowerInvariant();
+
+        Console.WriteLine($"diff: {snap.Version} ({snap.Date}) -> current tree   [{cur.Count} nodes vs {old.Count}]");
+
+        var added   = cur.Keys.Where(k => !old.ContainsKey(k)).OrderBy(k => k, StringComparer.Ordinal).ToList();
+        var removed = old.Keys.Where(k => !cur.ContainsKey(k)).OrderBy(k => k, StringComparer.Ordinal).ToList();
+
+        if (added.Count > 0)
+        {
+            Console.WriteLine($"\nADDED since {snap.Version} ({added.Count}):");
+            foreach (var k in added) Console.WriteLine($"  + {k}  [{S(cur[k].Status)}]  {cur[k].Title}");
+        }
+        if (removed.Count > 0)
+        {
+            Console.WriteLine($"\nREMOVED since {snap.Version} ({removed.Count}):");
+            foreach (var k in removed) Console.WriteLine($"  - {k}  {old[k].Title}");
+        }
+
+        var statusChanges = new List<string>();
+        var concernChanges = new List<string>();
+        foreach (var k in cur.Keys.Where(old.ContainsKey).OrderBy(k => k, StringComparer.Ordinal))
+        {
+            var (o, n) = (old[k], cur[k]);
+            if (o.Status != n.Status) statusChanges.Add($"  ~ {k}: {S(o.Status)} -> {S(n.Status)}");
+
+            var oc = (o.Concerns ?? []).ToDictionary(c => c.Tag, c => c.Status);
+            var nc = (n.Concerns ?? []).ToDictionary(c => c.Tag, c => c.Status);
+            foreach (var tag in oc.Keys.Union(nc.Keys).OrderBy(t => t, StringComparer.Ordinal))
+            {
+                var had = oc.TryGetValue(tag, out var os);
+                var has = nc.TryGetValue(tag, out var ns);
+                if (had && has && os != ns) concernChanges.Add($"  ~ {k} [{tag}]: {S(os)} -> {S(ns)}");
+                else if (!had && has)       concernChanges.Add($"  + {k} [{tag}]: {S(ns)} (new concern)");
+                else if (had && !has)       concernChanges.Add($"  - {k} [{tag}]: was {S(os)} (concern removed)");
+            }
+        }
+
+        if (statusChanges.Count > 0)  { Console.WriteLine($"\nNODE STATUS CHANGES ({statusChanges.Count}):");  statusChanges.ForEach(Console.WriteLine); }
+        if (concernChanges.Count > 0) { Console.WriteLine($"\nCONCERN CHANGES ({concernChanges.Count}):"); concernChanges.ForEach(Console.WriteLine); }
+
+        if (added.Count + removed.Count + statusChanges.Count + concernChanges.Count == 0)
+            Console.WriteLine("  (identical — the tree matches the release snapshot.)");
         return Clean;
     }
 
