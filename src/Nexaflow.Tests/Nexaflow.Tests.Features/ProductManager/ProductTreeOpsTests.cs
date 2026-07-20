@@ -284,6 +284,24 @@ public class ProductTreeOpsTests
 
     [TestMethod]
     [CoversNode("data-model")]
+    public void RemoveConcern_DropsLink_AndNullsEmptyList()
+    {
+        var s = new ProductState { Nodes = new() { ["n"] = new ProductNode { Title = "n" } } };
+        ProductTreeOps.SetConcern(s, "n", "tests", Status.Should);
+        ProductTreeOps.SetConcern(s, "n", "AI Ready", Status.Should);
+
+        Assert.IsTrue(ProductTreeOps.RemoveConcern(s, "n", "AI Ready"));
+        Assert.IsFalse(s.Nodes["n"].Concerns!.Any(c => c.Tag == "AI Ready"));
+        Assert.IsTrue(s.Nodes["n"].Concerns!.Any(c => c.Tag == "tests"), "the other concern is untouched");
+
+        Assert.IsTrue(ProductTreeOps.RemoveConcern(s, "n", "tests"));
+        Assert.IsNull(s.Nodes["n"].Concerns, "the list is nulled once its last concern goes");
+
+        Assert.IsFalse(ProductTreeOps.RemoveConcern(s, "n", "tests"), "no concern left to remove");
+    }
+
+    [TestMethod]
+    [CoversNode("data-model")]
     public void AddSnaplink_ToNode_AndToConcern()
     {
         var s = new ProductState { Nodes = new() { ["n"] = new ProductNode { Title = "n" } } };

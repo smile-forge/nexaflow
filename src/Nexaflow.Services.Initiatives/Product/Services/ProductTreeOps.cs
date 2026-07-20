@@ -143,6 +143,16 @@ public static class ProductTreeOps
         return true;
     }
 
+    /// <summary>Removes this node's link to concern <paramref name="tag"/> (and any snaplinks on it). Returns
+    /// false when the node has no such concern; nulls the concern list once its last entry is gone.</summary>
+    public static bool RemoveConcern(ProductState s, string id, string tag)
+    {
+        if (!s.Nodes.TryGetValue(id, out var node) || node.Concerns is null) return false;
+        var removed = node.Concerns.RemoveAll(c => c.Tag == tag) > 0;
+        if (node.Concerns.Count == 0) node.Concerns = null;
+        return removed;
+    }
+
     /// <summary>Attaches <paramref name="link"/> to the node itself, or — when <paramref name="concernTag"/>
     /// is given — to that concern's link. Returns false if the node (or the named concern) doesn't exist.</summary>
     public static bool AddSnaplink(ProductState s, string id, Snaplink link, string? concernTag = null)
