@@ -178,8 +178,37 @@ carries **no** matching `[CoversNode]` for the leaf is drift. This keeps the two
 - a `[CoversNode]` on a `panel`-kind node from a *unit* (non-UI) test is suspicious — panels are journey-
   covered — warn.
 
+### Cross-checks against the code (the higher-value drift catchers)
+(a)–(e) keep the tree *self*-consistent. These two instead assert the tree/tests still match the **real code**
+— which is where drift actually happens (a control or tool added and the tree/tests never updated).
+
+**(f) UI AutomationId guard — presence + coverage.** Two source scans over the feature `Views/*.xaml`
+(RepoRoot + `XDocument`; no tree needed, so runs in full CI):
+- every command-bound `Button`/`ToggleButton` outside a Style/Template carries an
+  `AutomationProperties.AutomationId` — a UI test can only reach a control by its id;
+- every `AutomationId` declared in a view is referenced by ≥1 test source — an automation hook shouldn't be
+  added and then left unexercised.
+It's a heuristic (XAML-as-XML can't see controls built in code-behind), so keep an allowlist. **A prototype
+found ~90 command-buttons with no id and ~40 unreferenced ids across the codebase**, so introduce it as a
+**burn-down**: baseline the current set in a committed file, gate only *new* violations, and delete a line as
+each is fixed (the `KnownNullScope` pattern). Best landed once more features naturally comply, so the baseline
+starts small.
+
+**(g) AI-tool ↔ act-node cross-check.** Per feature, the set of names from `GetClientTools()` must equal the
+titles of the `<feature>-ai-act-*` leaves — catching a tool added / renamed / removed in code with no matching
+tree leaf, and stale leaves. The robust form has to *call* `GetClientTools()` (an instance), so:
+- **(i) a shared assert helper each feature's AI test calls** with its already-constructed VM and the act-node
+  id — tree-backed, degrades when the tree is absent (CI). Cheapest, because the AI tests already build the VM
+  and several already pin the tool set with an "update the tree to match" comment; this just *enforces* it.
+- **(ii) a central guard** that constructs each tool-bearing page VM generically (interface deps mocked, a temp
+  file for path params) and cross-checks — no per-test wiring, but fragile for VMs with awkward ctors.
+- (A pure source-scan for tool-name string literals avoids construction but is heuristic — tool names also live
+  in separate `IClientTool` classes, e.g. the git/font tools.)
+Recommend **(i)**.
+
 **Recommended order:** (a) now (free), then (b) `kind`, then (c) the structure rules and (d) the cross-check
-on top of it, and (e) if per-test author-time nudges prove worth the analyzer.
+on top of it; (f) and (g) as the code-drift catchers (introduce (f) as a burn-down); (e) last, if the
+author-time nudges prove worth an analyzer.
 
 ---
 
