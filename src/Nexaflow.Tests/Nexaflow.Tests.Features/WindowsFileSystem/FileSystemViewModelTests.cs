@@ -112,6 +112,7 @@ public class FileSystemViewModelTests
     // ── IPageViewModel – GetContext ────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("win-file-system-ai-context")]
     public void GetContext_ThisPcMode_MentionsDrives()
     {
         var vm = ThisPc();

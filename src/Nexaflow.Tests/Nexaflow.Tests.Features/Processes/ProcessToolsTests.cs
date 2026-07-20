@@ -38,6 +38,24 @@ public class ProcessToolsTests
     }
 
     [TestMethod]
+    [CoversNode("processes-ai-context")]
+    public void GetContext_GatedUntilData_ThenSummarisesProcesses()
+    {
+        var (vm, _) = NewVm();
+        using (vm)
+        {
+            Assert.IsFalse(vm.IsContextReady, "context is gated until the first snapshot arrives");
+
+            vm.ApplySnapshot(Snap((1, 0, "a.exe"), (2, 0, "b.exe")));
+
+            Assert.IsTrue(vm.IsContextReady);
+            var ctx = vm.GetContext();
+            StringAssert.Contains(ctx, "2 processes");
+            StringAssert.Contains(ctx, Environment.MachineName);
+        }
+    }
+
+    [TestMethod]
     public async Task ListProcesses_ListsNames()
     {
         var (vm, _) = NewVm();

@@ -59,7 +59,7 @@ public class Model3DViewModelTests
     }
 
     [TestMethod]
-    [CoversNode("model3d-ai-act")]
+    [CoversNode("model3d-ai-context")]
     public void GetContext_GatedUntilLoaded()
     {
         var vm = Make();
