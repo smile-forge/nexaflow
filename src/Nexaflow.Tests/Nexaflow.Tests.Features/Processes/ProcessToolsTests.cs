@@ -38,6 +38,24 @@ public class ProcessToolsTests
     }
 
     [TestMethod]
+    [CoversNode("processes-ai-context")]
+    public void GetContext_GatedUntilData_ThenSummarisesProcesses()
+    {
+        var (vm, _) = NewVm();
+        using (vm)
+        {
+            Assert.IsFalse(vm.IsContextReady, "context is gated until the first snapshot arrives");
+
+            vm.ApplySnapshot(Snap((1, 0, "a.exe"), (2, 0, "b.exe")));
+
+            Assert.IsTrue(vm.IsContextReady);
+            var ctx = vm.GetContext();
+            StringAssert.Contains(ctx, "2 processes");
+            StringAssert.Contains(ctx, Environment.MachineName);
+        }
+    }
+
+    [TestMethod]
     public async Task ListProcesses_ListsNames()
     {
         var (vm, _) = NewVm();
@@ -97,6 +115,44 @@ public class ProcessToolsTests
                 .InvokeAsync(new JsonObject { ["process"] = "a.exe" }, CancellationToken.None);
             Assert.IsTrue(res.Success);
             StringAssert.Contains(res.ModelText, "App A");
+        }
+    }
+
+    [TestMethod]
+    [CoversNode("processes-ai-act-get-process-modules")]
+    public async Task GetModules_KnownProcess_NamesModules()
+    {
+        var (vm, src) = NewVm();
+        using (vm)
+        {
+            vm.ApplySnapshot(Snap((1, 0, "a.exe")));
+            src.DetailFunc = pid => new ProcessDetail
+            {
+                Pid = pid, Name = "a.exe",
+                Modules =
+                [
+                    new ModuleInfo { Name = "kernel32.dll", Path = @"C:\Windows\System32\kernel32.dll", Version = "10.0", Size = 1024 },
+                    new ModuleInfo { Name = "a.exe", Path = @"C:\Apps\a.exe", Version = "1.2", Size = 4096 },
+                ],
+            };
+            var res = await Tool(vm, "get_process_modules")
+                .InvokeAsync(new JsonObject { ["process"] = "a.exe" }, CancellationToken.None);
+            Assert.IsTrue(res.Success);
+            StringAssert.Contains(res.ModelText, "kernel32.dll");
+        }
+    }
+
+    [TestMethod]
+    [CoversNode("processes-ai-act-get-process-modules")]
+    public async Task GetModules_UnknownProcess_IsError()
+    {
+        var (vm, _) = NewVm();
+        using (vm)
+        {
+            vm.ApplySnapshot(Snap((1, 0, "a.exe")));
+            var res = await Tool(vm, "get_process_modules")
+                .InvokeAsync(new JsonObject { ["process"] = "nope" }, CancellationToken.None);
+            Assert.IsTrue(res.IsError);
         }
     }
 

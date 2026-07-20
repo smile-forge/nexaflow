@@ -107,6 +107,48 @@ public class ProductTreeOpsTests
         Assert.IsFalse(ProductTreeOps.Reparent(s, "a1", "a"));    // already a child of a
     }
 
+    // ── Remove ──────────────────────────────────────────────────────────────
+    [TestMethod]
+    [CoversNode("product-restructure")]
+    public void Remove_Leaf_UnlistsFromParentAndDeletes()
+    {
+        var s = Sample();
+        var removed = ProductTreeOps.Remove(s, "a1", recursive: false);
+
+        CollectionAssert.AreEqual(new[] { "a1" }, removed);
+        Assert.IsFalse(s.Nodes.ContainsKey("a1"));
+        CollectionAssert.DoesNotContain(s.Nodes["a"].Children, "a1");
+        Assert.IsTrue(s.Nodes.ContainsKey("a2"), "a sibling is untouched");
+    }
+
+    [TestMethod]
+    [CoversNode("product-restructure")]
+    public void Remove_RejectsNodeWithChildren_WithoutRecursive()
+    {
+        var s = Sample();
+        Assert.IsNull(ProductTreeOps.Remove(s, "a", recursive: false));
+        Assert.IsTrue(s.Nodes.ContainsKey("a"), "nothing deleted when the guard trips");
+    }
+
+    [TestMethod]
+    [CoversNode("product-restructure")]
+    public void Remove_Recursive_DeletesWholeSubtree()
+    {
+        var s = Sample();
+        var removed = ProductTreeOps.Remove(s, "a", recursive: true);
+
+        CollectionAssert.AreEquivalent(new[] { "a", "a1", "a2" }, removed);
+        Assert.IsFalse(s.Nodes.ContainsKey("a"));
+        Assert.IsFalse(s.Nodes.ContainsKey("a1"));
+        Assert.IsFalse(s.Nodes.ContainsKey("a2"));
+        CollectionAssert.DoesNotContain(s.Nodes["root"].Children, "a");
+    }
+
+    [TestMethod]
+    [CoversNode("product-restructure")]
+    public void Remove_MissingNode_ReturnsNull()
+        => Assert.IsNull(ProductTreeOps.Remove(Sample(), "nope", recursive: true));
+
     // ── Cascade status (sunburst "Status: …" menu) ──────────────────────────
     [TestMethod]
     [CoversNode("product-node-menu")]
@@ -238,6 +280,53 @@ public class ProductTreeOpsTests
         Assert.AreEqual(1, s.Nodes["n"].Concerns!.Count(c => c.Tag == "tests"));   // updated in place
 
         Assert.IsFalse(ProductTreeOps.SetConcern(s, "missing", "tests", Status.Done));
+    }
+
+    [TestMethod]
+    [CoversNode("data-model")]
+    public void RemoveConcern_DropsLink_AndNullsEmptyList()
+    {
+        var s = new ProductState { Nodes = new() { ["n"] = new ProductNode { Title = "n" } } };
+        ProductTreeOps.SetConcern(s, "n", "tests", Status.Should);
+        ProductTreeOps.SetConcern(s, "n", "AI Ready", Status.Should);
+
+        Assert.IsTrue(ProductTreeOps.RemoveConcern(s, "n", "AI Ready"));
+        Assert.IsFalse(s.Nodes["n"].Concerns!.Any(c => c.Tag == "AI Ready"));
+        Assert.IsTrue(s.Nodes["n"].Concerns!.Any(c => c.Tag == "tests"), "the other concern is untouched");
+
+        Assert.IsTrue(ProductTreeOps.RemoveConcern(s, "n", "tests"));
+        Assert.IsNull(s.Nodes["n"].Concerns, "the list is nulled once its last concern goes");
+
+        Assert.IsFalse(ProductTreeOps.RemoveConcern(s, "n", "tests"), "no concern left to remove");
+    }
+
+    [TestMethod]
+    [CoversNode("data-model")]
+    public void RemoveSnaplink_ByIndex_ThenClearAll()
+    {
+        var s = new ProductState
+        {
+            Nodes = new()
+            {
+                ["n"] = new ProductNode
+                {
+                    Title = "n",
+                    Concerns = [new ConcernLink { Tag = "tests", Snaplinks =
+                    [
+                        new Snaplink { Type = "code", Doc = "A.cs", Class = "A" },
+                        new Snaplink { Type = "code", Doc = "B.cs", Class = "B" },
+                    ] }]
+                }
+            }
+        };
+
+        Assert.AreEqual(1, ProductTreeOps.RemoveSnaplink(s, "n", "tests", index: 0));
+        Assert.AreEqual("B.cs", s.Nodes["n"].Concerns!.Single().Snaplinks!.Single().Doc);
+
+        Assert.AreEqual(0, ProductTreeOps.RemoveSnaplink(s, "n", "tests", index: 9), "out-of-range removes nothing");
+
+        Assert.AreEqual(1, ProductTreeOps.RemoveSnaplink(s, "n", "tests"), "clears the rest");
+        Assert.AreEqual(0, s.Nodes["n"].Concerns!.Single().Snaplinks!.Count);
     }
 
     [TestMethod]

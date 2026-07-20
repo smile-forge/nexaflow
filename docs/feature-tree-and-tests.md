@@ -1,0 +1,228 @@
+# Modelling a feature in the product tree (and testing it)
+
+This is the template for representing a feature as product-tree nodes and backing each node with the
+*right kind* of test, so the tree stays an honest, mechanically-checkable map of **what exists** and **what's
+tested**. It was distilled from the **Text Viewer** gold-standard pass (2026-07) and is meant to be applied to
+every feature.
+
+Related: the tree/CLI mechanics live in the [product-folder skill](../.claude/skills/product-folder/SKILL.md)
+and [CLAUDE.md → product tree]; testing conventions in [testing.md](testing.md); the AI-page contract in
+[features.md](features.md); theming in [theming.md](theming.md).
+
+> The `.product/` tree is gitignored working state (the app live-reloads it). Edit it **only through the
+> `nexaflow-initiatives` CLI**, never by hand — see *The CLI* below.
+
+---
+
+## 1. The shape of a feature subtree
+
+Each feature root lives under `Features` and has (up to) three children — **UI**, **Functionality**,
+**AI Integration** — so the three concerns never mix:
+
+```
+<feature>                         (feature root — carries the "AI Ready" maturity verdict)
+├─ UI                             everything the user sees or touches
+│  ├─ <Panel>                     first layer = panels: a distinct visual region / surface
+│  │  ├─ <Control>                leaf: one node per button / toggle / input / display
+│  │  └─ <State group>            a logical grouping of controls that share a state (e.g. Edit_mode)
+│  │     └─ <Control> …
+│  ├─ <Panel (state-governed)>    a panel may be gated by a state (Search Bar ← IsSearchActive) — still a panel
+│  └─ …
+├─ Functionality                  behaviours the feature performs that are NOT a UI control or an AI tool
+│  ├─ <Behaviour>                  the "steps of a use-case": search engine, windowing, encoding-detect,
+│  └─ …                            file-monitoring, confined-window editing, file-splitting, …
+└─ <feature>-ai                   AI Integration
+   ├─ <feature>-ai-context        get_context honesty
+   ├─ <feature>-ai-act            client tools — ONE leaf per tool (<…>-ai-act-<tool>)
+   └─ <feature>-ai-preview        IContextPreview
+```
+
+**Panel vs. state node** — the one subtlety:
+- A **panel** is a distinct visual surface (the toolbar, the editor, the status bar, a pop-over like the
+  search bar or split panel). It is a first-layer child of `UI`. It gets a `theming` concern.
+- A **state node** is a *logical grouping* of controls that only appear in a state, but which share the
+  parent panel's surface (e.g. `Edit_mode` groups Save / Cut / Paste / the "Editing" button, all living inside
+  the toolbar). It has **no concerns** — it's pure structure.
+- Split a control into two nodes when the same widget presents as two things to the user in two states — e.g.
+  the editing toggle is an **Edit** button (read-only state) and a separate **Editing** button (edit state);
+  "it's one ToggleButton" is an implementation detail.
+
+**Granularity:** a node for every button and every display control. Split a group (cut/copy/paste) into
+separate leaves when their **test states differ** (copy works read-only; cut/paste are edit-only), because each
+is tested separately.
+
+---
+
+## 2. Concerns, by role
+
+The concern vocabulary is fixed in `product.json` (`theming`, `tests`, `docs`, `i18n`, `AI Ready`,
+`Expanded`). Which concerns a node *should* carry depends on its role:
+
+| Role | `theming` | `tests` | `AI Ready` | notes |
+|------|:---:|:---:|:---:|-------|
+| **Feature root** | ✔ | (derived) | ✔ (only here) | `AI Ready` is the human maturity verdict; it lives **only** on the feature root and nowhere below. |
+| **Panel** | ✔ | — | — | theming, **no tests** — the one UI journey (below) covers the integrated interaction. |
+| **State node** | — | — | — | no concerns; pure grouping. |
+| **Leaf control** | ✔ | ✔ | — | theming + tests. |
+| **Functionality behaviour** | (if it renders) | ✔ | — | tests; most add `theming` only if they own a visual. |
+| **AI act leaf** | — | ✔ | — | tests → the tool's test; may carry `Expanded` if the tool exceeds what the user can do. |
+
+`theming`, `tests` are `is_default` (auto-attach to new nodes as `should`). `AI Ready` is **not** default (so
+`add-node` no longer sprays it onto leaves). If a concern auto-attaches where it doesn't belong, strip it with
+`remove-concern`.
+
+---
+
+## 3. The testing model
+
+Two tiers, matching the two node roles:
+
+1. **One UI journey per feature**, tagged `[CoversNode("<the feature's UI node>")]`. It launches the app once
+   (amortising the ~20 s start) and drives the interactive controls in a single pass — the *integration* test
+   at the UI level. See `TextJourneyTests` and `UiJourneyTestBase` (soft `CheckPresent`/`CheckInvoke`/`Check`
+   so one broken control doesn't hide the rest). Interactive-desktop only (`TestCategory=UI`).
+2. **One unit test per leaf control**, tagged `[CoversNode("<leaf-id>")]`, driving the **view-model** command
+   or state behind the control (NOT a UI test). One method may cover several leaves — tag each. This is where
+   the real per-control assertions live; the journey just proves the wiring holds end-to-end.
+
+**Functionality** behaviours are VM unit tests too — everything under `Functionality` should be unit-testable,
+or explicitly declared `shouldnt`.
+
+**When a node genuinely can't be unit-tested → `tests=shouldnt` + a `note` saying why and who covers it.**
+Recurring cases:
+- **WPF `ApplicationCommands` forwarders** (cut/copy/paste, a right-click menu) — need a *focused* control;
+  no VM state to assert. Covered by the UI journey's presence check.
+- **Passive displays** with no distinct VM behaviour.
+- **Live-pipeline / STA-render tools** — WebView2 capture/scroll, `PngBitmapEncoder`/`RenderTargetBitmap`
+  image capture, a live media/3D viewport, a live PTY/`cmd.exe`. Test the graceful *no-surface* error path if
+  there is one; declare the real behaviour `shouldnt`.
+
+Don't loop trying to test the genuinely-hard ones — mark `shouldnt` + note and move on.
+
+---
+
+## 4. Snaplink discipline
+
+- A leaf's `tests` concern, once `done`, **snaplinks to the test that covers it** — point it at the **unit
+  test**, not the journey. The `ui` node's `tests` snaplink → the **journey**. Panels/state nodes have no
+  `tests` concern, so no snaplink.
+- Keep the tree snaplink and the test's `[CoversNode]` **in agreement** (same `Class.Method`). They're two
+  channels for the same fact; drift between them is a smell (§6 proposes making it gating).
+- Snaplinks are forward-looking: a `done` snaplink may point at a not-yet-merged test file. That's fine — the
+  broken-link check only gates the **release/setup build**, never a plain `dotnet build`, and it resolves on
+  merge.
+
+---
+
+## 5. The CLI (edit the tree only through it)
+
+`nexaflow-initiatives.exe` self-locates the `.product` tree (follows a git worktree to its main checkout), so
+run it from anywhere with no root arg. Build once and call the exe directly, or use the prebuilt
+`tools/graph-cli/` copy.
+
+- **Discover:** `find`, `describe`, `describe <id> --code` (resolves each snaplink to its real source),
+  `diff` (what changed since the last release snapshot), `graph …` (code/AST discovery).
+- **Edit (one node):** `add-node`, `move <id> <new-parent>`, `remove <id> [--recursive]`, `set-status`,
+  `set-concern`, `remove-concern`, `add-snaplink`, `remove-snaplink`, `set-node`.
+- **Bulk / integrity:** `batch <file>` (transactional; `--dry-run` first), `doctor [--fix]`, `validate`.
+
+**Workflow for a restructure:** generate a `.batch` file (one instruction per line — the standalone verbs
+minus `<root>`; `#` comments; `"quote"` spaces), `batch … --dry-run`, apply, then `doctor` + `validate`.
+Prefer generating the batch with a script over hand-writing dozens of lines.
+
+---
+
+## 6. Locking it down — what enforces the model
+
+### Already enforced
+- **`SnaplinkValidator`** (Integrity page + setup-build gate): every snaplink resolves (file/heading/class/
+  method exists); a `requires_snaplink` concern that's `done`/`faulted` with no snaplink is gating.
+- **NXCOV analyzer** (NXCOV001 missing / NXCOV002 stale id / NXCOV003 class-level over-claim) +
+  **`CoverageDeclarationGuardTests`**: `[CoversNode]` declarations are present, valid, and don't over-claim.
+- **`AiSurfaceRulesTests`** (`KnownNullScope`): a tool-bearing page must return a distinct
+  `GetSecurityContext()`.
+- **`FeatureTouchPointTests`** / architecture rules: add-a-feature wiring, reference/dispatcher rules.
+
+### The gap
+The **role-based rules in §2–§4 are conventions, not checks.** Nothing stops a future feature from giving a
+panel a `tests` concern, sticking `AI Ready` on a leaf, marking a leaf `done` with no test, or letting the
+snaplink and the `[CoversNode]` drift apart. Proposals to close it, cheapest first:
+
+**(a) Turn on `requires_snaplink` for `tests`.** One flag in `product.json`. Instantly makes "a `done`/
+`faulted` `tests` concern must name its test" a gating rule (it's off today). Zero new code; run `validate`
+first to see what it surfaces.
+
+**(b) Add an explicit node `kind` — the enabling change for everything else.** Add `kind` to `ProductNode`
+(`feature | panel | control | state | behaviour | ai-context | ai-act | container`), set via
+`add-node --kind …`. Roles are currently *inferred* from position ("child of a UI node = panel", "no children
+= leaf"), which is brittle. An explicit `kind` makes the rules below robust and self-documenting. (Store it as
+a field, or — lower-friction — as a reserved concern/tag.)
+
+**(c) A `StructureValidator` in the release-gate path** (alongside `SnaplinkValidator`; degrade to
+presence-only when the tree is absent in CI). Gating rules, keyed on `kind`:
+- `AI Ready` only on a `feature` node.
+- a `panel` has `theming`, has no `tests`; a `state` node has no concerns; a `control`/`behaviour`/`ai-act`
+  leaf has a `tests` concern.
+- every feature has the backbone (a UI + Functionality + AI Integration; AI Integration has
+  context/act/preview) — a *template conformance* check per feature root.
+- a leaf under UI/Functionality is a real leaf (no empty container pretending to be one).
+
+**(d) Snaplink ↔ `[CoversNode]` cross-check, made gating.** Today "declared-but-unlinked" is a non-gating
+advisory. Add the reverse and gate it: a leaf whose `tests` snaplink names `Class.Method` where that method
+carries **no** matching `[CoversNode]` for the leaf is drift. This keeps the two channels locked together (and
+`scan-tests` already reflects the manifest needed to check it).
+
+**(e) A Roslyn analyzer for the test side (author-time):**
+- a test method that launches the app (derives from `UiJourneyTestBase`) should `[CoversNode]` a `ui`-kind
+  node — warn otherwise (enforces "one journey, at the UI node").
+- a `[CoversNode]` on a `panel`-kind node from a *unit* (non-UI) test is suspicious — panels are journey-
+  covered — warn.
+
+### Cross-checks against the code (the higher-value drift catchers)
+(a)–(e) keep the tree *self*-consistent. These two instead assert the tree/tests still match the **real code**
+— which is where drift actually happens (a control or tool added and the tree/tests never updated).
+
+**(f) UI AutomationId guard — presence + coverage.** Two source scans over the feature `Views/*.xaml`
+(RepoRoot + `XDocument`; no tree needed, so runs in full CI):
+- every command-bound `Button`/`ToggleButton` outside a Style/Template carries an
+  `AutomationProperties.AutomationId` — a UI test can only reach a control by its id;
+- every `AutomationId` declared in a view is referenced by ≥1 test source — an automation hook shouldn't be
+  added and then left unexercised.
+It's a heuristic (XAML-as-XML can't see controls built in code-behind), so keep an allowlist. **A prototype
+found ~90 command-buttons with no id and ~40 unreferenced ids across the codebase**, so introduce it as a
+**burn-down**: baseline the current set in a committed file, gate only *new* violations, and delete a line as
+each is fixed (the `KnownNullScope` pattern). Best landed once more features naturally comply, so the baseline
+starts small.
+
+**(g) AI-tool ↔ act-node cross-check.** Per feature, the set of names from `GetClientTools()` must equal the
+titles of the `<feature>-ai-act-*` leaves — catching a tool added / renamed / removed in code with no matching
+tree leaf, and stale leaves. The robust form has to *call* `GetClientTools()` (an instance), so:
+- **(i) a shared assert helper each feature's AI test calls** with its already-constructed VM and the act-node
+  id — tree-backed, degrades when the tree is absent (CI). Cheapest, because the AI tests already build the VM
+  and several already pin the tool set with an "update the tree to match" comment; this just *enforces* it.
+- **(ii) a central guard** that constructs each tool-bearing page VM generically (interface deps mocked, a temp
+  file for path params) and cross-checks — no per-test wiring, but fragile for VMs with awkward ctors.
+- (A pure source-scan for tool-name string literals avoids construction but is heuristic — tool names also live
+  in separate `IClientTool` classes, e.g. the git/font tools.)
+Recommend **(i)**.
+
+**Recommended order:** (a) now (free), then (b) `kind`, then (c) the structure rules and (d) the cross-check
+on top of it; (f) and (g) as the code-drift catchers (introduce (f) as a burn-down); (e) last, if the
+author-time nudges prove worth an analyzer.
+
+---
+
+## 7. New-feature checklist
+
+1. `add-node` the backbone: `UI`, `Functionality`, `<feature>-ai` (+ `-ai-context` / `-ai-act` / `-ai-preview`).
+2. Read the view. `add-node` a **panel** per visual region; a **control** leaf per button/display; a **state**
+   node for a state-gated group of controls.
+3. `add-node` the **Functionality** behaviours (the non-UI / non-AI logic).
+4. Set concerns by role (§2): panels `theming`; leaves `theming`+`tests`; state nodes none; `AI Ready` only on
+   the feature root. `remove-concern` anything that auto-attached wrongly.
+5. Write the **one UI journey** (`[CoversNode("<ui>")]`) + **a unit test per leaf/behaviour**
+   (`[CoversNode("<leaf>")]`); `shouldnt` + note the genuinely-untestable ones.
+6. Snaplink each `done` leaf → its **unit** test; `ui` → the **journey**.
+7. `doctor` + `validate`; build + run the feature's unit tests (and the UI journey on a desktop).
+
+The Text Viewer subtree is the worked reference for every step above.

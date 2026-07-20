@@ -20,6 +20,7 @@ public class TextViewModelCommandTests
 
     [TestMethod]
     [CoversNode("text-viewer-split")]
+    [CoversNode("text-viewer-split-close")]
     public void ToggleSplitPanel_FlipsOpenState()
     {
         using var vm = Make();
@@ -28,12 +29,14 @@ public class TextViewModelCommandTests
         vm.ToggleSplitPanelCommand.Execute(null);
         Assert.IsTrue(vm.IsSplitPanelOpen);
 
-        vm.ToggleSplitPanelCommand.Execute(null);
+        vm.ToggleSplitPanelCommand.Execute(null);   // the same toggle closes the panel
         Assert.IsFalse(vm.IsSplitPanelOpen);
     }
 
     [TestMethod]
     [CoversNode("text-viewer-split")]
+    [CoversNode("text-viewer-split-mode")]
+    [CoversNode("text-viewer-split-value")]
     public void SelectedSplitMode_ByLineCount_SetsLineHintAndDefault()
     {
         using var vm = Make();
@@ -47,6 +50,8 @@ public class TextViewModelCommandTests
 
     [TestMethod]
     [CoversNode("text-viewer-split")]
+    [CoversNode("text-viewer-split-mode")]
+    [CoversNode("text-viewer-split-value")]
     public void SelectedSplitMode_BySize_SetsMegabyteHintAndDefault()
     {
         using var vm = Make();
@@ -60,6 +65,8 @@ public class TextViewModelCommandTests
 
     [TestMethod]
     [CoversNode("text-viewer-split")]
+    [CoversNode("text-viewer-split-mode")]
+    [CoversNode("text-viewer-split-value")]
     public void SelectedSplitMode_ByRegex_SetsRegexHintAndDefault()
     {
         using var vm = Make();
@@ -69,6 +76,21 @@ public class TextViewModelCommandTests
 
         Assert.AreEqual("Regex — new file at each match", vm.SplitValueHint);
         Assert.AreEqual("^", vm.SplitValue);
+    }
+
+    [TestMethod]
+    [CoversNode("text-viewer-editing-toggle")]
+    [CoversNode("editing")]
+    public void ToggleEditing_EntersThenExitsEditMode()
+    {
+        using var vm = Make();   // a small (non-large) path → CanEdit is true, no confirm needed to exit
+        Assert.IsFalse(vm.IsEditing);
+
+        vm.ToggleEditingCommand.Execute(null);
+        Assert.IsTrue(vm.IsEditing, "first toggle switches the 'Edit' button into the 'Editing' state");
+
+        vm.ToggleEditingCommand.Execute(null);   // not dirty → exits without a discard prompt
+        Assert.IsFalse(vm.IsEditing, "toggling again leaves edit mode");
     }
 
     [TestMethod]
@@ -103,6 +125,7 @@ public class TextViewModelCommandTests
 
     [TestMethod]
     [CoversNode("text-viewer-find")]
+    [CoversNode("text-viewer-clear-search")]
     public void CancelSearch_ResetsSearchState()
     {
         using var vm = Make();

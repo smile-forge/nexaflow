@@ -112,6 +112,7 @@ public class FileSystemViewModelTests
     // ── IPageViewModel – GetContext ────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("win-file-system-ai-context")]
     public void GetContext_ThisPcMode_MentionsDrives()
     {
         var vm = ThisPc();
@@ -510,6 +511,196 @@ public class FileSystemViewModelTests
             var vm     = AtPath(dir);
             var result = await new GetFileContentsTool(vm).InvokeAsync(
                 new JsonObject { ["name"] = @"..\secret.txt" }, default);
+
+            Assert.IsTrue(result.IsError);
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    // ── Write/act tools (invocation) ───────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("win-file-system-ai-act-rename-file")]
+    public async Task RenameFileTool_RenamesFileOnDisk()
+    {
+        var dir = TempDir();
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "old.txt"), "body");
+            var vm     = AtPath(dir);
+            var result = await new RenameTool(vm).InvokeAsync(
+                new JsonObject { ["name"] = "old.txt", ["new_name"] = "new.txt" }, default);
+
+            Assert.IsTrue(result.Success);
+            Assert.IsFalse(File.Exists(Path.Combine(dir, "old.txt")), "old name should be gone");
+            Assert.IsTrue(File.Exists(Path.Combine(dir, "new.txt")), "new name should exist");
+            Assert.AreEqual("body", File.ReadAllText(Path.Combine(dir, "new.txt")));
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [TestMethod]
+    [CoversNode("win-file-system-ai-act-rename-file")]
+    public async Task RenameFileTool_RefusesExistingName()
+    {
+        var dir = TempDir();
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "a.txt"), "a");
+            File.WriteAllText(Path.Combine(dir, "b.txt"), "b");
+            var vm     = AtPath(dir);
+            var result = await new RenameTool(vm).InvokeAsync(
+                new JsonObject { ["name"] = "a.txt", ["new_name"] = "b.txt" }, default);
+
+            Assert.IsTrue(result.IsError);
+            Assert.IsTrue(File.Exists(Path.Combine(dir, "a.txt")), "source must be untouched");
+            Assert.AreEqual("b", File.ReadAllText(Path.Combine(dir, "b.txt")), "target must be untouched");
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [TestMethod]
+    [CoversNode("win-file-system-ai-act-copy-file")]
+    public async Task CopyFileTool_CopiesFileLeavingSource()
+    {
+        var dir = TempDir();
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "src.txt"), "payload");
+            var vm     = AtPath(dir);
+            var result = await new CopyTool(vm).InvokeAsync(
+                new JsonObject { ["source"] = "src.txt", ["destination"] = "copy.txt" }, default);
+
+            Assert.IsTrue(result.Success);
+            Assert.IsTrue(File.Exists(Path.Combine(dir, "src.txt")), "source should remain");
+            Assert.IsTrue(File.Exists(Path.Combine(dir, "copy.txt")), "copy should exist");
+            Assert.AreEqual("payload", File.ReadAllText(Path.Combine(dir, "copy.txt")));
+            Assert.IsNotNull(result.Attachments);
+            Assert.IsTrue(result.Attachments!.Any(p => p.EndsWith("copy.txt")), "copy should be reported as an attachment");
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [TestMethod]
+    [CoversNode("win-file-system-ai-act-move-file")]
+    public async Task MoveFileTool_MovesFileOnDisk()
+    {
+        var dir = TempDir();
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "src.txt"), "payload");
+            var vm     = AtPath(dir);
+            var result = await new MoveTool(vm).InvokeAsync(
+                new JsonObject { ["source"] = "src.txt", ["destination"] = "moved.txt" }, default);
+
+            Assert.IsTrue(result.Success);
+            Assert.IsFalse(File.Exists(Path.Combine(dir, "src.txt")), "source should be gone");
+            Assert.IsTrue(File.Exists(Path.Combine(dir, "moved.txt")), "destination should exist");
+            Assert.AreEqual("payload", File.ReadAllText(Path.Combine(dir, "moved.txt")));
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [TestMethod]
+    [CoversNode("win-file-system-ai-act-delete-file")]
+    public async Task DeleteFileTool_RemovesFileFromDisk()
+    {
+        var dir = TempDir();
+        try
+        {
+            var path = Path.Combine(dir, "trash.txt");
+            File.WriteAllText(path, "junk");
+            var vm     = AtPath(dir);
+            var result = await new DeleteTool(vm).InvokeAsync(
+                new JsonObject { ["name"] = "trash.txt" }, default);
+
+            Assert.IsTrue(result.Success);
+            Assert.IsFalse(File.Exists(path), "file should be removed from its original location (recycled)");
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [TestMethod]
+    [CoversNode("win-file-system-ai-act-delete-file")]
+    public async Task DeleteFileTool_MissingFile_Errors()
+    {
+        var dir = TempDir();
+        try
+        {
+            var vm     = AtPath(dir);
+            var result = await new DeleteTool(vm).InvokeAsync(
+                new JsonObject { ["name"] = "does-not-exist.txt" }, default);
+
+            Assert.IsTrue(result.IsError);
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [TestMethod]
+    [CoversNode("win-file-system-ai-act-create-directory")]
+    public async Task CreateDirectoryTool_CreatesFolderOnDisk()
+    {
+        var dir = TempDir();
+        try
+        {
+            var vm     = AtPath(dir);
+            var result = await new CreateDirectoryTool(vm).InvokeAsync(
+                new JsonObject { ["name"] = "newfolder" }, default);
+
+            Assert.IsTrue(result.Success);
+            Assert.IsTrue(Directory.Exists(Path.Combine(dir, "newfolder")), "folder should exist on disk");
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [TestMethod]
+    [CoversNode("win-file-system-ai-act-get-file-stats")]
+    public async Task GetFileStatsTool_ReportsFileSizeAndType()
+    {
+        var dir = TempDir();
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "data.bin"), new string('x', 42));
+            var vm     = AtPath(dir);
+            var result = await new GetFileStatsTool(vm).InvokeAsync(
+                new JsonObject { ["name"] = "data.bin" }, default);
+
+            Assert.IsTrue(result.Success);
+            StringAssert.Contains(result.ModelText, "data.bin");
+            StringAssert.Contains(result.ModelText, "file");
+            StringAssert.Contains(result.ModelText, "42");   // exact byte count is rendered in the stats
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [TestMethod]
+    [CoversNode("win-file-system-ai-act-get-line-count")]
+    public async Task GetLineCountTool_CountsLines()
+    {
+        var dir = TempDir();
+        try
+        {
+            File.WriteAllLines(Path.Combine(dir, "lines.txt"), ["line1", "line2", "line3"]);
+            var vm     = AtPath(dir);
+            var result = await new GetLineCountTool(vm).InvokeAsync(
+                new JsonObject { ["name"] = "lines.txt" }, default);
+
+            Assert.IsTrue(result.Success);
+            StringAssert.Contains(result.ModelText, "3 line");
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [TestMethod]
+    [CoversNode("win-file-system-ai-act-get-line-count")]
+    public async Task GetLineCountTool_MissingFile_Errors()
+    {
+        var dir = TempDir();
+        try
+        {
+            var vm     = AtPath(dir);
+            var result = await new GetLineCountTool(vm).InvokeAsync(
+                new JsonObject { ["name"] = "nope.txt" }, default);
 
             Assert.IsTrue(result.IsError);
         }

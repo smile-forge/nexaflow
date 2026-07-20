@@ -1,3 +1,4 @@
+using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
@@ -58,7 +59,7 @@ public class Model3DViewModelTests
     }
 
     [TestMethod]
-    [CoversNode("model3d-ai-act")]
+    [CoversNode("model3d-ai-context")]
     public void GetContext_GatedUntilLoaded()
     {
         var vm = Make();
@@ -98,6 +99,26 @@ public class Model3DViewModelTests
             var result = await Tool(vm, name).InvokeAsync(new JsonObject(), default);
             Assert.IsFalse(result.Success, $"'{name}' should report a friendly error when no viewport is wired.");
         }
+    }
+
+    [TestMethod]
+    [CoversNode("model3d-ai-act-get-model-info")]
+    public async Task GetModelInfo_Tool_ReportsLoadedMeshStats()
+    {
+        // Mesh parsing needs no viewport, so a real sample loads headlessly and the tool can
+        // report exact facts instead of the empty pre-load state.
+        var vm = new Model3DViewModel(
+            Path.Combine(TestSampleData.Path("model3d"), "tetra.stl"),
+            new ModelLoaderRegistry());
+        await vm.LoadAsync();
+        Assert.IsFalse(vm.HasError, vm.ErrorMessage);
+
+        var result = await Tool(vm, "get_model_info").InvokeAsync(new JsonObject(), default);
+
+        Assert.IsFalse(result.IsError, "get_model_info reads the loaded model — it never fails.");
+        Assert.IsTrue(result.Success);
+        StringAssert.Contains(result.ModelText, "tetra.stl", "reports the model name");
+        StringAssert.Contains(result.ModelText, "Triangles: 4", "reports the real tetrahedron facet count");
     }
 
     private static IClientTool Tool(Model3DViewModel vm, string name) =>

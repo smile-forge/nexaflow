@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Text.Json.Nodes;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Text.ViewModels;
+using Nexaflow.IO.Common;
 using Nexaflow.Tests.Features.Infrastructure;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
@@ -40,6 +41,8 @@ public class TextViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("text-viewer-status-filesize")]
+    [CoversNode("text-viewer-status-linecount")]
     public void LoadAsync_SmallFile_LoadsWholeContent() => AsyncPump.Run(async () =>
     {
         var path = WriteTemp("line one\nline two\nline three");
@@ -50,7 +53,9 @@ public class TextViewModelTests
 
             Assert.IsFalse(vm.IsLargeFile);
             Assert.AreEqual("line one\nline two\nline three", vm.Document.Text);
-            Assert.AreEqual(3, vm.LineCount);
+            Assert.AreEqual(3, vm.LineCount);                                    // status-bar Line Count
+            Assert.IsFalse(string.IsNullOrWhiteSpace(vm.FileSizeText), "status bar shows the file size");
+            StringAssert.Contains(vm.FileSizeText, "B");                         // e.g. "28 B"
         }
         finally { File.Delete(path); }
     });
@@ -145,6 +150,7 @@ public class TextViewModelTests
     });
 
     [TestMethod]
+    [CoversNode("text-viewer-streaming-indicator")]
     public void LoadAsync_LargeFile_IndexesLineCountAndWindowsFromTop() => AsyncPump.Run(async () =>
     {
         var path = WriteManyLines(out var lineCount);
@@ -153,7 +159,7 @@ public class TextViewModelTests
             using var vm = new TextViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
-            Assert.IsTrue(vm.IsLargeFile);
+            Assert.IsTrue(vm.IsLargeFile);   // drives the status-bar 'Streaming' badge
             Assert.AreEqual(lineCount, vm.LineCount, "the index counts every line up front");
             Assert.AreEqual(lineCount, vm.Document.LineCount, "placeholder padding preserves the scrollbar coordinate space");
 
@@ -164,6 +170,7 @@ public class TextViewModelTests
     });
 
     [TestMethod]
+    [CoversNode("text-viewer-windowing")]
     public void EnsureWindow_SlidesToViewportDeepInFile() => AsyncPump.Run(async () =>
     {
         var path = WriteManyLines(out _);
@@ -182,6 +189,9 @@ public class TextViewModelTests
     });
 
     [TestMethod]
+    [CoversNode("text-viewer-find")]
+    [CoversNode("text-viewer-status-matchcount")]
+    [CoversNode("text-viewer-search-indicator")]
     public void Search_LargeFile_FindsMatchesAcrossTheWholeFile() => AsyncPump.Run(async () =>
     {
         var path = WriteManyLines(out _);
@@ -193,13 +203,15 @@ public class TextViewModelTests
             await vm.SearchConventionalAsync("Line 07777");
 
             Assert.IsTrue(vm.IsSearchActive);
-            Assert.AreEqual(1, vm.SearchMatchCount);
+            Assert.AreEqual(1, vm.SearchMatchCount);                             // status-bar Match Count
+            Assert.AreEqual("Line 07777", vm.CurrentSearchTerm);                 // search-bar Search Indicator
             StringAssert.Contains(vm.Document.Text, "Line 07777", "search navigated/slid the window to the match");
         }
         finally { File.Delete(path); }
     });
 
     [TestMethod]
+    [CoversNode("text-viewer-func-editing")]
     public void LargeFile_EditAndSave_PersistsViaStreamingMerge() => AsyncPump.Run(async () =>
     {
         var path = WriteManyLines(out _);
@@ -223,6 +235,7 @@ public class TextViewModelTests
     });
 
     [TestMethod]
+    [CoversNode("text-viewer-save")]
     public void SmallFile_Edit_MarksDirtyAndSaves() => AsyncPump.Run(async () =>
     {
         var path = WriteTemp("alpha\nbeta\ngamma");
@@ -241,7 +254,164 @@ public class TextViewModelTests
 
             Assert.IsTrue(vm.IsDirty);
             Assert.IsTrue(dirtyRaised);
+            Assert.IsTrue(vm.SaveCommand.CanExecute(null), "Save is enabled once the document is dirty");
+
+            await vm.SaveCommand.ExecuteAsync(null);
+
+            Assert.IsFalse(vm.IsDirty, "saving clears the dirty flag");
+            StringAssert.StartsWith(File.ReadAllText(path), "Xalpha", "the edit was persisted to disk");
         }
         finally { File.Delete(path); }
     });
+
+    [TestMethod]
+    [CoversNode("text-viewer-find-nav")]
+    [CoversNode("text-viewer-highlights")]
+    [CoversNode("text-viewer-minimap")]
+    public void FindNextPrevious_MovesMatchCursor_AndFeedsHighlightsAndMinimap() => AsyncPump.Run(async () =>
+    {
+        var path = WriteTemp("foo a\nbar b\nfoo c\nbar d\nfoo e"); // "foo" on lines 1, 3, 5
+        try
+        {
+            using var vm = new TextViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+            await vm.LoadAsync(CancellationToken.None);
+
+            await vm.SearchConventionalAsync("foo");
+            Assert.IsTrue(vm.IsSearchActive);
+            Assert.AreEqual(3, vm.SearchMatchCount);
+            Assert.IsTrue(vm.SearchHighlights.Count > 0, "matches in the resident window are highlighted");
+            Assert.AreEqual(3, vm.MiniMapMarks.Count, "one minimap mark per matching line across the file");
+
+            int LineAt(int offset) => vm.Document.GetLineByOffset(offset).LineNumber;
+            Assert.AreEqual(1, LineAt(vm.ScrollToOffset), "the first match centres on line 1");
+
+            vm.CurrentCaretOffset = vm.ScrollToOffset;
+            await vm.FindNextCommand.ExecuteAsync(null);
+            Assert.AreEqual(3, LineAt(vm.ScrollToOffset), "Find Next advances to the next matching line");
+
+            vm.CurrentCaretOffset = vm.ScrollToOffset;
+            await vm.FindPreviousCommand.ExecuteAsync(null);
+            Assert.AreEqual(1, LineAt(vm.ScrollToOffset), "Find Previous steps back to the earlier matching line");
+        }
+        finally { File.Delete(path); }
+    });
+
+    [TestMethod]
+    [CoversNode("text-viewer-func-encoding-detect")]
+    public void LoadAsync_DetectsEncodingFromBom() => AsyncPump.Run(async () =>
+    {
+        // A UTF-16 LE file (with BOM) whose bytes are garbage under the default UTF-8 selection —
+        // the loader must honour the byte-order mark and decode it correctly regardless.
+        var path = Path.Combine(Path.GetTempPath(), $"textvm_{Guid.NewGuid():N}.txt");
+        File.WriteAllText(path, "héllo\nwörld", Encoding.Unicode);
+        try
+        {
+            using var vm = new TextViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+            Assert.AreEqual("UTF-8", vm.SelectedEncoding.Name); // selection is the default; the BOM overrides it
+            await vm.LoadAsync(CancellationToken.None);
+
+            Assert.AreEqual("héllo\nwörld", vm.Document.Text, "the UTF-16 BOM was auto-detected on load");
+        }
+        finally { File.Delete(path); }
+    });
+
+    [TestMethod]
+    [CoversNode("text-viewer-encoding")]
+    public void SelectedEncoding_Change_ReDecodesFile() => AsyncPump.Run(async () =>
+    {
+        // Byte 0xE9 is 'é' in Latin-1 but an invalid lead byte in UTF-8 (→ replacement char).
+        var path = Path.Combine(Path.GetTempPath(), $"textvm_{Guid.NewGuid():N}.txt");
+        File.WriteAllBytes(path, Encoding.Latin1.GetBytes("café\nline two"));
+        try
+        {
+            using var vm = new TextViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+            await vm.LoadAsync(CancellationToken.None);
+            Assert.IsFalse(vm.Document.Text.Contains("café"), "under the default UTF-8, 0xE9 mangles");
+
+            // Switching the selector re-reads the file (fire-and-forget reload); poll until it lands.
+            vm.SelectedEncoding = vm.AvailableEncodings.First(e => e.Name == "Latin-1");
+            await WaitUntilAsync(() => vm.Document.Text.Contains("café"),
+                "changing the encoding selector re-decodes the file as Latin-1");
+
+            Assert.IsTrue(vm.Document.Text.Contains("café"));
+        }
+        finally { File.Delete(path); }
+    });
+
+    [TestMethod]
+    [CoversNode("text-viewer-func-monitoring")]
+    [CoversNode("text-viewer-file-banner")]
+    public void FileMonitoring_OnDiskChange_RaisesReloadBanner() => AsyncPump.Run(async () =>
+    {
+        var path = WriteTemp("original\ncontent");
+        try
+        {
+            var shell = Substitute.For<IShellServices>();
+            var watch = Substitute.For<IFileWatch>();
+            Action? onChanged = null;
+            shell.WatchFile(Arg.Any<string>(), Arg.Do<Action>(a => onChanged = a)).Returns(watch);
+
+            using var vm = new TextViewModel(path, shell) { IsMonitoring = true };
+            await vm.LoadAsync(CancellationToken.None); // monitoring on → StartMonitoring registers the watch
+
+            Assert.IsNotNull(onChanged, "monitoring registered a file watch");
+            Assert.IsFalse(vm.FileChangedBannerVisible);
+
+            File.WriteAllText(path, "updated\ncontent\nthird"); // the file mutates on disk
+            onChanged!();                                       // the shell's debounced watcher fires
+
+            Assert.IsTrue(vm.FileChangedBannerVisible, "a disk change raises the file-changed banner");
+
+            // Let the full change→reload→auto-hide cycle finish before the pump completes, so no
+            // continuation is posted after the sync-context closes.
+            for (int i = 0; i < 500 && vm.FileChangedBannerVisible; i++) await Task.Delay(20);
+            Assert.IsFalse(vm.FileChangedBannerVisible, "the banner auto-hides after the reload settles");
+            StringAssert.Contains(vm.Document.Text, "updated", "the reload pulled the new on-disk content");
+        }
+        finally { File.Delete(path); }
+    });
+
+    [TestMethod]
+    [CoversNode("text-viewer-split-run")]
+    [CoversNode("text-viewer-func-splitting")]
+    public async Task Split_QueuesTask_ThatSplitsFileIntoSiblingParts()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), $"textvm_split_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, "big.txt");
+        File.WriteAllLines(path, Enumerable.Range(0, 20).Select(i => $"line {i}"));
+        try
+        {
+            var shell = Substitute.For<IShellServices>();
+            IBackgroundTask? queued = null;
+            Action<bool>? onComplete = null;
+            shell.When(s => s.QueueBackgroundTask(Arg.Any<IBackgroundTask>(), Arg.Any<Action<bool>>(), Arg.Any<CancellationToken>()))
+                 .Do(ci => { queued = ci.Arg<IBackgroundTask>(); onComplete = ci.Arg<Action<bool>>(); });
+
+            using var vm = new TextViewModel(path, shell) { IsMonitoring = false };
+            vm.SelectedSplitMode = vm.SplitModes.First(m => m.Mode == SplitMode.ByLineCount);
+            vm.SplitValue = "5";
+            vm.IsSplitPanelOpen = true;
+
+            vm.SplitCommand.Execute(null);
+
+            Assert.IsFalse(vm.IsSplitPanelOpen, "running a split closes the panel");
+            shell.Received(1).QueueBackgroundTask(Arg.Any<IBackgroundTask>(), Arg.Any<Action<bool>>(), Arg.Any<CancellationToken>());
+            Assert.IsNotNull(queued);
+
+            await queued!.RunAsync(CancellationToken.None); // the split actually runs off the UI thread
+            onComplete?.Invoke(true);                        // the shell reports completion
+
+            var parts = Directory.GetFiles(dir, "big.part*.txt");
+            Assert.AreEqual(4, parts.Length, "20 lines / 5 per part → 4 sibling part files");
+            shell.Received().ShowNotification(Arg.Is<string>(m => m.Contains("Split")));
+        }
+        finally { try { Directory.Delete(dir, recursive: true); } catch { } }
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition, string because)
+    {
+        for (int i = 0; i < 300 && !condition(); i++) await Task.Delay(10);
+        Assert.IsTrue(condition(), because);
+    }
 }

@@ -37,8 +37,12 @@ internal static class Program
             "add-node"    => AddNode(args[1..]),
             "set-status"  => SetStatus(args[1..]),
             "set-concern" => SetConcern(args[1..]),
+            "remove-concern" => RemoveConcern(args[1..]),
             "add-snaplink"=> AddSnaplink(args[1..]),
+            "remove-snaplink" => RemoveSnaplink(args[1..]),
             "set-node"    => SetNode(args[1..]),
+            "move"        => Move(args[1..]),
+            "remove"      => Remove(args[1..]),
             "batch"       => Batch(args[1..]),
             "doctor"      => Doctor(args[1..]),
             "graph"       => Graph(args[1..]),
@@ -62,9 +66,13 @@ internal static class Program
               nexaflow-initiatives add-node   <parent-id> <title> [<root>] [--id <slug>] [--desc <text>] [--status <s>]
               nexaflow-initiatives set-status  <node-id> <status> [<root>]
               nexaflow-initiatives set-concern <node-id> <tag> <status> [<root>]
+              nexaflow-initiatives remove-concern <node-id> <tag> [<root>]
               nexaflow-initiatives add-snaplink <node-id> --type <code|markdown|node|url> [<root>] [--concern <tag>]
                                                 [--doc <p>] [--class <c>] [--method <m>] [--target <id>] [--url <u>] [--title-path a>b] [--status <s>]
+              nexaflow-initiatives remove-snaplink <node-id> [<root>] [--concern <tag>] [--index <n>]
               nexaflow-initiatives set-node   <node-id> [<root>] [--title <t>] [--desc <d>] [--note <n>]
+              nexaflow-initiatives move       <node-id> <new-parent-id> [<root>]
+              nexaflow-initiatives remove     <node-id> [<root>] [--recursive]
               nexaflow-initiatives batch      <script-file> [<root>] [--dry-run]
               nexaflow-initiatives doctor     [<root>] [--fix]
               nexaflow-initiatives graph      [<root>] [--json] [--product-anchored]   (see: graph help — build + explore)
@@ -95,14 +103,22 @@ internal static class Program
                        already-done are protected). The typed, safe alternative to editing tree.json by hand.
             set-concern Adds or updates a node's link to a concern <tag> (must be in the product vocabulary),
                        setting its status. Creates the concern link if absent.
+            remove-concern Drops a node's link to concern <tag> entirely (e.g. an is_default concern that
+                       auto-attached where it doesn't belong, like AI Ready on a leaf).
             add-snaplink Attaches a snaplink to the node — or, with --concern <tag>, to that concern's link.
                        --type picks the shape: code (--doc/--class/--method), markdown (--doc/--title-path),
                        node (--target = another node id), url (--url). --status is optional.
             set-node   Edits a node's scalar fields (--title/--desc/--note); an empty --desc/--note clears it.
+            move       Reparents <node-id> (and its subtree) under <new-parent-id> — detaches it from its old
+                       parent and re-lists it under the new one, rejecting a move that would make a cycle. The
+                       safe way to restructure the tree.
+            remove     Deletes <node-id> (a leaf) from the tree and its parent's children[]. Refuses a node that
+                       still has children unless --recursive, which deletes the whole subtree.
             batch      Applies a whole script of instructions to the tree in ONE load/save/validate — the batch
                        replacement for hand-editing tree.json. One instruction per line, each the same syntax as
                        a standalone verb minus <root>: set-status / set-concern / add-snaplink / set-node /
-                       add-node. Blank lines and '#' comments are skipped; "quote" a value with spaces. It is
+                       remove-concern / add-snaplink / remove-snaplink / add-node / move / remove. Blank lines and '#' comments
+                       are skipped; "quote" a value with spaces. It is
                        transactional — if any line is invalid, NOTHING is written (the error names the line).
                        --dry-run parses + applies in memory and reports, writing nothing.
             doctor     Checks structural integrity — every child id resolves, every node is listed by its parent
@@ -1197,6 +1213,46 @@ internal static class Program
         return (true, $"Added node '{id}' under '{parentId}': {title}");
     }
 
+    // ── move: reparent a node (and its subtree) — the safe way to restructure without hand-editing tree.json ──
+
+    private static int Move(string[] args) =>
+        RunOne(args, ResolveRoot(args.Where(a => !a.StartsWith('-')).Skip(2)), ApplyMove);
+
+    private static (bool Ok, string Message) ApplyMove(ProductState state, string[] args)
+    {
+        var pos = args.Where(a => !a.StartsWith('-')).ToArray();
+        if (pos.Length < 2) return (false, "move needs <node-id> <new-parent-id>");
+        var id = pos[0]; var newParentId = pos[1];
+        if (!state.Nodes.TryGetValue(id, out var node)) return (false, $"no node '{id}'");
+        if (!state.Nodes.ContainsKey(newParentId)) return (false, $"no parent node '{newParentId}'");
+        if (id == newParentId) return (false, "a node can't be its own parent");
+        if (ProductTreeOps.IsAncestorOrSelf(state, id, newParentId))
+            return (false, $"'{newParentId}' is inside '{id}' — moving there would make a cycle");
+        if (node.Parent == newParentId) return (true, $"'{id}' is already under '{newParentId}'");
+
+        ProductTreeOps.Reparent(state, id, newParentId);
+        return (true, $"Moved '{id}' under '{newParentId}'");
+    }
+
+    // ── remove: delete a node (a leaf, or a whole subtree with --recursive) ──
+
+    private static int Remove(string[] args) =>
+        RunOne(args, ResolveRoot(args.Where(a => !a.StartsWith('-')).Skip(1)), ApplyRemove);
+
+    private static (bool Ok, string Message) ApplyRemove(ProductState state, string[] args)
+    {
+        var pos = args.Where(a => !a.StartsWith('-')).ToArray();
+        if (pos.Length < 1) return (false, "remove needs <node-id>");
+        var id = pos[0];
+        if (!state.Nodes.TryGetValue(id, out var node)) return (false, $"no node '{id}'");
+        var recursive = args.Contains("--recursive");
+        if (node.Children.Count > 0 && !recursive)
+            return (false, $"'{id}' has {node.Children.Count} child node(s) — remove them first, or pass --recursive to delete the subtree");
+
+        var removed = ProductTreeOps.Remove(state, id, recursive) ?? [];
+        return (true, $"Removed '{id}'" + (removed.Count > 1 ? $" + {removed.Count - 1} descendant(s)" : ""));
+    }
+
     /// <summary>True when <paramref name="arg"/> is the value immediately following one of <paramref name="flags"/>.</summary>
     private static bool FollowsFlag(string[] args, string arg, params string[] flags)
     {
@@ -1273,6 +1329,38 @@ internal static class Program
         return (true, $"Set concern '{pos[1]}' on '{pos[0]}' → {status.ToString().ToLowerInvariant()}.");
     }
 
+    private static int RemoveConcern(string[] args) =>
+        RunOne(args, ResolveRoot(args.Where(a => !a.StartsWith('-')).Skip(2)), ApplyRemoveConcern);
+
+    private static (bool Ok, string Message) ApplyRemoveConcern(ProductState s, string[] args)
+    {
+        var pos = args.Where(a => !a.StartsWith('-')).ToArray();
+        if (pos.Length < 2) return (false, "remove-concern needs <node-id> <tag>");
+        if (!s.Nodes.ContainsKey(pos[0])) return (false, $"no node '{pos[0]}' (try: find)");
+        return ProductTreeOps.RemoveConcern(s, pos[0], pos[1])
+            ? (true, $"Removed concern '{pos[1]}' from '{pos[0]}'.")
+            : (false, $"'{pos[0]}' has no '{pos[1]}' concern to remove");
+    }
+
+    private static int RemoveSnaplink(string[] args) =>
+        RunOne(args, ResolveRoot(args.Where(a => !a.StartsWith('-') && !FollowsFlag(args, a, "--concern", "--index")).Skip(1)), ApplyRemoveSnaplink);
+
+    private static (bool Ok, string Message) ApplyRemoveSnaplink(ProductState s, string[] args)
+    {
+        var pos = args.Where(a => !a.StartsWith('-') && !FollowsFlag(args, a, "--concern", "--index")).ToArray();
+        var id = pos.ElementAtOrDefault(0);
+        if (string.IsNullOrWhiteSpace(id)) return (false, "remove-snaplink needs <node-id> [--concern <tag>] [--index <n>]");
+        if (!s.Nodes.ContainsKey(id)) return (false, $"no node '{id}' (try: find)");
+        var concern = Option(args, "--concern");
+        int? index = int.TryParse(Option(args, "--index"), out var i) ? i : null;
+
+        var removed = ProductTreeOps.RemoveSnaplink(s, id, concern, index);
+        var where = concern is null ? $"'{id}'" : $"'{id}' concern '{concern}'";
+        return removed > 0
+            ? (true, $"Removed {removed} snaplink(s) from {where}.")
+            : (false, $"no matching snaplink to remove on {where}");
+    }
+
     private static readonly string[] SnaplinkFlags =
         ["--type", "--concern", "--doc", "--class", "--method", "--ast", "--target", "--url", "--title-path", "--status"];
 
@@ -1346,10 +1434,14 @@ internal static class Program
         [] => (false, "empty instruction"),
         ["set-status",   .. var r] => ApplySetStatus(state, r),
         ["set-concern",  .. var r] => ApplySetConcern(state, r),
+        ["remove-concern", .. var r] => ApplyRemoveConcern(state, r),
         ["add-snaplink", .. var r] => ApplyAddSnaplink(state, r),
+        ["remove-snaplink", .. var r] => ApplyRemoveSnaplink(state, r),
         ["set-node",     .. var r] => ApplySetNode(state, r),
         ["add-node",     .. var r] => ApplyAddNode(state, r),
-        [var verb, ..] => (false, $"unknown instruction '{verb}' (batch supports: set-status, set-concern, add-snaplink, set-node, add-node)"),
+        ["move",         .. var r] => ApplyMove(state, r),
+        ["remove",       .. var r] => ApplyRemove(state, r),
+        [var verb, ..] => (false, $"unknown instruction '{verb}' (batch supports: set-status, set-concern, remove-concern, add-snaplink, remove-snaplink, set-node, add-node, move, remove)"),
     };
 
     private static int Batch(string[] args)

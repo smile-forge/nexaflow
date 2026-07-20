@@ -35,7 +35,8 @@
 
                 <!-- Left: encoding selector -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <ComboBox AutomationProperties.AutomationId="Text_Encoding"
+                    <ComboBox Style="{StaticResource DarkComboBox}"
+                              AutomationProperties.AutomationId="Text_Encoding"
                               ItemsSource="{Binding AvailableEncodings}"
                               SelectedItem="{Binding SelectedEncoding}"
                               DisplayMemberPath="Name"
@@ -48,6 +49,7 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
 
                     <Button Command="{Binding ToggleEditingCommand}"
+                            AutomationProperties.AutomationId="Text_EditToggle"
                             IsEnabled="{Binding CanEdit}">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource TbBtn}">
@@ -89,6 +91,7 @@
 
                     <Button Style="{StaticResource TbBtn}"
                             Command="{Binding SaveCommand}"
+                            AutomationProperties.AutomationId="Text_Save"
                             Visibility="{Binding IsEditing, Converter={StaticResource BoolVis}}"
                             ToolTip="Save (Ctrl+S)">
                         <StackPanel Orientation="Horizontal">

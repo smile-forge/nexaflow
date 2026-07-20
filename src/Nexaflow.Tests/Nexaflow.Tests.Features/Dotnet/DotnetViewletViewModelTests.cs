@@ -58,6 +58,7 @@ public class DotnetViewletViewModelTests
     // ── GetContext ────────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("dotnet-ai-context")]
     public void GetContext_WithTarget_NamesTarget()
         => StringAssert.Contains(Vm(TempDir("Foo.csproj")).GetContext(), "Foo.csproj");
 

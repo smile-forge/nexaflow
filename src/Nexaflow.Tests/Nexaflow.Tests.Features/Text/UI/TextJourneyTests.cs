@@ -18,8 +18,10 @@ namespace Nexaflow.Tests.Features.Text.UI;
 [CoversNode("text-viewer")]
 public class TextJourneyTests : UiJourneyTestBase
 {
+    // One app-launch journey exercising the interactive UI as a whole — the integration test registered at
+    // the feature's UI node. Individual controls are covered by VM unit tests at their leaf nodes.
     [TestMethod]
-    [CoversNode("text-viewer-toolbar")]
+    [CoversNode("ui")]
     public void Text_Controls_RespondInOnePass()
     {
         var file = Path.GetFileName(TestSampleData.Files("text").First());
@@ -33,9 +35,9 @@ public class TextJourneyTests : UiJourneyTestBase
         CheckInvoke("Line-numbers toggle", "Text_LineNumbers");
         CheckInvoke("Word-wrap toggle",    "Text_WordWrap");
 
-        // Clipboard buttons in the read-only viewer: only Copy is shown (Cut/Paste are edit-only, hidden
-        // via IsEditing). Copy binds to ApplicationCommands.Copy, which is disabled without a selection, so
-        // assert it's present rather than invoking it — and verify the edit-only buttons are correctly hidden.
+        // Read-only viewer: only Copy is shown (Cut/Paste are edit-only, hidden via IsEditing). Copy binds to
+        // ApplicationCommands.Copy — disabled without a selection — so assert present, and that the edit-only
+        // buttons are correctly hidden.
         CheckPresent("Copy button", "Text_Copy");
         Check("Cut/Paste hidden in the read-only viewer",
               () => WaitForId("Text_Cut", 1) is null && WaitForId("Text_Paste", 1) is null);
@@ -43,8 +45,15 @@ public class TextJourneyTests : UiJourneyTestBase
         // Monitoring toggle — safe to flip.
         CheckInvoke("Monitor toggle", "Text_Monitor");
 
-        // Split-panel toggle — opens the split side panel (a safe UI toggle), checked last.
+        // Split-panel toggle — opens the split side panel (a safe UI toggle).
         CheckInvoke("Split-panel toggle", "Text_SplitToggle");
+
+        // Edit toggle → editing mode, which reveals the edit-only Save / Cut / Paste toolbar buttons.
+        CheckInvoke("Edit toggle", "Text_EditToggle");
+        Check("Save appears in edit mode",  () => WaitForId("Text_Save",  3) is not null);
+        Check("Cut appears in edit mode",   () => WaitForId("Text_Cut",   3) is not null);
+        Check("Paste appears in edit mode", () => WaitForId("Text_Paste", 3) is not null);
+        CheckPresent("Save button (edit mode)", "Text_Save");
 
         AssertJourney();
     }

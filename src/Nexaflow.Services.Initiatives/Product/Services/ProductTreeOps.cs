@@ -79,6 +79,28 @@ public static class ProductTreeOps
         return false;
     }
 
+    /// <summary>Deletes <paramref name="id"/> — and, with <paramref name="recursive"/>, its whole subtree —
+    /// removing it from its parent's child list. Returns the ids actually removed, or <c>null</c> when the node
+    /// is missing or (without <paramref name="recursive"/>) still has children — the caller reports that guard.</summary>
+    public static List<string>? Remove(ProductState s, string id, bool recursive)
+    {
+        if (!s.Nodes.TryGetValue(id, out var node)) return null;
+        if (node.Children.Count(s.Nodes.ContainsKey) > 0 && !recursive) return null;
+
+        var removed = new List<string>();
+        void Collect(string n)
+        {
+            removed.Add(n);
+            if (s.Nodes.TryGetValue(n, out var nn))
+                foreach (var c in nn.Children.Where(s.Nodes.ContainsKey).ToList()) Collect(c);
+        }
+        Collect(id);
+
+        if (node.Parent is { } pid && s.Nodes.TryGetValue(pid, out var parent)) parent.Children.Remove(id);
+        foreach (var n in removed) s.Nodes.Remove(n);
+        return removed;
+    }
+
     /// <summary>
     /// Applies <paramref name="status"/> down the subtree rooted at <paramref name="id"/> (used by the sunburst
     /// "Status: …" menu). The clicked node's own status changes directly; descendant <em>leaf</em> statuses and
@@ -121,6 +143,16 @@ public static class ProductTreeOps
         return true;
     }
 
+    /// <summary>Removes this node's link to concern <paramref name="tag"/> (and any snaplinks on it). Returns
+    /// false when the node has no such concern; nulls the concern list once its last entry is gone.</summary>
+    public static bool RemoveConcern(ProductState s, string id, string tag)
+    {
+        if (!s.Nodes.TryGetValue(id, out var node) || node.Concerns is null) return false;
+        var removed = node.Concerns.RemoveAll(c => c.Tag == tag) > 0;
+        if (node.Concerns.Count == 0) node.Concerns = null;
+        return removed;
+    }
+
     /// <summary>Attaches <paramref name="link"/> to the node itself, or — when <paramref name="concernTag"/>
     /// is given — to that concern's link. Returns false if the node (or the named concern) doesn't exist.</summary>
     public static bool AddSnaplink(ProductState s, string id, Snaplink link, string? concernTag = null)
@@ -135,6 +167,28 @@ public static class ProductTreeOps
         if (concern is null) return false;
         (concern.Snaplinks ??= []).Add(link);
         return true;
+    }
+
+    /// <summary>Removes snaplinks from the node itself, or — with <paramref name="concernTag"/> — from that
+    /// concern's link. With <paramref name="index"/> removes just that one entry (0-based); otherwise clears
+    /// them all. Returns how many were removed (0 if the node/concern/list is absent or the index is out of range).</summary>
+    public static int RemoveSnaplink(ProductState s, string id, string? concernTag = null, int? index = null)
+    {
+        if (!s.Nodes.TryGetValue(id, out var node)) return 0;
+        var list = concernTag is null
+            ? node.Snaplinks
+            : node.Concerns?.FirstOrDefault(c => c.Tag == concernTag)?.Snaplinks;
+        if (list is null || list.Count == 0) return 0;
+
+        if (index is { } i)
+        {
+            if (i < 0 || i >= list.Count) return 0;
+            list.RemoveAt(i);
+            return 1;
+        }
+        var n = list.Count;
+        list.Clear();
+        return n;
     }
 
     /// <summary>Edits the node's scalar fields; only non-null arguments are applied, and an empty string
