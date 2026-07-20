@@ -235,6 +235,31 @@ public class ProjectOperations : IProjectTools
         return sb.ToString();
     }
 
+    /// <summary>
+    /// A full AI-facing readout of one project: header + description + completion criteria + every backlog
+    /// item (title, status label, markdown detail). Richer than <see cref="GetProjectDetails"/> — which only
+    /// gives per-status backlog counts — so a read tool can surface item-level content to the model.
+    /// </summary>
+    public string GetProjectReadout(string folderName)
+    {
+        var p = LoadProject(folderName);
+        var sb = new StringBuilder();
+        sb.AppendLine($"# {p.Name}");
+        if (!string.IsNullOrWhiteSpace(p.Description))
+            sb.AppendLine($"\n## Description\n{p.Description}");
+
+        sb.AppendLine("\n## Completion criteria");
+        if (p.CompletionCriteria.Count == 0) sb.AppendLine("_None._");
+        else foreach (var c in p.CompletionCriteria)
+            sb.AppendLine($"- [{CompletionStatusLabel(c.Status)}] {c.Text}");
+
+        sb.AppendLine($"\n## Backlog ({p.Backlog.Count} item(s))");
+        if (p.Backlog.Count == 0) sb.AppendLine("_No backlog items._");
+        else foreach (var item in p.Backlog) sb.Append(BacklogItemToMarkdown(item));
+
+        return sb.ToString();
+    }
+
     private static string CompletionStatusLabel(CompletionStatus s) => s switch
     {
         CompletionStatus.Shouldnt => "shouldn't",

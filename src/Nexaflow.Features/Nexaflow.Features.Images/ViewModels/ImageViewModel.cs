@@ -1,8 +1,10 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Images.Services;
 using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Common.Formatting;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -437,9 +439,149 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IDisposa
             ImageViewMode.Collage => "collage",
             _                     => "carousel",
         };
-        return TotalImages == 1
-            ? $"Image viewer ({mode}): '{CurrentFileName}'."
-            : $"Image viewer ({mode}): '{CurrentFileName}' ({CurrentIndex + 1} of {TotalImages}).";
+        var position = TotalImages == 1 ? string.Empty : $" ({CurrentIndex + 1} of {TotalImages})";
+        return $"Image viewer ({mode}): '{CurrentFileName}'{position} — {DescribeCurrentImage()}. "
+             + "Call capture_image to see the picture itself, or get_image_info for its metadata.";
+    }
+
+    public string? GetSecurityContext() => CurrentPath;
+
+    public string? GetAiSystemPromptGuidance() =>
+        "One or more images are open. To see the picture the user is looking at, call capture_image — it "
+      + "returns the current image to you as a vision attachment. Use next_image / previous_image to move "
+      + "through a multi-image set, and get_image_info for dimensions, format and size.";
+
+    public IReadOnlyList<IClientTool> GetClientTools() =>
+    [
+        // ── Vision: hand the current image to the model so it can actually see the pixels ──
+        new DelegateClientTool(
+            "capture_image",
+            "Return the image the user is currently viewing so you can see it — the way to answer any "
+          + "question about what the picture shows.",
+            [],
+            ToolSafety.SafeOperation,
+            (_, _) =>
+            {
+                var png = EncodeCurrentPng();
+                if (png is not { Length: > 0 })
+                    return Task.FromResult(ToolResult.Error(
+                        "Couldn't capture the image.", "No image is loaded, or it failed to decode."));
+                return Task.FromResult(ToolResult.Ok(
+                        $"Captured '{CurrentFileName}'.",
+                        $"The image \"{CurrentFileName}\" is attached for you to look at.")
+                    with { Images = [new ContextImage(png, "image/png", CurrentFileName)] });
+            },
+            exemptFromRepeatGuard: true),
+
+        // ── Metadata (text only) ──
+        new DelegateClientTool(
+            "get_image_info",
+            "Get the current image's filename, format, pixel dimensions, file size and position in the set.",
+            [],
+            ToolSafety.SafeOperation,
+            (_, _) => Task.FromResult(
+                TotalImages == 0
+                    ? ToolResult.Error("No images are loaded.")
+                    : ToolResult.Ok($"{CurrentFileName}: {DescribeCurrentImage()}.", DescribeImageInfo())),
+            parallelizable: true),
+
+        // ── Navigation (moves the viewer; clamps at the ends, never wraps) ──
+        new DelegateClientTool(
+            "next_image",
+            "Move to the next image in the set (stops at the last one).",
+            [],
+            ToolSafety.SafeOperation,
+            async (_, _) => await StepAsync(forward: true)),
+
+        new DelegateClientTool(
+            "previous_image",
+            "Move to the previous image in the set (stops at the first one).",
+            [],
+            ToolSafety.SafeOperation,
+            async (_, _) => await StepAsync(forward: false)),
+    ];
+
+    /// <summary>Shared body for next_image / previous_image: steps the viewer and reports the new position.
+    /// Stepping mutates UI-bound state (CurrentImage, the dot/thumbnail strips, command CanExecute) via
+    /// LoadImage, so the change is marshalled to the UI thread — client tools run off it.</summary>
+    private async Task<ToolResult> StepAsync(bool forward)
+    {
+        if (!HasMultiple) return ToolResult.Ok("only one image", "There is only one image in this view.");
+        var before = CurrentIndex;
+        if (_shell is not null)
+            await _shell.RunOnUiAsync(() => { if (forward) StepNext(); else StepPrevious(); });
+        else if (forward) StepNext(); else StepPrevious();
+        if (before == CurrentIndex)
+            return ToolResult.Ok(
+                forward ? "already at the last image" : "already at the first image",
+                $"Already at the {(forward ? "last" : "first")} image ({CurrentIndex + 1} of {TotalImages}).");
+        return ToolResult.Ok(
+            $"showing {CurrentIndex + 1} of {TotalImages}",
+            $"Now showing '{CurrentFileName}' ({CurrentIndex + 1} of {TotalImages}).");
+    }
+
+    /// <summary>Format + pixel size + byte size of the current image, best-effort (any part may be unknown).</summary>
+    private string DescribeCurrentImage()
+    {
+        var parts = new List<string> { CurrentFormat() };
+        if (CurrentImage is { } img) parts.Add($"{img.PixelWidth}×{img.PixelHeight}px");
+        var size = CurrentFileSize();
+        if (size >= 0) parts.Add(SizeFormatter.FormatBytes(size));
+        return string.Join(", ", parts);
+    }
+
+    /// <summary>Multi-line metadata block returned by get_image_info.</summary>
+    private string DescribeImageInfo()
+    {
+        var lines = new List<string>
+        {
+            $"File: {CurrentFileName}",
+            $"Format: {CurrentFormat()}",
+        };
+        if (CurrentImage is { } img) lines.Add($"Dimensions: {img.PixelWidth}×{img.PixelHeight} px");
+        var size = CurrentFileSize();
+        if (size >= 0) lines.Add($"Size: {SizeFormatter.FormatBytes(size)}");
+        lines.Add(TotalImages == 1 ? "Position: single image" : $"Position: {CurrentIndex + 1} of {TotalImages}");
+        return string.Join("\n", lines);
+    }
+
+    /// <summary>Upper-case format name from the current file's extension (e.g. PNG, JPEG); "image" if none.</summary>
+    private string CurrentFormat()
+    {
+        var ext = Path.GetExtension(CurrentFileName);
+        return string.IsNullOrEmpty(ext) ? "image" : ext.TrimStart('.').ToUpperInvariant();
+    }
+
+    /// <summary>Absolute path of the current image, or null when nothing is loaded.</summary>
+    private string? CurrentPath
+        => CurrentIndex >= 0 && CurrentIndex < _paths.Count ? _paths[CurrentIndex] : null;
+
+    /// <summary>On-disk size of the current image in bytes, or -1 when it can't be determined (e.g. in-archive).</summary>
+    private long CurrentFileSize()
+    {
+        var path = CurrentPath;
+        if (path is null) return -1;
+        try { return File.Exists(path) ? new FileInfo(path).Length : -1; }
+        catch { return -1; }
+    }
+
+    /// <summary>Encodes the current (frozen) bitmap to PNG bytes for the model to view; null when nothing is loaded.</summary>
+    private byte[]? EncodeCurrentPng()
+    {
+        var src = CurrentImage;
+        if (src is null) return null;
+        try
+        {
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(src));
+            using var ms = new MemoryStream();
+            encoder.Save(ms);
+            return ms.ToArray();
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     public void Dispose()

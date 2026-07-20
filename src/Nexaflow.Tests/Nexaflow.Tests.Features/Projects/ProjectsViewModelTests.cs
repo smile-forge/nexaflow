@@ -1,5 +1,9 @@
 using System.IO;
+using System.Text.Json.Nodes;
+using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Projects;
+using Nexaflow.Features.Projects.Model;
 using Nexaflow.Features.Projects.ViewModels;
 
 using Nexaflow.Tests.Fixtures;
@@ -50,6 +54,108 @@ public class ProjectsViewModelTests
     }
 
     private void Folder(string root, string name) => Directory.CreateDirectory(Path.Combine(root, name));
+
+    /// <summary>Seeds one active-bucket project with a name, description, a completion criterion and a
+    /// backlog item — written through <see cref="ProjectOperations"/> at schema v2 so the detail VM opens
+    /// editable (not the legacy read-only path).</summary>
+    private void Seed(ProjectsConfig cfg, string folder, string name)
+    {
+        Directory.CreateDirectory(Path.Combine(ActiveDir, folder));
+        var ops = new ProjectOperations(cfg, ActiveDir);
+        ops.ModifyProjectHeader(folder, name, "The alpha project description.");
+        ops.SetCompletionCriteria(folder,
+            [new CompletionCriterion { Text = "Ships to production", Status = CompletionStatus.Should }]);
+        ops.AddToDo(folder, "Wire the widget", "Markdown notes for wiring the widget.");
+    }
+
+    // ── AI integration: enriched context + the read-only tool surface (list + detail pages) ──
+
+    [TestMethod]
+    [CoversNode("projects-ai-act")]
+    [CoversNode("projects-ai-context")]
+    public async Task AiTools_ListAndReadProjects_ThroughToolSurface()
+    {
+        var cfg = Config();
+        Seed(cfg, "alpha", "Alpha");
+
+        // ── List page ──
+        var list = new ProjectsViewModel(cfg);
+
+        // aspect 4: scope is the current bucket root so two Projects tabs stay distinguishable when pinned
+        Assert.AreEqual(ActiveDir, list.GetSecurityContext());
+
+        // enriched context names the actual project + its backlog summary (not just a bare count)
+        StringAssert.Contains(list.GetContext(), "Alpha");
+        StringAssert.Contains(list.GetContext(), "1 project");
+
+        var listTools = list.GetClientTools();
+        CollectionAssert.AreEquivalent(
+            new[] { "list_projects", "read_project" },
+            listTools.Select(t => t.Name).ToArray(),
+            "the Projects list AI act surface changed — update the tree's projects-ai-act leaves to match");
+        Assert.IsTrue(listTools.All(t => t.Safety == ToolSafety.SafeOperation), "all Projects act tools are read-only");
+
+        // list_projects enumerates the loaded projects
+        var lp = await listTools.Single(t => t.Name == "list_projects")
+                                .InvokeAsync(new JsonObject(), CancellationToken.None);
+        Assert.IsFalse(lp.IsError);
+        StringAssert.Contains(lp.ModelText, "Alpha");
+
+        // read_project (no arg → selected project) returns description + criteria + backlog item detail
+        var readTool = listTools.Single(t => t.Name == "read_project");
+        var rSel = await readTool.InvokeAsync(new JsonObject(), CancellationToken.None);
+        Assert.IsFalse(rSel.IsError);
+        StringAssert.Contains(rSel.ModelText, "The alpha project description.");
+        StringAssert.Contains(rSel.ModelText, "Ships to production");
+        StringAssert.Contains(rSel.ModelText, "Wire the widget");
+
+        // read_project by folder name works too
+        var rByName = await readTool.InvokeAsync(new JsonObject { ["project"] = "alpha" }, CancellationToken.None);
+        Assert.IsFalse(rByName.IsError);
+        StringAssert.Contains(rByName.ModelText, "Wire the widget");
+
+        // an unknown project is a recoverable error, not an exception
+        var rMiss = await readTool.InvokeAsync(new JsonObject { ["project"] = "ghost" }, CancellationToken.None);
+        Assert.IsTrue(rMiss.IsError);
+
+        // ── Detail page ──
+        var detail = new ProjectDetailViewModel(new ProjectOperations(cfg, ActiveDir), cfg, "alpha");
+
+        // aspect 4: scope is this project's folder path
+        Assert.AreEqual(Path.Combine(ActiveDir, "alpha"), detail.GetSecurityContext());
+
+        // enriched context carries the real description, criteria and backlog item — not just a count
+        var dctx = detail.GetContext();
+        StringAssert.Contains(dctx, "Alpha");
+        StringAssert.Contains(dctx, "alpha project description");
+        StringAssert.Contains(dctx, "Ships to production");
+        StringAssert.Contains(dctx, "Wire the widget");
+
+        var detailTools = detail.GetClientTools();
+        CollectionAssert.AreEquivalent(
+            new[] { "read_project", "read_backlog_item" },
+            detailTools.Select(t => t.Name).ToArray(),
+            "the Project Detail AI act surface changed — update the tree's projects-ai-act leaves to match");
+        Assert.IsTrue(detailTools.All(t => t.Safety == ToolSafety.SafeOperation), "all Projects act tools are read-only");
+
+        // read_project reads THIS project
+        var dRead = await detailTools.Single(t => t.Name == "read_project")
+                                     .InvokeAsync(new JsonObject(), CancellationToken.None);
+        Assert.IsFalse(dRead.IsError);
+        StringAssert.Contains(dRead.ModelText, "Wire the widget");
+
+        // read_backlog_item (no arg → first item) returns the item's markdown detail
+        var biTool = detailTools.Single(t => t.Name == "read_backlog_item");
+        var bi = await biTool.InvokeAsync(new JsonObject(), CancellationToken.None);
+        Assert.IsFalse(bi.IsError);
+        StringAssert.Contains(bi.ModelText, "Wire the widget");
+        StringAssert.Contains(bi.ModelText, "Markdown notes for wiring the widget.");
+
+        // read_backlog_item by title works too
+        var biByTitle = await biTool.InvokeAsync(new JsonObject { ["item"] = "Wire the widget" }, CancellationToken.None);
+        Assert.IsFalse(biByTitle.IsError);
+        StringAssert.Contains(biByTitle.ModelText, "Markdown notes");
+    }
 
     [TestMethod]
     public void Disabled_ShowsNoProjects()

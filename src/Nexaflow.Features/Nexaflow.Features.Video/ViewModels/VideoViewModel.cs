@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media;
@@ -575,6 +576,49 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
         }
     }
 
+    // ── AI: read the parsed media facts / steer the playhead ────────────────
+
+    /// <summary>A text digest of the open media — container, duration, current position/state, playback
+    /// speed, and (once parsed) the codec/resolution/audio/subtitle facts — for the <c>get_media_info</c>
+    /// tool. Headless-safe: reports the metadata the VM already holds and notes when tracks aren't parsed
+    /// yet, so it never needs a live decode.</summary>
+    public string BuildMediaInfoReport()
+    {
+        var state = HasError ? "failed to open" : IsPlaying ? "playing" : "paused";
+        var sb = new StringBuilder();
+        sb.Append("File: ").Append(FileName).Append('\n');
+        sb.Append("Container: ").Append(Path.GetExtension(_path).TrimStart('.').ToUpperInvariant()).Append('\n');
+        sb.Append("Duration: ").Append(DurationDisplay).Append('\n');
+        sb.Append("Position: ").Append(PositionDisplay).Append(" (").Append(state).Append(")\n");
+        sb.Append("Speed: ").Append(RateLabel).Append('\n');
+        sb.Append("Volume: ").Append(IsMuted ? "muted" : $"{Volume}%").Append('\n');
+
+        if (MediaInfo is { } info)
+        {
+            if (!string.IsNullOrEmpty(info.Summary))
+                sb.Append("Summary: ").Append(info.Summary).Append('\n');
+            foreach (var section in info.Sections)
+            {
+                sb.Append('\n').Append(section.Header).Append(":\n");
+                foreach (var row in section.Rows)
+                    sb.Append("  ").Append(row.Label).Append(": ").Append(row.Value).Append('\n');
+            }
+        }
+        else
+        {
+            sb.Append("Track details aren't parsed yet.\n");
+        }
+
+        sb.Append("Subtitles: ").Append(HasSubtitles ? "available" : "none");
+        return sb.ToString();
+    }
+
+    /// <summary>Move playback to <paramref name="seconds"/> from the start (clamped to the known duration),
+    /// marshalled to the UI thread — backs the approval-gated <c>seek</c> tool. A no-op on the engine until a
+    /// seekable player exists, but always updates the position state that the timeline slider binds to.</summary>
+    public Task SeekToSecondsAsync(double seconds) => OnUi(() =>
+        PositionSeconds = DurationSeconds > 0 ? Math.Clamp(seconds, 0, DurationSeconds) : Math.Max(0, seconds));
+
     // ── IPageViewModel ──────────────────────────────────────────────────────
 
     public string GetContext()
@@ -588,12 +632,45 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
             : $"Video \"{FileName}\" is open: {facts}. Currently {state}.";
     }
 
+    /// <summary>File-scoped boundary so two video tabs pinned into one conversation don't collapse
+    /// first-wins in the hub's tool grouping (AI-readiness aspect 4).</summary>
+    public string? GetSecurityContext() => _path;
+
     public IReadOnlyList<IClientTool> GetClientTools() =>
-        [_captureTool ??= new VideoCaptureFrameTool(this)];
+    [
+        // ── Vision (auto-run) — see, not steer: the current frame as an image ──
+        _captureTool ??= new VideoCaptureFrameTool(this),
+
+        // ── Read (auto-run) — the container/codec/track/position facts the model can't otherwise reach ──
+        new DelegateClientTool(
+            "get_media_info",
+            "Return the open video's details — container, duration, current playback position and state, "
+          + "playback speed, and (once parsed) codec / resolution / frame rate / audio and subtitle tracks — as text.",
+            [],
+            ToolSafety.SafeOperation,
+            (_, _) => Task.FromResult(ToolResult.Ok("read media info", BuildMediaInfoReport()))),
+
+        // ── Steer (approval) — move the playhead to a timestamp ──
+        new DelegateClientTool(
+            "seek",
+            "Move the playback position to a timestamp in the open video, given in seconds from the start.",
+            [new ClientToolParameter("seconds", "Target position in seconds from the start of the video.", Type: "number")],
+            ToolSafety.RequiresApproval,
+            async (args, _) =>
+            {
+                var raw = ToolArgs.Str(args, "seconds", "time", "position");
+                if (raw is null || !double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var secs))
+                    return ToolResult.Error("Provide 'seconds' as a number.");
+                await SeekToSecondsAsync(secs).ConfigureAwait(true);
+                var label = Format((long)(Math.Max(0, secs) * 1000));
+                return ToolResult.Ok($"sought to {label}", $"Moved playback to {label}.");
+            }),
+    ];
 
     public string? GetAiSystemPromptGuidance() =>
-        "A video is open. To answer questions about what is on screen, call video_capture_frame to grab " +
-        "the frame at the current playback position; it is returned to you as an image.";
+        "A video is open. Call get_media_info for its container / codec / duration and the current playback " +
+        "position; call video_capture_frame to see the frame at that position as an image; call seek to move " +
+        "the playback position to a timestamp.";
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 

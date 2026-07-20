@@ -1,7 +1,9 @@
 using System;
 using System.Linq;
+using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.VirtualDisk.Handlers;
 using Nexaflow.Features.VirtualDisk.ViewModels;
 using Nexaflow.IO.Common;
@@ -111,5 +113,62 @@ public class VirtualDiskViewModelTests
         Assert.IsTrue(vm.IsRecognised);
         StringAssert.Contains(vm.GetContext(), "VHD");
         Assert.IsFalse(vm.GetContext().Contains("reading"));
+    }
+
+    // ── AI Act: read-only client tools (list volumes / list files / read a file, without extracting) ──
+
+    [TestMethod]
+    [CoversNode("virtual-disk-viewer-ai-act")]
+    [CoversNode("virtual-disk-viewer-ai-context")]
+    public async Task ClientTools_ReadVolumesFilesAndContent()
+    {
+        using var fix = new DiskSampleFactory.Fixtures();
+        var vm = new VirtualDiskViewModel(fix.VhdPath, Substitute.For<IShellServices>(), DiskVfs());
+        await vm.WhenLoaded;
+
+        // Scope boundary = the disk-image file path; context stays honest.
+        Assert.AreEqual(fix.VhdPath, vm.GetSecurityContext());
+        StringAssert.Contains(vm.GetContext(), "VHD");
+
+        var tools = vm.GetClientTools();
+        var names = tools.Select(t => t.Name).ToArray();
+        CollectionAssert.Contains(names, "list_volumes");
+        CollectionAssert.Contains(names, "list_files");
+        CollectionAssert.Contains(names, "read_file");
+        Assert.IsTrue(tools.All(t => t.Safety == ToolSafety.SafeOperation), "all disk read tools auto-run");
+
+        IClientTool Tool(string n) => tools.First(t => t.Name == n);
+
+        // list_volumes → the volume table (metadata pane always has "Volume 1").
+        var vols = await Tool("list_volumes").InvokeAsync(new JsonObject(), default);
+        Assert.IsTrue(vols.Success);
+        StringAssert.Contains(vols.ModelText, "Volume 1");
+
+        // list_files at the root → sees the root file and folder, one directory at a time.
+        var root = await Tool("list_files").InvokeAsync(new JsonObject(), default);
+        Assert.IsTrue(root.Success);
+        StringAssert.Contains(root.ModelText, "readme.txt");
+        StringAssert.Contains(root.ModelText, "docs");
+
+        // list_files into a subfolder → lazily reads its children.
+        var docs = await Tool("list_files").InvokeAsync(new JsonObject { ["path"] = "docs" }, default);
+        Assert.IsTrue(docs.Success);
+        StringAssert.Contains(docs.ModelText, "guide.txt");
+
+        // read_file → the file's text, read through the image (never extracted to disk).
+        var read = await Tool("read_file").InvokeAsync(new JsonObject { ["path"] = "readme.txt" }, default);
+        Assert.IsTrue(read.Success);
+        StringAssert.Contains(read.ModelText, "hello from the vhd");
+
+        // read_file into docs/guide.txt (nested path) works too.
+        var nested = await Tool("read_file").InvokeAsync(new JsonObject { ["path"] = "docs/guide.txt" }, default);
+        Assert.IsTrue(nested.Success);
+        StringAssert.Contains(nested.ModelText, "nested file body");
+
+        // Guards: reading a folder, and a missing entry, are both refused (not thrown).
+        var asFolder = await Tool("read_file").InvokeAsync(new JsonObject { ["path"] = "docs" }, default);
+        Assert.IsTrue(asFolder.IsError);
+        var missing = await Tool("read_file").InvokeAsync(new JsonObject { ["path"] = "nope.txt" }, default);
+        Assert.IsTrue(missing.IsError);
     }
 }
