@@ -169,6 +169,28 @@ public static class ProductTreeOps
         return true;
     }
 
+    /// <summary>Removes snaplinks from the node itself, or — with <paramref name="concernTag"/> — from that
+    /// concern's link. With <paramref name="index"/> removes just that one entry (0-based); otherwise clears
+    /// them all. Returns how many were removed (0 if the node/concern/list is absent or the index is out of range).</summary>
+    public static int RemoveSnaplink(ProductState s, string id, string? concernTag = null, int? index = null)
+    {
+        if (!s.Nodes.TryGetValue(id, out var node)) return 0;
+        var list = concernTag is null
+            ? node.Snaplinks
+            : node.Concerns?.FirstOrDefault(c => c.Tag == concernTag)?.Snaplinks;
+        if (list is null || list.Count == 0) return 0;
+
+        if (index is { } i)
+        {
+            if (i < 0 || i >= list.Count) return 0;
+            list.RemoveAt(i);
+            return 1;
+        }
+        var n = list.Count;
+        list.Clear();
+        return n;
+    }
+
     /// <summary>Edits the node's scalar fields; only non-null arguments are applied, and an empty string
     /// clears an optional field (description/note). Returns false if the node is missing.</summary>
     public static bool EditNode(ProductState s, string id, string? title = null, string? description = null, string? note = null)

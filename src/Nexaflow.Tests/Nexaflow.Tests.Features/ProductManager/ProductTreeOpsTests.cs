@@ -302,6 +302,35 @@ public class ProductTreeOpsTests
 
     [TestMethod]
     [CoversNode("data-model")]
+    public void RemoveSnaplink_ByIndex_ThenClearAll()
+    {
+        var s = new ProductState
+        {
+            Nodes = new()
+            {
+                ["n"] = new ProductNode
+                {
+                    Title = "n",
+                    Concerns = [new ConcernLink { Tag = "tests", Snaplinks =
+                    [
+                        new Snaplink { Type = "code", Doc = "A.cs", Class = "A" },
+                        new Snaplink { Type = "code", Doc = "B.cs", Class = "B" },
+                    ] }]
+                }
+            }
+        };
+
+        Assert.AreEqual(1, ProductTreeOps.RemoveSnaplink(s, "n", "tests", index: 0));
+        Assert.AreEqual("B.cs", s.Nodes["n"].Concerns!.Single().Snaplinks!.Single().Doc);
+
+        Assert.AreEqual(0, ProductTreeOps.RemoveSnaplink(s, "n", "tests", index: 9), "out-of-range removes nothing");
+
+        Assert.AreEqual(1, ProductTreeOps.RemoveSnaplink(s, "n", "tests"), "clears the rest");
+        Assert.AreEqual(0, s.Nodes["n"].Concerns!.Single().Snaplinks!.Count);
+    }
+
+    [TestMethod]
+    [CoversNode("data-model")]
     public void AddSnaplink_ToNode_AndToConcern()
     {
         var s = new ProductState { Nodes = new() { ["n"] = new ProductNode { Title = "n" } } };

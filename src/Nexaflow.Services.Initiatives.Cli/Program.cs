@@ -39,6 +39,7 @@ internal static class Program
             "set-concern" => SetConcern(args[1..]),
             "remove-concern" => RemoveConcern(args[1..]),
             "add-snaplink"=> AddSnaplink(args[1..]),
+            "remove-snaplink" => RemoveSnaplink(args[1..]),
             "set-node"    => SetNode(args[1..]),
             "move"        => Move(args[1..]),
             "remove"      => Remove(args[1..]),
@@ -68,6 +69,7 @@ internal static class Program
               nexaflow-initiatives remove-concern <node-id> <tag> [<root>]
               nexaflow-initiatives add-snaplink <node-id> --type <code|markdown|node|url> [<root>] [--concern <tag>]
                                                 [--doc <p>] [--class <c>] [--method <m>] [--target <id>] [--url <u>] [--title-path a>b] [--status <s>]
+              nexaflow-initiatives remove-snaplink <node-id> [<root>] [--concern <tag>] [--index <n>]
               nexaflow-initiatives set-node   <node-id> [<root>] [--title <t>] [--desc <d>] [--note <n>]
               nexaflow-initiatives move       <node-id> <new-parent-id> [<root>]
               nexaflow-initiatives remove     <node-id> [<root>] [--recursive]
@@ -115,7 +117,8 @@ internal static class Program
             batch      Applies a whole script of instructions to the tree in ONE load/save/validate — the batch
                        replacement for hand-editing tree.json. One instruction per line, each the same syntax as
                        a standalone verb minus <root>: set-status / set-concern / add-snaplink / set-node /
-                       remove-concern / add-node / move / remove. Blank lines and '#' comments are skipped; "quote" a value with spaces. It is
+                       remove-concern / add-snaplink / remove-snaplink / add-node / move / remove. Blank lines and '#' comments
+                       are skipped; "quote" a value with spaces. It is
                        transactional — if any line is invalid, NOTHING is written (the error names the line).
                        --dry-run parses + applies in memory and reports, writing nothing.
             doctor     Checks structural integrity — every child id resolves, every node is listed by its parent
@@ -1339,6 +1342,25 @@ internal static class Program
             : (false, $"'{pos[0]}' has no '{pos[1]}' concern to remove");
     }
 
+    private static int RemoveSnaplink(string[] args) =>
+        RunOne(args, ResolveRoot(args.Where(a => !a.StartsWith('-') && !FollowsFlag(args, a, "--concern", "--index")).Skip(1)), ApplyRemoveSnaplink);
+
+    private static (bool Ok, string Message) ApplyRemoveSnaplink(ProductState s, string[] args)
+    {
+        var pos = args.Where(a => !a.StartsWith('-') && !FollowsFlag(args, a, "--concern", "--index")).ToArray();
+        var id = pos.ElementAtOrDefault(0);
+        if (string.IsNullOrWhiteSpace(id)) return (false, "remove-snaplink needs <node-id> [--concern <tag>] [--index <n>]");
+        if (!s.Nodes.ContainsKey(id)) return (false, $"no node '{id}' (try: find)");
+        var concern = Option(args, "--concern");
+        int? index = int.TryParse(Option(args, "--index"), out var i) ? i : null;
+
+        var removed = ProductTreeOps.RemoveSnaplink(s, id, concern, index);
+        var where = concern is null ? $"'{id}'" : $"'{id}' concern '{concern}'";
+        return removed > 0
+            ? (true, $"Removed {removed} snaplink(s) from {where}.")
+            : (false, $"no matching snaplink to remove on {where}");
+    }
+
     private static readonly string[] SnaplinkFlags =
         ["--type", "--concern", "--doc", "--class", "--method", "--ast", "--target", "--url", "--title-path", "--status"];
 
@@ -1414,11 +1436,12 @@ internal static class Program
         ["set-concern",  .. var r] => ApplySetConcern(state, r),
         ["remove-concern", .. var r] => ApplyRemoveConcern(state, r),
         ["add-snaplink", .. var r] => ApplyAddSnaplink(state, r),
+        ["remove-snaplink", .. var r] => ApplyRemoveSnaplink(state, r),
         ["set-node",     .. var r] => ApplySetNode(state, r),
         ["add-node",     .. var r] => ApplyAddNode(state, r),
         ["move",         .. var r] => ApplyMove(state, r),
         ["remove",       .. var r] => ApplyRemove(state, r),
-        [var verb, ..] => (false, $"unknown instruction '{verb}' (batch supports: set-status, set-concern, remove-concern, add-snaplink, set-node, add-node, move, remove)"),
+        [var verb, ..] => (false, $"unknown instruction '{verb}' (batch supports: set-status, set-concern, remove-concern, add-snaplink, remove-snaplink, set-node, add-node, move, remove)"),
     };
 
     private static int Batch(string[] args)

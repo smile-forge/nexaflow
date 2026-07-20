@@ -18,18 +18,10 @@ namespace Nexaflow.Tests.Features.Text.UI;
 [CoversNode("text-viewer")]
 public class TextJourneyTests : UiJourneyTestBase
 {
+    // One app-launch journey exercising the interactive UI as a whole — the integration test registered at
+    // the feature's UI node. Individual controls are covered by VM unit tests at their leaf nodes.
     [TestMethod]
-    [CoversNode("text-viewer-toolbar")]
-    [CoversNode("text-viewer-encoding")]
-    [CoversNode("text-viewer-linenumbers")]
-    [CoversNode("text-viewer-wordwrap")]
-    [CoversNode("text-viewer-monitor")]
-    [CoversNode("text-viewer-split")]
-    [CoversNode("text-viewer-copy")]
-    [CoversNode("text-viewer-cut")]
-    [CoversNode("text-viewer-paste")]
-    [CoversNode("text-viewer-editing-toggle")]
-    [CoversNode("text-viewer-save")]
+    [CoversNode("ui")]
     public void Text_Controls_RespondInOnePass()
     {
         var file = Path.GetFileName(TestSampleData.Files("text").First());
