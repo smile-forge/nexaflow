@@ -85,7 +85,10 @@ you can also spawn the **`nexaflow-explorer`** sub-agent, which drives this exe.
 
 The product-folder skill has fast-query recipes for deeper questions; the per-release export
 [docs/product/PRODUCT.md](docs/product/PRODUCT.md) is the human dashboard. Per-feature tab parameters are in
-[docs/features.md](docs/features.md).
+[docs/features.md](docs/features.md). **How to model a feature as tree nodes and back each with the right test**
+— the UI/Functionality/AI backbone, concern-by-role rules, the one-journey-plus-per-leaf-unit-test model, and
+the roadmap of analyzers/validators to lock it down — is in
+[docs/feature-tree-and-tests.md](docs/feature-tree-and-tests.md) (the Text Viewer is the worked reference).
 
 When a rename/move breaks snaplinks, don't hand-edit `tree.json` — `remap` rewrites them under validation:
 
