@@ -5,7 +5,7 @@ namespace Nexaflow.Tests.Features.VirtualDisk;
 
 /// <summary>The page-kind contract for the "As Disk" inspector registration.</summary>
 [TestClass]
-[CoversNode("virtualdisk")]
+[CoversNode("virtual-disk-viewer")]
 public class VirtualDiskRegistrationTests
 {
     [TestMethod]

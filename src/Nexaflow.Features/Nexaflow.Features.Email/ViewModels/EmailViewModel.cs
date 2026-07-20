@@ -6,10 +6,12 @@ using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Email.Model;
 using Nexaflow.Features.Email.Reading;
 using Nexaflow.Features.Email.Services;
 using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Features.Email.ViewModels;
@@ -29,6 +31,10 @@ internal sealed partial class EmailViewModel : ObservableObject, IPageViewModel,
     private readonly IShellServices _shell;
     private readonly string _path;
     private HtmlBodyExporter? _exporter;
+    private EmailDocument? _doc;
+
+    /// <summary>Largest attachment (bytes) <c>read_attachment</c> will return inline before refusing.</summary>
+    private const long MaxReadableAttachmentBytes = 256 * 1024;
 
     [ObservableProperty] private string? _from;
     [ObservableProperty] private string? _to;
@@ -79,6 +85,7 @@ internal sealed partial class EmailViewModel : ObservableObject, IPageViewModel,
         {
             using var stream = VirtualFileSystem.Instance.OpenRead(_path);
             var doc = EmailDocumentReader.Instance.Read(stream, Path.GetFileName(_path));
+            _doc = doc;
             _exporter = new HtmlBodyExporter(doc);
 
             From = doc.From;
@@ -179,6 +186,99 @@ internal sealed partial class EmailViewModel : ObservableObject, IPageViewModel,
     public string? GetAiSystemPromptGuidance() =>
         "The user is reading an email. You can summarise it, draft a reply, or explain its attachments. " +
         "You cannot send mail from here.";
+
+    /// <summary>The email file's path — the scope these read-only tools act within, and what
+    /// distinguishes two email tabs pinned together as AI context.</summary>
+    public string? GetSecurityContext() => _path;
+
+    public IReadOnlyList<IClientTool> GetClientTools() =>
+    [
+        // The Email viewer is deliberately read-only: no send / reply / forward. Every tool is a pure
+        // read the context text couldn't carry (the full uncapped body, the attachment list, a text
+        // attachment's contents) — all auto-run as SafeOperation.
+        new DelegateClientTool(
+            "read_email",
+            "Return the full email — every header plus the complete body text, without the length cap the "
+          + "ambient context applies. Use this to read the whole message.",
+            [],
+            ToolSafety.SafeOperation,
+            (_, _) =>
+            {
+                if (_doc is null) return Task.FromResult(ToolResult.Error("No email is loaded."));
+                var sb = new StringBuilder();
+                foreach (var h in AllHeaders) sb.AppendLine($"{h.Field}: {h.Value}");
+                sb.AppendLine();
+                var body = HasPlainText ? PlainText : RenderedMarkdown;
+                sb.Append(body.Length > 0 ? body : "(this message has no text body)");
+                return Task.FromResult(ToolResult.Ok($"read '{Subject ?? Path.GetFileName(_path)}'", sb.ToString()));
+            }),
+
+        new DelegateClientTool(
+            "list_attachments",
+            "List the message's attachments — each file's name, content type and size — plus how many inline "
+          + "images are embedded in the body.",
+            [],
+            ToolSafety.SafeOperation,
+            (_, _) =>
+            {
+                if (_doc is null) return Task.FromResult(ToolResult.Error("No email is loaded."));
+                if (Attachments.Count == 0 && InlineImageCount == 0)
+                    return Task.FromResult(ToolResult.Ok("no attachments", "This email has no attachments."));
+                var sb = new StringBuilder();
+                foreach (var a in Attachments)
+                    sb.AppendLine($"- {a.DisplayName} ({a.ContentType}, {a.SizeText})");
+                if (InlineImageCount > 0)
+                    sb.AppendLine($"({InlineImageCount} inline image(s) embedded in the body.)");
+                return Task.FromResult(ToolResult.Ok($"{Attachments.Count} attachment(s)", sb.ToString()));
+            }),
+
+        new DelegateClientTool(
+            "read_attachment",
+            "Return a text attachment's contents by name (as listed by list_attachments). Text parts only — "
+          + "binary attachments (images, PDFs, Office files) and very large files are refused; open those in "
+          + "their own viewer instead.",
+            [new ClientToolParameter("name", "The attachment's file name, e.g. \"notes.txt\".")],
+            ToolSafety.SafeOperation,
+            (args, _) =>
+            {
+                if (_doc is null) return Task.FromResult(ToolResult.Error("No email is loaded."));
+                var name = ToolArgs.Str(args, "name", "file", "filename", "attachment");
+                if (string.IsNullOrEmpty(name))
+                    return Task.FromResult(ToolResult.Error("No attachment 'name' provided."));
+
+                var att = _doc.Attachments.FirstOrDefault(a => !a.IsInline &&
+                    (string.Equals(a.DisplayName, name, StringComparison.OrdinalIgnoreCase)
+                  || string.Equals(a.EntryName,   name, StringComparison.OrdinalIgnoreCase)));
+                if (att is null)
+                    return Task.FromResult(ToolResult.Error($"No attachment named '{name}'."));
+
+                if (!IsTextContentType(att.ContentType))
+                    return Task.FromResult(ToolResult.Error(
+                        $"'{att.DisplayName}' is {att.ContentType} — not text. Open it in its own viewer instead."));
+                if (att.Size > MaxReadableAttachmentBytes)
+                    return Task.FromResult(ToolResult.Error(
+                        $"'{att.DisplayName}' is {SizeFormatter.FormatBytes(att.Size)} — too large to read inline "
+                      + $"(limit {SizeFormatter.FormatBytes(MaxReadableAttachmentBytes)})."));
+
+                var text = Encoding.UTF8.GetString(att.Content);
+                return Task.FromResult(ToolResult.Ok($"read '{att.DisplayName}'", text));
+            })
+    ];
+
+    /// <summary>True for a content type whose bytes are readable as text (so <c>read_attachment</c> may
+    /// decode them). Covers <c>text/*</c>, structured <c>+xml</c>/<c>+json</c> types, a short list of known
+    /// textual application types, and embedded messages (<c>message/rfc822</c>).</summary>
+    private static bool IsTextContentType(string? contentType)
+    {
+        if (string.IsNullOrWhiteSpace(contentType)) return false;
+        var ct = contentType.Split(';')[0].Trim().ToLowerInvariant();
+        if (ct.StartsWith("text/", StringComparison.Ordinal)) return true;
+        if (ct.EndsWith("+xml", StringComparison.Ordinal) || ct.EndsWith("+json", StringComparison.Ordinal)) return true;
+        return ct is "application/json" or "application/xml" or "application/xhtml+xml"
+                  or "application/javascript" or "application/ecmascript"
+                  or "application/x-yaml" or "application/yaml" or "application/x-sh"
+                  or "message/rfc822";
+    }
 
     public void Dispose() => _exporter?.Dispose();
 }

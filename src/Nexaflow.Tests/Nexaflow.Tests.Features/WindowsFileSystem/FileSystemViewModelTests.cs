@@ -11,7 +11,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
 [TestClass]
-[CoversNode("winfs-ai-tools")]
+[CoversNode("win-file-system-ai-act")]
 public class FileSystemViewModelTests
 {
     // A fresh empty folder per test method (MSTest builds a new class instance for each). These tests used

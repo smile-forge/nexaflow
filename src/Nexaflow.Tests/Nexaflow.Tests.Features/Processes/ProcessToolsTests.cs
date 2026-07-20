@@ -11,7 +11,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.Processes;
 
 [TestClass]
-[CoversNode("process-ai-tools")]
+[CoversNode("processes-ai-act")]
 public class ProcessToolsTests
 {
     private static (ProcessesViewModel vm, FakeProcessSource src) NewVm()

@@ -105,4 +105,112 @@ public static class ProductTreeOps
         }
         Walk(id, direct: true);
     }
+
+    // ── Concern / snaplink / field edits (the mutations the CLI and in-app tools share) ──────────
+
+    /// <summary>Adds or updates this node's link to a concern <paramref name="tag"/>, creating the concern
+    /// list/link as needed. Returns false only when the node is missing — the caller validates the tag
+    /// against the product's concern vocabulary (so it can list the valid tags on error).</summary>
+    public static bool SetConcern(ProductState s, string id, string tag, Status status)
+    {
+        if (!s.Nodes.TryGetValue(id, out var node)) return false;
+        node.Concerns ??= [];
+        var link = node.Concerns.FirstOrDefault(c => c.Tag == tag);
+        if (link is null) node.Concerns.Add(new ConcernLink { Tag = tag, Status = status });
+        else link.Status = status;
+        return true;
+    }
+
+    /// <summary>Attaches <paramref name="link"/> to the node itself, or — when <paramref name="concernTag"/>
+    /// is given — to that concern's link. Returns false if the node (or the named concern) doesn't exist.</summary>
+    public static bool AddSnaplink(ProductState s, string id, Snaplink link, string? concernTag = null)
+    {
+        if (!s.Nodes.TryGetValue(id, out var node)) return false;
+        if (concernTag is null)
+        {
+            (node.Snaplinks ??= []).Add(link);
+            return true;
+        }
+        var concern = node.Concerns?.FirstOrDefault(c => c.Tag == concernTag);
+        if (concern is null) return false;
+        (concern.Snaplinks ??= []).Add(link);
+        return true;
+    }
+
+    /// <summary>Edits the node's scalar fields; only non-null arguments are applied, and an empty string
+    /// clears an optional field (description/note). Returns false if the node is missing.</summary>
+    public static bool EditNode(ProductState s, string id, string? title = null, string? description = null, string? note = null)
+    {
+        if (!s.Nodes.TryGetValue(id, out var node)) return false;
+        if (title is { Length: > 0 }) node.Title = title;
+        if (description is not null) node.Description = description.Length == 0 ? null : description;
+        if (note is not null) node.Note = note.Length == 0 ? null : note;
+        return true;
+    }
+
+    // ── Structural integrity: reconcile children[] against the child→Parent back-references ──────
+
+    /// <summary>One parent whose <see cref="ProductNode.Children"/> list disagreed with the back-references.</summary>
+    public sealed record ChildRepair(string Parent, List<string> Before, List<string> After, List<string> Dropped);
+
+    /// <summary>
+    /// Reconciles every parent's <see cref="ProductNode.Children"/> against the authoritative child→
+    /// <see cref="ProductNode.Parent"/> back-references, catching the two structural failure modes a hand-edit
+    /// can introduce: <b>dangling</b> child ids (no such node — including two ids accidentally concatenated into
+    /// one string) and <b>orphans</b> (a node names this parent but isn't listed). Back-references are trusted as
+    /// the truth: valid existing entries keep their order, a concatenated dangling id is split back into its real
+    /// members, orphans are appended, and an entry naming a real node that belongs elsewhere is dropped. With
+    /// <paramref name="apply"/> the tree is mutated in place; either way the changes are returned for reporting.
+    /// </summary>
+    public static List<ChildRepair> RepairChildren(ProductState s, bool apply)
+    {
+        // authoritative membership: parent id → child ids (in nodes order) whose Parent points at it
+        var byRef = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach (var (cid, node) in s.Nodes)
+            if (node.Parent is { } p) (byRef.TryGetValue(p, out var l) ? l : byRef[p] = []).Add(cid);
+
+        var repairs = new List<ChildRepair>();
+        foreach (var (pid, parent) in s.Nodes)
+        {
+            var members = byRef.GetValueOrDefault(pid) ?? [];
+            var memberSet = new HashSet<string>(members, StringComparer.Ordinal);
+            var placed = new List<string>();
+            var placedSet = new HashSet<string>(StringComparer.Ordinal);
+            var dropped = new List<string>();
+
+            void Place(string cid) { if (memberSet.Contains(cid) && placedSet.Add(cid)) placed.Add(cid); }
+
+            foreach (var entry in parent.Children)
+            {
+                if (memberSet.Contains(entry)) { Place(entry); continue; }         // a real child — keep author order
+                if (s.Nodes.ContainsKey(entry)) { dropped.Add(entry); continue; }  // real node, belongs elsewhere — drop
+                var split = TrySplit(entry, memberSet, placedSet);                 // dangling — recover a concatenation
+                if (split.Count > 0) foreach (var part in split) Place(part);
+                else dropped.Add(entry);                                            // unrecoverable dangling id
+            }
+            foreach (var m in members) Place(m);   // append any still-unplaced orphans
+
+            if (parent.Children.SequenceEqual(placed) && dropped.Count == 0) continue;
+            repairs.Add(new ChildRepair(pid, [.. parent.Children], placed, dropped));
+            if (apply) parent.Children = placed;
+        }
+        return repairs;
+    }
+
+    /// <summary>Greedy longest-first decomposition of <paramref name="s"/> into a run of (2+) distinct member
+    /// ids; empty if it doesn't split cleanly into members. Longest-first disambiguates prefix-overlapping ids.</summary>
+    private static List<string> TrySplit(string s, HashSet<string> members, HashSet<string> alreadyPlaced)
+    {
+        var result = new List<string>();
+        var remaining = s;
+        var candidates = members.Where(m => !alreadyPlaced.Contains(m)).OrderByDescending(m => m.Length).ToList();
+        while (remaining.Length > 0)
+        {
+            var next = candidates.FirstOrDefault(m => !result.Contains(m) && remaining.StartsWith(m, StringComparison.Ordinal));
+            if (next is null) return [];
+            result.Add(next);
+            remaining = remaining[next.Length..];
+        }
+        return result.Count >= 2 ? result : [];
+    }
 }

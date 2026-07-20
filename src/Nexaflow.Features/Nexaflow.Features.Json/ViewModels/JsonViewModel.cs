@@ -1332,12 +1332,63 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
     public string GetContext()
     {
         if (string.IsNullOrEmpty(FilePath)) return "JSON viewer: no file loaded.";
-        var sel = SelectedNode?.GetJsonPath() ?? "none";
-        return $"JSON file: '{FileName}' ({FileSizeText}), {NodeCount} nodes. Selected: {sel}";
+        var rootKind = Root switch
+        {
+            JsonObjectNodeModel o => $"an object with {o.Children.Count} propert{(o.Children.Count == 1 ? "y" : "ies")}",
+            JsonArrayNodeModel a  => $"an array with {a.Children.Count} item(s)" + (IsLargeFile ? ", loaded in a window" : ""),
+            _                     => "a scalar",
+        };
+        var mode  = IsTableModeActive ? "table" : IsTextModeActive ? "raw-text" : "tree";
+        var sel   = SelectedNode?.GetJsonPath() ?? "none";
+        var dirty = IsModified ? " (unsaved changes)" : string.Empty;
+        return $"JSON file '{FileName}' ({FileSizeText}, {NodeCount} nodes){dirty}. Root is {rootKind}. "
+             + $"Showing the {mode} view; selected node: {sel}.\n"
+             + "Use query_json_path to read a value at any path, or read_json for the whole (loaded) document.";
     }
+
+    public string? GetSecurityContext() => FilePath;
 
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
+        // ── Read / explore (auto-run) — the data the model couldn't reach before ──
+        new DelegateClientTool(
+            "query_json_path",
+            "Evaluate a JSONPath (e.g. $.store.book[0].title) against the loaded document and return the matching "
+          + "value(s) as JSON — the way to read data out of the file.",
+            [new ClientToolParameter("path", "A JSONPath expression.")],
+            ToolSafety.SafeOperation,
+            (args, _) =>
+            {
+                if (Root is null) return Task.FromResult(ToolResult.Error("No JSON is loaded."));
+                var path = ToolArgs.Str(args, "path", "jsonpath", "query");
+                if (string.IsNullOrEmpty(path)) return Task.FromResult(ToolResult.Error("No 'path' provided."));
+                var matches = _evaluator.Evaluate(path, Root);
+                if (matches.Count == 0)
+                    return Task.FromResult(ToolResult.Ok($"no match for {path}", $"No node matched JSONPath '{path}'."));
+                var body = matches.Count == 1
+                    ? JsonNodeSerializer.Serialize(matches[0], indented: true)
+                    : "[\n" + string.Join(",\n", matches.Take(50).Select(m => JsonNodeSerializer.Serialize(m, indented: true))) + "\n]";
+                var note = matches.Count > 50 ? $"\n({matches.Count} matches; showing the first 50.)"
+                         : matches.Count > 1  ? $"\n({matches.Count} matches.)" : string.Empty;
+                return Task.FromResult(ToolResult.Ok($"{matches.Count} match(es) for {path}", body + note));
+            }),
+
+        new DelegateClientTool(
+            "read_json",
+            "Return the full JSON document (reflects unsaved edits). For a large windowed file this returns only the "
+          + "portion currently loaded.",
+            [],
+            ToolSafety.SafeOperation,
+            (_, _) =>
+            {
+                if (Root is null) return Task.FromResult(ToolResult.Error("No JSON is loaded."));
+                var partial = HasVirtualNodes(Root);
+                var body = JsonNodeSerializer.Serialize(Root, indented: true);
+                var note = partial ? "\n(This file is loaded in a window — unloaded sections are omitted.)" : string.Empty;
+                return Task.FromResult(ToolResult.Ok(partial ? "read (partial)" : "read document", body + note));
+            }),
+
+        // ── Mutating (safe — re-indent only; approval not required for a reversible reflow) ──
         new DelegateClientTool(
             "format_json",
             "Re-indent the JSON document.",

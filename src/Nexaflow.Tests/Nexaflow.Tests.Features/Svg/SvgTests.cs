@@ -92,7 +92,7 @@ public class SvgTests
     }
 
     [TestMethod]
-    [CoversNode("svg-ai-tools")]
+    [CoversNode("svg-ai-act")]
     public async Task GetSvgInfo_Tool_ReportsDimensions()
     {
         var vm = new SvgViewModel(Sample("sample.svg"));
@@ -106,7 +106,7 @@ public class SvgTests
     }
 
     [TestMethod]
-    [CoversNode("svg-ai-tools")]
+    [CoversNode("svg-ai-act")]
     public async Task RenderTool_FailsGracefully_BeforeLoad()
     {
         var vm = new SvgViewModel(Sample("sample.svg")); // not loaded → no artifact

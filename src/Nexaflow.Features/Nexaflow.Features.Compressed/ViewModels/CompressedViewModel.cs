@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Compressed.ViewModels;
@@ -454,9 +456,203 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
     // ── IPageViewModel ───────────────────────────────────────────────────────────
 
     public string GetContext()
-        => IsRecognised
-            ? $"Compressed archive '{FileName}' ({Format}) — {EntryCountText}, {TotalSizeText} uncompressed."
-            : $"Compressed archive '{FileName}' — unrecognised format.";
+    {
+        if (!IsRecognised)
+            return $"Compressed archive '{FileName}' — unrecognised format"
+                 + (string.IsNullOrEmpty(StatusText) ? "." : $" ({StatusText}).");
+
+        var sb = new StringBuilder();
+        sb.Append($"Compressed archive '{FileName}' ({Format}) — {EntryCountText}, {TotalSizeText} uncompressed");
+        if (!string.IsNullOrEmpty(CompressedSizeText)) sb.Append($" / {CompressedSizeText} compressed");
+        if (!string.IsNullOrEmpty(RatioText) && RatioText != "—") sb.Append($" ({RatioText})");
+        sb.Append($". {EncryptionText}; {SignatureText}.");
+        if (HasComment) sb.Append($" Comment: \"{Comment}\".");
+
+        var outline = TopEntriesOutline();
+        if (outline.Length > 0) sb.Append($"\nTop-level entries:\n{outline}");
+        sb.Append("\n(Use list_entries for the full manifest, read_entry to read one entry's text, "
+                + "or test_archive to check integrity.)");
+        return sb.ToString();
+    }
+
+    /// <summary>The archive file path — the scope this page's tools act within (aspect-4 disambiguation).</summary>
+    public string? GetSecurityContext() => string.IsNullOrEmpty(ArchivePath) ? null : ArchivePath;
+
+    public IReadOnlyList<IClientTool> GetClientTools() =>
+    [
+        // ── Read / explore (auto-run) — the manifest + entry content the model couldn't reach before ──
+        new DelegateClientTool(
+            "list_entries",
+            "List the archive's entries — path, uncompressed size, compressed size — the full manifest the "
+          + "one-line summary only counts. Directories are marked <dir>. Capped for very large archives.",
+            [new ClientToolParameter("prefix", "Optional in-archive path prefix to filter by (e.g. \"docs/\").", Required: false)],
+            ToolSafety.SafeOperation,
+            (args, _) => Task.FromResult(
+                IsRecognised ? ListEntries(ToolArgs.Str(args, "prefix", "path", "filter"))
+                             : ToolResult.Error("No recognised archive is loaded."))),
+
+        new DelegateClientTool(
+            "read_entry",
+            "Read the text content of one file entry inside the archive by its path (e.g. \"docs/readme.md\"). "
+          + "Reads through the archive without extracting to disk; binary, oversized, or encrypted entries are refused.",
+            [new ClientToolParameter("path", "The entry's full path inside the archive, forward-slash separated.")],
+            ToolSafety.SafeOperation,
+            (args, _) =>
+            {
+                if (!IsRecognised) return Task.FromResult(ToolResult.Error("No recognised archive is loaded."));
+                var entryPath = ToolArgs.Str(args, "path", "entry", "name");
+                return Task.FromResult(string.IsNullOrEmpty(entryPath)
+                    ? ToolResult.Error("No 'path' provided.")
+                    : ReadEntryText(entryPath));
+            }),
+
+        new DelegateClientTool(
+            "test_archive",
+            "Verify the archive's integrity by reading every entry back — reports how many are readable and "
+          + "how many failed. Read-only; nothing is written or extracted.",
+            [],
+            ToolSafety.SafeOperation,
+            (_, _) => Task.FromResult(
+                IsRecognised ? TestArchive() : ToolResult.Error("No recognised archive is loaded."))),
+    ];
+
+    // ── AI read-tool helpers ─────────────────────────────────────────────────────
+
+    private const int MaxListedEntries = 1000;
+    private const long MaxEntryReadBytes = 256 * 1024;
+
+    /// <summary>Top-level entry outline for <see cref="GetContext"/> — folders (as sorted) first, size per
+    /// node, capped so a huge archive doesn't flood the prompt.</summary>
+    private string TopEntriesOutline()
+    {
+        if (_root is null || _root.Children.Count == 0) return string.Empty;
+        var sb = new StringBuilder();
+        const int cap = 20;
+        var shown = 0;
+        foreach (var node in _root.Children)
+        {
+            if (shown == cap) { sb.Append($"  … ({_root.Children.Count - cap} more)\n"); break; }
+            shown++;
+            sb.Append(node.IsFolder
+                ? $"  {node.Name}/  ({ArchiveNode.FormatBytes(node.Size)})\n"
+                : $"  {node.Name}  {ArchiveNode.FormatBytes(node.Size)}\n");
+        }
+        return sb.ToString().TrimEnd('\n');
+    }
+
+    private ToolResult ListEntries(string? prefix)
+    {
+        ArchiveSummary? summary;
+        try { summary = _vfs.DescribeArchive(ArchivePath); }
+        catch (Exception ex) { return ToolResult.Error($"Could not read archive: {ex.Message}"); }
+        if (summary is null) return ToolResult.Error("No recognised archive is loaded.");
+
+        var norm = prefix?.Replace('\\', '/').TrimStart('/');
+        var entries = summary.Entries
+            .Where(e => string.IsNullOrEmpty(norm)
+                     || e.Name.Replace('\\', '/').StartsWith(norm, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (entries.Count == 0)
+            return ToolResult.Ok("no matching entries",
+                string.IsNullOrEmpty(norm) ? "The archive has no entries." : $"No entries under '{prefix}'.");
+
+        var fileCount = summary.Entries.Count(e => !e.IsDirectory);
+        var sb = new StringBuilder();
+        sb.Append($"{summary.Format} archive — {fileCount} file(s)");
+        if (summary.IsEncrypted) sb.Append(" (encrypted)");
+        sb.Append(". path | size | compressed\n");
+
+        foreach (var e in entries.Take(MaxListedEntries))
+        {
+            var path = e.Name.Replace('\\', '/');
+            sb.Append(e.IsDirectory
+                ? $"  {path.TrimEnd('/')}/  <dir>\n"
+                : $"  {path}  {ArchiveNode.FormatBytes(e.Size)}  {ArchiveNode.FormatBytes(e.CompressedSize)}\n");
+        }
+        if (entries.Count > MaxListedEntries) sb.Append($"  … ({entries.Count - MaxListedEntries} more)\n");
+
+        var listed = Math.Min(entries.Count, MaxListedEntries);
+        return ToolResult.Ok($"{listed} entr{(listed == 1 ? "y" : "ies")} listed", sb.ToString().TrimEnd('\n'));
+    }
+
+    private ToolResult ReadEntryText(string entryPath)
+    {
+        var norm = entryPath.Replace('\\', '/').Trim('/');
+        ArchiveSummary? summary;
+        try { summary = _vfs.DescribeArchive(ArchivePath); }
+        catch (Exception ex) { return ToolResult.Error($"Could not read archive: {ex.Message}"); }
+        if (summary is null) return ToolResult.Error("No recognised archive is loaded.");
+        if (summary.IsEncrypted)
+            return ToolResult.Error("The archive is encrypted — entries can't be read without decrypting it first.");
+
+        var match = summary.Entries.FirstOrDefault(e => !e.IsDirectory
+            && e.Name.Replace('\\', '/').Trim('/').Equals(norm, StringComparison.OrdinalIgnoreCase));
+        if (match is null) return ToolResult.Error($"No file entry '{entryPath}' in the archive.");
+        if (match.Size > MaxEntryReadBytes)
+            return ToolResult.Error(
+                $"Entry '{norm}' is {ArchiveNode.FormatBytes(match.Size)} — too large to read inline "
+              + $"(limit {ArchiveNode.FormatBytes(MaxEntryReadBytes)}). Extract it instead.");
+
+        byte[] bytes;
+        try
+        {
+            var full = Path.Combine(ArchivePath, norm.Replace('/', Path.DirectorySeparatorChar));
+            using var stream = _vfs.OpenRead(full);
+            using var ms = new MemoryStream();
+            stream.CopyTo(ms);
+            bytes = ms.ToArray();
+        }
+        catch (Exception ex) { return ToolResult.Error($"Could not read '{norm}': {ex.Message}"); }
+
+        if (LooksBinary(bytes))
+            return ToolResult.Error(
+                $"Entry '{norm}' looks binary ({ArchiveNode.FormatBytes(bytes.LongLength)}) — not shown as text.");
+
+        var text = DecodeText(bytes);
+        return ToolResult.Ok($"read {norm} ({ArchiveNode.FormatBytes(bytes.LongLength)})",
+            text.Length == 0 ? "(empty entry)" : text);
+    }
+
+    private ToolResult TestArchive()
+    {
+        ArchiveSummary? summary;
+        try { summary = _vfs.DescribeArchive(ArchivePath); }
+        catch (Exception ex) { return ToolResult.Error($"Could not read archive: {ex.Message}"); }
+        if (summary is null) return ToolResult.Error("No recognised archive is loaded.");
+
+        int ok = 0, bad = 0;
+        foreach (var e in summary.Entries.Where(e => !e.IsDirectory))
+        {
+            try
+            {
+                using var s = _vfs.OpenRead(Path.Combine(ArchivePath, e.Name.Replace('/', Path.DirectorySeparatorChar)));
+                s.CopyTo(Stream.Null);
+                ok++;
+            }
+            catch { bad++; }
+        }
+        var msg = bad == 0
+            ? $"OK — all {ok} entr{(ok == 1 ? "y" : "ies")} read back cleanly."
+            : $"{bad} of {ok + bad} entries failed to read — the archive may be corrupt.";
+        return ToolResult.Ok(bad == 0 ? $"{ok} entries verified" : $"{bad} failed", msg);
+    }
+
+    /// <summary>NUL-byte heuristic: an archived text file has none in its first several KB.</summary>
+    private static bool LooksBinary(byte[] bytes)
+    {
+        var n = Math.Min(bytes.Length, 8000);
+        for (var i = 0; i < n; i++) if (bytes[i] == 0) return true;
+        return false;
+    }
+
+    /// <summary>UTF-8 decode, dropping a leading BOM so it doesn't surface as a stray character.</summary>
+    private static string DecodeText(byte[] bytes)
+    {
+        var start = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF ? 3 : 0;
+        return Encoding.UTF8.GetString(bytes, start, bytes.Length - start);
+    }
 }
 
 /// <summary>One option in the choice overlay: an icon badge over a label; <see cref="Value"/> is passed to

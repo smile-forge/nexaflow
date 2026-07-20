@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -15,6 +16,7 @@ using ICSharpCode.AvalonEdit.Editing;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Common.Controls;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Text.Editor.Commands;
 using Nexaflow.Visuals.Text.Editor.Highlighting;
@@ -29,7 +31,7 @@ namespace Nexaflow.Visuals.Text.Editor;
 /// Concrete and unsealed (not abstract) so the generic editor uses it directly, and the "As Code" editor
 /// subclasses it (see <c>CodeViewModel</c>) to add its structure panel.
 /// </summary>
-public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel, IDisposable
+public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel, IContextPreview, IDisposable
 {
     protected readonly IShellServices Shell;
     private readonly long _maxEditableBytes;
@@ -39,6 +41,12 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
     private bool _hasSelection;         // mirrors the editor's live selection (drives selection-only commands)
 
     public TextDocument Document { get; } = new();
+
+    /// <summary>False until the initial file load finishes (success OR failure). Gates the AI send so the
+    /// model is never handed an empty pre-load document.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsContextReady))]
+    private bool _isLoaded;
 
     // ── File info ──────────────────────────────────────────────────────────────
     [ObservableProperty] private string _filePath = string.Empty;
@@ -263,6 +271,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
             ReadOnlyReason = $"Could not open file: {ex.Message}";
             SetDocumentText(string.Empty);
         }
+        finally { IsLoaded = true; }
     }
 
     private void SetDocumentText(string text)
@@ -389,6 +398,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
 
     public virtual IReadOnlyList<IClientTool> GetClientTools() =>
     [
+        // ── Read / explore (auto-run) ──────────────────────────────────────────
         new DelegateClientTool(
             "get_editor_text",
             "Return the full current text of the open editor document.",
@@ -410,6 +420,63 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
                 var tree = highlighter?.GetParseTree(Document.Text);
                 return Task.FromResult(ToolResult.Ok(tree ?? string.Empty, "Parsed the document."));
             }),
+
+        // ── Edit / save (approval-gated) — mutate the live AvalonEdit document ──
+        new DelegateClientTool(
+            "set_editor_text",
+            "Replace the entire document with new text (read it first with get_editor_text). Unsaved — call save_file to persist.",
+            [new ClientToolParameter("text", "The full new document text.")],
+            ToolSafety.RequiresApproval,
+            (args, _) =>
+            {
+                if (IsReadOnlyMode) return Task.FromResult(ToolResult.Error("This file can't be edited."));
+                Document.Text = ToolArgs.Raw(args, "text", "content", "new_text") ?? string.Empty;
+                return Task.FromResult(ToolResult.Ok("document replaced",
+                    $"Replaced the document ({Document.LineCount} lines). Unsaved — call save_file to persist."));
+            }),
+
+        new DelegateClientTool(
+            "replace_all",
+            "Find and replace across the whole document (set regex=true for a regular expression). Returns the number replaced. Unsaved — call save_file.",
+            [
+                new ClientToolParameter("find", "Text or regex to find."),
+                new ClientToolParameter("replace", "Replacement text.", Required: false),
+                new ClientToolParameter("regex", "Treat 'find' as a regular expression.", Required: false, Type: "boolean"),
+                new ClientToolParameter("case_sensitive", "Match case.", Required: false, Type: "boolean"),
+            ],
+            ToolSafety.RequiresApproval,
+            (args, _) =>
+            {
+                if (IsReadOnlyMode) return Task.FromResult(ToolResult.Error("This file can't be edited."));
+                var find = ToolArgs.Str(args, "find", "pattern", "search");
+                if (string.IsNullOrEmpty(find)) return Task.FromResult(ToolResult.Error("No 'find' provided."));
+                var repl = ToolArgs.Str(args, "replace", "replacement", "to") ?? string.Empty;
+                var rx   = ToolArgs.Bool(args, "regex");
+                var cs   = ToolArgs.Bool(args, "case_sensitive");
+                try
+                {
+                    var re = new Regex(rx ? find : Regex.Escape(find), cs ? RegexOptions.None : RegexOptions.IgnoreCase);
+                    var original = Document.Text;
+                    var count = re.Matches(original).Count;
+                    if (count > 0) Document.Text = re.Replace(original, rx ? repl : repl.Replace("$", "$$"));
+                    return Task.FromResult(ToolResult.Ok($"replaced {count}",
+                        $"Replaced {count} occurrence(s). Unsaved — call save_file to persist."));
+                }
+                catch (ArgumentException ex) { return Task.FromResult(ToolResult.Error($"Invalid regex: {ex.Message}")); }
+            }),
+
+        new DelegateClientTool(
+            "save_file",
+            "Save the document to disk (encoding/EOL-aware).",
+            [],
+            ToolSafety.RequiresApproval,
+            async (_, _) =>
+            {
+                if (IsReadOnlyMode) return ToolResult.Error("This file can't be edited.");
+                if (!IsDirty) return ToolResult.Ok("nothing to save", "There are no unsaved edits.");
+                await SaveCommand.ExecuteAsync(null);
+                return ToolResult.Ok("saved", $"Saved {FileName}.");
+            }),
     ];
 
     public virtual IContext? GetContextObject()
@@ -418,6 +485,26 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
         var dir = Path.GetDirectoryName(FilePath);
         if (string.IsNullOrEmpty(dir)) return null;
         return new FileSystemContext { RootPath = dir, CurrentPath = dir, SelectedItems = [FilePath] };
+    }
+
+    /// <summary>Held until the initial load finishes, so the AI never sees an empty pre-load document.</summary>
+    public virtual bool IsContextReady => IsLoaded;
+
+    /// <summary>The file this editor's tools act within — disambiguates two editor tabs on different files
+    /// pinned into one conversation (so their identically-named tools don't collapse first-wins).</summary>
+    public virtual string? GetSecurityContext() => string.IsNullOrEmpty(FilePath) ? null : FilePath;
+
+    /// <summary>A compact, read-only preview for the conversation context panel — file name, a meta line, and a
+    /// capped monospace snippet. Built fresh each time; it never re-hosts the live editor.</summary>
+    public System.Windows.Controls.UserControl CreateContextPreview()
+    {
+        var meta = $"{LineCount:N0} line{(LineCount == 1 ? "" : "s")} · {SelectedEncoding.Name}"
+                 + (IsDirty ? " · unsaved edits" : string.Empty)
+                 + (IsReadOnlyMode ? " · read-only" : string.Empty);
+        const int cap = 8000;
+        var text = Document.Text;
+        var body = text.Length > cap ? text[..cap] + "\n… (preview truncated)" : text;
+        return new ReadOnlyTextPreview(string.IsNullOrEmpty(FileName) ? "Editor" : FileName, meta, body);
     }
 
     // ── Dispose ────────────────────────────────────────────────────────────────

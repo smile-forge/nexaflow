@@ -10,7 +10,7 @@ namespace Nexaflow.Tests.Features.VirtualDisk;
 /// <summary>The DiscUtils-backed reader against real, freshly-built images — proving directory-scoped reads
 /// (one directory / one file at a time), not a whole-volume walk.</summary>
 [TestClass]
-[CoversNode("virtualdisk")]
+[CoversNode("virtual-disk-viewer")]
 public class DiskImageReaderTests
 {
     [TestMethod]

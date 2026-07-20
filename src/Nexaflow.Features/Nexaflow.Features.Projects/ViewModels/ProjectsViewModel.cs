@@ -1,9 +1,11 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Projects.Model;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Text.Json.Nodes;
 
 namespace Nexaflow.Features.Projects.ViewModels;
 
@@ -186,8 +188,85 @@ public partial class ProjectsViewModel : ObservableObject, IPageViewModel
 
     public string GetContext()
     {
-        if (ProjectCount == 0) return "Projects list: no projects.";
-        var selected = SelectedProject is { } p ? $" Selected: '{p.DisplayName}'." : string.Empty;
-        return $"Projects list ({SelectedBucket}): {ProjectCount} project(s).{selected}";
+        if (ProjectCount == 0)
+            return IsEnabled
+                ? $"Projects list ({SelectedBucket}): no projects."
+                : "Projects list: no projects (the feature is disabled for this workspace).";
+
+        var lines = Projects.Take(40).Select(p =>
+        {
+            var desc = string.IsNullOrWhiteSpace(p.DescriptionPreview) ? string.Empty : $" — {p.DescriptionPreview}";
+            return $"• {p.DisplayName} ({p.CountsText}){desc}";
+        });
+        var more     = ProjectCount > 40 ? $"\n(+{ProjectCount - 40} more)" : string.Empty;
+        var selected = SelectedProject is { } s ? $" Selected: '{s.DisplayName}'." : string.Empty;
+
+        return $"Projects list ({SelectedBucket}): {ProjectCount} project(s).{selected}\n"
+             + string.Join("\n", lines) + more + "\n"
+             + "Use list_projects for every project, or read_project to read a project's description, "
+             + "completion criteria and backlog items.";
     }
+
+    /// <summary>Scope = the folder root the current bucket reads from, so two Projects tabs on different
+    /// buckets stay distinguishable when pinned together.</summary>
+    public string? GetSecurityContext() => RootFor(SelectedBucket);
+
+    public IReadOnlyList<IClientTool> GetClientTools() =>
+    [
+        new DelegateClientTool(
+            "list_projects",
+            "List every project in the current bucket (active / shelf / archive) with its display name, "
+          + "folder, backlog count and last-modified time.",
+            [],
+            ToolSafety.SafeOperation,
+            (_, _) =>
+            {
+                if (!IsEnabled)
+                    return Task.FromResult(ToolResult.Ok("disabled", "The Projects feature is disabled for this workspace."));
+                if (Projects.Count == 0)
+                    return Task.FromResult(ToolResult.Ok("no projects", $"No projects in the {SelectedBucket} bucket."));
+
+                var body = string.Join("\n", Projects.Select(p =>
+                {
+                    var desc = string.IsNullOrWhiteSpace(p.DescriptionPreview) ? string.Empty : $" — {p.DescriptionPreview}";
+                    return $"- {p.DisplayName} [{p.FolderName}] ({p.CountsText}, updated {p.LastModified}){desc}";
+                }));
+                return Task.FromResult(ToolResult.Ok($"{Projects.Count} project(s)", body));
+            }),
+
+        new DelegateClientTool(
+            "read_project",
+            "Read one project in full: its description, completion criteria and every backlog item "
+          + "(title, status, detail). Identify it by folder name or display name; defaults to the "
+          + "selected project.",
+            [new ClientToolParameter("project",
+                "Folder name or display name of the project. Optional — defaults to the selected project.",
+                Required: false)],
+            ToolSafety.SafeOperation,
+            (args, _) =>
+            {
+                if (!IsEnabled)
+                    return Task.FromResult(ToolResult.Error("The Projects feature is disabled for this workspace."));
+
+                var key  = ToolArgs.Str(args, "project", "name", "folder", "id");
+                var item = key is null
+                    ? SelectedProject
+                    : Projects.FirstOrDefault(p =>
+                          string.Equals(p.FolderName,  key, StringComparison.OrdinalIgnoreCase)
+                       || string.Equals(p.DisplayName, key, StringComparison.OrdinalIgnoreCase));
+                if (item is null)
+                    return Task.FromResult(ToolResult.Error(
+                        key is null ? "No project is selected."
+                                    : $"No project named '{key}' in the {SelectedBucket} bucket."));
+                try
+                {
+                    var readout = OpsFor(SelectedBucket).GetProjectReadout(item.FolderName);
+                    return Task.FromResult(ToolResult.Ok($"read '{item.DisplayName}'", readout));
+                }
+                catch (Exception ex)
+                {
+                    return Task.FromResult(ToolResult.Error($"Could not read '{item.DisplayName}': {ex.Message}"));
+                }
+            }),
+    ];
 }

@@ -10,7 +10,7 @@ namespace Nexaflow.Tests.Features.VirtualDisk;
 /// <summary>Mount policy (which formats, elevation gating, drive-letter parsing) and the disk file/folder
 /// actions' contracts. Live mounting needs admin + real hardware, so these cover the routing, not the attach.</summary>
 [TestClass]
-[CoversNode("virtualdisk")]
+[CoversNode("virtual-disk-viewer")]
 public class DiskMountAndActionsTests
 {
     [TestMethod]

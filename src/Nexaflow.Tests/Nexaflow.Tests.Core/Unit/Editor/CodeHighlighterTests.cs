@@ -71,7 +71,7 @@ public class CodeHighlighterTests
     }
 
     [TestMethod]
-    [CoversNode("code-syntax-tree-tool")]
+    [CoversNode("code-ai-act-get-syntax-tree")]
     public void CSharp_ParseTree_IsSExpression()
     {
         using var highlighter = CodeHighlighter.TryCreate("c-sharp");

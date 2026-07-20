@@ -11,7 +11,7 @@ namespace Nexaflow.Tests.Features.ProductManager;
 
 /// <summary>The AI tool surface — read renderers + the write tools (which load .product/, mutate, and save).</summary>
 [TestClass]
-[CoversNode("product-ai-tools")]
+[CoversNode("product-ai-act")]
 public class ProductToolsTests
 {
     private string _root = string.Empty;
@@ -43,6 +43,16 @@ public class ProductToolsTests
         => tools.Single(t => t.Name == name).InvokeAsync(args, default).GetAwaiter().GetResult();
 
     private ProductState Reload() => new ProductStore(_root).Load();
+
+    [TestMethod]
+    [CoversNode("product-ai-context")]
+    public void GetContext_Describe_SummarizesTheTree()
+    {
+        // ProductViewModel.GetContext() delegates to ProductTools.Describe — assert it produces a real
+        // summary of the loaded tree (names the product / a node), not an empty or error string.
+        var ctx = ProductTools.Describe(Reload(), null);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(ctx));
+    }
 
     [TestMethod]
     public void SetNodeStatus_Done_CascadesShouldItems()

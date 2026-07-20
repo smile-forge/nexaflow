@@ -1,3 +1,4 @@
+using System.Linq;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 
@@ -158,5 +159,115 @@ public class ProductTreeOpsTests
         ProductTreeOps.CascadeStatus(s, "p", Status.Done);
         Assert.AreEqual(Status.Should, s.Nodes["p"].Status);   // a parent's stored status is derived → untouched
         Assert.AreEqual(Status.Done,   s.Nodes["l"].Status);
+    }
+
+    // ── RepairChildren (doctor): reconcile children[] against the child→Parent back-references ──
+
+    [TestMethod]
+    [CoversNode("data-model")]
+    public void RepairChildren_SplitsConcatenatedChildId_InOrder()
+    {
+        // The exact corruption a raw-JSON script produced: two child ids concatenated into one string.
+        var s = new ProductState
+        {
+            Product = new ProductDocument { Product = "P" },
+            Nodes = new()
+            {
+                ["wfs"]    = new ProductNode { Title = "wfs", Children = ["tabwfs-ai"] },
+                ["tab"]    = new ProductNode { Title = "tab", Parent = "wfs" },
+                ["wfs-ai"] = new ProductNode { Title = "ai",  Parent = "wfs" },
+            }
+        };
+
+        var repairs = ProductTreeOps.RepairChildren(s, apply: true);
+
+        Assert.AreEqual(1, repairs.Count);
+        CollectionAssert.AreEqual(new[] { "tab", "wfs-ai" }, s.Nodes["wfs"].Children);   // split back, in order
+        Assert.AreEqual(0, repairs[0].Dropped.Count);
+    }
+
+    [TestMethod]
+    [CoversNode("data-model")]
+    public void RepairChildren_ReattachesOrphan()
+    {
+        var s = new ProductState
+        {
+            Nodes = new()
+            {
+                ["p"] = new ProductNode { Title = "p", Children = [] },
+                ["c"] = new ProductNode { Title = "c", Parent = "p" },   // names p as parent, but p doesn't list it
+            }
+        };
+
+        ProductTreeOps.RepairChildren(s, apply: true);
+
+        CollectionAssert.Contains(s.Nodes["p"].Children, "c");
+    }
+
+    [TestMethod]
+    [CoversNode("data-model")]
+    public void RepairChildren_NoOp_OnCleanTree() =>
+        Assert.AreEqual(0, ProductTreeOps.RepairChildren(Sample(), apply: true).Count);
+
+    [TestMethod]
+    [CoversNode("data-model")]
+    public void RepairChildren_DropsUnrecoverableDangling()
+    {
+        var s = new ProductState { Nodes = new() { ["p"] = new ProductNode { Title = "p", Children = ["ghost"] } } };
+
+        var repairs = ProductTreeOps.RepairChildren(s, apply: true);
+
+        Assert.AreEqual(1, repairs.Count);
+        CollectionAssert.Contains(repairs[0].Dropped, "ghost");
+        Assert.AreEqual(0, s.Nodes["p"].Children.Count);
+    }
+
+    // ── Concern / snaplink / field mutations (the CLI verbs' typed core) ──
+
+    [TestMethod]
+    [CoversNode("data-model")]
+    public void SetConcern_AddsThenUpdates_WithoutDuplicating()
+    {
+        var s = new ProductState { Nodes = new() { ["n"] = new ProductNode { Title = "n" } } };
+
+        Assert.IsTrue(ProductTreeOps.SetConcern(s, "n", "tests", Status.Should));
+        Assert.AreEqual(Status.Should, s.Nodes["n"].Concerns!.Single(c => c.Tag == "tests").Status);
+
+        ProductTreeOps.SetConcern(s, "n", "tests", Status.Done);
+        Assert.AreEqual(Status.Done, s.Nodes["n"].Concerns!.Single(c => c.Tag == "tests").Status);
+        Assert.AreEqual(1, s.Nodes["n"].Concerns!.Count(c => c.Tag == "tests"));   // updated in place
+
+        Assert.IsFalse(ProductTreeOps.SetConcern(s, "missing", "tests", Status.Done));
+    }
+
+    [TestMethod]
+    [CoversNode("data-model")]
+    public void AddSnaplink_ToNode_AndToConcern()
+    {
+        var s = new ProductState { Nodes = new() { ["n"] = new ProductNode { Title = "n" } } };
+
+        Assert.IsTrue(ProductTreeOps.AddSnaplink(s, "n", new Snaplink { Type = "code", Doc = "X.cs" }));
+        Assert.AreEqual("X.cs", s.Nodes["n"].Snaplinks!.Single().Doc);
+
+        ProductTreeOps.SetConcern(s, "n", "tests", Status.Done);
+        Assert.IsTrue(ProductTreeOps.AddSnaplink(s, "n", new Snaplink { Type = "code", Doc = "T.cs" }, "tests"));
+        Assert.AreEqual("T.cs", s.Nodes["n"].Concerns!.Single(c => c.Tag == "tests").Snaplinks!.Single().Doc);
+
+        Assert.IsFalse(ProductTreeOps.AddSnaplink(s, "n", new Snaplink { Type = "url", Target = "u" }, "absent-concern"));
+    }
+
+    [TestMethod]
+    [CoversNode("data-model")]
+    public void EditNode_SetsAndClearsOptionalFields()
+    {
+        var s = new ProductState { Nodes = new() { ["n"] = new ProductNode { Title = "n" } } };
+
+        ProductTreeOps.EditNode(s, "n", description: "d", note: "why");
+        Assert.AreEqual("d", s.Nodes["n"].Description);
+        Assert.AreEqual("why", s.Nodes["n"].Note);
+
+        ProductTreeOps.EditNode(s, "n", description: "");   // empty string clears an optional field
+        Assert.IsNull(s.Nodes["n"].Description);
+        Assert.AreEqual("why", s.Nodes["n"].Note);          // null arg leaves it untouched
     }
 }

@@ -1,8 +1,10 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Projects.Model;
 using System.Collections.ObjectModel;
+using System.Text.Json.Nodes;
 
 namespace Nexaflow.Features.Projects.ViewModels;
 
@@ -324,9 +326,85 @@ public partial class ProjectDetailViewModel : ObservableObject, IPageViewModel
     public string GetContext()
     {
         if (string.IsNullOrEmpty(ProjectName)) return "Project detail: no project loaded.";
-        var count = Backlog.Count;
-        return count == 0
-            ? $"Project: '{ProjectName}'. No backlog items."
-            : $"Project: '{ProjectName}'. {count} backlog item(s).";
+
+        var parts = new List<string>
+        {
+            $"Project '{ProjectName}'" + (NeedsUpgrade ? " (legacy format, read-only until upgraded)" : string.Empty) + ".",
+        };
+
+        if (!string.IsNullOrWhiteSpace(Description))
+            parts.Add("Description: " + Truncate(Description, 280));
+
+        if (CompletionCriteria.Count > 0)
+            parts.Add($"Completion criteria ({CompletionCriteria.Count}): "
+                + string.Join("; ", CompletionCriteria.Take(8).Select(c => $"[{c.Status}] {Truncate(c.Text, 60)}")) + ".");
+
+        parts.Add(Backlog.Count == 0
+            ? "No backlog items."
+            : $"{Backlog.Count} backlog item(s): "
+              + string.Join("; ", Backlog.Take(12).Select(b => $"{Truncate(b.Title, 50)} [{b.StatusLabel}]"))
+              + (Backlog.Count > 12 ? "; …" : string.Empty) + ".");
+
+        parts.Add("Use read_project for the full description, criteria and backlog detail, or "
+                + "read_backlog_item to read a single item.");
+        return string.Join(" ", parts);
+    }
+
+    /// <summary>Scope = this project's folder path, so two Project Detail tabs stay distinguishable when
+    /// pinned together and the tools act only within this project.</summary>
+    public string? GetSecurityContext() => _projectPath;
+
+    public IReadOnlyList<IClientTool> GetClientTools() =>
+    [
+        new DelegateClientTool(
+            "read_project",
+            "Read this project in full: its description, completion criteria and every backlog item "
+          + "(title, status, markdown detail).",
+            [],
+            ToolSafety.SafeOperation,
+            (_, _) =>
+            {
+                try
+                {
+                    return Task.FromResult(ToolResult.Ok($"read '{ProjectName}'", _svc.GetProjectReadout(FolderName)));
+                }
+                catch (Exception ex)
+                {
+                    return Task.FromResult(ToolResult.Error($"Could not read the project: {ex.Message}"));
+                }
+            }),
+
+        new DelegateClientTool(
+            "read_backlog_item",
+            "Read one backlog item's full detail (title, status and markdown description). Identify it by "
+          + "title or id; defaults to the selected item.",
+            [new ClientToolParameter("item",
+                "Backlog item title or id. Optional — defaults to the selected item.",
+                Required: false)],
+            ToolSafety.SafeOperation,
+            (args, _) =>
+            {
+                if (Backlog.Count == 0)
+                    return Task.FromResult(ToolResult.Error("This project has no backlog items."));
+
+                var key = ToolArgs.Str(args, "item", "title", "id");
+                var vm  = key is null
+                    ? SelectedItem ?? Backlog[0]
+                    : Backlog.FirstOrDefault(b =>
+                          string.Equals(b.Id.ToString(), key, StringComparison.OrdinalIgnoreCase)
+                       || string.Equals(b.Title,         key, StringComparison.OrdinalIgnoreCase));
+                if (vm is null)
+                    return Task.FromResult(ToolResult.Error($"No backlog item matching '{key}'."));
+
+                var body = $"### [{vm.StatusLabel}] {vm.Title}\n**ID:** {vm.Id}\n\n"
+                         + (string.IsNullOrWhiteSpace(vm.Description) ? "_No detail._" : vm.Description);
+                return Task.FromResult(ToolResult.Ok($"read '{vm.Title}'", body));
+            }),
+    ];
+
+    private static string Truncate(string s, int max)
+    {
+        s = s.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        return s.Length <= max ? s : s[..max].TrimEnd() + "…";
     }
 }
