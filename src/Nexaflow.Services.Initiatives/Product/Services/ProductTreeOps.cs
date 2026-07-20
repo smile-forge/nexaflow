@@ -79,6 +79,28 @@ public static class ProductTreeOps
         return false;
     }
 
+    /// <summary>Deletes <paramref name="id"/> — and, with <paramref name="recursive"/>, its whole subtree —
+    /// removing it from its parent's child list. Returns the ids actually removed, or <c>null</c> when the node
+    /// is missing or (without <paramref name="recursive"/>) still has children — the caller reports that guard.</summary>
+    public static List<string>? Remove(ProductState s, string id, bool recursive)
+    {
+        if (!s.Nodes.TryGetValue(id, out var node)) return null;
+        if (node.Children.Count(s.Nodes.ContainsKey) > 0 && !recursive) return null;
+
+        var removed = new List<string>();
+        void Collect(string n)
+        {
+            removed.Add(n);
+            if (s.Nodes.TryGetValue(n, out var nn))
+                foreach (var c in nn.Children.Where(s.Nodes.ContainsKey).ToList()) Collect(c);
+        }
+        Collect(id);
+
+        if (node.Parent is { } pid && s.Nodes.TryGetValue(pid, out var parent)) parent.Children.Remove(id);
+        foreach (var n in removed) s.Nodes.Remove(n);
+        return removed;
+    }
+
     /// <summary>
     /// Applies <paramref name="status"/> down the subtree rooted at <paramref name="id"/> (used by the sunburst
     /// "Status: …" menu). The clicked node's own status changes directly; descendant <em>leaf</em> statuses and

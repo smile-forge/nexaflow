@@ -107,6 +107,48 @@ public class ProductTreeOpsTests
         Assert.IsFalse(ProductTreeOps.Reparent(s, "a1", "a"));    // already a child of a
     }
 
+    // ── Remove ──────────────────────────────────────────────────────────────
+    [TestMethod]
+    [CoversNode("product-restructure")]
+    public void Remove_Leaf_UnlistsFromParentAndDeletes()
+    {
+        var s = Sample();
+        var removed = ProductTreeOps.Remove(s, "a1", recursive: false);
+
+        CollectionAssert.AreEqual(new[] { "a1" }, removed);
+        Assert.IsFalse(s.Nodes.ContainsKey("a1"));
+        CollectionAssert.DoesNotContain(s.Nodes["a"].Children, "a1");
+        Assert.IsTrue(s.Nodes.ContainsKey("a2"), "a sibling is untouched");
+    }
+
+    [TestMethod]
+    [CoversNode("product-restructure")]
+    public void Remove_RejectsNodeWithChildren_WithoutRecursive()
+    {
+        var s = Sample();
+        Assert.IsNull(ProductTreeOps.Remove(s, "a", recursive: false));
+        Assert.IsTrue(s.Nodes.ContainsKey("a"), "nothing deleted when the guard trips");
+    }
+
+    [TestMethod]
+    [CoversNode("product-restructure")]
+    public void Remove_Recursive_DeletesWholeSubtree()
+    {
+        var s = Sample();
+        var removed = ProductTreeOps.Remove(s, "a", recursive: true);
+
+        CollectionAssert.AreEquivalent(new[] { "a", "a1", "a2" }, removed);
+        Assert.IsFalse(s.Nodes.ContainsKey("a"));
+        Assert.IsFalse(s.Nodes.ContainsKey("a1"));
+        Assert.IsFalse(s.Nodes.ContainsKey("a2"));
+        CollectionAssert.DoesNotContain(s.Nodes["root"].Children, "a");
+    }
+
+    [TestMethod]
+    [CoversNode("product-restructure")]
+    public void Remove_MissingNode_ReturnsNull()
+        => Assert.IsNull(ProductTreeOps.Remove(Sample(), "nope", recursive: true));
+
     // ── Cascade status (sunburst "Status: …" menu) ──────────────────────────
     [TestMethod]
     [CoversNode("product-node-menu")]
