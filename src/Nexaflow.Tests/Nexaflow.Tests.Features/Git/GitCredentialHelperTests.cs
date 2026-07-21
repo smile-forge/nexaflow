@@ -12,7 +12,7 @@ namespace Nexaflow.Tests.Features.Git;
 /// is verified manually.
 /// </summary>
 [TestClass]
-[CoversNode("viewlet-2")]
+[CoversNode("git-credentials")]
 public class GitCredentialHelperTests
 {
     private static GitCredentialHelper Helper(Func<string, string, string?> run) => new(@"C:\repo", run);

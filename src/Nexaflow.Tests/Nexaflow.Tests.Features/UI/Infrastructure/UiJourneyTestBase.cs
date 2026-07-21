@@ -57,11 +57,47 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
         return el;
     }
 
-    /// <summary>Finds a control and invokes (or clicks) it, recording any failure. Returns the element if found.</summary>
+    /// <summary>
+    /// Finds a control, invokes it, and requires it to have an observable <paramref name="effect"/> —
+    /// the form every interactive check should take.
+    /// <para>
+    /// <see cref="CheckInvoke"/> only proves a control can be clicked without throwing, which a control that
+    /// does nothing at all also satisfies. Prefer this: state what pressing it should change (the document
+    /// re-rendered, the panel opened, the row disappeared) and let the journey fail when it doesn't.
+    /// </para>
+    /// </summary>
+    protected void CheckDoes(string label, string automationId, Func<bool> effect, int seconds = 5)
+    {
+        if (CheckInvoke(label, automationId, seconds) is null) return;   // absence already recorded
+        _checks++;
+        try
+        {
+            if (!effect()) _failures.Add($"{label}: '{automationId}' was invoked but had no observable effect.");
+        }
+        catch (Exception ex)
+        {
+            _failures.Add($"{label}: checking the effect of '{automationId}' threw {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Finds a control and invokes (or clicks) it, recording any failure. Returns the element if found.
+    /// <para>
+    /// A <b>disabled</b> control is a failure, not a skip: pressing it could not do anything, so invoking it
+    /// proves nothing. If the journey means to assert a control is unavailable in this state, assert that
+    /// directly with <see cref="Check"/> instead of invoking it.
+    /// </para>
+    /// Prefer <see cref="CheckDoes"/> — this on its own does not assert the click achieved anything.
+    /// </summary>
     protected AutomationElement? CheckInvoke(string label, string automationId, int seconds = 5)
     {
         var el = CheckPresent(label, automationId, seconds);
         if (el is null) return null;
+        if (!el.IsEnabled)
+        {
+            _failures.Add($"{label}: '{automationId}' is disabled — invoking it cannot do anything.");
+            return el;
+        }
         try
         {
             if (el.Patterns.Invoke.IsSupported) el.AsButton().Invoke();

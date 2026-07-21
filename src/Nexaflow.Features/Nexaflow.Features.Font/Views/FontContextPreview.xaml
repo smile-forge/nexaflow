@@ -1,0 +1,56 @@
+<UserControl x:Class="Nexaflow.Features.Font.Views.FontContextPreview"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             AutomationProperties.AutomationId="FontContextPreview">
+
+    <!-- Read-only preview of the Font page for the conversation context panel: one entry per compared
+         font — its Identity rows, then "abcde" set in that font so the panel shows what the page shows.
+         Built fresh each time the chip is selected; it binds to the page's items but owns nothing. -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                  Padding="8">
+        <ItemsControl ItemsSource="{Binding Fonts}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border Margin="0,0,0,10" Padding="0,0,0,10"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+                        <StackPanel>
+                            <!-- Identity: label → value, exactly the rows the details panel leads with -->
+                            <ItemsControl ItemsSource="{Binding IdentityRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" MinWidth="86"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding Label}"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Value}"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextBrush}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTip="{Binding Value}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- The specimen, set in this font's own selected face at 14pt -->
+                            <TextBlock Text="abcde"
+                                       Margin="0,6,0,0"
+                                       FontSize="14"
+                                       FontFamily="{Binding FontFamily}"
+                                       FontWeight="{Binding EffectiveWeight}"
+                                       FontStyle="{Binding EffectiveStyle}"
+                                       FontStretch="{Binding EffectiveStretch}"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </ScrollViewer>
+</UserControl>

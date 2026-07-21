@@ -71,43 +71,30 @@ public sealed partial class FontItemViewModel : ObservableObject
 
     /// <summary>The page's shared preview settings (size + bold/italic/underline), attached when this item
     /// joins a compare list. The compare row binds text/size to these and weight/style to the effective
-    /// attributes below, so the header toggles AND the selected face both drive the preview.</summary>
+    /// attributes below, which come from the selected face alone.</summary>
     public FontPreviewOptions? Options { get; private set; }
 
     public void AttachOptions(FontPreviewOptions options)
     {
-        if (Options is not null) Options.PropertyChanged -= OnOptionsChanged;
         Options = options;
-        Options.PropertyChanged += OnOptionsChanged;
         RaiseEffective();
         OnPropertyChanged(nameof(Options));
     }
 
-    private void OnOptionsChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName is nameof(FontPreviewOptions.IsBold) or nameof(FontPreviewOptions.IsItalic)
-                              or nameof(FontPreviewOptions.IsUnderline))
-            RaiseEffective();
-    }
+    // How a preview row renders: entirely the selected face's own metrics. There are no bold / italic /
+    // underline overrides — the UI has no style toggles, so a face is shown exactly as it is designed.
 
-    /// <summary>Bold header toggle wins; otherwise the selected face's own weight.</summary>
-    public FontWeight EffectiveWeight =>
-        Options?.IsBold == true ? FontWeights.Bold : SelectedFace?.Weight ?? FontWeights.Normal;
+    public FontWeight EffectiveWeight => SelectedFace?.Weight ?? FontWeights.Normal;
 
-    public FontStyle EffectiveStyle =>
-        Options?.IsItalic == true ? FontStyles.Italic : SelectedFace?.Style ?? FontStyles.Normal;
+    public FontStyle EffectiveStyle => SelectedFace?.Style ?? FontStyles.Normal;
 
     public FontStretch EffectiveStretch => SelectedFace?.Stretch ?? FontStretches.Normal;
-
-    public TextDecorationCollection? EffectiveDecorations =>
-        Options?.IsUnderline == true ? TextDecorations.Underline : null;
 
     private void RaiseEffective()
     {
         OnPropertyChanged(nameof(EffectiveWeight));
         OnPropertyChanged(nameof(EffectiveStyle));
         OnPropertyChanged(nameof(EffectiveStretch));
-        OnPropertyChanged(nameof(EffectiveDecorations));
     }
 
     /// <summary>Resolves faces + selects a representative. Called when the item becomes the selection.</summary>
@@ -135,6 +122,34 @@ public sealed partial class FontItemViewModel : ObservableObject
     // ── Details panel ────────────────────────────────────────────────────────
 
     public IReadOnlyList<DetailRow> Details => BuildDetails();
+
+    /// <summary>
+    /// Just the Identity rows the details panel shows first — family, face, source, format, faces-in-file —
+    /// with no heading. The AI context preview lists these above a small specimen, where the metrics, legal
+    /// and technical groups would be noise in a ~35%-width panel. A font that failed to load reports why.
+    /// </summary>
+    public IReadOnlyList<DetailRow> IdentityRows
+    {
+        get
+        {
+            if (!CanRender) return [new DetailRow("Status", LoadError ?? "Could not load font.")];
+            var rows = new List<DetailRow>();
+            AddIdentityRows(rows, Representative, SelectedFace ?? Representative);
+            return rows;
+        }
+    }
+
+    /// <summary>The identity label→value pairs, shared by the details panel and the context preview so the
+    /// two can never drift.</summary>
+    private void AddIdentityRows(List<DetailRow> rows, FontFaceViewModel? rep, FontFaceViewModel? face)
+    {
+        Add(rows, "Family", DisplayName);
+        Add(rows, "Face", face?.FaceName);
+        Add(rows, "Sample text", face?.SampleText);
+        Add(rows, "Source", SourceLabel);
+        Add(rows, "Format", DescribeFormat(rep));
+        Add(rows, "Faces in file", Faces.Count.ToString());
+    }
 
     partial void OnSelectedFaceChanged(FontFaceViewModel? oldValue, FontFaceViewModel? newValue)
     {
@@ -174,12 +189,7 @@ public sealed partial class FontItemViewModel : ObservableObject
 
         // Identity
         rows.Add(DetailRow.Header("Identity"));
-        Add(rows, "Family", DisplayName);
-        Add(rows, "Face", face?.FaceName);
-        Add(rows, "Sample text", face?.SampleText);
-        Add(rows, "Source", SourceLabel);
-        Add(rows, "Format", DescribeFormat(rep));
-        Add(rows, "Faces in file", Faces.Count.ToString());
+        AddIdentityRows(rows, rep, face);
 
         // Style & metrics (per selected face)
         if (face is not null) rows.AddRange(face.MetricRows);
@@ -226,7 +236,19 @@ public sealed partial class FontItemViewModel : ObservableObject
     private IReadOnlyList<int>? _allCodePoints;
     [ObservableProperty] private int _glyphPage;
 
-    private IReadOnlyList<int> AllCodePoints => _allCodePoints ??= BuildCodePoints();
+    /// <summary>The face's mapped code points. An empty result is NOT cached on the instance: it means
+    /// either a degenerate font or a read that lost the race in <see cref="SnapshotCodePoints"/>, and the
+    /// latter must be able to heal on the next look rather than leaving the glyph map permanently blank.</summary>
+    private IReadOnlyList<int> AllCodePoints
+    {
+        get
+        {
+            if (_allCodePoints is { Count: > 0 }) return _allCodePoints;
+            var built = BuildCodePoints();
+            if (built.Count > 0) _allCodePoints = built;
+            return built;
+        }
+    }
 
     /// <summary>The current page of glyphs (Prev/Next walk through them all).</summary>
     public IReadOnlyList<string> GlyphSamples =>
@@ -274,10 +296,71 @@ public sealed partial class FontItemViewModel : ObservableObject
         var glyph = (SelectedFace ?? Representative)?.Glyph;
         if (glyph is null) return [];
 
-        return glyph.CharacterToGlyphMap.Keys
+        return SnapshotCodePoints(glyph)
             .Where(cp => cp >= 0x20 && cp != 0x7F && !(cp >= 0x80 && cp <= 0x9F)
                          && cp <= 0x10FFFF && !(cp >= 0xD800 && cp <= 0xDFFF))
             .OrderBy(cp => cp)
             .ToList();
+    }
+
+    /// <summary>Serialises our own glyph-map reads. See <see cref="SnapshotCodePoints"/>.</summary>
+    private static readonly Lock GlyphMapGate = new();
+
+    /// <summary>
+    /// Code points already read, keyed by face identity (file + weight/style/stretch) rather than by
+    /// <see cref="GlyphTypeface"/> instance — <c>FontFamily.GetTypefaces()</c> hands back fresh instances
+    /// each call, so instance keys would never hit. Two wins: a large CJK map is enumerated once per face
+    /// for the whole process instead of per compare row, and the lazy-population race below can only be
+    /// lost on the very first read of a face.
+    /// </summary>
+    private static readonly Dictionary<(string, int, int, int), int[]> CodePointsByFace = new();
+
+    /// <summary>
+    /// The face's mapped code points, copied out defensively.
+    /// <para>
+    /// <see cref="GlyphTypeface.CharacterToGlyphMap"/> is populated lazily and the
+    /// <see cref="GlyphTypeface"/> is shared per face, so two threads first touching the same face race —
+    /// the AI's <c>get_font_details</c> / <c>render_font_preview</c> tools read a font off the UI thread
+    /// while the user expands the glyph map. The race surfaces two different ways: a mid-flight enumeration
+    /// throws <see cref="InvalidOperationException"/>, and <c>ToArray</c> throws
+    /// <see cref="ArgumentException"/> because it pre-sizes the destination from <c>Count</c> and then
+    /// copies. The gate removes our own contention; the retry covers population driven from elsewhere
+    /// (WPF's own text rendering), and settles because population happens once.
+    /// </para>
+    /// </summary>
+    private static int[] SnapshotCodePoints(GlyphTypeface glyph)
+    {
+        var key = (glyph.FontUri?.ToString() ?? string.Empty,
+                   glyph.Weight.ToOpenTypeWeight(), glyph.Style.GetHashCode(), glyph.Stretch.ToOpenTypeStretch());
+
+        lock (GlyphMapGate)
+        {
+            if (CodePointsByFace.TryGetValue(key, out var cached)) return cached;
+
+            // Population completes in microseconds, so yielding between attempts converges quickly; the
+            // cap only exists so a pathological font can never spin here forever.
+            for (var attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    // Accumulated one key at a time rather than via ToArray(), so a map that grows while
+                    // being read costs a retry rather than a pre-sized-array failure.
+                    List<int> codePoints = [];
+                    foreach (var codePoint in glyph.CharacterToGlyphMap.Keys) codePoints.Add(codePoint);
+
+                    var snapshot = codePoints.ToArray();
+                    // Only a real read is remembered: caching an empty degrade would make it permanent.
+                    if (snapshot.Length > 0) CodePointsByFace[key] = snapshot;
+                    return snapshot;
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
+                {
+                    // Give up rather than fail the whole details panel — an empty glyph map degrades to
+                    // "No glyphs." while every other row still renders, and the next look retries.
+                    if (attempt >= 50) return [];
+                    Thread.Yield();
+                }
+            }
+        }
     }
 }

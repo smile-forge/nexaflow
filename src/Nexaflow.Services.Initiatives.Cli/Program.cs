@@ -32,6 +32,7 @@ internal static class Program
             "find"        => Find(args[1..]),
             "query"       => Query(args[1..]),
             "describe"    => Describe(args[1..]),
+            "tree"        => Tree(args[1..]),
             "diff"        => Diff(args[1..]),
             "remap"       => Remap(args[1..]),
             "scan-tests"  => ScanTests(args[1..]),
@@ -43,8 +44,10 @@ internal static class Program
             "remove-snaplink" => RemoveSnaplink(args[1..]),
             "set-node"    => SetNode(args[1..]),
             "move"        => Move(args[1..]),
+            "rename"      => Rename(args[1..]),
             "remove"      => Remove(args[1..]),
             "batch"       => Batch(args[1..]),
+            "lint"        => Lint(args[1..]),
             "doctor"      => Doctor(args[1..]),
             "graph"       => Graph(args[1..]),
             _ => Usage($"unknown command '{args[0]}'")
@@ -62,6 +65,7 @@ internal static class Program
               nexaflow-initiatives find       <term> [<root>] [--json]
               nexaflow-initiatives query      [<root>] [--under <id>] [--concern <tag>] [--status <s>] [--leaf|--panel] [--json]
               nexaflow-initiatives describe   <node-id> [<root>] [--json] [--code]
+              nexaflow-initiatives tree       <node-id> [<root>] [--depth <n>] [--full] [--json]
               nexaflow-initiatives diff       [<root>] [--from <version>]
               nexaflow-initiatives remap      <old-path> <new-path> [<root>] [--class <name>] [--method <name>]
               nexaflow-initiatives scan-tests [<root>] [--test-dll <path>]... [--suggest-attributes]
@@ -74,8 +78,10 @@ internal static class Program
               nexaflow-initiatives remove-snaplink <node-id> [<root>] [--concern <tag>] [--index <n>]
               nexaflow-initiatives set-node   <node-id> [<root>] [--title <t>] [--desc <d>] [--note <n>]
               nexaflow-initiatives move       <node-id> <new-parent-id> [<root>]
+              nexaflow-initiatives rename     <old-id> <new-id> [<root>]
               nexaflow-initiatives remove     <node-id> [<root>] [--recursive]
               nexaflow-initiatives batch      <script-file> [<root>] [--dry-run]
+              nexaflow-initiatives lint       [<root>] [--under <id>] [--json]
               nexaflow-initiatives doctor     [<root>] [--fix]
               nexaflow-initiatives graph      [<root>] [--json] [--product-anchored]   (see: graph help — build + explore)
 
@@ -88,11 +94,17 @@ internal static class Program
                        it and shows its status + snaplink count; --status matches the concern's status (or, with
                        no --concern, the node's DERIVED status — a parent rolls up its children, exactly like the
                        UI); --leaf / --panel keep only leaves / only parents.
-                       e.g. query --under product --concern tests --status should --leaf → unbacked test leaves.
+                       --unbacked (with --concern) keeps only nodes carrying it with NO snaplink.
+                       e.g. query --under git --concern tests --status done --unbacked → "tests done" with
+                       nothing naming the test; drop --status to see every unbacked tests concern.
             describe   Prints one node: path, status, concerns, and its code/test/doc snaplinks.
                        --code also resolves each code snaplink to its actual source block (the class/method
                        via tree-sitter, or a whole-file preview), read from your working tree — so "show me
                        the code behind this node" is one call; a link that no longer resolves prints why.
+            tree       Prints a whole subtree as an indented outline — the "show me this entire feature" view
+                       (describe answers one node at a time). Each line is id [status] title + its concerns;
+                       --full also prints each node's about/note and every snaplink, so a feature's tree/code
+                       alignment is one call. --depth <n> caps the walk (the node itself is 0).
             diff       What changed in the live tree since the last committed release snapshot
                        (<export-dir>/<version>.json): nodes added/removed, node-status and concern-status
                        changes. --from <version> diffs against a specific snapshot instead of the newest.
@@ -120,6 +132,10 @@ internal static class Program
             move       Reparents <node-id> (and its subtree) under <new-parent-id> — detaches it from its old
                        parent and re-lists it under the new one, rejecting a move that would make a cycle. The
                        safe way to restructure the tree.
+            rename     Changes a node's ID, retargeting its parent's children[], its children's parent back-refs
+                       and every node-type snaplink pointing at it. Ids are ONE flat global namespace, so this
+                       is how you specialise a too-generic one ('run' → 'dotnet-verb-run'). It cannot reach a
+                       [CoversNode("<old-id>")] in test source — update those too (NXCOV002 flags them).
             remove     Deletes <node-id> (a leaf) from the tree and its parent's children[]. Refuses a node that
                        still has children unless --recursive, which deletes the whole subtree.
             batch      Applies a whole script of instructions to the tree in ONE load/save/validate — the batch
@@ -129,6 +145,12 @@ internal static class Program
                        are skipped; "quote" a value with spaces. It is
                        transactional — if any line is invalid, NOTHING is written (the error names the line).
                        --dry-run parses + applies in memory and reports, writing nothing.
+            lint       Checks a feature subtree against the modelling rules in docs/feature-tree-and-tests.md
+                       §1-§4: the UI/Functionality/AI backbone, 'AI Ready' only on a feature root, panels and
+                       state nodes journey-covered (no 'tests' concern), every leaf unit-tested, and a done
+                       'tests' concern naming its test. ADVISORY — roles are inferred from position, so a
+                       finding is a prompt to look, not a verdict; nothing here fails a build.
+                       Scope it with --under <id> (e.g. lint --under git). exit: 0 always.
             doctor     Checks structural integrity — every child id resolves, every node is listed by its parent
                        — and with --fix rebuilds each parent's children[] from the child→parent back-references
                        (splitting an accidentally-concatenated id, re-attaching orphans). Use it after any tree
@@ -213,17 +235,11 @@ internal static class Program
                       b.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
                       StringComparison.OrdinalIgnoreCase);
 
-    private static string? Option(string[] args, string name)
-    {
-        var i = Array.IndexOf(args, name);
-        return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
-    }
-
     private static int Validate(string[] args)
     {
-        var json = args.Contains("--json");
-        var save = args.Contains("--save");
-        var root = ResolveProductRoot(args.FirstOrDefault(a => !a.StartsWith("--")) ?? ".");
+        if (!TryRead(Specs.Validate, args, out var a, out var root, out var parseCode)) return parseCode;
+        var json = a.Has("--json");
+        var save = a.Has("--save");
 
         if (!Directory.Exists(root)) return Usage($"no such directory: {root}");
 
@@ -238,7 +254,7 @@ internal static class Program
         try
         {
             var state = new ProductStore(root).Load();
-            report = SnaplinkValidator.Validate(state, root);
+            report = SnaplinkValidator.Validate(state, root, FileRootsFor(root));
             if (save) new ProductStore(root).SaveIntegrity(report);
         }
         catch (Exception ex)
@@ -294,10 +310,10 @@ internal static class Program
 
     private static int GraphBuild(string[] args)
     {
-        var json = args.Contains("--json");
-        var wholeRepo = !args.Contains("--product-anchored");
-        var incremental = !args.Contains("--no-incremental");
-        var root = ResolveProductRoot(args.FirstOrDefault(a => !a.StartsWith("--")) ?? ".");
+        if (!TryRead(Specs.GraphBuild, args, out var a, out var root, out var parseCode)) return parseCode;
+        var json = a.Has("--json");
+        var wholeRepo = !a.Has("--product-anchored");
+        var incremental = !a.Has("--no-incremental");
 
         if (!Directory.Exists(root)) return Usage($"no such directory: {root}");
         if (!ProductStore.Exists(root))
@@ -385,27 +401,6 @@ internal static class Program
         graph = loaded; code = Clean; return true;
     }
 
-    /// <summary>Splits args into positionals, <c>--opt value</c> pairs (names listed in <paramref name="valued"/>),
-    /// and bare <c>--flags</c> — a tiny parser shared by the graph-explore commands.</summary>
-    private static (List<string> Pos, Dictionary<string, string> Opt, HashSet<string> Flags) ParseArgs(string[] args, params string[] valued)
-    {
-        var valuedSet = new HashSet<string>(valued, StringComparer.Ordinal);
-        var pos = new List<string>();
-        var opt = new Dictionary<string, string>(StringComparer.Ordinal);
-        var flags = new HashSet<string>(StringComparer.Ordinal);
-        for (var i = 0; i < args.Length; i++)
-        {
-            var a = args[i];
-            if (!a.StartsWith('-')) { pos.Add(a); continue; }
-            if (valuedSet.Contains(a) && i + 1 < args.Length) opt[a] = args[++i];
-            else flags.Add(a);
-        }
-        return (pos, opt, flags);
-    }
-
-    private static int OptInt(Dictionary<string, string> opt, string name, int dflt) =>
-        opt.TryGetValue(name, out var s) && int.TryParse(s, out var n) && n > 0 ? n : dflt;
-
     private static int TypeRank(string type) => type switch
     {
         NodeType.Product => 0, NodeType.Type => 1, NodeType.File => 2, NodeType.Member => 3, _ => 4,
@@ -423,8 +418,7 @@ internal static class Program
 
     private static int GraphStats(string[] args)
     {
-        var (pos, _, _) = ParseArgs(args);
-        var root = ResolveRoot(pos);
+        if (!TryRead(Specs.GraphStats, args, out _, out var root, out var parseCode)) return parseCode;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
 
         var byType = g.Nodes.GroupBy(n => n.Type).OrderByDescending(x => x.Count());
@@ -449,13 +443,12 @@ internal static class Program
 
     private static int GraphSearch(string[] args)
     {
-        var (pos, opt, flags) = ParseArgs(args, "--type", "--limit");
-        var term = pos.ElementAtOrDefault(0);
-        if (string.IsNullOrWhiteSpace(term)) return Usage("graph search needs a <term>.");
-        if (!TryLoadGraph(ResolveRoot(pos.Skip(1)), out var g, out var code)) return code;
+        if (!TryRead(Specs.GraphSearch, args, out var a, out var root, out var parseCode)) return parseCode;
+        var term = a[0];
+        if (!TryIntOpt(a, "--limit", 40, out var limit)) return Error;
+        if (!TryLoadGraph(root, out var g, out var code)) return code;
 
-        var type = opt.GetValueOrDefault("--type");
-        var limit = OptInt(opt, "--limit", 40);
+        var type = a.Value("--type");
         int Match(GraphNode n) =>                                   // exact label < prefix < label-substring < id-only
             n.Label is null ? 3
             : n.Label.Equals(term, StringComparison.OrdinalIgnoreCase) ? 0
@@ -475,13 +468,18 @@ internal static class Program
 
     private static int GraphList(string[] args)
     {
-        var (pos, opt, _) = ParseArgs(args, "--type", "--community", "--file", "--limit");
-        if (!TryLoadGraph(ResolveRoot(pos), out var g, out var code)) return code;
+        if (!TryRead(Specs.GraphList, args, out var a, out var root, out var parseCode)) return parseCode;
+        if (!TryIntOpt(a, "--limit", 60, out var limit)) return Error;
+        if (!TryLoadGraph(root, out var g, out var code)) return code;
 
-        var type = opt.GetValueOrDefault("--type");
-        var file = opt.GetValueOrDefault("--file");
-        int? comm = opt.TryGetValue("--community", out var cs) && int.TryParse(cs, out var c) ? c : null;
-        var limit = OptInt(opt, "--limit", 60);
+        var type = a.Value("--type");
+        var file = a.Value("--file");
+        int? comm = null;
+        if (a.Value("--community") is { } cs)
+        {
+            if (!int.TryParse(cs, out var c)) return VerbUsage($"--community must be a number (got '{cs}')");
+            comm = c;
+        }
         var hits = g.Nodes.Where(n =>
                 (type is null || n.Type == type) &&
                 (comm is null || n.Community == comm) &&
@@ -495,15 +493,14 @@ internal static class Program
 
     private static int GraphNode(string[] args)
     {
-        var (pos, opt, _) = ParseArgs(args, "--limit");
-        var id = pos.ElementAtOrDefault(0);
-        if (string.IsNullOrWhiteSpace(id)) return Usage("graph node needs a <node-id> (try: graph search <term>).");
-        if (!TryLoadGraph(ResolveRoot(pos.Skip(1)), out var g, out var code)) return code;
+        if (!TryRead(Specs.GraphNode, args, out var a, out var root, out var parseCode)) return parseCode;
+        var id = a[0];
+        if (!TryIntOpt(a, "--limit", 30, out var limit)) return Error;
+        if (!TryLoadGraph(root, out var g, out var code)) return code;
 
         var byId = new Dictionary<string, GraphNode>(StringComparer.Ordinal);
         foreach (var n in g.Nodes) byId[n.Id] = n;
         if (!byId.TryGetValue(id, out var node)) { Console.Error.WriteLine($"error: no node '{id}' (try: graph search)."); return Error; }
-        var limit = OptInt(opt, "--limit", 30);
         string Label(string nid) => byId.TryGetValue(nid, out var o) ? o.Label : "?";
 
         Console.WriteLine($"{node.Id}\n  [{node.Type}]  {node.Label}");
@@ -543,18 +540,17 @@ internal static class Program
 
     private static int GraphWalk(string[] args)
     {
-        var (pos, opt, _) = ParseArgs(args, "--hops", "--limit", "--types");
-        var id = pos.ElementAtOrDefault(0);
-        if (string.IsNullOrWhiteSpace(id)) return Usage("graph walk needs a <node-id>.");
-        if (!TryLoadGraph(ResolveRoot(pos.Skip(1)), out var g, out var code)) return code;
+        if (!TryRead(Specs.GraphWalk, args, out var a, out var root, out var parseCode)) return parseCode;
+        var id = a[0];
+        if (!TryIntOpt(a, "--hops", 2, out var hops)) return Error;
+        if (!TryIntOpt(a, "--limit", 150, out var limit)) return Error;
+        if (!TryLoadGraph(root, out var g, out var code)) return code;
 
         var byId = new Dictionary<string, GraphNode>(StringComparer.Ordinal);
         foreach (var n in g.Nodes) byId[n.Id] = n;
         if (!byId.ContainsKey(id)) { Console.Error.WriteLine($"error: no node '{id}'."); return Error; }
 
-        var hops = OptInt(opt, "--hops", 2);
-        var limit = OptInt(opt, "--limit", 150);
-        var types = opt.GetValueOrDefault("--types")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.Ordinal);
+        var types = a.Value("--types")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.Ordinal);
 
         var adj = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
         void Link(string a, string b)
@@ -592,12 +588,8 @@ internal static class Program
 
     private static int GraphCode(string[] args)
     {
-        var (pos, opt, _) = ParseArgs(args, "--lines");
-        var id = pos.ElementAtOrDefault(0);
-        if (string.IsNullOrWhiteSpace(id))
-            return Usage("graph code needs a code:<relpath>#<astpath> node (a source block) or file:<relpath> (the whole file).");
-
-        var root = ResolveRoot(pos.Skip(1));
+        if (!TryRead(Specs.GraphCode, args, out var a, out var root, out var parseCode)) return parseCode;
+        var id = a[0];
 
         // A code:<file>#<ast> id fetches that AST node's block; a file:<path> id (or a bare path) fetches the file.
         string rel; string? ast = null;
@@ -622,10 +614,12 @@ internal static class Program
             s0 = start.Value - 1;
             e0 = BlockEnd(lines, s0, 400);
         }
-        else if (opt.TryGetValue("--lines", out var range) && TryRange(range, out var a, out var b))   // a slice of a file
+        else if (a.Value("--lines") is { } range)   // a slice of a file
         {
-            s0 = Math.Max(0, a - 1);
-            e0 = Math.Min(lines.Length - 1, b - 1);
+            if (!TryRange(range, out var from, out var to))
+                return VerbUsage($"--lines must be N or A-B (got '{range}')");
+            s0 = Math.Max(0, from - 1);
+            e0 = Math.Min(lines.Length - 1, to - 1);
         }
         else { s0 = 0; e0 = lines.Length - 1; }   // whole file
 
@@ -719,17 +713,16 @@ internal static class Program
     /// node+code+walk sequence.</summary>
     private static int GraphContext(string[] args)
     {
-        var (pos, opt, _) = ParseArgs(args, "--lines", "--limit");
-        var id = pos.ElementAtOrDefault(0);
-        if (string.IsNullOrWhiteSpace(id)) return Usage("graph context needs a <node-id>.");
-        var root = ResolveRoot(pos.Skip(1));
+        if (!TryRead(Specs.GraphContext, args, out var a, out var root, out var parseCode)) return parseCode;
+        var id = a[0];
+        if (!TryIntOpt(a, "--limit", 6, out var near)) return Error;
+        if (!TryIntOpt(a, "--lines", 60, out var sourceLines)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
 
         var byId = new Dictionary<string, GraphNode>(StringComparer.Ordinal);
         foreach (var n in g.Nodes) byId[n.Id] = n;
         if (!byId.TryGetValue(id, out var node)) { Console.Error.WriteLine($"error: no node '{id}' (try: graph search)."); return Error; }
         string Label(string nid) => byId.TryGetValue(nid, out var o) ? o.Label : "?";
-        var near = OptInt(opt, "--limit", 6);
 
         // 1 · identity
         Console.WriteLine($"{node.Id}\n  [{node.Type}] {node.Label}");
@@ -744,7 +737,7 @@ internal static class Program
         {
             var s0 = startLine - 1;
             var full = BlockEnd(lines, s0, 400);
-            var e0 = Math.Min(full, s0 + OptInt(opt, "--lines", 60) - 1);
+            var e0 = Math.Min(full, s0 + sourceLines - 1);
             Console.WriteLine($"  --- source {rel}:{s0 + 1}-{e0 + 1} ---");
             for (var i = Math.Max(0, s0); i <= e0 && i < lines.Length; i++) Console.WriteLine($"  {i + 1,5}  {lines[i]}");
             if (full > e0) Console.WriteLine($"  … +{full - e0} more line(s) — graph code {node.Id}");
@@ -771,10 +764,14 @@ internal static class Program
     /// is the whole graph, or — with <c>--from &lt;id&gt; --hops N</c> — that node's neighbourhood.</summary>
     private static int GraphGrep(string[] args)
     {
-        var (pos, opt, _) = ParseArgs(args, "--from", "--hops", "--mode", "--type", "--limit");
-        var pattern = pos.ElementAtOrDefault(0);
-        if (string.IsNullOrWhiteSpace(pattern)) return Usage("graph grep needs a <pattern> (regex).");
-        var root = ResolveRoot(pos.Skip(1));
+        if (!TryRead(Specs.GraphGrep, args, out var a, out var root, out var parseCode)) return parseCode;
+        var pattern = a[0];
+        if (!TryIntOpt(a, "--hops", 2, out var hops)) return Error;
+
+        var mode = a.Value("--mode") ?? "index";
+        if (mode is not ("index" or "content")) return VerbUsage($"--mode must be index or content (got '{mode}')");
+        if (!TryIntOpt(a, "--limit", mode == "content" ? 60 : 200, out var limit)) return Error;
+
         if (!TryLoadGraph(root, out var g, out var code)) return code;
 
         Regex rx;
@@ -783,21 +780,19 @@ internal static class Program
 
         var byId = new Dictionary<string, GraphNode>(StringComparer.Ordinal);
         foreach (var n in g.Nodes) byId[n.Id] = n;
-        var mode = opt.GetValueOrDefault("--mode", "index");
-        var type = opt.GetValueOrDefault("--type");
+        var type = a.Value("--type");
 
         IEnumerable<GraphNode> scope = g.Nodes;
-        if (opt.TryGetValue("--from", out var from))
+        if (a.Value("--from") is { } from)
         {
             if (!byId.ContainsKey(from)) { Console.Error.WriteLine($"error: no node '{from}'."); return Error; }
-            var set = new HashSet<string>(Bfs(BuildAdjacency(g), from, OptInt(opt, "--hops", 2)).Keys, StringComparer.Ordinal);
+            var set = new HashSet<string>(Bfs(BuildAdjacency(g), from, hops).Keys, StringComparer.Ordinal);
             scope = g.Nodes.Where(n => set.Contains(n.Id));
         }
         if (type is not null) scope = scope.Where(n => n.Type == type);
 
         if (mode == "content")
         {
-            var limit = OptInt(opt, "--limit", 60);
             var codeNodes = scope.Where(n => n.FilePath is { Length: > 0 } && n.Metadata != null
                                              && n.Metadata.ContainsKey("line") && n.Metadata.ContainsKey("ast"))
                                  .OrderBy(n => n.Id, StringComparer.Ordinal).ToList();
@@ -827,7 +822,6 @@ internal static class Program
         }
         else
         {
-            var limit = OptInt(opt, "--limit", 200);
             bool Matches(GraphNode n) => rx.IsMatch(n.Id) || (n.Label is { } lb && rx.IsMatch(lb))
                                          || (n.Metadata is { } m && m.Values.Any(v => rx.IsMatch(v)));
             var hits = scope.Where(Matches).OrderBy(n => TypeRank(n.Type)).ThenBy(n => n.Id, StringComparer.Ordinal).ToList();
@@ -841,13 +835,12 @@ internal static class Program
 
     private static int Find(string[] args)
     {
-        var term = args.FirstOrDefault(a => !a.StartsWith('-'));
-        if (string.IsNullOrWhiteSpace(term)) return Usage("find needs a <term>.");
-        var rest = args.Where(a => a != term).ToArray();
-        if (!TryLoad(ResolveRoot(rest), out var state, out var code)) return code;
+        if (!TryRead(Specs.Find, args, out var a, out var root, out var parseCode)) return parseCode;
+        var term = a[0];
+        if (!TryLoad(root, out var state, out var code)) return code;
 
         var hits = ProductQuery.Find(state, term);
-        if (args.Contains("--json"))
+        if (a.Has("--json"))
         {
             Console.WriteLine(JsonSerializer.Serialize(hits, ProductJson.Options));
             return Clean;
@@ -862,20 +855,19 @@ internal static class Program
 
     private static int Query(string[] args)
     {
-        var under   = Option(args, "--under");
-        var concern = Option(args, "--concern");
-        var statusS = Option(args, "--status");
+        if (!TryRead(Specs.Query, args, out var a, out var root, out var parseCode)) return parseCode;
+
+        var under   = a.Value("--under");
+        var concern = a.Value("--concern");
         Status? status = null;
-        if (statusS is not null)
+        if (a.Value("--status") is { } statusS)
         {
             if (!TryParseStatus(statusS, out var st)) return Usage($"unknown status '{statusS}' (should|done|shouldnt|faulted)");
             status = st;
         }
-        bool? leafOnly = args.Contains("--leaf") ? true : args.Contains("--panel") ? false : null;
+        if (a.Has("--leaf") && a.Has("--panel")) return Usage("--leaf and --panel are mutually exclusive");
+        bool? leafOnly = a.Has("--leaf") ? true : a.Has("--panel") ? false : null;
 
-        // Only --under/--concern/--status values are non-flag args; the rest (first bare arg) is <root>.
-        var consumed = new[] { under, concern, statusS }.Where(v => v is not null).ToHashSet();
-        var root = ResolveRoot(args.Where(a => !a.StartsWith('-') && !consumed.Contains(a)).ToArray());
         if (!TryLoad(root, out var state, out var code)) return code;
 
         if (under is { Length: > 0 } && !state.Nodes.ContainsKey(under))
@@ -883,7 +875,14 @@ internal static class Program
 
         var hits = ProductQuery.Query(state, under, concern, status, leafOnly);
 
-        if (args.Contains("--json"))
+        // --unbacked: the concern is carried but nothing evidences it. Needs a concern to be meaningful.
+        if (a.Has("--unbacked"))
+        {
+            if (concern is null) return VerbUsage("--unbacked needs --concern <tag> (which concern is unbacked?)");
+            hits = [.. hits.Where(h => h.ConcernSnaplinks == 0)];
+        }
+
+        if (a.Has("--json"))
         {
             Console.WriteLine(JsonSerializer.Serialize(hits, ProductJson.Options));
             return Clean;
@@ -905,16 +904,14 @@ internal static class Program
 
     private static int Describe(string[] args)
     {
-        var id = args.FirstOrDefault(a => !a.StartsWith('-'));
-        if (string.IsNullOrWhiteSpace(id)) return Usage("describe needs a <node-id>.");
-        var rest = args.Where(a => a != id).ToArray();
-        var root = ResolveRoot(rest);
+        if (!TryRead(Specs.Describe, args, out var a, out var root, out var parseCode)) return parseCode;
+        var id = a[0];
         if (!TryLoad(root, out var state, out var code)) return code;
 
         var d = ProductQuery.Describe(state, id);
         if (d is null) { Console.Error.WriteLine($"error: no node '{id}' (try: find)."); return Error; }
 
-        if (args.Contains("--json"))
+        if (a.Has("--json"))
         {
             Console.WriteLine(JsonSerializer.Serialize(d, ProductJson.Options));
             return Clean;
@@ -935,7 +932,7 @@ internal static class Program
         if (d.Children.Count > 0)
             Console.WriteLine("  children: " + string.Join(", ", d.Children.Select(c => c.Id)));
 
-        if (args.Contains("--code") && state.Nodes.TryGetValue(d.Id, out var raw))
+        if (a.Has("--code") && state.Nodes.TryGetValue(d.Id, out var raw))
         {
             // Resolve snaplink source from the CALLER's working tree first (so a worktree shows the code on
             // the branch you're editing, incl. files not yet in the main checkout), then the product root.
@@ -944,6 +941,64 @@ internal static class Program
             PrintResolvedCode(fileRoots!, raw);
         }
         return Clean;
+    }
+
+    private static int Tree(string[] args)
+    {
+        if (!TryRead(Specs.Tree, args, out var a, out var root, out var parseCode)) return parseCode;
+        var id = a[0];
+
+        int? maxDepth = null;
+        if (a.Value("--depth") is { } depthS)
+        {
+            if (!int.TryParse(depthS, out var d) || d < 0)
+                return Usage($"--depth must be a non-negative integer (got '{depthS}').");
+            maxDepth = d;
+        }
+
+        if (!TryLoad(root, out var state, out var code)) return code;
+
+        var rows = ProductQuery.Outline(state, id, maxDepth);
+        if (rows is null) { Console.Error.WriteLine($"error: no node '{id}' (try: find)."); return Error; }
+
+        if (a.Has("--json"))
+        {
+            Console.WriteLine(JsonSerializer.Serialize(rows, ProductJson.Options));
+            return Clean;
+        }
+
+        var full = a.Has("--full");
+        foreach (var (depth, n) in rows)
+        {
+            var pad = new string(' ', depth * 2);
+            var concerns = n.Concerns.Count > 0
+                ? "   " + string.Join(" ", n.Concerns.Select(c => $"{c.Tag}={c.Status.ToString().ToLowerInvariant()}"))
+                : "";
+            // Without --full the snaplinks stay a count, so the shape of a big subtree still fits on a screen.
+            var links = !full && n.Snaplinks.Count > 0 ? $"   ({n.Snaplinks.Count} link{(n.Snaplinks.Count == 1 ? "" : "s")})" : "";
+            Console.WriteLine($"{pad}{n.Id}  [{n.Status.ToString().ToLowerInvariant()}]  {n.Title}{concerns}{links}");
+
+            if (!full) continue;
+            if (!string.IsNullOrWhiteSpace(n.Description)) Console.WriteLine($"{pad}    about: {n.Description}");
+            if (!string.IsNullOrWhiteSpace(n.Note))        Console.WriteLine($"{pad}    note:  {n.Note}");
+            foreach (var g in n.Snaplinks.GroupBy(l => l.Kind).OrderBy(g => g.Key))
+                foreach (var l in g)
+                    Console.WriteLine($"{pad}    {g.Key,-6} {l.Display}");
+        }
+        Console.WriteLine($"{rows.Count} node(s).");
+        return Clean;
+    }
+
+    /// <summary>
+    /// Where a snaplink's file is looked for, most-specific first: the caller's own working tree (so a linked
+    /// worktree validates the code on the branch being edited, not the main checkout's copy), then the product
+    /// root. In a normal checkout — including the installer's release gate — both are the same directory, so
+    /// this changes nothing there.
+    /// </summary>
+    private static string[] FileRootsFor(string productRoot)
+    {
+        var caller = WorkingTreeRootOf(Directory.GetCurrentDirectory());
+        return caller is { Length: > 0 } ? [caller, productRoot] : [productRoot];
     }
 
     /// <summary>The git working-tree root enclosing <paramref name="dir"/> — the directory that holds a <c>.git</c>
@@ -1044,13 +1099,13 @@ internal static class Program
 
     private static int Diff(string[] args)
     {
-        var root = ResolveProductRoot(args.FirstOrDefault(a => !a.StartsWith("--")) ?? ".");
+        if (!TryRead(Specs.Diff, args, out var a, out var root, out var parseCode)) return parseCode;
         if (!TryLoad(root, out var state, out var code)) return code;
 
         var exportDir = Path.Combine(root, state.Product.ExportDir);
         if (!Directory.Exists(exportDir)) { Console.Error.WriteLine($"error: no export dir {state.Product.ExportDir} (nothing to diff against)."); return Error; }
 
-        var want = Option(args, "--from");
+        var want = a.Value("--from");
         var snapshots = Directory.GetFiles(exportDir, "*.json").OrderBy(p => p, StringComparer.Ordinal).ToList();
         var file = want is not null
             ? snapshots.FirstOrDefault(p => Path.GetFileNameWithoutExtension(p).Contains(want, StringComparison.OrdinalIgnoreCase))
@@ -1113,14 +1168,12 @@ internal static class Program
 
     private static int Remap(string[] args)
     {
-        var positional = args.Where(a => !a.StartsWith('-') && !IsOptionValue(args, a)).ToArray();
-        if (positional.Length < 2) return Usage("remap needs <old-path> <new-path>.");
-        var oldPath = positional[0];
-        var newPath = positional[1];
-        var root = ResolveRoot(positional.Skip(2));
+        if (!TryRead(Specs.Remap, args, out var a, out var root, out var parseCode)) return parseCode;
+        var oldPath = a[0];
+        var newPath = a[1];
         if (!TryLoad(root, out var state, out var code)) return code;
 
-        var changed = SnaplinkRemapper.Remap(state, oldPath, newPath, Option(args, "--class"), Option(args, "--method"));
+        var changed = SnaplinkRemapper.Remap(state, oldPath, newPath, a.Value("--class"), a.Value("--method"));
         if (changed == 0)
         {
             Console.WriteLine($"No snaplink referenced '{oldPath}' - nothing remapped.");
@@ -1130,7 +1183,7 @@ internal static class Program
         new ProductStore(root).SaveTree(state.Nodes);   // canonical serializer, same as the in-app editor
 
         // Re-validate so the effect is visible immediately (this is the point of a safe edit command).
-        var report = SnaplinkValidator.Validate(state, root);
+        var report = SnaplinkValidator.Validate(state, root, FileRootsFor(root));
         Console.WriteLine($"Remapped {changed} snaplink(s): {oldPath} -> {newPath}.");
         Console.WriteLine(report.IsClean
             ? $"Snaplinks OK — scanned {report.ScannedSnaplinks}."
@@ -1143,13 +1196,13 @@ internal static class Program
 
     private static int ScanTests(string[] args)
     {
-        var root = ResolveRoot(args);
+        if (!TryRead(Specs.ScanTests, args, out var a, out var root, out var parseCode)) return parseCode;
         if (!Directory.Exists(root)) return Usage($"no such directory: {root}");
         if (!ProductStore.Exists(root)) { Console.Error.WriteLine($"error: no .product/ under {root}."); return Error; }
 
-        if (args.Contains("--suggest-attributes")) return SuggestAttributes(root);
+        if (a.Has("--suggest-attributes")) return SuggestAttributes(root);
 
-        var explicitDlls = OptionValues(args, "--test-dll");
+        var explicitDlls = a.All("--test-dll");
         var dlls = explicitDlls.Count > 0 ? explicitDlls : DiscoverTestDlls(root);
         if (dlls.Count == 0)
         {
@@ -1216,37 +1269,18 @@ internal static class Program
         return result;
     }
 
-    /// <summary>All values following each occurrence of <paramref name="name"/> (a repeatable option).</summary>
-    private static List<string> OptionValues(string[] args, string name)
-    {
-        var vals = new List<string>();
-        for (var i = 0; i < args.Length - 1; i++)
-            if (args[i] == name) vals.Add(args[i + 1]);
-        return vals;
-    }
-
     // ── add-node: grow the tree finer (a sub-node under an existing node) without hand-editing tree.json ──
 
-    private static int AddNode(string[] args)
-    {
-        var positional = args.Where(a => !a.StartsWith('-') && !FollowsFlag(args, a, "--id", "--desc", "--status")).ToArray();
-        var root = ResolveRoot(positional.Skip(2));
-        if (!TryLoad(root, out var state, out var code)) return code;
-        var (ok, msg) = ApplyAddNode(state, args);
-        if (!ok) { Console.Error.WriteLine($"error: {msg}"); return Error; }
-        return SaveAndValidate(state, root, msg);
-    }
+    private static int AddNode(string[] args) => RunOne(Specs.AddNode, args, ApplyAddNode);
 
-    private static (bool Ok, string Message) ApplyAddNode(ProductState state, string[] args)
+    private static (bool Ok, string Message) ApplyAddNode(ProductState state, VerbArgs a)
     {
-        var positional = args.Where(a => !a.StartsWith('-') && !FollowsFlag(args, a, "--id", "--desc", "--status")).ToArray();
-        if (positional.Length < 2) return (false, "add-node needs <parent-id> <title>");
-        var parentId = positional[0];
-        var title    = positional[1];
+        var parentId = a[0];
+        var title    = a[1];
         if (!state.Nodes.TryGetValue(parentId, out var parent)) return (false, $"no parent node '{parentId}'");
 
         string id;
-        if (Option(args, "--id") is { Length: > 0 } explicitId)
+        if (a.Value("--id") is { Length: > 0 } explicitId)
         {
             id = Slug(explicitId);
             if (state.Nodes.ContainsKey(id)) return (false, $"node id '{id}' already exists");
@@ -1257,8 +1291,8 @@ internal static class Program
         state.Nodes[id] = new ProductNode
         {
             Title       = title,
-            Description = Option(args, "--desc"),
-            Status      = ParseStatus(Option(args, "--status")),
+            Description = a.Value("--desc"),
+            Status      = ParseStatus(a.Value("--status")),
             Parent      = parentId,
             Children    = [],
             Concerns    = defaults.Count > 0 ? [.. defaults.Select(n => new ConcernLink { Tag = n, Status = Status.Should })] : null
@@ -1269,14 +1303,29 @@ internal static class Program
 
     // ── move: reparent a node (and its subtree) — the safe way to restructure without hand-editing tree.json ──
 
-    private static int Move(string[] args) =>
-        RunOne(args, ResolveRoot(args.Where(a => !a.StartsWith('-')).Skip(2)), ApplyMove);
+    private static int Rename(string[] args) => RunOne(Specs.Rename, args, ApplyRename);
 
-    private static (bool Ok, string Message) ApplyMove(ProductState state, string[] args)
+    private static (bool Ok, string Message) ApplyRename(ProductState state, VerbArgs a)
     {
-        var pos = args.Where(a => !a.StartsWith('-')).ToArray();
-        if (pos.Length < 2) return (false, "move needs <node-id> <new-parent-id>");
-        var id = pos[0]; var newParentId = pos[1];
+        var (oldId, newId) = (a[0], a[1]);
+
+        return ProductTreeOps.Rename(state, oldId, newId) switch
+        {
+            ProductTreeOps.RenameError.NoSuchNode => (false, $"no node '{oldId}' (try: find)"),
+            ProductTreeOps.RenameError.IdTaken    => (false, $"'{newId}' is already a node id — ids are one flat namespace"),
+            ProductTreeOps.RenameError.IdInvalid  => (false, $"'{newId}' is not a usable id (non-empty, no whitespace, and different from '{oldId}')"),
+            // A [CoversNode] naming the old id lives in test source the tree can't reach — say so rather than
+            // leave the caller to discover it as an NXCOV002 build warning.
+            _ => (true, $"Renamed '{oldId}' → '{newId}' (retargeted parent, children and node snaplinks). "
+                      + $"Any [CoversNode(\"{oldId}\")] in test source still needs updating."),
+        };
+    }
+
+    private static int Move(string[] args) => RunOne(Specs.Move, args, ApplyMove);
+
+    private static (bool Ok, string Message) ApplyMove(ProductState state, VerbArgs a)
+    {
+        var id = a[0]; var newParentId = a[1];
         if (!state.Nodes.TryGetValue(id, out var node)) return (false, $"no node '{id}'");
         if (!state.Nodes.ContainsKey(newParentId)) return (false, $"no parent node '{newParentId}'");
         if (id == newParentId) return (false, "a node can't be its own parent");
@@ -1290,16 +1339,13 @@ internal static class Program
 
     // ── remove: delete a node (a leaf, or a whole subtree with --recursive) ──
 
-    private static int Remove(string[] args) =>
-        RunOne(args, ResolveRoot(args.Where(a => !a.StartsWith('-')).Skip(1)), ApplyRemove);
+    private static int Remove(string[] args) => RunOne(Specs.Remove, args, ApplyRemove);
 
-    private static (bool Ok, string Message) ApplyRemove(ProductState state, string[] args)
+    private static (bool Ok, string Message) ApplyRemove(ProductState state, VerbArgs a)
     {
-        var pos = args.Where(a => !a.StartsWith('-')).ToArray();
-        if (pos.Length < 1) return (false, "remove needs <node-id>");
-        var id = pos[0];
+        var id = a[0];
         if (!state.Nodes.TryGetValue(id, out var node)) return (false, $"no node '{id}'");
-        var recursive = args.Contains("--recursive");
+        var recursive = a.Has("--recursive");
         if (node.Children.Count > 0 && !recursive)
             return (false, $"'{id}' has {node.Children.Count} child node(s) — remove them first, or pass --recursive to delete the subtree");
 
@@ -1307,11 +1353,123 @@ internal static class Program
         return (true, $"Removed '{id}'" + (removed.Count > 1 ? $" + {removed.Count - 1} descendant(s)" : ""));
     }
 
-    /// <summary>True when <paramref name="arg"/> is the value immediately following one of <paramref name="flags"/>.</summary>
-    private static bool FollowsFlag(string[] args, string arg, params string[] flags)
+    // ── Verb specs ──────────────────────────────────────────────────────────────────────────────
+    // What each verb accepts, declared once and used for parsing AND its error text. Anything not listed
+    // here is rejected rather than ignored — see VerbArgs.
+
+    private static class Specs
     {
-        var i = Array.IndexOf(args, arg);
-        return i > 0 && flags.Contains(args[i - 1]);
+        private static readonly string[] None = [];
+
+        public static readonly VerbSpec Validate = new("validate", 0, None, ["--json", "--save"],
+            "validate [<root>] [--json] [--save]");
+        public static readonly VerbSpec Find = new("find", 1, None, ["--json"],
+            "find <term> [<root>] [--json]");
+        public static readonly VerbSpec Query = new("query", 0, ["--under", "--concern", "--status"],
+            ["--leaf", "--panel", "--unbacked", "--json"],
+            "query [<root>] [--under <id>] [--concern <tag>] [--status <s>] [--leaf|--panel] [--unbacked] [--json]");
+        public static readonly VerbSpec Describe = new("describe", 1, None, ["--json", "--code"],
+            "describe <node-id> [<root>] [--json] [--code]");
+        public static readonly VerbSpec Tree = new("tree", 1, ["--depth"], ["--full", "--json"],
+            "tree <node-id> [<root>] [--depth <n>] [--full] [--json]");
+        public static readonly VerbSpec Diff = new("diff", 0, ["--from"], None,
+            "diff [<root>] [--from <version>]");
+        public static readonly VerbSpec Remap = new("remap", 2, ["--class", "--method"], None,
+            "remap <old-path> <new-path> [<root>] [--class <name>] [--method <name>]");
+        public static readonly VerbSpec ScanTests = new("scan-tests", 0, ["--test-dll"], ["--suggest-attributes"],
+            "scan-tests [<root>] [--test-dll <path>]... [--suggest-attributes]");
+        public static readonly VerbSpec Batch = new("batch", 1, None, ["--dry-run"],
+            "batch <script-file> [<root>] [--dry-run]");
+        public static readonly VerbSpec Doctor = new("doctor", 0, None, ["--fix"],
+            "doctor [<root>] [--fix]");
+
+        // Mutations — these are the ones batch also runs, so their specs are reused via .InBatch.
+        public static readonly VerbSpec SetStatus = new("set-status", 2, None, None,
+            "set-status <node-id> <status> [<root>]   (status: should|done|shouldnt|faulted)");
+        public static readonly VerbSpec SetConcern = new("set-concern", 3, None, None,
+            "set-concern <node-id> <tag> <status> [<root>]   (a note goes on the node: set-node <id> --note ...)");
+        public static readonly VerbSpec RemoveConcern = new("remove-concern", 2, None, None,
+            "remove-concern <node-id> <tag> [<root>]");
+        public static readonly VerbSpec AddSnaplink = new("add-snaplink", 1,
+            ["--type", "--concern", "--doc", "--class", "--method", "--ast", "--target", "--url", "--title-path", "--status"],
+            None,
+            "add-snaplink <node-id> --type <code|markdown|node|url> [<root>] [--concern <tag>] "
+            + "[--doc <p>] [--class <c>] [--method <m>] [--target <id>] [--url <u>] [--title-path a>b] [--status <s>]");
+        public static readonly VerbSpec RemoveSnaplink = new("remove-snaplink", 1, ["--concern", "--index"], None,
+            "remove-snaplink <node-id> [<root>] [--concern <tag>] [--index <n>]");
+        public static readonly VerbSpec SetNode = new("set-node", 1, ["--title", "--desc", "--note"], None,
+            "set-node <node-id> [<root>] [--title <t>] [--desc <d>] [--note <n>]");
+        public static readonly VerbSpec AddNode = new("add-node", 2, ["--id", "--desc", "--status"], None,
+            "add-node <parent-id> <title> [<root>] [--id <slug>] [--desc <text>] [--status <s>]");
+        public static readonly VerbSpec Move = new("move", 2, None, None,
+            "move <node-id> <new-parent-id> [<root>]");
+        public static readonly VerbSpec Rename = new("rename", 2, None, None,
+            "rename <old-id> <new-id> [<root>]");
+        public static readonly VerbSpec Remove = new("remove", 1, None, ["--recursive"],
+            "remove <node-id> [<root>] [--recursive]");
+
+        public static readonly VerbSpec Lint = new("lint", 0, ["--under"], ["--json"],
+            "lint [<root>] [--under <id>] [--json]");
+
+        // graph subcommands — same strictness as everything else.
+        public static readonly VerbSpec GraphBuild = new("graph", 0, None,
+            ["--json", "--product-anchored", "--no-incremental"],
+            "graph [<root>] [--no-incremental] [--product-anchored] [--json]");
+        public static readonly VerbSpec GraphStats = new("graph stats", 0, None, None, "graph stats [<root>]");
+        public static readonly VerbSpec GraphSearch = new("graph search", 1, ["--type", "--limit"], None,
+            "graph search <term> [<root>] [--type <t>] [--limit N]");
+        public static readonly VerbSpec GraphList = new("graph list", 0,
+            ["--type", "--community", "--file", "--limit"], None,
+            "graph list [<root>] [--type <t>] [--community N] [--file <f>] [--limit N]");
+        public static readonly VerbSpec GraphNode = new("graph node", 1, ["--limit"], None,
+            "graph node <id> [<root>] [--limit N]");
+        public static readonly VerbSpec GraphWalk = new("graph walk", 1, ["--hops", "--limit", "--types"], None,
+            "graph walk <id> [<root>] [--hops N] [--types a,b] [--limit N]");
+        public static readonly VerbSpec GraphContext = new("graph context", 1, ["--lines", "--limit"], None,
+            "graph context <id> [<root>] [--lines N] [--limit N]");
+        public static readonly VerbSpec GraphGrep = new("graph grep", 1,
+            ["--from", "--hops", "--mode", "--type", "--limit"], None,
+            "graph grep <pattern> [<root>] [--from <id>] [--hops N] [--mode index|content] [--type t] [--limit N]");
+        public static readonly VerbSpec GraphCode = new("graph code", 1, ["--lines"], None,
+            "graph code <id> [<root>] [--lines A-B]");
+    }
+
+    /// <summary>
+    /// A positive-integer option, or <paramref name="dflt"/> when absent. A non-numeric or non-positive value
+    /// is an <em>error</em>: silently falling back to the default (what the old <c>OptInt</c> did) hides a typo
+    /// behind plausible-looking output.
+    /// </summary>
+    private static bool TryIntOpt(VerbArgs a, string flag, int dflt, out int value)
+    {
+        value = dflt;
+        if (a.Value(flag) is not { } raw) return true;
+        if (int.TryParse(raw, out var n) && n > 0) { value = n; return true; }
+        VerbUsage($"{flag} must be a positive integer (got '{raw}')");
+        return false;
+    }
+
+    /// <summary>Reports a verb's argument error. Unlike <see cref="Usage(string?)"/> this prints only the
+    /// problem and that verb's own usage line — the full command list would bury the one thing that's wrong.</summary>
+    private static int VerbUsage(string error)
+    {
+        Console.Error.WriteLine($"error: {error}");
+        Console.Error.WriteLine("  (run with no arguments for the full command list)");
+        return Error;
+    }
+
+    /// <summary>Parses a read-only verb's arguments and resolves its <c>&lt;root&gt;</c>, or reports the
+    /// argument error and yields the exit code.</summary>
+    private static bool TryRead(VerbSpec spec, string[] args, out VerbArgs parsed, out string root, out int code)
+    {
+        root = string.Empty;
+        if (!VerbArgs.TryParse(spec, args, out parsed, out var error))
+        {
+            code = VerbUsage(error);
+            return false;
+        }
+        root = ResolveProductRoot(parsed.Root ?? ".");
+        code = Clean;
+        return true;
     }
 
     // ── typed tree mutations (set-status / set-concern / add-snaplink / set-node / doctor) ──
@@ -1337,7 +1495,7 @@ internal static class Program
     {
         var store = new ProductStore(root);
         store.SaveTree(state.Nodes);
-        var report = SnaplinkValidator.Validate(state, root);
+        var report = SnaplinkValidator.Validate(state, root, FileRootsFor(root));
         store.SaveIntegrity(report);
         Console.WriteLine(message);
         Console.WriteLine(report.IsClean
@@ -1346,67 +1504,64 @@ internal static class Program
         return report.IsClean ? Clean : Broken;
     }
 
-    /// <summary>The standalone-verb path: load, apply one mutation, then save + re-validate.</summary>
-    private static int RunOne(string[] args, string root, Func<ProductState, string[], (bool Ok, string Message)> apply)
+    /// <summary>The standalone-verb path: parse against the verb's spec, load, apply one mutation, then save
+    /// + re-validate. Parsing happens before the tree is even loaded, so a bad command line never touches it.</summary>
+    private static int RunOne(VerbSpec spec, string[] args, Func<ProductState, VerbArgs, (bool Ok, string Message)> apply)
     {
+        if (!VerbArgs.TryParse(spec, args, out var parsed, out var parseError)) return VerbUsage(parseError);
+        var root = ResolveProductRoot(parsed.Root ?? ".");
         if (!TryLoad(root, out var state, out var code)) return code;
-        var (ok, msg) = apply(state, args);
+        var (ok, msg) = apply(state, parsed);
         if (!ok) { Console.Error.WriteLine($"error: {msg}"); return Error; }
         return SaveAndValidate(state, root, msg);
     }
 
-    private static int SetStatus(string[] args) =>
-        RunOne(args, ResolveRoot(args.Where(a => !a.StartsWith('-')).Skip(2)), ApplySetStatus);
+    private static int SetStatus(string[] args) => RunOne(Specs.SetStatus, args, ApplySetStatus);
 
-    private static (bool Ok, string Message) ApplySetStatus(ProductState s, string[] args)
+    private static (bool Ok, string Message) ApplySetStatus(ProductState s, VerbArgs a)
     {
-        var pos = args.Where(a => !a.StartsWith('-')).ToArray();
-        if (pos.Length < 2) return (false, "set-status needs <node-id> <status> (should|done|shouldnt|faulted)");
-        if (!TryParseStatus(pos[1], out var status)) return (false, $"unknown status '{pos[1]}' (should|done|shouldnt|faulted)");
-        if (!s.Nodes.ContainsKey(pos[0])) return (false, $"no node '{pos[0]}' (try: find)");
-        ProductTreeOps.CascadeStatus(s, pos[0], status);
-        return (true, $"Set '{pos[0]}' → {status.ToString().ToLowerInvariant()} (cascaded into should-only descendants + concerns).");
+        if (!TryParseStatus(a[1], out var status)) return (false, $"unknown status '{a[1]}' (should|done|shouldnt|faulted)");
+        if (!s.Nodes.ContainsKey(a[0])) return (false, $"no node '{a[0]}' (try: find)");
+        ProductTreeOps.CascadeStatus(s, a[0], status);
+        return (true, $"Set '{a[0]}' → {status.ToString().ToLowerInvariant()} (cascaded into should-only descendants + concerns).");
     }
 
-    private static int SetConcern(string[] args) =>
-        RunOne(args, ResolveRoot(args.Where(a => !a.StartsWith('-')).Skip(3)), ApplySetConcern);
+    private static int SetConcern(string[] args) => RunOne(Specs.SetConcern, args, ApplySetConcern);
 
-    private static (bool Ok, string Message) ApplySetConcern(ProductState s, string[] args)
+    private static (bool Ok, string Message) ApplySetConcern(ProductState s, VerbArgs a)
     {
-        var pos = args.Where(a => !a.StartsWith('-')).ToArray();
-        if (pos.Length < 3) return (false, "set-concern needs <node-id> <tag> <status>");
-        if (!TryParseStatus(pos[2], out var status)) return (false, $"unknown status '{pos[2]}' (should|done|shouldnt|faulted)");
-        if (!s.Nodes.ContainsKey(pos[0])) return (false, $"no node '{pos[0]}' (try: find)");
-        if (!s.Product.Concerns.Any(c => c.Name == pos[1]))
-            return (false, $"'{pos[1]}' is not a concern (valid: {string.Join(", ", s.Product.Concerns.Select(c => c.Name))})");
-        ProductTreeOps.SetConcern(s, pos[0], pos[1], status);
-        return (true, $"Set concern '{pos[1]}' on '{pos[0]}' → {status.ToString().ToLowerInvariant()}.");
+        if (!TryParseStatus(a[2], out var status)) return (false, $"unknown status '{a[2]}' (should|done|shouldnt|faulted)");
+        if (!s.Nodes.ContainsKey(a[0])) return (false, $"no node '{a[0]}' (try: find)");
+        if (!s.Product.Concerns.Any(c => c.Name == a[1]))
+            return (false, $"'{a[1]}' is not a concern (valid: {string.Join(", ", s.Product.Concerns.Select(c => c.Name))})");
+        ProductTreeOps.SetConcern(s, a[0], a[1], status);
+        return (true, $"Set concern '{a[1]}' on '{a[0]}' → {status.ToString().ToLowerInvariant()}.");
     }
 
-    private static int RemoveConcern(string[] args) =>
-        RunOne(args, ResolveRoot(args.Where(a => !a.StartsWith('-')).Skip(2)), ApplyRemoveConcern);
+    private static int RemoveConcern(string[] args) => RunOne(Specs.RemoveConcern, args, ApplyRemoveConcern);
 
-    private static (bool Ok, string Message) ApplyRemoveConcern(ProductState s, string[] args)
+    private static (bool Ok, string Message) ApplyRemoveConcern(ProductState s, VerbArgs a)
     {
-        var pos = args.Where(a => !a.StartsWith('-')).ToArray();
-        if (pos.Length < 2) return (false, "remove-concern needs <node-id> <tag>");
-        if (!s.Nodes.ContainsKey(pos[0])) return (false, $"no node '{pos[0]}' (try: find)");
-        return ProductTreeOps.RemoveConcern(s, pos[0], pos[1])
-            ? (true, $"Removed concern '{pos[1]}' from '{pos[0]}'.")
-            : (false, $"'{pos[0]}' has no '{pos[1]}' concern to remove");
+        if (!s.Nodes.ContainsKey(a[0])) return (false, $"no node '{a[0]}' (try: find)");
+        return ProductTreeOps.RemoveConcern(s, a[0], a[1])
+            ? (true, $"Removed concern '{a[1]}' from '{a[0]}'.")
+            : (false, $"'{a[0]}' has no '{a[1]}' concern to remove");
     }
 
-    private static int RemoveSnaplink(string[] args) =>
-        RunOne(args, ResolveRoot(args.Where(a => !a.StartsWith('-') && !FollowsFlag(args, a, "--concern", "--index")).Skip(1)), ApplyRemoveSnaplink);
+    private static int RemoveSnaplink(string[] args) => RunOne(Specs.RemoveSnaplink, args, ApplyRemoveSnaplink);
 
-    private static (bool Ok, string Message) ApplyRemoveSnaplink(ProductState s, string[] args)
+    private static (bool Ok, string Message) ApplyRemoveSnaplink(ProductState s, VerbArgs a)
     {
-        var pos = args.Where(a => !a.StartsWith('-') && !FollowsFlag(args, a, "--concern", "--index")).ToArray();
-        var id = pos.ElementAtOrDefault(0);
-        if (string.IsNullOrWhiteSpace(id)) return (false, "remove-snaplink needs <node-id> [--concern <tag>] [--index <n>]");
+        var id = a[0];
         if (!s.Nodes.ContainsKey(id)) return (false, $"no node '{id}' (try: find)");
-        var concern = Option(args, "--concern");
-        int? index = int.TryParse(Option(args, "--index"), out var i) ? i : null;
+
+        int? index = null;
+        if (a.Value("--index") is { } raw)
+        {
+            if (!int.TryParse(raw, out var i)) return (false, $"--index must be a number (got '{raw}')");
+            index = i;
+        }
+        var concern = a.Value("--concern");
 
         var removed = ProductTreeOps.RemoveSnaplink(s, id, concern, index);
         var where = concern is null ? $"'{id}'" : $"'{id}' concern '{concern}'";
@@ -1415,22 +1570,16 @@ internal static class Program
             : (false, $"no matching snaplink to remove on {where}");
     }
 
-    private static readonly string[] SnaplinkFlags =
-        ["--type", "--concern", "--doc", "--class", "--method", "--ast", "--target", "--url", "--title-path", "--status"];
+    private static int AddSnaplink(string[] args) => RunOne(Specs.AddSnaplink, args, ApplyAddSnaplink);
 
-    private static int AddSnaplink(string[] args) =>
-        RunOne(args, ResolveRoot(args.Where(a => !a.StartsWith('-') && !FollowsFlag(args, a, SnaplinkFlags)).Skip(1)), ApplyAddSnaplink);
-
-    private static (bool Ok, string Message) ApplyAddSnaplink(ProductState s, string[] args)
+    private static (bool Ok, string Message) ApplyAddSnaplink(ProductState s, VerbArgs a)
     {
-        var pos = args.Where(a => !a.StartsWith('-') && !FollowsFlag(args, a, SnaplinkFlags)).ToArray();
-        var id = pos.ElementAtOrDefault(0);
-        if (string.IsNullOrWhiteSpace(id)) return (false, "add-snaplink needs <node-id> --type <code|markdown|node|url> [flags]");
+        var id = a[0];
         if (!s.Nodes.ContainsKey(id)) return (false, $"no node '{id}' (try: find)");
 
-        var type = Option(args, "--type") ?? "code";
+        var type = a.Value("--type") ?? "code";
         var link = new Snaplink { Type = type };
-        if (Option(args, "--status") is { } st)
+        if (a.Value("--status") is { } st)
         {
             if (!TryParseStatus(st, out var sv)) return (false, $"unknown --status '{st}'");
             link.Status = sv;
@@ -1438,74 +1587,87 @@ internal static class Program
         switch (type)
         {
             case "code":
-                link.Doc = Option(args, "--doc"); link.Class = Option(args, "--class");
-                link.Method = Option(args, "--method"); link.Ast = Option(args, "--ast");
+                link.Doc = a.Value("--doc"); link.Class = a.Value("--class");
+                link.Method = a.Value("--method"); link.Ast = a.Value("--ast");
                 if (string.IsNullOrWhiteSpace(link.Doc)) return (false, "code snaplink needs --doc <file> [--class <c>] [--method <m>]");
                 break;
             case "markdown":
-                link.Doc = Option(args, "--doc");
-                if (Option(args, "--title-path") is { Length: > 0 } tp)
+                link.Doc = a.Value("--doc");
+                if (a.Value("--title-path") is { Length: > 0 } tp)
                     link.TitlePath = [.. tp.Split('>', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)];
                 if (string.IsNullOrWhiteSpace(link.Doc)) return (false, "markdown snaplink needs --doc <file> [--title-path a>b]");
                 break;
             case "node":
-                link.Target = Option(args, "--target");
+                link.Target = a.Value("--target");
                 if (string.IsNullOrWhiteSpace(link.Target)) return (false, "node snaplink needs --target <node-id>");
                 break;
             case "url":
-                link.Target = Option(args, "--url") ?? Option(args, "--target");
+                link.Target = a.Value("--url") ?? a.Value("--target");
                 if (string.IsNullOrWhiteSpace(link.Target)) return (false, "url snaplink needs --url <url>");
                 break;
             default:
                 return (false, $"unknown snaplink --type '{type}' (code|markdown|node|url)");
         }
 
-        var concern = Option(args, "--concern");
+        var concern = a.Value("--concern");
         if (!ProductTreeOps.AddSnaplink(s, id, link, concern))
             return (false, $"node '{id}' has no concern '{concern}' — add it first: set-concern {id} {concern} should");
         var where = concern is null ? "the node" : $"concern '{concern}'";
         return (true, $"Added {type} snaplink to {where} of '{id}': {link.Display}.");
     }
 
-    private static int SetNode(string[] args) =>
-        RunOne(args, ResolveRoot(args.Where(a => !a.StartsWith('-') && !FollowsFlag(args, a, "--title", "--desc", "--note")).Skip(1)), ApplySetNode);
+    private static int SetNode(string[] args) => RunOne(Specs.SetNode, args, ApplySetNode);
 
-    private static (bool Ok, string Message) ApplySetNode(ProductState s, string[] args)
+    private static (bool Ok, string Message) ApplySetNode(ProductState s, VerbArgs a)
     {
-        var pos = args.Where(a => !a.StartsWith('-') && !FollowsFlag(args, a, "--title", "--desc", "--note")).ToArray();
-        var id = pos.ElementAtOrDefault(0);
-        if (string.IsNullOrWhiteSpace(id)) return (false, "set-node needs <node-id> [--title <t>] [--desc <d>] [--note <n>]");
+        var id = a[0];
         if (!s.Nodes.ContainsKey(id)) return (false, $"no node '{id}' (try: find)");
-        ProductTreeOps.EditNode(s, id, Option(args, "--title"), Option(args, "--desc"), Option(args, "--note"));
+        if (a.Value("--title") is null && a.Value("--desc") is null && a.Value("--note") is null)
+            return (false, "set-node needs at least one of --title / --desc / --note");
+        ProductTreeOps.EditNode(s, id, a.Value("--title"), a.Value("--desc"), a.Value("--note"));
         return (true, $"Edited '{id}'.");
     }
 
     // ── batch: apply a whole script of instructions in one load/save/validate (transactional) ──
 
-    /// <summary>Dispatches one instruction line (verb + its args, no &lt;root&gt;) to its Apply* core.</summary>
-    private static (bool Ok, string Message) ApplyOne(ProductState state, string[] args) => args switch
+    /// <summary>
+    /// Dispatches one instruction line (verb + its args, no <c>&lt;root&gt;</c>) to its Apply* core, parsing
+    /// it against the same <see cref="VerbSpec"/> the standalone verb uses — so a batch script gets identical
+    /// strictness. Since batch is all-or-nothing, an unknown option on line 40 aborts before anything is written.
+    /// </summary>
+    private static (bool Ok, string Message) ApplyOne(ProductState state, string[] args)
     {
-        [] => (false, "empty instruction"),
-        ["set-status",   .. var r] => ApplySetStatus(state, r),
-        ["set-concern",  .. var r] => ApplySetConcern(state, r),
-        ["remove-concern", .. var r] => ApplyRemoveConcern(state, r),
-        ["add-snaplink", .. var r] => ApplyAddSnaplink(state, r),
-        ["remove-snaplink", .. var r] => ApplyRemoveSnaplink(state, r),
-        ["set-node",     .. var r] => ApplySetNode(state, r),
-        ["add-node",     .. var r] => ApplyAddNode(state, r),
-        ["move",         .. var r] => ApplyMove(state, r),
-        ["remove",       .. var r] => ApplyRemove(state, r),
-        [var verb, ..] => (false, $"unknown instruction '{verb}' (batch supports: set-status, set-concern, remove-concern, add-snaplink, remove-snaplink, set-node, add-node, move, remove)"),
-    };
+        // Parse against the BATCH form of the spec (no trailing <root> — the run has one), then run the
+        // same core the standalone verb uses.
+        (bool Ok, string Message) Parsed(
+            VerbSpec spec, string[] rest, Func<ProductState, VerbArgs, (bool, string)> apply) =>
+            VerbArgs.TryParse(spec.InBatch, rest, out var parsed, out var error)
+                ? apply(state, parsed)
+                : (false, error);
+
+        return args switch
+        {
+            [] => (false, "empty instruction"),
+            ["set-status",      .. var r] => Parsed(Specs.SetStatus,      r, ApplySetStatus),
+            ["set-concern",     .. var r] => Parsed(Specs.SetConcern,     r, ApplySetConcern),
+            ["remove-concern",  .. var r] => Parsed(Specs.RemoveConcern,  r, ApplyRemoveConcern),
+            ["add-snaplink",    .. var r] => Parsed(Specs.AddSnaplink,    r, ApplyAddSnaplink),
+            ["remove-snaplink", .. var r] => Parsed(Specs.RemoveSnaplink, r, ApplyRemoveSnaplink),
+            ["set-node",        .. var r] => Parsed(Specs.SetNode,        r, ApplySetNode),
+            ["add-node",        .. var r] => Parsed(Specs.AddNode,        r, ApplyAddNode),
+            ["move",            .. var r] => Parsed(Specs.Move,           r, ApplyMove),
+            ["rename",          .. var r] => Parsed(Specs.Rename,         r, ApplyRename),
+            ["remove",          .. var r] => Parsed(Specs.Remove,         r, ApplyRemove),
+            [var verb, ..] => (false, $"unknown instruction '{verb}' (batch supports: set-status, set-concern, remove-concern, add-snaplink, remove-snaplink, set-node, add-node, move, rename, remove)"),
+        };
+    }
 
     private static int Batch(string[] args)
     {
-        var dryRun = args.Contains("--dry-run");
-        var pos = args.Where(a => !a.StartsWith('-')).ToArray();
-        var file = pos.ElementAtOrDefault(0);
-        if (string.IsNullOrWhiteSpace(file)) return Usage("batch needs <script-file> [<root>] [--dry-run].");
+        if (!TryRead(Specs.Batch, args, out var a, out var root, out var parseCode)) return parseCode;
+        var dryRun = a.Has("--dry-run");
+        var file = a[0];
         if (!File.Exists(file)) return Usage($"no such script file: {file}");
-        var root = ResolveRoot(pos.Skip(1));
         if (!TryLoad(root, out var state, out var code)) return code;
 
         var lines = File.ReadAllLines(file);
@@ -1535,30 +1697,76 @@ internal static class Program
         return SaveAndValidate(state, root, $"Applied {applied.Count} instruction(s) from {Path.GetFileName(file)}.");
     }
 
-    /// <summary>Shell-lite tokenizer: splits on whitespace, with double-quotes grouping a value that
-    /// contains spaces (e.g. <c>--desc "two words"</c>). No escape handling — tree text rarely needs it.</summary>
-    private static List<string> Tokenize(string line)
+    /// <summary>
+    /// Shell-lite tokenizer: splits on whitespace, with double-quotes grouping a value that contains spaces
+    /// (e.g. <c>--desc "two words"</c>). No escape handling — tree text rarely needs it.
+    /// <para>
+    /// An explicitly quoted <c>""</c> yields an <b>empty</b> token rather than none, so a batch line can
+    /// clear a field the way the standalone verb documents (<c>set-node &lt;id&gt; --note ""</c>). Without
+    /// that the quotes collapsed to nothing and the option looked like it was missing its value.
+    /// </para>
+    /// </summary>
+    internal static List<string> Tokenize(string line)
     {
         var tokens = new List<string>();
         var sb = new System.Text.StringBuilder();
         var inQuote = false;
+        var quoted = false;   // this token carried quotes — emit it even if it ends up empty
         foreach (var ch in line)
         {
-            if (ch == '"') { inQuote = !inQuote; continue; }
+            if (ch == '"') { inQuote = !inQuote; quoted = true; continue; }
             if (char.IsWhiteSpace(ch) && !inQuote)
             {
-                if (sb.Length > 0) { tokens.Add(sb.ToString()); sb.Clear(); }
+                if (sb.Length > 0 || quoted) { tokens.Add(sb.ToString()); sb.Clear(); quoted = false; }
             }
             else sb.Append(ch);
         }
-        if (sb.Length > 0) tokens.Add(sb.ToString());
+        if (sb.Length > 0 || quoted) tokens.Add(sb.ToString());
         return tokens;
+    }
+
+    // ── lint: does this feature follow the modelling rules? (advisory — see StructureLinter) ──
+
+    private static int Lint(string[] args)
+    {
+        if (!TryRead(Specs.Lint, args, out var a, out var root, out var parseCode)) return parseCode;
+        if (!TryLoad(root, out var state, out var code)) return code;
+
+        var under = a.Value("--under");
+        if (under is { Length: > 0 } && !state.Nodes.ContainsKey(under)) return VerbUsage($"no node '{under}' (try: find)");
+
+        var findings = StructureLinter.Lint(state, under);
+        if (a.Has("--json"))
+        {
+            Console.WriteLine(JsonSerializer.Serialize(findings, ProductJson.Options));
+            return Clean;
+        }
+
+        if (findings.Count == 0)
+        {
+            Console.WriteLine(under is null
+                ? "Every feature follows the modelling rules."
+                : $"'{under}' follows the modelling rules.");
+            return Clean;
+        }
+
+        foreach (var byFeature in findings.GroupBy(f => f.FeatureId))
+        {
+            Console.WriteLine($"\n{byFeature.Key}  ({byFeature.Count()} finding(s))");
+            foreach (var f in byFeature)
+                Console.WriteLine($"  [{f.Rule}] {f.NodeId} — {f.Title}\n      {f.Detail}");
+        }
+
+        var features = findings.Select(f => f.FeatureId).Distinct().Count();
+        Console.WriteLine($"\n{findings.Count} finding(s) across {features} feature(s) — advisory (nothing fails a build).");
+        // Advisory by design: exit 0 so this can be run freely without tripping a script's error handling.
+        return Clean;
     }
 
     private static int Doctor(string[] args)
     {
-        var fix = args.Contains("--fix");
-        var root = ResolveRoot(args.Where(a => !a.StartsWith('-')));
+        if (!TryRead(Specs.Doctor, args, out var a, out var root, out var parseCode)) return parseCode;
+        var fix = a.Has("--fix");
         if (!TryLoad(root, out var state, out var code)) return code;
 
         var repairs = ProductTreeOps.RepairChildren(state, apply: fix);
@@ -1591,7 +1799,7 @@ internal static class Program
 
         var store = new ProductStore(root);
         store.SaveTree(state.Nodes);
-        var report = SnaplinkValidator.Validate(state, root);
+        var report = SnaplinkValidator.Validate(state, root, FileRootsFor(root));
         store.SaveIntegrity(report);
         Console.WriteLine($"Repaired {repairs.Count} parent(s)." + (report.IsClean
             ? $" Snaplinks OK — scanned {report.ScannedSnaplinks}."
@@ -1624,13 +1832,6 @@ internal static class Program
         "faulted"  => Status.Faulted,
         _          => Status.Should
     };
-
-    /// <summary>True when <paramref name="arg"/> is the value that follows a known option flag.</summary>
-    private static bool IsOptionValue(string[] args, string arg)
-    {
-        var i = Array.IndexOf(args, arg);
-        return i > 0 && args[i - 1] is "--class" or "--method";
-    }
 
     /// <summary>Loads the tree, or emits the right message + exit code when there is nothing to load.</summary>
     private static bool TryLoad(string root, out ProductState state, out int code)

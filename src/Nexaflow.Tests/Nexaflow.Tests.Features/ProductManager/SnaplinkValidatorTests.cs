@@ -56,6 +56,39 @@ public class SnaplinkValidatorTests
 
     private IntegrityReport Validate(ProductState state) => SnaplinkValidator.Validate(state, _root);
 
+    // ── File roots: a worktree validates the branch in front of you, not the main checkout ──────
+
+    [TestMethod]
+    public void ExtraFileRoot_IsSearchedBeforeTheProductRoot()
+    {
+        // The shape that matters: the tree lives in the product root (a main checkout) but the file only
+        // exists in the caller's working tree (a linked worktree on a feature branch). Without the extra
+        // root every snaplink to a not-yet-merged file reads as broken.
+        var worktree = Path.Combine(Path.GetTempPath(), $"snaplink_wt_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(Path.Combine(worktree, "src"));
+        File.WriteAllText(Path.Combine(worktree, "src", "New.cs"), Csharp);
+        try
+        {
+            var tree = TreeWith(new Snaplink { Type = "code", Doc = "src/New.cs" });
+
+            Assert.AreEqual(1, SnaplinkValidator.Validate(tree, _root).IssueCount,
+                "precondition: the file is absent from the product root");
+            Assert.IsTrue(SnaplinkValidator.Validate(tree, _root, [worktree]).IsClean,
+                "the caller's working tree is searched first, so the branch's own file resolves");
+        }
+        finally { Directory.Delete(worktree, recursive: true); }
+    }
+
+    [TestMethod]
+    public void AFileMissingFromEveryRoot_IsStillBroken()
+    {
+        var tree = TreeWith(new Snaplink { Type = "code", Doc = "src/Nowhere.cs" });
+        var report = SnaplinkValidator.Validate(tree, _root, [Path.GetTempPath()]);
+
+        Assert.AreEqual(1, report.IssueCount, "extra roots must not turn a genuinely dead link clean");
+        StringAssert.Contains(report.Issues[0].Detail, "src/Nowhere.cs");
+    }
+
     private const string Csharp = """
         namespace Demo;
         public class Widget

@@ -3,10 +3,15 @@ using CommunityToolkit.Mvvm.ComponentModel;
 namespace Nexaflow.Features.Font.ViewModels;
 
 /// <summary>
-/// The shared preview settings for a Font page — the sample text, size and bold/italic/underline
-/// toggles — held once and attached to every <see cref="FontItemViewModel"/> so the top-bar controls
-/// and every compare row stay in sync. Each item combines these with its own selected face to render.
+/// The shared preview settings for a Font page — the sample text and its size — held once and attached to
+/// every <see cref="FontItemViewModel"/> so the top-bar controls and every compare row stay in sync. Each
+/// item combines these with its own selected face to render.
 /// </summary>
+/// <remarks>
+/// Deliberately carries no bold / italic / underline overrides: the page has no style toggles, so a preview
+/// always shows a face exactly as it is designed, and the face-variant chips are how a different weight or
+/// slant is chosen.
+/// </remarks>
 public sealed partial class FontPreviewOptions : ObservableObject
 {
     /// <summary>Alphabet + digits + common symbols shown small under each preview.</summary>
@@ -15,9 +20,6 @@ public sealed partial class FontPreviewOptions : ObservableObject
 
     [ObservableProperty] private string _previewText = "The quick brown fox jumps over the lazy dog";
     [ObservableProperty] private double _previewSizePt = 16;
-    [ObservableProperty] private bool _isBold;
-    [ObservableProperty] private bool _isItalic;
-    [ObservableProperty] private bool _isUnderline;
 
     /// <summary>WPF FontSize is in DIPs (1/96"); the sliders are in points, so convert (pt × 4/3).</summary>
     public double PreviewSizeDip => PreviewSizePt * 4.0 / 3.0;

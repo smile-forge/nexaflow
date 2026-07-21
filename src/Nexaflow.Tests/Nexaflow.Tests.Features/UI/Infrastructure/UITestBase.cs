@@ -86,7 +86,17 @@ public abstract class UITestBase
     [TestCleanup]
     public void UITeardown()
     {
-        try { App?.Kill(); } catch { /* already exited */ }
+        // Kill() only signals — without waiting, the next test's app launches while this one is still on
+        // screen. Two live windows means the newest is not necessarily foremost, so any mouse-driven click
+        // can land on the wrong app. Wait for the process to actually go.
+        try
+        {
+            App?.Kill();
+            App?.WaitWhileMainHandleIsMissing(TimeSpan.FromSeconds(5));
+            for (var waited = 0; App is { HasExited: false } && waited < 5000; waited += 100)
+                System.Threading.Thread.Sleep(100);
+        }
+        catch { /* already exited */ }
         Automation?.Dispose();
 
         // The app writes any unhandled UI-thread exception to crash.log in its (isolated) config dir; the

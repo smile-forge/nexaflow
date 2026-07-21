@@ -136,7 +136,6 @@
                                                FontWeight="{Binding EffectiveWeight}"
                                                FontStyle="{Binding EffectiveStyle}"
                                                FontStretch="{Binding EffectiveStretch}"
-                                               TextDecorations="{Binding EffectiveDecorations}"
                                                Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"
                                                HorizontalAlignment="Left"
                                                Visibility="{Binding CanRender, Converter={StaticResource BoolToVis}}"/>

@@ -115,9 +115,11 @@
 
             <!-- Verb buttons -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                <Button Style="{StaticResource FlatBtn}" Content="Restore"
+                <Button AutomationProperties.AutomationId="Dotnet_RestoreButton"
+                        Style="{StaticResource FlatBtn}" Content="Restore"
                         Command="{Binding RestoreCommand}" ToolTip="dotnet restore"/>
-                <Button Style="{StaticResource FlatBtn}" Content="Build"
+                <Button AutomationProperties.AutomationId="Dotnet_BuildButton"
+                        Style="{StaticResource FlatBtn}" Content="Build"
                         Command="{Binding BuildCommand}"   ToolTip="dotnet build"/>
                 <Button AutomationProperties.AutomationId="Dotnet_RunButton"
                         Style="{StaticResource FlatBtn}" Content="Run"
@@ -134,9 +136,11 @@
                         Click="StartupButton_Click"
                         ToolTip="Choose the project to run"
                         Visibility="{Binding ShowStartupPicker, Converter={StaticResource BoolVis}}"/>
-                <Button Style="{StaticResource FlatBtn}" Content="Test"
+                <Button AutomationProperties.AutomationId="Dotnet_TestButton"
+                        Style="{StaticResource FlatBtn}" Content="Test"
                         Command="{Binding TestCommand}"    ToolTip="dotnet test"/>
-                <Button Style="{StaticResource FlatBtn}" Content="Clean"
+                <Button AutomationProperties.AutomationId="Dotnet_CleanButton"
+                        Style="{StaticResource FlatBtn}" Content="Clean"
                         Command="{Binding CleanCommand}"   ToolTip="dotnet clean"/>
             </StackPanel>
 

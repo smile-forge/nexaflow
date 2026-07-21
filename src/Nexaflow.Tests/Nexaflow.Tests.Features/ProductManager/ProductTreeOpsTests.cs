@@ -149,6 +149,72 @@ public class ProductTreeOpsTests
     public void Remove_MissingNode_ReturnsNull()
         => Assert.IsNull(ProductTreeOps.Remove(Sample(), "nope", recursive: true));
 
+    // ── Rename: change a node's id, retargeting everything keyed on it ───────
+
+    [TestMethod]
+    [CoversNode("product-restructure")]
+    public void Rename_RetargetsParentEntry_ChildBackRefs_AndKeepsSiblingOrder()
+    {
+        var s = Sample();
+        Assert.AreEqual(ProductTreeOps.RenameError.None, ProductTreeOps.Rename(s, "a", "alpha"));
+
+        Assert.IsFalse(s.Nodes.ContainsKey("a"));
+        Assert.IsTrue(s.Nodes.ContainsKey("alpha"));
+        CollectionAssert.AreEqual(new[] { "alpha", "b" }, s.Nodes["root"].Children,
+            "the parent's entry is replaced in position, not appended");
+        Assert.AreEqual("alpha", s.Nodes["a1"].Parent);
+        Assert.AreEqual("alpha", s.Nodes["a2"].Parent);
+        CollectionAssert.AreEqual(new[] { "a1", "a2" }, s.Nodes["alpha"].Children, "its own children are unchanged");
+    }
+
+    [TestMethod]
+    [CoversNode("product-restructure")]
+    public void Rename_RetargetsNodeSnaplinks_OnNodesAndConcerns()
+    {
+        var s = Sample();
+        s.Nodes["b"].Snaplinks = [new Snaplink { Type = "node", Target = "a" }];
+        s.Nodes["a1"].Concerns = [new ConcernLink { Tag = "tests", Status = Status.Should,
+            Snaplinks = [new Snaplink { Type = "node", Target = "a" }, new Snaplink { Type = "code", Doc = "a" }] }];
+
+        ProductTreeOps.Rename(s, "a", "alpha");
+
+        Assert.AreEqual("alpha", s.Nodes["b"].Snaplinks![0].Target);
+        Assert.AreEqual("alpha", s.Nodes["a1"].Concerns![0].Snaplinks![0].Target);
+        Assert.AreEqual("a", s.Nodes["a1"].Concerns![0].Snaplinks![1].Doc,
+            "a code snaplink's doc path is not a node id — left alone");
+    }
+
+    [TestMethod]
+    [CoversNode("product-restructure")]
+    public void Rename_RejectsAnIdThatIsAlreadyTaken()
+    {
+        var s = Sample();
+        Assert.AreEqual(ProductTreeOps.RenameError.IdTaken, ProductTreeOps.Rename(s, "a", "b"));
+        Assert.IsTrue(s.Nodes.ContainsKey("a"), "nothing changed when the guard trips");
+        CollectionAssert.AreEqual(new[] { "a", "b" }, s.Nodes["root"].Children);
+    }
+
+    [TestMethod]
+    [CoversNode("product-restructure")]
+    public void Rename_RejectsMissingNode_AndUnusableIds()
+    {
+        Assert.AreEqual(ProductTreeOps.RenameError.NoSuchNode, ProductTreeOps.Rename(Sample(), "nope", "x"));
+        Assert.AreEqual(ProductTreeOps.RenameError.IdInvalid, ProductTreeOps.Rename(Sample(), "a", "a"));
+        Assert.AreEqual(ProductTreeOps.RenameError.IdInvalid, ProductTreeOps.Rename(Sample(), "a", "  "));
+        Assert.AreEqual(ProductTreeOps.RenameError.IdInvalid, ProductTreeOps.Rename(Sample(), "a", "two words"));
+    }
+
+    [TestMethod]
+    [CoversNode("product-restructure")]
+    public void Rename_ARootNode_HasNoParentToRetarget()
+    {
+        var s = Sample();
+        Assert.AreEqual(ProductTreeOps.RenameError.None, ProductTreeOps.Rename(s, "root", "top"));
+        Assert.AreEqual("top", s.Nodes["a"].Parent);
+        Assert.AreEqual("top", s.Nodes["b"].Parent);
+        Assert.IsNull(s.Nodes["top"].Parent);
+    }
+
     // ── Cascade status (sunburst "Status: …" menu) ──────────────────────────
     [TestMethod]
     [CoversNode("product-node-menu")]

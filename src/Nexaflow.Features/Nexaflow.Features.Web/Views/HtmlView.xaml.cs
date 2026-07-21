@@ -68,6 +68,11 @@ public partial class HtmlView : UserControl, IPageView, IAirspaceContent
                 ViewModel.PageTitle = core.DocumentTitle;
                 PageChanged?.Invoke();
             };
+            // The nav buttons reflect where the user can actually go. WebView2 exposes CanGoBack/Forward as
+            // plain properties with no change notification, so they're pushed on HistoryChanged rather than
+            // bound.
+            core.HistoryChanged += (_, _) => UpdateNavButtons();
+            UpdateNavButtons();
             core.Navigate(ViewModel.NavigationUri.ToString());
         }
         catch (Exception ex)
@@ -106,15 +111,17 @@ public partial class HtmlView : UserControl, IPageView, IAirspaceContent
         PageChanged?.Invoke();
     }
 
-    private void Back_Click(object sender, RoutedEventArgs e)
+    /// <summary>Enables each nav button only when it would do something — a button the user can press to no
+    /// effect is a defect, so the "can I?" test lives here rather than inside the click handler.</summary>
+    private void UpdateNavButtons()
     {
-        if (WebView.CanGoBack) WebView.GoBack();
+        BackButton.IsEnabled    = WebView.CanGoBack;
+        ForwardButton.IsEnabled = WebView.CanGoForward;
     }
 
-    private void Forward_Click(object sender, RoutedEventArgs e)
-    {
-        if (WebView.CanGoForward) WebView.GoForward();
-    }
+    private void Back_Click(object sender, RoutedEventArgs e) => WebView.GoBack();
+
+    private void Forward_Click(object sender, RoutedEventArgs e) => WebView.GoForward();
 
     private void Reload_Click(object sender, RoutedEventArgs e)
     {

@@ -27,4 +27,10 @@
     <ProjectReference Include="..\Nexaflow.Services.Initiatives\Nexaflow.Services.Initiatives.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The argument parser (VerbArgs/VerbSpec) is unit-tested — a CLI that silently drops an option is
+         how a batch edit loses data. -->
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features" />
+  </ItemGroup>
+
 </Project>

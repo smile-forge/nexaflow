@@ -101,9 +101,11 @@
                 <!-- Back / Forward -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal"
                             VerticalAlignment="Center" Margin="0,0,6,0">
+                    <!-- Disabled until there is somewhere to go — see HtmlView.UpdateNavButtons. -->
                     <Button x:Name="BackButton"
                             Style="{StaticResource ToolbarBtnStyle}"
                             AutomationProperties.AutomationId="Web_Back"
+                            IsEnabled="False"
                             Click="Back_Click"
                             ToolTip="Back"
                             Margin="0,0,4,0">
@@ -113,6 +115,7 @@
                     <Button x:Name="ForwardButton"
                             Style="{StaticResource ToolbarBtnStyle}"
                             AutomationProperties.AutomationId="Web_Forward"
+                            IsEnabled="False"
                             Click="Forward_Click"
                             ToolTip="Forward">
                         <TextBlock Text="▶" FontSize="11"
@@ -176,6 +179,9 @@
                native HWND renders above all WPF content, so the AI/Options overlays would otherwise be hidden.
              • Left/right margin keeps the WebView's HWND clear of the window's WindowChrome resize border,
                which it would otherwise swallow (making the window's side edges un-draggable). -->
+        <!-- No AutomationId: WebView2 is an HwndHost, so its native browser window is not part of this
+             window's WPF automation tree and an id here would never surface. A UI test instead reads the
+             rendered document, which WebView2 does expose to UIA (see WebJourneyTests). -->
         <wv2:WebView2 x:Name="WebView"
                       Grid.Row="1"
                       Margin="8,0"
@@ -185,6 +191,7 @@
 
         <!-- Fallback shown when the embedded browser can't be created on this machine -->
         <Border Grid.Row="1"
+                AutomationProperties.AutomationId="Web_FallbackPanel"
                 Background="{StaticResource BgBrush}"
                 Panel.ZIndex="20"
                 Visibility="{Binding WebViewAvailable, Converter={StaticResource InvBoolVis}}">
@@ -218,6 +225,7 @@
                            TextAlignment="Center"
                            Margin="0,0,0,18"/>
                 <Button Style="{StaticResource AccentBtnStyle}"
+                        AutomationProperties.AutomationId="Web_FallbackOpenExternal"
                         HorizontalAlignment="Center"
                         Click="OpenExternal_Click"
                         Content="Open in your default browser"/>

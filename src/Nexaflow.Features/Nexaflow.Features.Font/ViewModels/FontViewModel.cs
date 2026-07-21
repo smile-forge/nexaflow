@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -12,6 +13,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Font.ClientTools;
 using Nexaflow.Features.Font.Decoding;
+using Nexaflow.Features.Font.Views;
 
 namespace Nexaflow.Features.Font.ViewModels;
 
@@ -21,7 +23,7 @@ namespace Nexaflow.Features.Font.ViewModels;
 /// with one-or-more fonts preloaded + the first preselected (the "As Font" action). Fonts come from the
 /// installed set (picker overlay) or files; WOFF is decoded through <see cref="FontSourceResolver"/>.
 /// </summary>
-public sealed partial class FontViewModel : ObservableObject, IPageViewModel, IDisposable
+public sealed partial class FontViewModel : ObservableObject, IPageViewModel, IContextPreview, IDisposable
 {
     private readonly IShellServices _shell;
     private readonly FontSourceResolver _resolver = new();
@@ -176,15 +178,11 @@ public sealed partial class FontViewModel : ObservableObject, IPageViewModel, ID
 
     public string GetContext()
     {
-        var style = new List<string>();
-        if (Options.IsBold) style.Add("bold");
-        if (Options.IsItalic) style.Add("italic");
-        if (Options.IsUnderline) style.Add("underlined");
-        var styleStr = style.Count > 0 ? string.Join("+", style) : "regular";
-
+        // No style qualifier: the page has no bold/italic/underline toggles, so each row renders in its
+        // own selected face and saying "regular" would misdescribe a face that is itself bold or italic.
         if (Fonts.Count == 0)
             return "Font viewer, empty (blank compare mode) — no fonts added yet. The user would render " +
-                   $"the preview text \"{Options.PreviewText}\" at {Options.PreviewSizePt:0}pt {styleStr}.";
+                   $"the preview text \"{Options.PreviewText}\" at {Options.PreviewSizePt:0}pt.";
 
         var sb = new StringBuilder();
         sb.Append($"Font viewer comparing {Fonts.Count} font(s), each rendering the same sample text so the " +
@@ -197,10 +195,24 @@ public sealed partial class FontViewModel : ObservableObject, IPageViewModel, ID
                                      : "UNREADABLE";
             sb.Append($" {i + 1}. {f.DisplayName} [{status}]{mark};");
         }
-        sb.Append($" Preview text (large line): \"{Options.PreviewText}\" at {Options.PreviewSizePt:0}pt {styleStr}.");
+        sb.Append($" Preview text (large line): \"{Options.PreviewText}\" at {Options.PreviewSizePt:0}pt, " +
+                  "each in that font's selected face.");
         sb.Append($" Each row also shows this small specimen line: \"{Options.SpecimenText}\".");
         return sb.ToString();
     }
+
+    // ── IContextPreview ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A scrollable, read-only list of the compared fonts for the conversation context panel: each font's
+    /// Identity rows above an "abcde" specimen set in that font, so the panel shows what the page shows
+    /// without re-hosting the live compare list (an element cannot have two parents).
+    /// </summary>
+    /// <remarks>
+    /// A fresh control every time the chip is selected, per the contract — it binds to the page's
+    /// <see cref="Fonts"/> items but owns none of them, and is discarded on deselect.
+    /// </remarks>
+    public UserControl CreateContextPreview() => new FontContextPreview { DataContext = this };
 
     /// <summary>
     /// The scope this page's tools act within — a signature of the compared font set, so two font pages

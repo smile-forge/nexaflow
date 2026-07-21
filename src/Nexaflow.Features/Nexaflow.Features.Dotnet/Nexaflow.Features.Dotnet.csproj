@@ -10,6 +10,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
   </ItemGroup>
 

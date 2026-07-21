@@ -7,7 +7,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.Dotnet;
 
 [TestClass]
-[CoversNode("viewlet")]
+[CoversNode("dotnet-viewlet")]
 public class DotnetViewletViewModelTests
 {
     private readonly List<string> _temp = [];
@@ -150,7 +150,7 @@ public class DotnetViewletViewModelTests
     }
 
     [TestMethod]
-    [CoversNode("run")]
+    [CoversNode("dotnet-verb-run")]
     public void SolutionWithNoRunnableProject_DisablesRunAndSaysWhy()
     {
         // The bug this fixes: Run used to shell out to a bare `dotnet run` in the folder, which finds no
@@ -163,7 +163,7 @@ public class DotnetViewletViewModelTests
     }
 
     [TestMethod]
-    [CoversNode("run")]
+    [CoversNode("dotnet-verb-run")]
     public void ProjectTarget_IsItsOwnRunTarget()
     {
         var vm = Vm(TempDir("Foo.csproj"));
@@ -175,6 +175,134 @@ public class DotnetViewletViewModelTests
     }
 
     // ── Cancellation ───────────────────────────────────────────────────────────
+
+    // ── Verb toolbar: one leaf per button ─────────────────────────────────────
+    // Restore / Build / Test / Clean act on the selected target itself, so they share one enablement rule
+    // (Run is different — it needs a runnable *project*, covered above).
+
+    [TestMethod]
+    [CoversNode("dotnet-verb-restore")]
+    [CoversNode("dotnet-verb-build")]
+    [CoversNode("dotnet-verb-test")]
+    [CoversNode("dotnet-verb-clean")]
+    public void TargetVerbs_NeedATarget_AndAreDisabledWhileAVerbRuns()
+    {
+        var empty = Vm(TempDir());
+        Assert.IsNull(empty.SelectedTarget, "precondition: a folder with no .NET files has no target");
+        foreach (var (name, command) in Verbs(empty))
+            Assert.IsFalse(command.CanExecute(null), $"{name} should be disabled with no target");
+
+        var vm = Vm(TempDir("App.csproj"));
+        Assert.IsNotNull(vm.SelectedTarget);
+        foreach (var (name, command) in Verbs(vm))
+            Assert.IsTrue(command.CanExecute(null), $"{name} should be enabled once a target is selected");
+
+        vm.IsBusy = true;
+        foreach (var (name, command) in Verbs(vm))
+            Assert.IsFalse(command.CanExecute(null), $"{name} should be disabled while another verb runs");
+    }
+
+    private static (string Name, System.Windows.Input.ICommand Command)[] Verbs(DotnetViewletViewModel vm) =>
+    [
+        ("Restore", vm.RestoreCommand), ("Build", vm.BuildCommand),
+        ("Test", vm.TestCommand),       ("Clean", vm.CleanCommand),
+    ];
+
+    [TestMethod]
+    [CoversNode("dotnet-verb-restore")]
+    [CoversNode("dotnet-verb-build")]
+    [CoversNode("dotnet-verb-test")]
+    [CoversNode("dotnet-verb-clean")]
+    public async Task RunVerbAsync_WithNoTarget_DoesNothing()
+    {
+        // No target means no dotnet process is ever launched — the guard, not the CLI, is what's under test.
+        Assert.IsNull(await Vm(TempDir()).RunVerbAsync("build"));
+    }
+
+    // ── Open the target in its default application ────────────────────────────
+
+    [TestMethod]
+    [CoversNode("dotnet-open-target")]
+    public void OpenTarget_IsOfferedOnlyOnceATargetIsResolved()
+    {
+        Assert.IsFalse(Vm(TempDir()).OpenTargetCommand.CanExecute(null), "nothing to open in a folder with no target");
+        Assert.IsTrue(Vm(TempDir("App.csproj")).OpenTargetCommand.CanExecute(null));
+    }
+
+    // ── Run status indicator ──────────────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("dotnet-progress")]
+    public void ProgressLabel_IsTheVerbsGerund()
+    {
+        Assert.AreEqual("Restoring", DotnetViewletViewModel.Gerund("restore"));
+        Assert.AreEqual("Building",  DotnetViewletViewModel.Gerund("build"));
+        Assert.AreEqual("Running",   DotnetViewletViewModel.Gerund("run"));
+        Assert.AreEqual("Testing",   DotnetViewletViewModel.Gerund("test"));
+        Assert.AreEqual("Cleaning",  DotnetViewletViewModel.Gerund("clean"));
+        Assert.AreEqual("Publish",   DotnetViewletViewModel.Gerund("publish"), "an unknown verb is merely capitalised");
+    }
+
+    [TestMethod]
+    [CoversNode("dotnet-progress")]
+    public void ProgressDetail_ClipsALongOutputLineWithAnEllipsis()
+    {
+        Assert.AreEqual("short line", DotnetViewletViewModel.Truncate("  short line  "), "trimmed, not clipped");
+
+        var clipped = DotnetViewletViewModel.Truncate(new string('x', 200));
+        Assert.AreEqual(80, clipped.Length);
+        StringAssert.EndsWith(clipped, "…");
+    }
+
+    [TestMethod]
+    [CoversNode("dotnet-progress")]
+    public void FailureOutput_IsTailedSoANoisyBuildCannotFloodTheToast()
+    {
+        var output = string.Join("\n", Enumerable.Range(1, 100).Select(i => $"line {i}"));
+        var tail = DotnetViewletViewModel.Tail(output, maxLines: 5);
+
+        Assert.AreEqual(5, tail.Split(Environment.NewLine).Length);
+        StringAssert.EndsWith(tail, "line 100");
+        Assert.AreEqual("only line", DotnetViewletViewModel.Tail("only line", maxLines: 5), "short output passes through");
+    }
+
+    [TestMethod]
+    [CoversNode("dotnet-progress")]
+    public void StartsIdle_WithNoGlyphAndNoRunningLabel()
+    {
+        var vm = Vm(TempDir("App.csproj"));
+        Assert.IsFalse(vm.IsBusy);
+        Assert.AreEqual(string.Empty, vm.StatusGlyph);
+        Assert.AreEqual(string.Empty, vm.RunningLabel);
+    }
+
+    // ── NuGet update caution ──────────────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("dotnet-nuget-caution")]
+    public void NugetCaution_ListsEachPackageCurrentToLatest()
+    {
+        var vm = Vm(TempDir("App.csproj"));
+        vm.ApplyUpdates([new("Serilog", "2.0.0", "4.1.0"), new("Xunit", "2.4.1", "2.9.0")]);
+
+        Assert.IsTrue(vm.HasUpdates);
+        StringAssert.Contains(vm.UpdatesTooltip, "Serilog: 2.0.0 > 4.1.0");
+        StringAssert.Contains(vm.UpdatesTooltip, "Xunit: 2.4.1 > 2.9.0");
+        StringAssert.Contains(vm.GetContext(), "2 package update(s) available");
+    }
+
+    [TestMethod]
+    [CoversNode("dotnet-nuget-caution")]
+    public void NugetCaution_ClearsWhenNothingIsOutdated()
+    {
+        var vm = Vm(TempDir("App.csproj"));
+        vm.ApplyUpdates([new("Serilog", "2.0.0", "4.1.0")]);
+        vm.ApplyUpdates([]);
+
+        Assert.IsFalse(vm.HasUpdates, "an up-to-date target must not keep showing a stale warning");
+        Assert.AreEqual(string.Empty, vm.UpdatesTooltip);
+        Assert.IsFalse(vm.GetContext().Contains("package update"));
+    }
 
     [TestMethod]
     [CoversNode("dotnet-cancel")]
