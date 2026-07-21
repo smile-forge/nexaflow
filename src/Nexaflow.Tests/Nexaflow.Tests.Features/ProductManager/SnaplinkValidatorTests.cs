@@ -12,7 +12,7 @@ namespace Nexaflow.Tests.Features.ProductManager;
 /// never invent one, because a false positive fails a release build.
 /// </summary>
 [TestClass]
-[CoversNode("product-snaplinks")]
+[CoversNode("integrity-validate")]
 public class SnaplinkValidatorTests
 {
     private string _root = string.Empty;

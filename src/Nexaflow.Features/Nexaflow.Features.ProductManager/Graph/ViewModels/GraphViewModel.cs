@@ -10,12 +10,12 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
-using Nexaflow.Features.GraphViewer.Converters;
-using Nexaflow.Features.GraphViewer.Layout;
-using Nexaflow.Features.GraphViewer.Loaders;
+using Nexaflow.Features.ProductManager.Graph.Converters;
+using Nexaflow.Features.ProductManager.Graph.Layout;
+using Nexaflow.Features.ProductManager.Graph.Loaders;
 using Nexaflow.Services.Initiatives.Graph.Model;
 
-namespace Nexaflow.Features.GraphViewer.ViewModels;
+namespace Nexaflow.Features.ProductManager.Graph.ViewModels;
 
 /// <summary>
 /// The Graph viewer page. Loads a <c>graph.json</c> off the UI thread, then shows a <b>focused neighbourhood</b>:

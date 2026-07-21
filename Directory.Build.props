@@ -9,4 +9,15 @@
     <Platform Condition="'$(Platform)' == ''">x64</Platform>
   </PropertyGroup>
 
+  <!-- MVVMTK0045: the MVVM Toolkit warns that a field-based [ObservableProperty] generates code that isn't
+       AOT-compatible "in WinRT scenarios (UWP XAML / WinUI 3)" and suggests a partial property instead. Nexaflow
+       is an unpackaged WPF app that never produces WinRT components or AOT-compiles via CsWinRT, so the concern
+       doesn't apply — field-based [ObservableProperty] is the project's deliberate convention (see CLAUDE.md).
+       The warning fires only in Nexaflow.Core today (its net10.0-windows10.0.19041.0 SDK moniker turns on the
+       CsWinRT AOT optimizer detection the analyzer keys off), but the pattern is repo-wide, so suppress it once
+       here rather than rewriting ~90 fields to partial properties against the convention. -->
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);MVVMTK0045</NoWarn>
+  </PropertyGroup>
+
 </Project>

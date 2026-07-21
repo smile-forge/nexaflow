@@ -8,12 +8,12 @@ using System.Threading.Tasks;
 using NSubstitute;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
-using Nexaflow.Features.GraphViewer.ViewModels;
+using Nexaflow.Features.ProductManager.Graph.ViewModels;
 using Nexaflow.Services.Initiatives.Graph.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.GraphViewer;
+namespace Nexaflow.Tests.Features.ProductManager;
 
 /// <summary>
 /// Covers the GraphViewer AI surface: the read-only client tools (<c>read_graph</c> dumps the visible

@@ -10,7 +10,6 @@ namespace Nexaflow.Tests.Features.ProductManager;
 /// non-gating advisories, and the gating <c>MissingSnaplink</c> rule for a RequiresSnaplink concern.
 /// </summary>
 [TestClass]
-[CoversNode("product-snaplinks")]
 public class TestCoverageReconcilerTests
 {
     private static ProductState State(params (string Id, ConcernLink[] Concerns)[] nodes)
@@ -34,6 +33,7 @@ public class TestCoverageReconcilerTests
         new() { Assembly = "Nexaflow.Tests.Features", Class = cls, Method = method, File = file };
 
     [TestMethod]
+    [CoversNode("integrity-advisories")]
     public void Declared_but_unlinked_yields_an_addable_advisory()
     {
         var state = State(("video-subtitles", [new ConcernLink { Tag = "tests", Status = Status.Done }]));
@@ -53,6 +53,7 @@ public class TestCoverageReconcilerTests
     }
 
     [TestMethod]
+    [CoversNode("integrity-scan")]
     public void An_already_present_link_produces_no_advisory()
     {
         var existing = new Snaplink { Type = "code", Doc = "src/Tests/VideoViewModelTests.cs", Class = "VideoViewModelTests" };
@@ -65,6 +66,7 @@ public class TestCoverageReconcilerTests
     }
 
     [TestMethod]
+    [CoversNode("integrity-scan")]
     public void A_declared_id_absent_from_the_tree_is_a_non_addable_unknown_node()
     {
         var state = State(("real-node", [new ConcernLink { Tag = "tests", Status = Status.Should }]));
@@ -76,6 +78,7 @@ public class TestCoverageReconcilerTests
     }
 
     [TestMethod]
+    [CoversNode("integrity-scan")]
     public void A_null_manifest_yields_no_advisories()
     {
         var state = State(("n", [new ConcernLink { Tag = "tests", Status = Status.Done }]));
@@ -83,6 +86,7 @@ public class TestCoverageReconcilerTests
     }
 
     [TestMethod]
+    [CoversNode("integrity-scan")]
     public void Done_requires_snaplink_concern_with_no_link_is_a_gating_missing_snaplink_issue()
     {
         var state = State(("unbacked", [new ConcernLink { Tag = "tests", Status = Status.Done }]));
@@ -96,6 +100,7 @@ public class TestCoverageReconcilerTests
     }
 
     [TestMethod]
+    [CoversNode("integrity-scan")]
     public void A_should_concern_or_a_backed_done_concern_is_not_flagged()
     {
         // A URL link (valid target) keeps this focused on the RequiresSnaplink rule — any snaplink satisfies it.

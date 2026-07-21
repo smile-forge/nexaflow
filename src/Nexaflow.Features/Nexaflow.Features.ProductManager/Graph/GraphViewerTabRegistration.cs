@@ -1,11 +1,11 @@
 using System.Collections.Generic;
 using System.IO;
 using Nexaflow.Features.Common;
-using Nexaflow.Features.GraphViewer.Loaders;
-using Nexaflow.Features.GraphViewer.ViewModels;
-using Nexaflow.Features.GraphViewer.Views;
+using Nexaflow.Features.ProductManager.Graph.Loaders;
+using Nexaflow.Features.ProductManager.Graph.ViewModels;
+using Nexaflow.Features.ProductManager.Graph.Views;
 
-namespace Nexaflow.Features.GraphViewer;
+namespace Nexaflow.Features.ProductManager.Graph;
 
 /// <summary>
 /// Registers the Graph viewer page (kind <c>GraphViewer</c>). Opens the <c>graph.json</c> named by the

@@ -82,7 +82,6 @@
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.WindowsFileSystem\Nexaflow.Features.WindowsFileSystem.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.WindowsRegistry\Nexaflow.Features.WindowsRegistry.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.WindowsSearch\Nexaflow.Features.WindowsSearch.csproj" />
-    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.GraphViewer\Nexaflow.Features.GraphViewer.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Images\Nexaflow.Features.Images.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Markdown\Nexaflow.Features.Markdown.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Model3D\Nexaflow.Features.Model3D.csproj" />

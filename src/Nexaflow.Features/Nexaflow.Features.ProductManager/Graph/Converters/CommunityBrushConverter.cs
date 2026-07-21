@@ -5,7 +5,7 @@ using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 
-namespace Nexaflow.Features.GraphViewer.Converters;
+namespace Nexaflow.Features.ProductManager.Graph.Converters;
 
 /// <summary>
 /// Maps a node's community id to a stable colour from the theme's categorical <c>Swatch.*</c> bank (so colour
