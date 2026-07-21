@@ -292,7 +292,8 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
         return result.Updates;
     }
 
-    private static string Gerund(string verb) => verb switch
+    /// <summary>The progress label for a verb — "build" reads as "Building" while it runs.</summary>
+    internal static string Gerund(string verb) => verb switch
     {
         "restore" => "Restoring",
         "build"   => "Building",
@@ -302,7 +303,8 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
         _         => char.ToUpperInvariant(verb[0]) + verb[1..],
     };
 
-    private static string Truncate(string line, int max = 80)
+    /// <summary>Clips one output line to the width the inline progress detail can show.</summary>
+    internal static string Truncate(string line, int max = 80)
     {
         line = line.Trim();
         return line.Length <= max ? line : line[..(max - 1)] + "…";
@@ -369,7 +371,9 @@ public sealed partial class DotnetViewletViewModel : ObservableObject
         }, ct);
     }
 
-    private void ApplyUpdates(IReadOnlyList<NugetUpdateChecker.PackageUpdate> updates)
+    /// <summary>Publishes an outdated-package result as the caution badge + its per-package tooltip; an empty
+    /// result clears it (so a target with nothing outstanding never shows a stale warning).</summary>
+    internal void ApplyUpdates(IReadOnlyList<NugetUpdateChecker.PackageUpdate> updates)
     {
         if (updates.Count == 0)
         {

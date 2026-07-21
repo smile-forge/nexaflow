@@ -1,6 +1,6 @@
 using System.IO;
 using FlaUI.Core.AutomationElements;
-using Nexaflow.Tests.Features.WindowsFileSystem.UI;
+using Nexaflow.Tests.Features.UI.Infrastructure;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Dotnet.UI;
@@ -18,8 +18,8 @@ namespace Nexaflow.Tests.Features.Dotnet.UI;
 /// Requires an interactive desktop session — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
-[CoversNode("viewlet")]
-public class DotnetViewletJourneyTests : FileSystemUiTestBase
+[CoversNode("dotnet-ui")]
+public class DotnetViewletJourneyTests : UiJourneyTestBase
 {
     private const string GuiApp = "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><OutputType>WinExe</OutputType></PropertyGroup></Project>";
     private const string Library = "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup/></Project>";
@@ -49,8 +49,8 @@ public class DotnetViewletJourneyTests : FileSystemUiTestBase
     }
 
     [TestMethod]
-    [CoversNode("dotnet-target-picker")]
-    public void SolutionFolder_ShowsViewletWithOpenButton_AndAnEnabledRun()
+    [TestCategory("UI")]
+    public void Dotnet_Controls_RespondInOnePass()
     {
         NavigateFileBrowserTo(SolutionFolder());
 
@@ -58,21 +58,36 @@ public class DotnetViewletJourneyTests : FileSystemUiTestBase
             "The .NET viewlet did not appear for a folder holding a solution.");
 
         // Single target → the caret picker is collapsed, but the open button must still be there.
-        var open = WaitForId("Dotnet_OpenTargetButton", 5);
-        Assert.IsNotNull(open, "The open-target button is missing when the folder has a single target.");
-        Assert.IsTrue(open!.IsEnabled, "The open-target button should be enabled — there is a target.");
+        var open = CheckPresent("Open target", "Dotnet_OpenTargetButton");
+        Check("Open target is enabled — there is a target", () => open is { IsEnabled: true });
 
         // The solution resolved to App.csproj; Lib is a library and is never a run target.
-        var run = WaitForId("Dotnet_RunButton", 5);
-        Assert.IsNotNull(run, "The Run button is missing.");
-        Assert.IsTrue(run!.IsEnabled,
-            "Run is disabled — the solution did not resolve to a runnable startup project.");
+        var run = CheckPresent("Run", "Dotnet_RunButton");
+        Check("Run is enabled — the solution resolved to a runnable startup project",
+              () => run is { IsEnabled: true });
+
+        // Every verb button is reachable and enabled once a target is selected. They are not *invoked* —
+        // a real dotnet build in a UI test would be slow and machine-dependent; the commands themselves are
+        // unit-tested in DotnetViewletViewModelTests.
+        foreach (var (label, id) in new[]
+                 {
+                     ("Restore", "Dotnet_RestoreButton"), ("Build", "Dotnet_BuildButton"),
+                     ("Test",    "Dotnet_TestButton"),    ("Clean", "Dotnet_CleanButton"),
+                 })
+        {
+            var button = CheckPresent(label, id);
+            Check($"{label} is enabled", () => button is { IsEnabled: true });
+        }
 
         // Only one runnable project, so there is no choice to offer. A Collapsed element is absent from
         // the automation tree entirely, so a direct lookup (not WaitForId) is the right probe.
-        Assert.IsNull(MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Dotnet_StartupButton")),
-            "The startup-project caret should be hidden when only one project is runnable.");
+        Check("Startup caret hidden when only one project is runnable",
+              () => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Dotnet_StartupButton")) is null);
 
-        Assert.IsFalse(App.HasExited, "App crashed while showing the .NET viewlet.");
+        // Idle: nothing is running, so the progress strip (and its Stop button) is collapsed.
+        Check("Stop is hidden while idle",
+              () => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Dotnet_StopButton")) is null);
+
+        AssertJourney();
     }
 }
