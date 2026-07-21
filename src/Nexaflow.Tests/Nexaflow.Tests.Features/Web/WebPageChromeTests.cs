@@ -5,7 +5,13 @@ using System.Linq;
 
 namespace Nexaflow.Tests.Features.Web;
 
+/// <summary>
+/// Tab title and breadcrumb derivation from a live URL (<see cref="WebPageChrome"/>). This is the Web
+/// viewer's own title/breadcrumb leaf, and it doubles as the worked example for Core's same-tab crumb
+/// navigation — hence the two covered nodes.
+/// </summary>
 [TestClass]
+[CoversNode("web-breadcrumbs")]
 [CoversNode("chrome-breadcrumb-navigate")]
 public class WebPageChromeTests
 {
