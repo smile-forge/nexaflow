@@ -21,7 +21,7 @@ namespace Nexaflow.Tests.Features.Text;
 /// <c>TextDocument</c> across <c>await</c> points.
 /// </summary>
 [TestClass]
-[CoversNode("edit-file")]
+[CoversNode("text-viewer")]
 public class TextViewModelTests
 {
     private static string WriteTemp(string content)

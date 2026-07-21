@@ -95,6 +95,8 @@ public class ProductTreeCoverageTests
 
             foreach (var dir in Directory.GetDirectories(Path.Combine(Root, "src", subDir), subDir + ".*"))
             {
+                // A removed feature/provider leaves its gitignored bin/obj behind; only a real .csproj ships.
+                if (!FeatureTouchPointTests.IsProjectDir(dir)) continue;
                 var asm = Path.GetFileName(dir);
                 var shortName = asm[(subDir.Length + 1)..];
                 if (shortName is "Common" || shortName.Contains('.')) continue;   // shared contracts / codec backend → a node is optional

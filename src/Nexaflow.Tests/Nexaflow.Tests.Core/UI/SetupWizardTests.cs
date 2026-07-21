@@ -108,18 +108,18 @@ public class SetupWizardTests
         SetText(wizard, "PromptBox", personaPrompt, propertyChanged: true);
         ClickNext(wizard);
 
-        // ── Step 7: projects — enable, then set the directory (folder field is LostFocus-bound) ──
-        var enableToggle = WaitFor(() => wizard.FindFirstDescendant(cf => cf.ByAutomationId("cfg_EnableProjects"))?.AsToggleButton());
+        // ── Step 7: projects — enable, then set the directory. The step hosts the feature's own
+        // ProjectsConfigEditorControl (Projects 2.0), so drive its named elements, not cfg_* auto-ids. ──
+        var enableToggle = WaitFor(() => wizard.FindFirstDescendant(cf => cf.ByAutomationId("EnableProjectsCheck"))?.AsCheckBox());
         if (enableToggle.ToggleState != ToggleState.On) enableToggle.Toggle();
 
         var dirBox = WaitFor(() =>
         {
-            var tb = wizard.FindFirstDescendant(cf => cf.ByAutomationId("cfg_ProjectDirectory"))?.AsTextBox();
+            var tb = wizard.FindFirstDescendant(cf => cf.ByAutomationId("ProjectDirectoryBox"))?.AsTextBox();
             return tb is { IsEnabled: true } ? tb : null;   // enabled only once projects is on
         });
         dirBox.Focus();
-        dirBox.Text = projectDir;
-        Keyboard.Press(VirtualKeyShort.TAB);   // commit the LostFocus-triggered binding
+        dirBox.Text = projectDir;              // PropertyChanged-bound → commits without a focus change
         ClickNext(wizard);                     // Finish
 
         // ── Wizard closes, app writes config + opens the main window ──

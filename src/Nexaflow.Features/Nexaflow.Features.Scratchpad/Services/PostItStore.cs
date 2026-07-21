@@ -17,10 +17,16 @@ public sealed class PostItStore
     private readonly string _recyclePath;
     private readonly string _attachmentsPath;
 
-    public PostItStore() : this(Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "Smile", "Nexaflow", "Scratchpad"))
+    public PostItStore() : this(DefaultRoot()) { }
+
+    /// <summary>The scratchpad's on-disk root. Respects an isolated config root (NEXAFLOW_CONFIG_DIR, set by
+    /// dev/UI-test runs) exactly as ConfigManager does — otherwise a test that news up a Scratchpad writes
+    /// its post-its into the developer's real %APPDATA% and they show up in the production app.</summary>
+    private static string DefaultRoot()
     {
+        var baseDir = Environment.GetEnvironmentVariable("NEXAFLOW_CONFIG_DIR")
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Smile", "Nexaflow");
+        return Path.Combine(baseDir, "Scratchpad");
     }
 
     public PostItStore(string root)

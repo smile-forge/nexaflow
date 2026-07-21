@@ -24,7 +24,8 @@
         <StackPanel Margin="12">
 
             <!-- Enable -->
-            <CheckBox Content="Enable projects for this workspace"
+            <CheckBox x:Name="EnableProjectsCheck"
+                      Content="Enable projects for this workspace"
                       Foreground="{StaticResource TextBrush}" FontSize="12"
                       IsChecked="{Binding EnableProjects, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"/>
 
@@ -46,7 +47,8 @@
                     <DockPanel>
                         <Button DockPanel.Dock="Right" Content="…" MinWidth="28" Margin="4,0,0,0"
                                 Style="{StaticResource IconButton}" Click="BrowseProject_Click"/>
-                        <TextBox Text="{Binding ProjectDirectory, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox x:Name="ProjectDirectoryBox"
+                                 Text="{Binding ProjectDirectory, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource DarkTextBox}" FontSize="11"/>
                     </DockPanel>
                 </StackPanel>
