@@ -1,0 +1,23 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ════ Git logo strip ════
+         The viewlet's identity mark. Shipped as an IThemeContribution so it merges BELOW the active
+         theme — every theme gets the git brand orange for free, and any theme may retune a key by
+         name (a high-contrast or monochrome theme will want to) without Core or the feature
+         referencing each other.
+
+         Brand colour is not an exception to "a feature never hard-codes a colour" (docs/theming.md):
+         it is exposed as a token precisely so a theme *can* override it. The two washes bake their
+         alpha into ARGB, the same way the Log.* level tints do. -->
+
+    <!-- The mark itself — git's brand orange. -->
+    <SolidColorBrush x:Key="Git.LogoFill"    Color="#F05032"/>
+
+    <!-- The strip behind it: the same hue at a=24 (~9%), so it reads as a tint of whatever sits under it. -->
+    <SolidColorBrush x:Key="Git.LogoSurface" Color="#18F05032"/>
+
+    <!-- Its trailing divider: the same hue at a=48 (~19%) — a touch stronger than the surface. -->
+    <SolidColorBrush x:Key="Git.LogoBorder"  Color="#30F05032"/>
+
+</ResourceDictionary>

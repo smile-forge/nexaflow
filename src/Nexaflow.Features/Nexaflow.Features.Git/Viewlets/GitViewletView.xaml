@@ -1,7 +1,11 @@
 <UserControl x:Class="Nexaflow.Features.Git.Viewlets.GitViewletView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:Nexaflow.Features.Git.Converters"
+             AutomationProperties.AutomationId="Git_Viewlet">
     <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <conv:GitToneToBrushConverter x:Key="ToneToBrush"/>
         <Style x:Key="FlatBtn" TargetType="Button">
             <Setter Property="Background"      Value="Transparent"/>
             <Setter Property="Foreground"      Value="{DynamicResource TextBrush}"/>
@@ -70,15 +74,15 @@
         <!-- ── Left: git logo strip ─────────────────────────────────────── -->
         <Border x:Name="LogoBorder"
                 Grid.Column="0"
-                Background="#18F05032"
-                BorderBrush="#30F05032"
+                Background="{DynamicResource Git.LogoSurface}"
+                BorderBrush="{DynamicResource Git.LogoBorder}"
                 BorderThickness="0,0,1,0">
             <Viewbox Width="22" Height="22"
                      HorizontalAlignment="Center"
                      VerticalAlignment="Center">
                 <!-- Canvas matches the SVG coordinate space (icon only, no text) -->
                 <Canvas Width="110" Height="110">
-                    <Path Fill="#F05032">
+                    <Path Fill="{DynamicResource Git.LogoFill}">
                         <!-- SVG: transform="scale(1.179487) translate(10 10) rotate(-45 29 29)"
                              WPF TransformGroup applies left-to-right, so reverse order:
                              rotate first, then translate, then scale -->
@@ -119,13 +123,14 @@
 
                 <Button x:Name="BranchButton"
                         Grid.Column="1"
+                        AutomationProperties.AutomationId="Git_BranchButton"
                         Style="{StaticResource FlatBtn}"
                         HorizontalAlignment="Left"
                         Padding="4,2"
+                        IsEnabled="{Binding IsInteractive}"
                         Click="BranchButton_Click">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock x:Name="BranchName"
-                                   Text="···"
+                        <TextBlock Text="{Binding BranchName}"
                                    FontSize="11"
                                    FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextBrush}"
@@ -138,9 +143,10 @@
                 </Button>
 
                 <!-- Worktree badge — shown only when the folder is a linked worktree -->
-                <Border x:Name="WorktreeBadge"
-                        Grid.Column="2"
-                        Visibility="Collapsed"
+                <Border Grid.Column="2"
+                        AutomationProperties.AutomationId="Git_WorktreeBadge"
+                        Visibility="{Binding IsWorktree, Converter={StaticResource BoolToVis}}"
+                        ToolTip="{Binding WorktreeTooltip}"
                         Background="{DynamicResource AccentSubtleBrush}"
                         CornerRadius="3"
                         Padding="5,1"
@@ -153,32 +159,32 @@
                 </Border>
 
                 <StackPanel Grid.Column="4" Orientation="Horizontal" Margin="3" HorizontalAlignment="Right">
-                    <Button x:Name="PullButton"
+                    <Button AutomationProperties.AutomationId="Git_PullButton"
                         Style="{StaticResource FlatBtn}"
-                        Content="Pull"
+                        Content="{Binding PullCaption}"
+                        Command="{Binding PullCommand}"
                         Padding="6,2"
-                        FontSize="10"
-                        Click="PullButton_Click"/>
+                        FontSize="10"/>
 
                     <!-- Remove-worktree button — shown only for a linked worktree -->
-                    <Button x:Name="RemoveWorktreeButton"
+                    <Button AutomationProperties.AutomationId="Git_RemoveWorktreeButton"
                         Style="{StaticResource DangerBtn}"
                         Content="Remove"
+                        Command="{Binding RemoveWorktreeCommand}"
                         Padding="6,2"
                         FontSize="10"
-                        Visibility="Collapsed"
-                        ToolTip="Remove this worktree (delete its folder and branch)"
-                        Click="RemoveWorktreeButton_Click"/>
+                        Visibility="{Binding IsWorktree, Converter={StaticResource BoolToVis}}"
+                        ToolTip="Remove this worktree (delete its folder and branch)"/>
 
                     <!-- Open-in-git-manager button — anchored bottom-right of the info column -->
-                    <Button x:Name="GitManagerButton"
+                    <Button AutomationProperties.AutomationId="Git_ManagerButton"
                     Style="{StaticResource FlatBtn}"
                     Content="Open"
+                    Command="{Binding OpenGitManagerCommand}"
                     Padding="6,2"
                     FontSize="10"
-                    Visibility="Collapsed"
-                    ToolTip="Open in Git Manager"
-                    Click="GitManagerButton_Click"/>
+                    Visibility="{Binding ShowGitManager, Converter={StaticResource BoolToVis}}"
+                    ToolTip="Open in Git Manager"/>
                 </StackPanel>
 
             </Grid>
@@ -192,22 +198,37 @@
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,5,0">
                     <!-- col 1: Last commit (hidden in SingleBar) -->
-                    <TextBlock x:Name="LastCommitLine"
+                    <TextBlock AutomationProperties.AutomationId="Git_LastCommitLine"
+                       Text="{Binding LastCommitLine}"
                        FontSize="10"
                        Foreground="{DynamicResource TextMutedBrush}"
                        Margin="0,3,0,0"
                        TextTrimming="CharacterEllipsis"/>
 
-                    <!-- col 2: Status counts -->
-                    <TextBlock x:Name="StatusLine"
-                       FontSize="10"
-                       Margin="6,3,0,0"
-                       TextTrimming="CharacterEllipsis"/>
+                    <!-- col 2: Status counts — one run per segment, tone resolved to a theme brush -->
+                    <ItemsControl AutomationProperties.AutomationId="Git_StatusLine"
+                       ItemsSource="{Binding StatusSegments}"
+                       Margin="6,3,0,0">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Text}"
+                                           Foreground="{Binding Tone, Converter={StaticResource ToneToBrush}}"
+                                           FontSize="10"
+                                           Margin="0,0,6,0"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
 
                 <!-- Row 3: Pull result — hidden until a pull runs, then fades out -->
                 <TextBlock x:Name="PullResultText"
+                       AutomationProperties.AutomationId="Git_ActionResult"
                        Grid.Column="1"
+                       Text="{Binding ActionResult}"
                        FontSize="10"
                        FontStyle="Italic"
                        Margin="0,3,0,0"
