@@ -85,7 +85,6 @@ public sealed class FontRenderTool(FontViewModel vm) : IClientTool
         const double pixelsPerDip = 1.0;
         var big = new FormattedText(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
             typeface, sizePt * 4.0 / 3.0, fg, pixelsPerDip) { MaxTextWidth = 1200 };
-        if (item.EffectiveDecorations is { } dec) big.SetTextDecorations(dec);
 
         var small = new FormattedText(vm.Options.SpecimenText, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
             specimenFace, vm.Options.SpecimenSizeDip, fg, pixelsPerDip) { MaxTextWidth = 1200 };
