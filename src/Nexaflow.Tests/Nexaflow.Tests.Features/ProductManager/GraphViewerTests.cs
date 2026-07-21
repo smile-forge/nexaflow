@@ -4,14 +4,14 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
-using Nexaflow.Features.GraphViewer.Layout;
-using Nexaflow.Features.GraphViewer.Loaders;
-using Nexaflow.Features.GraphViewer.ViewModels;
+using Nexaflow.Features.ProductManager.Graph.Layout;
+using Nexaflow.Features.ProductManager.Graph.Loaders;
+using Nexaflow.Features.ProductManager.Graph.ViewModels;
 using Nexaflow.Services.Initiatives.Graph.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.GraphViewer;
+namespace Nexaflow.Tests.Features.ProductManager;
 
 /// <summary>
 /// The Graph viewer reads a <c>graph.json</c> into a <see cref="KnowledgeGraph"/> (same serializer the builder
@@ -42,7 +42,7 @@ public class GraphViewerTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer")]
+    [CoversNode("graph-load")]
     public void GraphLoader_RoundTrips_NodesEdgesAndTypes()
     {
         var path = WriteTemp(Sample());
@@ -59,7 +59,7 @@ public class GraphViewerTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer")]
+    [CoversNode("graph-load")]
     public async Task ViewModel_Load_BuildsBoundCollections_WithFinitePositions()
     {
         var path = WriteTemp(Sample());
@@ -83,7 +83,7 @@ public class GraphViewerTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer")]
+    [CoversNode("graph-load")]
     public async Task ViewModel_EmptyGraph_ReportsErrorButStillReady()
     {
         var path = WriteTemp(new KnowledgeGraph());
@@ -100,7 +100,7 @@ public class GraphViewerTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer")]
+    [CoversNode("graph-realise")]
     public async Task ViewModel_ShowsHopRadiusNeighbourhood_AndRecentersOnSelection()
     {
         // A chain: product:root — file:1 — file:2 — file:3
@@ -155,7 +155,7 @@ public class GraphViewerTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer")]
+    [CoversNode("graph-segments")]
     public async Task ViewModel_SegmentsRail_ListsCommunities_AndTogglesTheirVisibility()
     {
         var path = WriteTemp(TwoCommunityStar());
@@ -184,7 +184,7 @@ public class GraphViewerTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer")]
+    [CoversNode("graph-segments")]
     public async Task ViewModel_SegmentsRail_NeverHidesTheFocusNode()
     {
         var path = WriteTemp(TwoCommunityStar());
@@ -203,7 +203,7 @@ public class GraphViewerTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer")]
+    [CoversNode("graph-hyperedges")]
     public async Task ViewModel_RealisesHyperEdges_WhenEndpointsVisible_AndTogglesThem()
     {
         // root — file:a.cs — code:A — code:A/M:build ; a signature hyperedge joins build to the return type W.
@@ -253,7 +253,7 @@ public class GraphViewerTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer")]
+    [CoversNode("graph-lod")]
     public async Task ViewModel_ZoomLod_HidesFinerKinds_WhenZoomedOut()
     {
         // root — file:a.cs — type A — member go
@@ -291,7 +291,7 @@ public class GraphViewerTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer")]
+    [CoversNode("graph-cap")]
     public async Task ViewModel_CapsRealizedNodes_KeepsFocus_AndReportsTheRest()
     {
         // A star far larger than the realized-node cap (700): root + 900 files, all one hop out.
@@ -319,7 +319,7 @@ public class GraphViewerTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer")]
+    [CoversNode("graph-layout")]
     public void HybridLayout_IsDeterministic_PinsFocus_AndFinite()
     {
         var nodes = new List<LayoutNode>
@@ -351,7 +351,7 @@ public class GraphViewerTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer")]
+    [CoversNode("graph-layout")]
     public void Quadtree_HandlesManyCoincidentPoints_WithoutStackOverflow()
     {
         // Coincident bodies used to subdivide forever (stack overflow). The min-cell guard keeps them as a bucket.
@@ -364,7 +364,7 @@ public class GraphViewerTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer")]
+    [CoversNode("graph-layout")]
     public void HybridLayout_DenseSameHopRing_CompletesWithFinitePositions()
     {
         // 500 nodes all one hop from the root — a dense ring that stresses the quadtree with clustered seeds.

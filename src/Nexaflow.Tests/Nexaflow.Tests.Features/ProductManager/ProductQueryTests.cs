@@ -85,4 +85,65 @@ public class ProductQueryTests
         Assert.IsTrue(d.Snaplinks.Single(l => l.Kind == "test").Display.Contains("(tests)"),
             "a concern's snaplink is annotated with the concern it satisfies");
     }
+
+    // ── query ──────────────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public void Query_ByConcern_KeepsOnlyNodesCarryingIt_AndReportsItsStatusAndSnaplinks()
+    {
+        var hits = ProductQuery.Query(SampleTree(), concern: "tests");
+        Assert.AreEqual(1, hits.Count);
+        Assert.AreEqual("row-count", hits[0].Id);
+        Assert.AreEqual(Status.Done, hits[0].ConcernStatus);
+        Assert.AreEqual(1, hits[0].ConcernSnaplinks);
+    }
+
+    [TestMethod]
+    public void Query_ConcernStatusFilter_SeparatesBackedFromUnbacked()
+    {
+        Assert.AreEqual(1, ProductQuery.Query(SampleTree(), concern: "tests", status: Status.Done).Count);
+        Assert.AreEqual(0, ProductQuery.Query(SampleTree(), concern: "tests", status: Status.Should).Count,
+            "the one node with a tests concern is done, so none are still 'should'");
+    }
+
+    [TestMethod]
+    public void Query_Under_LimitsToTheSubtree()
+    {
+        var ids = ProductQuery.Query(SampleTree(), under: "tabular").Select(h => h.Id).ToArray();
+        CollectionAssert.AreEquivalent(new[] { "tabular", "row-count" }, ids);   // itself + descendants, not "features"
+    }
+
+    [TestMethod]
+    public void Query_LeafFilter_SplitsLeavesFromParents()
+    {
+        CollectionAssert.AreEqual(new[] { "row-count" },
+            ProductQuery.Query(SampleTree(), leafOnly: true).Select(h => h.Id).ToArray());
+        CollectionAssert.AreEquivalent(new[] { "features", "tabular" },
+            ProductQuery.Query(SampleTree(), leafOnly: false).Select(h => h.Id).ToArray());
+    }
+
+    // ── derived (rolled-up) status — the CLI reports what the UI shows, not a parent's stored field ──
+
+    [TestMethod]
+    public void DisplayStatus_RollsUpAParent_NotItsStoredField()
+    {
+        var s = SampleTree();
+        // 'features' is STORED 'should' but every descendant leaf is done, so the UI (and now find/describe/query)
+        // shows it as done — a parent's stored field is meaningless and never displayed.
+        Assert.AreEqual(Status.Should, s.Nodes["features"].Status, "precondition: the stored field is should");
+        Assert.AreEqual(Status.Done, ProductQuery.DisplayStatus(s, "features"), "derived rolls up to done");
+        Assert.AreEqual(Status.Done, ProductQuery.Describe(s, "features")!.Status);
+        Assert.AreEqual(Status.Done, ProductQuery.Find(s, "features").Single(h => h.Id == "features").Status);
+    }
+
+    [TestMethod]
+    public void Query_StatusFilter_UsesTheDerivedStatus_ForParents()
+    {
+        var s = SampleTree();
+        // stored-should 'features' rolls up to done: a should-filter must NOT return it, a done-filter must.
+        CollectionAssert.DoesNotContain(
+            ProductQuery.Query(s, status: Status.Should).Select(h => h.Id).ToArray(), "features");
+        CollectionAssert.Contains(
+            ProductQuery.Query(s, status: Status.Done).Select(h => h.Id).ToArray(), "features");
+    }
 }

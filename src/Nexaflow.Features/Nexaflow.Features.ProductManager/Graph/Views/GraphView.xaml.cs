@@ -6,9 +6,9 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using Nexaflow.Features.Common;
-using Nexaflow.Features.GraphViewer.ViewModels;
+using Nexaflow.Features.ProductManager.Graph.ViewModels;
 
-namespace Nexaflow.Features.GraphViewer.Views;
+namespace Nexaflow.Features.ProductManager.Graph.Views;
 
 /// <summary>
 /// The Graph viewer page: a transformed <see cref="Canvas"/> hosting edge + node ItemsControls (both under one

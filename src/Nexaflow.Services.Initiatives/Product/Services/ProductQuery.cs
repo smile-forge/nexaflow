@@ -17,6 +17,13 @@ public static class ProductQuery
     /// <summary>A snaplink grouped for display: which bucket it belongs to and a one-line target.</summary>
     public sealed record Link(string Kind, string Display);
 
+    /// <summary>A <see cref="Query"/> match: the node, whether it's a leaf, its <b>derived</b> status (the
+    /// rolled-up value the UI shows — a leaf's own status, a parent's roll-up), and — when the query filtered
+    /// on a concern — that concern link's status and how many snaplinks back it.</summary>
+    public sealed record QueryHit(
+        string Id, string Title, IReadOnlyList<Crumb> Path, bool IsLeaf,
+        Status NodeStatus, Status? ConcernStatus, int ConcernSnaplinks);
+
     /// <summary>Everything <c>describe</c> shows about one node.</summary>
     public sealed record Detail(
         string Id, string Title, Status Status, string? Description, string? Note,
@@ -35,17 +42,26 @@ public static class ProductQuery
         return chain;
     }
 
-    /// <summary>Nodes whose id, title or description contains <paramref name="term"/> (case-insensitive).</summary>
+    /// <summary>Nodes whose id, title or description contains <paramref name="term"/> (case-insensitive). The
+    /// reported <see cref="Hit.Status"/> is the <b>derived</b> status the UI shows (a parent rolls up its
+    /// children), not the meaningless stored field a parent carries — see <see cref="DisplayStatus"/>.</summary>
     public static IReadOnlyList<Hit> Find(ProductState state, string term)
     {
         var hits = new List<Hit>();
         foreach (var (id, node) in state.Nodes)
         {
             if (Contains(id, term) || Contains(node.Title, term) || Contains(node.Description, term))
-                hits.Add(new Hit(id, node.Title, node.Status, PathTo(state, id)));
+                hits.Add(new Hit(id, node.Title, DisplayStatus(state, id), PathTo(state, id)));
         }
         return [.. hits.OrderBy(h => h.Title, StringComparer.OrdinalIgnoreCase)];
     }
+
+    /// <summary>The status to <em>show</em> for a node — the detail-pane pill
+    /// (<see cref="ProductAggregator.DerivedStatusExcludingConcerns"/>): a leaf → its stored status; a parent →
+    /// the roll-up of its children (whose own concerns fold in). This is what the UI displays, so <c>find</c> /
+    /// <c>query</c> / <c>describe</c> report it instead of a parent's stored field, which is never shown.</summary>
+    public static Status DisplayStatus(ProductState state, string id) =>
+        ProductAggregator.DerivedStatusExcludingConcerns(state, id);
 
     /// <summary>Full detail for one node, or null when the id is unknown.</summary>
     public static Detail? Describe(ProductState state, string id)
@@ -63,11 +79,68 @@ public static class ProductQuery
 
         var children = (node.Children ?? [])
             .Where(state.Nodes.ContainsKey)
-            .Select(cid => (cid, state.Nodes[cid].Title, state.Nodes[cid].Status))
+            .Select(cid => (cid, state.Nodes[cid].Title, DisplayStatus(state, cid)))
             .ToList();
 
-        return new Detail(id, node.Title, node.Status, node.Description, node.Note,
+        return new Detail(id, node.Title, DisplayStatus(state, id), node.Description, node.Note,
             PathTo(state, id), concerns, links, children);
+    }
+
+    /// <summary>
+    /// Lists nodes filtered by subtree, concern, status and leaf-ness — the "which leaves still owe a test"
+    /// query the CLI's <c>query</c> command exposes. <paramref name="under"/> limits to that node's subtree
+    /// (the node itself + all descendants); <paramref name="concern"/> keeps only nodes that carry that concern
+    /// tag and reports its link status + snaplink count; <paramref name="status"/> matches the concern's status
+    /// when a concern is given, otherwise the node's <b>derived</b> status (a parent rolls up its children —
+    /// see <see cref="DisplayStatus"/>); <paramref name="leafOnly"/> keeps leaves (true) or parents (false), or
+    /// both (null). Results are ordered by tree path for stable, readable output.
+    /// </summary>
+    public static IReadOnlyList<QueryHit> Query(
+        ProductState state, string? under = null, string? concern = null,
+        Status? status = null, bool? leafOnly = null)
+    {
+        var ids = under is { Length: > 0 } ? Subtree(state, under) : state.Nodes.Keys;
+
+        var hits = new List<QueryHit>();
+        foreach (var id in ids)
+        {
+            if (!state.Nodes.TryGetValue(id, out var node)) continue;
+
+            var isLeaf = !(node.Children ?? []).Any(state.Nodes.ContainsKey);
+            if (leafOnly is { } lo && lo != isLeaf) continue;
+
+            ConcernLink? link = null;
+            if (concern is { Length: > 0 })
+            {
+                link = (node.Concerns ?? []).FirstOrDefault(c =>
+                    string.Equals(c.Tag, concern, StringComparison.OrdinalIgnoreCase));
+                if (link is null) continue;   // node doesn't carry this concern at all
+            }
+
+            var display = DisplayStatus(state, id);
+            if (status is { } want && (link?.Status ?? display) != want) continue;
+
+            hits.Add(new QueryHit(id, node.Title, PathTo(state, id), isLeaf,
+                display, link?.Status, link?.Snaplinks?.Count ?? 0));
+        }
+
+        return [.. hits.OrderBy(
+            h => string.Join("/", h.Path.Select(c => c.Title)), StringComparer.OrdinalIgnoreCase)];
+    }
+
+    /// <summary>The ids in a node's subtree — the node itself plus every descendant — cycle-safe.</summary>
+    private static IEnumerable<string> Subtree(ProductState state, string root)
+    {
+        var stack = new Stack<string>();
+        var seen = new HashSet<string>();
+        stack.Push(root);
+        while (stack.Count > 0)
+        {
+            var id = stack.Pop();
+            if (!seen.Add(id) || !state.Nodes.TryGetValue(id, out var n)) continue;
+            yield return id;
+            foreach (var c in n.Children ?? []) stack.Push(c);
+        }
     }
 
     /// <summary>Buckets a snaplink as test / code / doc / url and renders a one-line target.</summary>

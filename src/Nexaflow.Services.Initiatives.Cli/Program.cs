@@ -30,6 +30,7 @@ internal static class Program
         {
             "validate"    => Validate(args[1..]),
             "find"        => Find(args[1..]),
+            "query"       => Query(args[1..]),
             "describe"    => Describe(args[1..]),
             "diff"        => Diff(args[1..]),
             "remap"       => Remap(args[1..]),
@@ -59,6 +60,7 @@ internal static class Program
             usage:
               nexaflow-initiatives validate   [<root>] [--json] [--save]
               nexaflow-initiatives find       <term> [<root>] [--json]
+              nexaflow-initiatives query      [<root>] [--under <id>] [--concern <tag>] [--status <s>] [--leaf|--panel] [--json]
               nexaflow-initiatives describe   <node-id> [<root>] [--json] [--code]
               nexaflow-initiatives diff       [<root>] [--from <version>]
               nexaflow-initiatives remap      <old-path> <new-path> [<root>] [--class <name>] [--method <name>]
@@ -81,6 +83,12 @@ internal static class Program
                        class/method declared, URL well formed) and that no RequiresSnaplink concern is
                        done/faulted with nothing backing it. --save writes .product/integrity.json.
             find       Lists nodes whose id/title/description contains <term> — "where is feature X".
+            query      Lists nodes filtered by subtree/concern/status/leafness — "which leaves still owe a
+                       test". --under <id> limits to that node's subtree; --concern <tag> keeps nodes carrying
+                       it and shows its status + snaplink count; --status matches the concern's status (or, with
+                       no --concern, the node's DERIVED status — a parent rolls up its children, exactly like the
+                       UI); --leaf / --panel keep only leaves / only parents.
+                       e.g. query --under product --concern tests --status should --leaf → unbacked test leaves.
             describe   Prints one node: path, status, concerns, and its code/test/doc snaplinks.
                        --code also resolves each code snaplink to its actual source block (the class/method
                        via tree-sitter, or a whole-file preview), read from your working tree — so "show me
@@ -852,6 +860,49 @@ internal static class Program
         return Clean;
     }
 
+    private static int Query(string[] args)
+    {
+        var under   = Option(args, "--under");
+        var concern = Option(args, "--concern");
+        var statusS = Option(args, "--status");
+        Status? status = null;
+        if (statusS is not null)
+        {
+            if (!TryParseStatus(statusS, out var st)) return Usage($"unknown status '{statusS}' (should|done|shouldnt|faulted)");
+            status = st;
+        }
+        bool? leafOnly = args.Contains("--leaf") ? true : args.Contains("--panel") ? false : null;
+
+        // Only --under/--concern/--status values are non-flag args; the rest (first bare arg) is <root>.
+        var consumed = new[] { under, concern, statusS }.Where(v => v is not null).ToHashSet();
+        var root = ResolveRoot(args.Where(a => !a.StartsWith('-') && !consumed.Contains(a)).ToArray());
+        if (!TryLoad(root, out var state, out var code)) return code;
+
+        if (under is { Length: > 0 } && !state.Nodes.ContainsKey(under))
+            return Usage($"no node '{under}' (try: find).");
+
+        var hits = ProductQuery.Query(state, under, concern, status, leafOnly);
+
+        if (args.Contains("--json"))
+        {
+            Console.WriteLine(JsonSerializer.Serialize(hits, ProductJson.Options));
+            return Clean;
+        }
+        if (hits.Count == 0) { Console.WriteLine("No matching nodes."); return Clean; }
+
+        foreach (var h in hits)
+        {
+            var shape = h.IsLeaf ? "leaf" : "panel";
+            var concernCol = h.ConcernStatus is { } cs
+                ? $"{concern}={cs.ToString().ToLowerInvariant()}({h.ConcernSnaplinks} sl)"
+                : $"[{h.NodeStatus.ToString().ToLowerInvariant()}]";
+            Console.WriteLine($"  {h.Id,-26} {shape,-5} {concernCol,-22} "
+                            + string.Join(" > ", h.Path.Select(c => c.Title)));
+        }
+        Console.WriteLine($"{hits.Count} node(s).");
+        return Clean;
+    }
+
     private static int Describe(string[] args)
     {
         var id = args.FirstOrDefault(a => !a.StartsWith('-'));
@@ -869,7 +920,10 @@ internal static class Program
             return Clean;
         }
 
-        Console.WriteLine($"{d.Id}  [{d.Status.ToString().ToLowerInvariant()}]  {d.Title}");
+        // Status is the derived (rolled-up) value the UI shows; for a parent it's computed from its children,
+        // so flag it as derived (the stored field on a parent is never shown).
+        var derived = d.Children.Count > 0 ? "  (derived)" : "";
+        Console.WriteLine($"{d.Id}  [{d.Status.ToString().ToLowerInvariant()}]{derived}  {d.Title}");
         Console.WriteLine($"  path:    {string.Join(" > ", d.Path.Select(c => c.Title))}");
         if (!string.IsNullOrWhiteSpace(d.Description)) Console.WriteLine($"  about:   {d.Description}");
         if (!string.IsNullOrWhiteSpace(d.Note))        Console.WriteLine($"  note:    {d.Note}");

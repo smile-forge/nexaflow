@@ -1,7 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
 
-namespace Nexaflow.Features.GraphViewer.Converters;
+namespace Nexaflow.Features.ProductManager.Graph.Converters;
 
 /// <summary>
 /// Resolves a theme resource key to a frozen brush at paint time (Hard Rule: a feature never hard-codes a colour —

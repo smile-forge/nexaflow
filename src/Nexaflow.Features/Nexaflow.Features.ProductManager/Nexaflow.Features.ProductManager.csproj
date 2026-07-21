@@ -14,10 +14,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Graph layout internals (FocusLayout/HybridLayout/Quadtree/ThemeBrush) are exercised by tests. -->
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Syntax\Nexaflow.Syntax.csproj" />
-    <!-- Product model + store/aggregator/validator (WPF-free; shared with the Initiatives CLI). -->
+    <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <!-- Product model + store/aggregator/validator + graph model/loader (WPF-free; shared with the Initiatives CLI). -->
     <ProjectReference Include="..\..\Nexaflow.Services.Initiatives\Nexaflow.Services.Initiatives.csproj" />
     <ProjectReference Include="..\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
   </ItemGroup>

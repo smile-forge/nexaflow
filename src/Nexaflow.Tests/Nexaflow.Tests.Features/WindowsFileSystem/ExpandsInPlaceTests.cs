@@ -26,7 +26,7 @@ public class ExpandsInPlaceTests
         FileMapManager.Instance.Initialize(baseDir: dir);
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(@"C:\x\a.zip")]
     [DataRow(@"C:\x\a.tar.gz")]
     [DataRow(@"C:\x\a.7z")]
@@ -35,7 +35,7 @@ public class ExpandsInPlaceTests
     public void RealArchives_ExpandInPlace(string path)
         => Assert.IsTrue(DefaultFileOpener.ExpandsInPlace(path), $"{path} is a real archive; it should browse in place");
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(@"C:\x\a.iso")]    // /disk/mountable → satisfies /disk at extension level
     [DataRow(@"C:\x\a.vhd")]
     [DataRow(@"C:\x\a.vhdx")]
@@ -46,7 +46,7 @@ public class ExpandsInPlaceTests
     public void DiskImages_ExpandInPlace(string path)
         => Assert.IsTrue(DefaultFileOpener.ExpandsInPlace(path), $"{path} is a disk image; it should browse in place");
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(@"C:\x\a.docx")]   // zip-based document: /archive only by OptionalExtension
     [DataRow(@"C:\x\a.xlsx")]
     [DataRow(@"C:\x\a.pptx")]

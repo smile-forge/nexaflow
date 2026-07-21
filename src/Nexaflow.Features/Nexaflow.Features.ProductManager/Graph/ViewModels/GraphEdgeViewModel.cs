@@ -2,7 +2,7 @@ using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Services.Initiatives.Graph.Model;
 
-namespace Nexaflow.Features.GraphViewer.ViewModels;
+namespace Nexaflow.Features.ProductManager.Graph.ViewModels;
 
 /// <summary>
 /// A binary edge. Endpoints bind straight to the two node view-models' <c>CenterX/CenterY</c>, so the drawn

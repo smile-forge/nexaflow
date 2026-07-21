@@ -5,7 +5,7 @@ using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Services.Initiatives.Graph.Model;
 
-namespace Nexaflow.Features.GraphViewer.ViewModels;
+namespace Nexaflow.Features.ProductManager.Graph.ViewModels;
 
 /// <summary>
 /// A node on the canvas. Observable <see cref="X"/>/<see cref="Y"/> (top-left) are set by the layout pass;

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 
-namespace Nexaflow.Features.GraphViewer.Layout;
+namespace Nexaflow.Features.ProductManager.Graph.Layout;
 
 /// <summary>
 /// One node handed to the layout: its id, whether it is a product-tree node, and — when it should stay put — a

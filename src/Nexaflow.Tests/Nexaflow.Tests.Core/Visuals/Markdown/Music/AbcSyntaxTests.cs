@@ -243,7 +243,7 @@ public class AbcSyntaxTests
 
     // ── Keys and modes ──────────────────────────────────────────────────────
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("C", 0)]
     [DataRow("CMAJOR", 0)]
     [DataRow("Cmajor", 0)]

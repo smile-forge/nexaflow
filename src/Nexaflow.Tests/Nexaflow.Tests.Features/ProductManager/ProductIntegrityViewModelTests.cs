@@ -15,7 +15,6 @@ namespace Nexaflow.Tests.Features.ProductManager;
 /// must resolve the issue, a moved file must be suggested, and removing one link must not lock its siblings.
 /// </summary>
 [TestClass]
-[CoversNode("product-snaplinks")]
 public class ProductIntegrityViewModelTests
 {
     private string _root = string.Empty;
@@ -64,6 +63,7 @@ public class ProductIntegrityViewModelTests
     // ── the dropdown's contents ──────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("integrity-issues")]
     public void BrokenCodeLink_SurfacesAsAnEditableIssue_OfferingTheFilesRealTargets()
     {
         WriteFile("src/Widget.cs", WidgetCs);
@@ -81,6 +81,7 @@ public class ProductIntegrityViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("integrity-relink")]
     public void PickingATarget_FillsTheFields_AndApplyResolvesTheIssue()
     {
         WriteFile("src/Widget.cs", WidgetCs);
@@ -100,6 +101,7 @@ public class ProductIntegrityViewModelTests
     // ── the removal regression ───────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("integrity-relink")]
     public void RemovingOneLink_DropsIt_AndLeavesTheNodesOtherRowsEditable()
     {
         WriteFile("src/Widget.cs", WidgetCs);
@@ -121,6 +123,7 @@ public class ProductIntegrityViewModelTests
     // ── the moved-file aid ───────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("integrity-relink")]
     public void AMissingFile_SuggestsTheSameNamedFileThatMoved()
     {
         WriteFile("src/new/Widget.cs", WidgetCs);   // the file exists — but elsewhere
@@ -137,6 +140,7 @@ public class ProductIntegrityViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("integrity-issues")]
     public void ACleanTree_ShowsNoIssues()
     {
         WriteFile("src/Widget.cs", WidgetCs);

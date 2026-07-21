@@ -19,6 +19,7 @@ namespace Nexaflow.Tests.Features.ProductManager;
 /// fixed timestamp), so the CLI/incremental cache diff cleanly.
 /// </summary>
 [TestClass]
+[CoversNode("graph-build")]
 public class GraphBuilderTests
 {
     private static (string Root, ProductState State) Setup()
@@ -52,7 +53,6 @@ public class GraphBuilderTests
         GraphBuilder.Build(state, root, new GraphBuildOptions { GeneratedAt = "T" });
 
     [TestMethod]
-    [CoversNode("graphviewer")]
     public void Build_ProductContainment_SnaplinkResolution_CodeLayer_AndInheritance()
     {
         var (root, state) = Setup();
@@ -85,7 +85,6 @@ public class GraphBuilderTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer")]
     public void Build_IsByteDeterministic_ForFixedTimestamp()
     {
         var (root, state) = Setup();
@@ -99,7 +98,6 @@ public class GraphBuilderTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer")]
     public void Build_InfersCalls_AndInstantiations_WithConfidence()
     {
         var root = Path.Combine(Path.GetTempPath(), "nexgraph-" + Guid.NewGuid().ToString("N"));
@@ -134,7 +132,6 @@ public class GraphBuilderTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer")]
     public void Build_ExtractsHyperEdges_SignatureAnnotatedAndCalls()
     {
         var root = Path.Combine(Path.GetTempPath(), "nexgraph-" + Guid.NewGuid().ToString("N"));
@@ -184,7 +181,6 @@ public class GraphBuilderTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer")]
     public void Build_LinksXamlToCodeBehind_AndCsprojDependencies()
     {
         var root = Path.Combine(Path.GetTempPath(), "nexgraph-" + Guid.NewGuid().ToString("N"));
@@ -225,7 +221,6 @@ public class GraphBuilderTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer")]
     public void Build_LinksStringLiteralFileMentions_UniqueOnly()
     {
         var root = Path.Combine(Path.GetTempPath(), "nexgraph-" + Guid.NewGuid().ToString("N"));
@@ -260,7 +255,6 @@ public class GraphBuilderTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer")]
     public void CommunityDetector_SeparatesTwoClusters_Deterministically()
     {
         var g = new KnowledgeGraph();

@@ -4,7 +4,7 @@ using Nexaflow.IO.Common;
 using Nexaflow.Services.Initiatives.Graph.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 
-namespace Nexaflow.Features.GraphViewer.Loaders;
+namespace Nexaflow.Features.ProductManager.Graph.Loaders;
 
 /// <summary>
 /// Reads a <c>graph.json</c> into a <see cref="KnowledgeGraph"/> using the same <c>ProductJson.Options</c> the

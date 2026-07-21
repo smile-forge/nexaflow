@@ -17,6 +17,7 @@ namespace Nexaflow.Tests.Features.ProductManager;
 /// one. A warm-cache build is byte-identical to a fresh one (the cache is an optimisation, never a behaviour change).
 /// </summary>
 [TestClass]
+[CoversNode("graph-cache")]
 public class GraphCacheTests
 {
     private static ProductState MinimalState() => new()
@@ -36,7 +37,6 @@ public class GraphCacheTests
         GraphBuilder.BuildWithCache(MinimalState(), root, new GraphBuildOptions { GeneratedAt = "T" }, cache);
 
     [TestMethod]
-    [CoversNode("graphviewer")]
     public void WarmCacheBuild_IsByteIdentical_ToFreshBuild()
     {
         var root = NewRepo();
@@ -56,7 +56,6 @@ public class GraphCacheTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer")]
     public void Cache_SurvivesJsonRoundTrip_AndStillServesHits()
     {
         var root = NewRepo();
@@ -85,7 +84,6 @@ public class GraphCacheTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer")]
     public void ChangeInOneFile_ReResolvesInferredEdge_AssertedByACachedFile()
     {
         var root = NewRepo();
@@ -119,7 +117,6 @@ public class GraphCacheTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer")]
     public void DeletedFile_IsPrunedFromGraphAndCache()
     {
         var root = NewRepo();
@@ -141,7 +138,6 @@ public class GraphCacheTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer")]
     public void SchemaVersionMismatch_DiscardsCache_ForACleanReExtract()
     {
         var root = NewRepo();

@@ -1,6 +1,6 @@
 using System;
 
-namespace Nexaflow.Features.GraphViewer.Layout;
+namespace Nexaflow.Features.ProductManager.Graph.Layout;
 
 /// <summary>
 /// A Barnes-Hut quadtree for O(n log n) repulsion. Each cell aggregates a centre of mass, so a distant cluster is

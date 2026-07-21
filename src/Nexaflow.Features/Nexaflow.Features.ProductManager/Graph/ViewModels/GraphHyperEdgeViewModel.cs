@@ -3,10 +3,10 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
-using Nexaflow.Features.GraphViewer.Converters;
+using Nexaflow.Features.ProductManager.Graph.Converters;
 using Nexaflow.Services.Initiatives.Graph.Model;
 
-namespace Nexaflow.Features.GraphViewer.ViewModels;
+namespace Nexaflow.Features.ProductManager.Graph.ViewModels;
 
 /// <summary>One spoke of a hyperedge: a line from the connector glyph to one roled endpoint node. The endpoint end
 /// binds to the node's <c>CenterX/CenterY</c> (so it follows the node); the connector end binds to the parent

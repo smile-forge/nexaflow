@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using Nexaflow.Features.GraphViewer.ViewModels;
+using Nexaflow.Features.ProductManager.Graph.ViewModels;
 
-namespace Nexaflow.Features.GraphViewer.Layout;
+namespace Nexaflow.Features.ProductManager.Graph.Layout;
 
 /// <summary>
 /// Radial-by-hop layout for a focused neighbourhood: the focus node sits at the centre and each node is placed on

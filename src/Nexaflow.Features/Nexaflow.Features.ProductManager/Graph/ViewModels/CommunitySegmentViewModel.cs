@@ -2,7 +2,7 @@ using System;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace Nexaflow.Features.GraphViewer.ViewModels;
+namespace Nexaflow.Features.ProductManager.Graph.ViewModels;
 
 /// <summary>
 /// One community in the Segments rail: a swatch (matching the node fill), a representative label, the count of
