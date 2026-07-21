@@ -121,14 +121,38 @@ run it from anywhere with no root arg. Build once and call the exe directly, or 
 `tools/graph-cli/` copy.
 
 - **Discover:** `find`, `describe`, `describe <id> --code` (resolves each snaplink to its real source),
-  `diff` (what changed since the last release snapshot), `graph …` (code/AST discovery).
-- **Edit (one node):** `add-node`, `move <id> <new-parent>`, `remove <id> [--recursive]`, `set-status`,
-  `set-concern`, `remove-concern`, `add-snaplink`, `remove-snaplink`, `set-node`.
-- **Bulk / integrity:** `batch <file>` (transactional; `--dry-run` first), `doctor [--fix]`, `validate`.
+  `tree <id> [--full]` (the whole subtree as one outline — the view to start *and* finish a pass like this one
+  with), `query` (filter by subtree/concern/status/leafness — e.g. `query --under git --concern tests --status
+  should --leaf` = leaves still owing a test), `diff` (what changed since the last release snapshot),
+  `graph …` (code/AST discovery).
+- **Edit (one node):** `add-node`, `move <id> <new-parent>`, `rename <old-id> <new-id>`,
+  `remove <id> [--recursive]`, `set-status`, `set-concern`, `remove-concern`, `add-snaplink`,
+  `remove-snaplink`, `set-node`.
+
+> **Ids are one flat global namespace.** `add-node` slugs the title, so a node titled "Run" under any feature
+> claims the bare id `run`. Give every node a feature-prefixed id (`dotnet-verb-run`, not `run`) and use
+> `rename` to fix an existing one — it retargets the parent, the children and every `node` snaplink, but
+> **not** a `[CoversNode("old-id")]` in test source, which you must update by hand (NXCOV002 flags it).
+- **Bulk / integrity:** `batch <file>` (transactional; `--dry-run` first), `doctor [--fix]`, `validate`,
+  **`lint [--under <id>]`** — checks a feature against §1–§4 (backbone present, `AI Ready` only on the feature
+  root, panels/state nodes journey-covered, every leaf unit-tested, a `done` `tests` concern naming its test).
+  Advisory: roles are inferred from position, so a finding is a prompt to look, not a verdict, and nothing
+  here fails a build. **Run `lint --under <feature>` at the start and end of a pass like this one** —
+  Text Viewer, Git and DotNet all lint clean, so a finding means you've diverged from them.
+
+> `validate` resolves a snaplink's file against **your working tree first**, then the product root — so in a
+> worktree it checks the code on the branch you're editing (matching `describe --code`) instead of reporting
+> every not-yet-merged file as broken. The installer gate is unaffected: there they're the same directory.
 
 **Workflow for a restructure:** generate a `.batch` file (one instruction per line — the standalone verbs
 minus `<root>`; `#` comments; `"quote"` spaces), `batch … --dry-run`, apply, then `doctor` + `validate`.
 Prefer generating the batch with a script over hand-writing dozens of lines.
+
+> **Arguments are strict.** Every verb declares exactly what it accepts, so an unknown option, a missing
+> option value, or a surplus positional is a hard error naming that verb's usage — never silently ignored.
+> `batch` parses each line the same way and is all-or-nothing, so one typo aborts before anything is written.
+> Note in particular that **a note belongs to a node, not a concern**: `set-node <id> --note "…"`, not
+> `set-concern <id> <tag> <status> --note "…"` (which is now rejected rather than quietly dropping the note).
 
 ---
 
@@ -149,8 +173,10 @@ panel a `tests` concern, sticking `AI Ready` on a leaf, marking a leaf `done` wi
 snaplink and the `[CoversNode]` drift apart. Proposals to close it, cheapest first:
 
 **(a) Turn on `requires_snaplink` for `tests`.** One flag in `product.json`. Instantly makes "a `done`/
-`faulted` `tests` concern must name its test" a gating rule (it's off today). Zero new code; run `validate`
-first to see what it surfaces.
+`faulted` `tests` concern must name its test" a gating rule (it's off today). Zero new code — but **not free**:
+`query --concern tests --status done --unbacked` currently returns **243 nodes**, so this needs a burn-down
+(baseline the current set, gate only new violations) rather than a flip. `lint` already reports it per-feature
+as `TestsDoneWithoutSnaplink`, which is the cheap way to hold new work to the rule meanwhile.
 
 **(b) Add an explicit node `kind` — the enabling change for everything else.** Add `kind` to `ProductNode`
 (`feature | panel | control | state | behaviour | ai-context | ai-act | container`), set via

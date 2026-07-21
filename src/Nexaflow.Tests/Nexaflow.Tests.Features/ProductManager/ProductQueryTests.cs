@@ -86,6 +86,51 @@ public class ProductQueryTests
             "a concern's snaplink is annotated with the concern it satisfies");
     }
 
+    // ── tree (outline) ─────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public void Outline_UnknownId_ReturnsNull()
+        => Assert.IsNull(ProductQuery.Outline(SampleTree(), "no-such-node"));
+
+    [TestMethod]
+    public void Outline_WalksTheSubtreeInTreeOrder_WithDepths()
+    {
+        var rows = ProductQuery.Outline(SampleTree(), "features")!;
+        CollectionAssert.AreEqual(new[] { "features", "tabular", "row-count" }, rows.Select(r => r.Node.Id).ToArray());
+        CollectionAssert.AreEqual(new[] { 0, 1, 2 }, rows.Select(r => r.Depth).ToArray());
+    }
+
+    [TestMethod]
+    public void Outline_MaxDepth_CapsTheWalk_AndRootIsZero()
+    {
+        CollectionAssert.AreEqual(new[] { "features" },
+            ProductQuery.Outline(SampleTree(), "features", maxDepth: 0)!.Select(r => r.Node.Id).ToArray());
+        CollectionAssert.AreEqual(new[] { "features", "tabular" },
+            ProductQuery.Outline(SampleTree(), "features", maxDepth: 1)!.Select(r => r.Node.Id).ToArray());
+    }
+
+    [TestMethod]
+    public void Outline_RowsCarryTheSameDetailAsDescribe()
+    {
+        var s = SampleTree();
+        var row = ProductQuery.Outline(s, "features")!.Single(r => r.Node.Id == "row-count").Node;
+        var described = ProductQuery.Describe(s, "row-count")!;
+        Assert.AreEqual(described.Title, row.Title);
+        Assert.AreEqual(described.Status, row.Status);
+        CollectionAssert.AreEquivalent(
+            described.Snaplinks.Select(l => l.Display).ToArray(),
+            row.Snaplinks.Select(l => l.Display).ToArray());
+    }
+
+    [TestMethod]
+    public void Outline_IsCycleSafe()
+    {
+        var s = SampleTree();
+        s.Nodes["row-count"].Children = ["tabular"];   // malformed back-edge
+        var rows = ProductQuery.Outline(s, "features")!;
+        Assert.AreEqual(3, rows.Count, "each node is emitted once even when a child points back up");
+    }
+
     // ── query ──────────────────────────────────────────────────────────────────
 
     [TestMethod]

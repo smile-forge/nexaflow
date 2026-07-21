@@ -191,6 +191,51 @@ public static class ProductTreeOps
         return n;
     }
 
+    /// <summary>Why a <see cref="Rename"/> was refused — so the caller can word the error.</summary>
+    public enum RenameError { None, NoSuchNode, IdTaken, IdInvalid }
+
+    /// <summary>
+    /// Changes a node's <b>id</b>, the one field every other reference is keyed on. Node ids are a single flat
+    /// global namespace (<see cref="ProductState.Nodes"/> is one dictionary), so a too-generic id like
+    /// <c>run</c> or <c>viewlet</c> is a collision waiting to happen — this is the safe way to specialise one.
+    /// Retargets everything that names it: the dictionary key (kept in place, so the file doesn't churn), the
+    /// parent's <see cref="ProductNode.Children"/> entry (in position), every child's
+    /// <see cref="ProductNode.Parent"/> back-reference, and every <c>node</c>-type snaplink in the tree —
+    /// node-level and concern-level alike — whose target is the old id.
+    /// </summary>
+    /// <remarks>
+    /// It cannot reach references that live <em>outside</em> the tree: a test's <c>[CoversNode("old-id")]</c>
+    /// still names the old id (the NXCOV002 analyzer flags it) and a committed release snapshot keeps it by
+    /// design. The caller is expected to say so.
+    /// </remarks>
+    public static RenameError Rename(ProductState s, string oldId, string newId)
+    {
+        if (string.IsNullOrWhiteSpace(newId) || newId.Any(char.IsWhiteSpace)) return RenameError.IdInvalid;
+        if (!s.Nodes.ContainsKey(oldId)) return RenameError.NoSuchNode;
+        if (oldId == newId || s.Nodes.ContainsKey(newId)) return oldId == newId ? RenameError.IdInvalid : RenameError.IdTaken;
+
+        var node = s.Nodes[oldId];
+
+        // Rebuild the map so the renamed node keeps its slot — a moved entry would churn the whole file's ordering.
+        var rebuilt = new Dictionary<string, ProductNode>(s.Nodes.Count, StringComparer.Ordinal);
+        foreach (var (id, n) in s.Nodes) rebuilt[id == oldId ? newId : id] = n;
+        s.Nodes = rebuilt;
+
+        if (node.Parent is { } pid && s.Nodes.TryGetValue(pid, out var parent))
+        {
+            var at = parent.Children.IndexOf(oldId);
+            if (at >= 0) parent.Children[at] = newId; else parent.Children.Add(newId);
+        }
+        foreach (var child in node.Children)
+            if (s.Nodes.TryGetValue(child, out var c) && c.Parent == oldId) c.Parent = newId;
+
+        foreach (var n in s.Nodes.Values)
+        foreach (var link in (n.Snaplinks ?? []).Concat((n.Concerns ?? []).SelectMany(c => c.Snaplinks ?? [])))
+            if (link.Type == "node" && link.Target == oldId) link.Target = newId;
+
+        return RenameError.None;
+    }
+
     /// <summary>Edits the node's scalar fields; only non-null arguments are applied, and an empty string
     /// clears an optional field (description/note). Returns false if the node is missing.</summary>
     public static bool EditNode(ProductState s, string id, string? title = null, string? description = null, string? note = null)

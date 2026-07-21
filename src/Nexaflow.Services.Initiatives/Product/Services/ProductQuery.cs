@@ -32,6 +32,10 @@ public static class ProductQuery
         IReadOnlyList<Link> Snaplinks,
         IReadOnlyList<(string Id, string Title, Status Status)> Children);
 
+    /// <summary>One row of an <see cref="Outline"/> walk: a node's full <see cref="Detail"/> plus how deep it
+    /// sits below the walk's root (the root itself is 0).</summary>
+    public sealed record OutlineRow(int Depth, Detail Node);
+
     /// <summary>Root → node ancestor chain (guards against a malformed parent cycle).</summary>
     public static IReadOnlyList<Crumb> PathTo(ProductState state, string id)
     {
@@ -84,6 +88,31 @@ public static class ProductQuery
 
         return new Detail(id, node.Title, DisplayStatus(state, id), node.Description, node.Note,
             PathTo(state, id), concerns, links, children);
+    }
+
+    /// <summary>
+    /// The whole subtree under <paramref name="rootId"/> in tree order (a node, then each child's subtree) —
+    /// the "show me this entire feature at once" walk that <c>describe</c> can only answer one node at a time.
+    /// Each row carries the same <see cref="Detail"/> <c>describe</c> renders, so a caller formats one node the
+    /// same way whether it came from here or from <see cref="Describe"/>. <paramref name="maxDepth"/> caps the
+    /// walk (root = 0, null = unlimited). Cycle-safe; null when the id is unknown.
+    /// </summary>
+    public static IReadOnlyList<OutlineRow>? Outline(ProductState state, string rootId, int? maxDepth = null)
+    {
+        if (!state.Nodes.ContainsKey(rootId)) return null;
+
+        var rows = new List<OutlineRow>();
+        var seen = new HashSet<string>();
+        Walk(rootId, 0);
+        return rows;
+
+        void Walk(string id, int depth)
+        {
+            if (maxDepth is { } m && depth > m) return;
+            if (!seen.Add(id) || !state.Nodes.TryGetValue(id, out var node)) return;
+            rows.Add(new OutlineRow(depth, Describe(state, id)!));
+            foreach (var child in node.Children ?? []) Walk(child, depth + 1);
+        }
     }
 
     /// <summary>

@@ -19,8 +19,31 @@ namespace Nexaflow.Services.Initiatives.Product.Services;
 /// walked. Results are sorted so the report diffs cleanly between runs.
 /// </para>
 /// </remarks>
-public sealed class SnaplinkValidator(string productRoot)
+public sealed class SnaplinkValidator
 {
+    private readonly string[] _fileRoots;
+
+    /// <summary>Validates against the files under <paramref name="productRoot"/>.</summary>
+    public SnaplinkValidator(string productRoot) : this(productRoot, null) { }
+
+    /// <summary>
+    /// Validates against <paramref name="fileRoots"/> in order, falling back to <paramref name="productRoot"/>.
+    /// This matters in a git worktree: the tree itself lives only in the main checkout, so the product root
+    /// resolves there — but the <em>code</em> a snaplink names is the copy on the branch you're editing. Passing
+    /// the caller's working tree first makes "does this link resolve?" answer about the code in front of you,
+    /// which is what <c>describe --code</c> already does. The installer gate is unaffected: there the working
+    /// tree and the product root are the same directory.
+    /// </summary>
+    public SnaplinkValidator(string productRoot, IEnumerable<string>? fileRoots)
+    {
+        this.productRoot = productRoot;
+        _fileRoots = [.. (fileRoots ?? []).Append(productRoot)
+            .Where(r => !string.IsNullOrWhiteSpace(r))
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
+    }
+
+    private readonly string productRoot;
+
     /// <summary>
     /// What we know about one referenced file, computed once per run. The tree-sitter parse is <b>lazy</b>:
     /// most snaplinks only need the file to exist (whole-file links, markdown), and parsing every referenced
@@ -52,9 +75,10 @@ public sealed class SnaplinkValidator(string productRoot)
     /// treated as unverifiable, deferred to the next full scan, which stays true to the "prove it broken" bar.</summary>
     private IReadOnlySet<string>? _nodeIds;
 
-    /// <summary>Validates every snaplink in <paramref name="state"/> against the files under <paramref name="productRoot"/>.</summary>
-    public static IntegrityReport Validate(ProductState state, string productRoot)
-        => new SnaplinkValidator(productRoot).Run(state);
+    /// <summary>Validates every snaplink in <paramref name="state"/> against the files under
+    /// <paramref name="productRoot"/>, or — when given — <paramref name="fileRoots"/> first.</summary>
+    public static IntegrityReport Validate(ProductState state, string productRoot, IEnumerable<string>? fileRoots = null)
+        => new SnaplinkValidator(productRoot, fileRoots).Run(state);
 
     /// <summary>
     /// Re-checks a <em>single</em> link. The Integrity page uses this after an inline edit so a fix is
@@ -205,7 +229,12 @@ public sealed class SnaplinkValidator(string productRoot)
     {
         if (_cache.TryGetValue(doc, out var cached)) return cached;
 
-        var full = Path.IsPathRooted(doc) ? doc : Path.Combine(productRoot, doc);
+        // First root that actually has the file wins; if none does, resolve against the product root so the
+        // "not found" message names the canonical location.
+        var full = Path.IsPathRooted(doc)
+            ? doc
+            : _fileRoots.Select(r => Path.Combine(r, doc)).FirstOrDefault(File.Exists)
+              ?? Path.Combine(productRoot, doc);
         var facts = File.Exists(full)
             ? new FileFacts(true, SnaplinkTargets.ReadText(full), full)
             : new FileFacts(false, null, null);

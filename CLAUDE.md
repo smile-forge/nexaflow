@@ -59,6 +59,8 @@ $ni = "src/Nexaflow.Services.Initiatives.Cli/bin/x64/Debug/net10.0/nexaflow-init
 & $ni find <term>                # nodes matching id/title/description
 & $ni describe <node-id>         # path, concerns, code/test/doc snaplinks
 & $ni describe <node-id> --code  # …plus every code snaplink resolved to its real source block (from YOUR working tree)
+& $ni tree <node-id> [--full]    # the WHOLE subtree as an outline — "show me this entire feature" (--full = +snaplinks/about)
+& $ni lint --under <node-id>     # does this feature follow the modelling rules? (advisory; see docs/feature-tree-and-tests.md)
 & $ni diff                       # what changed in the tree since the last release snapshot (nodes added/removed, status, concerns)
 ```
 
@@ -89,6 +91,11 @@ The product-folder skill has fast-query recipes for deeper questions; the per-re
 — the UI/Functionality/AI backbone, concern-by-role rules, the one-journey-plus-per-leaf-unit-test model, and
 the roadmap of analyzers/validators to lock it down — is in
 [docs/feature-tree-and-tests.md](docs/feature-tree-and-tests.md) (the Text Viewer is the worked reference).
+
+Every verb's arguments are **strict** — an unknown option, a missing option value or a surplus positional is a
+hard error naming that verb's usage, never silently ignored (`batch` parses each line the same way and is
+all-or-nothing). And `validate` resolves a snaplink's file against **your working tree first**, so from a
+worktree it checks the branch you're editing rather than flagging every not-yet-merged file.
 
 When a rename/move breaks snaplinks, don't hand-edit `tree.json` — `remap` rewrites them under validation:
 

@@ -32,6 +32,7 @@
   <ItemGroup>
     <!-- Shared, git-ignored sample-file dataset (TestSampleData / ISampleSet). -->
     <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Services.Initiatives.Cli\Nexaflow.Services.Initiatives.Cli.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Terminal\Nexaflow.IO.Terminal.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Visuals.Terminal\Nexaflow.Visuals.Terminal.csproj" />
