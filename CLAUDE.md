@@ -103,6 +103,12 @@ When a rename/move breaks snaplinks, don't hand-edit `tree.json` — `remap` rew
 dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- remap <old-path> <new-path> [--class <n>] [--method <n>]
 ```
 
+**A snaplink `doc` is the repo's own path — never a path through a linked worktree.**
+`.claude/worktrees/<name>/src/Foo.cs` resolves only while that branch is checked out, so `validate` reports it
+as a gating `WorktreePath` issue even though the file exists, and `doctor --fix` re-roots every one back onto
+`src/Foo.cs`. `scan-tests` normalises the same way, so a test DLL built inside a worktree still records repo
+paths in the coverage manifest (and therefore in the Integrity page's *Add link* suggestions).
+
 **Snaplinks are mechanically checked.** Every snaplink (on a node *and* on each concern link) must still point
 at a real target — the file exists, the markdown heading path resolves, the class/method is still declared, the
 URL is well formed. Run it from the Product tab (⋮ → **Validate snaplinks**, or the root's integrity tile) — both

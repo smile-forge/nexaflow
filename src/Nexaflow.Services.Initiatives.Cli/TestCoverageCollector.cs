@@ -3,6 +3,7 @@ using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices;
 using Nexaflow.Services.Initiatives.Product.Model;
+using Nexaflow.Services.Initiatives.Product.Services;
 
 namespace Nexaflow.Services.Initiatives.Cli;
 
@@ -28,10 +29,16 @@ internal static class TestCoverageCollector
         var dlls = testDlls.Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         if (dlls.Count == 0) return manifest;
 
+        // A test DLL built inside a linked worktree carries that checkout's absolute paths in its PDB. Those
+        // name the same repo files, so they are re-rooted rather than recorded — a manifest full of
+        // ".claude/worktrees/<name>/…" would otherwise seed the Integrity page's "Add link" suggestions with
+        // snaplinks that die the moment the branch merges.
+        var paths = new RepoPaths(repoRoot, GitWorktrees.Roots(repoRoot));
+
         using var mlc = new MetadataLoadContext(BuildResolver(dlls));
         foreach (var dll in dlls)
         {
-            try { ScanAssembly(mlc, dll, repoRoot, manifest); manifest.ScannedAssemblies++; }
+            try { ScanAssembly(mlc, dll, paths, manifest); manifest.ScannedAssemblies++; }
             catch (Exception ex) { Console.Error.WriteLine($"warn: skipped {Path.GetFileName(dll)}: {ex.Message}"); }
         }
 
@@ -67,7 +74,7 @@ internal static class TestCoverageCollector
         return new PathAssemblyResolver(byName.Values.ToArray());
     }
 
-    private static void ScanAssembly(MetadataLoadContext mlc, string dll, string repoRoot, TestCoverageManifest manifest)
+    private static void ScanAssembly(MetadataLoadContext mlc, string dll, RepoPaths repoPaths, TestCoverageManifest manifest)
     {
         var asm = mlc.LoadFromAssemblyPath(dll);
         var asmName = asm.GetName().Name ?? Path.GetFileNameWithoutExtension(dll);
@@ -94,7 +101,7 @@ internal static class TestCoverageCollector
 
             // Class-level [CoversNode] — resolve the file once from any method that has debug info.
             var classCovers = typeAttrs.Where(a => a.AttributeType.FullName == CoversNode).ToList();
-            var classFile = classCovers.Count > 0 ? ResolveTypeFile(type, pdb, repoRoot) : null;
+            var classFile = classCovers.Count > 0 ? ResolveTypeFile(type, pdb, repoPaths) : null;
             foreach (var a in classCovers)
                 Add(manifest, FirstStringArg(a),
                     new TestRef { Assembly = asmName, Class = type.FullName ?? type.Name, Method = null, File = classFile ?? string.Empty });
@@ -110,7 +117,7 @@ internal static class TestCoverageCollector
                 catch { continue; }
                 if (covers.Count == 0) continue;
 
-                var file = ResolveMethodFile(m, pdb, repoRoot) ?? classFile ?? ResolveTypeFile(type, pdb, repoRoot) ?? string.Empty;
+                var file = ResolveMethodFile(m, pdb, repoPaths) ?? classFile ?? ResolveTypeFile(type, pdb, repoPaths) ?? string.Empty;
                 foreach (var a in covers)
                     Add(manifest, FirstStringArg(a),
                         new TestRef { Assembly = asmName, Class = type.FullName ?? type.Name, Method = m.Name, File = file });
@@ -128,39 +135,46 @@ internal static class TestCoverageCollector
         list.Add(r);
     }
 
-    private static string? ResolveTypeFile(Type type, PdbLookup? pdb, string repoRoot)
+    private static string? ResolveTypeFile(Type type, PdbLookup? pdb, RepoPaths repoPaths)
     {
         if (pdb is null) return null;
         MethodInfo[] methods;
         try { methods = type.GetMethods(AllDeclared); }
         catch { return null; }
         foreach (var m in methods)
-            if (ResolveMethodFile(m, pdb, repoRoot) is { Length: > 0 } f) return f;
+            if (ResolveMethodFile(m, pdb, repoPaths) is { Length: > 0 } f) return f;
         return null;
     }
 
-    private static string? ResolveMethodFile(MethodInfo method, PdbLookup? pdb, string repoRoot)
+    private static string? ResolveMethodFile(MethodInfo method, PdbLookup? pdb, RepoPaths repoPaths)
     {
         if (pdb is null) return null;
         int token;
         try { token = method.MetadataToken; }
         catch { return null; }
-        return pdb.DocumentName(token) is { } name ? ToRepoRelative(name, repoRoot) : null;
+        return pdb.DocumentName(token) is { } name ? repoPaths.ToRepoRelative(name) : null;
     }
 
-    /// <summary>
-    /// Normalizes a PDB document path to a forward-slash repo-relative path (matching how snaplink <c>doc</c>
-    /// values are stored). Handles a real absolute local path (the usual local-build case) and a
-    /// deterministic/SourceLink-mapped <c>/_/…</c> path; returns "" when it can't be re-rooted.
-    /// </summary>
-    private static string ToRepoRelative(string docName, string repoRoot)
+    /// <summary>The repo a scan records paths against: its root plus that root's linked worktrees.</summary>
+    private readonly record struct RepoPaths(string Root, IReadOnlyList<string> Worktrees)
     {
-        var p = docName.Replace('\\', '/');
-        var root = repoRoot.Replace('\\', '/').TrimEnd('/');
-        if (p.StartsWith(root + "/", StringComparison.OrdinalIgnoreCase)) return p[(root.Length + 1)..];
-        if (p.StartsWith("/_/", StringComparison.Ordinal)) return p[3..];
-        var i = p.IndexOf("/src/", StringComparison.OrdinalIgnoreCase);
-        return i >= 0 ? p[(i + 1)..] : string.Empty;
+        /// <summary>
+        /// Normalizes a PDB document path to a forward-slash repo-relative path (matching how snaplink
+        /// <c>doc</c> values are stored). Handles a path inside a linked worktree (a DLL built on a branch —
+        /// re-rooted, because that is the same repo file), a real absolute local path (the usual local-build
+        /// case) and a deterministic/SourceLink-mapped <c>/_/…</c> path; returns "" when it can't be re-rooted.
+        /// </summary>
+        public string ToRepoRelative(string docName)
+        {
+            if (GitWorktrees.TryReRoot(docName, Root, Worktrees, out var reRooted)) return reRooted;
+
+            var p = docName.Replace('\\', '/');
+            var root = Root.Replace('\\', '/').TrimEnd('/');
+            if (p.StartsWith(root + "/", StringComparison.OrdinalIgnoreCase)) return p[(root.Length + 1)..];
+            if (p.StartsWith("/_/", StringComparison.Ordinal)) return p[3..];
+            var i = p.IndexOf("/src/", StringComparison.OrdinalIgnoreCase);
+            return i >= 0 ? p[(i + 1)..] : string.Empty;
+        }
     }
 
     /// <summary>Reads a portable PDB and maps a methoddef token to its source document name.</summary>

@@ -70,6 +70,10 @@ public sealed class SnaplinkValidator
 
     private readonly Dictionary<string, FileFacts> _cache = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>The product root's linked worktrees, read once (file reads only) on first use.</summary>
+    private IReadOnlyList<string>? _worktrees;
+    private IReadOnlyList<string> Worktrees => _worktrees ??= GitWorktrees.Roots(productRoot);
+
     /// <summary>Every node id in the tree, for validating <c>node</c> snaplink targets. Null in the
     /// single-link <see cref="CheckLink(Snaplink, string)"/> path (no tree in scope) — a node link is then
     /// treated as unverifiable, deferred to the next full scan, which stays true to the "prove it broken" bar.</summary>
@@ -191,6 +195,12 @@ public sealed class SnaplinkValidator
 
         if (string.IsNullOrWhiteSpace(link.Doc))
             return (IntegrityKind.MissingDoc, $"{link.Type} snaplink has no doc path");
+
+        // A doc inside a linked worktree resolves today and dies with that branch — broken on arrival, and
+        // checked before existence so the message names the real fix rather than "file not found".
+        if (GitWorktrees.TryReRoot(link.Doc!, productRoot, Worktrees, out var reRooted))
+            return (IntegrityKind.WorktreePath,
+                    $"'{link.Doc}' points into a linked git worktree — use the repo path: {reRooted}");
 
         var facts = Facts(link.Doc!);
         if (!facts.Exists) return (IntegrityKind.MissingFile, $"file not found: {link.Doc}");

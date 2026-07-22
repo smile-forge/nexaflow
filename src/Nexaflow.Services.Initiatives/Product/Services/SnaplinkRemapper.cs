@@ -33,6 +33,37 @@ public static class SnaplinkRemapper
         return changed;
     }
 
+    /// <summary>
+    /// Re-roots every snaplink whose <c>doc</c> points inside a linked git worktree back onto the repo's own
+    /// copy — the standing repair for <see cref="IntegrityKind.WorktreePath"/>. A worktree is the same repo at
+    /// another branch, so the rewrite is a pure normalisation: the file named does not change, only which
+    /// checkout the path goes through. Returns each <c>(before, after)</c> pair, for reporting.
+    /// </summary>
+    public static IReadOnlyList<(string Before, string After)> NormalizeWorktreePaths(ProductState state, string repoRoot)
+    {
+        var roots = GitWorktrees.Roots(repoRoot);
+        var changes = new List<(string, string)>();
+        if (roots.Count == 0) return changes;
+
+        foreach (var node in state.Nodes.Values)
+        {
+            Normalize(node.Snaplinks);
+            foreach (var concern in node.Concerns ?? []) Normalize(concern.Snaplinks);
+        }
+        return changes;
+
+        void Normalize(List<Snaplink>? links)
+        {
+            foreach (var link in links ?? [])
+            {
+                if (link.Doc is not { } doc) continue;
+                if (!GitWorktrees.TryReRoot(doc, repoRoot, roots, out var reRooted)) continue;
+                link.Doc = reRooted;
+                changes.Add((doc, reRooted));
+            }
+        }
+    }
+
     private static int RemapList(List<Snaplink>? links, string prefix, string replacement,
                                  string? newClass, string? newMethod)
     {
