@@ -149,6 +149,7 @@ public partial class IntegrityIssueItem : ObservableObject, IIntegrityRow
     {
         IntegrityKind.MissingDoc     => "no path",
         IntegrityKind.MissingFile    => "missing file",
+        IntegrityKind.WorktreePath   => "worktree path",
         IntegrityKind.MissingHeading => "missing heading",
         IntegrityKind.MissingClass   => "missing class",
         IntegrityKind.MissingMethod  => "missing method",

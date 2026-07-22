@@ -11,6 +11,13 @@ public enum IntegrityKind
     /// <summary>The <c>doc</c> path no longer exists on disk (file moved, renamed or deleted).</summary>
     MissingFile,
 
+    /// <summary>
+    /// The <c>doc</c> points inside a linked git worktree (typically <c>.claude/worktrees/&lt;name&gt;/…</c>)
+    /// rather than at the repo's own copy. The file resolves today and rots the moment that branch merges and
+    /// the worktree is removed, so it is broken on arrival. <c>doctor --fix</c> re-roots it.
+    /// </summary>
+    WorktreePath,
+
     /// <summary>The markdown heading path is gone (heading renamed or re-nested).</summary>
     MissingHeading,
 

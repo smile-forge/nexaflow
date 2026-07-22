@@ -153,8 +153,10 @@ internal static class Program
                        Scope it with --under <id> (e.g. lint --under git). exit: 0 always.
             doctor     Checks structural integrity — every child id resolves, every node is listed by its parent
                        — and with --fix rebuilds each parent's children[] from the child→parent back-references
-                       (splitting an accidentally-concatenated id, re-attaching orphans). Use it after any tree
-                       corruption. exit: 0 clean/fixed, 1 issues found without --fix.
+                       (splitting an accidentally-concatenated id, re-attaching orphans). Also re-roots any
+                       snaplink whose doc goes through a linked git worktree (.claude/worktrees/<name>/…) back
+                       onto the repo's own copy. Use it after any tree corruption, or after linking work done
+                       in a worktree. exit: 0 clean/fixed, 1 issues found without --fix.
             graph      Builds the knowledge graph (product tree ⊕ code AST ⊕ snaplinks) → .product/graph.json,
                        the file the Graph viewer opens. --json writes it to stdout instead of the file.
                        --product-anchored limits the code layer to snaplinked files (default: whole repo).
@@ -1775,9 +1777,14 @@ internal static class Program
             .Select(kv => (Node: kv.Key, Parent: kv.Value.Parent!))
             .ToList();
 
-        if (repairs.Count == 0 && missingParent.Count == 0)
+        // Snaplink docs that go through a linked worktree instead of the repo's own copy. Detected always,
+        // written back only under --fix, so a bare `doctor` stays a read-only diagnosis.
+        var worktreeLinks = SnaplinkRemapper.NormalizeWorktreePaths(state, root);
+
+        if (repairs.Count == 0 && missingParent.Count == 0 && worktreeLinks.Count == 0)
         {
-            Console.WriteLine("Tree structure OK — every child id resolves and every node is listed by its parent.");
+            Console.WriteLine("Tree structure OK — every child id resolves, every node is listed by its parent, "
+                            + "and no snaplink points into a linked worktree.");
             return Clean;
         }
 
@@ -1791,19 +1798,30 @@ internal static class Program
         foreach (var (node, parent) in missingParent)
             Console.Error.WriteLine($"  {node}: parent '{parent}' does not exist — re-parent it in-app (structural, not a children[] issue).");
 
+        if (worktreeLinks.Count > 0)
+        {
+            Console.WriteLine($"  {worktreeLinks.Count} snaplink(s) point into a linked git worktree:");
+            foreach (var (before, after) in worktreeLinks.DistinctBy(c => c.Before).OrderBy(c => c.Before, StringComparer.Ordinal))
+                Console.WriteLine($"      {before}\n        -> {after}");
+        }
+
         if (!fix)
         {
-            Console.Error.WriteLine($"{repairs.Count} parent(s) need repair — re-run with --fix.");
-            return Broken;
+            var needs = new List<string>();
+            if (repairs.Count > 0)        needs.Add($"{repairs.Count} parent(s)");
+            if (worktreeLinks.Count > 0)  needs.Add($"{worktreeLinks.Count} worktree snaplink(s)");
+            if (needs.Count > 0) Console.Error.WriteLine($"{string.Join(" and ", needs)} need repair — re-run with --fix.");
+            return needs.Count > 0 ? Broken : Clean;
         }
 
         var store = new ProductStore(root);
         store.SaveTree(state.Nodes);
         var report = SnaplinkValidator.Validate(state, root, FileRootsFor(root));
         store.SaveIntegrity(report);
-        Console.WriteLine($"Repaired {repairs.Count} parent(s)." + (report.IsClean
-            ? $" Snaplinks OK — scanned {report.ScannedSnaplinks}."
-            : $" ({report.IssueCount} pre-existing snaplink issue(s) remain — unrelated to structure.)"));
+        Console.WriteLine($"Repaired {repairs.Count} parent(s) and re-rooted {worktreeLinks.Count} worktree snaplink(s)."
+                        + (report.IsClean
+                            ? $" Snaplinks OK — scanned {report.ScannedSnaplinks}."
+                            : $" ({report.IssueCount} pre-existing snaplink issue(s) remain — unrelated.)"));
         return Clean;
     }
 

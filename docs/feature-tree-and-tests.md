@@ -144,6 +144,14 @@ run it from anywhere with no root arg. Build once and call the exe directly, or 
 > worktree it checks the code on the branch you're editing (matching `describe --code`) instead of reporting
 > every not-yet-merged file as broken. The installer gate is unaffected: there they're the same directory.
 
+> **A snaplink `doc` is always the repo's own path — never a path through a linked worktree.**
+> `.claude/worktrees/<name>/src/Foo.cs` resolves while that branch is checked out and dies the moment the
+> worktree is removed, so `validate` reports it as `WorktreePath` (gating) even though the file exists today,
+> and **`doctor --fix` re-roots every one of them** back onto `src/Foo.cs`. The same normalisation happens
+> upstream in `scan-tests`: a test DLL built inside a worktree carries that checkout's absolute paths in its
+> PDB, and the manifest records the repo path — otherwise the Integrity page's *Add link* suggestions would
+> seed the tree with links that break at merge.
+
 **Workflow for a restructure:** generate a `.batch` file (one instruction per line — the standalone verbs
 minus `<root>`; `#` comments; `"quote"` spaces), `batch … --dry-run`, apply, then `doctor` + `validate`.
 Prefer generating the batch with a script over hand-writing dozens of lines.
