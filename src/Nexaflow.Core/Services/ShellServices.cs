@@ -739,13 +739,20 @@ public sealed class ShellServices : IShellServices
         return MakePlaceholderTab(pageKind, "📄");
     }
 
+    /// <summary>
+    /// A tab for a page kind no loaded feature advertises. It names the missing kind rather than rendering as
+    /// empty chrome: an absent feature and a broken one look identical otherwise, and the empty tab reads as
+    /// the feature's own bug.
+    /// </summary>
     private static Page MakePlaceholderTab(string title, string icon) => new()
     {
         Title       = title,
         Icon        = icon,
         PageKind    = title,
         Breadcrumbs = {new BreadcrumbSegment { Label = title }},
-        ContentFactory = () => new PlaceholderPage()
+        ContentFactory = () => new PlaceholderPage(
+            $"No feature in this build provides the page '{title}'.",
+            "Its assembly is missing from the install, or failed to load.")
     };
 
     // ── Matching helpers ──────────────────────────────────────────────────
