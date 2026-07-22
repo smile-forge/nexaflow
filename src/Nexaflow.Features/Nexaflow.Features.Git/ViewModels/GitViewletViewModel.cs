@@ -458,5 +458,11 @@ public sealed partial class GitViewletViewModel : ObservableObject
         new GitRemotesTool(_git),
         new GitTagsTool(_git),
         new GitFileAtTool(_git),
+        new GitMergeBaseTool(_git),
+        new GitContainsTool(_git),
+        new GitBlameTool(_git),
+        new GitSearchHistoryTool(_git),
+        new GitRecoveryTool(_git),
+        new GitWorktreesTool(_git),
     ];
 }

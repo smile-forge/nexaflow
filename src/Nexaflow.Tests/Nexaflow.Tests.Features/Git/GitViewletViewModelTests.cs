@@ -348,13 +348,14 @@ public class GitViewletViewModelTests
 
     [TestMethod]
     [CoversNode("git-ai-act")]
-    public void GetClientTools_ExposesTheEightReadOnlyGitTools()
+    public void GetClientTools_ExposesTheFourteenReadOnlyGitTools()
     {
         // Read-only by design: the user can pull / switch branch / remove a worktree, the AI cannot.
         // If this set changes, update the git-ai-act-* leaves in the product tree to match.
         CollectionAssert.AreEquivalent(
             new[] { "git_status", "git_log", "git_diff", "git_branches", "git_show", "git_remotes",
-                    "git_tags", "git_file_at" },
+                    "git_tags", "git_file_at", "git_merge_base", "git_contains", "git_blame",
+                    "git_search_history", "git_recovery", "git_worktrees" },
             Vm().GetClientTools().Select(t => t.Name).ToArray());
     }
 

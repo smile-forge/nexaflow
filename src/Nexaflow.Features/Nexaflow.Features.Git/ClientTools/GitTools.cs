@@ -266,6 +266,237 @@ public sealed class GitFileAtTool(GitService git) : IClientTool
     }, ct);
 }
 
+/// <summary>Ahead/behind between any two refs — not just the current branch and its upstream.</summary>
+public sealed class GitMergeBaseTool(GitService git) : IClientTool
+{
+    public string Name => "git_merge_base";
+    public string Description =>
+        "Compare any two refs (branches, tags or hashes): their common ancestor, how many commits each has "
+      + "that the other lacks, and whether the first is already fully contained in the second.";
+    public IReadOnlyList<ClientToolParameter> Parameters =>
+    [
+        new("a", "First ref — the one you are asking about (e.g. a feature branch)."),
+        new("b", "Second ref — what to compare against (e.g. 'main')."),
+    ];
+    public ToolSafety Safety => ToolSafety.SafeOperation;
+    public bool Parallelizable => true;
+
+    public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) => Task.Run(() =>
+    {
+        var a = ToolArgs.Str(arguments, "a");
+        var b = ToolArgs.Str(arguments, "b");
+        if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b))
+            return ToolResult.Error("Both 'a' and 'b' are required.");
+
+        GitDivergence d;
+        try { d = git.GetDivergence(a!, b!); }
+        catch (ArgumentException ex) { return ToolResult.Error(ex.Message); }
+
+        if (d.MergeBaseHash is null)
+            return ToolResult.Ok("unrelated", $"{a} and {b} have no common ancestor — unrelated histories.");
+
+        var text = $"merge base: {d.MergeBaseHash}\n"
+                 + $"{a} is {d.Ahead ?? 0} commit(s) ahead of, and {d.Behind ?? 0} behind, {b}.\n"
+                 + (d.IsAMergedIntoB
+                        ? $"{a} is fully contained in {b} (nothing would be lost by deleting it)."
+                        : $"{a} has work {b} does not.");
+
+        return ToolResult.Ok($"{d.Ahead ?? 0} ahead / {d.Behind ?? 0} behind", text);
+    }, ct);
+}
+
+/// <summary>Which refs can reach a commit — the "is this safe to delete" answer.</summary>
+public sealed class GitContainsTool(GitService git) : IClientTool
+{
+    public string Name => "git_contains";
+    public string Description =>
+        "List the branches and tags that contain a given commit. Use this before deleting a branch, or to "
+      + "prove that work still exists somewhere even though its branch or worktree is gone.";
+    public IReadOnlyList<ClientToolParameter> Parameters =>
+    [
+        new("revision", "The commit to look for — a hash, branch or tag."),
+    ];
+    public ToolSafety Safety => ToolSafety.SafeOperation;
+    public bool Parallelizable => true;
+
+    public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) => Task.Run(() =>
+    {
+        var revision = ToolArgs.Str(arguments, "revision");
+        if (string.IsNullOrWhiteSpace(revision)) return ToolResult.Error("A revision is required.");
+
+        IReadOnlyList<GitRefMention> refs;
+        try { refs = git.GetRefsContaining(revision!); }
+        catch (ArgumentException ex) { return ToolResult.Error(ex.Message); }
+
+        if (refs.Count == 0)
+            return ToolResult.Ok("no refs", $"No branch or tag contains {revision} — it is reachable only from the reflog.");
+
+        var sb = new StringBuilder();
+        foreach (var r in refs.OrderBy(r => r.IsTag).ThenBy(r => r.IsRemote).ThenBy(r => r.Name, StringComparer.Ordinal))
+            sb.Append(r.IsTag ? "  tag    " : r.IsRemote ? "  remote " : "  branch ").Append(r.Name).Append('\n');
+
+        return ToolResult.Ok($"{refs.Count} ref(s)", $"Contained in:\n{sb.ToString().TrimEnd()}");
+    }, ct);
+}
+
+/// <summary>Per-line authorship.</summary>
+public sealed class GitBlameTool(GitService git) : IClientTool
+{
+    public string Name => "git_blame";
+    public string Description =>
+        "Show who last changed each line of a file, and in which commit. Narrow to a line range for a "
+      + "focused answer; follow up with git_show on a hash to read why the change was made.";
+    public IReadOnlyList<ClientToolParameter> Parameters =>
+    [
+        new("path",       "Repository-relative path of the file to blame."),
+        new("start_line", "First line to report (1-based).", Required: false, Type: "integer"),
+        new("end_line",   "Last line to report (1-based).", Required: false, Type: "integer"),
+        new("revision",   "Blame as of this revision (default HEAD).", Required: false),
+    ];
+    public ToolSafety Safety => ToolSafety.SafeOperation;
+    public bool Parallelizable => true;
+
+    public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) => Task.Run(() =>
+    {
+        var path = ToolArgs.Str(arguments, "path");
+        if (string.IsNullOrWhiteSpace(path)) return ToolResult.Error("A file path is required.");
+
+        var start    = ToolArgs.Int(arguments, "start_line", 0);
+        var end      = ToolArgs.Int(arguments, "end_line", 0);
+        var revision = ToolArgs.Str(arguments, "revision") is { Length: > 0 } r ? r : "HEAD";
+
+        IReadOnlyList<GitBlameLine> lines;
+        try
+        {
+            lines = git.GetBlame(path!, start > 0 ? start : null, end > 0 ? end : null, revision);
+        }
+        catch (ArgumentException ex) { return ToolResult.Error(ex.Message); }
+
+        if (lines.Count == 0) return ToolResult.Ok("no lines", "Nothing to blame in that range.");
+
+        var sb = new StringBuilder();
+        foreach (var l in lines)
+            sb.Append(l.Hash).Append("  ").Append(l.When.ToString("yyyy-MM-dd")).Append("  ")
+              .Append(l.Author).Append("  ").Append(l.Line).Append(": ").Append(l.Text).Append('\n');
+
+        return ToolResult.Ok($"{lines.Count} line(s)", GitToolArgs.Cap(sb.ToString()));
+    }, ct);
+}
+
+/// <summary>Pickaxe search — when a string entered or left the codebase.</summary>
+public sealed class GitSearchHistoryTool(GitService git) : IClientTool
+{
+    public string Name => "git_search_history";
+    public string Description =>
+        "Search HISTORY rather than the current checkout: find commits whose diff added or removed lines "
+      + "containing some text. Answers 'when did we start/stop doing X'. Scope with a path to keep it fast.";
+    public IReadOnlyList<ClientToolParameter> Parameters =>
+    [
+        new("pattern",     "Text to look for in added/removed diff lines."),
+        new("path",        "Limit the search to this file/folder path — strongly recommended.", Required: false),
+        new("max_commits", "How many commits back to scan (default 200, max 1000).", Required: false, Type: "integer"),
+    ];
+    public ToolSafety Safety => ToolSafety.SafeOperation;
+    public bool Parallelizable => true;
+
+    public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) => Task.Run(() =>
+    {
+        var pattern = ToolArgs.Str(arguments, "pattern");
+        if (string.IsNullOrWhiteSpace(pattern)) return ToolResult.Error("A search pattern is required.");
+
+        var scanned = Math.Clamp(ToolArgs.Int(arguments, "max_commits", 200), 1, 1000);
+        var matches = git.SearchHistory(pattern!, ToolArgs.Str(arguments, "path"), scanned);
+
+        if (matches.Count == 0)
+            return ToolResult.Ok("no matches",
+                $"No commit in the last {scanned} added or removed a line containing '{pattern}'.");
+
+        var sb = new StringBuilder();
+        foreach (var m in matches)
+            sb.Append(m.Commit.Hash).Append("  ").Append(m.Commit.When.ToString("yyyy-MM-dd"))
+              .Append("  +").Append(m.Added).Append(" -").Append(m.Removed)
+              .Append("  ").Append(m.Commit.Subject)
+              .Append("  [").Append(string.Join(", ", m.Paths.Take(3))).Append("]\n");
+
+        return ToolResult.Ok($"{matches.Count} commit(s)", GitToolArgs.Cap(sb.ToString()));
+    }, ct);
+}
+
+/// <summary>Stashes and the reflog — where work hides when no branch points at it.</summary>
+public sealed class GitRecoveryTool(GitService git) : IClientTool
+{
+    public string Name => "git_recovery";
+    public string Description =>
+        "List saved stashes and HEAD's reflog — the two places work still exists after a branch delete, "
+      + "reset, or a worktree being removed. Use this before concluding that anything was lost.";
+    public IReadOnlyList<ClientToolParameter> Parameters =>
+    [
+        new("count", "How many reflog entries to return (default 30).", Required: false, Type: "integer"),
+    ];
+    public ToolSafety Safety => ToolSafety.SafeOperation;
+    public bool Parallelizable => true;
+
+    public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) => Task.Run(() =>
+    {
+        var count   = Math.Clamp(ToolArgs.Int(arguments, "count", 30), 1, 200);
+        var stashes = git.GetStashes();
+        var reflog  = git.GetReflog(count);
+
+        var sb = new StringBuilder();
+
+        sb.Append("Stashes:\n");
+        if (stashes.Count == 0) sb.Append("  (none)\n");
+        else foreach (var s in stashes)
+            sb.Append("  stash@{").Append(s.Index).Append("}  ").Append(s.Hash).Append("  ").Append(s.Message).Append('\n');
+
+        sb.Append("\nHEAD reflog:\n");
+        if (reflog.Count == 0) sb.Append("  (none)\n");
+        else foreach (var e in reflog)
+            sb.Append("  ").Append(e.Hash).Append("  ").Append(e.When.ToString("yyyy-MM-dd HH:mm"))
+              .Append("  ").Append(e.Message).Append('\n');
+
+        return ToolResult.Ok($"{stashes.Count} stash(es), {reflog.Count} reflog entr(ies)",
+                             GitToolArgs.Cap(sb.ToString()));
+    }, ct);
+}
+
+/// <summary>Every linked worktree, with the state that decides whether removing it would lose anything.</summary>
+public sealed class GitWorktreesTool(GitService git) : IClientTool
+{
+    public string Name => "git_worktrees";
+    public string Description =>
+        "List the repository's linked worktrees with their branch, whether each is merged into the mainline, "
+      + "pushed, or has uncommitted changes. Note that removing a worktree deletes its folder, NOT its branch "
+      + "— work there is not lost just because the folder is gone.";
+    public IReadOnlyList<ClientToolParameter> Parameters => [];
+    public ToolSafety Safety => ToolSafety.SafeOperation;
+    public bool Parallelizable => true;
+
+    public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) => Task.Run(() =>
+    {
+        var worktrees = git.GetWorktrees();
+        if (worktrees.Count == 0)
+            return ToolResult.Ok("no worktrees", "This repository has no linked worktrees.");
+
+        var sb = new StringBuilder();
+        foreach (var w in worktrees)
+        {
+            sb.Append(w.Name).Append("  [").Append(w.Branch).Append(']');
+            if (w.IsBroken) sb.Append("  BROKEN (dangling registration)");
+            else
+            {
+                sb.Append(w.IsMerged ? "  merged" : "  UNMERGED");
+                sb.Append(w.IsPushed ? ", pushed" : ", not pushed");
+                if (w.HasUncommittedChanges)
+                    sb.Append($", {w.StagedCount} staged / {w.ModifiedCount} modified");
+            }
+            sb.Append("\n    ").Append(w.Path).Append('\n');
+        }
+
+        return ToolResult.Ok($"{worktrees.Count} worktree(s)", sb.ToString().TrimEnd());
+    }, ct);
+}
+
 /// <summary>Local + remote branches with tracking info.</summary>
 public sealed class GitBranchesTool(GitService git) : IClientTool
 {
