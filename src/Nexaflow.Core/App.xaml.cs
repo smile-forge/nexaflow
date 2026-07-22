@@ -178,11 +178,13 @@ public partial class App : Application
             DeleteDirectoryWithRetry(baseDir);
 
         ConfigManager.Instance.Initialize(baseDir);
+        StartupTimings.Mark("Init.ConfigManager");
 
         // ── 1. Shell config ──────────────────────────────────────────────────
         var shellConfig = new ShellConfig();
         ConfigManager.Instance.Register(shellConfig, shellConfig.ConfigName);
         ThemeManager.Apply(shellConfig.Theme);
+        StartupTimings.Mark("Init.Theme");
 
         var securityConfig = new SecurityConfig();
         ConfigManager.Instance.Register(securityConfig, securityConfig.ConfigName);
@@ -207,6 +209,7 @@ public partial class App : Application
             })
             .Distinct();
         ProviderManager.Instance.LoadConfigured(allProviderFiles);
+        StartupTimings.Mark("Init.Providers");
 
         // ── 4. WorkspaceManager — loads the workspace list (no runtime workspaces yet) ──
         WorkspaceManager.Instance.Initialize(wcConfig);
@@ -221,6 +224,7 @@ public partial class App : Application
         // A workspace rebuild (Configure panel) needs to create a replacement window for a fresh
         // workspace; hand WorkspaceManager the factory that knows how to build MainWindow.
         WorkspaceManager.Instance.WindowHostFactory = ws => CreateWorkspaceWindow(activityManager, ws);
+        StartupTimings.Mark("Init.Workspaces");
 
         // ── 5. File map + external apps ──────────────────────────────────────
         var fileMapConfig = new FileMapConfig();
@@ -248,6 +252,7 @@ public partial class App : Application
         var templatedCreateConfig = new TemplatedCreateConfig();
         ConfigManager.Instance.Register(templatedCreateConfig, templatedCreateConfig.ConfigName);
         TemplatedCreateRegistry.Instance.Initialize(templatedCreateConfig, ConfigManager.Instance.BaseDir);
+        StartupTimings.Mark("Init.FileMap");
 
         // ── 6. Feature system ────────────────────────────────────────────────
         // Builds the (cached) discovery index — on a normal launch this loads NO feature assemblies.
@@ -260,6 +265,7 @@ public partial class App : Application
         // post-paint background warm-up, racing features that haven't loaded yet. Force every feature
         // assembly to load + activate synchronously now so the whole app is ready before automation starts.
         if (SkipSetup) FeatureCatalog.Instance.EnsureAllActivated();
+        StartupTimings.Mark("Init.Features");
 
         // ── 6a. Voice input — capability probe (model download starts later, off the show path) ──
         var voiceConfig = new VoiceConfig();
@@ -292,6 +298,7 @@ public partial class App : Application
             });
 
         HostCapabilityService.Instance.StartProbe();
+        StartupTimings.Mark("Init.Voice");
 
         // ── 7. About — read-only Options section (registered last so it sorts to the bottom) ──
         var aboutConfig = new AboutConfig();
@@ -302,6 +309,7 @@ public partial class App : Application
 
         // ── 9. Single-instance IPC listener — a later click signals us to open a window ──
         _singleInstance.StartListening(name => OpenNewWindow(activityManager, name));
+        StartupTimings.Mark("Init.JumpListAndIpc");
 
         return voiceConfig;
     }

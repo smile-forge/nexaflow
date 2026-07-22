@@ -17,14 +17,15 @@ namespace Nexaflow.Core.Services;
 /// is cached to disk (<c>discovery/catalog.json</c>) so a normal launch builds the index from JSON with
 /// <b>no assembly loads</b>. Feature assemblies are loaded lazily — only when a type they own is actually
 /// resolved (the first page, a handler query, or the post-paint background warm-up). The cache is stamped
-/// with the app version and trusted whenever the stamp matches; an app update (the only thing that changes
-/// the DLLs <em>in a release install</em> — the same signal that drives the What's New popup) bumps the version
-/// and forces one full rescan.
+/// with the app version <em>and</em> the feature-assembly set it was built from
+/// (<see cref="FeatureCatalogStamp"/>), and trusted only while both still match — so any rebuilt, added or
+/// removed DLL forces one full rescan, whether or not the version moved with it. Validating costs a single
+/// directory enumeration and no assembly loads, leaving the lazy-loading guarantee intact.
 ///
-/// <b>Debug builds bypass the cache entirely</b> (never read, never written, any stale file deleted). While
-/// developing, the DLLs change constantly but the app version does not, so a stamped cache would happily hide
-/// a newly added page kind, file handler or config behind a matching stamp. Dev launches therefore always
-/// rescan — which, because the scan loads every assembly anyway, also restores the old eager activation.
+/// <b>Debug builds bypass the cache entirely</b> (never read, never written, any stale file deleted). The
+/// stamp would now catch a rebuilt DLL on its own; the bypass remains because a full scan loads every
+/// assembly, which restores eager activation and surfaces a broken feature at launch rather than on first
+/// use — the behaviour you want while developing one.
 ///
 /// The catalog is a pure discovery/loading engine: the side-effects of "activating" an assembly (registering
 /// its global configs / archive handlers / theme contributions) are performed by a callback supplied at
@@ -59,6 +60,7 @@ public sealed class FeatureCatalog
     public sealed class CatalogIndex
     {
         public string Version { get; set; } = "";              // app-version stamp
+        public List<FeatureFileStamp> Files { get; set; } = [];// the DLL set this index was built from
         public List<AssemblyEntry> Assemblies { get; set; } = [];
     }
 
@@ -96,13 +98,12 @@ public sealed class FeatureCatalog
         _coreFile = Path.GetFileName(typeof(FeatureCatalog).Assembly.Location);
 
         var version = SetupWizardViewModel.CurrentVersion();
+        var stamp   = FeatureCatalogStamp.Capture(_exeDir, _coreFile);
 
 #if DEBUG
-        // Debug builds never read or write the cache. The stamp is the *app version*, which does not move
-        // while you are developing — so a rebuilt DLL that adds a page kind, file handler or config would stay
-        // invisible behind a matching stamp until someone remembered to delete catalog.json. A full rescan
-        // costs tens of milliseconds and only developers pay it. Any stale file is removed as well, so a
-        // same-version Release run can't inherit a dev-era index.
+        // Debug builds never read or write the cache — a full scan loads every assembly, so a feature broken
+        // by the edit you just made fails at launch rather than on first use. Any stale file is removed as
+        // well, so a same-version Release run can't inherit a dev-era index.
         CatalogIndex? cached = null;
         DeleteCache();
 #else
@@ -110,7 +111,12 @@ public sealed class FeatureCatalog
 #endif
         bool rebuilt;
 
-        if (cached is not null && string.Equals(cached.Version, version, StringComparison.Ordinal))
+        // Both halves of the stamp must hold: the version catches an update that somehow left the DLLs
+        // byte-identical, the file set catches every same-version rebuild — the case that used to render newly
+        // added page kinds as empty tabs.
+        if (cached is not null
+            && string.Equals(cached.Version, version, StringComparison.Ordinal)
+            && FeatureCatalogStamp.Matches(cached.Files, stamp))
         {
             _index = cached;
             rebuilt = false;
@@ -119,7 +125,7 @@ public sealed class FeatureCatalog
         else
         {
             var sw = Stopwatch.StartNew();
-            _index = BuildIndex(version);
+            _index = BuildIndex(version, stamp);
 #if !DEBUG
             SaveCache(_index);
 #endif
@@ -160,11 +166,11 @@ public sealed class FeatureCatalog
 
     // ── Full scan (post-update / first run only) ──────────────────────────────
 
-    private CatalogIndex BuildIndex(string version)
+    private CatalogIndex BuildIndex(string version, List<FeatureFileStamp> stamp)
     {
-        var idx = new CatalogIndex { Version = version };
+        var idx = new CatalogIndex { Version = version, Files = stamp };
 
-        var files = Directory.GetFiles(_exeDir, "Nexaflow.Features.*.dll")
+        var files = Directory.GetFiles(_exeDir, FeatureCatalogStamp.FeatureDllPattern)
             .Select(Path.GetFileName)
             .Where(f => f is not null)
             .Select(f => f!)
