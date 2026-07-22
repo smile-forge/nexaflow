@@ -23,11 +23,18 @@ public class FeatureTouchPointTests
 {
     private static readonly string Root = RepoRoot.Locate();
 
-    /// <summary>Names of every feature project directory under src/Nexaflow.Features.</summary>
+    /// <summary>Names of every feature project under src/Nexaflow.Features. A feature is defined by its
+    /// <c>.csproj</c>, not by the folder: removing a feature leaves gitignored bin/obj behind, and a
+    /// name-only match would then report that corpse as a shipped feature missing every reference.</summary>
     private static IReadOnlyList<string> FeatureProjectDirs()
         => Directory.GetDirectories(Path.Combine(Root, "src", "Nexaflow.Features"), "Nexaflow.Features.*")
+                    .Where(IsProjectDir)
                     .Select(p => Path.GetFileName(p)!)
                     .ToList();
+
+    /// <summary>True when the directory actually holds its own <c>&lt;name&gt;.csproj</c>.</summary>
+    internal static bool IsProjectDir(string dir)
+        => File.Exists(Path.Combine(dir, Path.GetFileName(dir) + ".csproj"));
 
     /// <summary>Feature project names referenced by <paramref name="csprojPath"/>.</summary>
     private static HashSet<string> ReferencedFeatures(string csprojPath)
