@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json.Nodes;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Git.Services;
+using Nexaflow.Features.Git.Services.Forge;
 
 namespace Nexaflow.Features.Git.ClientTools;
 
@@ -20,9 +21,11 @@ internal static class ForgeContext
 
     /// <summary>
     /// Resolves the forge repository, or yields the error a caller should surface. Kept as one place so both
-    /// tools explain an unsupported host identically.
+    /// tools explain an unsupported host identically — and so the message names the forges actually
+    /// registered rather than a hard-coded pair that would rot as providers are added.
     /// </summary>
-    public static bool TryResolve(GitService git, out GitForgeRepo repo, out string? url, out ToolResult error)
+    public static bool TryResolve(GitService git, GitForgeClient forge,
+                                  out GitForgeRepo repo, out string? url, out ToolResult error)
     {
         repo  = null!;
         error = default!;
@@ -34,9 +37,10 @@ internal static class ForgeContext
             return false;
         }
 
-        if (GitForgeClient.Parse(url) is not { } parsed)
+        if (forge.Parse(url) is not { } parsed)
         {
-            error = ToolResult.Error($"'{url}' is not a GitHub or Bitbucket remote — no forge API to query.");
+            var supported = string.Join(", ", forge.Providers.Select(p => p.DisplayName));
+            error = ToolResult.Error($"'{url}' is not hosted on a forge Nexaflow can query (supported: {supported}).");
             return false;
         }
 
@@ -50,9 +54,9 @@ public sealed class GitPullRequestsTool(GitService git, GitForgeClient forge) : 
 {
     public string Name => "git_pull_requests";
     public string Description =>
-        "List pull requests from the repository's hosting service (GitHub or Bitbucket). PR titles are far "
-      + "better release-note material than raw commit subjects, and a PR is often the only surviving record "
-      + "of why a branch exists. Requires network access; authentication reuses the stored git credential.";
+        "List pull requests from the repository's hosting service (currently GitHub or Bitbucket). PR titles "
+      + "are far better release-note material than raw commit subjects, and a PR is often the only surviving "
+      + "record of why a branch exists. Requires network access; authentication reuses the stored git credential.";
     public IReadOnlyList<ClientToolParameter> Parameters =>
     [
         new("state", "Which to return: 'open' (default), 'closed', or 'all'.", Required: false),
@@ -64,7 +68,7 @@ public sealed class GitPullRequestsTool(GitService git, GitForgeClient forge) : 
 
     public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        if (!ForgeContext.TryResolve(git, out var repo, out var url, out var error)) return error;
+        if (!ForgeContext.TryResolve(git, forge, out var repo, out var url, out var error)) return error;
 
         var state = ToolArgs.Str(arguments, "state") is { Length: > 0 } s ? s : "open";
         var count = Math.Clamp(ToolArgs.Int(arguments, "count", 30), 1, 100);
@@ -113,7 +117,7 @@ public sealed class GitIssuesTool(GitService git, GitForgeClient forge) : IClien
 
     public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        if (!ForgeContext.TryResolve(git, out var repo, out var url, out var error)) return error;
+        if (!ForgeContext.TryResolve(git, forge, out var repo, out var url, out var error)) return error;
 
         var state = ToolArgs.Str(arguments, "state") is { Length: > 0 } s ? s : "open";
         var count = Math.Clamp(ToolArgs.Int(arguments, "count", 30), 1, 100);
