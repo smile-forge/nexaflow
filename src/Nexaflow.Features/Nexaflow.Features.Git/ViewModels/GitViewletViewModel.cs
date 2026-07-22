@@ -456,5 +456,7 @@ public sealed partial class GitViewletViewModel : ObservableObject
         new GitBranchesTool(_git),
         new GitShowTool(_git),
         new GitRemotesTool(_git),
+        new GitTagsTool(_git),
+        new GitFileAtTool(_git),
     ];
 }
