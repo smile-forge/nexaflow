@@ -6,6 +6,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.Git.ClientTools;
 using Nexaflow.Features.Git.Services;
+using Nexaflow.Features.Git.Services.Forge;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Text;
@@ -32,6 +33,8 @@ public sealed partial class GitViewletViewModel : ObservableObject
     private readonly GitService          _git;
     private readonly GitWorktreeService  _worktreeService;
     private readonly GitCredentialHelper _credHelper;
+    private readonly GitInsightService _insights;
+    private readonly GitForgeClient _forge;
 
     /// <summary>How a pull ended — <see cref="PullOutcome.AuthFailed"/> is the one the token fallback retries.</summary>
     public enum PullOutcome { Ok, UpToDate, Failed, AuthFailed }
@@ -94,6 +97,10 @@ public sealed partial class GitViewletViewModel : ObservableObject
         _git             = new GitService(folderPath);
         _worktreeService = new GitWorktreeService(folderPath);
         _credHelper      = new GitCredentialHelper(folderPath);
+        _insights        = new GitInsightService(folderPath);
+
+        // The forge reuses the same stored credential as push/fetch — nothing extra for the user to configure.
+        _forge = new GitForgeClient(url => _credHelper.Fill(url));
     }
 
     // ── Loading ───────────────────────────────────────────────────────────
@@ -456,5 +463,20 @@ public sealed partial class GitViewletViewModel : ObservableObject
         new GitBranchesTool(_git),
         new GitShowTool(_git),
         new GitRemotesTool(_git),
+        new GitTagsTool(_git),
+        new GitFileAtTool(_git),
+        new GitMergeBaseTool(_git),
+        new GitContainsTool(_git),
+        new GitBlameTool(_git),
+        new GitSearchHistoryTool(_git),
+        new GitRecoveryTool(_git),
+        new GitWorktreesTool(_git),
+        new GitCompareTool(_insights),
+        new GitChangelogTool(_insights),
+        new GitBranchAuditTool(_insights),
+        new GitFindWorkTool(_insights),
+        new GitFileHistoryTool(_insights),
+        new GitPullRequestsTool(_git, _forge),
+        new GitIssuesTool(_git, _forge),
     ];
 }

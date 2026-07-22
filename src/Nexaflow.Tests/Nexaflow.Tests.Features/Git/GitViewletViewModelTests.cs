@@ -2,6 +2,7 @@ using System.IO;
 using LibGit2Sharp;
 using NSubstitute;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Git;
 using Nexaflow.Features.Git.Services;
 using Nexaflow.Features.Git.ViewModels;
@@ -347,13 +348,30 @@ public class GitViewletViewModelTests
 
     [TestMethod]
     [CoversNode("git-ai-act")]
-    public void GetClientTools_ExposesTheSixReadOnlyGitTools()
+    public void GetClientTools_ExposesTheCompleteReadOnlyGitSurface()
     {
         // Read-only by design: the user can pull / switch branch / remove a worktree, the AI cannot.
         // If this set changes, update the git-ai-act-* leaves in the product tree to match.
         CollectionAssert.AreEquivalent(
-            new[] { "git_status", "git_log", "git_diff", "git_branches", "git_show", "git_remotes" },
+            new[] { // primitives
+                    "git_status", "git_log", "git_diff", "git_branches", "git_show", "git_remotes",
+                    "git_tags", "git_file_at", "git_merge_base", "git_contains", "git_blame",
+                    "git_search_history", "git_recovery", "git_worktrees",
+                    // composites
+                    "git_compare", "git_changelog", "git_branch_audit", "git_find_work", "git_file_history",
+                    // forge
+                    "git_pull_requests", "git_issues" },
             Vm().GetClientTools().Select(t => t.Name).ToArray());
+    }
+
+    [TestMethod]
+    [CoversNode("git-ai-act")]
+    public void GetClientTools_AreAllReadOnly()
+    {
+        // The whole surface is SafeOperation — a mutating git tool would be a deliberate, separately-gated
+        // addition, so a stray one appearing here should fail loudly rather than ship quietly.
+        foreach (var tool in Vm().GetClientTools())
+            Assert.AreEqual(ToolSafety.SafeOperation, tool.Safety, $"{tool.Name} must stay read-only");
     }
 
     [TestMethod]
