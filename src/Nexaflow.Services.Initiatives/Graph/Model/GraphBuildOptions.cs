@@ -35,6 +35,16 @@ public sealed class GraphBuildOptions
     /// <summary>Whole-repo guard: stop after this many code files.</summary>
     public int MaxFiles { get; set; } = 20_000;
 
+    /// <summary>
+    /// Directory to read the <b>source</b> from when building the code/structured/asset layers. Null (default)
+    /// reads from the product root — unchanged for a normal checkout and CI. Set it to a linked worktree's root
+    /// so the graph reflects the branch you're editing (files not yet in the main checkout included). Repo-relative
+    /// node ids are identical either way (same repo layout), so the content-addressed <c>GraphCache</c> re-parses
+    /// only the files that actually differ, not the whole tree. The product tree, snaplinks and output location
+    /// always stay on the product root.
+    /// </summary>
+    public string? CodeRoot { get; set; }
+
     /// <summary>ISO-8601 timestamp the caller stamps into <c>Metadata.GeneratedAt</c>; the builder never reads the clock.</summary>
     public string? GeneratedAt { get; set; }
 

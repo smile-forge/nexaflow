@@ -279,4 +279,46 @@ public class GraphBuilderTests
             again.OrderBy(k => k.Key).Select(k => k.Value).ToArray(),
             "detection is deterministic");
     }
+
+    [TestMethod]
+    public void CodeRoot_ReadsSourceFromThatDirectory_ForWorktreeAwareGraphs()
+    {
+        var productRoot = Path.Combine(Path.GetTempPath(), "nexgraph-prod-" + Guid.NewGuid().ToString("N"));
+        var codeRoot = Path.Combine(Path.GetTempPath(), "nexgraph-code-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(productRoot);
+        Directory.CreateDirectory(codeRoot);
+        try
+        {
+            // Same repo-relative file, different content in each root — as a worktree branch differs from main.
+            File.WriteAllText(Path.Combine(productRoot, "Sample.cs"), "namespace Demo;\npublic class MainOnly { }\n");
+            File.WriteAllText(Path.Combine(codeRoot, "Sample.cs"), "namespace Demo;\npublic class BranchOnly { }\n");
+
+            var state = new ProductState
+            {
+                Product = new ProductDocument { Product = "Demo" },
+                Nodes = new Dictionary<string, ProductNode> { ["root"] = new ProductNode { Title = "Root" } },
+            };
+
+            bool HasType(KnowledgeGraph g, string label) =>
+                g.Nodes.Any(n => n.Type == NodeType.Type && n.Label == label);
+
+            // Default (CodeRoot null) reads the product root — unchanged for a normal checkout / CI.
+            var fromMain = GraphBuilder.Build(state, productRoot, new GraphBuildOptions { GeneratedAt = "T" });
+            Assert.IsTrue(HasType(fromMain, "MainOnly"));
+            Assert.IsFalse(HasType(fromMain, "BranchOnly"));
+
+            // CodeRoot set: the code layer reads the branch's copy instead, at the SAME repo-relative id.
+            var fromBranch = GraphBuilder.Build(state, productRoot,
+                new GraphBuildOptions { GeneratedAt = "T", CodeRoot = codeRoot });
+            Assert.IsTrue(HasType(fromBranch, "BranchOnly"), "code layer must read from CodeRoot");
+            Assert.IsFalse(HasType(fromBranch, "MainOnly"));
+            Assert.IsTrue(fromBranch.Nodes.Any(n => n.Id == "file:Sample.cs"),
+                "node ids stay repo-relative regardless of which root supplied the source");
+        }
+        finally
+        {
+            try { Directory.Delete(productRoot, recursive: true); } catch { }
+            try { Directory.Delete(codeRoot, recursive: true); } catch { }
+        }
+    }
 }
