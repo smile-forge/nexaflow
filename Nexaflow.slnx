@@ -30,6 +30,9 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Console/Nexaflow.Features.Console.csproj" Id="5d7bfb04-e2c1-4e7e-82bb-be5485084058">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Dicom/Nexaflow.Features.Dicom.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Dotnet/Nexaflow.Features.Dotnet.csproj" Id="48d6ef11-d047-420e-a2af-1fb2b071af4e">
       <Platform Project="x64" />
     </Project>

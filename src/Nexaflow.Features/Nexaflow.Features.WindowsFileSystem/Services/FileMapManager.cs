@@ -705,7 +705,8 @@ public sealed class FileMapManager
     /// </summary>
     private static string? DetectMagicType(FileInfo file)
     {
-        Span<byte> buf = stackalloc byte[12];
+        // 132 bytes so the DICOM marker at offset 128 (after the 128-byte preamble) is covered too.
+        Span<byte> buf = stackalloc byte[132];
         int read;
         using (var fs = file.OpenRead())
             read = fs.Read(buf);
@@ -740,6 +741,10 @@ public sealed class FileMapManager
             buf[0] == 0x52 && buf[1] == 0x49 && buf[2] == 0x46 && buf[3] == 0x46 &&
             buf[8] == 0x57 && buf[9] == 0x45 && buf[10] == 0x42 && buf[11] == 0x50)
             return "WEBP";
+        // DICOM Part-10: "DICM" at offset 128 (after the 128-byte preamble). Catches extensionless CD
+        // instances (IM_0001) that carry no .dcm extension.
+        if (read >= 132 && buf[128] == 0x44 && buf[129] == 0x49 && buf[130] == 0x43 && buf[131] == 0x4D)
+            return "DICOM";
 
         return null;
     }

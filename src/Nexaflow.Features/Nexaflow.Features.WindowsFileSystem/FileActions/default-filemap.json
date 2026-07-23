@@ -112,6 +112,15 @@
     ]
   },
   {
+    "ExperienceId": "/dicom",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.dcm" },
+      { "Type": "Extension", "Value": "*.dicom" },
+      { "Type": "MagicNumber", "Value": "DICOM" }
+    ]
+  },
+  {
     "ExperienceId": "/tabular",
     "Source": "User",
     "Criteria": [

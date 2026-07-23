@@ -23,5 +23,6 @@ internal static class ViewerMap
         ("font",     "FontView"),
         ("svg",      "SvgView"),
         ("email",    "EmailView"),
+        ("dicom",    "DicomView"),
     ];
 }
