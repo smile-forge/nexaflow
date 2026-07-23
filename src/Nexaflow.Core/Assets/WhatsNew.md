@@ -1,39 +1,34 @@
 # What's New in Nexaflow
 
-Welcome to **Nexaflow 1.3** 🎉
+Welcome to **Nexaflow 1.4** 🎉
 
-This release is about *doing more in place* — editing markdown and big files without leaving the tab, running your projects end to end, viewing fonts, working with git worktrees — plus a faster start and keys that stay safe on disk.
+This release is about *opening more of what's already on your disk* — disk images, email, vector art
 
-### 📋 Projects, reimagined
-The Projects feature grows a real lifecycle.
-*   **Archive, Shelf & Reactivate**: move a project through its stages with a safe background copy‑then‑delete — nothing is lost mid‑move.
-*   **Your statuses, your names**: backlog statuses are now configurable per workspace and stored by name, so reordering or renaming them never silently remaps your items.
-*   **Markdown everywhere**: project and backlog descriptions become rich markdown, with a dedicated **completion‑criteria** list and split **Project Details / Backlog** tabs.
-*   **Hand work to the assistant**: new **Task to AI** and **Plan with AI** buttons open a seeded conversation with the project folder pinned as context.
-*   **Backlog at a glance**: a folder viewlet surfaces your backlog grouped by status. Older project files upgrade automatically on open.
+### 💽 Disk images, browsed like folders
+*   Open a `.vhd`, `.vhdx`, `.vdi`, `.vmdk`, `.dmg`, `.img` or `.iso` with **As Disk** and walk through its contents like any other folder — nothing has to be mounted first.
+*   When you *do* want one mounted as a real drive, that now happens **natively through Windows** instead of shelling out to PowerShell — quicker, and no console window flashing past.
+*   Drives that are really disk images are recognised on sight, so **This PC** tells you what's hardware and what's a file.
 
-### ✍️ Edit in place
-*   **Inline markdown editing**: edit a markdown document directly in the rendered view — no separate raw‑text mode.
-*   **Editable large text files**: the text editor now lets you *edit and save* files far too big to load whole, using windowed reads and change‑block saves.
+### 📨 Email, and 🖼️ vector art
+*   **Email viewer**: open `.eml` and `.msg` files — envelope headers, the body as rendered text, plain text or HTML source, and attachments you can open straight out of the message.
+*   **SVG viewer**: `.svg` and `.svgz` render as crisp vectors at any zoom, with pan and a transparency checkerboard behind them.
 
-### 🔤 Font viewer
-*   Open `.ttf` / `.otf` / `.woff` and friends **as a font** — browse the full **glyph map**, read the family details, compare several fonts side by side, and ask the assistant about them.
+### 🎼 Markdown that plays
+*   Write **ABC** or **LilyPond** in a fenced code block and Nexaflow engraves it as real sheet music — multi-part songs on bracketed systems, plus slurs, grace notes, lyrics and chord marks.
 
-### 🌿 Git worktrees
-*   The Git viewlet is now **worktree‑aware**: create and remove worktrees, and clean up broken remnants. Removal runs in the background, re‑homes the current tab instead of yanking it away, and tidies up the branch too.
+### 🧮 Richer maths and diagrams
+*   **LaTeX** gains matrices with proper delimiters and baseline-aligned cells, the full fraction family, multiple integrals, spacing commands and a large slice of `amssymb`.
+*   **Mermaid** adds **architecture**, **swimlane** and **Cynefin** diagrams to an already long list.
 
-### 🗂️ Workspaces & sessions
-*   **Pick up where you left off**: Nexaflow can restore the tabs from your last session, and remembers each workspace's own default startup tabs and split‑pane layout across restarts.
-*   Profiles are now called **Workspaces** throughout, with clearer clone / reorder / configure controls.
+### 🕸️ Your product as a graph
+*   The Product tab can now **build and explore a live graph** of your codebase — what calls what, what owns what — with pan, zoom and colour-coded clusters.
+*   A new **Integrity** page checks that every link from your product tree to a file, heading or class still points at something real, and helps you re-point the ones that have drifted.
 
-### 🧩 Be the default
-*   **Default Actions**: choose the file types Nexaflow opens by default. The registry toggle is fully **reversible** — turn a handler on, then off, and Windows is left exactly as it was.
+### 🎧 Smaller things you'll feel
+*   **Music keeps playing** when you switch away from the tab, with pause and skip moving up into the window chrome.
+*   A **selected file can be dragged immediately**, instead of deselecting itself under the pointer.
+*   Git remotes authenticate through **Windows' own credential store** — Bitbucket access tokens included — so you stop retyping them. The terminal gains a **hard stop** for a command that refuses to quit.
 
-### 🔒 Safer by default
-*   **Keys encrypted at rest**: provider API keys and other secrets are now DPAPI‑protected on disk, tied to your Windows account.
-
-### ⚡ Faster & smoother
-*   **Quicker cold start**: a normal launch no longer loads every feature up front — features are discovered from a cached index and load only when first used.
-*   **PDFs** open in a browser tab, there's a **close‑tab** keyboard shortcut, and file search now reaches **globs in non‑indexed locations**.
+Plus various bug fixes and adjustments including more intelligences for your assistant.
 
 Thank you for being part of the journey. Press **Next** to continue.

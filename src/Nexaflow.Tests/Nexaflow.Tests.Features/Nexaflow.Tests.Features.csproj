@@ -12,8 +12,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MSTest" Version="4.3.0" />
-    <PackageReference Include="NSubstitute" Version="5.*" />
+    <PackageReference Include="MSTest" Version="4.3.2" />
+    <PackageReference Include="NSubstitute" Version="6.0.0" />
     <PackageReference Include="FlaUI.Core" Version="5.0.0" />
     <PackageReference Include="FlaUI.UIA3" Version="5.0.0" />
   </ItemGroup>
@@ -21,8 +21,7 @@
   <ItemGroup>
     <!-- Author-time coverage-declaration checks (NXCOV001/2). The tree feeds id-validity; absent on a
          clean checkout (gitignored), where the analyzer degrades to the presence check only. -->
-    <ProjectReference Include="..\..\Nexaflow.Analyzers\Nexaflow.Analyzers.Coverage\Nexaflow.Analyzers.Coverage.csproj"
-                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\Nexaflow.Analyzers\Nexaflow.Analyzers.Coverage\Nexaflow.Analyzers.Coverage.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup Condition="Exists('..\..\..\.product\tree.json')">

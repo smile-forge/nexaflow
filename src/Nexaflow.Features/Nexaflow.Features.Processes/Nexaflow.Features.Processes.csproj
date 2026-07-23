@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
@@ -11,7 +11,7 @@
 
   <ItemGroup>
     <!-- Command line + owner for the details view (everything else is Toolhelp/managed). -->
-    <PackageReference Include="System.Management" Version="10.0.9" />
+    <PackageReference Include="System.Management" Version="10.0.10" />
   </ItemGroup>
 
   <ItemGroup>

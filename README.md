@@ -6,7 +6,7 @@ Nexaflow replaces the scattered pile of apps you juggle every day — file explo
 
 The goal isn't to add more features. It's to reduce the friction between you and the thing you're actually trying to do.
 
-![Version 1.2.0](https://img.shields.io/badge/version-1.2.0-brightgreen)
+![Version 1.4.0](https://img.shields.io/badge/version-1.4.0-brightgreen)
 ![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)
 ![Platform: Windows](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)
 ![.NET 10](https://img.shields.io/badge/.NET-10.0-purple)
@@ -31,7 +31,7 @@ A built-in file tree with full-text Windows Search and AI-assisted query refinem
 
 **📝 Editors and viewers that understand their content**
 
-A live Markdown editor with LaTeX and native Mermaid diagram rendering. A code editor with syntax highlighting, code folding, and a class/structure map. Dedicated viewers for images (carousel, album, collage, explore), logs, JSON, CSV/TSV tables, hex/binary, web pages, and Jupyter notebooks. This list keeps growing — understanding more formats, better, is an ongoing focus.
+A live Markdown editor with LaTeX and native Mermaid diagram rendering. A code editor with syntax highlighting, code folding, and a class/structure map. Dedicated viewers for images (carousel, album, collage, explore), logs, JSON, Email (.eml/.msg), CSV/TSV tables, hex/binary, web pages, and Jupyter notebooks. This list keeps growing — understanding more formats, better, is an ongoing focus.
 
 **🎬 Media and 3D**
 
@@ -43,7 +43,7 @@ Browse `.zip`, `.7z`, `.tar`, `.rar`, `zstd`, and `lz4` archives like folders in
 
 **⌨️ Terminal and system tools**
 
-A real PTY terminal with shell integration. A live Process Explorer. A font viewer. An installed-apps manager. A system-info dashboard. A registry editor. Elevated actions go through a privilege bridge so you're never blindsided by a UAC prompt mid-flow.
+A real PTY terminal with shell integration. A live Process Explorer. A font viewer. An installed-apps manager. A system-info dashboard, VirtualDisk mounting, and a registry editor. Elevated actions go through a privilege bridge so you're never blindsided by a UAC prompt mid-flow.
 
 **🗂️ Organisation built in**
 
@@ -51,7 +51,7 @@ Lightweight project tracking with a backlog workflow. A Product Manager for trac
 
 **🤖 AI that works with your context, not despite it**
 
-An AI input bar on every window. A dedicated AI Chat tab with saved history. The AI sees what you're looking at — the file, the folder, the project — so you spend less time explaining and more time doing. Agentic turns that touch your files always ask first. Bring your own provider: Claude, Gemini, OpenAI, or a local model via Ollama.
+An AI input bar on every window. A dedicated AI Chat tab with saved history. The AI sees and **interacts** with your workspace — so you spend less time explaining and more time doing. Agentic turns that modify your files always ask first. Pick from several supported providers: Claude, Gemini, OpenAI, or any local model via Ollama (or a combination of them).
 
 ---
 

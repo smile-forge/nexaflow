@@ -20,7 +20,7 @@
   <ItemGroup>
     <!-- Metadata-only reflection over the built test DLLs for `scan-tests` — never executes them, so a
          net10.0-windows test assembly's WPF/WinRT deps are not loaded into this net10.0 host. -->
-    <PackageReference Include="System.Reflection.MetadataLoadContext" Version="10.0.0" />
+    <PackageReference Include="System.Reflection.MetadataLoadContext" Version="10.0.10" />
   </ItemGroup>
 
   <ItemGroup>
