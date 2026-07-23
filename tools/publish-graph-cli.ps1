@@ -8,6 +8,11 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $proj = Join-Path $root 'src\Nexaflow.Services.Initiatives.Cli'
 $out  = Join-Path $PSScriptRoot 'graph-cli'
+# Clean first: publishing into an existing folder does an incremental copy that can leave a stale package
+# DLL behind across a version bump (a newer-timestamped old file defeats the copy), so deps.json advances
+# but the DLL doesn't — e.g. System.Reflection.MetadataLoadContext stuck at 10.0.0.0 vs a manifest pinning
+# 10.0.0.10, which breaks `scan-tests`. A clean output guarantees the DLLs match the manifest.
+if (Test-Path $out) { Remove-Item $out -Recurse -Force }
 & dotnet publish $proj -c Release -o $out --nologo -v minimal
 if ($LASTEXITCODE -ne 0) { Write-Error 'publish failed'; exit 1 }
 Write-Host "published graph CLI -> $out" -ForegroundColor Green

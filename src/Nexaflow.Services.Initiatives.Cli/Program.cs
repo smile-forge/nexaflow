@@ -324,6 +324,12 @@ internal static class Program
             return Clean;
         }
 
+        var codeRoot = GraphCodeRoot(root, a);
+        if (codeRoot is not null && !json)
+            Console.Error.WriteLine($"note: building the code layer from the working tree {codeRoot} (the branch " +
+                "you're on); the product tree + graph.json stay in the main checkout, and the content-addressed " +
+                "cache re-parses only the files that differ from it.");
+
         KnowledgeGraph graph;
         try
         {
@@ -333,6 +339,7 @@ internal static class Program
             {
                 Scope = wholeRepo ? GraphScope.WholeRepo : GraphScope.ProductAnchored,
                 Incremental = incremental,
+                CodeRoot = codeRoot,
                 GeneratedAt = DateTime.Now.ToString("o"),
             };
             var cache = incremental ? store.LoadGraphCache() : null;   // reuse unchanged files' extraction
@@ -369,7 +376,7 @@ internal static class Program
         Console.WriteLine("""
             graph — build + explore the knowledge graph (.product/graph.json)
 
-              graph [<root>] [--no-incremental] [--product-anchored] [--json]   (re)build the graph
+              graph [<root>] [--no-incremental] [--product-anchored] [--main|--code-root <dir>] [--json]   (re)build the graph
               graph stats  [<root>]                                             counts + type/edge/community breakdown
               graph search <term> [<root>] [--type <t>] [--limit N]             nodes whose id/label matches <term>
               graph list   [<root>] [--type <t>] [--community N] [--file <f>] [--limit N]   bulk list with filters
@@ -384,6 +391,9 @@ internal static class Program
             edge rels:  contains extends implements imports calls references instantiates tests documents view_of depends_on
             hyper rels: signature (member→return,params)  annotated (target→attr)  calls (caller→callee,args)
             ids:  product:<id>   file:<relpath>   code:<relpath>#<astpath>   external:<name>
+            worktree: run from a linked worktree and the code layer defaults to THAT branch's source — build
+                  re-parses only files that differ from the main checkout, and code/context/grep dump the branch's
+                  copy. --main forces the main-checkout source; `graph --code-root <dir>` points it anywhere.
             tip:  `graph context <id>` is the fastest way to understand a node. `graph grep <pat> --from <id> --hops 2 --mode content`
                   searches the source of a feature's neighbourhood. .xaml → its class is a `view_of` edge; .csproj deps are `depends_on`.
             """);
@@ -603,8 +613,8 @@ internal static class Program
         }
         else rel = id.StartsWith("file:", StringComparison.Ordinal) ? id["file:".Length..] : id;
 
-        var full = Path.Combine(root, rel.Replace('/', Path.DirectorySeparatorChar));
-        if (!File.Exists(full)) { Console.Error.WriteLine($"error: file not found: {full}"); return Error; }
+        var full = CodeFilePath(root, rel, a.Has("--main"));
+        if (full is null) { Console.Error.WriteLine($"error: file not found: {rel}"); return Error; }
         var lines = File.ReadAllText(full).Replace("\r\n", "\n").Split('\n');
 
         int s0, e0;
@@ -680,10 +690,25 @@ internal static class Program
         return Math.Min(lines.Length - 1, start + Math.Min(maxLines, 40));
     }
 
-    private static string[]? TryReadLines(string root, string rel)
+    private static string[]? TryReadLines(string productRoot, string rel, bool main)
     {
-        var full = Path.Combine(root, rel.Replace('/', Path.DirectorySeparatorChar));
-        return File.Exists(full) ? File.ReadAllText(full).Replace("\r\n", "\n").Split('\n') : null;
+        var full = CodeFilePath(productRoot, rel, main);
+        return full is not null ? File.ReadAllText(full).Replace("\r\n", "\n").Split('\n') : null;
+    }
+
+    /// <summary>Resolves a repo-relative code file to an absolute path, most-specific first: the caller's own
+    /// working tree (so a graph query from a linked worktree shows the code on the branch being edited), then the
+    /// product root — unless <paramref name="main"/> forces the product (main-checkout) copy. Returns null when the
+    /// file is in neither. In a normal checkout the two roots are the same directory, so this changes nothing.</summary>
+    private static string? CodeFilePath(string productRoot, string rel, bool main)
+    {
+        var roots = main ? new[] { productRoot } : FileRootsFor(productRoot);
+        foreach (var r in roots)
+        {
+            var full = Path.Combine(r, rel.Replace('/', Path.DirectorySeparatorChar));
+            if (File.Exists(full)) return full;
+        }
+        return null;
     }
 
     private static Dictionary<string, HashSet<string>> BuildAdjacency(KnowledgeGraph g)
@@ -735,7 +760,7 @@ internal static class Program
 
         // 2 · source (code nodes) — budgeted
         if (node.FilePath is { Length: > 0 } rel && node.Metadata?.GetValueOrDefault("line") is { } lnStr
-            && int.TryParse(lnStr, out var startLine) && TryReadLines(root, rel) is { } lines)
+            && int.TryParse(lnStr, out var startLine) && TryReadLines(root, rel, a.Has("--main")) is { } lines)
         {
             var s0 = startLine - 1;
             var full = BlockEnd(lines, s0, 400);
@@ -808,7 +833,7 @@ internal static class Program
                     break;
                 }
                 scanned++;
-                if (!fileCache.TryGetValue(n.FilePath!, out var lines)) fileCache[n.FilePath!] = lines = TryReadLines(root, n.FilePath!);
+                if (!fileCache.TryGetValue(n.FilePath!, out var lines)) fileCache[n.FilePath!] = lines = TryReadLines(root, n.FilePath!, a.Has("--main"));
                 if (lines is null || !int.TryParse(n.Metadata!["line"], out var startLine)) continue;
                 var s0 = startLine - 1;
                 var e0 = BlockEnd(lines, s0, 400);
@@ -1011,6 +1036,21 @@ internal static class Program
             if (Directory.Exists(Path.Combine(d.FullName, ".git")) || File.Exists(Path.Combine(d.FullName, ".git")))
                 return d.FullName;
         return null;
+    }
+
+    /// <summary>
+    /// The directory <c>graph build</c> reads source from: <c>--main</c> forces the product (main-checkout) copy;
+    /// <c>--code-root &lt;path&gt;</c> overrides explicitly; otherwise the caller's own working tree when it differs
+    /// from the product root — so building from a linked worktree graphs the branch you're on. Null means "the
+    /// product root", which is also the case for a normal checkout (the two are the same directory), so CI and the
+    /// release gate are unaffected.
+    /// </summary>
+    private static string? GraphCodeRoot(string productRoot, VerbArgs a)
+    {
+        if (a.Has("--main")) return null;
+        if (a.Value("--code-root") is { Length: > 0 } explicitRoot) return Path.GetFullPath(explicitRoot);
+        var caller = WorkingTreeRootOf(Directory.GetCurrentDirectory());
+        return caller is { Length: > 0 } && !PathsEqual(caller, productRoot) ? caller : null;
     }
 
     // ── describe --code: resolve every code snaplink to the actual source, so "what backs this node" is
@@ -1414,9 +1454,9 @@ internal static class Program
             "lint [<root>] [--under <id>] [--json]");
 
         // graph subcommands — same strictness as everything else.
-        public static readonly VerbSpec GraphBuild = new("graph", 0, None,
-            ["--json", "--product-anchored", "--no-incremental"],
-            "graph [<root>] [--no-incremental] [--product-anchored] [--json]");
+        public static readonly VerbSpec GraphBuild = new("graph", 0, ["--code-root"],
+            ["--json", "--product-anchored", "--no-incremental", "--main"],
+            "graph [<root>] [--no-incremental] [--product-anchored] [--main | --code-root <dir>] [--json]");
         public static readonly VerbSpec GraphStats = new("graph stats", 0, None, None, "graph stats [<root>]");
         public static readonly VerbSpec GraphSearch = new("graph search", 1, ["--type", "--limit"], None,
             "graph search <term> [<root>] [--type <t>] [--limit N]");
@@ -1427,13 +1467,13 @@ internal static class Program
             "graph node <id> [<root>] [--limit N]");
         public static readonly VerbSpec GraphWalk = new("graph walk", 1, ["--hops", "--limit", "--types"], None,
             "graph walk <id> [<root>] [--hops N] [--types a,b] [--limit N]");
-        public static readonly VerbSpec GraphContext = new("graph context", 1, ["--lines", "--limit"], None,
-            "graph context <id> [<root>] [--lines N] [--limit N]");
+        public static readonly VerbSpec GraphContext = new("graph context", 1, ["--lines", "--limit"], ["--main"],
+            "graph context <id> [<root>] [--lines N] [--limit N] [--main]");
         public static readonly VerbSpec GraphGrep = new("graph grep", 1,
-            ["--from", "--hops", "--mode", "--type", "--limit"], None,
-            "graph grep <pattern> [<root>] [--from <id>] [--hops N] [--mode index|content] [--type t] [--limit N]");
-        public static readonly VerbSpec GraphCode = new("graph code", 1, ["--lines"], None,
-            "graph code <id> [<root>] [--lines A-B]");
+            ["--from", "--hops", "--mode", "--type", "--limit"], ["--main"],
+            "graph grep <pattern> [<root>] [--from <id>] [--hops N] [--mode index|content] [--type t] [--limit N] [--main]");
+        public static readonly VerbSpec GraphCode = new("graph code", 1, ["--lines"], ["--main"],
+            "graph code <id> [<root>] [--lines A-B] [--main]");
     }
 
     /// <summary>

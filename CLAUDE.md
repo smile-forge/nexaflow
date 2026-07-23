@@ -81,9 +81,12 @@ node). Regenerate with `graph build` (incremental) after code changes, then expl
 & $ni graph build             # regenerate .product/graph.json after code changes (incremental)
 ```
 
-Node ids: `product:<slug>` · `code:<relpath>#<astpath>` · `file:<relpath>` · `external:<name>`. `graph`'s dumped
-source comes from the graphed (main-checkout) copy; `describe --code` prefers YOUR working tree. For repo discovery
-you can also spawn the **`nexaflow-explorer`** sub-agent, which drives this exe.
+Node ids: `product:<slug>` · `code:<relpath>#<astpath>` · `file:<relpath>` · `external:<name>`. **`graph` is
+worktree-aware**: run from a linked worktree and both `graph build` and the source-dumping queries (`code`/`context`/
+`grep --mode content`) use THAT branch's code — the build re-parses only the files that differ from the main checkout
+(the cache is content-addressed), so it's cheap. The product tree + `graph.json` still live in the main checkout.
+`--main` forces the main-checkout source; `graph --code-root <dir>` points it anywhere. (`describe --code` is likewise
+working-tree-first.) For repo discovery you can also spawn the **`nexaflow-explorer`** sub-agent, which drives this exe.
 
 The product-folder skill has fast-query recipes for deeper questions; the per-release export
 [docs/product/PRODUCT.md](docs/product/PRODUCT.md) is the human dashboard. Per-feature tab parameters are in

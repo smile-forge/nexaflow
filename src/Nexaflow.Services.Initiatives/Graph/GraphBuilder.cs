@@ -27,6 +27,7 @@ public sealed class GraphBuilder
 {
     private readonly ProductState _state;
     private readonly string _root;
+    private readonly string _codeRoot;   // where source is read from — the working tree in a worktree, else _root
     private readonly GraphBuildOptions _opts;
 
     private readonly Dictionary<string, GraphNode> _nodes = new(StringComparer.Ordinal);
@@ -47,6 +48,9 @@ public sealed class GraphBuilder
     {
         _state = state;
         _root = root;
+        // Source comes from CodeRoot when set (a linked worktree), else the product root. Repo-relative paths
+        // are computed against the same root, so node ids match the main checkout's regardless.
+        _codeRoot = string.IsNullOrEmpty(opts.CodeRoot) ? root : opts.CodeRoot!;
         _opts = opts;
         // Reuse the cache only when incremental AND the extractor schema still matches; otherwise start clean
         // (a schema bump forces every file to be re-parsed). A null/mismatched cache means a full first scan.
@@ -169,7 +173,9 @@ public sealed class GraphBuilder
 
         if (string.IsNullOrWhiteSpace(link.Doc)) return;
         var relPath = link.Doc!.Replace('\\', '/');
-        var full = Path.Combine(_root, relPath.Replace('/', Path.DirectorySeparatorChar));
+        // Resolve the snaplinked file from the code root (the branch's copy in a worktree) so it matches the
+        // nodes the code layer builds and resolves even for files not yet in the main checkout.
+        var full = Path.Combine(_codeRoot, relPath.Replace('/', Path.DirectorySeparatorChar));
         Node("file:" + relPath, NodeType.File, Path.GetFileName(relPath), file: relPath, language: TreeSitterLanguages.ForFile(relPath), source: relPath);
 
         var target = "file:" + relPath;
@@ -246,9 +252,9 @@ public sealed class GraphBuilder
         if (_opts.Scope != GraphScope.WholeRepo) return;   // product-anchored scoping is a later pass
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var full in RepoFiles.EnumerateSource(_root, _opts.MaxFiles))
+        foreach (var full in RepoFiles.EnumerateSource(_codeRoot, _opts.MaxFiles))
         {
-            var rel = Path.GetRelativePath(_root, full).Replace('\\', '/');
+            var rel = Path.GetRelativePath(_codeRoot, full).Replace('\\', '/');
             seen.Add(rel);
             ApplyContribution(rel, GetContribution(rel, full));
         }
@@ -401,9 +407,9 @@ public sealed class GraphBuilder
     private void BuildAssetLayer()
     {
         if (_opts.Scope != GraphScope.WholeRepo) return;
-        foreach (var full in RepoFiles.EnumerateOther(_root, _opts.MaxFiles))
+        foreach (var full in RepoFiles.EnumerateOther(_codeRoot, _opts.MaxFiles))
         {
-            var rel = Path.GetRelativePath(_root, full).Replace('\\', '/');
+            var rel = Path.GetRelativePath(_codeRoot, full).Replace('\\', '/');
             Node("file:" + rel, NodeType.File, Path.GetFileName(rel), file: rel, source: rel);
         }
     }
@@ -415,9 +421,9 @@ public sealed class GraphBuilder
     {
         if (_opts.Scope != GraphScope.WholeRepo) return;
 
-        foreach (var full in RepoFiles.EnumerateStructured(_root, _opts.MaxFiles))
+        foreach (var full in RepoFiles.EnumerateStructured(_codeRoot, _opts.MaxFiles))
         {
-            var rel = Path.GetRelativePath(_root, full).Replace('\\', '/');
+            var rel = Path.GetRelativePath(_codeRoot, full).Replace('\\', '/');
             var ext = Path.GetExtension(rel).ToLowerInvariant();
             var fileId = "file:" + rel;
             Node(fileId, NodeType.File, Path.GetFileName(rel), file: rel, language: ext.TrimStart('.'), source: rel);
@@ -773,13 +779,15 @@ public sealed class GraphBuilder
         return h;
     }
 
-    /// <summary>An absolute path under the root → repo-relative, or null when it escapes the root.</summary>
+    /// <summary>An absolute path under the code root → repo-relative, or null when it escapes it. Uses the code
+    /// root because the paths passed here (resolved imports, csproj/sln references) originate from the enumerated
+    /// source tree — relativizing them against a different root would make them escape and drop the edge.</summary>
     private string? ToRel(string fullPath)
     {
         try
         {
             if (!Path.IsPathRooted(fullPath)) return null;
-            var rel = Path.GetRelativePath(_root, fullPath).Replace('\\', '/');
+            var rel = Path.GetRelativePath(_codeRoot, fullPath).Replace('\\', '/');
             return rel.StartsWith("../", StringComparison.Ordinal) ? null : rel;
         }
         catch { return null; }
