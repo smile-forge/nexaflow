@@ -20,10 +20,21 @@ internal static class DicomFileSniffer
         try
         {
             using var fs = File.OpenRead(path);
-            if (fs.Length < 132) return false;
+            return HasDicmMagic(fs);
+        }
+        catch { return false; }
+    }
+
+    /// <summary>True if <paramref name="stream"/> (seekable) carries the <c>DICM</c> magic at offset 128 —
+    /// used for in-archive entries opened through the VFS.</summary>
+    public static bool HasDicmMagic(Stream stream)
+    {
+        try
+        {
+            if (!stream.CanSeek || stream.Length < 132) return false;
             Span<byte> buf = stackalloc byte[4];
-            fs.Seek(128, SeekOrigin.Begin);
-            if (fs.Read(buf) < 4) return false;
+            stream.Seek(128, SeekOrigin.Begin);
+            if (stream.Read(buf) < 4) return false;
             return buf[0] == (byte)'D' && buf[1] == (byte)'I' && buf[2] == (byte)'C' && buf[3] == (byte)'M';
         }
         catch { return false; }

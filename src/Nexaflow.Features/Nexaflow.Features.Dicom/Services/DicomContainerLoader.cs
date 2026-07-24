@@ -38,7 +38,7 @@ internal static class DicomContainerLoader
             ct.ThrowIfCancellationRequested();
             try
             {
-                var file = DicomFile.Open(f, FileReadOption.SkipLargeTags);
+                var file = DicomIo.Open(f, FileReadOption.SkipLargeTags);
                 instances.Add((BuildInfo(f, file), file.Dataset));
             }
             catch (Exception ex)
@@ -60,26 +60,32 @@ internal static class DicomContainerLoader
             var p = paths[0];
             if (Directory.Exists(p))
             {
+                // A real folder: a DICOMDIR index is the fast path; otherwise scan it.
                 var dicomdir = Path.Combine(p, "DICOMDIR");
                 if (File.Exists(dicomdir))
                     return (ReadDicomDir(dicomdir), new DirectoryInfo(p).Name);
                 return (EnumerateDicomFiles(p, ct), new DirectoryInfo(p).Name);
             }
+            if (DicomIo.IsDirectory(p))                       // a virtual folder inside an archive (.zip)
+                return (EnumerateDicomFiles(p, ct), LeafName(p));
             if (IsDicomDirFile(p))
                 return (ReadDicomDir(p), DicomDirTitle(p));
             return ([p], Path.GetFileName(p));
         }
 
-        // Multi-selection: expand any folders, keep DICOM files.
+        // Multi-selection: expand any folders (real or in-archive), keep DICOM files.
         var files = new List<string>();
         foreach (var p in paths)
         {
             ct.ThrowIfCancellationRequested();
-            if (Directory.Exists(p)) files.AddRange(EnumerateDicomFiles(p, ct));
-            else if (DicomFileSniffer.IsDicom(p)) files.Add(p);
+            if (Directory.Exists(p) || DicomIo.IsDirectory(p)) files.AddRange(EnumerateDicomFiles(p, ct));
+            else if (DicomIo.IsDicom(p)) files.Add(p);
         }
         return (files, $"DICOM ({files.Count} instances)");
     }
+
+    private static string LeafName(string path)
+        => Path.GetFileName(path.TrimEnd('/', '\\')) is { Length: > 0 } n ? n : path;
 
     private static bool IsDicomDirFile(string path)
         => string.Equals(Path.GetFileName(path), "DICOMDIR", StringComparison.OrdinalIgnoreCase);
@@ -93,11 +99,11 @@ internal static class DicomContainerLoader
     private static IReadOnlyList<string> EnumerateDicomFiles(string folder, CancellationToken ct)
     {
         var result = new List<string>();
-        foreach (var f in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
+        foreach (var f in DicomIo.EnumerateFiles(folder))     // real directory or in-archive folder
         {
             ct.ThrowIfCancellationRequested();
-            if (IsDicomDirFile(f)) continue;              // the index itself, not an instance
-            if (DicomFileSniffer.IsDicom(f)) result.Add(f);
+            if (IsDicomDirFile(f)) continue;                  // the index itself, not an instance
+            if (DicomIo.IsDicom(f)) result.Add(f);
         }
         return result;
     }
@@ -149,7 +155,10 @@ internal static class DicomContainerLoader
         var frames = Math.Max(1, DicomTags.Int(ds, DicomTag.NumberOfFrames, 1));
 
         var isEncapsulated = EncapsulatedSopClasses.Contains(sopClass) || ds.Contains(DicomTag.EncapsulatedDocument);
-        var isImage = !isEncapsulated && rows > 0 && cols > 0 && ds.Contains(DicomTag.PixelData);
+        // An image is identified by its geometry (Rows/Columns — small header tags always present), NOT by
+        // PixelData presence: we open with SkipLargeTags, which drops PixelData for real (large) images, so a
+        // Contains(PixelData) check would misclassify every real slice as a report.
+        var isImage = !isEncapsulated && rows > 0 && cols > 0;
 
         // PixelSpacing is [rowSpacing, colSpacing] in mm; ImagerPixelSpacing is the detector fallback.
         double? spacingY = null, spacingX = null;

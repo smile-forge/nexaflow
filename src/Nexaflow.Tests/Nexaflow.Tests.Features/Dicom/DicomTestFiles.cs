@@ -13,12 +13,14 @@ namespace Nexaflow.Tests.Features.Dicom;
 /// </summary>
 internal static class DicomTestFiles
 {
-    /// <summary>Writes a single grayscale image instance (optionally multi-frame) and returns its path.</summary>
+    /// <summary>Writes a single grayscale image instance (optionally multi-frame) and returns its path.
+    /// <paramref name="dim"/> sets the row/column count — pass a large value (e.g. 512) to push PixelData past
+    /// the reader's large-tag threshold, which is what distinguishes a real image from a report on load.</summary>
     public static string WriteImage(string dir, string fileName, string patientId, string patientName,
                                     string studyUid, string seriesUid, string sopUid, int frames = 1,
-                                    string modality = "CT")
+                                    string modality = "CT", int dim = 4)
     {
-        const int rows = 4, cols = 4;
+        int rows = dim, cols = dim;
         var ds = new DicomDataset
         {
             { DicomTag.SOPClassUID, DicomUID.SecondaryCaptureImageStorage.UID },
@@ -85,4 +87,20 @@ internal static class DicomTestFiles
 
     private static string RelativeId(string root, string file)
         => Path.GetRelativePath(root, file).Replace(Path.DirectorySeparatorChar, '\\');
+
+    /// <summary>Zips <paramref name="instanceCount"/> single-series instances into <paramref name="zipName"/>
+    /// (loose .dcm files at the archive root, as real DICOM zips ship) and returns the zip path.</summary>
+    public static string WriteZip(string dir, string zipName, int instanceCount)
+    {
+        var stage = Path.Combine(dir, "stage-" + System.Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(stage);
+        for (var i = 1; i <= instanceCount; i++)
+            WriteImage(stage, $"instance-{i:D4}.dcm", "PZ", "Zip^Test", "1.5.1", "1.5.1.1", $"1.5.1.1.{i}", dim: 8);
+
+        var zip = Path.Combine(dir, zipName);
+        if (File.Exists(zip)) File.Delete(zip);
+        System.IO.Compression.ZipFile.CreateFromDirectory(stage, zip);
+        Directory.Delete(stage, recursive: true);
+        return zip;
+    }
 }

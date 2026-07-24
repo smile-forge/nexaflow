@@ -22,7 +22,7 @@ internal sealed class PixelSampler
         try
         {
             DicomBootstrap.EnsureInitialized();
-            var dcm = DicomFile.Open(info.FilePath);
+            var dcm = DicomIo.Open(info.FilePath, FileReadOption.ReadAll);
             var header = DicomPixelData.Create(dcm.Dataset);
             _pixels = PixelDataFactory.Create(header, frame);
         }

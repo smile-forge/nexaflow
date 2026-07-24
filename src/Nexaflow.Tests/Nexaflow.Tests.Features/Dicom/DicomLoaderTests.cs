@@ -110,4 +110,18 @@ public class DicomLoaderTests
         Assert.AreEqual(1, container.Patients.Count);
         Assert.AreEqual(2, container.Images.Count);
     }
+
+    [TestMethod]
+    public void Load_LargePixelData_ClassifiedAsImage_NotReport()
+    {
+        // The loader opens headers with SkipLargeTags, which DROPS PixelData for real (large) images. Image
+        // detection must therefore key on geometry (Rows/Columns), not PixelData presence — else every real
+        // slice is misfiled as a report. A 512×512 instance pushes PixelData well past the large-tag threshold.
+        DicomTestFiles.WriteImage(_tmp, "big.dcm", "PX", "Big^One", "1.9.2", "1.9.2.1", "1.9.2.1.1", dim: 512);
+
+        var container = DicomContainerLoader.Load([_tmp]);
+
+        Assert.AreEqual(1, container.Images.Count, "a large image must still be recognised as an image");
+        Assert.AreEqual(0, container.Reports.Count, "it must NOT be misclassified as a report");
+    }
 }

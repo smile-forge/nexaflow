@@ -201,7 +201,7 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
         if (SelectedNode?.FilePath is not { } path) return string.Empty;
         try
         {
-            var ds = DicomFile.Open(path, FileReadOption.SkipLargeTags).Dataset;
+            var ds = DicomIo.Open(path, FileReadOption.SkipLargeTags).Dataset;
             var name = DicomTags.PersonName(ds, DicomTag.PatientName);
             var id = DicomTags.Str(ds, DicomTag.PatientID, "—");
             var dob = DicomTags.Date(ds, DicomTag.PatientBirthDate);
@@ -309,7 +309,7 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
 
     private string? ExtractEncapsulatedDocument(DicomNode node)
     {
-        var ds = DicomFile.Open(node.FilePath!).Dataset;
+        var ds = DicomIo.Open(node.FilePath!, FileReadOption.ReadAll).Dataset;
         if (!ds.TryGetValues<byte>(DicomTag.EncapsulatedDocument, out var bytes) || bytes.Length == 0)
             return null;
 

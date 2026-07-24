@@ -1,5 +1,7 @@
+using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using FellowOakDicom;
 using FellowOakDicom.Imaging;
 
 namespace Nexaflow.Features.Dicom.Services;
@@ -17,7 +19,11 @@ internal sealed class DicomRenderer
     public DicomRenderer(string filePath)
     {
         DicomBootstrap.EnsureInitialized();
-        _image = new DicomImage(filePath);
+        // Real files open by path (fo-dicom lazy-loads frames); an in-archive path is read through the VFS
+        // and rendered from the in-memory dataset.
+        _image = File.Exists(filePath)
+            ? new DicomImage(filePath)
+            : new DicomImage(DicomIo.Open(filePath, FileReadOption.ReadAll).Dataset);
     }
 
     public int Frames => _image.NumberOfFrames;
