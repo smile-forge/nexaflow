@@ -93,14 +93,6 @@ public partial class DicomView : UserControl, IPageView
             return;
         }
 
-        // Size the Image element to the bitmap's natural pixels so its layout slot is the full image (not the
-        // viewport). Otherwise a Left/Top-aligned Image clips to the viewport BEFORE the render transform, and
-        // translating a larger-than-viewport image negative (1:1 centre) pushes the visible part off-screen —
-        // the image "disappears". With the natural size set, the Stage's ClipToBounds does the clipping AFTER
-        // the transform, so panning/1:1 shows the correct region.
-        Frame.Width = bmp.PixelWidth;
-        Frame.Height = bmp.PixelHeight;
-
         // Fit only when the image dimensions change (a new instance); window/level re-renders keep the view.
         if (bmp.PixelWidth != _lastImageW || bmp.PixelHeight != _lastImageH)
         {

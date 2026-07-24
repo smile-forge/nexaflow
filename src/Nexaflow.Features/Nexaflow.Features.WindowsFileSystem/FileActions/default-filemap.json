@@ -117,6 +117,7 @@
     "Criteria": [
       { "Type": "Extension", "Value": "*.dcm" },
       { "Type": "Extension", "Value": "*.dicom" },
+      { "Type": "PathPattern", "Value": "*DICOMDIR" },
       { "Type": "MagicNumber", "Value": "DICOM" }
     ]
   },

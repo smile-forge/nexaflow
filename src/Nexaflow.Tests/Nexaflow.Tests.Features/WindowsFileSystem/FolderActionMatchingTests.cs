@@ -144,4 +144,35 @@ public class FolderActionMatchingTests
         // This-PC / no current folder: a constrained action can't be verified, so it stays hidden.
         Assert.AreEqual(0, MatchedActionsForOpenFolder(null).Count);
     }
+
+    [TestMethod]
+    public void ContainsFileGlobs_MatchesInsideAVirtualPath_NotJustRealFolders()
+    {
+        // A folder action's content check must go through the VFS for a virtual folder (a mounted disk image
+        // or archive) — else "As DICOM" (and every ContainsFileGlobs action) never appears inside a .zip/.iso.
+        Nexaflow.IO.Common.VirtualFileSystem.Instance.RegisterHandler(new Nexaflow.Features.Compressed.Handlers.ZipArchiveHandler());
+
+        var tmp = Path.Combine(Path.GetTempPath(), "nexaflow-vfolder-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tmp);
+        try
+        {
+            var zip = Nexaflow.Tests.Features.Dicom.DicomTestFiles.WriteZip(tmp, "study.zip", instanceCount: 2);
+
+            var shell = Substitute.For<IShellServices>();
+            var ai = Substitute.For<IAIService>();
+            shell.DiscoverImplementations<IFileAction>().Returns(Array.Empty<Type>());
+            shell.DiscoverImplementations<IFolderAction>().Returns([typeof(Nexaflow.Features.Dicom.FileActions.DicomFolderAction)]);
+            shell.DiscoverImplementations<IFileCreateAction>().Returns(Array.Empty<Type>());
+            shell.DiscoverImplementations<IFolderViewlet>().Returns(Array.Empty<Type>());
+            var manager = new FileActionManager(FileSystemFeatureRegistry.For(shell, ai, new Dictionary<Type, IFeatureConfig>()));
+
+            // Selecting the .zip (browsed as a container) — its entries include .dcm files, so "As DICOM" applies.
+            var selected = new List<FileSystemEntry> { new() { Name = "study.zip", FullPath = zip, IsDirectory = true } };
+            var names = manager.FilterFolderActions(selected, manager.SnapshotCanPerform().Folder)
+                               .Select(a => a.DisplayName).ToList();
+
+            CollectionAssert.Contains(names, "As DICOM", "the DICOM folder action must match a virtual folder's contents");
+        }
+        finally { Directory.Delete(tmp, true); }
+    }
 }

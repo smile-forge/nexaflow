@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.IO.Common;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -214,20 +215,36 @@ public sealed class FileActionManager
 
         try
         {
-            if (fileGlobs is not null && !FileGlobThresholdMet(folderPath, fileGlobs, pct))
+            var (files, dirs) = TopLevelNames(folderPath);
+
+            if (fileGlobs is not null && !FileGlobThresholdMet(files, fileGlobs, pct))
                 return false;
 
-            if (folderGlobs is not null)
-            {
-                bool found = false;
-                foreach (var pattern in folderGlobs)
-                    if (Directory.EnumerateDirectories(folderPath, pattern, SearchOption.TopDirectoryOnly).Any())
-                    { found = true; break; }
-                if (!found) return false;
-            }
+            if (folderGlobs is not null && !dirs.Any(d => MatchesAnyGlob(d, folderGlobs)))
+                return false;
         }
         catch { return false; }
         return true;
+    }
+
+    /// <summary>Top-level file and directory <b>names</b> of a folder — from the real filesystem, or through the
+    /// VFS when the path is virtual (inside a mounted disk image or archive), so folder actions such as
+    /// "As DICOM" are offered there too, not just on real folders.</summary>
+    private static (IReadOnlyList<string> Files, IReadOnlyList<string> Dirs) TopLevelNames(string folderPath)
+    {
+        if (Directory.Exists(folderPath))
+        {
+            var files = Directory.GetFiles(folderPath, "*", SearchOption.TopDirectoryOnly)
+                                 .Select(Path.GetFileName).OfType<string>().ToList();
+            var dirs = Directory.GetDirectories(folderPath, "*", SearchOption.TopDirectoryOnly)
+                                .Select(p => Path.GetFileName(p.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)))
+                                .OfType<string>().Where(n => n.Length > 0).ToList();
+            return (files, dirs);
+        }
+
+        var entries = VirtualFileSystem.Instance.EnumerateEntries(folderPath);
+        return (entries.Where(e => !e.IsDirectory).Select(e => e.Name).ToList(),
+                entries.Where(e => e.IsDirectory).Select(e => e.Name).ToList());
     }
 
     /// <summary>
@@ -236,24 +253,19 @@ public sealed class FileActionManager
     /// percentage path scans the file list once, returning early the moment the required count is
     /// reached or the unscanned remainder can no longer reach it.
     /// </summary>
-    private static bool FileGlobThresholdMet(string folderPath, string[] globs, int pct)
+    private static bool FileGlobThresholdMet(IReadOnlyList<string> fileNames, string[] globs, int pct)
     {
         if (pct <= 0)
-        {
-            foreach (var path in Directory.EnumerateFiles(folderPath, "*", SearchOption.TopDirectoryOnly))
-                if (MatchesAnyGlob(Path.GetFileName(path), globs)) return true;
-            return false;
-        }
+            return fileNames.Any(n => MatchesAnyGlob(n, globs));
 
-        var files = Directory.GetFiles(folderPath, "*", SearchOption.TopDirectoryOnly);
-        int total = files.Length;
+        int total = fileNames.Count;
         if (total == 0) return false;
 
         int required = (int)System.Math.Ceiling(total * pct / 100.0);
         int matched  = 0;
         for (int i = 0; i < total; i++)
         {
-            if (MatchesAnyGlob(Path.GetFileName(files[i]), globs))
+            if (MatchesAnyGlob(fileNames[i], globs))
             {
                 if (++matched >= required) return true;                  // threshold reached
             }

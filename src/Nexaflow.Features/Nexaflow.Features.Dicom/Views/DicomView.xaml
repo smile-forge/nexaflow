@@ -221,9 +221,15 @@
                   MouseLeftButtonDown="OnStageLeftDown" MouseLeftButtonUp="OnStageLeftUp"
                   MouseRightButtonDown="OnStageRightDown" MouseRightButtonUp="OnStageRightUp"
                   MouseMove="OnStageMouseMove" MouseWheel="OnStageWheel">
-                <Image x:Name="Frame" Source="{Binding CurrentBitmap}" Stretch="None"
-                       HorizontalAlignment="Left" VerticalAlignment="Top"
-                       RenderTransformOrigin="0,0" SnapsToDevicePixels="True"/>
+                <!-- Host the image on a Canvas so an image LARGER than the viewport keeps its full natural size
+                     (a Grid/aligned element clamps oversized content to the viewport, so the render transform
+                     then only shows — and scales — a small top-left crop). The Canvas clip does the clipping
+                     after the transform. -->
+                <Canvas ClipToBounds="True">
+                    <Image x:Name="Frame" Source="{Binding CurrentBitmap}" Stretch="None"
+                           Canvas.Left="0" Canvas.Top="0"
+                           RenderTransformOrigin="0,0" SnapsToDevicePixels="True"/>
+                </Canvas>
                 <Canvas x:Name="Overlay" IsHitTestVisible="False"/>
 
                 <TextBlock Text="{Binding TechOverlay}" Foreground="{DynamicResource Dicom.OverlayText}" FontSize="11.5"
