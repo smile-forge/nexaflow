@@ -300,13 +300,13 @@ internal static class DicomContainerLoader
     {
         if (info.IsImage)
         {
-            var geom = $"{info.Columns}×{info.Rows}";
-            var detail = info.Frames > 1 ? $"{info.Frames} frames · {geom}" : geom;
+            // Only surface frame count for multi-frame instances — the pixel dimensions add clutter without
+            // telling the reader anything actionable.
             return new DicomNode
             {
                 Kind = DicomNodeKind.Image,
                 Label = $"Image {DicomTags.Int(ds, DicomTag.InstanceNumber, instNo)}",
-                Detail = detail,
+                Detail = info.Frames > 1 ? $"{info.Frames} frames" : string.Empty,
                 FilePath = info.FilePath,
                 Instance = info,
             };

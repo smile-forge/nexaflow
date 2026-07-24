@@ -71,6 +71,12 @@ public partial class DicomView : UserControl, IPageView
         if (e.NewValue is DicomNode node) ViewModel.SelectedNode = node;
     }
 
+    // Scroll the selected item into view — so stepping the series with the wheel keeps the current slice visible.
+    private void OnTreeItemSelected(object sender, RoutedEventArgs e)
+    {
+        if (e.OriginalSource is TreeViewItem item) item.BringIntoView();
+    }
+
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(DicomViewModel.CurrentBitmap))

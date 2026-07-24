@@ -107,14 +107,15 @@
 
             <TreeView x:Name="Tree" Grid.Row="1" ItemsSource="{Binding Patients}"
                       SelectedItemChanged="OnTreeSelectionChanged"
+                      TreeViewItem.Selected="OnTreeItemSelected"
                       Background="Transparent" BorderThickness="0"
                       Foreground="{StaticResource TextBrush}"
                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                 <TreeView.Resources>
-                    <!-- Theme the selection so an inactive (unfocused) selection isn't a bright-white block. -->
-                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="{DynamicResource Surface2Color}"/>
+                    <!-- Accent the selection so it's clearly visible whether or not the tree has focus. -->
+                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="{DynamicResource AccentColor}"/>
                     <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="{DynamicResource TextColor}"/>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="{DynamicResource Surface2Color}"/>
+                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="{DynamicResource AccentColor}"/>
                     <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="{DynamicResource TextColor}"/>
                 </TreeView.Resources>
                 <TreeView.ItemContainerStyle>
@@ -131,7 +132,17 @@
                             <StackPanel>
                                 <TextBlock Text="{Binding Display}" Foreground="{StaticResource TextBrush}"/>
                                 <TextBlock Text="{Binding Detail}" Foreground="{StaticResource TextMutedBrush}"
-                                           FontSize="10.5"/>
+                                           FontSize="10.5">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Detail}" Value="">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                             </StackPanel>
                         </StackPanel>
                     </HierarchicalDataTemplate>
