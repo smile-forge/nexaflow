@@ -87,6 +87,14 @@ public partial class DicomView : UserControl, IPageView
             return;
         }
 
+        // Size the Image element to the bitmap's natural pixels so its layout slot is the full image (not the
+        // viewport). Otherwise a Left/Top-aligned Image clips to the viewport BEFORE the render transform, and
+        // translating a larger-than-viewport image negative (1:1 centre) pushes the visible part off-screen —
+        // the image "disappears". With the natural size set, the Stage's ClipToBounds does the clipping AFTER
+        // the transform, so panning/1:1 shows the correct region.
+        Frame.Width = bmp.PixelWidth;
+        Frame.Height = bmp.PixelHeight;
+
         // Fit only when the image dimensions change (a new instance); window/level re-renders keep the view.
         if (bmp.PixelWidth != _lastImageW || bmp.PixelHeight != _lastImageH)
         {
@@ -153,17 +161,25 @@ public partial class DicomView : UserControl, IPageView
     private void OnStageWheel(object sender, MouseWheelEventArgs e)
     {
         if (_lastImageW <= 0) return;
-        var anchor = e.GetPosition(Stage);
-        var factor = e.Delta > 0 ? 1.15 : 1 / 1.15;
-
-        // Zoom anchored at the cursor: translate anchor to origin, scale, translate back.
-        var m = _view;
-        m.Translate(-anchor.X, -anchor.Y);
-        m.Scale(factor, factor);
-        m.Translate(anchor.X, anchor.Y);
-        _view = m;
-        ApplyTransform();
         e.Handled = true;
+
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
+        {
+            // Ctrl+wheel = zoom, anchored at the cursor.
+            var anchor = e.GetPosition(Stage);
+            var factor = e.Delta > 0 ? 1.15 : 1 / 1.15;
+            var m = _view;
+            m.Translate(-anchor.X, -anchor.Y);
+            m.Scale(factor, factor);
+            m.Translate(anchor.X, anchor.Y);
+            _view = m;
+            ApplyTransform();
+        }
+        else
+        {
+            // Plain wheel = step through the series stack (wheel up → previous slice); zoom/pan is preserved.
+            ViewModel.StepImage(e.Delta > 0 ? -1 : 1);
+        }
     }
 
     private void OnStageLeftDown(object sender, MouseButtonEventArgs e)
@@ -262,17 +278,17 @@ public partial class DicomView : UserControl, IPageView
         if (ViewModel.CurrentBitmap is null) return;
 
         var stroke = (Brush?)TryFindResource("Dicom.AnnotationBrush") ?? Brushes.Gold;
-        var textBrush = (Brush?)TryFindResource("Dicom.OverlayText") ?? Brushes.White;
 
+        // Labels use the same annotation colour as the lines — white washed out over bright regions.
         foreach (var m in ViewModel.Measure.Current)
-            DrawMeasurement(m.Tool, m.Points, m.Label, stroke, textBrush);
+            DrawMeasurement(m.Tool, m.Points, m.Label, stroke, stroke);
 
         // In-progress: draw the pending points plus a preview to the cursor.
         if (_pendingPoints.Count > 0)
         {
             var pts = new List<Point>(_pendingPoints);
             if (previewNext is { } p) pts.Add(p);
-            DrawMeasurement(ViewModel.Measure.ActiveTool, pts, null, stroke, textBrush);
+            DrawMeasurement(ViewModel.Measure.ActiveTool, pts, null, stroke, stroke);
         }
     }
 

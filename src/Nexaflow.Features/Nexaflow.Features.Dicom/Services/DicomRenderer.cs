@@ -44,11 +44,10 @@ internal sealed class DicomRenderer
         set => _image.WindowCenter = value;
     }
 
-    public bool Invert
-    {
-        get => _image.Invert;
-        set => _image.Invert = value;
-    }
+    /// <summary>Photographic-negative of the windowed output. We invert the rendered BGRA ourselves rather
+    /// than toggle <see cref="DicomImage.Invert"/> — toggling that flag on a reused image corrupts its
+    /// pipeline (it washes the frame to solid white instead of inverting).</summary>
+    public bool Invert { get; set; }
 
     /// <summary>Renders <paramref name="frame"/> at the current window/level as a frozen BGRA32 bitmap
     /// (frozen so it can cross threads to the UI safely).</summary>
@@ -58,6 +57,14 @@ internal sealed class DicomRenderer
         var bytes = img.As<byte[]>();
         var w = img.Width;
         var h = img.Height;
+
+        if (Invert)
+            for (var i = 0; i + 3 < bytes.Length; i += 4)   // BGRA — invert colour channels, keep alpha
+            {
+                bytes[i]     = (byte)(255 - bytes[i]);
+                bytes[i + 1] = (byte)(255 - bytes[i + 1]);
+                bytes[i + 2] = (byte)(255 - bytes[i + 2]);
+            }
 
         var bmp = new WriteableBitmap(w, h, 96, 96, PixelFormats.Bgra32, null);
         bmp.WritePixels(new System.Windows.Int32Rect(0, 0, w, h), bytes, w * 4, 0);

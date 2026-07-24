@@ -18,7 +18,7 @@ internal static class DicomTestFiles
     /// the reader's large-tag threshold, which is what distinguishes a real image from a report on load.</summary>
     public static string WriteImage(string dir, string fileName, string patientId, string patientName,
                                     string studyUid, string seriesUid, string sopUid, int frames = 1,
-                                    string modality = "CT", int dim = 4)
+                                    string modality = "CT", int dim = 4, int instanceNumber = 1)
     {
         int rows = dim, cols = dim;
         var ds = new DicomDataset
@@ -31,7 +31,7 @@ internal static class DicomTestFiles
             { DicomTag.SeriesInstanceUID, seriesUid },
             { DicomTag.Modality, modality },
             { DicomTag.SeriesNumber, "1" },
-            { DicomTag.InstanceNumber, "1" },
+            { DicomTag.InstanceNumber, instanceNumber.ToString() },
             { DicomTag.SamplesPerPixel, (ushort)1 },
             { DicomTag.PhotometricInterpretation, "MONOCHROME2" },
             { DicomTag.Rows, (ushort)rows },

@@ -251,14 +251,22 @@ internal static class DicomContainerLoader
                         Detail = $"{seriesItems.Count} instance{(seriesItems.Count == 1 ? "" : "s")}",
                     };
 
+                    // Order slices by InstanceNumber so the tree — and scroll-wheel stepping — follow the stack.
+                    var ordered = seriesItems
+                        .OrderBy(x => DicomTags.Int(x.Ds, DicomTag.InstanceNumber, int.MaxValue))
+                        .ToList();
                     var instNo = 0;
-                    foreach (var (info, iDs) in seriesItems)
+                    var seriesImages = new List<DicomNode>();
+                    foreach (var (info, iDs) in ordered)
                     {
                         instNo++;
                         var leaf = BuildLeaf(info, iDs, instNo);
                         series.Children.Add(leaf);
-                        (info.IsImage ? images : reports).Add(leaf);
+                        if (info.IsImage) { images.Add(leaf); seriesImages.Add(leaf); }
+                        else reports.Add(leaf);
                     }
+                    // Share the ordered image list with each image so the wheel can step within the series.
+                    foreach (var img in seriesImages) img.SeriesImages = seriesImages;
 
                     study.Children.Add(series);
                 }

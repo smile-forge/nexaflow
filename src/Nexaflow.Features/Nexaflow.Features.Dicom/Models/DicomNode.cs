@@ -63,6 +63,10 @@ public sealed partial class DicomNode : ObservableObject
     /// <summary>Instance metadata (frame count, geometry, modality) — populated for leaves. Non-identifying.</summary>
     public DicomInstanceInfo? Instance { get; init; }
 
+    /// <summary>For an image leaf: the ordered image instances of its series (shared by every image in the
+    /// series), so the scroll wheel can step through the stack. Null for grouping/report nodes.</summary>
+    public IReadOnlyList<DicomNode>? SeriesImages { get; set; }
+
     public DicomNode() => Display = Label;
 
     /// <summary>Switches this node and its subtree between real and de-identified labels.</summary>

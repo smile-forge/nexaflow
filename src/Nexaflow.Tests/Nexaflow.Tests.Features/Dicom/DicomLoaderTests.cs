@@ -112,6 +112,27 @@ public class DicomLoaderTests
     }
 
     [TestMethod]
+    public void Load_Series_OrdersByInstanceNumber_AndLinksSeriesImages()
+    {
+        // Written out of order (instance 3, 1, 2); the loaded series must be ordered 1, 2, 3.
+        DicomTestFiles.WriteImage(_tmp, "c.dcm", "PX", "A^B", "1.9.3", "1.9.3.1", "1.9.3.1.3", instanceNumber: 3);
+        DicomTestFiles.WriteImage(_tmp, "a.dcm", "PX", "A^B", "1.9.3", "1.9.3.1", "1.9.3.1.1", instanceNumber: 1);
+        DicomTestFiles.WriteImage(_tmp, "b.dcm", "PX", "A^B", "1.9.3", "1.9.3.1", "1.9.3.1.2", instanceNumber: 2);
+
+        var container = DicomContainerLoader.Load([_tmp]);
+
+        Assert.AreEqual(3, container.Images.Count);
+        CollectionAssert.AreEqual(
+            new[] { "Image 1", "Image 2", "Image 3" },
+            container.Images.Select(i => i.Label).ToArray(),
+            "slices must be ordered by InstanceNumber");
+        // Every image shares the same ordered series list, so the wheel can step through it.
+        Assert.IsNotNull(container.Images[0].SeriesImages);
+        Assert.AreEqual(3, container.Images[0].SeriesImages!.Count);
+        Assert.AreSame(container.Images[0].SeriesImages, container.Images[2].SeriesImages);
+    }
+
+    [TestMethod]
     public void Load_LargePixelData_ClassifiedAsImage_NotReport()
     {
         // The loader opens headers with SkipLargeTags, which DROPS PixelData for real (large) images. Image

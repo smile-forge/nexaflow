@@ -86,20 +86,37 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="0" Margin="12,10">
-                <TextBlock Text="Contents" FontWeight="SemiBold" FontSize="14" Foreground="{StaticResource TextBrush}"/>
-                <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextMutedBrush}"
-                           FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
-            </StackPanel>
+            <!-- Header: "Contents" on the left, the Hide-patient toggle in line on the right. -->
+            <Grid Grid.Row="0" Margin="12,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Contents" FontWeight="SemiBold" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                    <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextMutedBrush}"
+                               FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                </StackPanel>
+                <ToggleButton Grid.Column="1" Content="Hide patient" VerticalAlignment="Top" Margin="8,0,0,0"
+                              Style="{StaticResource TbToggle}"
+                              IsChecked="{Binding HidePatientInfo, Mode=TwoWay}"
+                              ToolTip="Mask patient name / ID / date of birth in the tree and overlay"/>
+            </Grid>
 
             <TreeView x:Name="Tree" Grid.Row="1" ItemsSource="{Binding Patients}"
                       SelectedItemChanged="OnTreeSelectionChanged"
                       Background="Transparent" BorderThickness="0"
                       Foreground="{StaticResource TextBrush}"
                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <TreeView.Resources>
+                    <!-- Theme the selection so an inactive (unfocused) selection isn't a bright-white block. -->
+                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="{DynamicResource Surface2Color}"/>
+                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="{DynamicResource TextColor}"/>
+                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="{DynamicResource Surface2Color}"/>
+                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="{DynamicResource TextColor}"/>
+                </TreeView.Resources>
                 <TreeView.ItemContainerStyle>
                     <Style TargetType="TreeViewItem">
                         <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
@@ -109,7 +126,8 @@
                 <TreeView.ItemTemplate>
                     <HierarchicalDataTemplate ItemsSource="{Binding Children}">
                         <StackPanel Orientation="Horizontal" Margin="0,2">
-                            <TextBlock Text="{Binding Glyph}" Margin="0,0,6,0"/>
+                            <TextBlock Text="{Binding Glyph}" Margin="0,0,6,0"
+                                       Foreground="{StaticResource TextMutedBrush}"/>
                             <StackPanel>
                                 <TextBlock Text="{Binding Display}" Foreground="{StaticResource TextBrush}"/>
                                 <TextBlock Text="{Binding Detail}" Foreground="{StaticResource TextMutedBrush}"
@@ -119,11 +137,6 @@
                     </HierarchicalDataTemplate>
                 </TreeView.ItemTemplate>
             </TreeView>
-
-            <ToggleButton Grid.Row="2" Content="Hide patient info" Margin="12,8" HorizontalAlignment="Left"
-                          Style="{StaticResource TbToggle}"
-                          IsChecked="{Binding HidePatientInfo, Mode=TwoWay}"
-                          ToolTip="Mask patient name / ID / date of birth in the tree and overlay"/>
         </Grid>
 
         <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
@@ -172,10 +185,23 @@
 
                     <Border Width="1" Background="{StaticResource BorderBrush}" Margin="6,2"/>
 
-                    <Button Content="Bone" Style="{StaticResource TbBtn}" Command="{Binding ApplyWindowPresetCommand}" CommandParameter="bone"/>
-                    <Button Content="Lung" Style="{StaticResource TbBtn}" Command="{Binding ApplyWindowPresetCommand}" CommandParameter="lung"/>
-                    <Button Content="Soft" Style="{StaticResource TbBtn}" Command="{Binding ApplyWindowPresetCommand}" CommandParameter="soft"/>
-                    <Button Content="Brain" Style="{StaticResource TbBtn}" Command="{Binding ApplyWindowPresetCommand}" CommandParameter="brain"/>
+                    <!-- Window presets: the active one highlights; "Default" restores the image's native W/L. -->
+                    <RadioButton GroupName="wl" Content="Default" Style="{StaticResource TbToggle}"
+                                 Command="{Binding ApplyWindowPresetCommand}" CommandParameter="default"
+                                 IsChecked="{Binding ActivePreset, Converter={StaticResource EnumToBool}, ConverterParameter=default, Mode=OneWay}"
+                                 ToolTip="Restore the image's original window/level"/>
+                    <RadioButton GroupName="wl" Content="Bone" Style="{StaticResource TbToggle}"
+                                 Command="{Binding ApplyWindowPresetCommand}" CommandParameter="bone"
+                                 IsChecked="{Binding ActivePreset, Converter={StaticResource EnumToBool}, ConverterParameter=bone, Mode=OneWay}"/>
+                    <RadioButton GroupName="wl" Content="Lung" Style="{StaticResource TbToggle}"
+                                 Command="{Binding ApplyWindowPresetCommand}" CommandParameter="lung"
+                                 IsChecked="{Binding ActivePreset, Converter={StaticResource EnumToBool}, ConverterParameter=lung, Mode=OneWay}"/>
+                    <RadioButton GroupName="wl" Content="Soft" Style="{StaticResource TbToggle}"
+                                 Command="{Binding ApplyWindowPresetCommand}" CommandParameter="soft"
+                                 IsChecked="{Binding ActivePreset, Converter={StaticResource EnumToBool}, ConverterParameter=soft, Mode=OneWay}"/>
+                    <RadioButton GroupName="wl" Content="Brain" Style="{StaticResource TbToggle}"
+                                 Command="{Binding ApplyWindowPresetCommand}" CommandParameter="brain"
+                                 IsChecked="{Binding ActivePreset, Converter={StaticResource EnumToBool}, ConverterParameter=brain, Mode=OneWay}"/>
                 </WrapPanel>
             </Border>
 

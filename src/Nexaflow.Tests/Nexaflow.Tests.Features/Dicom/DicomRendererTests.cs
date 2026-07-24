@@ -60,6 +60,23 @@ public class DicomRendererTests
     }
 
     [TestMethod]
+    [CoversNode("window-level")]
+    public void Invert_ProducesPhotographicNegative_NotSolidWhite()
+    {
+        var r = new DicomRenderer(SampleDcm) { Invert = false };
+        r.WindowWidth = 256; r.WindowCenter = 128;
+        var normal = ToBytes(r.Render(0));
+
+        r.Invert = true;
+        var inverted = ToBytes(r.Render(0));
+
+        // Every colour channel must be the negative of normal (alpha untouched) — not washed to 255.
+        for (var i = 0; i + 3 < normal.Length; i += 4)
+            for (var c = 0; c < 3; c++)
+                Assert.AreEqual(255 - normal[i + c], inverted[i + c], $"channel {c} at {i} must invert");
+    }
+
+    [TestMethod]
     [CoversNode("cine")]
     public void MultiFrame_ReportsFrameCount_AndRendersEachFrame()
     {

@@ -33,6 +33,8 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
 
     private DicomRenderer? _renderer;
     private CancellationTokenSource? _renderCts;
+    private IReadOnlyList<DicomNode>? _currentSeries;   // the series being scrolled (to persist W/L across it)
+    private double _defaultWidth, _defaultCenter;        // the current image's native window (for Reset)
 
     public MeasurementViewModel Measure { get; } = new();
 
@@ -52,6 +54,7 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
     [ObservableProperty] private double _windowWidth;
     [ObservableProperty] private double _windowCenter;
     [ObservableProperty] private bool _invert;
+    [ObservableProperty] private string _activePreset = "default";   // default | bone | lung | soft | brain | custom
     [ObservableProperty] private string _probeText = string.Empty;
     [ObservableProperty] private string _techOverlay = string.Empty;
     [ObservableProperty] private string _patientOverlay = string.Empty;
@@ -118,24 +121,56 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
         if (value is null) return;
         value.IsSelected = true;
 
-        if (value.Kind == DicomNodeKind.Image && value.FilePath is not null && value.Instance is not null)
-            _ = OpenImageAsync(value);
-        else if (value.Kind == DicomNodeKind.Report && value.FilePath is not null)
-            OpenReport(value);
+        switch (value.Kind)
+        {
+            case DicomNodeKind.Image when value.FilePath is not null && value.Instance is not null:
+                _ = OpenImageAsync(value);
+                break;
+            case DicomNodeKind.Report when value.FilePath is not null:
+                ClearImage();
+                OpenReport(value);
+                break;
+            default:
+                // A Patient/Study/Series container — jump to its first image so the pane and tools are live.
+                if (value.SelfAndDescendants().FirstOrDefault(n => n.Kind == DicomNodeKind.Image) is { } firstImage)
+                    SelectedNode = firstImage;
+                break;
+        }
+    }
+
+    /// <summary>Steps the selected image within its series (scroll wheel). Clamped at the ends — no wrap.</summary>
+    public void StepImage(int delta)
+    {
+        if (SelectedNode is not { Kind: DicomNodeKind.Image, SeriesImages: { Count: > 1 } imgs }) return;
+        var i = -1;
+        for (var k = 0; k < imgs.Count; k++)
+            if (ReferenceEquals(imgs[k], SelectedNode)) { i = k; break; }
+        if (i < 0) return;
+        var next = Math.Clamp(i + delta, 0, imgs.Count - 1);
+        if (next != i) SelectedNode = imgs[next];
     }
 
     private async Task OpenImageAsync(DicomNode node)
     {
         StopCine();
+        // Keep the window/level, invert and preset while scrolling within one series; reset them for a new one.
+        var sameSeries = node.SeriesImages is not null && ReferenceEquals(node.SeriesImages, _currentSeries);
+        _currentSeries = node.SeriesImages;
         try
         {
             var renderer = await Task.Run(() => new DicomRenderer(node.FilePath!), _cts.Token);
             _renderer = renderer;
             FrameCount = Math.Max(1, renderer.Frames);
             FrameIndex = 0;
-            WindowWidth = renderer.WindowWidth;
-            WindowCenter = renderer.WindowCenter;
-            Invert = renderer.Invert;
+            _defaultWidth = renderer.WindowWidth;
+            _defaultCenter = renderer.WindowCenter;
+            if (!sameSeries)
+            {
+                WindowWidth = renderer.WindowWidth;
+                WindowCenter = renderer.WindowCenter;
+                Invert = false;
+                ActivePreset = "default";
+            }
             OnPropertyChanged(nameof(MultiFrame));
 
             Measure.SetFrame(node.Instance, 0);
@@ -151,6 +186,18 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
                 ? $"Cannot render — {i.TransferSyntaxName} ({i.TransferSyntaxUid}): {ex.Message}"
                 : ex.Message;
         }
+    }
+
+    private void ClearImage()
+    {
+        StopCine();
+        _renderer = null;
+        _currentSeries = null;
+        CurrentBitmap = null;
+        FrameCount = 1;
+        FrameIndex = 0;
+        OnPropertyChanged(nameof(MultiFrame));
+        Measure.SetFrame(null, 0);
     }
 
     /// <summary>Renders the current frame at the current window/level off the UI thread.</summary>
@@ -218,13 +265,26 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
         if (_renderer is null) return;
         WindowWidth = Math.Max(1, WindowWidth + deltaWidth);
         WindowCenter += deltaCenter;
+        ActivePreset = "custom";
         _ = RenderAsync();
     }
 
     [RelayCommand]
     private void ApplyWindowPreset(string preset)
     {
-        // CT presets in HU (width/center). Ignored silently for non-CT — still useful on any grayscale image.
+        if (_renderer is null) return;
+
+        // "default" restores the image's native window (the Reset control).
+        if (preset is "default")
+        {
+            WindowWidth = _defaultWidth;
+            WindowCenter = _defaultCenter;
+            ActivePreset = "default";
+            _ = RenderAsync();
+            return;
+        }
+
+        // CT presets in HU (width/center). Ignored for an unknown key; still useful on any grayscale image.
         (double w, double c)? p = preset switch
         {
             "bone" => (2000, 400),
@@ -233,9 +293,10 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
             "brain" => (80, 40),
             _ => null,
         };
-        if (p is null || _renderer is null) return;
+        if (p is null) return;
         WindowWidth = p.Value.w;
         WindowCenter = p.Value.c;
+        ActivePreset = preset;
         _ = RenderAsync();
     }
 
