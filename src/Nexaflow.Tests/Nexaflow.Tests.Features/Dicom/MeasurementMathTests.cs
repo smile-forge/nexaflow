@@ -17,7 +17,7 @@ public class MeasurementMathTests
         IsImage: true, IsEncapsulatedDocument: false, EncapsulatedMimeType: null,
         PixelSpacingX: spacing, PixelSpacingY: spacing, RescaleSlope: 1, RescaleIntercept: -1024,
         DefaultWindowWidth: 256, DefaultWindowCenter: 128, TransferSyntaxUid: "1.2.840.10008.1.2.1",
-        TransferSyntaxName: "Explicit VR LE");
+        TransferSyntaxName: "Explicit VR LE", StudyDescription: "", SeriesDescription: "", BodyPart: "");
 
     private static DicomInstanceInfo Uncalibrated() => Calibrated(0) with { PixelSpacingX = null, PixelSpacingY = null };
 

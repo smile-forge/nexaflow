@@ -77,10 +77,41 @@ public partial class DicomView : UserControl, IPageView
         if (e.OriginalSource is TreeViewItem item) item.BringIntoView();
     }
 
+    // ── Tag drawer: width (resizable, remembered across toggles) + copy ────
+
+    private double _drawerWidth = 340;
+
+    private void OnTagsDrawerToggled()
+    {
+        if (ViewModel.TagsOpen)
+        {
+            DrawerCol.Width = new GridLength(_drawerWidth);
+        }
+        else
+        {
+            if (DrawerCol.ActualWidth > 40) _drawerWidth = DrawerCol.ActualWidth;   // remember the resized width
+            DrawerCol.Width = new GridLength(0);
+        }
+    }
+
+    private void OnCopyTagValue(object sender, RoutedEventArgs e) => CopyTag(sender, t => t.Value);
+    private void OnCopyTagName(object sender, RoutedEventArgs e) => CopyTag(sender, t => t.Name);
+    private void OnCopyTagId(object sender, RoutedEventArgs e) => CopyTag(sender, t => t.Tag);
+    private void OnCopyTagRow(object sender, RoutedEventArgs e) => CopyTag(sender, t => $"{t.Tag}\t{t.Name}\t{t.Value}");
+
+    private static void CopyTag(object sender, System.Func<DicomTagItem, string> pick)
+    {
+        // The menu item's ContextMenu is opened over the tag row; its DataContext is the DicomTagItem.
+        if (sender is MenuItem { Parent: ContextMenu { PlacementTarget: FrameworkElement { DataContext: DicomTagItem item } } })
+            try { Clipboard.SetText(pick(item) ?? string.Empty); } catch { /* clipboard busy */ }
+    }
+
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(DicomViewModel.CurrentBitmap))
             OnBitmapChanged();
+        else if (e.PropertyName == nameof(DicomViewModel.TagsOpen))
+            OnTagsDrawerToggled();
     }
 
     // ── Bitmap / transform ────────────────────────────────────────────────

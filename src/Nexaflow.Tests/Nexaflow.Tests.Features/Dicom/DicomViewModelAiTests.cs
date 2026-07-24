@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Nodes;
 using System.Threading;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
@@ -69,6 +70,70 @@ public class DicomViewModelAiTests
         }
         finally { vm.Dispose(); }
     }
+
+    [TestMethod]
+    [CoversNode("ai-integration")]
+    public void ClientTools_ExposeTagAndNavigationSurface()
+    {
+        var vm = LoadedVm();
+        try
+        {
+            var names = vm.GetClientTools().Select(t => t.Name).ToList();
+            foreach (var n in new[] { "dicom_list_contents", "dicom_view_image", "dicom_read_tags",
+                                      "dicom_get_current_image_info", "dicom_capture_image" })
+                CollectionAssert.Contains(names, n);
+        }
+        finally { vm.Dispose(); }
+    }
+
+    [TestMethod]
+    [CoversNode("ai-integration")]
+    public void ReadTagsTool_IsDeidentified_EvenThoughHideIsOff()
+    {
+        var vm = LoadedVm();
+        try
+        {
+            Assert.IsFalse(vm.HidePatientInfo, "the UI toggle is off …");
+            var tool = vm.GetClientTools().First(t => t.Name == "dicom_read_tags");
+            var r = Run(tool, new JsonObject());
+            Assert.IsTrue(r.Success);
+            Assert.IsFalse(r.ModelText.Contains("Doe"), "… but the AI tag read still masks the patient name");
+            StringAssert.Contains(r.ModelText, "Modality");
+        }
+        finally { vm.Dispose(); }
+    }
+
+    [TestMethod]
+    [CoversNode("ai-integration")]
+    public void ListContentsTool_ListsSeries_WithoutPhi()
+    {
+        var vm = LoadedVm();
+        try
+        {
+            var r = Run(vm.GetClientTools().First(t => t.Name == "dicom_list_contents"), new JsonObject());
+            StringAssert.Contains(r.ModelText, "Series");
+            StringAssert.Contains(r.ModelText, "images 1-");
+            Assert.IsFalse(r.ModelText.Contains("Doe"));
+        }
+        finally { vm.Dispose(); }
+    }
+
+    [TestMethod]
+    [CoversNode("ai-integration")]
+    public void ViewImageTool_ValidatesIndex()
+    {
+        var vm = LoadedVm();
+        try
+        {
+            var tool = vm.GetClientTools().First(t => t.Name == "dicom_view_image");
+            Assert.IsTrue(Run(tool, new JsonObject { ["index"] = 1 }).Success, "index 1 is valid");
+            Assert.IsFalse(Run(tool, new JsonObject { ["index"] = 99 }).Success, "out-of-range index errors");
+        }
+        finally { vm.Dispose(); }
+    }
+
+    private static ToolResult Run(IClientTool tool, JsonObject args)
+        => tool.InvokeAsync(args, CancellationToken.None).GetAwaiter().GetResult();
 
     [TestMethod]
     [CoversNode("patient-info-toggle")]

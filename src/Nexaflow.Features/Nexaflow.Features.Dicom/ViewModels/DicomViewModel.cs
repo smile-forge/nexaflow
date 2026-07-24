@@ -456,11 +456,15 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
         // De-identified only: never patient name/ID/DOB.
         var sel = SelectedNode?.Instance;
         var selText = sel is null ? "" :
-            $" Currently viewing a {sel.Modality} image {sel.Columns}×{sel.Rows}" +
-            (sel.Frames > 1 ? $" ({sel.Frames} frames, frame {FrameIndex + 1})" : "") +
-            $" at window {WindowWidth:0}/level {WindowCenter:0}.";
+            $" Currently viewing a {sel.Modality} image" +
+            (string.IsNullOrEmpty(sel.SeriesDescription) ? "" : $" from series \"{sel.SeriesDescription}\"") +
+            (string.IsNullOrEmpty(sel.BodyPart) ? "" : $" ({sel.BodyPart})") +
+            $", {sel.Columns}×{sel.Rows}" +
+            (sel.Frames > 1 ? $", {sel.Frames} frames (frame {FrameIndex + 1})" : "") +
+            $", window {WindowWidth:0}/level {WindowCenter:0}.";
         return $"A DICOM viewer showing '{Container.Title}': {Container.Summary}.{selText} " +
-               "Patient identifiers are withheld from this context.";
+               "Call dicom_list_contents for the series/image list, dicom_view_image to display a chosen image, " +
+               "dicom_capture_image to see it, dicom_read_tags for its metadata. Patient identifiers are withheld.";
     }
 
     /// <summary>A stable per-tab scope so two pinned DICOM tabs expose distinctly-named tool contexts
@@ -476,12 +480,22 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
         new DelegateClientTool("dicom_list_contents",
-            "List the de-identified structure of the open DICOM container (studies, series, modalities, image/report counts). No patient identifiers.",
+            "List the de-identified structure of the open container: each series with its modality, description, body part, image count and the 1-based image index range you can pass to dicom_view_image. No patient identifiers.",
             [], ToolSafety.SafeOperation, (_, _) => Task.FromResult(ListContentsResult())),
 
+        new DelegateClientTool("dicom_view_image",
+            "Display a specific image (so you can then capture it). Argument 'index' is 1-based, from dicom_list_contents.",
+            [new ClientToolParameter("index", "1-based image index within the container", Required: true, Type: "number")],
+            ToolSafety.SafeOperation, async (args, _) => await ViewImageResultAsync(ToolArgs.Int(args, "index", 0))),
+
         new DelegateClientTool("dicom_get_current_image_info",
-            "Report the currently displayed image's modality, geometry, frame position and window/level. No patient identifiers.",
+            "Report the currently displayed image's modality, series, geometry, frame position and window/level. No patient identifiers.",
             [], ToolSafety.SafeOperation, (_, _) => Task.FromResult(CurrentImageInfoResult())),
+
+        new DelegateClientTool("dicom_read_tags",
+            "Read the current image's DICOM tags (de-identified — patient identifiers are masked). Optional 'query' filters by tag id, name or value.",
+            [new ClientToolParameter("query", "optional filter over tag id / name / value", Required: false)],
+            ToolSafety.SafeOperation, (args, _) => Task.FromResult(ReadTagsResult(ToolArgs.Str(args, "query")))),
 
         new DelegateClientTool("dicom_next_frame", "Advance to the next frame of a multi-frame image.",
             [], ToolSafety.SafeOperation, (_, _) => { NextFrame(); return Task.FromResult(CurrentImageInfoResult()); }),
@@ -497,23 +511,87 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
     public ContextSecurityRisk GetContextSecurityRisk() => ContextSecurityRisk.Medium;
 
     public string? GetAiSystemPromptGuidance() =>
-        "This is a read-only medical DICOM viewer. Patient-identifying data (name, ID, date of birth, " +
-        "accession) is deliberately withheld from your context and tools — describe imaging findings and " +
-        "study structure only, and never claim to know the patient's identity.";
+        "This is a read-only medical DICOM viewer. To understand the study: dicom_list_contents gives the " +
+        "series (modality, description, body part, image counts, index ranges); dicom_view_image displays a " +
+        "chosen image and dicom_capture_image lets you actually see it; dicom_read_tags exposes its metadata. " +
+        "Patient-identifying data (name, ID, date of birth, accession, physician/institution) is deliberately " +
+        "withheld from your context and every tool — describe imaging findings and study structure only, and " +
+        "never claim to know the patient's identity.";
 
     private ToolResult ListContentsResult()
     {
-        if (Container is null) return ToolResult.Error("No DICOM content loaded.");
-        return ToolResult.Ok(Container.Summary,
-            $"{Container.Summary}\nImages: {Container.Images.Count}, reports: {Container.Reports.Count}.");
+        if (Container is null || Container.IsEmpty) return ToolResult.Error("No DICOM content loaded.");
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine(Container.Summary + ".");
+
+        // Group the flat, tree-ordered image list back into its series (contiguous by shared SeriesImages ref)
+        // and report each with the 1-based index range for dicom_view_image.
+        var images = Container.Images;
+        int i = 0, seriesNo = 0;
+        while (i < images.Count)
+        {
+            var series = images[i].SeriesImages;
+            int start = i;
+            while (i < images.Count && ReferenceEquals(images[i].SeriesImages, series)) i++;
+            seriesNo++;
+            var info = images[start].Instance!;
+            var desc = string.IsNullOrEmpty(info.SeriesDescription) ? "" : $" \"{info.SeriesDescription}\"";
+            var body = string.IsNullOrEmpty(info.BodyPart) ? "" : $", {info.BodyPart}";
+            var frames = info.Frames > 1 ? $", {info.Frames} frames each" : "";
+            var study = string.IsNullOrEmpty(info.StudyDescription) ? "" : $" [study: {info.StudyDescription}]";
+            sb.AppendLine($"Series {seriesNo}: {info.Modality}{desc}{body} — images {start + 1}-{i} ({i - start} image(s){frames}){study}");
+        }
+        if (Container.Reports.Count > 0)
+            sb.AppendLine($"{Container.Reports.Count} encapsulated report(s).");
+
+        return ToolResult.Ok(Container.Summary, sb.ToString().TrimEnd());
+    }
+
+    private async Task<ToolResult> ViewImageResultAsync(int index)
+    {
+        if (Container is null || Container.IsEmpty) return ToolResult.Error("No DICOM content loaded.");
+        if (index < 1 || index > Container.Images.Count)
+            return ToolResult.Error($"index must be between 1 and {Container.Images.Count}.");
+
+        var node = Container.Images[index - 1];
+        SelectedNode = node;            // updates the tree/pane on the UI thread
+        await OpenImageAsync(node);     // ensure it's rendered before the model captures it
+        return ToolResult.Ok($"Now viewing image {index}.", CurrentImageInfoText());
+    }
+
+    private string CurrentImageInfoText()
+    {
+        if (SelectedNode?.Instance is not { } i) return "No image is selected.";
+        var series = string.IsNullOrEmpty(i.SeriesDescription) ? "" : $", series \"{i.SeriesDescription}\"";
+        var body = string.IsNullOrEmpty(i.BodyPart) ? "" : $", {i.BodyPart}";
+        return $"{i.Modality} image{series}{body}, {i.Columns}×{i.Rows}px, {i.Frames} frame(s), showing frame " +
+               $"{FrameIndex + 1}, window {WindowWidth:0}/level {WindowCenter:0}, transfer syntax {i.TransferSyntaxName}.";
     }
 
     private ToolResult CurrentImageInfoResult()
     {
-        if (SelectedNode?.Instance is not { } i) return ToolResult.Error("No image is selected.");
-        return ToolResult.Ok($"{i.Modality} {i.Columns}×{i.Rows}",
-            $"{i.Modality} image, {i.Columns}×{i.Rows}px, {i.Frames} frame(s), showing frame {FrameIndex + 1}, " +
-            $"window {WindowWidth:0}/level {WindowCenter:0}, transfer syntax {i.TransferSyntaxName}.");
+        if (SelectedNode?.Instance is null) return ToolResult.Error("No image is selected.");
+        return ToolResult.Ok($"{SelectedNode.Instance.Modality} {SelectedNode.Instance.Columns}×{SelectedNode.Instance.Rows}",
+            CurrentImageInfoText());
+    }
+
+    private ToolResult ReadTagsResult(string? query)
+    {
+        if (SelectedNode?.FilePath is not { } path) return ToolResult.Error("No instance is selected.");
+
+        // ALWAYS de-identified for the AI, regardless of the UI's Hide-patient toggle.
+        var tags = DicomTagReader.Read(path, hidePatient: true);
+        if (!string.IsNullOrEmpty(query))
+            tags = tags.Where(t =>
+                t.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                t.Tag.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                t.Value.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        if (tags.Count == 0) return ToolResult.Ok("No matching tags.", "No matching tags.");
+        var text = string.Join("\n", tags.Take(250).Select(t => $"{t.Tag} {t.Name} [{t.Vr}] = {t.Value}"));
+        if (tags.Count > 250) text += $"\n… (+{tags.Count - 250} more; narrow with 'query')";
+        return ToolResult.Ok($"{tags.Count} tag(s).", text);
     }
 
     private ToolResult CaptureImageResult()

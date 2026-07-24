@@ -21,7 +21,10 @@ public sealed record DicomInstanceInfo(
     double? DefaultWindowWidth,
     double? DefaultWindowCenter,
     string TransferSyntaxUid,
-    string TransferSyntaxName)
+    string TransferSyntaxName,
+    string StudyDescription,
+    string SeriesDescription,
+    string BodyPart)
 {
     /// <summary>True when pixels can be measured in millimetres (PixelSpacing/ImagerPixelSpacing present).</summary>
     public bool HasSpatialCalibration => PixelSpacingX is > 0 && PixelSpacingY is > 0;

@@ -186,7 +186,10 @@ internal static class DicomContainerLoader
             DefaultWindowWidth: DicomTags.Double(ds, DicomTag.WindowWidth),
             DefaultWindowCenter: DicomTags.Double(ds, DicomTag.WindowCenter),
             TransferSyntaxUid: ts?.UID.UID ?? string.Empty,
-            TransferSyntaxName: ts?.UID.Name ?? "Unknown");
+            TransferSyntaxName: ts?.UID.Name ?? "Unknown",
+            StudyDescription: DicomTags.Str(ds, DicomTag.StudyDescription),
+            SeriesDescription: DicomTags.Str(ds, DicomTag.SeriesDescription),
+            BodyPart: DicomTags.Str(ds, DicomTag.BodyPartExamined));
     }
 
     // ── Tree assembly ─────────────────────────────────────────────────────
