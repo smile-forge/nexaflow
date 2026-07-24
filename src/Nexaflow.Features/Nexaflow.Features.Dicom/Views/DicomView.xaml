@@ -153,8 +153,14 @@
         <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
                       Background="{StaticResource BorderBrush}"/>
 
-        <!-- ── Image pane ────────────────────────────────────────────────── -->
+        <!-- ── Image pane (+ collapsible tag drawer on the right) ──────────── -->
         <Grid Grid.Column="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Grid Grid.Column="0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
@@ -165,7 +171,11 @@
             <!-- Toolbar -->
             <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="0,0,0,1" Padding="8,6">
-                <WrapPanel Orientation="Horizontal" IsEnabled="{Binding HasImage}">
+                <DockPanel>
+                    <ToggleButton DockPanel.Dock="Right" Content="Tags" Style="{StaticResource TbToggle}"
+                                  IsChecked="{Binding TagsOpen, Mode=TwoWay}" IsEnabled="{Binding HasInstance}"
+                                  Margin="8,0,0,0" ToolTip="Show the DICOM tags for this instance"/>
+                    <WrapPanel Orientation="Horizontal" IsEnabled="{Binding HasImage}">
                     <Button Content="Fit" Style="{StaticResource TbBtn}" Click="OnFit" ToolTip="Fit image to window"/>
                     <Button Content="1:1" Style="{StaticResource TbBtn}" Click="OnActualSize" ToolTip="Actual size"/>
                     <ToggleButton Content="Invert" Style="{StaticResource TbToggle}" IsChecked="{Binding Invert, Mode=TwoWay}"
@@ -213,7 +223,8 @@
                     <RadioButton GroupName="wl" Content="Brain" Style="{StaticResource TbToggle}"
                                  Command="{Binding ApplyWindowPresetCommand}" CommandParameter="brain"
                                  IsChecked="{Binding ActivePreset, Converter={StaticResource EnumToBool}, ConverterParameter=brain, Mode=OneWay}"/>
-                </WrapPanel>
+                    </WrapPanel>
+                </DockPanel>
             </Border>
 
             <!-- Stage: rendered frame + measurement overlay + text overlays -->
@@ -266,6 +277,45 @@
             <TextBlock Grid.Row="3" Text="{Binding StatusText}" Foreground="{StaticResource TextMutedBrush}"
                        FontSize="10.5" Margin="10,4" TextTrimming="CharacterEllipsis"
                        Visibility="{Binding HasImage, Converter={StaticResource BoolToVis}}"/>
+            </Grid>
+
+            <!-- DICOM tag drawer (right side, collapsible; closed by default) -->
+            <Border Grid.Column="1" Width="340" Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0"
+                    Visibility="{Binding TagsOpen, Converter={StaticResource BoolToVis}}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="DICOM Tags" FontWeight="SemiBold" FontSize="13"
+                               Foreground="{StaticResource TextBrush}" Margin="12,10,12,6"/>
+                    <TextBox Grid.Row="1" Margin="12,0,12,8" Padding="6,3"
+                             Text="{Binding TagFilter, UpdateSourceTrigger=PropertyChanged}"
+                             Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
+                             BorderBrush="{StaticResource BorderBrush}" CaretBrush="{StaticResource TextBrush}"
+                             ToolTip="Filter by tag, name or value"/>
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,0,0,8">
+                        <ItemsControl ItemsSource="{Binding Tags}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="12,3">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding Tag}"
+                                                       Foreground="{StaticResource TextMutedBrush}" FontSize="10" Margin="6,0,0,0"/>
+                                            <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}"
+                                                       FontSize="11.5" TextTrimming="CharacterEllipsis"/>
+                                        </DockPanel>
+                                        <TextBlock Text="{Binding Value}" Foreground="{StaticResource TextMutedBrush}"
+                                                   FontSize="11" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
         </Grid>
     </Grid>
 </UserControl>

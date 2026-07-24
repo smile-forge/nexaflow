@@ -45,7 +45,17 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasImage))]
+    [NotifyPropertyChangedFor(nameof(HasInstance))]
     private DicomNode? _selectedNode;
+
+    // ── DICOM tag drawer ──────────────────────────────────────────────────
+    [ObservableProperty] private bool _tagsOpen;
+    [ObservableProperty] private string _tagFilter = string.Empty;
+    [ObservableProperty] private ObservableCollection<DicomTagItem> _tags = [];
+    private IReadOnlyList<DicomTagItem> _allTags = [];
+
+    /// <summary>True when a node with an on-disk/virtual instance is selected — gates the tag drawer.</summary>
+    public bool HasInstance => SelectedNode?.FilePath is not null;
 
     [ObservableProperty] private BitmapSource? _currentBitmap;
     [ObservableProperty] private int _frameIndex;
@@ -125,10 +135,12 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
         {
             case DicomNodeKind.Image when value.FilePath is not null && value.Instance is not null:
                 _ = OpenImageAsync(value);
+                LoadTagsIfOpen();
                 break;
             case DicomNodeKind.Report when value.FilePath is not null:
                 ClearImage();
                 OpenReport(value);
+                LoadTagsIfOpen();
                 break;
             default:
                 // A Patient/Study/Series container — jump to its first image so the pane and tools are live.
@@ -335,9 +347,46 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
 
     [RelayCommand] private void ClearMeasurements() => Measure.Clear();
 
+    // ── DICOM tag drawer ──────────────────────────────────────────────────
+
+    [RelayCommand] private void ToggleTags() => TagsOpen = !TagsOpen;
+
+    partial void OnTagsOpenChanged(bool value) { if (value) _ = LoadTagsAsync(); }
+    partial void OnTagFilterChanged(string value) => ApplyTagFilter();
+
+    private void LoadTagsIfOpen() { if (TagsOpen) _ = LoadTagsAsync(); }
+
+    private async Task LoadTagsAsync()
+    {
+        if (SelectedNode?.FilePath is not { } path) { _allTags = []; Tags = []; return; }
+        var hide = HidePatientInfo;
+        try
+        {
+            _allTags = await Task.Run(() => DicomTagReader.Read(path, hide), _cts.Token);
+            ApplyTagFilter();
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private void ApplyTagFilter()
+    {
+        var f = TagFilter?.Trim();
+        IEnumerable<DicomTagItem> q = _allTags;
+        if (!string.IsNullOrEmpty(f))
+            q = _allTags.Where(t =>
+                t.Name.Contains(f, StringComparison.OrdinalIgnoreCase) ||
+                t.Tag.Contains(f, StringComparison.OrdinalIgnoreCase) ||
+                t.Value.Contains(f, StringComparison.OrdinalIgnoreCase));
+        Tags = new ObservableCollection<DicomTagItem>(q);
+    }
+
     // ── PHI ───────────────────────────────────────────────────────────────
 
-    partial void OnHidePatientInfoChanged(bool value) => Container?.ApplyPhiMask(value);
+    partial void OnHidePatientInfoChanged(bool value)
+    {
+        Container?.ApplyPhiMask(value);
+        LoadTagsIfOpen();   // re-read so identifying tag values mask/unmask
+    }
 
     [RelayCommand] private void ToggleHidePatientInfo() => HidePatientInfo = !HidePatientInfo;
 
