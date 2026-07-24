@@ -45,6 +45,7 @@
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Compressed.Modern\Nexaflow.Features.Compressed.Modern.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Compressed.SecureZip\Nexaflow.Features.Compressed.SecureZip.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Console\Nexaflow.Features.Console.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Dicom\Nexaflow.Features.Dicom.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Dotnet\Nexaflow.Features.Dotnet.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Email\Nexaflow.Features.Email.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Font\Nexaflow.Features.Font.csproj" />

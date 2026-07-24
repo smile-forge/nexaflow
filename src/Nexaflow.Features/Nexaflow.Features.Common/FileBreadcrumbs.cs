@@ -49,9 +49,40 @@ public static class FileBreadcrumbs
     /// </summary>
     public static void SetFileBreadcrumbs(this Page page, string filePath, string? leaf = null)
     {
-        var dir = string.IsNullOrEmpty(filePath) ? null : Path.GetDirectoryName(filePath);
         leaf ??= string.IsNullOrEmpty(filePath) ? string.Empty : Path.GetFileName(filePath);
+
+        // Derived content (a DICOM report, an archived doc extracted to a temp file) points back to the
+        // page it came from rather than its throwaway directory.
+        if (OriginBreadcrumbs.ParentCrumbFor(filePath) is { } origin)
+        {
+            page.Breadcrumbs.Clear();
+            page.Breadcrumbs.Add(origin);
+            page.Breadcrumbs.Add(new BreadcrumbSegment { Label = leaf });
+            return;
+        }
+
+        var dir = string.IsNullOrEmpty(filePath) ? null : Path.GetDirectoryName(filePath);
         SetBreadcrumbs(page, dir, leaf);
+    }
+
+    /// <summary>
+    /// Replaces <paramref name="page"/>'s breadcrumbs with "[origin page] › [leaf]" — a parent crumb that
+    /// re-opens/focuses <paramref name="originKind"/> (opened with <paramref name="originParams"/>) rather
+    /// than a file-system folder. The general "this page was opened <em>from</em> another page" trail; use
+    /// it directly, or register the file with <see cref="OriginBreadcrumbs"/> and let
+    /// <see cref="SetFileBreadcrumbs"/> apply it for you.
+    /// </summary>
+    public static void SetOriginBreadcrumb(this Page page, string leaf, string originKind,
+                                           IReadOnlyDictionary<string, string> originParams, string originLabel)
+    {
+        page.Breadcrumbs.Clear();
+        page.Breadcrumbs.Add(new BreadcrumbSegment
+        {
+            Label = originLabel,
+            TargetPageKind = originKind,
+            TargetPageParams = new Dictionary<string, string>(originParams),
+        });
+        page.Breadcrumbs.Add(new BreadcrumbSegment { Label = leaf });
     }
 
     /// <summary>

@@ -1,0 +1,17 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Feature-owned theme tokens (merged below the active theme, so any theme may retune them by key).
+         A DICOM viewport is conventionally a dark backdrop for greyscale imaging; the annotation/overlay
+         colours are read at paint time by the measurement overlay. -->
+
+    <Color x:Key="Dicom.ViewportColor">#FF0A0A0A</Color>
+    <SolidColorBrush x:Key="Dicom.Viewport" Color="{StaticResource Dicom.ViewportColor}"/>
+
+    <Color x:Key="Dicom.OverlayTextColor">#E6FFFFFF</Color>
+    <SolidColorBrush x:Key="Dicom.OverlayText" Color="{StaticResource Dicom.OverlayTextColor}"/>
+
+    <Color x:Key="Dicom.AnnotationColor">#FFFFD54F</Color>
+    <SolidColorBrush x:Key="Dicom.AnnotationBrush" Color="{StaticResource Dicom.AnnotationColor}"/>
+
+</ResourceDictionary>

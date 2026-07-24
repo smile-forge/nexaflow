@@ -66,6 +66,7 @@ public static class TestSampleData
         new FontSamples(),
         new SvgSamples(),
         new EmailSamples(),
+        new DicomSamples(),
     ];
 
     private static readonly Lazy<string> RootLazy = new(EnsureAll);
