@@ -13,9 +13,23 @@
 
     </UserControl.Resources>
 
+    <UserControl.InputBindings>
+        <KeyBinding Key="F"  Modifiers="Control"       Command="{Binding OpenFindCommand}"/>
+        <KeyBinding Key="H"  Modifiers="Control"       Command="{Binding OpenReplaceCommand}"/>
+        <KeyBinding Key="G"  Modifiers="Control"       Command="{Binding GoToLineCommand}"/>
+        <KeyBinding Key="F3"                           Command="{Binding FindNextCommand}"/>
+        <KeyBinding Key="F3" Modifiers="Shift"         Command="{Binding FindPreviousCommand}"/>
+        <KeyBinding Key="D0"       Modifiers="Control" Command="{Binding ResetZoomCommand}"/>
+        <KeyBinding Key="OemPlus"  Modifiers="Control" Command="{Binding ZoomInCommand}"/>
+        <KeyBinding Key="Add"      Modifiers="Control" Command="{Binding ZoomInCommand}"/>
+        <KeyBinding Key="OemMinus" Modifiers="Control" Command="{Binding ZoomOutCommand}"/>
+        <KeyBinding Key="Subtract" Modifiers="Control" Command="{Binding ZoomOutCommand}"/>
+    </UserControl.InputBindings>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="42"/>
+            <RowDefinition Height="Auto"/>   <!-- Find &amp; Replace bar (collapses to 0 when closed) -->
             <RowDefinition Height="*"/>
             <RowDefinition Height="28"/>
         </Grid.RowDefinitions>
@@ -102,6 +116,81 @@
 
                     <Separator Style="{StaticResource TbSep}"/>
 
+                    <!-- Find split button: the main part toggles the bar; the ▾ opens a menu to pick Find or Replace. -->
+                    <StackPanel Orientation="Horizontal">
+                        <Button Style="{StaticResource TbBtn}"
+                                AutomationProperties.AutomationId="Text_Find"
+                                Command="{Binding ToggleFindCommand}"
+                                Margin="2,0,0,0"
+                                ToolTip="Find (Ctrl+F)">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                           Foreground="{StaticResource TextMutedBrush}" Margin="0,0,4,0"/>
+                                <TextBlock Text="Find" FontSize="11"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="FindMenuButton" Style="{StaticResource TbBtn}"
+                                AutomationProperties.AutomationId="Text_FindMenu"
+                                Click="FindMenu_Click"
+                                Padding="3,5" Margin="0,0,2,0"
+                                ToolTip="Find options (includes Replace, Ctrl+H)">
+                            <TextBlock Text="▾" FontSize="9"/>
+                        </Button>
+                    </StackPanel>
+                    <Popup x:Name="FindMenuPopup"
+                           PlacementTarget="{Binding ElementName=FindMenuButton}"
+                           Placement="Bottom" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade">
+                        <Border Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1" CornerRadius="4" Padding="4" Margin="0,2,0,0">
+                            <Border.Resources>
+                                <Style TargetType="Button">
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                    <Setter Property="BorderThickness" Value="0"/>
+                                    <Setter Property="FontSize" Value="12"/>
+                                    <Setter Property="MinWidth" Value="130"/>
+                                    <Setter Property="Cursor" Value="Hand"/>
+                                    <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="bg" Background="{TemplateBinding Background}"
+                                                        CornerRadius="3" Padding="12,5">
+                                                    <ContentPresenter HorizontalAlignment="Left"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bg" Property="Background" Value="{StaticResource AccentBrush}"/>
+                                                        <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Border.Resources>
+                            <StackPanel>
+                                <Button Content="Find (Ctrl+F)"    Click="FindMenuFind_Click"
+                                        AutomationProperties.AutomationId="Text_FindMenu_Find"/>
+                                <Button Content="Replace (Ctrl+H)" Click="FindMenuReplace_Click"
+                                        AutomationProperties.AutomationId="Text_FindMenu_Replace"/>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+
+                    <Button Style="{StaticResource TbBtn}"
+                            AutomationProperties.AutomationId="Text_GoToLine"
+                            Command="{Binding GoToLineCommand}"
+                            ToolTip="Go to line (Ctrl+G)">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⤓" FontSize="12" Margin="0,0,4,0"/>
+                            <TextBlock Text="Go" FontSize="11"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Separator Style="{StaticResource TbSep}"/>
+
                     <ToggleButton Style="{StaticResource TbToggle}"
                                   AutomationProperties.AutomationId="Text_LineNumbers"
                                   IsChecked="{Binding ShowLineNumbers}"
@@ -117,6 +206,17 @@
                     </ToggleButton>
 
                     <Separator Style="{StaticResource TbSep}"/>
+
+                    <!-- Undo/Redo (editing only); wired in code-behind to AvalonEdit's editing commands so
+                         WPF drives their enabled state from the document's undo stack. -->
+                    <Button x:Name="UndoButton" Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="Text_Undo" ToolTip="Undo (Ctrl+Z)"
+                            Visibility="{Binding IsEditing, Converter={StaticResource BoolVis}}">
+                        <TextBlock Text="↶" FontSize="13"/>
+                    </Button>
+                    <Button x:Name="RedoButton" Style="{StaticResource TbBtn}" AutomationProperties.AutomationId="Text_Redo" ToolTip="Redo (Ctrl+Y)"
+                            Visibility="{Binding IsEditing, Converter={StaticResource BoolVis}}">
+                        <TextBlock Text="↷" FontSize="13"/>
+                    </Button>
 
                     <!-- Cut/Paste only make sense while editing; Copy works in the read-only viewer too.
                          Command binding (wired in code-behind to the editor) auto-disables Cut/Copy when
@@ -169,61 +269,104 @@
                     </Button>
 
                 </StackPanel>
-                <!-- Centered search indicator (overlays both columns when active) -->
-                <Border Grid.Column="0" Grid.ColumnSpan="2"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Visibility="{Binding IsSearchActive, Converter={StaticResource BoolVis}}"
-                        Background="{StaticResource Surface2Brush}"
-                        BorderBrush="{StaticResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="4"
-                        Padding="6,4">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="🔍" FontSize="11" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                        <TextBlock Text="{Binding CurrentSearchTerm}"
-                                   FontSize="11"
-                                   FontStyle="Italic"
-                                   Foreground="{StaticResource AccentBrush}"
-                                   VerticalAlignment="Center"
-                                   MaxWidth="200"
-                                   TextTrimming="CharacterEllipsis"/>
-                        <TextBlock Text="{Binding SearchMatchCount, StringFormat=' ({0})'}"
-                                   FontSize="11"
-                                   Foreground="{StaticResource TextMutedBrush}"
-                                   VerticalAlignment="Center"
-                                   Margin="0,0,6,0"/>
-                        <Button Style="{StaticResource TbBtn}"
-                                Command="{Binding FindPreviousCommand}"
-                                ToolTip="Find previous (Shift+F3)"
-                                Padding="5,3"
-                                Margin="0,0,2,0">
-                            <TextBlock Text="←" FontSize="11"/>
-                        </Button>
-                        <Button Style="{StaticResource TbBtn}"
-                                Command="{Binding FindNextCommand}"
-                                ToolTip="Find next (F3)"
-                                Padding="5,3"
-                                Margin="0,0,6,0">
-                            <TextBlock Text="→" FontSize="11"/>
-                        </Button>
-                        <Button Style="{StaticResource TbBtn}"
-                                Command="{Binding CancelSearchCommand}"
-                                ToolTip="Clear search"
-                                Padding="5,3"
-                                Margin="0">
-                            <TextBlock Text="✕" FontSize="10"/>
-                        </Button>
-                    </StackPanel>
-                </Border>
 
+            </Grid>
+        </Border>
+
+        <!-- ══════════════════════════════════════════════════════════
+             FIND &amp; REPLACE BAR — its own row, so it pushes the editor down instead of overlaying it
+             ══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="1"
+                Background="{StaticResource Surface2Brush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="10,6"
+                Visibility="{Binding IsFindBarOpen, Converter={StaticResource BoolVis}}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>   <!-- leading icon -->
+                    <ColumnDefinition Width="Auto"/>   <!-- text box (fixed width → the two rows line up) -->
+                    <ColumnDefinition Width="*"/>       <!-- inline controls + spacer -->
+                    <ColumnDefinition Width="Auto"/>   <!-- close (right-aligned, find row only) -->
+                </Grid.ColumnDefinitions>
+
+                <!-- Find row -->
+                <TextBlock Grid.Row="0" Grid.Column="0"
+                           Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                           Width="18" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextMutedBrush}"/>
+                <TextBox x:Name="FindBox" Grid.Row="0" Grid.Column="1"
+                         Style="{StaticResource DarkTextBox}"
+                         Text="{Binding FindText, UpdateSourceTrigger=PropertyChanged}"
+                         Width="240" VerticalAlignment="Center"
+                         AutomationProperties.AutomationId="Text_FindBox"
+                         KeyDown="FindBox_KeyDown"/>
+                <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal"
+                            VerticalAlignment="Center" Margin="6,0,0,0">
+                    <ToggleButton Style="{StaticResource TbToggle}" IsChecked="{Binding MatchCase}"
+                                  ToolTip="Match case" AutomationProperties.AutomationId="Text_MatchCase">
+                        <TextBlock Text="Aa" FontSize="12"/>
+                    </ToggleButton>
+                    <ToggleButton Style="{StaticResource TbToggle}" IsChecked="{Binding UseRegex}"
+                                  ToolTip="Use regular expression" AutomationProperties.AutomationId="Text_UseRegex">
+                        <TextBlock Text=".*" FontSize="12"/>
+                    </ToggleButton>
+                    <TextBlock Text="{Binding SearchMatchCount, StringFormat='{}{0} matches'}"
+                               Foreground="{StaticResource TextMutedBrush}" FontSize="11"
+                               VerticalAlignment="Center" Margin="10,0,6,0"
+                               Visibility="{Binding IsSearchActive, Converter={StaticResource BoolVis}}"/>
+                    <Button Style="{StaticResource TbBtn}" Command="{Binding FindPreviousCommand}"
+                            IsEnabled="{Binding IsSearchActive}"
+                            ToolTip="Find previous (Shift+F3)" Padding="6,3">
+                        <TextBlock Text="▲" FontSize="10"/>
+                    </Button>
+                    <Button Style="{StaticResource TbBtn}" Command="{Binding FindNextCommand}"
+                            IsEnabled="{Binding IsSearchActive}"
+                            ToolTip="Find next (F3)" Padding="6,3">
+                        <TextBlock Text="▼" FontSize="10"/>
+                    </Button>
+                </StackPanel>
+                <Button Grid.Row="0" Grid.Column="3"
+                        Style="{StaticResource TbBtn}" Command="{Binding CloseFindBarCommand}"
+                        HorizontalAlignment="Right" VerticalAlignment="Center"
+                        ToolTip="Close (Esc)" Padding="6,3"
+                        AutomationProperties.AutomationId="Text_CloseFind">
+                    <TextBlock Text="✕" FontSize="10"/>
+                </Button>
+
+                <!-- Replace row — the box sits in the same column as the find box, so they line up.
+                     Shown only in replace mode (reached via the toolbar Find ▾ menu or Ctrl+H). -->
+                <TextBox x:Name="ReplaceBox" Grid.Row="1" Grid.Column="1"
+                         Style="{StaticResource DarkTextBox}"
+                         Text="{Binding ReplaceText, UpdateSourceTrigger=PropertyChanged}"
+                         Width="240" VerticalAlignment="Center" Margin="0,5,0,0"
+                         AutomationProperties.AutomationId="Text_ReplaceBox"
+                         Visibility="{Binding IsReplaceVisible, Converter={StaticResource BoolVis}}"/>
+                <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal"
+                            VerticalAlignment="Center" Margin="6,5,0,0"
+                            Visibility="{Binding IsReplaceVisible, Converter={StaticResource BoolVis}}">
+                    <Button Style="{StaticResource TbBtn}" Command="{Binding ReplaceCurrentCommand}"
+                            IsEnabled="{Binding CanEdit}" ToolTip="Replace this match" Padding="8,3"
+                            AutomationProperties.AutomationId="Text_Replace">
+                        <TextBlock Text="Replace" FontSize="11"/>
+                    </Button>
+                    <Button Style="{StaticResource TbBtn}" Command="{Binding ReplaceAllCommand}"
+                            IsEnabled="{Binding CanEdit}" ToolTip="Replace all matches" Padding="8,3" Margin="4,0,0,0"
+                            AutomationProperties.AutomationId="Text_ReplaceAll">
+                        <TextBlock Text="Replace All" FontSize="11"/>
+                    </Button>
+                </StackPanel>
             </Grid>
         </Border>
 
         <!-- ══════════════════════════════════════════════════════════
              CONTENT: editor + minimap
              ══════════════════════════════════════════════════════════ -->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="14"/>
@@ -251,10 +394,9 @@
                                 Grid.Column="1"
                                 Background="{StaticResource DeepBgBrush}"/>
 
-            <!-- File-changed banner overlaid at top of editor -->
+            <!-- File-changed banner — a transient overlay at the top of the editor -->
             <Border Grid.Column="0"
-                    VerticalAlignment="Top"
-                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Top" HorizontalAlignment="Stretch"
                     Margin="4,4,4,0"
                     Background="#CC2A2A00"
                     CornerRadius="4"
@@ -321,31 +463,96 @@
         <!-- ══════════════════════════════════════════════════════════
              STATUS BAR
              ══════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="2"
+        <Border Grid.Row="3"
                 Background="{StaticResource DeepBgBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,0">
-            <StackPanel Orientation="Horizontal"
-                        VerticalAlignment="Center"
-                        Margin="14,0">
-                <TextBlock Text="{Binding FileSizeText}"
+            <DockPanel VerticalAlignment="Center" Margin="14,0" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left"
+                           Text="{Binding FileSizeText}"
                            Foreground="{StaticResource TextMutedBrush}"
                            FontSize="11"
                            Margin="0,0,16,0"/>
-                <TextBlock Text="{Binding LineCount, StringFormat='{}{0} lines'}"
+                <TextBlock DockPanel.Dock="Left"
+                           Text="{Binding LineCount, StringFormat='{}{0} lines'}"
                            Foreground="{StaticResource TextMutedBrush}"
                            FontSize="11"
                            Margin="0,0,16,0"/>
-                <TextBlock Text="{Binding SearchMatchCount, StringFormat='{}{0} matches'}"
+                <TextBlock DockPanel.Dock="Left"
+                           Text="{Binding SearchMatchCount, StringFormat='{}{0} matches'}"
                            Foreground="{StaticResource AccentBrush}"
                            FontSize="11"
                            Margin="0,0,16,0"
                            Visibility="{Binding IsSearchActive, Converter={StaticResource BoolVis}}"/>
-                <TextBlock Text="Streaming"
+                <TextBlock DockPanel.Dock="Left"
+                           Text="Streaming"
                            Foreground="{StaticResource WarningBrush}"
                            FontSize="11"
                            Visibility="{Binding IsLargeFile, Converter={StaticResource BoolVis}}"/>
-            </StackPanel>
+
+                <!-- Zoom % (right): click for a preset, or Ctrl+scroll / Ctrl+± over the editor -->
+                <TextBlock x:Name="ZoomLabel"
+                           DockPanel.Dock="Right"
+                           Text="{Binding ZoomPercent, StringFormat='{}{0}%'}"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="11"
+                           VerticalAlignment="Center"
+                           Padding="6,3"
+                           Cursor="Hand"
+                           ToolTip="Click to set zoom (Ctrl+scroll)"
+                           AutomationProperties.AutomationId="Text_ZoomLabel"
+                           MouseLeftButtonUp="ZoomLabel_Click"/>
+                <Popup x:Name="ZoomPopup"
+                       PlacementTarget="{Binding ElementName=ZoomLabel}"
+                       Placement="Top"
+                       StaysOpen="False"
+                       AllowsTransparency="True"
+                       PopupAnimation="Fade"
+                       HorizontalOffset="-4" VerticalOffset="-4">
+                    <Border Background="{StaticResource SurfaceBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="4">
+                        <Border.Resources>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Setter Property="FontSize" Value="12"/>
+                                <Setter Property="MinWidth" Value="64"/>
+                                <Setter Property="Cursor" Value="Hand"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="bg" Background="{TemplateBinding Background}"
+                                                    CornerRadius="3" Padding="12,5">
+                                                <ContentPresenter HorizontalAlignment="Left"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="bg" Property="Background"
+                                                            Value="{StaticResource AccentBrush}"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Border.Resources>
+                        <StackPanel>
+                            <Button Content="80%"  Tag="80"  Click="ZoomPreset_Click"/>
+                            <Button Content="90%"  Tag="90"  Click="ZoomPreset_Click"/>
+                            <Button Content="100%" Tag="100" Click="ZoomPreset_Click"/>
+                            <Button Content="110%" Tag="110" Click="ZoomPreset_Click"/>
+                            <Button Content="120%" Tag="120" Click="ZoomPreset_Click"/>
+                            <Button Content="130%" Tag="130" Click="ZoomPreset_Click"/>
+                        </StackPanel>
+                    </Border>
+                </Popup>
+            </DockPanel>
         </Border>
 
     </Grid>

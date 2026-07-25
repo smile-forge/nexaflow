@@ -40,9 +40,14 @@ public partial class TextView : UserControl, IPageView
         // Give the ViewModel access to the visible text region + first visible line (rendering-layer API)
         vm.GetVisibleText      = GetVisibleText;
         vm.GetFirstVisibleLine = GetFirstVisibleLine;
+        // Find bar: seed from the editor selection, and focus the box when it opens.
+        vm.GetEditorSelection    = () => Editor.SelectedText;
+        vm.FindBarFocusRequested += FocusFindBox;
         Editor.TextArea.TextView.BackgroundRenderers.Add(_renderer);
         Editor.ShowLineNumbers = vm.ShowLineNumbers;
         Editor.WordWrap        = vm.WordWrap;
+        Editor.PreviewMouseWheel += OnEditorPreviewMouseWheel; // Ctrl+wheel zoom
+        ApplyZoom(vm.ZoomPercent);
 
         // Clipboard buttons bind to AvalonEdit's editing commands (targeting the TextArea, where the
         // handlers live) so WPF drives their enabled state: Cut/Copy need a selection, Paste needs an
@@ -52,6 +57,9 @@ public partial class TextView : UserControl, IPageView
         CutButton.Command   = ApplicationCommands.Cut;   CutButton.CommandTarget   = Editor.TextArea;
         CopyButton.Command  = ApplicationCommands.Copy;  CopyButton.CommandTarget  = Editor.TextArea;
         PasteButton.Command = ApplicationCommands.Paste; PasteButton.CommandTarget = Editor.TextArea;
+        // Undo/Redo drive AvalonEdit's editing commands, so WPF enables them from the document's undo stack.
+        UndoButton.Command  = ApplicationCommands.Undo;  UndoButton.CommandTarget  = Editor.TextArea;
+        RedoButton.Command  = ApplicationCommands.Redo;  RedoButton.CommandTarget  = Editor.TextArea;
 
         // User edits flow to the ViewModel, which maps them to the overlay engine.
         Editor.Document.Changed += (_, e) => _vm.OnUserEdit(e.Offset, e.RemovalLength, e.InsertedText.Text);
@@ -116,7 +124,75 @@ public partial class TextView : UserControl, IPageView
             case nameof(TextViewModel.WordWrap):
                 Editor.WordWrap = _vm.WordWrap;
                 break;
+
+            case nameof(TextViewModel.ZoomPercent):
+                ApplyZoom(_vm.ZoomPercent);
+                break;
         }
+    }
+
+    // ── Find bar + zoom ─────────────────────────────────────────────────────────
+
+    private const double BaseFontSize = 13.0; // matches Editor.FontSize in XAML
+
+    private void ApplyZoom(int percent) => Editor.FontSize = BaseFontSize * percent / 100.0;
+
+    private void FocusFindBox() =>
+        Dispatcher.InvokeAsync(() => { FindBox.Focus(); FindBox.SelectAll(); },
+                               System.Windows.Threading.DispatcherPriority.Input);
+
+    private void FindBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case Key.Enter:
+                if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+                    _vm.FindPreviousCommand.Execute(null);
+                else
+                    _vm.FindNextCommand.Execute(null);
+                e.Handled = true;
+                break;
+            case Key.Escape:
+                _vm.CloseFindBarCommand.Execute(null);
+                Editor.Focus();
+                e.Handled = true;
+                break;
+        }
+    }
+
+    private void OnEditorPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control) return;
+        if (e.Delta > 0)      _vm.ZoomInCommand.Execute(null);
+        else if (e.Delta < 0) _vm.ZoomOutCommand.Execute(null);
+        e.Handled = true;
+    }
+
+    private void ZoomLabel_Click(object sender, MouseButtonEventArgs e)
+    {
+        ZoomPopup.IsOpen = true;
+        e.Handled = true;
+    }
+
+    private void FindMenu_Click(object sender, RoutedEventArgs e) => FindMenuPopup.IsOpen = true;
+
+    private void FindMenuFind_Click(object sender, RoutedEventArgs e)
+    {
+        FindMenuPopup.IsOpen = false;
+        _vm.OpenFindCommand.Execute(null);
+    }
+
+    private void FindMenuReplace_Click(object sender, RoutedEventArgs e)
+    {
+        FindMenuPopup.IsOpen = false;
+        _vm.OpenReplaceCommand.Execute(null);
+    }
+
+    private void ZoomPreset_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string tag } && int.TryParse(tag, out var percent))
+            _vm.ZoomPercent = percent;
+        ZoomPopup.IsOpen = false;
     }
 
     // The editable span the read-only-section provider allows: the resident window while editing (and not
@@ -188,7 +264,9 @@ public partial class TextView : UserControl, IPageView
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        _vm.PropertyChanged -= OnVmPropertyChanged;
+        _vm.PropertyChanged      -= OnVmPropertyChanged;
+        _vm.FindBarFocusRequested -= FocusFindBox;
+        Editor.PreviewMouseWheel  -= OnEditorPreviewMouseWheel;
         _vm.Dispose();
     }
 

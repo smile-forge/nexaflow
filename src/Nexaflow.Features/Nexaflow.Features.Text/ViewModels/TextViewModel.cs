@@ -77,6 +77,21 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     [ObservableProperty] private bool _showLineNumbers = true;
     [ObservableProperty] private bool _wordWrap;
 
+    // ── Zoom (editor font scale) ─────────────────────────────────────────────────
+
+    [ObservableProperty] private int _zoomPercent = 100;
+    public IReadOnlyList<int> ZoomPresets { get; } = [80, 90, 100, 110, 120, 130];
+
+    partial void OnZoomPercentChanged(int value)
+    {
+        var clamped = Math.Clamp(value, 50, 400);
+        if (clamped != value) ZoomPercent = clamped; // re-enters with the clamped value; the view reads it
+    }
+
+    [RelayCommand] private void ZoomIn()    => ZoomPercent = Math.Min(400, ZoomPercent + 10);
+    [RelayCommand] private void ZoomOut()   => ZoomPercent = Math.Max(50,  ZoomPercent - 10);
+    [RelayCommand] private void ResetZoom() => ZoomPercent = 100;
+
     // ── Monitoring ────────────────────────────────────────────────────────────
 
     [ObservableProperty] private bool _isMonitoring = true;
@@ -103,6 +118,28 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     [ObservableProperty] private string _fileChangedMessage    = string.Empty;
     [ObservableProperty] private bool   _fileChangedBannerVisible;
     [ObservableProperty] private string _currentSearchTerm = string.Empty;
+
+    // ── Find & Replace bar ──────────────────────────────────────────────────────
+
+    [ObservableProperty] private bool   _isFindBarOpen;
+    [ObservableProperty] private bool   _isReplaceVisible;
+    [ObservableProperty] private string _findText    = string.Empty;
+    [ObservableProperty] private string _replaceText = string.Empty;
+    [ObservableProperty] private bool   _matchCase;
+    [ObservableProperty] private bool   _useRegex;
+
+    private bool _suppressFindRun;   // guards the live re-run when the engine sets FindText/UseRegex back
+    private bool _disposed;
+    private CancellationTokenSource? _findDebounceCts;
+
+    /// <summary>Supplies the editor's current selection (single-line) so opening the bar can seed FindText.</summary>
+    internal Func<string?>? GetEditorSelection { get; set; }
+
+    /// <summary>Raised when the bar opens so the view can focus the find box.</summary>
+    public event Action? FindBarFocusRequested;
+
+    private StringComparison SearchComparison =>
+        MatchCase ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
 
     // -1 means "not yet navigated"; code-behind watches this to trigger centering
     [ObservableProperty] private int _scrollToOffset = -1;
@@ -183,6 +220,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
                 _suppressDocChanges = true;
                 Document.Text = await smallReader.ReadToEndAsync(ct);
                 _suppressDocChanges = false;
+                Document.UndoStack.ClearAll(); // the initial load is the baseline, not an undoable edit
                 LineCount     = Document.LineCount;
             }
             else
@@ -262,6 +300,10 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         _suppressDocChanges = true;
         Document.Text = sb.ToString();
         _suppressDocChanges = false;
+        // Placeholder composition is not a user edit — drop it from the undo stack so Ctrl+Z can't revert
+        // it. (For a large file being edited, a window slide therefore resets undo history — safe, never
+        // corrupts; small-file editing keeps the whole session's history since it never re-composes.)
+        Document.UndoStack.ClearAll();
     }
 
     /// <summary>Document offset where the editable (real, resident) text begins.</summary>
@@ -508,7 +550,8 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         try
         {
             Regex regex;
-            try   { regex = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled); }
+            var opts = RegexOptions.Compiled | (MatchCase ? RegexOptions.None : RegexOptions.IgnoreCase);
+            try   { regex = new Regex(pattern, opts); }
             catch { IsSearchRunning = false; return; }
 
             _activeRegex         = regex;
@@ -521,6 +564,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
             SearchMatchCount   = count;
             IsSearchActive     = count > 0;
             _currentMatchIndex = count > 0 ? 0 : -1;
+            SurfaceSearchInBar(pattern, regex: true);
             RefreshWindowHighlights();
             if (count > 0) await NavigateToMatchLineAsync(lines[0]);
         }
@@ -550,6 +594,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
             SearchMatchCount   = count;
             IsSearchActive     = count > 0;
             _currentMatchIndex = count > 0 ? 0 : -1;
+            SurfaceSearchInBar(query, regex: false);
             RefreshWindowHighlights();
             if (count > 0) await NavigateToMatchLineAsync(lines[0]);
         }
@@ -568,7 +613,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
             await foreach (var (line, text, _) in _file.EnumerateLinesAsync(ct))
             {
                 bool hit = regex is not null ? regex.IsMatch(text)
-                    : !string.IsNullOrEmpty(query) && text.Contains(query, StringComparison.OrdinalIgnoreCase);
+                    : !string.IsNullOrEmpty(query) && text.Contains(query, SearchComparison);
                 if (hit) { matchingLines.Add(line); total++; }
             }
         }
@@ -580,7 +625,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
                 ct.ThrowIfCancellationRequested();
                 var text = docLines[i];
                 bool hit = regex is not null ? regex.IsMatch(text)
-                    : !string.IsNullOrEmpty(query) && text.Contains(query, StringComparison.OrdinalIgnoreCase);
+                    : !string.IsNullOrEmpty(query) && text.Contains(query, SearchComparison);
                 if (hit) { matchingLines.Add(i); total++; }
             }
         }
@@ -612,7 +657,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         }
         else if (!string.IsNullOrEmpty(_activeSearchPattern))
         {
-            var cmp = StringComparison.OrdinalIgnoreCase;
+            var cmp = SearchComparison;
             var start = 0;
             while (true)
             {
@@ -687,15 +732,55 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     private async Task NavigateToMatchLineAsync(long lineNumber) // 0-based file line
     {
+        await EnsureLineResidentAsync(lineNumber);
+        var offset = FindMatchOffsetOnLine(lineNumber);
+        if (offset >= 0) ScrollToOffset = offset;
+    }
+
+    // Slides the resident window so <paramref name="lineNumber"/> (0-based file line) is in it — a no-op
+    // for small files (the whole document is resident) or when the line is already resident.
+    private async Task EnsureLineResidentAsync(long lineNumber)
+    {
         if (IsLargeFile && _file is not null)
         {
             long winEnd = _winStartLine + CountNewlines(_winText);
             if (lineNumber < _winStartLine || lineNumber >= winEnd)
                 await SlideWindowAsync(Math.Max(0, lineNumber - SlideMargin));
         }
+    }
 
-        var offset = FindMatchOffsetOnLine(lineNumber);
-        if (offset >= 0) ScrollToOffset = offset;
+    /// <summary>Scrolls to a file line (0-based), sliding the window if needed. Backs Go-to-line.</summary>
+    private async Task NavigateToFileLineAsync(long lineNumber)
+    {
+        await EnsureLineResidentAsync(lineNumber);
+        try
+        {
+            int docLineNo  = (int)Math.Clamp(lineNumber + 1, 1, Math.Max(1, Document.LineCount));
+            ScrollToOffset = Document.GetLineByNumber(docLineNo).Offset;
+        }
+        catch { }
+    }
+
+    // The Document offset+length of the first match on <paramref name="lineNumber"/> (0-based), or (-1, 0).
+    private (int off, int len) MatchSpanOnLine(long lineNumber)
+    {
+        try
+        {
+            var docLine  = Document.GetLineByNumber((int)lineNumber + 1);
+            var lineText = Document.GetText(docLine.Offset, docLine.Length);
+            if (_activeRegex is not null)
+            {
+                var m = _activeRegex.Match(lineText);
+                if (m.Success) return (docLine.Offset + m.Index, m.Length);
+            }
+            else if (!string.IsNullOrEmpty(_activeSearchPattern))
+            {
+                var i = lineText.IndexOf(_activeSearchPattern, SearchComparison);
+                if (i >= 0) return (docLine.Offset + i, _activeSearchPattern.Length);
+            }
+        }
+        catch { }
+        return (-1, 0);
     }
 
     private int FindMatchOffsetOnLine(long lineNumber) // 0-based
@@ -712,12 +797,136 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
             }
             if (!string.IsNullOrEmpty(_activeSearchPattern))
             {
-                var i = lineText.IndexOf(_activeSearchPattern, StringComparison.OrdinalIgnoreCase);
+                var i = lineText.IndexOf(_activeSearchPattern, SearchComparison);
                 return i >= 0 ? docLine.Offset + i : docLine.Offset;
             }
         }
         catch { }
         return -1;
+    }
+
+    // ── Find & Replace bar ────────────────────────────────────────────────────
+
+    // Live re-run when the user edits the find text or flips a toggle (guarded so the engine writing
+    // FindText/UseRegex back doesn't recurse).
+    partial void OnFindTextChanged(string value) { if (!_suppressFindRun) DebouncedRunFind(); }
+    partial void OnMatchCaseChanged(bool value)  { if (!_suppressFindRun) DebouncedRunFind(); }
+    partial void OnUseRegexChanged(bool value)   { if (!_suppressFindRun) DebouncedRunFind(); }
+
+    private async void DebouncedRunFind()
+    {
+        _findDebounceCts?.Cancel();
+        var cts = _findDebounceCts = new CancellationTokenSource();
+        try { await Task.Delay(250, cts.Token); }
+        catch (OperationCanceledException) { return; }
+        if (_disposed || cts.IsCancellationRequested) return;
+        try { await RunFindAsync(); } catch { }
+    }
+
+    private Task RunFindAsync()
+    {
+        var q = FindText;
+        if (string.IsNullOrWhiteSpace(q)) { CancelSearch(); return Task.CompletedTask; }
+        return UseRegex ? SearchRegexAsync(q) : SearchConventionalAsync(q);
+    }
+
+    // Reflects an executed search back into the bar so an AI-input-bar search lights up the same UI.
+    private void SurfaceSearchInBar(string term, bool regex)
+    {
+        _suppressFindRun = true;
+        if (FindText != term) FindText = term;
+        UseRegex = regex;
+        _suppressFindRun = false;
+        IsFindBarOpen = true;
+    }
+
+    [RelayCommand] private void OpenFind()    => OpenBar(replace: false);
+    [RelayCommand] private void OpenReplace() => OpenBar(replace: true);
+
+    /// <summary>Toolbar Find button: opens the bar, or closes it if already open.</summary>
+    [RelayCommand]
+    private void ToggleFind()
+    {
+        if (IsFindBarOpen) CloseFindBar();
+        else OpenBar(replace: false);
+    }
+
+    private void OpenBar(bool replace)
+    {
+        IsReplaceVisible = replace;
+        var sel = GetEditorSelection?.Invoke();
+        if (string.IsNullOrEmpty(FindText) && !string.IsNullOrEmpty(sel) && !sel.Contains('\n'))
+        {
+            _suppressFindRun = true; FindText = sel; _suppressFindRun = false;
+        }
+        IsFindBarOpen = true;
+        FindBarFocusRequested?.Invoke();
+        if (!string.IsNullOrWhiteSpace(FindText)) _ = RunFindAsync();
+    }
+
+    [RelayCommand]
+    private void CloseFindBar()
+    {
+        IsFindBarOpen    = false;
+        IsReplaceVisible = false;
+        CancelSearch();
+    }
+
+    [RelayCommand]
+    private async Task ReplaceAll()
+    {
+        if (!CanEdit) { _shell.ShowError(NotEditableMessage()); return; }
+        if (string.IsNullOrEmpty(FindText)) return;
+        EnsureEditing();
+        int n = await ApplyAiReplaceAsync(FindText, ReplaceText, UseRegex, MatchCase,
+                                          0, Math.Max(0, LineCount - 1), CancellationToken.None);
+        if (IsSearchActive) await ReRunSearchAsync();
+        _shell.ShowNotification(n == 0 ? "No matches to replace." : $"Replaced {n} occurrence(s).");
+    }
+
+    [RelayCommand]
+    private async Task ReplaceCurrent()
+    {
+        if (!CanEdit) { _shell.ShowError(NotEditableMessage()); return; }
+        if (string.IsNullOrEmpty(FindText)) return;
+        if (!IsSearchActive) await RunFindAsync();
+        if (!IsSearchActive || _matchingLineNumbers.Length == 0) return;
+        EnsureEditing();
+
+        long line0 = _matchingLineNumbers[Math.Clamp(_currentMatchIndex < 0 ? 0 : _currentMatchIndex,
+                                                     0, _matchingLineNumbers.Length - 1)];
+        await EnsureLineResidentAsync(line0);
+
+        var (off, len) = MatchSpanOnLine(line0);
+        if (off >= 0 && len > 0 && off >= LoadedRealStart && off + len <= LoadedRealEnd)
+        {
+            var repl = ReplaceText;
+            if (UseRegex && _activeRegex is not null)      // expand $1… against the matched text
+                repl = _activeRegex.Replace(Document.GetText(off, len), repl, 1);
+            Document.Replace(off, len, repl);              // flows through OnUserEdit → overlay for large files
+            IsDirty = true;
+        }
+        await ReRunSearchAsync();
+        await FindNext();
+    }
+
+    private string NotEditableMessage() => IsLargeFile
+        ? "Large files inside archives can't be edited in place — extract or split first."
+        : "This file can't be edited.";
+
+    [RelayCommand]
+    private void GoToLine()
+    {
+        int max = Math.Max(1, LineCount);
+        _shell.ShowPrompt("Go to line", $"Line number (1–{max})", string.Empty,
+            onConfirm: text =>
+            {
+                if (int.TryParse(text?.Trim(), out var line) && line >= 1)
+                    _ = NavigateToFileLineAsync(Math.Min(line, max) - 1);
+                else
+                    _shell.ShowError("Enter a valid line number.");
+            },
+            onCancel: () => { });
     }
 
     // ── Clipboard (delegated to ApplicationCommands in code-behind) ───────────
@@ -959,6 +1168,8 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     public void Dispose()
     {
+        _disposed = true;
+        _findDebounceCts?.Cancel();
         _watch?.Dispose();
         _searchCts?.Cancel();
         _file?.Dispose();
