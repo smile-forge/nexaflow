@@ -16,6 +16,7 @@ namespace Nexaflow.Tests.Features.Notebook;
 public class NotebookViewUiTests : FileSystemUiTestBase
 {
     [TestMethod]
+    [CoversNode("notebook-ui")]
     public void Ipynb_OpensInNotebookView()
     {
         NavigateFileBrowserTo(TestSampleData.Path("notebook"));

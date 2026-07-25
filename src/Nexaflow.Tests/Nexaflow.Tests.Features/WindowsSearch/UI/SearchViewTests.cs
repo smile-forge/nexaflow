@@ -15,7 +15,7 @@ namespace Nexaflow.Tests.Features.WindowsSearch.UI;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
-[CoversNode("win-search-ai-act")]
+[CoversNode("win-search")]
 public class SearchViewTests : UITestBase
 {
     private AutomationElement? _searchTab;
@@ -54,6 +54,7 @@ public class SearchViewTests : UITestBase
     }
 
     [TestMethod]
+    [CoversNode("win-search-ui")]
     public void ResultList_IsPresent()
     {
         Assert.IsNotNull(_resultList, "Search tab did not open — ResultList not found.");

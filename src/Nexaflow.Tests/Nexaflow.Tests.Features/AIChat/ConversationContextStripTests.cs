@@ -16,7 +16,6 @@ namespace Nexaflow.Tests.Features.AIChat;
 /// every single time — the reason the strip filled up with items nobody dragged in.
 /// </summary>
 [TestClass]
-[CoversNode("aichat-context-pinning")]
 public class ConversationContextStripTests
 {
     private sealed class FakeVm : IPageViewModel
@@ -73,6 +72,7 @@ public class ConversationContextStripTests
     // ── Duplicate handling ────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("aichat-context-chips")]
     public void AddContextItem_SamePageObjectTwice_PinnedOnce() => Sta(() =>
     {
         var convo = NewConversation();
@@ -85,6 +85,7 @@ public class ConversationContextStripTests
     });
 
     [TestMethod]
+    [CoversNode("aichat-context-chips")]
     public void HasContextItems_TracksTheStrip_DrivingTheEmptyStateHint() => Sta(() =>
     {
         // The "drag tabs or files here" hint binds to this — it used to bind Count through a bool converter
@@ -101,6 +102,7 @@ public class ConversationContextStripTests
     });
 
     [TestMethod]
+    [CoversNode("aichat-context-chips")]
     public void AddContextItem_DifferentObjectSameKindAndParams_PinnedOnce() => Sta(() =>
     {
         // This is the restore case: RestoreContextPages rebuilds saved context as *new* Page objects, so
@@ -114,6 +116,7 @@ public class ConversationContextStripTests
     });
 
     [TestMethod]
+    [CoversNode("aichat-context-chips")]
     public void AddContextItem_SameKindDifferentParams_BothPinned() => Sta(() =>
     {
         // Two file-system tabs on different folders are two different contexts.
@@ -126,6 +129,7 @@ public class ConversationContextStripTests
     });
 
     [TestMethod]
+    [CoversNode("aichat-context-chips")]
     public void AddContextItem_Duplicate_FlashesTheExistingChip() => Sta(() =>
     {
         var convo = NewConversation();

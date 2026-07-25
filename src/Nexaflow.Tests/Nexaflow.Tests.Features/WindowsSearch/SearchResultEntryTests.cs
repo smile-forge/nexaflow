@@ -4,7 +4,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.WindowsSearch;
 
 [TestClass]
-[CoversNode("search-results-list")]
+[CoversNode("search-result-row")]
 public class SearchResultEntryTests
 {
     private static SearchResultEntry Make(
