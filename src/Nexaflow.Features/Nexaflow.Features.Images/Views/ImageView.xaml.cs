@@ -1,6 +1,8 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Images.Services;
 using Nexaflow.Features.Images.ViewModels;
 using System;
+using System.Linq;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
@@ -16,10 +18,6 @@ public partial class ImageView : UserControl, IPageView
 
     private FullScreenImageWindow? _fullScreen;
 
-    // Collage card footprint (mirrors the ItemContainerStyle size) — used for bounds & the minimap.
-    private const double CollageCardW = 170, CollageCardH = 150;
-    private const double CollageMinScale = 0.2, CollageMaxScale = 5.0;
-
     // ── Collage pan state (arm on press, begin once the pointer moves) ────
     private bool   _collagePanning;
     private bool   _collagePanArmed;
@@ -28,10 +26,9 @@ public partial class ImageView : UserControl, IPageView
     private bool   _collageCentered;
 
     // ── Collage minimap mapping (frozen during a drag, like the scratchpad) ──
-    private double     _mmScale, _mmOffX, _mmOffY, _mmMinX, _mmMinY;
-    private bool       _mmHasMapping;
-    private bool       _mmDragging;
-    private Rectangle? _mmViewportRect;
+    private MiniMapMapping? _mmMapping;
+    private bool            _mmDragging;
+    private Rectangle?      _mmViewportRect;
 
     public ImageView(ImageViewModel viewModel)
     {
@@ -139,16 +136,14 @@ public partial class ImageView : UserControl, IPageView
 
     private void Collage_MouseWheel(object sender, MouseWheelEventArgs e)
     {
-        var factor   = e.Delta > 0 ? 1.1 : 1 / 1.1;
-        var newScale = Math.Clamp(CollageScale.ScaleX * factor, CollageMinScale, CollageMaxScale);
-        var applied  = newScale / CollageScale.ScaleX;
-        var p        = e.GetPosition(CollageHost);
+        var p = e.GetPosition(CollageHost);
+        var (scale, x, y) = CollageGeometry.ZoomAt(
+            CollageScale.ScaleX, CollageTranslate.X, CollageTranslate.Y, p.X, p.Y, zoomIn: e.Delta > 0);
 
-        // Keep the point under the cursor fixed while zooming.
-        CollageTranslate.X = p.X - (p.X - CollageTranslate.X) * applied;
-        CollageTranslate.Y = p.Y - (p.Y - CollageTranslate.Y) * applied;
-        CollageScale.ScaleX = newScale;
-        CollageScale.ScaleY = newScale;
+        CollageTranslate.X  = x;
+        CollageTranslate.Y  = y;
+        CollageScale.ScaleX = scale;
+        CollageScale.ScaleY = scale;
         UpdateCollageMiniMap();
         e.Handled = true;
     }
@@ -202,61 +197,29 @@ public partial class ImageView : UserControl, IPageView
         CollageHost.Cursor = null;
     }
 
-    private (double MinX, double MinY, double MaxX, double MaxY)? CollageContentBounds()
-    {
-        var thumbs = ViewModel.Thumbnails;
-        if (thumbs.Count == 0) return null;
-
-        double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
-        foreach (var t in thumbs)
-        {
-            minX = Math.Min(minX, t.CollageX);
-            minY = Math.Min(minY, t.CollageY);
-            maxX = Math.Max(maxX, t.CollageX + CollageCardW);
-            maxY = Math.Max(maxY, t.CollageY + CollageCardH);
-        }
-        return (minX, minY, maxX, maxY);
-    }
+    private CollageBounds? CollageContentBounds() =>
+        CollageGeometry.ContentBounds(ViewModel.Thumbnails.Select(t => (t.CollageX, t.CollageY)));
 
     private void CenterCollage()
     {
         if (CollageContentBounds() is not { } b) return;
-        double cw = b.MaxX - b.MinX, ch = b.MaxY - b.MinY;
         CollageScale.ScaleX = CollageScale.ScaleY = 1;
-        CollageTranslate.X = (CollageHost.ActualWidth  - cw) / 2 - b.MinX;
-        CollageTranslate.Y = (CollageHost.ActualHeight - ch) / 2 - b.MinY;
+        (CollageTranslate.X, CollageTranslate.Y) =
+            CollageGeometry.CentreOn(b, CollageHost.ActualWidth, CollageHost.ActualHeight);
     }
 
     // ── Collage minimap (mirrors the scratchpad: thumbnail rects + a viewport box, drag to move) ──
 
     private void UpdateCollageMiniMap()
     {
-        if (CollageContentBounds() is not { } bb) { CollageMiniMap.Visibility = Visibility.Collapsed; return; }
+        var mapping = CollageContentBounds() is { } bb
+            ? CollageGeometry.MiniMap(bb, CollageScale.ScaleX, CollageTranslate.X, CollageTranslate.Y,
+                                      CollageHost.ActualWidth, CollageHost.ActualHeight,
+                                      CollageMiniMapCanvas.Width, CollageMiniMapCanvas.Height)
+            : null;
 
-        double s = CollageScale.ScaleX, tx = CollageTranslate.X, ty = CollageTranslate.Y;
-        double vw = CollageHost.ActualWidth, vh = CollageHost.ActualHeight;
-        if (vw <= 0 || vh <= 0 || s <= 0) { CollageMiniMap.Visibility = Visibility.Collapsed; return; }
-
-        // Viewport rectangle in content space.
-        double viewLeft = -tx / s, viewTop = -ty / s;
-        double viewRight = viewLeft + vw / s, viewBottom = viewTop + vh / s;
-
-        // Only show the minimap when something is off-screen.
-        if (bb.MinX >= viewLeft && bb.MinY >= viewTop && bb.MaxX <= viewRight && bb.MaxY <= viewBottom)
-        {
-            CollageMiniMap.Visibility = Visibility.Collapsed;
-            return;
-        }
-
-        double minX = Math.Min(bb.MinX, viewLeft), minY = Math.Min(bb.MinY, viewTop);
-        double maxX = Math.Max(bb.MaxX, viewRight), maxY = Math.Max(bb.MaxY, viewBottom);
-        double cw = maxX - minX, ch = maxY - minY;
-        if (cw <= 0 || ch <= 0) return;
-
-        double mmW = CollageMiniMapCanvas.Width, mmH = CollageMiniMapCanvas.Height;
-        double scale = Math.Min(mmW / cw, mmH / ch);
-        double offX = (mmW - cw * scale) / 2, offY = (mmH - ch * scale) / 2;
-        _mmScale = scale; _mmOffX = offX; _mmOffY = offY; _mmMinX = minX; _mmMinY = minY; _mmHasMapping = true;
+        _mmMapping = mapping;
+        if (mapping is not { } m) { CollageMiniMap.Visibility = Visibility.Collapsed; return; }
 
         var thumbBrush = (Brush)FindResource("TextMutedBrush");
         var viewBrush  = (Brush)FindResource("AccentBrush");
@@ -264,28 +227,24 @@ public partial class ImageView : UserControl, IPageView
         CollageMiniMapCanvas.Children.Clear();
         foreach (var t in ViewModel.Thumbnails)
         {
-            var r = new Rectangle
-            {
-                Width   = Math.Max(2, CollageCardW * scale),
-                Height  = Math.Max(2, CollageCardH * scale),
-                Fill    = thumbBrush,
-                Opacity = 0.85,
-            };
-            Canvas.SetLeft(r, offX + (t.CollageX - minX) * scale);
-            Canvas.SetTop(r,  offY + (t.CollageY - minY) * scale);
+            var (x, y, w, h) = CollageGeometry.CardBox(m, t.CollageX, t.CollageY);
+            var r = new Rectangle { Width = w, Height = h, Fill = thumbBrush, Opacity = 0.85 };
+            Canvas.SetLeft(r, x);
+            Canvas.SetTop(r, y);
             CollageMiniMapCanvas.Children.Add(r);
         }
 
+        var (vx, vy, vw, vh) = CollageGeometry.ViewportBox(m, m.ViewLeft, m.ViewTop);
         var vp = new Rectangle
         {
-            Width           = Math.Max(4, (viewRight - viewLeft) * scale),
-            Height          = Math.Max(4, (viewBottom - viewTop) * scale),
+            Width           = vw,
+            Height          = vh,
             Stroke          = viewBrush,
             StrokeThickness = 1.5,
             Fill            = Brushes.Transparent,
         };
-        Canvas.SetLeft(vp, offX + (viewLeft - minX) * scale);
-        Canvas.SetTop(vp,  offY + (viewTop  - minY) * scale);
+        Canvas.SetLeft(vp, vx);
+        Canvas.SetTop(vp, vy);
         CollageMiniMapCanvas.Children.Add(vp);
         _mmViewportRect = vp;
 
@@ -294,7 +253,7 @@ public partial class ImageView : UserControl, IPageView
 
     private void CollageMiniMap_MouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (!_mmHasMapping) return;
+        if (_mmMapping is null) return;
         _mmDragging = true;
         CollageMiniMap.CaptureMouse();
         MoveCollageViewportTo(e.GetPosition(CollageMiniMapCanvas));
@@ -317,24 +276,22 @@ public partial class ImageView : UserControl, IPageView
         e.Handled = true;
     }
 
+    // Inverts the frozen mapping: minimap pixel → canvas point, then centres the viewport on it.
     private void MoveCollageViewportTo(Point mm)
     {
-        if (!_mmHasMapping || _mmScale <= 0) return;
-        double s = CollageScale.ScaleX;
+        if (_mmMapping is not { } m) return;
 
-        // Invert the frozen mapping: minimap pixel → canvas point, then centre the viewport on it.
-        double canvasX = _mmMinX + (mm.X - _mmOffX) / _mmScale;
-        double canvasY = _mmMinY + (mm.Y - _mmOffY) / _mmScale;
-        double viewLeft = canvasX - CollageHost.ActualWidth  / s / 2;
-        double viewTop  = canvasY - CollageHost.ActualHeight / s / 2;
+        var (x, y, viewLeft, viewTop) = CollageGeometry.TranslateForMiniMapPoint(
+            m, mm.X, mm.Y, CollageScale.ScaleX, CollageHost.ActualWidth, CollageHost.ActualHeight);
 
-        CollageTranslate.X = -viewLeft * s;
-        CollageTranslate.Y = -viewTop  * s;
+        CollageTranslate.X = x;
+        CollageTranslate.Y = y;
 
         if (_mmViewportRect is { } vp)
         {
-            Canvas.SetLeft(vp, _mmOffX + (viewLeft - _mmMinX) * _mmScale);
-            Canvas.SetTop(vp,  _mmOffY + (viewTop  - _mmMinY) * _mmScale);
+            var (bx, by, _, _) = CollageGeometry.ViewportBox(m, viewLeft, viewTop);
+            Canvas.SetLeft(vp, bx);
+            Canvas.SetTop(vp, by);
         }
     }
 

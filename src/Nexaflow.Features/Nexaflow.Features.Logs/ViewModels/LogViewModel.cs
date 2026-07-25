@@ -282,11 +282,13 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
         var sampleCount = Math.Min(20, Document.LineCount);
         var matches     = 0;
 
+        // Ask the parser that was just selected, not a fixed regex — a JSON log carries its timestamp in a
+        // field, so a text-shaped probe would decide the file has none and hide the time filter.
         for (var i = 1; i <= sampleCount; i++)
         {
             var line = Document.GetLineByNumber(i);
             var text = Document.GetText(line.Offset, line.Length).Trim();
-            if (text.Length > 0 && RawTextLogParser.LineHasTimestamp(text)) matches++;
+            if (text.Length > 0 && ActiveParser.ParseLine(text).Timestamp.HasValue) matches++;
         }
 
         HasTimestamps = matches >= Math.Max(3, sampleCount / 2);

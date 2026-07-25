@@ -413,7 +413,8 @@
                         </Grid.Style>
                         <Border HorizontalAlignment="Center" VerticalAlignment="Center" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" CornerRadius="2">
                             <Border.Effect>
-                                <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.45" Color="#4F8EF7"/>
+                                <!-- Glow matches the accent border around the image, so it follows the theme. -->
+                                <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.45" Color="{DynamicResource AccentColor}"/>
                             </Border.Effect>
                             <Viewbox Stretch="Uniform" MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Grid}}" MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}">
                                 <Image Source="{Binding CurrentImage}" RenderOptions.BitmapScalingMode="HighQuality">
@@ -439,7 +440,8 @@
                         </ScrollViewer.Style>
                         <Border Margin="20" HorizontalAlignment="Center" VerticalAlignment="Center" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" CornerRadius="2">
                             <Border.Effect>
-                                <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.45" Color="#4F8EF7"/>
+                                <!-- Glow matches the accent border around the image, so it follows the theme. -->
+                                <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.45" Color="{DynamicResource AccentColor}"/>
                             </Border.Effect>
                             <Image Source="{Binding CurrentImage}" Stretch="None" RenderOptions.BitmapScalingMode="HighQuality">
                                 <Image.LayoutTransform>
@@ -593,7 +595,8 @@
                         </Grid.Style>
                         <Border HorizontalAlignment="Center" VerticalAlignment="Center" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" CornerRadius="2">
                             <Border.Effect>
-                                <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.45" Color="#4F8EF7"/>
+                                <!-- Glow matches the accent border around the image, so it follows the theme. -->
+                                <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.45" Color="{DynamicResource AccentColor}"/>
                             </Border.Effect>
                             <Viewbox Stretch="Uniform" MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Grid}}" MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}">
                                 <Image Source="{Binding CurrentImage}" RenderOptions.BitmapScalingMode="HighQuality">
@@ -619,7 +622,8 @@
                         </ScrollViewer.Style>
                         <Border Margin="20" HorizontalAlignment="Center" VerticalAlignment="Center" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" CornerRadius="2">
                             <Border.Effect>
-                                <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.45" Color="#4F8EF7"/>
+                                <!-- Glow matches the accent border around the image, so it follows the theme. -->
+                                <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.45" Color="{DynamicResource AccentColor}"/>
                             </Border.Effect>
                             <Image Source="{Binding CurrentImage}" Stretch="None" RenderOptions.BitmapScalingMode="HighQuality">
                                 <Image.LayoutTransform>

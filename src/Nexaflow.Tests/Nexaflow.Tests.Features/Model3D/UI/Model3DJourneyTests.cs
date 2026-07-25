@@ -15,10 +15,11 @@ namespace Nexaflow.Tests.Features.Model3D.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
-[CoversNode("model3d-toolbar")]
+[CoversNode("model3d")]
 public class Model3DJourneyTests : UiJourneyTestBase
 {
     [TestMethod]
+    [CoversNode("model3d-ui")]
     [CoversNode("model3d-reset")]
     public void Model3D_Controls_RespondInOnePass()
     {

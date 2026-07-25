@@ -155,7 +155,7 @@ public static class TestSampleData
         - `text/`     — plain-text files: short/long, varied BOMs and line endings.
         - `code/`     — source/config files for the editor's syntax highlighting (cs/js/ts/py/ini/xml/css/html).
         - `json/`     — JSON objects, arrays and a large array for seek-by-item windowing.
-        - `logs/`     — timestamped log files, short and long (tail-first streaming).
+        - `logs/`     — timestamped log files, short and long (tail-first streaming), plus a JSON-lines one.
         - `binary/`   — binary blobs for the hex viewer (random, zeros, mixed, image header).
         - `images/`   — solid-colour images (BMP/PNG/GIF/JPEG) in varied aspect ratios for the image viewer.
         - `audio/`    — small PCM WAV tones (mono/stereo) for the audio player.

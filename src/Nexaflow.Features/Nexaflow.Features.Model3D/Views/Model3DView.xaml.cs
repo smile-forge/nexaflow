@@ -11,6 +11,7 @@ using System.Windows.Media.Media3D;
 using HelixToolkit.Wpf;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Model3D.Loaders;
+using Nexaflow.Features.Model3D.Viewing;
 using Nexaflow.Features.Model3D.ViewModels;
 using WpfModel3D = System.Windows.Media.Media3D.Model3D;
 
@@ -124,24 +125,11 @@ public partial class Model3DView : UserControl, IPageView
     /// framing distance from the model bounds (the file gives a position + direction, not a distance).</summary>
     private void ApplyCameraView(ModelCameraView view)
     {
-        if (Viewport.Camera is not ProjectionCamera camera) return;
-
-        var look = view.LookDirection;
-        if (look.Length < 1e-9) { Viewport.ZoomExtents(0); return; }
-        look.Normalize();
+        if (Viewport.Camera is not ProjectionCamera) return;
 
         var bounds = _modelVisual.Content?.Bounds ?? Rect3D.Empty;
-        var distance = 1.0;
-        if (!bounds.IsEmpty)
-        {
-            var centre = new Point3D(bounds.X + bounds.SizeX / 2, bounds.Y + bounds.SizeY / 2, bounds.Z + bounds.SizeZ / 2);
-            var projected = Vector3D.DotProduct(centre - view.Position, look);
-            distance = projected > 1e-3 ? projected : (centre - view.Position).Length;
-        }
-
-        camera.Position = view.Position;
-        camera.LookDirection = look * Math.Max(distance, 1e-3);
-        camera.UpDirection = view.UpDirection;
+        if (CameraMath.FrameAuthoredView(view, bounds) is { } pose) WritePose(pose);
+        else Viewport.ZoomExtents(0);   // degenerate authored direction — frame the bounding box instead
     }
 
     private void CaptureHome()
@@ -303,78 +291,33 @@ public partial class Model3DView : UserControl, IPageView
         }
     }
 
-    private void Orbit(double yawDegrees, double pitchDegrees)
+    // Each of these is "read the camera, apply the rotation, write it back" — the rotation itself lives in
+    // CameraMath so it can be asserted without a live viewport.
+    private void Orbit(double yawDegrees, double pitchDegrees) =>
+        Move(pose => CameraMath.Orbit(pose, yawDegrees, pitchDegrees));
+
+    private void Zoom(double factor) => Move(pose => CameraMath.Zoom(pose, factor));
+
+    private void Pan(double dx, double dy) => Move(pose => CameraMath.Pan(pose, dx, dy));
+
+    private void Roll(double degrees) => Move(pose => CameraMath.Roll(pose, degrees));
+
+    // Turn about the world-up (green / Y) axis through the look-at point — the rotation the Z-up turntable
+    // doesn't expose. Drives the Alt + right-drag "turn" gesture.
+    private void OrbitAboutWorldUp(double degrees) => Move(pose => CameraMath.TurnAboutWorldUp(pose, degrees));
+
+    private void Move(Func<CameraPose, CameraPose> move)
     {
         if (Viewport.Camera is not ProjectionCamera camera) return;
-
-        var target = camera.Position + camera.LookDirection;
-        var up = camera.UpDirection;
-        var right = Vector3D.CrossProduct(camera.LookDirection, up);
-        if (right.Length < 1e-9) right = new Vector3D(1, 0, 0);
-        right.Normalize();
-        up.Normalize();
-
-        var rotation = new Quaternion(up, yawDegrees) * new Quaternion(right, pitchDegrees);
-        var matrix = new Matrix3D();
-        matrix.Rotate(rotation);
-
-        var offset = matrix.Transform(camera.Position - target); // camera orbits about the target
-        camera.Position = target + offset;
-        camera.LookDirection = target - camera.Position;
-        camera.UpDirection = matrix.Transform(up);
+        WritePose(move(new CameraPose(camera.Position, camera.LookDirection, camera.UpDirection)));
     }
 
-    private void Zoom(double factor)
-    {
-        if (factor <= 0 || Viewport.Camera is not ProjectionCamera camera) return;
-
-        var target = camera.Position + camera.LookDirection;
-        var look = camera.LookDirection / factor; // factor > 1 → shorter look vector → closer
-        camera.Position = target - look;
-        camera.LookDirection = look;
-    }
-
-    private void Pan(double dx, double dy)
+    private void WritePose(CameraPose pose)
     {
         if (Viewport.Camera is not ProjectionCamera camera) return;
-
-        var look = camera.LookDirection;
-        var right = Vector3D.CrossProduct(look, camera.UpDirection);
-        if (right.Length < 1e-9) return;
-        right.Normalize();
-        var up = Vector3D.CrossProduct(right, look);
-        up.Normalize();
-
-        var distance = look.Length;
-        camera.Position += right * (dx * distance) + up * (dy * distance); // look unchanged → true pan
-    }
-
-    private void Roll(double degrees)
-    {
-        if (Viewport.Camera is not ProjectionCamera camera) return;
-
-        var axis = camera.LookDirection; // roll about the line of sight
-        if (axis.Length < 1e-9) return;
-        axis.Normalize();
-
-        var matrix = new Matrix3D();
-        matrix.Rotate(new Quaternion(axis, -degrees)); // negate so +degrees looks clockwise to the viewer
-        camera.UpDirection = matrix.Transform(camera.UpDirection);
-    }
-
-    // Orbit the camera about the world-up (green / Y) axis through the look-at point — the rotation the
-    // Z-up turntable doesn't expose. Drives the Alt + right-drag "turn" gesture.
-    private void OrbitAboutWorldUp(double degrees)
-    {
-        if (Viewport.Camera is not ProjectionCamera camera) return;
-
-        var target = camera.Position + camera.LookDirection;
-        var matrix = new Matrix3D();
-        matrix.Rotate(new Quaternion(new Vector3D(0, 1, 0), degrees)); // green / world Y
-
-        camera.Position = target + matrix.Transform(camera.Position - target);
-        camera.LookDirection = target - camera.Position;
-        camera.UpDirection = matrix.Transform(camera.UpDirection);
+        camera.Position = pose.Position;
+        camera.LookDirection = pose.LookDirection;
+        camera.UpDirection = pose.UpDirection;
     }
 
     // ── Theme resource helpers ──────────────────────────────────────────────────────────────────

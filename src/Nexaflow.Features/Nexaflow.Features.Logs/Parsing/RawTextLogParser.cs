@@ -42,18 +42,7 @@ public sealed class RawTextLogParser : ILogParser
     private static LogLevel DetectLevel(string text)
     {
         var m = LevelRegex.Match(text);
-        if (!m.Success) return LogLevel.Unknown;
-
-        return m.Groups[1].Value.ToUpperInvariant() switch
-        {
-            "FATAL" or "CRITICAL"     => LogLevel.Fatal,
-            "ERROR" or "ERR"                             => LogLevel.Error,
-            "WARN"  or "WARNING" or "WRN"                => LogLevel.Warning,
-            "INFO"  or "INFORMATION" or "INF"            => LogLevel.Info,
-            "DEBUG" or "DBG" or "TRACE"
-                    or "VERBOSE"                 => LogLevel.Debug,
-            _                                    => LogLevel.Unknown,
-        };
+        return m.Success ? LogLevels.FromName(m.Groups[1].Value) : LogLevel.Unknown;
     }
 
     private static DateTime? DetectTimestamp(string text)
@@ -78,14 +67,5 @@ public sealed class RawTextLogParser : ILogParser
             }
         }
         return null;
-    }
-
-    // ── Static helpers used by LogViewModel for timestamp detection ───────────
-
-    public static bool LineHasTimestamp(string line)
-    {
-        foreach (var (pattern, _) in TimestampPatterns)
-            if (pattern.IsMatch(line)) return true;
-        return false;
     }
 }

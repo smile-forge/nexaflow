@@ -15,10 +15,11 @@ namespace Nexaflow.Tests.Features.Logs.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
-[CoversNode("log-viewer-toolbar")]
+[CoversNode("log-viewer")]
 public class LogsJourneyTests : UiJourneyTestBase
 {
     [TestMethod]
+    [CoversNode("log-viewer-ui")]
     public void Logs_Controls_RespondInOnePass()
     {
         var file = Path.GetFileName(TestSampleData.Files("logs").First());

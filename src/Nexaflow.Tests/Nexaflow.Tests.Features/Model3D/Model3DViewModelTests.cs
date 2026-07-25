@@ -46,7 +46,7 @@ public class Model3DViewModelTests
     }
 
     [TestMethod]
-    [CoversNode("model3d-inspector")]
+    [CoversNode("model3d-inspector-toggle")]
     public void ShowInspector_IsIndependentObservableState()
     {
         var vm = Make();

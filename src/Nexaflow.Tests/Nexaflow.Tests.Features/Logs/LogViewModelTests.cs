@@ -18,7 +18,6 @@ namespace Nexaflow.Tests.Features.Logs;
 /// only the synchronous tail, the small-file path and encoding detection are asserted here.
 /// </summary>
 [TestClass]
-[CoversNode("log-viewer-tail-streaming")]
 public class LogViewModelTests
 {
     private static string WriteTemp(string content, Encoding encoding)
@@ -29,6 +28,7 @@ public class LogViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("log-viewer-tail-streaming")]
     public void LoadAsync_SmallFile_LoadsWholeContent() => AsyncPump.Run(async () =>
     {
         var path = WriteTemp(
@@ -48,6 +48,7 @@ public class LogViewModelTests
     });
 
     [TestMethod]
+    [CoversNode("log-viewer-encoding-detect")]
     public void LoadAsync_Utf16LeBom_DetectsEncodingAndDecodes() => AsyncPump.Run(async () =>
     {
         // Non-ASCII char proves the BOM-driven UTF-16 LE path decoded correctly (UTF-8 would garble it).
@@ -64,6 +65,7 @@ public class LogViewModelTests
     });
 
     [TestMethod]
+    [CoversNode("log-viewer-tail-streaming")]
     public void LoadAsync_LargeFile_LoadsTailThenHead() => AsyncPump.Run(async () =>
     {
         var sb = new StringBuilder();

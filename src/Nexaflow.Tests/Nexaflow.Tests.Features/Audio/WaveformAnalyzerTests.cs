@@ -5,7 +5,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.Audio;
 
 [TestClass]
-[CoversNode("audio-waveform")]
+[CoversNode("audio-waveform-analysis")]
 public class WaveformAnalyzerTests
 {
     [TestMethod]
