@@ -11,6 +11,7 @@ using System.Windows.Threading;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Dicom.Models;
 using Nexaflow.Features.Dicom.ViewModels;
+using Nexaflow.Features.Dicom.Viewing;
 using Nexaflow.Visuals.Common;
 
 namespace Nexaflow.Features.Dicom.Views;
@@ -149,16 +150,8 @@ public partial class DicomView : UserControl, IPageView
 
     private void FitToWindow()
     {
-        if (_lastImageW <= 0 || _lastImageH <= 0) return;
-        var vw = Stage.ActualWidth;
-        var vh = Stage.ActualHeight;
-        if (vw <= 0 || vh <= 0) return;
-
-        var scale = System.Math.Min(vw / _lastImageW, vh / _lastImageH);
-        if (scale <= 0 || double.IsInfinity(scale)) scale = 1;
-        var tx = (vw - _lastImageW * scale) / 2;
-        var ty = (vh - _lastImageH * scale) / 2;
-        _view = new Matrix(scale, 0, 0, scale, tx, ty);
+        if (_lastImageW <= 0 || Stage.ActualWidth <= 0 || Stage.ActualHeight <= 0) return;
+        _view = ImageViewTransform.Fit(_lastImageW, _lastImageH, Stage.ActualWidth, Stage.ActualHeight);
         _needsFit = false;
         ApplyTransform();
     }
@@ -166,22 +159,14 @@ public partial class DicomView : UserControl, IPageView
     private void ActualSize()
     {
         if (_lastImageW <= 0) return;
-        var tx = (Stage.ActualWidth - _lastImageW) / 2;
-        var ty = (Stage.ActualHeight - _lastImageH) / 2;
-        _view = new Matrix(1, 0, 0, 1, tx, ty);
+        _view = ImageViewTransform.ActualSize(_lastImageW, _lastImageH, Stage.ActualWidth, Stage.ActualHeight);
         ApplyTransform();
     }
 
     private void OnFit(object sender, RoutedEventArgs e) => FitToWindow();
     private void OnActualSize(object sender, RoutedEventArgs e) => ActualSize();
 
-    private Point ToImage(Point screen)
-    {
-        var inv = _view;
-        if (!inv.HasInverse) return screen;
-        inv.Invert();
-        return inv.Transform(screen);
-    }
+    private Point ToImage(Point screen) => ImageViewTransform.ToImage(_view, screen);
 
     private Point ToScreen(Point image) => _view.Transform(image);
 
@@ -195,13 +180,7 @@ public partial class DicomView : UserControl, IPageView
         if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
         {
             // Ctrl+wheel = zoom, anchored at the cursor.
-            var anchor = e.GetPosition(Stage);
-            var factor = e.Delta > 0 ? 1.15 : 1 / 1.15;
-            var m = _view;
-            m.Translate(-anchor.X, -anchor.Y);
-            m.Scale(factor, factor);
-            m.Translate(anchor.X, anchor.Y);
-            _view = m;
+            _view = ImageViewTransform.ZoomAt(_view, e.GetPosition(Stage), e.Delta > 0 ? 1.15 : 1 / 1.15);
             ApplyTransform();
         }
         else

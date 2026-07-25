@@ -281,26 +281,25 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         // a background-command watch; the watcher only yields to real typing or Ctrl-C.)
         EngagementInvalidated?.Invoke();
 
-        var input = _atPrompt ? CurrentInputLine() : null;
-        if (input is null)
+        var decision = TerminalEnterRouting.Decide(_atPrompt ? CurrentInputLine() : null, ShellBuiltins);
+        switch (decision.Action)
         {
-            _pty.WriteRaw("\r");                 // interactive program reading input
-            return;
-        }
+            case TerminalEnterAction.ForwardToProgram:
+                _pty.WriteRaw("\r");                 // interactive program reading input
+                break;
 
-        if (CommandClassifier.IsCommand(input, ShellBuiltins))
-        {
-            var trimmed = input.Trim();
-            if (trimmed.Length > 0) RecordHistory(trimmed);
-            IsBusy   = true;
-            _atPrompt = false;
-            _pty.WriteRaw("\r");
-            return;
-        }
+            case TerminalEnterAction.RunAsCommand:
+                if (decision.Text.Length > 0) RecordHistory(decision.Text);
+                IsBusy    = true;
+                _atPrompt = false;
+                _pty.WriteRaw("\r");
+                break;
 
-        // Natural language → clear what was typed off the shell line, then ask the model.
-        if (input.Length > 0) _pty.WriteRaw("\x1b");   // Esc clears cmd's current input line
-        _shell.SubmitAiQuery(input.Trim());
+            case TerminalEnterAction.AskTheAssistant:
+                if (decision.ClearShellLine) _pty.WriteRaw("\x1b");   // Esc clears cmd's current input line
+                _shell.SubmitAiQuery(decision.Text);
+                break;
+        }
     }
 
     /// <summary>The text typed after the prompt on the cursor row, or null if that row isn't a prompt.</summary>
@@ -730,17 +729,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     private void RefreshFiles()
     {
         Files.Clear();
-        if (string.IsNullOrEmpty(CurrentPath) || !Directory.Exists(CurrentPath)) return;
-        try
-        {
-            foreach (var file in Directory.EnumerateFiles(CurrentPath)
-                                          .OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
-                Files.Add(new TerminalFsEntry(file, isDirectory: false));
-            foreach (var dir in Directory.EnumerateDirectories(CurrentPath)
-                                         .OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
-                Files.Add(new TerminalFsEntry(dir, isDirectory: true));
-        }
-        catch { /* access denied / transient — leave whatever was enumerated */ }
+        foreach (var entry in TerminalFileList.Enumerate(CurrentPath)) Files.Add(entry);
     }
 
     /// <summary>Navigates the shell into a folder from the Files panel (double-click).</summary>

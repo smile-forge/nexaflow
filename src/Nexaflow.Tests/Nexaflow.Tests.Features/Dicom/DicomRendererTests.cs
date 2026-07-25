@@ -31,7 +31,7 @@ public class DicomRendererTests
     }
 
     [TestMethod]
-    [CoversNode("image-pane")]
+    [CoversNode("dicom-frame-render")]
     public void Render_SingleFrame_ProducesBgra32Bitmap_OfExpectedSize()
     {
         var r = new DicomRenderer(SampleDcm);
@@ -45,7 +45,7 @@ public class DicomRendererTests
     }
 
     [TestMethod]
-    [CoversNode("window-level")]
+    [CoversNode("dicom-window-level")]
     public void ChangingWindow_ChangesRenderedPixels()
     {
         var r = new DicomRenderer(SampleDcm);
@@ -60,7 +60,7 @@ public class DicomRendererTests
     }
 
     [TestMethod]
-    [CoversNode("window-level")]
+    [CoversNode("dicom-invert")]
     public void Invert_ProducesPhotographicNegative_NotSolidWhite()
     {
         var r = new DicomRenderer(SampleDcm) { Invert = false };
@@ -77,7 +77,7 @@ public class DicomRendererTests
     }
 
     [TestMethod]
-    [CoversNode("cine")]
+    [CoversNode("dicom-cine-slider")]
     public void MultiFrame_ReportsFrameCount_AndRendersEachFrame()
     {
         var path = DicomTestFiles.WriteImage(_tmp, "cine.dcm", "PX", "C^D", "1.7.1", "1.7.1.1", "1.7.1.1.1", frames: 3);

@@ -99,13 +99,13 @@
                     <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextMutedBrush}"
                                FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
                 </StackPanel>
-                <ToggleButton Grid.Column="1" Content="Hide patient" VerticalAlignment="Top" Margin="8,0,0,0"
+                <ToggleButton Grid.Column="1" Content="Hide patient" AutomationProperties.AutomationId="Dicom_HidePatient" VerticalAlignment="Top" Margin="8,0,0,0"
                               Style="{StaticResource TbToggle}"
                               IsChecked="{Binding HidePatientInfo, Mode=TwoWay}"
                               ToolTip="Mask patient name / ID / date of birth in the tree and overlay"/>
             </Grid>
 
-            <TreeView x:Name="Tree" Grid.Row="1" ItemsSource="{Binding Patients}"
+            <TreeView x:Name="Tree" Grid.Row="1" AutomationProperties.AutomationId="Dicom_ContentTree" ItemsSource="{Binding Patients}"
                       SelectedItemChanged="OnTreeSelectionChanged"
                       TreeViewItem.Selected="OnTreeItemSelected"
                       Background="Transparent" BorderThickness="0"
@@ -173,55 +173,55 @@
             <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="0,0,0,1" Padding="8,6">
                 <DockPanel>
-                    <ToggleButton DockPanel.Dock="Right" Content="Tags" Style="{StaticResource TbToggle}"
+                    <ToggleButton DockPanel.Dock="Right" Content="Tags" AutomationProperties.AutomationId="Dicom_TagsToggle" Style="{StaticResource TbToggle}"
                                   IsChecked="{Binding TagsOpen, Mode=TwoWay}" IsEnabled="{Binding HasInstance}"
                                   Margin="8,0,0,0" ToolTip="Show the DICOM tags for this instance"/>
                     <WrapPanel Orientation="Horizontal" IsEnabled="{Binding HasImage}">
-                    <Button Content="Fit" Style="{StaticResource TbBtn}" Click="OnFit" ToolTip="Fit image to window"/>
-                    <Button Content="1:1" Style="{StaticResource TbBtn}" Click="OnActualSize" ToolTip="Actual size"/>
-                    <ToggleButton Content="Invert" Style="{StaticResource TbToggle}" IsChecked="{Binding Invert, Mode=TwoWay}"
+                    <Button Content="Fit" AutomationProperties.AutomationId="Dicom_Fit" Style="{StaticResource TbBtn}" Click="OnFit" ToolTip="Fit image to window"/>
+                    <Button Content="1:1" AutomationProperties.AutomationId="Dicom_ActualSize" Style="{StaticResource TbBtn}" Click="OnActualSize" ToolTip="Actual size"/>
+                    <ToggleButton Content="Invert" AutomationProperties.AutomationId="Dicom_Invert" Style="{StaticResource TbToggle}" IsChecked="{Binding Invert, Mode=TwoWay}"
                                   ToolTip="Invert greyscale"/>
 
                     <Border Width="1" Background="{StaticResource BorderBrush}" Margin="6,2"/>
 
-                    <RadioButton GroupName="tool" Content="Pan" Style="{StaticResource TbToggle}"
+                    <RadioButton GroupName="tool" Content="Pan" AutomationProperties.AutomationId="Dicom_Tool_Pan" Style="{StaticResource TbToggle}"
                                  IsChecked="{Binding Measure.ActiveTool, Converter={StaticResource EnumToBool}, ConverterParameter=None}"
                                  ToolTip="Pan (drag) — no measurement"/>
-                    <RadioButton GroupName="tool" Content="Length" Style="{StaticResource TbToggle}"
+                    <RadioButton GroupName="tool" Content="Length" AutomationProperties.AutomationId="Dicom_Tool_Length" Style="{StaticResource TbToggle}"
                                  IsChecked="{Binding Measure.ActiveTool, Converter={StaticResource EnumToBool}, ConverterParameter=Length}"
                                  ToolTip="Measure a length (2 clicks)"/>
-                    <RadioButton GroupName="tool" Content="Angle" Style="{StaticResource TbToggle}"
+                    <RadioButton GroupName="tool" Content="Angle" AutomationProperties.AutomationId="Dicom_Tool_Angle" Style="{StaticResource TbToggle}"
                                  IsChecked="{Binding Measure.ActiveTool, Converter={StaticResource EnumToBool}, ConverterParameter=Angle}"
                                  ToolTip="Measure an angle (3 clicks)"/>
-                    <RadioButton GroupName="tool" Content="Rect" Style="{StaticResource TbToggle}"
+                    <RadioButton GroupName="tool" Content="Rect" AutomationProperties.AutomationId="Dicom_Tool_Rect" Style="{StaticResource TbToggle}"
                                  IsChecked="{Binding Measure.ActiveTool, Converter={StaticResource EnumToBool}, ConverterParameter=Rectangle}"
                                  ToolTip="Rectangular ROI"/>
-                    <RadioButton GroupName="tool" Content="Ellipse" Style="{StaticResource TbToggle}"
+                    <RadioButton GroupName="tool" Content="Ellipse" AutomationProperties.AutomationId="Dicom_Tool_Ellipse" Style="{StaticResource TbToggle}"
                                  IsChecked="{Binding Measure.ActiveTool, Converter={StaticResource EnumToBool}, ConverterParameter=Ellipse}"
                                  ToolTip="Elliptical ROI"/>
-                    <RadioButton GroupName="tool" Content="Probe" Style="{StaticResource TbToggle}"
+                    <RadioButton GroupName="tool" Content="Probe" AutomationProperties.AutomationId="Dicom_Tool_Probe" Style="{StaticResource TbToggle}"
                                  IsChecked="{Binding Measure.ActiveTool, Converter={StaticResource EnumToBool}, ConverterParameter=Probe}"
                                  ToolTip="Pixel value / HU probe (hover)"/>
-                    <Button Content="Clear" Style="{StaticResource TbBtn}" Command="{Binding ClearMeasurementsCommand}"
+                    <Button Content="Clear" AutomationProperties.AutomationId="Dicom_ClearMeasurements" Style="{StaticResource TbBtn}" Command="{Binding ClearMeasurementsCommand}"
                             ToolTip="Clear measurements on this frame"/>
 
                     <Border Width="1" Background="{StaticResource BorderBrush}" Margin="6,2"/>
 
                     <!-- Window presets: the active one highlights; "Default" restores the image's native W/L. -->
-                    <RadioButton GroupName="wl" Content="Default" Style="{StaticResource TbToggle}"
+                    <RadioButton GroupName="wl" Content="Default" AutomationProperties.AutomationId="Dicom_Preset_Default" Style="{StaticResource TbToggle}"
                                  Command="{Binding ApplyWindowPresetCommand}" CommandParameter="default"
                                  IsChecked="{Binding ActivePreset, Converter={StaticResource EnumToBool}, ConverterParameter=default, Mode=OneWay}"
                                  ToolTip="Restore the image's original window/level"/>
-                    <RadioButton GroupName="wl" Content="Bone" Style="{StaticResource TbToggle}"
+                    <RadioButton GroupName="wl" Content="Bone" AutomationProperties.AutomationId="Dicom_Preset_Bone" Style="{StaticResource TbToggle}"
                                  Command="{Binding ApplyWindowPresetCommand}" CommandParameter="bone"
                                  IsChecked="{Binding ActivePreset, Converter={StaticResource EnumToBool}, ConverterParameter=bone, Mode=OneWay}"/>
-                    <RadioButton GroupName="wl" Content="Lung" Style="{StaticResource TbToggle}"
+                    <RadioButton GroupName="wl" Content="Lung" AutomationProperties.AutomationId="Dicom_Preset_Lung" Style="{StaticResource TbToggle}"
                                  Command="{Binding ApplyWindowPresetCommand}" CommandParameter="lung"
                                  IsChecked="{Binding ActivePreset, Converter={StaticResource EnumToBool}, ConverterParameter=lung, Mode=OneWay}"/>
-                    <RadioButton GroupName="wl" Content="Soft" Style="{StaticResource TbToggle}"
+                    <RadioButton GroupName="wl" Content="Soft" AutomationProperties.AutomationId="Dicom_Preset_Soft" Style="{StaticResource TbToggle}"
                                  Command="{Binding ApplyWindowPresetCommand}" CommandParameter="soft"
                                  IsChecked="{Binding ActivePreset, Converter={StaticResource EnumToBool}, ConverterParameter=soft, Mode=OneWay}"/>
-                    <RadioButton GroupName="wl" Content="Brain" Style="{StaticResource TbToggle}"
+                    <RadioButton GroupName="wl" Content="Brain" AutomationProperties.AutomationId="Dicom_Preset_Brain" Style="{StaticResource TbToggle}"
                                  Command="{Binding ApplyWindowPresetCommand}" CommandParameter="brain"
                                  IsChecked="{Binding ActivePreset, Converter={StaticResource EnumToBool}, ConverterParameter=brain, Mode=OneWay}"/>
                     </WrapPanel>
@@ -264,11 +264,11 @@
                     BorderThickness="0,1,0,0" Padding="8,5"
                     Visibility="{Binding MultiFrame, Converter={StaticResource BoolToVis}}">
                 <StackPanel Orientation="Horizontal">
-                    <ToggleButton Content="▶" Style="{StaticResource TbToggle}" IsChecked="{Binding IsCine, Mode=TwoWay}"
+                    <ToggleButton Content="▶" AutomationProperties.AutomationId="Dicom_CinePlay" Style="{StaticResource TbToggle}" IsChecked="{Binding IsCine, Mode=TwoWay}"
                                   ToolTip="Play / pause cine"/>
-                    <Button Content="◀" Style="{StaticResource TbBtn}" Command="{Binding PrevFrameCommand}"/>
-                    <Button Content="▶|" Style="{StaticResource TbBtn}" Command="{Binding NextFrameCommand}"/>
-                    <Slider Width="240" VerticalAlignment="Center" Margin="8,0" Minimum="0"
+                    <Button Content="◀" AutomationProperties.AutomationId="Dicom_PrevFrame" Style="{StaticResource TbBtn}" Command="{Binding PrevFrameCommand}"/>
+                    <Button Content="▶|" AutomationProperties.AutomationId="Dicom_NextFrame" Style="{StaticResource TbBtn}" Command="{Binding NextFrameCommand}"/>
+                    <Slider Width="240" AutomationProperties.AutomationId="Dicom_FrameSlider" VerticalAlignment="Center" Margin="8,0" Minimum="0"
                             Maximum="{Binding FrameCount}" Value="{Binding FrameIndex, Mode=TwoWay}"
                             SmallChange="1" IsSnapToTickEnabled="True" TickFrequency="1"/>
                 </StackPanel>
@@ -297,7 +297,7 @@
                     </Grid.RowDefinitions>
                     <TextBlock Grid.Row="0" Text="DICOM Tags" FontWeight="SemiBold" FontSize="13"
                                Foreground="{StaticResource TextBrush}" Margin="12,10,12,6"/>
-                    <TextBox Grid.Row="1" Margin="12,0,12,8" Padding="6,3"
+                    <TextBox Grid.Row="1" AutomationProperties.AutomationId="Dicom_TagFilter" Margin="12,0,12,8" Padding="6,3"
                              Text="{Binding TagFilter, UpdateSourceTrigger=PropertyChanged}"
                              Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
                              BorderBrush="{StaticResource BorderBrush}" CaretBrush="{StaticResource TextBrush}"

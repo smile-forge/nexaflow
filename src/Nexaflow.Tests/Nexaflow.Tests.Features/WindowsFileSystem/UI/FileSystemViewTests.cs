@@ -11,7 +11,8 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem.UI;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
-[CoversNode("winfs-tab")]
+[CoversNode("win-file-system")]
+[CoversNode("win-file-system-ui")]
 public class FileSystemViewTests : UITestBase
 {
     private AutomationElement? _directoryTree;

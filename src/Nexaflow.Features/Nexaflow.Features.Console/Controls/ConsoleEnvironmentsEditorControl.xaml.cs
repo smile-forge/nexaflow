@@ -168,7 +168,8 @@ public partial class ConsoleEnvironmentsEditorControl
     }
 
     // At least one environment must remain — disable Remove rather than popping a dialog.
-    private void UpdateRemoveEnabled() => RemoveButton.IsEnabled = _envs.Count > 1;
+    private void UpdateRemoveEnabled()
+        => RemoveButton.IsEnabled = ConsoleEnvironmentEditing.CanRemoveEnvironment(_envs.Count);
 
     private void EnvList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         => SelectedEnv = EnvList.SelectedItem as EnvRow;
@@ -177,7 +178,7 @@ public partial class ConsoleEnvironmentsEditorControl
     {
         var row = new EnvRow(new TerminalEnvironment
         {
-            Name     = UniqueName("New Environment"),
+            Name     = ConsoleEnvironmentEditing.UniqueName("New Environment", _envs.Select(r => r.Name)),
             TabTitle = "Console",
         });
         _envs.Add(row);
@@ -187,21 +188,10 @@ public partial class ConsoleEnvironmentsEditorControl
 
     private void RemoveEnv_Click(object sender, RoutedEventArgs e)
     {
-        if (EnvList.SelectedItem is not EnvRow row || _envs.Count <= 1) return;
+        if (EnvList.SelectedItem is not EnvRow row || !ConsoleEnvironmentEditing.CanRemoveEnvironment(_envs.Count)) return;
 
         _envs.Remove(row);                      // OnEnvsChanged prunes the row's pinned locations
         if (SelectedEnv == row || SelectedEnv is null) EnvList.SelectedIndex = 0;
-    }
-
-    private string UniqueName(string seed)
-    {
-        if (!_envs.Any(r => string.Equals(r.Name, seed, StringComparison.OrdinalIgnoreCase))) return seed;
-        for (int i = 2; ; i++)
-        {
-            var candidate = $"{seed} {i}";
-            if (!_envs.Any(r => string.Equals(r.Name, candidate, StringComparison.OrdinalIgnoreCase)))
-                return candidate;
-        }
     }
 
     // ── Themed browse button (acts on the selected environment) ───────────────
@@ -258,8 +248,8 @@ public partial class ConsoleEnvironmentsEditorControl
         var @new = row.Name;
         var old  = _lastNames.TryGetValue(row, out var o) ? o : @new;
         _lastNames[row] = @new;
-        if (string.IsNullOrWhiteSpace(old) || string.Equals(old, @new, StringComparison.OrdinalIgnoreCase)) return;
-        if (_envs.Any(r => r != row && string.Equals(r.Name, old, StringComparison.OrdinalIgnoreCase))) return;
+        if (!ConsoleEnvironmentEditing.ShouldMigrateBindings(old, @new, _envs.Where(r => r != row).Select(r => r.Name)))
+            return;
         foreach (var b in _bindings.Where(b => string.Equals(b.EnvName, old, StringComparison.OrdinalIgnoreCase)).ToList())
             b.EnvName = @new;
     }
