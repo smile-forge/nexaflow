@@ -25,7 +25,7 @@ namespace Nexaflow.Tests.Features.Web.UI;
 /// Interactive desktop only — run with <c>--filter "TestCategory=UI"</c>.
 /// </summary>
 [TestClass]
-[CoversNode("ui-2")]
+[CoversNode("web-viewer-ui")]
 public class WebJourneyTests : UiJourneyTestBase
 {
     private string _folder = string.Empty;
