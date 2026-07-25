@@ -17,6 +17,7 @@ public class ProjectsViewletJourneyTests : UiJourneyTestBase
     protected override void SeedConfig(string configDir) => ProjectsUiSeed.Write(configDir);
 
     [TestMethod]
+    [CoversNode("projects-viewlets")]
     public void BacklogViewlet_ShowsForProjectFolder()
     {
         NavigateFileBrowserTo(ProjectsUiSeed.AlphaFolder(ConfigDir));

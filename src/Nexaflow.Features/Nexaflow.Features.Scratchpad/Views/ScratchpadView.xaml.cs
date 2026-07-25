@@ -2,6 +2,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Scratchpad.Converters;
 using Nexaflow.Features.Scratchpad.Services;
 using Nexaflow.Features.Scratchpad.ViewModels;
+using Nexaflow.Visuals.Common.Layout;
 using Nexaflow.Visuals.Text.Markdown;
 using System.Collections.Specialized;
 using System.Globalization;
@@ -381,13 +382,14 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
 
     private void ZoomAt(double factor, Point mouseOnHost)
     {
-        var newScale     = Math.Clamp(CanvasScaleTransform.ScaleX * factor, MinScale, MaxScale);
-        var actualFactor = newScale / CanvasScaleTransform.ScaleX;
+        var (scale, x, y) = PanZoomMiniMap.ZoomAt(
+            CanvasScaleTransform.ScaleX, CanvasTranslateTransform.X, CanvasTranslateTransform.Y,
+            mouseOnHost.X, mouseOnHost.Y, factor, MinScale, MaxScale);
 
-        CanvasTranslateTransform.X  = mouseOnHost.X - (mouseOnHost.X - CanvasTranslateTransform.X) * actualFactor;
-        CanvasTranslateTransform.Y  = mouseOnHost.Y - (mouseOnHost.Y - CanvasTranslateTransform.Y) * actualFactor;
-        CanvasScaleTransform.ScaleX = newScale;
-        CanvasScaleTransform.ScaleY = newScale;
+        CanvasTranslateTransform.X  = x;
+        CanvasTranslateTransform.Y  = y;
+        CanvasScaleTransform.ScaleX = scale;
+        CanvasScaleTransform.ScaleY = scale;
 
         UpdateVmOffset();
         UpdateMiniMap();
@@ -441,90 +443,51 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
     // Last drawn minimap→canvas mapping, captured so a drag gesture can convert a
     // minimap pixel back into a canvas point without recomputing (which would shift
     // under the cursor as the viewport moves).
-    private double _mmScale, _mmOffX, _mmOffY, _mmMinX, _mmMinY;
-    private bool   _mmHasMapping;
+    private MiniMapMapping? _mmMapping;
     private bool   _mmDragging;
     private Rectangle? _mmViewportRect;
 
+    private const double MiniMapW = 158, MiniMapH = 98;
+
     private void UpdateMiniMap()
     {
-        if (!IsLoaded || Vm.Notes.Count == 0)
-        {
-            MiniMapBorder.Visibility = Visibility.Collapsed;
-            return;
-        }
+        var mapping = IsLoaded && PanZoomMiniMap.Bounds(Vm.Notes.Select(n => (n.X, n.Y, n.Width, n.Height))) is { } bounds
+            ? PanZoomMiniMap.Compute(bounds, CanvasScaleTransform.ScaleX,
+                                     CanvasTranslateTransform.X, CanvasTranslateTransform.Y,
+                                     CanvasHost.ActualWidth, CanvasHost.ActualHeight, MiniMapW, MiniMapH)
+            : null;
 
-        var s  = CanvasScaleTransform.ScaleX;
-        var tx = CanvasTranslateTransform.X;
-        var ty = CanvasTranslateTransform.Y;
-
-        // Viewport bounds in canvas space
-        var viewLeft   = -tx / s;
-        var viewTop    = -ty / s;
-        var viewRight  = viewLeft + CanvasHost.ActualWidth  / s;
-        var viewBottom = viewTop  + CanvasHost.ActualHeight / s;
-
-        // Bounding box of all notes
-        var minX = Vm.Notes.Min(n => n.X);
-        var minY = Vm.Notes.Min(n => n.Y);
-        var maxX = Vm.Notes.Max(n => n.X + n.Width);
-        var maxY = Vm.Notes.Max(n => n.Y + n.Height);
-
-        // Only show minimap if any note is (at least partially) outside the viewport
-        var allVisible = minX >= viewLeft && minY >= viewTop
-                      && maxX <= viewRight && maxY <= viewBottom;
-        if (allVisible)
-        {
-            MiniMapBorder.Visibility = Visibility.Collapsed;
-            return;
-        }
-
-        // Expand bounding box to include viewport
-        minX = Math.Min(minX, viewLeft);
-        minY = Math.Min(minY, viewTop);
-        maxX = Math.Max(maxX, viewRight);
-        maxY = Math.Max(maxY, viewBottom);
-
-        var contentW = maxX - minX;
-        var contentH = maxY - minY;
-        if (contentW <= 0 || contentH <= 0) return;
-
-        const double mmW = 158;
-        const double mmH = 98;
-        var scale = Math.Min(mmW / contentW, mmH / contentH);
-        var offX  = (mmW - contentW * scale) / 2;
-        var offY  = (mmH - contentH * scale) / 2;
-
-        // Capture the mapping so a minimap drag can invert it (minimap px → canvas).
-        _mmScale = scale; _mmOffX = offX; _mmOffY = offY; _mmMinX = minX; _mmMinY = minY;
-        _mmHasMapping = true;
+        _mmMapping = mapping;
+        if (mapping is not { } m) { MiniMapBorder.Visibility = Visibility.Collapsed; return; }
 
         MiniMapCanvas.Children.Clear();
 
         foreach (var note in Vm.Notes)
         {
+            var (x, y, w, h) = PanZoomMiniMap.Box(m, note.X, note.Y, note.Width, note.Height, minSize: 2);
             var r = new Rectangle
             {
-                Width   = Math.Max(2, note.Width  * scale),
-                Height  = Math.Max(2, note.Height * scale),
+                Width   = w,
+                Height  = h,
                 Fill    = NoteColorToBrush(note.Color),
                 Opacity = 0.85
             };
-            Canvas.SetLeft(r, offX + (note.X - minX) * scale);
-            Canvas.SetTop(r,  offY + (note.Y - minY) * scale);
+            Canvas.SetLeft(r, x);
+            Canvas.SetTop(r, y);
             MiniMapCanvas.Children.Add(r);
         }
 
+        var (vx, vy, vw, vh) = PanZoomMiniMap.ViewportBox(m, m.ViewLeft, m.ViewTop);
         var vp = new Rectangle
         {
-            Width           = Math.Max(4, (viewRight  - viewLeft)  * scale),
-            Height          = Math.Max(4, (viewBottom - viewTop)   * scale),
+            Width           = vw,
+            Height          = vh,
             Stroke          = (Brush)FindResource("Scratchpad.MinimapViewportStroke"),
             StrokeThickness = 1,
             Fill            = (Brush)FindResource("Scratchpad.MinimapViewportFill")
         };
-        Canvas.SetLeft(vp, offX + (viewLeft - minX) * scale);
-        Canvas.SetTop(vp,  offY + (viewTop  - minY) * scale);
+        Canvas.SetLeft(vp, vx);
+        Canvas.SetTop(vp, vy);
         MiniMapCanvas.Children.Add(vp);
         _mmViewportRect = vp;
 
@@ -538,7 +501,7 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
 
     private void MiniMap_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (!_mmHasMapping) return;
+        if (_mmMapping is null) return;
         _mmDragging = true;
         MiniMapBorder.CaptureMouse();
         MoveViewportTo(e.GetPosition(MiniMapCanvas));
@@ -563,30 +526,23 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
 
     private void MoveViewportTo(Point mm)
     {
-        if (!_mmHasMapping || _mmScale <= 0) return;
+        if (_mmMapping is not { } m) return;
 
-        var s = CanvasScaleTransform.ScaleX;
+        // Minimap pixel → canvas point under the cursor (inverting the frozen mapping), then centre.
+        var (x, y, viewLeft, viewTop) = PanZoomMiniMap.TranslateForPoint(
+            m, mm.X, mm.Y, CanvasScaleTransform.ScaleX, CanvasHost.ActualWidth, CanvasHost.ActualHeight);
 
-        // Minimap pixel → canvas point under the cursor (invert the captured mapping).
-        var canvasX = _mmMinX + (mm.X - _mmOffX) / _mmScale;
-        var canvasY = _mmMinY + (mm.Y - _mmOffY) / _mmScale;
-
-        // Centre the viewport on that canvas point.
-        var viewW = CanvasHost.ActualWidth  / s;
-        var viewH = CanvasHost.ActualHeight / s;
-        var viewLeft = canvasX - viewW / 2;
-        var viewTop  = canvasY - viewH / 2;
-
-        CanvasTranslateTransform.X = -viewLeft * s;
-        CanvasTranslateTransform.Y = -viewTop  * s;
+        CanvasTranslateTransform.X = x;
+        CanvasTranslateTransform.Y = y;
         UpdateVmOffset();
 
         // Move the viewport rectangle live using the frozen mapping (no full redraw,
         // which would shift the mapping under the cursor mid-drag).
         if (_mmViewportRect is { } vp)
         {
-            Canvas.SetLeft(vp, _mmOffX + (viewLeft - _mmMinX) * _mmScale);
-            Canvas.SetTop(vp,  _mmOffY + (viewTop  - _mmMinY) * _mmScale);
+            var (bx, by, _, _) = PanZoomMiniMap.ViewportBox(m, viewLeft, viewTop);
+            Canvas.SetLeft(vp, bx);
+            Canvas.SetTop(vp, by);
         }
     }
 

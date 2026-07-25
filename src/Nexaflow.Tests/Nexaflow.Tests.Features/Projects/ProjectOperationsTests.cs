@@ -13,7 +13,6 @@ namespace Nexaflow.Tests.Features.Projects;
 /// the transactional file path (which transitively exercises <c>TransactionalFileService</c>).
 /// </summary>
 [TestClass]
-[CoversNode("projects")]
 public class ProjectOperationsTests
 {
     private string _root = "";
@@ -44,10 +43,12 @@ public class ProjectOperationsTests
     // ── Listing & loading ────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("projects-store")]
     public void RootPath_IsConfiguredDirectory()
         => Assert.AreEqual(_root, _ops.RootPath);
 
     [TestMethod]
+    [CoversNode("projects-store")]
     public void GetProjectListTyped_IsEmpty_WhenRootMissing()
     {
         var ops = new ProjectOperations(new ProjectsConfig { ProjectDirectory = Path.Combine(_root, "nope") });
@@ -55,6 +56,7 @@ public class ProjectOperationsTests
     }
 
     [TestMethod]
+    [CoversNode("projects-store")]
     public void GetProjectListTyped_FallsBackToFolderName_WhenUnnamed()
     {
         NewFolder("alpha");
@@ -64,6 +66,7 @@ public class ProjectOperationsTests
     }
 
     [TestMethod]
+    [CoversNode("projects-list-rows")]
     public void GetProjectListTyped_UsesProjectName_WhenSet()
     {
         var f = NewFolder("alpha");
@@ -72,18 +75,22 @@ public class ProjectOperationsTests
     }
 
     [TestMethod]
+    [CoversNode("projects-store")]
     public void GetProjectInfo_MissingProjectFile_NamesAfterFolder()
         => Assert.AreEqual("alpha", _ops.GetProjectInfo(NewFolder("alpha")).Name);
 
     [TestMethod]
+    [CoversNode("projects-store")]
     public void GetProjectInfo_EmptyFolderName_Throws()
         => Assert.ThrowsExactly<ArgumentException>(() => _ops.GetProjectInfo(""));
 
     [TestMethod]
+    [CoversNode("projects-store")]
     public void GetProjectInfo_NonexistentFolder_Throws()
         => Assert.ThrowsExactly<ArgumentException>(() => _ops.GetProjectInfo("ghost"));
 
     [TestMethod]
+    [CoversNode("projects-store")]
     public void SaveProject_StampsCurrentSchemaVersion()
     {
         var f = NewFolder();
@@ -94,6 +101,7 @@ public class ProjectOperationsTests
     // ── Metadata ─────────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("projects-edit-fields")]
     public void ModifyProjectHeader_Persists_AndStampsLastUpdate()
     {
         var f = NewFolder();
@@ -105,6 +113,7 @@ public class ProjectOperationsTests
     }
 
     [TestMethod]
+    [CoversNode("projects-edit-fields")]
     public void SetCompletionCriteria_Persists()
     {
         var f = NewFolder();
@@ -122,6 +131,7 @@ public class ProjectOperationsTests
     // ── Backlog ──────────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("projects-backlog-add")]
     public void AddToDo_AppearsInBacklog_AtFirstStatus()
     {
         var f = NewFolder();
@@ -134,6 +144,8 @@ public class ProjectOperationsTests
     }
 
     [TestMethod]
+    [CoversNode("projects-backlog-progress")]
+    [CoversNode("projects-backlog-states")]
     public void ProgressToDo_AdvancesThroughTheChain_ReturningLabels()
     {
         var f = NewFolder();
@@ -143,6 +155,7 @@ public class ProjectOperationsTests
     }
 
     [TestMethod]
+    [CoversNode("projects-backlog-progress")]
     public void ProgressToDo_StopsAtLastNonTerminal()
     {
         var f = NewFolder();
@@ -154,10 +167,12 @@ public class ProjectOperationsTests
     }
 
     [TestMethod]
+    [CoversNode("projects-backlog-progress")]
     public void ProgressToDo_MissingId_Throws()
         => Assert.ThrowsExactly<ArgumentException>(() => _ops.ProgressToDo(NewFolder(), Guid.NewGuid()));
 
     [TestMethod]
+    [CoversNode("projects-backlog-editor")]
     public void SetToDoStatus_SetsAnyStatus()
     {
         var f = NewFolder();
@@ -167,6 +182,7 @@ public class ProjectOperationsTests
     }
 
     [TestMethod]
+    [CoversNode("projects-backlog-states")]
     public void CancelToDo_SetsTerminalCancelled()
     {
         var f = NewFolder();
@@ -176,6 +192,7 @@ public class ProjectOperationsTests
     }
 
     [TestMethod]
+    [CoversNode("projects-backlog-delete")]
     public void RemoveToDo_DropsItem()
     {
         var f = NewFolder();
@@ -185,6 +202,7 @@ public class ProjectOperationsTests
     }
 
     [TestMethod]
+    [CoversNode("projects-backlog-editor")]
     public void ModifyToDo_TitleAndDescription_Persist()
     {
         var f = NewFolder();
@@ -196,6 +214,7 @@ public class ProjectOperationsTests
     }
 
     [TestMethod]
+    [CoversNode("projects-backlog-states")]
     public void UnknownStatusKey_ResolvesInvalidSentinel()
     {
         var cfg = new ProjectsConfig();
@@ -209,6 +228,7 @@ public class ProjectOperationsTests
         => StringAssert.Contains(_ops.GetToDos(NewFolder()), "No backlog items");
 
     [TestMethod]
+    [CoversNode("projects-summary-markdown")]
     public void GetProjectDetails_IncludesNameAndPerStatusBacklog()
     {
         var f = NewFolder();
@@ -220,6 +240,7 @@ public class ProjectOperationsTests
     }
 
     [TestMethod]
+    [CoversNode("projects-summary-markdown")]
     public void GetBacklogStatusMarkdown_EmitsMermaidPie_WhenItemsPresent()
     {
         var f = NewFolder();
@@ -233,6 +254,7 @@ public class ProjectOperationsTests
     // ── Transactional file operations ────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("projects-store")]
     public void StartTransaction_ReturnsScopedId()
     {
         var f = NewFolder("proj");
@@ -240,10 +262,12 @@ public class ProjectOperationsTests
     }
 
     [TestMethod]
+    [CoversNode("projects-store")]
     public void StartTransaction_NonexistentFolder_Throws()
         => Assert.ThrowsExactly<ArgumentException>(() => _ops.StartTransaction("ghost"));
 
     [TestMethod]
+    [CoversNode("projects-store")]
     public void WriteNewProjectFile_CreatesFile_OnCommit()
     {
         var f = NewFolder();
@@ -255,6 +279,7 @@ public class ProjectOperationsTests
     }
 
     [TestMethod]
+    [CoversNode("projects-store")]
     public void WriteNewProjectFile_ExistingFile_Throws()
     {
         var f = NewFolder();

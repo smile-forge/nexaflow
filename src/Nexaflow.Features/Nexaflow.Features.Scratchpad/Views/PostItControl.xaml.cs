@@ -322,47 +322,15 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         if (!_isResizing) return;
         var canvas = FindAncestor<Canvas>();
         var pos    = canvas != null ? e.GetPosition(canvas) : e.GetPosition(Parent as UIElement);
-        var dx     = pos.X - _resizeStart.X;
-        var dy     = pos.Y - _resizeStart.Y;
-        const double minSize = 80;
+        var start  = new NoteRect(_resizeStartX, _resizeStartY, _resizeStartW, _resizeStartH);
 
-        // The note rotates about its centre, so resizing in canvas (screen) axes would
-        // both skew the drag and shift the note as the pivot moves. Work in the note's
-        // local axes and pin the un-dragged corner in canvas space.
-        var theta = Vm.Rotation * Math.PI / 180.0;
-        var cos   = Math.Cos(theta);
-        var sin   = Math.Sin(theta);
+        var rect = PostItGeometry.Resize(_resizeEdge, Vm.Rotation, start,
+                                         pos.X - _resizeStart.X, pos.Y - _resizeStart.Y);
 
-        // Project the screen drag onto the note's local axes (rotate by -θ).
-        var localDx =  dx * cos + dy * sin;
-        var localDy = -dx * sin + dy * cos;
-
-        var w = _resizeStartW;
-        var h = _resizeStartH;
-        if (_resizeEdge.Contains('E')) w = Math.Max(minSize, _resizeStartW + localDx);
-        if (_resizeEdge.Contains('W')) w = Math.Max(minSize, _resizeStartW - localDx);
-        if (_resizeEdge.Contains('S')) h = Math.Max(minSize, _resizeStartH + localDy);
-        if (_resizeEdge.Contains('N')) h = Math.Max(minSize, _resizeStartH - localDy);
-
-        // Anchor = the fixed corner (centre offset of the side(s) not being dragged),
-        // captured in canvas space from the start geometry…
-        var ax0 = _resizeEdge.Contains('W') ?  _resizeStartW / 2 : -_resizeStartW / 2;
-        var ay0 = _resizeEdge.Contains('N') ?  _resizeStartH / 2 : -_resizeStartH / 2;
-        var cx0 = _resizeStartX + _resizeStartW / 2;
-        var cy0 = _resizeStartY + _resizeStartH / 2;
-        var anchorX = cx0 + (ax0 * cos - ay0 * sin);
-        var anchorY = cy0 + (ax0 * sin + ay0 * cos);
-
-        // …then solve for the new centre that keeps that same corner pinned.
-        var ax1 = _resizeEdge.Contains('W') ?  w / 2 : -w / 2;
-        var ay1 = _resizeEdge.Contains('N') ?  h / 2 : -h / 2;
-        var cx1 = anchorX - (ax1 * cos - ay1 * sin);
-        var cy1 = anchorY - (ax1 * sin + ay1 * cos);
-
-        Vm.Width  = w;
-        Vm.Height = h;
-        Vm.X      = cx1 - w / 2;
-        Vm.Y      = cy1 - h / 2;
+        Vm.Width  = rect.Width;
+        Vm.Height = rect.Height;
+        Vm.X      = rect.X;
+        Vm.Y      = rect.Y;
 
         e.Handled = true;
     }

@@ -7,7 +7,6 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.Scratchpad;
 
 [TestClass]
-[CoversNode("note-attachments")]
 public class PostItStoreTests
 {
     private string _root = string.Empty;
@@ -31,6 +30,7 @@ public class PostItStoreTests
         new() { Content = content, X = 1, Y = 2, Color = "Pink", Shape = "Circle" };
 
     [TestMethod]
+    [CoversNode("scratchpad-persistence")]
     public void Constructor_CreatesPostitsAndRecycleFolders()
     {
         Assert.IsTrue(Directory.Exists(Path.Combine(_root, "postits")));
@@ -38,6 +38,7 @@ public class PostItStoreTests
     }
 
     [TestMethod]
+    [CoversNode("scratchpad-persistence")]
     public void Save_ThenLoadAll_RoundTripsNote()
     {
         var note = MakeNote("first");
@@ -54,6 +55,7 @@ public class PostItStoreTests
     }
 
     [TestMethod]
+    [CoversNode("scratchpad-persistence")]
     public void Save_TwiceWithSameId_OverwritesExistingFile()
     {
         var note = MakeNote("v1");
@@ -79,6 +81,7 @@ public class PostItStoreTests
     }
 
     [TestMethod]
+    [CoversNode("recycle-delete")]
     public void Delete_RemovesNote()
     {
         var note = MakeNote();
@@ -89,6 +92,7 @@ public class PostItStoreTests
     }
 
     [TestMethod]
+    [CoversNode("scratchpad-persistence")]
     public void Delete_NonexistentNote_DoesNotThrow()
     {
         _store.Delete(MakeNote());
@@ -96,6 +100,7 @@ public class PostItStoreTests
     }
 
     [TestMethod]
+    [CoversNode("postit-close")]
     public void MoveToRecycleBin_RemovesFromPostits_AndAppearsInBin()
     {
         var note = MakeNote("trash me");
@@ -109,6 +114,7 @@ public class PostItStoreTests
     }
 
     [TestMethod]
+    [CoversNode("recycle-restore")]
     public void RestoreFromRecycleBin_ReturnsNoteToPostits()
     {
         var note = MakeNote("come back");
@@ -123,6 +129,7 @@ public class PostItStoreTests
     }
 
     [TestMethod]
+    [CoversNode("recycle-empty")]
     public void EmptyRecycleBin_DeletesEverythingInBin()
     {
         for (int i = 0; i < 3; i++)
@@ -138,6 +145,7 @@ public class PostItStoreTests
     }
 
     [TestMethod]
+    [CoversNode("scratchpad-expiry")]
     public void PurgeRecycleBin_NullRetention_KeepsEverything()
     {
         var old = MakeNote();
@@ -150,6 +158,7 @@ public class PostItStoreTests
     }
 
     [TestMethod]
+    [CoversNode("scratchpad-expiry")]
     public void PurgeRecycleBin_Zero_DeletesEverything()
     {
         var fresh = MakeNote();
@@ -161,6 +170,7 @@ public class PostItStoreTests
     }
 
     [TestMethod]
+    [CoversNode("scratchpad-expiry")]
     public void PurgeRecycleBin_KeepsNewer_DeletesOlder()
     {
         // ExpiresAt is preferred over CreatedAt; older than cutoff => delete.
@@ -182,6 +192,7 @@ public class PostItStoreTests
     }
 
     [TestMethod]
+    [CoversNode("scratchpad-expiry")]
     public void PurgeRecycleBin_UsesCreatedAt_WhenExpiresAtNull()
     {
         var n = MakeNote("via createdat");
@@ -195,6 +206,7 @@ public class PostItStoreTests
     }
 
     [TestMethod]
+    [CoversNode("scratchpad-persistence")]
     public void LoadAll_SkipsCorruptFiles()
     {
         var good = MakeNote("good");
@@ -208,6 +220,7 @@ public class PostItStoreTests
     }
 
     [TestMethod]
+    [CoversNode("recycle-restore")]
     public void RestoreFromRecycleBin_WhenAbsent_NoOp()
     {
         _store.RestoreFromRecycleBin(MakeNote()); // never saved/moved
@@ -225,6 +238,7 @@ public class PostItStoreTests
     }
 
     [TestMethod]
+    [CoversNode("note-attachments")]
     public void EnsureAttachmentDir_CreatesFolderKeyedOnNoteId()
     {
         var id  = Guid.NewGuid();
@@ -235,6 +249,7 @@ public class PostItStoreTests
     }
 
     [TestMethod]
+    [CoversNode("note-attachments")]
     public void Delete_RemovesAttachmentFolder()
     {
         var note = MakeNote();
@@ -247,6 +262,7 @@ public class PostItStoreTests
     }
 
     [TestMethod]
+    [CoversNode("note-attachments")]
     public void RecycleThenRestore_KeepsAttachments()
     {
         var note = MakeNote();
@@ -261,6 +277,7 @@ public class PostItStoreTests
     }
 
     [TestMethod]
+    [CoversNode("note-attachments")]
     public void PurgeRecycleBin_RemovesAttachmentsForPurgedNotes()
     {
         var note = MakeNote();
@@ -275,6 +292,7 @@ public class PostItStoreTests
     }
 
     [TestMethod]
+    [CoversNode("note-attachments")]
     public void EmptyRecycleBin_RemovesAttachmentFolders()
     {
         var note = MakeNote();

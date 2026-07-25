@@ -16,13 +16,13 @@ namespace Nexaflow.Tests.Features.Video;
 /// by the UI journey instead.
 /// </summary>
 [TestClass]
-[CoversNode("video-subtitles")]
 public class VideoViewModelTests
 {
     private static VideoViewModel Make()
         => new("clip.mp4", Substitute.For<IShellServices>());
 
     [TestMethod]
+    [CoversNode("video-infopanel-toggle")]
     public void ToggleInfoPanel_FlipsVisibility()
     {
         var vm = Make();
@@ -34,6 +34,7 @@ public class VideoViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("video-scenestrip-toggle")]
     public void ToggleSceneStrip_FlipsVisibility_AndShowSceneStripFollowsKeyframes()
     {
         var vm = Make();
@@ -51,6 +52,8 @@ public class VideoViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("video-fullscreen-toggle")]
+    [CoversNode("video-fullscreen")]
     public void ToggleFullScreen_FlipsState_AndExitForcesItOff()
     {
         var vm = Make();
@@ -62,6 +65,7 @@ public class VideoViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("video-speed")]
     public void ToggleSpeedMenu_FlipsOpenState()
     {
         var vm = Make();
@@ -73,6 +77,7 @@ public class VideoViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("video-speed")]
     public void SetSpeed_UpdatesRateAndLabel_AndClosesMenu_EngineSafe()
     {
         var vm = Make();
@@ -90,6 +95,7 @@ public class VideoViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("video-speed")]
     public void SetSpeed_IgnoresUnparsableFactor_ButStillClosesMenu()
     {
         var vm = Make();
@@ -100,6 +106,7 @@ public class VideoViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("video-subtitles")]
     public void ToggleSubtitleMenu_OpensWithOffEntry_EngineSafe()
     {
         var vm = Make();
@@ -116,6 +123,7 @@ public class VideoViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("video-subtitles")]
     public void SetSubtitle_ClosesMenu_WithoutEngine()
     {
         var vm = Make();
@@ -125,6 +133,7 @@ public class VideoViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("video-volume")]
     public void Volume_RoundTrips_AndSetterIsEngineSafe()
     {
         var vm = Make();
@@ -133,6 +142,7 @@ public class VideoViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("video-scrubber")]
     public void PositionSeconds_RoundTrips_AndSeekSetterIsEngineSafe()
     {
         var vm = Make();
@@ -141,6 +151,8 @@ public class VideoViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("video-poster")]
+    [CoversNode("video-states")]
     public void DerivedVisibility_ReflectsLoadedPlayingErrorState()
     {
         var vm = Make();
@@ -160,6 +172,7 @@ public class VideoViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("video-ai-context")]
     public void Context_DescribesFileAndState()
     {
         var vm = Make();

@@ -17,7 +17,6 @@ namespace Nexaflow.Tests.Features.Projects;
 /// theme) are never hit.
 /// </summary>
 [TestClass]
-[CoversNode("projects")]
 public class ProjectsViewModelTests
 {
     private string _root = "";
@@ -158,6 +157,7 @@ public class ProjectsViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("projects-list-rows")]
     public void Disabled_ShowsNoProjects()
     {
         var vm = new ProjectsViewModel(Config(enabled: false));
@@ -167,6 +167,7 @@ public class ProjectsViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("projects-list-rows")]
     public void Enabled_LoadsProjects_AndSelectsFirst()
     {
         var cfg = Config();
@@ -182,6 +183,7 @@ public class ProjectsViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("projects-list-rows")]
     public void Enabled_DisplayName_FallsBackToFolderName()
     {
         var cfg = Config();
@@ -191,6 +193,7 @@ public class ProjectsViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("projects-open")]
     public void OpenProjectCommand_RaisesRequestWithAbsolutePath()
     {
         var cfg = Config();
@@ -205,6 +208,7 @@ public class ProjectsViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("projects-open")]
     public void OpenFilesCommand_RaisesRequestWithAbsolutePath()
     {
         var cfg = Config();
@@ -219,6 +223,7 @@ public class ProjectsViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("projects-buckets-tabs")]
     public void SelectedBucket_Shelf_LoadsFromShelfDirectory()
     {
         var cfg = Config();
@@ -233,6 +238,8 @@ public class ProjectsViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("projects-bucket-actions")]
+    [CoversNode("projects-buckets")]
     public void ArchiveCommand_MovesFolderToArchive_AndReloads()
     {
         var cfg = Config();
@@ -250,6 +257,8 @@ public class ProjectsViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("projects-bucket-actions")]
+    [CoversNode("projects-buckets")]
     public void ReactivateCommand_MovesFromShelfToProjects()
     {
         var cfg = Config();
@@ -266,6 +275,7 @@ public class ProjectsViewModelTests
     // ── ProjectSummaryItem text helper (pure) ───────────────────────────────
 
     [TestMethod]
+    [CoversNode("projects-list-rows")]
     public void DescriptionPreview_TakesFirstTwoNonEmptyLines()
     {
         var item = new ProjectSummaryItem { Description = "line one\n\nline two\nline three" };
