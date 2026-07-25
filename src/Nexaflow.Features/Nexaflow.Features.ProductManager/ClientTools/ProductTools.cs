@@ -14,7 +14,15 @@ namespace Nexaflow.Features.ProductManager.ClientTools;
 /// </summary>
 public static class ProductTools
 {
-    public static IReadOnlyList<IClientTool> ForRoot(string productRoot)
+    /// <summary>
+    /// Everything the assistant can do to a product folder: the tree commands below, plus the knowledge-graph
+    /// commands from <see cref="GraphTools"/>. Both families are the same operations the
+    /// <c>nexaflow-initiatives</c> CLI exposes, over the same services and rendered by the same reporters.
+    /// </summary>
+    public static IReadOnlyList<IClientTool> ForRoot(string productRoot) =>
+        [.. TreeTools(productRoot), .. GraphTools.ForRoot(productRoot)];
+
+    private static IReadOnlyList<IClientTool> TreeTools(string productRoot)
     {
         ProductState Load() => new ProductStore(productRoot).Load();
 

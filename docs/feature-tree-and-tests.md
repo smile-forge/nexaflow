@@ -270,14 +270,18 @@ Don't loop trying to test the genuinely-hard ones — mark `shouldnt` + note and
 
 ## 5. The CLI (edit the tree only through it)
 
-> **The in-app assistant has this same surface.** Every verb below that reads or changes the tree is also a
-> `product_*` client tool on all three Product views, running the same `Services.Initiatives` call and
-> rendering through the same `ProductReport`, so the CLI and the assistant print identical text. Reads and
-> in-place edits auto-run; the structural ones (`add-node` / `move` / `rename` / `remove` / `remap` /
-> `doctor --fix`) are approval-gated. `batch` is deliberately CLI-only — the model already has the individual
-> operations. So the loop this document describes — `find` the node, `query` what it owes, edit, then
-> `validate` and `lint` to check the edit — is one a model can run unaided; before the tools existed it could
-> set `tests=done` and had no way to learn it had just made an unbacked claim.
+> **The in-app assistant has this same surface** — both families. Every verb below that reads or changes the
+> tree is a `product_*` client tool, and every `graph` verb is a `graph_*` one, on all three Product views,
+> running the same `Services.Initiatives` call and rendering through the same reporter (`ProductReport` /
+> `GraphReport`) so the CLI and the assistant print identical text. Reads auto-run; the structural tree ops
+> (`add-node` / `move` / `rename` / `remove` / `remap` / `doctor --fix`) and `graph build` are
+> approval-gated. `batch` is deliberately CLI-only — the model already has the individual operations.
+>
+> So the loop this document describes — `find` the node, `query` what it owes, edit, then `validate` and
+> `lint` to check the edit — is one a model can run unaided; before the tools existed it could set
+> `tests=done` and had no way to learn it had just made an unbacked claim. The graph half is the same story
+> for code: `graph_context` answers "what is this and what owns it" in one call, and `graph_grep` scopes a
+> regex to a neighbourhood, which plain text search cannot do at all.
 
 
 `nexaflow-initiatives.exe` self-locates the `.product` tree (follows a git worktree to its main checkout), so

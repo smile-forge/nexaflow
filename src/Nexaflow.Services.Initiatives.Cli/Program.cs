@@ -454,21 +454,8 @@ internal static class Program
         if (!TryIntOpt(a, "--limit", 40, out var limit)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
 
-        var type = a.Value("--type");
-        int Match(GraphNode n) =>                                   // exact label < prefix < label-substring < id-only
-            n.Label is null ? 3
-            : n.Label.Equals(term, StringComparison.OrdinalIgnoreCase) ? 0
-            : n.Label.StartsWith(term, StringComparison.OrdinalIgnoreCase) ? 1
-            : n.Label.Contains(term, StringComparison.OrdinalIgnoreCase) ? 2 : 3;
-        var hits = g.Nodes.Where(n =>
-                (type is null || n.Type == type) &&
-                (n.Id.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                 (n.Label?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false)))
-            .OrderBy(Match).ThenBy(n => TypeRank(n.Type)).ThenBy(n => n.Label?.Length ?? int.MaxValue).ThenBy(n => n.Id, StringComparer.Ordinal)
-            .ToList();
-
-        foreach (var n in hits.Take(limit)) Console.WriteLine(NodeLine(n));
-        Console.WriteLine($"{hits.Count} match(es)" + (hits.Count > limit ? $" — showing {limit} (raise --limit or narrow --type)" : "") + ".");
+        var hits = GraphQuery.Search(g, term, a.Value("--type"));
+        Console.WriteLine(GraphReport.Search(hits, term, limit));
         return Clean;
     }
 
