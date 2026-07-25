@@ -12,7 +12,6 @@ namespace Nexaflow.Tests.Features.Notebook;
 /// source), picks the kernel grammar, and builds a per-cell code outline.
 /// </summary>
 [TestClass]
-[CoversNode("notebook-cells")]
 public class NotebookTests
 {
     private const string SampleJson = """
@@ -35,6 +34,7 @@ public class NotebookTests
         """;
 
     [TestMethod]
+    [CoversNode("notebook-parse")]
     public void Parse_ReadsKernelCellsAndDecodesSource()
     {
         var nb = NotebookDocument.Parse(SampleJson);
@@ -55,6 +55,8 @@ public class NotebookTests
     }
 
     [TestMethod]
+    [CoversNode("notebook-parse")]
+    [CoversNode("notebook-kernel-grammar")]
     public void Parse_DefaultsToPythonAndIsRobustToGarbage()
     {
         Assert.AreEqual("python", NotebookDocument.Parse("not json").GrammarId);

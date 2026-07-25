@@ -4,7 +4,7 @@ This is the template for representing a feature as product-tree nodes and backin
 *right kind* of test, so the tree stays an honest, mechanically-checkable map of **what exists** and **what's
 tested**. It was distilled from the **Text Viewer** gold-standard pass (2026-07) and is meant to be applied to
 every feature. **Text Viewer, Code, Tabular, Markdown, Processes, SysInfo, Installed Apps, Win Registry, Log
-Viewer, Images, Audio, 3D Model, Scratchpad, Projects and Video** have all had the pass and all lint clean — read whichever is closest in
+Viewer, Images, Audio, 3D Model, Scratchpad, Projects, Video, Notebook, Win Search and AI Chat** have all had the pass and all lint clean — read whichever is closest in
 shape to the feature you're modelling:
 
 | Reference | Read it for |
@@ -24,6 +24,9 @@ shape to the feature you're modelling:
 | **Video** | what to do when the whole feature sits on a native engine: the window *before* the engine exists is the tested one, because that is where the tab is actually exposed |
 | **Scratchpad** | a canvas rather than a document — and where a seam turned out to belong in `Visuals.Common` because two features had grown the same one |
 | **Projects** | two tabs plus two file-explorer viewlets under one UI node, over an operations layer that already carried most of the tests — largely a re-pointing job |
+| **Notebook** | the smallest complete example — two panels, four behaviours — and where the pass closed a readiness gap the tree had already written down |
+| **Win Search** | a feature whose core (the index query) genuinely cannot run headlessly, so everything either side of it is what carries the tests |
+| **AI Chat** | the hardest `shouldnt` calls: approvals and interjections only exist inside a running agent turn, so the note has to say what covers them instead |
 
 ### Testing a feature that acts on the machine
 
@@ -347,7 +350,7 @@ author-time nudges prove worth an analyzer.
 8. `doctor` + `validate` + `lint --under <feature>`; build + run the feature's unit tests (and the UI
    journey on a desktop).
 
-The fifteen subtrees listed at the top are the worked references for every step above.
+The eighteen subtrees listed at the top are the worked references for every step above.
 
 One thing the pass keeps turning up, so look for it: a node claiming `tests=done` (or a `theming=done` over
 a hard-coded colour) that nothing actually backs. The lint's `TestsDoneWithoutSnaplink` finds the first kind;

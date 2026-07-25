@@ -4,7 +4,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.WindowsSearch;
 
 [TestClass]
-[CoversNode("win-search-ai-act")]
+[CoversNode("search-query-scorer")]
 public class SearchQueryScorerTests
 {
     [TestMethod]

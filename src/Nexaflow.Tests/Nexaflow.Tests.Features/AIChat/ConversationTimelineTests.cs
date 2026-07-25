@@ -12,7 +12,6 @@ namespace Nexaflow.Tests.Features.AIChat;
 /// The conversation thread: what a turn renders, what it persists, and rewinding out of it.
 /// </summary>
 [TestClass]
-[CoversNode("aichat-conversation-view")]
 public class ConversationTimelineTests
 {
     private IAIService     _ai    = null!;
@@ -52,6 +51,7 @@ public class ConversationTimelineTests
     // ── An empty final answer ─────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("aichat-thread")]
     public async Task ShowFinal_EmptyAnswer_RendersANoticeInsteadOfABlankBubble()
     {
         var convo = await LoadedAsync();
@@ -68,6 +68,7 @@ public class ConversationTimelineTests
     }
 
     [TestMethod]
+    [CoversNode("aichat-thread")]
     public async Task ShowFinal_EmptyAnswer_DoesNotPersistAnEmptyMessage()
     {
         var convo = await LoadedAsync();
@@ -83,6 +84,7 @@ public class ConversationTimelineTests
     }
 
     [TestMethod]
+    [CoversNode("aichat-thread")]
     public async Task ShowFinal_RealAnswer_RendersAndPersistsIt()
     {
         var convo = await LoadedAsync();

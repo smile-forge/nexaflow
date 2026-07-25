@@ -88,6 +88,13 @@ public sealed partial class NotebookViewModel : ObservableObject, IPageViewModel
 
     // ── IPageViewModel: AI surface ────────────────────────────────────────
 
+    /// <summary>
+    /// Parsing happens after the tab paints, so a notebook pinned as context the instant it opens would
+    /// otherwise report the empty stub — "python kernel, 0 code cells, 0 markdown cells" — as if that were
+    /// the file. Gating on the load holds the send until there is something true to say.
+    /// </summary>
+    public bool IsContextReady => IsLoaded;
+
     public string GetContext()
     {
         var sb = new StringBuilder();
