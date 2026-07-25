@@ -4,7 +4,7 @@ This is the template for representing a feature as product-tree nodes and backin
 *right kind* of test, so the tree stays an honest, mechanically-checkable map of **what exists** and **what's
 tested**. It was distilled from the **Text Viewer** gold-standard pass (2026-07) and is meant to be applied to
 every feature. **Text Viewer, Code, Tabular, Markdown, Processes, SysInfo, Installed Apps, Win Registry, Log
-Viewer, Images, Audio, 3D Model, Scratchpad, Projects, Video, Notebook, Win Search, AI Chat, DICOM, Console and Win File System** have all had the pass and all lint clean — read whichever is closest in
+Viewer, Images, Audio, 3D Model, Scratchpad, Projects, Video, Notebook, Win Search, AI Chat, DICOM, Console, Win File System, Hex, Json and SVG** have all had the pass and all lint clean — read whichever is closest in
 shape to the feature you're modelling:
 
 | Reference | Read it for |
@@ -30,6 +30,9 @@ shape to the feature you're modelling:
 | **DICOM** | a feature that was *built* without the backbone and retrofitted: read it for what that costs — nine flat children, seven ids too generic to live in one namespace, and a duplicate feature root nobody had noticed |
 | **Console** | a feature whose logic almost all lives in shared libraries (`Visuals.Terminal`, `IO.Terminal`), so its leaves snaplink outward and its one irreducible decision — where a typed line goes — had to be lifted out of a live PTY to be testable at all |
 | **Win File System** | the largest subtree, and the reference for an action strip: most buttons end in a shell call or the clipboard, so the tests sit on the *gate* and the `shouldnt` notes have to say where each rule is actually asserted |
+| **Hex** | a feature that was already well tested and simply unlinked — read it for the re-pointing job, and for splitting one omnibus AI test into one per tool so eight leaves stop all naming the same method |
+| **Json** | where the guard is the whole story: the document is held windowed, so Save and Format have to refuse while any part is unread, and that refusal is what the leaf's test asserts |
+| **SVG** | the smallest complete example — one canvas, three toolbar controls — and the second surface to need the fit/zoom seam, which is what moved it into `Visuals.Common` |
 
 ### Testing a feature that acts on the machine
 
@@ -164,12 +167,14 @@ usually a few lines and leaves the control thinner:
 - **Resizing a rotated post-it** — the rule is that the corner you are *not* dragging stays put, which needs
   the drag projected onto the note's own axes. It came out of `PostItControl` as `PostItGeometry.Resize`;
   unrotated resizing is arithmetic nobody gets wrong, and the rotated case is what the tests are for.
-- **Fitting an image into a viewport** — the DICOM stage cannot lean on WPF's `Stretch`, because the
+- **Fitting content into a viewport** — the DICOM stage cannot lean on WPF's `Stretch`, because the
   measurement overlay is drawn in *screen* space (so strokes stay one width at any zoom) and the view
-  therefore owns the matrix. `ImageViewTransform` holds fit, actual-size and cursor-anchored zoom. Note what
-  the tests turned out to be about: that fit letterboxes rather than crops, that 1:1 lets an oversized image
-  overflow rather than being clamped, and that a stage which layout has not measured yet yields the identity
-  instead of an infinite scale.
+  therefore owns the matrix; the SVG canvas cannot either, because it re-tessellates rather than scaling a
+  bitmap. `Visuals.Common`'s `ViewportFit` holds fit, actual-size and cursor-anchored zoom for both — it
+  started inside the DICOM feature and moved out one batch later, when SVG turned out to be doing the same
+  arithmetic by hand. Note what the tests turned out to be about: that fit letterboxes rather than crops,
+  that 1:1 lets oversized content overflow rather than being clamped, and that a viewport layout has not
+  measured yet yields the identity instead of an infinite scale.
 - **Where a typed line goes when you press Enter** — the terminal's one genuinely consequential decision,
   and it was unreachable: `HandleEnter` read a private `_atPrompt` flag that only a live pseudo-console sets.
   The inputs are trivial (is the cursor on a prompt, what was typed, what this shell calls a built-in), so
@@ -371,7 +376,7 @@ author-time nudges prove worth an analyzer.
 8. `doctor` + `validate` + `lint --under <feature>`; build + run the feature's unit tests (and the UI
    journey on a desktop).
 
-The twenty-one subtrees listed at the top are the worked references for every step above.
+The twenty-four subtrees listed at the top are the worked references for every step above.
 
 One thing the pass keeps turning up, so look for it: a node claiming `tests=done` (or a `theming=done` over
 a hard-coded colour) that nothing actually backs. The lint's `TestsDoneWithoutSnaplink` finds the first kind;

@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Svg.ViewModels;
+using Nexaflow.Visuals.Common.Layout;
 
 namespace Nexaflow.Features.Svg.Views;
 
@@ -62,29 +63,26 @@ public partial class SvgView : UserControl, IPageView
     /// <summary>Scales the artwork to fit the host and centres it.</summary>
     private void Fit()
     {
-        double natW = _vm.NaturalWidth, natH = _vm.NaturalHeight;
-        if (natW <= 0 || natH <= 0 || Host.ActualWidth <= 0 || Host.ActualHeight <= 0) return;
-
-        double scale = Math.Min(Host.ActualWidth / natW, Host.ActualHeight / natH);
-        scale = Math.Clamp(scale, MinScale, MaxScale);
+        var (scale, x, y) = ViewportFit.FitScaled(_vm.NaturalWidth, _vm.NaturalHeight,
+                                                  Host.ActualWidth, Host.ActualHeight, MinScale, MaxScale);
+        if (scale <= 0) return;   // nothing loaded, or the host hasn't been measured yet
 
         Scale.ScaleX = Scale.ScaleY = scale;
-        Translate.X = (Host.ActualWidth - natW * scale) / 2;
-        Translate.Y = (Host.ActualHeight - natH * scale) / 2;
+        Translate.X = x;
+        Translate.Y = y;
     }
 
     // ── Zoom (keep the point under the cursor fixed) ──────────────────────────────────────────────
     private void OnWheel(object sender, MouseWheelEventArgs e)
     {
-        var factor = e.Delta > 0 ? 1.1 : 1 / 1.1;
-        var newScale = Math.Clamp(Scale.ScaleX * factor, MinScale, MaxScale);
-        var applied = newScale / Scale.ScaleX;
-        if (applied == 1) return;
-
         var p = e.GetPosition(Host);
-        Translate.X = p.X - (p.X - Translate.X) * applied;
-        Translate.Y = p.Y - (p.Y - Translate.Y) * applied;
-        Scale.ScaleX = Scale.ScaleY = newScale;
+        var (scale, x, y) = PanZoomMiniMap.ZoomAt(Scale.ScaleX, Translate.X, Translate.Y, p.X, p.Y,
+                                                  e.Delta > 0 ? 1.1 : 1 / 1.1, MinScale, MaxScale);
+        if (scale == Scale.ScaleX) return;   // already at a zoom limit
+
+        Scale.ScaleX = Scale.ScaleY = scale;
+        Translate.X = x;
+        Translate.Y = y;
         e.Handled = true;
     }
 

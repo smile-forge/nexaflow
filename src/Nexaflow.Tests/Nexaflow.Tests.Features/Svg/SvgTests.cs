@@ -48,7 +48,7 @@ public class SvgTests
     }
 
     [TestMethod]
-    [CoversNode("svg-viewer")]
+    [CoversNode("svg-load-gate")]
     public void GetContext_GatedUntilLoaded()
     {
         var vm = new SvgViewModel(Sample("sample.svg"));
@@ -57,7 +57,8 @@ public class SvgTests
     }
 
     [TestMethod]
-    [CoversNode("svg-viewer")]
+    [CoversNode("svg-canvas")]
+    [CoversNode("svg-ai-context")]
     public async Task ViewModel_Loads_ExposesContextAndTools()
     {
         var vm = new SvgViewModel(Sample("sample.svg"));
@@ -78,7 +79,7 @@ public class SvgTests
     }
 
     [TestMethod]
-    [CoversNode("svg-viewer")]
+    [CoversNode("svg-error-overlay")]
     public async Task LoadAsync_MissingFile_SetsErrorButReleasesGate()
     {
         var vm = new SvgViewModel(Path.Combine(TestSampleData.Path("svg"), "does-not-exist.svg"));

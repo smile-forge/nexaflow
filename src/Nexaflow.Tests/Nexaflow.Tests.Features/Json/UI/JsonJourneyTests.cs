@@ -15,7 +15,8 @@ namespace Nexaflow.Tests.Features.Json.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
-[CoversNode("view-json")]
+[CoversNode("json")]
+[CoversNode("json-ui")]
 public class JsonJourneyTests : UiJourneyTestBase
 {
     [TestMethod]
