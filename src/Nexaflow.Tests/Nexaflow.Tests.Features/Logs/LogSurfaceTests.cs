@@ -313,20 +313,33 @@ public class LogSurfaceTests
 
     [TestMethod]
     [CoversNode("log-viewer-parser")]
-    public void JsonLines_WinTheConfidenceVote_ButTheJsonParserIsStillAStub()
+    [CoversNode("log-filetype-json")]
+    public void AStructuredLogIsReadAsJson_LevelsAndAll() => AsyncPump.Run(async () =>
     {
-        var first = """{"ts":"2024-01-01T00:00:00Z","level":"error","message":"boom"}""";
+        var path = Path.Combine(TestSampleData.Path("logs"), "app_structured.log");
+        using var vm = new LogViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+        await vm.LoadAsync(CancellationToken.None);
 
-        var parser = LogParserRegistry.SelectParser(Encoding.UTF8.GetBytes(first).AsSpan(0, 16), first);
+        Assert.AreEqual("JSON", vm.ActiveParser.FormatName, "the status bar names the structured format");
 
-        Assert.AreEqual("JSON", parser.FormatName, "a braced first line outvotes the raw-text fallback");
+        // The whole point: the severity toggles and the time filter have something to act on. A JSON log
+        // carries its timestamp in a field, so a text-shaped probe would find none and hide the filter.
+        Assert.IsTrue(vm.HasTimestamps, "the time-range fields must appear for a structured log too");
+        StringAssert.Contains(vm.GetContext(), "Timestamps span");
 
-        // Pinned deliberately: JsonLogParser wins the vote but does not yet read the structured fields, so
-        // a JSON log shows "JSON" in the status bar while level highlighting and the time filter find
-        // nothing. Change this assertion when the parser is implemented - it is the tell that it has been.
-        Assert.AreEqual(LogLevel.Unknown, parser.ParseLine(first).Level);
-        Assert.IsNull(parser.ParseLine(first).Timestamp);
-    }
+        var levels = Enumerable.Range(1, vm.Document.LineCount)
+            .Select(i => vm.Document.GetLineByNumber(i))
+            .Select(l => vm.Document.GetText(l.Offset, l.Length))
+            .Where(text => text.Length > 0)          // the file's trailing newline leaves one empty line
+            .Select(text => vm.ActiveParser.ParseLine(text).Level)
+            .ToArray();
+
+        CollectionAssert.Contains(levels, LogLevel.Error);
+        CollectionAssert.Contains(levels, LogLevel.Warning);
+        CollectionAssert.Contains(levels, LogLevel.Fatal);
+        CollectionAssert.Contains(levels, LogLevel.Info, "Serilog omits the level for Information lines");
+        CollectionAssert.DoesNotContain(levels, LogLevel.Unknown, "every written line should be readable");
+    });
 
     [TestMethod]
     [CoversNode("log-viewer-parser")]

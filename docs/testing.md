@@ -134,7 +134,7 @@ test-samples/
   code/       source files across the highlighted languages (embedded-language hosts included)
   notebook/   .ipynb documents (markdown + code cells, varied outputs)
   json/       object, array, deeply nested, and a 1,000-item array for seek-by-item windowing
-  logs/       short + long timestamped logs (tail-first streaming)
+  logs/       short + long timestamped logs (tail-first streaming), plus a Serilog-compact JSON-lines log
   binary/     random / zeros / mixed / PNG-header blobs for the hex viewer
   images/     small raster images for the image viewer
   archive/    zip/tar/7z/… containers (incl. nested) for the Compressed handlers
