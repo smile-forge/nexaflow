@@ -9,7 +9,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.Processes;
 
 [TestClass]
-[CoversNode("process-columns")]
+[CoversNode("processes-reconcile")]
 public class ReconciliationTests
 {
     private static ProcessesViewModel NewVm() =>
@@ -73,6 +73,7 @@ public class ReconciliationTests
     }
 
     [TestMethod]
+    [CoversNode("process-columns")]
     public void Sort_ByCpuDescByDefault_ThenByNameOnHeaderClick()
     {
         using var vm = NewVm();
@@ -88,6 +89,7 @@ public class ReconciliationTests
     }
 
     [TestMethod]
+    [CoversNode("tree-vs-list")]
     public void FlatMode_DropsHierarchy()
     {
         using var vm = NewVm();

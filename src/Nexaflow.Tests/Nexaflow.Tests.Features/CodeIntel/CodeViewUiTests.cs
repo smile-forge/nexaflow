@@ -5,15 +5,17 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.CodeIntel;
 
 /// <summary>
-/// End-to-end UI check for the "As Code" page: opens a real code sample through the file browser's
-/// default-open route and asserts the composite view loads (editor + the code-intelligence panel) without
-/// crashing — catching runtime XAML / resource / wiring failures a build can't.
+/// Per-language render check for the code map's class diagram: opens a real code sample of each supported
+/// language through the file browser's default-open route and asserts the composite view loads (editor +
+/// the rendered diagram) without crashing — catching runtime XAML / resource / wiring failures a build
+/// can't. Distinct from <c>CodeJourneyTests</c> (the one control-by-control journey): this is a corpus
+/// sweep, one launch per language, plus the wheel-scroll behaviour over the rendered diagram.
 ///
 /// Requires an interactive desktop session — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
-[CoversNode("code-map")]
+[CoversNode("code-map-class-view")]
 public class CodeViewUiTests : FileSystemUiTestBase
 {
     [TestMethod]
@@ -26,7 +28,6 @@ public class CodeViewUiTests : FileSystemUiTestBase
     [DataRow("Greeter.java")]   // Java
     [DataRow("index.php")]      // PHP
     [DataRow("Counter.razor")]  // Razor (@code → component box)
-    [CoversNode("code-view")]
     public void CodeFile_OpensAsCode_WithStructurePanel(string fileName)
     {
         NavigateFileBrowserTo(TestSampleData.Path("code"));

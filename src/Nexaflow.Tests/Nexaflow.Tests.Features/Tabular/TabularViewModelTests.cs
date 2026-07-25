@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using NSubstitute;
 using Nexaflow.Features.Common;
@@ -27,7 +28,7 @@ public class TabularViewModelTests
                templates ?? new TabularTemplatesConfig());
 
     [TestMethod]
-    [CoversNode("tabular-apply-template")]
+    [CoversNode("tabular-toolbar-apply-template")]
     public void TemplatePanel_TogglesOpenAndClosed()
     {
         var vm = MakeEmpty();
@@ -41,7 +42,7 @@ public class TabularViewModelTests
     }
 
     [TestMethod]
-    [CoversNode("tabular-apply-template")]
+    [CoversNode("tabular-template-panel-close")]
     public void CloseTemplatePanel_ClosesAnOpenPanel()
     {
         var vm = MakeEmpty();
@@ -53,7 +54,7 @@ public class TabularViewModelTests
     }
 
     [TestMethod]
-    [CoversNode("tabular-apply-template")]
+    [CoversNode("tabular-toolbar-apply-template")]
     public void OpenTemplatePanel_LeavesChooseModeOff()
     {
         var vm = MakeEmpty();
@@ -62,7 +63,7 @@ public class TabularViewModelTests
     }
 
     [TestMethod]
-    [CoversNode("tabular-template-this")]
+    [CoversNode("tabular-template-cancel")]
     public void CancelTemplateThis_ClosesThePopup()
     {
         var vm = MakeEmpty();
@@ -73,7 +74,7 @@ public class TabularViewModelTests
     }
 
     [TestMethod]
-    [CoversNode("tabular-template-this")]
+    [CoversNode("tabular-template-name")]
     public void SaveTemplate_CanExecute_RequiresName()
     {
         var vm = MakeEmpty();
@@ -87,7 +88,7 @@ public class TabularViewModelTests
     }
 
     [TestMethod]
-    [CoversNode("tabular-template-this")]
+    [CoversNode("tabular-template-scope")]
     public void SaveTemplate_CanExecute_GlobScopeRequiresPattern()
     {
         var vm = MakeEmpty();
@@ -102,7 +103,7 @@ public class TabularViewModelTests
     }
 
     [TestMethod]
-    [CoversNode("tabular-apply-template")]
+    [CoversNode("tabular-show-only-compatible")]
     public void ShowOnlyCompatible_TogglesAndRebuildsPanelWithoutThrowing()
     {
         var vm = MakeEmpty();
@@ -119,7 +120,7 @@ public class TabularViewModelTests
     }
 
     [TestMethod]
-    [CoversNode("tabular-filter")]
+    [CoversNode("tabular-column-select")]
     public void FilterPanelOpen_TracksColumnSelection()
     {
         // IsFilterPanelOpen is derived from any column being selected — needs a loaded grid.
@@ -142,6 +143,157 @@ public class TabularViewModelTests
         }
         finally { Directory.Delete(dir, recursive: true); }
     }
+
+    // ── Template This: open, save ─────────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("tabular-toolbar-template-this")]
+    public void OpenTemplateThis_SeedsThePopupFromTheOpenFile()
+    {
+        var csv = WriteCsv(out var dir);
+        try
+        {
+            var vm = Load(csv, new TabularTemplatesConfig());
+
+            vm.OpenTemplateThisCommand.Execute(null);
+
+            Assert.IsTrue(vm.IsTemplatePopupOpen);
+            Assert.AreEqual("t", vm.TemplateName, "seeded with the file name, extension stripped");
+            Assert.AreEqual(dir, vm.TemplateFolderPath);
+            Assert.AreEqual("*.csv", vm.GlobPattern);
+            Assert.AreEqual(TemplateScope.Folder, vm.SelectedScope, "folder scope is the default offer");
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [TestMethod]
+    [CoversNode("tabular-template-save")]
+    public void SaveTemplate_CapturesTheLayout_PersistsIt_AndClosesThePopup()
+    {
+        var csv = WriteCsv(out var dir);
+        try
+        {
+            var config = new TabularTemplatesConfig();
+            var shell  = Substitute.For<IShellServices>();
+            var vm     = Load(csv, config, shell);
+
+            vm.OpenTemplateThisCommand.Execute(null);
+            vm.TemplateName  = "My layout";
+            vm.SelectedScope = TemplateScope.Manual;
+            vm.SaveTemplateCommand.Execute(null);
+
+            var saved = config.Templates.Single();
+            Assert.AreEqual("My layout", saved.Name);
+            Assert.AreEqual(TemplateScope.Manual, saved.Scope);
+            Assert.AreEqual(3, saved.FieldCount, "the captured shape records the file it was built from");
+            Assert.IsFalse(vm.IsTemplatePopupOpen, "saving dismisses the popup");
+            shell.Received().SaveFeatureConfig(config);
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    // ── Apply Template panel: apply, delete ───────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("tabular-template-apply")]
+    public void ApplyTemplate_ReplacesTheLiveChain_AndClosesThePanel()
+    {
+        var csv = WriteCsv(out var dir);
+        try
+        {
+            var config = new TabularTemplatesConfig();
+            config.Templates.Add(Renamer(dir, "Alpha"));
+            var vm = Load(csv, config);
+
+            vm.OpenTemplatePanelCommand.Execute(null);
+            var item = vm.PanelTemplates.Single();
+            Assert.IsTrue(item.IsCompatible, "precondition: the template matches this file's shape");
+
+            vm.ApplyTemplateCommand.Execute(item);
+
+            Assert.AreEqual("Alpha", vm.Columns[0].Header, "the template's rename is now live");
+            Assert.IsFalse(vm.IsTemplatePanelOpen, "applying closes the panel");
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [TestMethod]
+    [CoversNode("tabular-template-apply")]
+    public void ApplyTemplate_Incompatible_IsConfirmedFirst_AndDeclineLeavesTheGridAlone()
+    {
+        var csv = WriteCsv(out var dir);
+        try
+        {
+            var config = new TabularTemplatesConfig();
+            var mismatched = Renamer(dir, "Alpha");
+            mismatched.FieldCount      = 5;                          // built from a differently-shaped file
+            mismatched.OriginalHeaders = ["a", "b", "c", "d", "e"];
+            config.Templates.Add(mismatched);
+
+            var shell = Substitute.For<IShellServices>();
+            shell.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+                 .Returns(Task.FromResult(false));                   // the user declines
+
+            var vm = Load(csv, config, shell);
+            vm.ShowOnlyCompatible = false;                           // so the incompatible one is listed
+            vm.OpenTemplatePanelCommand.Execute(null);
+            var item = vm.PanelTemplates.Single();
+            Assert.IsFalse(item.IsCompatible);
+
+            vm.ApplyTemplateCommand.Execute(item);
+
+            Assert.AreEqual("a", vm.Columns[0].Header, "a declined confirmation must not reshape the grid");
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [TestMethod]
+    [CoversNode("tabular-template-delete")]
+    public void DeleteTemplate_RemovesItFromTheSavedSet_AndFromTheList()
+    {
+        var csv = WriteCsv(out var dir);
+        try
+        {
+            var config = new TabularTemplatesConfig();
+            config.Templates.Add(Renamer(dir, "Alpha"));
+            var shell = Substitute.For<IShellServices>();
+            var vm    = Load(csv, config, shell);
+
+            vm.OpenTemplatePanelCommand.Execute(null);
+            var item = vm.PanelTemplates.Single();
+
+            vm.DeleteTemplateCommand.Execute(item);
+
+            Assert.AreEqual(0, config.Templates.Count, "the template is gone from the saved set");
+            Assert.AreEqual(0, vm.PanelTemplates.Count, "and the panel list rebuilt without it");
+            shell.Received().SaveFeatureConfig(config);
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static TabularViewModel Load(string csv, TabularTemplatesConfig config, IShellServices? shell = null)
+    {
+        var vm = new TabularViewModel(csv,
+            shell ?? Substitute.For<IShellServices>(), Substitute.For<IAIService>(), config);
+        vm.Ready.GetAwaiter().GetResult();
+        return vm;
+    }
+
+    /// <summary>A manual-scope template over the 3-column fixture that renames the first column.</summary>
+    private static TabularTemplate Renamer(string dir, string newName) => new()
+    {
+        Id              = "t1",
+        Name            = "Renamer",
+        Scope           = TemplateScope.Manual,
+        FolderPath      = dir,
+        Separator       = ",",
+        HasHeader       = true,
+        FieldCount      = 3,
+        OriginalHeaders = ["a", "b", "c"],
+        TransformsJson  = $"[{{\"kind\":\"Rename\",\"index\":0,\"name\":\"{newName}\"}}]",
+    };
 
     private static string WriteCsv(out string dir)
     {

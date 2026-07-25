@@ -201,4 +201,171 @@ public class FileTextEditorViewModelTests
         }
         finally { File.Delete(path); }
     });
+
+    // ── Toolbar: line-number gutter ───────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("code-line-numbers")]
+    public void LineNumbers_AreOnByDefault_AndTheToggleFlipsThem() => AsyncPump.Run(async () =>
+    {
+        using var vm = new FileTextEditorViewModel("snippet.cs", Shell(), Big);
+        await Task.CompletedTask;
+
+        Assert.IsTrue(vm.ShowLineNumbers, "code opens with the gutter visible");
+
+        vm.ShowLineNumbers = false;
+        Assert.IsFalse(vm.ShowLineNumbers);
+
+        vm.ShowLineNumbers = true;
+        Assert.IsTrue(vm.ShowLineNumbers);
+    });
+
+    // ── Status bar ────────────────────────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("code-status-filesize")]
+    public void FileSize_IsReportedOnLoad_AndGrowsAfterASave() => AsyncPump.Run(async () =>
+    {
+        var path = Temp();
+        File.WriteAllText(path, "abc", new UTF8Encoding(false));
+        try
+        {
+            using var vm = new FileTextEditorViewModel(path, Shell(), Big);
+            await vm.LoadAsync();
+            var onLoad = vm.FileSizeText;
+            Assert.IsFalse(string.IsNullOrWhiteSpace(onLoad), "the footer shows a size once the file is read");
+
+            vm.Document.Text = new string('x', 20_000);
+            await vm.SaveCommand.ExecuteAsync(null);
+
+            Assert.AreNotEqual(onLoad, vm.FileSizeText, "the footer size refreshes from disk after a save");
+        }
+        finally { File.Delete(path); }
+    });
+
+    [TestMethod]
+    [CoversNode("code-status-state")]
+    public void UnsavedFlag_FollowsTheBuffer_AndUndoingBackToTheSavedStateClearsIt() => AsyncPump.Run(async () =>
+    {
+        var path = Temp();
+        File.WriteAllText(path, "one\n", new UTF8Encoding(false));
+        try
+        {
+            using var vm = new FileTextEditorViewModel(path, Shell(), Big);
+            await vm.LoadAsync();
+            Assert.IsFalse(vm.IsDirty);
+            Assert.IsFalse(vm.IsReadOnlyMode, "an editable file shows no read-only flag");
+
+            vm.Document.Text = "one\ntwo\n";
+            Assert.IsTrue(vm.IsDirty, "the '● unsaved' flag follows the buffer");
+
+            vm.Document.UndoStack.Undo();     // back to the saved state
+            Assert.IsFalse(vm.IsDirty, "undoing every edit clears unsaved, it doesn't stay stuck on");
+        }
+        finally { File.Delete(path); }
+    });
+
+    [TestMethod]
+    [CoversNode("code-status-state")]
+    public void ReadOnlyFlag_IsSet_ForAFileOverTheEditableCeiling() => AsyncPump.Run(async () =>
+    {
+        var path = Temp();
+        File.WriteAllText(path, new string('a', 5000));
+        try
+        {
+            using var vm = new FileTextEditorViewModel(path, Shell(), maxEditableBytes: 1000);
+            await vm.LoadAsync();
+
+            Assert.IsTrue(vm.IsReadOnlyMode, "the footer shows 'read-only' for a file too large to edit");
+            Assert.IsFalse(vm.IsDirty);
+        }
+        finally { File.Delete(path); }
+    });
+
+    // ── Reload (F5) + the external-change watch ───────────────────────────────
+
+    [TestMethod]
+    [CoversNode("code-reload")]
+    public void Refresh_RereadsTheFileFromDisk() => AsyncPump.Run(async () =>
+    {
+        var path = Temp();
+        File.WriteAllText(path, "original\n", new UTF8Encoding(false));
+        try
+        {
+            using var vm = new FileTextEditorViewModel(path, Shell(), Big);
+            await vm.LoadAsync();
+
+            File.WriteAllText(path, "changed elsewhere\n", new UTF8Encoding(false));
+            await vm.RefreshCommand.ExecuteAsync(null);
+
+            Assert.AreEqual("changed elsewhere\n", vm.Document.Text);
+            Assert.IsFalse(vm.IsDirty, "a reload is the new saved baseline");
+        }
+        finally { File.Delete(path); }
+    });
+
+    [TestMethod]
+    [CoversNode("code-reload")]
+    public void Refresh_WithUnsavedEdits_AsksBeforeDiscardingThem() => AsyncPump.Run(async () =>
+    {
+        var path = Temp();
+        File.WriteAllText(path, "original\n", new UTF8Encoding(false));
+        try
+        {
+            var shell = Substitute.For<IShellServices>();
+            shell.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+                 .Returns(Task.FromResult(false));           // the user declines
+
+            using var vm = new FileTextEditorViewModel(path, shell, Big);
+            await vm.LoadAsync();
+            vm.Document.Text = "my unsaved work\n";
+
+            File.WriteAllText(path, "changed elsewhere\n", new UTF8Encoding(false));
+            await vm.RefreshCommand.ExecuteAsync(null);
+
+            Assert.AreEqual("my unsaved work\n", vm.Document.Text, "declining the prompt must keep the edits");
+            await shell.Received().ConfirmAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        }
+        finally { File.Delete(path); }
+    });
+
+    [TestMethod]
+    [CoversNode("code-reload")]
+    [CoversNode("code-change-banner")]
+    public void ExternalChange_ReloadsAndRaisesTheBanner_ButIgnoresTheEditorsOwnWrite() => AsyncPump.Run(async () =>
+    {
+        var path = Temp();
+        File.WriteAllText(path, "original\n", new UTF8Encoding(false));
+        try
+        {
+            // Capture the callback the view-model hands the shell's watcher, so the "file changed on disk"
+            // burst can be delivered deterministically instead of racing a real FileSystemWatcher.
+            Action? onChanged = null;
+            var shell = Substitute.For<IShellServices>();
+            shell.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+                 .Returns(Task.FromResult(true));
+            shell.WatchFile(Arg.Any<string>(), Arg.Do<Action>(a => onChanged = a))
+                 .Returns(Substitute.For<IFileWatch>());
+
+            using var vm = new FileTextEditorViewModel(path, shell, Big);
+            await vm.LoadAsync();
+            Assert.IsNotNull(onChanged, "the editor should watch the file it opened");
+            Assert.IsFalse(vm.BannerVisible);
+
+            // A burst whose on-disk content still equals the buffer is our own save — ignored.
+            onChanged!();
+            await Task.Yield();
+            Assert.IsFalse(vm.BannerVisible, "the editor's own write must not raise the banner");
+
+            // A real external edit reloads and announces it.
+            File.WriteAllText(path, "changed elsewhere\n", new UTF8Encoding(false));
+            onChanged!();
+            for (int i = 0; i < 50 && !vm.BannerVisible; i++) await Task.Delay(10);
+
+            Assert.AreEqual("changed elsewhere\n", vm.Document.Text);
+            Assert.IsTrue(vm.BannerVisible);
+            StringAssert.Contains(vm.BannerMessage, "changed on disk");
+        }
+        finally { File.Delete(path); }
+    });
 }

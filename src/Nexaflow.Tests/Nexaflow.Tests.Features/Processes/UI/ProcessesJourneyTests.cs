@@ -26,6 +26,7 @@ public class ProcessesJourneyTests : UiJourneyTestBase
     protected override string? LaunchTabKind => "Processes";
 
     [TestMethod]
+    [CoversNode("processes-ui")]
     public void Processes_ToolbarControls_RespondInOnePass()
     {
         var view = WaitForId("ProcList", 15);

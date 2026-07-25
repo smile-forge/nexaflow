@@ -18,12 +18,13 @@ namespace Nexaflow.Tests.Features.SystemInfo.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
-[CoversNode("sysinfoview")]
+[CoversNode("sysinfo")]
 public class SystemInfoJourneyTests : UiJourneyTestBase
 {
     protected override string? LaunchTabKind => "SystemInfo";
 
     [TestMethod]
+    [CoversNode("sysinfo-ui")]
     public void SystemInfo_Controls_RespondInOnePass()
     {
         var view = WaitForId("SystemInfoView", 15);

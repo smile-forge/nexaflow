@@ -7,7 +7,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.SystemInfo;
 
 [TestClass]
-[CoversNode("sysinfoview")]
+[CoversNode("sysinfo-ai-context")]
 public class SystemInfoViewModelTests
 {
     // Capture the onComplete the VM hands to QueueBackgroundTask so a test can simulate the gather

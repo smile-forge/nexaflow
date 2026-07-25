@@ -37,11 +37,13 @@
                 <!-- Left: encoding + EOL -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <ComboBox Style="{StaticResource DarkComboBox}"
+                              AutomationProperties.AutomationId="Editor_Encoding"
                               ItemsSource="{Binding AvailableEncodings}"
                               SelectedItem="{Binding SelectedEncoding}"
                               Width="130" Height="28" VerticalAlignment="Center"
                               ToolTip="File encoding (used to read and to save)"/>
                     <ComboBox Style="{StaticResource DarkComboBox}"
+                              AutomationProperties.AutomationId="Editor_Eol"
                               ItemsSource="{Binding AvailableEols}"
                               SelectedItem="{Binding SelectedEol}"
                               Width="110" Height="28" VerticalAlignment="Center" Margin="6,0,0,0"
@@ -51,6 +53,7 @@
                 <!-- Right: display toggles + save (command groups live in the floating panel on the right) -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                     <ToggleButton Style="{StaticResource TbToggle}"
+                                  AutomationProperties.AutomationId="Editor_LineNumbers"
                                   IsChecked="{Binding ShowLineNumbers}"
                                   ToolTip="Toggle line numbers">
                         <TextBlock Text="≡#" FontSize="12"/>
@@ -59,6 +62,7 @@
                     <Separator Style="{StaticResource TbSep}"/>
 
                     <Button Style="{StaticResource TbBtn}"
+                            AutomationProperties.AutomationId="Editor_Save"
                             Command="{Binding SaveCommand}"
                             ToolTip="Save (Ctrl+S)">
                         <StackPanel Orientation="Horizontal">
@@ -103,6 +107,7 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Button Style="{StaticResource TbBtn}"
+                                    AutomationProperties.AutomationId="{Binding Name, StringFormat='Editor_Cmd_{0}'}"
                                     Click="CommandGroupButton_Click"
                                     Margin="0,2" MinWidth="104">
                                 <StackPanel Orientation="Horizontal">
@@ -133,6 +138,7 @@
                     BorderThickness="1" CornerRadius="4" Padding="10,6"
                     Visibility="{Binding IsReadOnlyMode, Converter={StaticResource BoolVis}}">
                 <TextBlock Text="{Binding ReadOnlyReason}"
+                           AutomationProperties.AutomationId="Editor_ReadOnlyBanner"
                            Foreground="{StaticResource TextBrush}"
                            FontSize="12" TextWrapping="Wrap"/>
             </Border>
@@ -145,6 +151,7 @@
                     BorderThickness="1" CornerRadius="4" Padding="10,5"
                     Visibility="{Binding BannerVisible, Converter={StaticResource BoolVis}}">
                 <TextBlock Text="{Binding BannerMessage}"
+                           AutomationProperties.AutomationId="Editor_ChangeBanner"
                            Foreground="{StaticResource AccentBrush}" FontSize="12"/>
             </Border>
         </Grid>
@@ -163,17 +170,21 @@
                 <!-- Left: size / dirty / read-only -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="{Binding FileSizeText}"
+                               AutomationProperties.AutomationId="Editor_FileSize"
                                Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,16,0"/>
                     <TextBlock Text="● unsaved"
+                               AutomationProperties.AutomationId="Editor_UnsavedIndicator"
                                Foreground="{StaticResource WarningBrush}" FontSize="11" Margin="0,0,16,0"
                                Visibility="{Binding IsDirty, Converter={StaticResource BoolVis}}"/>
                     <TextBlock Text="read-only"
+                               AutomationProperties.AutomationId="Editor_ReadOnlyIndicator"
                                Foreground="{StaticResource TextMutedBrush}" FontSize="11"
                                Visibility="{Binding IsReadOnlyMode, Converter={StaticResource BoolVis}}"/>
                 </StackPanel>
 
                 <!-- Right: line count + line-ending indicator; click opens the Lines command popup -->
                 <Button Grid.Column="1" Style="{StaticResource TbBtn}"
+                        AutomationProperties.AutomationId="Editor_LineCommands"
                         Click="LineCommandsButton_Click"
                         Padding="8,2" Margin="0"
                         ToolTip="Line operations (EOL conversion, sort, dedupe…)">

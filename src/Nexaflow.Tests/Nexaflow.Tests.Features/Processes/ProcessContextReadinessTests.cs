@@ -13,7 +13,7 @@ namespace Nexaflow.Tests.Features.Processes;
 /// and OnActivated never fires) still releases the held send instead of waiting forever.
 /// </summary>
 [TestClass]
-[CoversNode("process-view")]
+[CoversNode("processes-ai-context")]
 public class ProcessContextReadinessTests
 {
     // Capture the bootstrap task + its completion callback — the faked shell never runs queued work, so the

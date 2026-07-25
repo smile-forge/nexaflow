@@ -1,9 +1,6 @@
 using System.Linq;
-using System.Reflection;
-using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
-using System.Windows.Input;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Tests.Fixtures;
 
@@ -29,9 +26,6 @@ namespace Nexaflow.Tests.Core.Visuals.Markdown;
 [CoversNode("markdown-inline-editor")]
 public class InlineMarkdownEditorEditingTests
 {
-    private static readonly FieldInfo RtbField =
-        typeof(InlineMarkdownEditor).GetField("_rtb", BindingFlags.NonPublic | BindingFlags.Instance)!;
-
     // ── Word-style typing ─────────────────────────────────────────────────────
 
     [TestMethod]
@@ -162,62 +156,22 @@ public class InlineMarkdownEditorEditingTests
     });
 
     // ── Harness ───────────────────────────────────────────────────────────────
+    // Shown-window setup, keystroke synthesis and caret placement live in MarkdownEditorHarness,
+    // shared with the block-undo tests.
 
     private static void RunInEditor(string markdown, System.Action<InlineMarkdownEditor, RichTextBox> test)
-    {
-        var editor = new InlineMarkdownEditor { EditOnDoubleClick = true, Width = 600, Height = 400 };
-        var window = new Window { Width = 640, Height = 480, Content = editor,
-                                  WindowStartupLocation = WindowStartupLocation.Manual, Left = -2000, Top = -2000 };
-        try
-        {
-            window.Show();
-            editor.UpdateLayout();               // flip IsVisible → the render pass builds the document
-            editor.Markdown = markdown;
-            editor.UpdateLayout();
+        => MarkdownEditorHarness.Run(markdown, test);
 
-            var rtb = (RichTextBox)RtbField.GetValue(editor)!;
-            rtb.Focus();
-            test(editor, rtb);
-        }
-        finally { window.Close(); }
-    }
+    private static void RaiseTextInput(RichTextBox rtb, string text)
+        => MarkdownEditorHarness.RaiseTextInput(rtb, text);
+
+    private static void PlaceCaret(RichTextBox rtb, Paragraph para, int textOffset)
+        => MarkdownEditorHarness.PlaceCaret(rtb, para, textOffset);
 
     private static Paragraph FirstParagraph(string markdown)
     {
         var ctx = new MarkdownRenderContext { Palette = MarkdownPalette.Dark };
         var doc = MarkdownFlowDocument.Build(markdown, ctx);
         return doc.Blocks.OfType<Paragraph>().First();
-    }
-
-    /// <summary>Raises a genuine <see cref="TextCompositionManager.PreviewTextInputEvent"/> for
-    /// <paramref name="text"/> on <paramref name="rtb"/> — the same event WPF fires for a keystroke, so
-    /// the editor's handler runs exactly as in the app.</summary>
-    private static void RaiseTextInput(RichTextBox rtb, string text)
-    {
-        var composition = new TextComposition(InputManager.Current, rtb, text);
-        rtb.RaiseEvent(new TextCompositionEventArgs(InputManager.Current.PrimaryKeyboardDevice, composition)
-        {
-            RoutedEvent = TextCompositionManager.PreviewTextInputEvent,
-        });
-    }
-
-    /// <summary>Places the caret <paramref name="textOffset"/> text characters into
-    /// <paramref name="para"/>, counting Run text only (skipping element edges).</summary>
-    private static void PlaceCaret(RichTextBox rtb, Paragraph para, int textOffset)
-    {
-        var tp = para.ContentStart;
-        int remaining = textOffset;
-        while (tp is not null && remaining > 0)
-        {
-            if (tp.GetPointerContext(LogicalDirection.Forward) == TextPointerContext.Text)
-            {
-                int len = tp.GetTextRunLength(LogicalDirection.Forward);
-                if (len >= remaining) { tp = tp.GetPositionAtOffset(remaining, LogicalDirection.Forward)!; break; }
-                remaining -= len;
-                tp = tp.GetPositionAtOffset(len, LogicalDirection.Forward);
-            }
-            else tp = tp.GetNextContextPosition(LogicalDirection.Forward);
-        }
-        rtb.CaretPosition = tp ?? para.ContentEnd;
     }
 }

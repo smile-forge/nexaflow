@@ -15,7 +15,7 @@ namespace Nexaflow.Tests.Features.Processes;
 /// the meta cache while another Snapshot read it).
 /// </summary>
 [TestClass]
-[CoversNode("process-view")]
+[CoversNode("processes-live-source")]
 public class LiveProcessSourceConcurrencyTests
 {
     [TestMethod]
