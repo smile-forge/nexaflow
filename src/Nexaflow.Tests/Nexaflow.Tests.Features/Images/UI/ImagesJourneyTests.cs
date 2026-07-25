@@ -18,10 +18,11 @@ namespace Nexaflow.Tests.Features.Images.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
-[CoversNode("images-tools")]
+[CoversNode("images")]
 public class ImagesJourneyTests : UiJourneyTestBase
 {
     [TestMethod]
+    [CoversNode("images-ui")]
     public void Image_Controls_RespondInOnePass()
     {
         var file = Path.GetFileName(TestSampleData.Files("images").First());

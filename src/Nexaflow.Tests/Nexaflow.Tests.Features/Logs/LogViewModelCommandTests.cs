@@ -7,19 +7,23 @@ using NSubstitute;
 namespace Nexaflow.Tests.Features.Logs;
 
 /// <summary>
-/// Headless command/state logic behind the Logs toolbar &amp; filter panel — the parts that need
-/// no file load, no AvalonEdit <c>TextDocument</c> mutation and no file watcher. The tail/head reader
-/// itself is covered by <see cref="LogViewModelTests"/>; the interactive controls are exercised
-/// end-to-end by the UI journey. Everything here runs synchronously on the test thread.
+/// The filter side panel: the regex pattern box and its clear button, and the time-range Apply / Clear
+/// pair. These decide which lines the user can still see, so a silently-dropped bound or a filter that
+/// survives its own clear is a correctness bug, not a cosmetic one.
+/// <para>
+/// Everything here runs synchronously with no file load, no <c>TextDocument</c> mutation and no watcher.
+/// The tail/head reader is covered by <see cref="LogViewModelTests"/>, the toolbar and status bar by
+/// <see cref="LogSurfaceTests"/>, and the controls end-to-end by the UI journey.
+/// </para>
 /// </summary>
 [TestClass]
-[CoversNode("log-viewer-toolbar")]
 public class LogViewModelCommandTests
 {
     private static LogViewModel Make()
         => new("nonexistent.log", Substitute.For<IShellServices>()) { IsMonitoring = false };
 
     [TestMethod]
+    [CoversNode("log-viewer-filter")]
     public void FilterRegex_ValidPattern_ActivatesFilter()
     {
         using var vm = Make();
@@ -33,6 +37,7 @@ public class LogViewModelCommandTests
     }
 
     [TestMethod]
+    [CoversNode("log-viewer-filter")]
     public void FilterRegex_InvalidPattern_LeavesFilterInactive()
     {
         using var vm = Make();
@@ -44,6 +49,7 @@ public class LogViewModelCommandTests
     }
 
     [TestMethod]
+    [CoversNode("log-viewer-filter")]
     public void FilterRegex_Empty_ClearsFilter()
     {
         using var vm = Make();
@@ -57,6 +63,7 @@ public class LogViewModelCommandTests
     }
 
     [TestMethod]
+    [CoversNode("log-viewer-filter-clear")]
     public void ClearFilter_ResetsRegexAndActiveState()
     {
         using var vm = Make();
@@ -71,6 +78,7 @@ public class LogViewModelCommandTests
     }
 
     [TestMethod]
+    [CoversNode("log-viewer-time-apply")]
     public void ApplyTimeFilter_WithDateAndTime_ComputesBounds()
     {
         using var vm = Make();
@@ -86,6 +94,7 @@ public class LogViewModelCommandTests
     }
 
     [TestMethod]
+    [CoversNode("log-viewer-time-apply")]
     public void ApplyTimeFilter_EndDateWithoutTime_ExpandsToEndOfDay()
     {
         using var vm = Make();
@@ -99,6 +108,7 @@ public class LogViewModelCommandTests
     }
 
     [TestMethod]
+    [CoversNode("log-viewer-time-clear")]
     public void ClearTimeFilter_ResetsAllTimeFields()
     {
         using var vm = Make();
@@ -119,6 +129,7 @@ public class LogViewModelCommandTests
     }
 
     [TestMethod]
+    [CoversNode("log-viewer-watch")]
     public void ToggleMonitoring_FlipsFlag_AndIsSafeWithoutFile()
     {
         using var vm = Make();   // path doesn't exist → StartMonitoring is a guarded no-op
@@ -132,6 +143,7 @@ public class LogViewModelCommandTests
     }
 
     [TestMethod]
+    [CoversNode("log-viewer-copy-selected")]
     public void CopySelectedLines_CannotExecute_WithNoSelection()
     {
         using var vm = Make();

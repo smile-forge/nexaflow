@@ -7,7 +7,7 @@ namespace Nexaflow.Tests.Features.Audio;
 
 /// <summary>Tab title/identity produced by <see cref="AudioTabRegistration.CreatePageDefinition"/>.</summary>
 [TestClass]
-[CoversNode("audio")]
+[CoversNode("audio-open")]
 public class AudioTabRegistrationTests
 {
     private static AudioTabRegistration Make()

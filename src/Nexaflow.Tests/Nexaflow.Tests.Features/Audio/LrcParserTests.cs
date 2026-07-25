@@ -4,7 +4,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.Audio;
 
 [TestClass]
-[CoversNode("audio-lyrics")]
+[CoversNode("audio-lrc")]
 public class LrcParserTests
 {
     [TestMethod]

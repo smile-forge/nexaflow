@@ -15,7 +15,6 @@ namespace Nexaflow.Tests.Features.Model3D;
 /// view-manipulation tools to the AI.
 /// </summary>
 [TestClass]
-[CoversNode("model3d")]
 public class Model3DTests
 {
     private static string Sample(string name) => Path.Combine(TestSampleData.Path("model3d"), name);
@@ -66,6 +65,7 @@ public class Model3DTests
 
     [TestMethod]
     [CoversNode("model3d-loaders")]
+    [CoversNode("model3d-inspection")]
     public void HelixLoader_ReadsStlAndObj_WithGeometry()
     {
         var registry = new ModelLoaderRegistry();
@@ -98,7 +98,7 @@ public class Model3DTests
     }
 
     [TestMethod]
-    [CoversNode("model3d-loaders")]
+    [CoversNode("model3d-tinting")]
     public void Tinting_SeparatesMaterialsThatShareAColour()
     {
         var palette = CategoricalPalette.Fallback;
@@ -119,6 +119,7 @@ public class Model3DTests
     }
 
     [TestMethod]
+    [CoversNode("model3d-ai-act")]
     public async Task ViewModel_LoadsModel_ExposesContextAndTools()
     {
         var vm = new Model3DViewModel(Sample("tetra.stl"), new ModelLoaderRegistry());

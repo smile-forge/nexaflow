@@ -3,8 +3,9 @@
 This is the template for representing a feature as product-tree nodes and backing each node with the
 *right kind* of test, so the tree stays an honest, mechanically-checkable map of **what exists** and **what's
 tested**. It was distilled from the **Text Viewer** gold-standard pass (2026-07) and is meant to be applied to
-every feature. **Text Viewer, Code, Tabular, Markdown, Processes, SysInfo, Installed Apps and Win Registry**
-have all had the pass and all lint clean — read whichever is closest in shape to the feature you're modelling:
+every feature. **Text Viewer, Code, Tabular, Markdown, Processes, SysInfo, Installed Apps, Win Registry, Log
+Viewer, Images, Audio and 3D Model** have all had the pass and all lint clean — read whichever is closest in
+shape to the feature you're modelling:
 
 | Reference | Read it for |
 |-----------|-------------|
@@ -16,6 +17,10 @@ have all had the pass and all lint clean — read whichever is closest in shape 
 | **SysInfo** | a feature spanning **three tabs** (Dashboard / Services / Environment Variables) — one panel per page — over a system-probe layer |
 | **Installed Apps** | the shape of a *destructive* row menu: the safety gate is the leaf's test, and the journey never opens the menu at all |
 | **Win Registry** | a feature where every write routes through an in-tab overlay — the overlays are their own panel, and the leaves are tested at "the right prompt opened, seeded correctly, and the guard fired" |
+| **Log Viewer** | a *live* surface: the file watcher, pause and follow are three separate leaves because their test states differ, and the status bar is a panel of one-line readouts |
+| **Images** | four mutually-exclusive content surfaces, each its own panel under one UI node, with the shared floating tools as a fifth — and the collage's pan/zoom maths pulled out as a pure seam |
+| **Audio** | the shape of a feature over a *device*: the readouts either side of playback are unit-tested, the device-bound half is `shouldnt` with a note naming what covers the rest |
+| **3D Model** | the same again for a live viewport — the camera maths came out of the code-behind (`CameraMath`) so every gesture and AI camera tool is assertable without a rendered scene |
 
 ### Testing a feature that acts on the machine
 
@@ -136,9 +141,22 @@ usually a few lines and leaves the control thinner:
   plain text rather than implying a verdict" is assertable without an `Application`.
 - **Block-level undo** — no seam to extract, but `Undo()` became `public` (as `TextBox.Undo()` is), so the
   step *granularity* — one step per block session, not per keystroke — is assertable.
+- **3D camera moves** — orbit / turn / roll / zoom / pan and the authored-view framing were private methods
+  on `Model3DView` reading and writing `Viewport.Camera`. The arithmetic moved to `CameraMath` as pure
+  `CameraPose → CameraPose`; the code-behind kept "read the camera, apply, write it back". The turn gesture
+  went from `should` to done, and every AI camera tool gained a real assertion instead of only a
+  fails-without-a-viewport one.
+- **The collage's pan/zoom** — cursor-anchored zoom, centring, and the minimap's canvas↔minimap mapping and
+  its inverse were interleaved with `ScaleTransform`/`Canvas.SetLeft` in `ImageView`. They moved to
+  `CollageGeometry`, so "zooming keeps the point under the cursor still", "the minimap only appears when
+  something is off-screen" and "clicking the minimap centres the viewport there" are all assertable.
 
 Reach for this before reaching for `shouldnt`. Prefer changing the abstraction's shape over adding a
 test-only hook.
+
+A **device** is not automatically an excuse either. Audio's engine only exists after the first play, so
+"every transport command is safe before it exists" — the half that actually breaks — is unit-testable even
+though playing a sound is not. Split the leaf's rule from the device call and test the half you can.
 
 Some leaves are only reachable through the real control (a rendered `RichTextBox`, a live AvalonEdit
 selection). Those get a control-level test in an off-screen window (`MarkdownEditorHarness`) tagged
@@ -320,4 +338,9 @@ author-time nudges prove worth an analyzer.
 8. `doctor` + `validate` + `lint --under <feature>`; build + run the feature's unit tests (and the UI
    journey on a desktop).
 
-The eight subtrees listed at the top are the worked references for every step above.
+The twelve subtrees listed at the top are the worked references for every step above.
+
+One thing the pass keeps turning up, so look for it: a node claiming `tests=done` (or a `theming=done` over
+a hard-coded colour) that nothing actually backs. The lint's `TestsDoneWithoutSnaplink` finds the first kind;
+the second only shows up by reading the view. Both are worth fixing while you are in the feature — that is
+the point of the pass.

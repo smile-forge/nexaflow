@@ -13,7 +13,6 @@ namespace Nexaflow.Tests.Features.Images;
 /// covered by the UI journey instead.
 /// </summary>
 [TestClass]
-[CoversNode("displaymodes")]
 public class ImagesViewModelTests
 {
     private static ImageViewModel Make(params string[] paths)
@@ -22,6 +21,7 @@ public class ImagesViewModelTests
     // ── Rotation (90° steps, wrapping both ways) ──────────────────────────
 
     [TestMethod]
+    [CoversNode("images-rotate")]
     public void RotateRight_Steps90_AndWrapsAt360()
     {
         var vm = Make("a.png");
@@ -37,6 +37,7 @@ public class ImagesViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("images-rotate")]
     public void RotateLeft_Steps90_AndWrapsBelowZero()
     {
         var vm = Make("a.png");
@@ -50,6 +51,7 @@ public class ImagesViewModelTests
     // ── Fit ↔ actual size ─────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("images-fit")]
     public void ToggleFit_FlipsFitToWindow()
     {
         var vm = Make("a.png");
@@ -63,6 +65,7 @@ public class ImagesViewModelTests
     // ── Sub-view selection + derived flags ────────────────────────────────
 
     [TestMethod]
+    [CoversNode("images-mode-selector")]
     public void ViewMode_DrivesMutuallyExclusiveFlags()
     {
         var vm = Make("a.png", "b.png", "c.png");
@@ -82,6 +85,8 @@ public class ImagesViewModelTests
     // ── Full-screen flag (window creation is a view concern) ──────────────
 
     [TestMethod]
+    [CoversNode("images-fullscreen-btn")]
+    [CoversNode("images-fullscreen-nav")]
     public void EnterThenExitFullScreen_TogglesFlag_AndStopsAuto()
     {
         var vm = Make("a.png", "b.png");
@@ -98,6 +103,9 @@ public class ImagesViewModelTests
     // ── Navigation (manual stepping is clamped, can-execute reflects ends) ─
 
     [TestMethod]
+    [CoversNode("images-navigation")]
+    [CoversNode("images-prevnext")]
+    [CoversNode("images-wheel-keys")]
     public void Navigation_ClampsAtEnds_AndCanExecuteTracksPosition()
     {
         var vm = Make("a.png", "b.png", "c.png");
@@ -118,6 +126,8 @@ public class ImagesViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("images-navigation")]
+    [CoversNode("images-slideshow")]
     public void Advance_WrapsToFirst_UnlikeManualStep()
     {
         var vm = Make("a.png", "b.png");
@@ -128,6 +138,7 @@ public class ImagesViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("images-dot-indicator")]
     public void GoToIndex_JumpsWithinRange_IgnoresOutOfRange()
     {
         var vm = Make("a.png", "b.png", "c.png");
@@ -141,6 +152,8 @@ public class ImagesViewModelTests
     // ── Dot-window paging (windows at 20) ─────────────────────────────────
 
     [TestMethod]
+    [CoversNode("images-dot-indicator")]
+    [CoversNode("images-dot-paging")]
     public void DotWindow_PagesInBlocksOfTwenty()
     {
         var paths = new string[45];
@@ -163,6 +176,7 @@ public class ImagesViewModelTests
     // ── Multiplicity ──────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("images-mode-selector")]
     public void SingleImage_HasNoMultipleAndStaysCarousel()
     {
         var vm = Make("only.png");
@@ -172,6 +186,7 @@ public class ImagesViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("images-speed-slider")]
     public void AutoSpeed_RoundTrips_AndLabelsCorrectly()
     {
         var vm = Make("a.png", "b.png");

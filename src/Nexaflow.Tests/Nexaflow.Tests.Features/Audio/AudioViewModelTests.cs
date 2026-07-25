@@ -14,13 +14,13 @@ namespace Nexaflow.Tests.Features.Audio;
 /// UI journey instead; everything here runs without touching an audio device.
 /// </summary>
 [TestClass]
-[CoversNode("audio-playlist-reorder")]
 public class AudioViewModelTests
 {
     private static AudioViewModel Make(params string[] paths)
         => new(paths, 0, Substitute.For<IShellServices>(), new AudioConfig());
 
     [TestMethod]
+    [CoversNode("audio-playlist-toggle")]
     public void TogglePlaylist_FlipsOpenState()
     {
         var vm = Make("a.mp3", "b.mp3");
@@ -32,6 +32,8 @@ public class AudioViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("audio-tags-toggle")]
+    [CoversNode("audio-lyrics-toggle")]
     public void TogglePanel_SwitchesPanel_ThenClosesOnActive()
     {
         var vm = Make("a.mp3");
@@ -49,6 +51,8 @@ public class AudioViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("audio-stop")]
+    [CoversNode("audio-engine")]
     public void Stop_ResetsTransportState_WithoutEngine()
     {
         var vm = Make("a.mp3");
@@ -58,6 +62,8 @@ public class AudioViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("audio-volume")]
+    [CoversNode("audio-engine")]
     public void Volume_RoundTrips_AndSetterIsEngineSafe()
     {
         var vm = Make("a.mp3");
@@ -66,6 +72,9 @@ public class AudioViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("audio-next")]
+    [CoversNode("audio-previous")]
+    [CoversNode("audio-queue")]
     public void Queue_ReflectsPosition_AndNextPreviousCanExecute()
     {
         var vm = Make("a.mp3", "b.mp3", "c.mp3");
@@ -78,6 +87,7 @@ public class AudioViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("audio-playlist-reorder")]
     public void MovePlaylistItem_ReordersQueue()
     {
         var vm = Make("a.mp3", "b.mp3", "c.mp3");
@@ -86,6 +96,8 @@ public class AudioViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("audio-playlist-toggle")]
+    [CoversNode("audio-queue-counter")]
     public void SingleTrack_HasNoPlaylistOrQueue()
     {
         var vm = Make("only.mp3");

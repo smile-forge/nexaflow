@@ -17,6 +17,7 @@ namespace Nexaflow.Tests.Features.Audio.UI;
 public class AudioJourneyTests : UiJourneyTestBase
 {
     [TestMethod]
+    [CoversNode("audio-ui")]
     public void Audio_Controls_RespondInOnePass()
     {
         var file = Path.GetFileName(TestSampleData.Files("audio").First());
