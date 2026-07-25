@@ -65,8 +65,8 @@ public class GraphViewerAiTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer-ai-act")]
-    [CoversNode("graphviewer-ai-context")]
+    [CoversNode("product-ai-act")]
+    [CoversNode("product-ai-context-graph")]
     public async Task AiSurface_ToolsContextAndScope()
     {
         var path = WriteGraph(out var dir);
@@ -78,23 +78,31 @@ public class GraphViewerAiTests
             Assert.IsTrue(vm.IsLoaded);
             Assert.IsFalse(vm.HasError, vm.ErrorMessage);
 
-            // ── security scope is the file path (distinguishes two graph tabs pinned together) ──
-            Assert.AreEqual(path, vm.GetSecurityContext());
+            // ── scope is the PRODUCT ROOT, not graph.json ──
+            // The sunburst, the integrity page and this canvas are three views of one tree, so they share a
+            // scope; pinning two of them must not read as two unrelated datasets.
+            Assert.AreEqual(vm.ProductRoot, vm.GetSecurityContext());
 
             // ── context names the graph and the focused neighbourhood ──
             var ctx = vm.GetContext();
             StringAssert.Contains(ctx, vm.FileName);
             StringAssert.Contains(ctx, "Nexaflow");   // focus label
 
-            // ── the exact tool surface (a change here should force a tree reconcile) ──
+            // ── the graph gets the whole product surface, plus its own two view tools ──
+            // Every Product view exposes the same commands because they act on the same tree; only tools that
+            // act on what is *rendered* are view-specific.
             var tools = vm.GetClientTools();
-            CollectionAssert.AreEquivalent(
-                new[] { "read_graph", "focus_node" },
-                tools.Select(t => t.Name).ToArray(),
-                "the GraphViewer AI act tool surface changed — update the tree's graphviewer-ai-act leaves to match");
+            var names = tools.Select(t => t.Name).ToList();
+            CollectionAssert.IsSubsetOf(new[] { "product_find", "product_query", "product_tree",
+                                                "product_validate", "product_lint", "product_add_node" },
+                                        names,
+                                        "the graph view must offer the same product tools as the other views");
+            CollectionAssert.Contains(names, "read_graph");
+            CollectionAssert.Contains(names, "focus_node");
 
-            // both are auto-run reads/camera-moves — nothing commits to disk
-            Assert.IsTrue(tools.All(t => t.Safety == ToolSafety.SafeOperation));
+            // The view tools are auto-run reads/camera-moves — nothing commits to disk.
+            foreach (var viewTool in new[] { "read_graph", "focus_node" })
+                Assert.AreEqual(ToolSafety.SafeOperation, tools.Single(t => t.Name == viewTool).Safety);
         }
         finally
         {
@@ -103,7 +111,7 @@ public class GraphViewerAiTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer-ai-act")]
+    [CoversNode("product-ai-act-read-graph")]
     public async Task ReadGraph_ReportsFocusSummaryAndNeighbours()
     {
         var path = WriteGraph(out var dir);
@@ -135,7 +143,7 @@ public class GraphViewerAiTests
     }
 
     [TestMethod]
-    [CoversNode("graphviewer-ai-act")]
+    [CoversNode("product-ai-act-focus-node")]
     public async Task FocusNode_ReCentresOnMatchedNode()
     {
         var path = WriteGraph(out var dir);

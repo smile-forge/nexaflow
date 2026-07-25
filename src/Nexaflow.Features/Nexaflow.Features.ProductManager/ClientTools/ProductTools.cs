@@ -109,7 +109,379 @@ public static class ProductTools
                  new ClientToolParameter("concern", "The concern tag to remove.")],
                 ToolSafety.RequiresApproval,
                 (a, _) => Task.FromResult(RemoveConcern(productRoot, a))),
+
+            // ── Navigate ──────────────────────────────────────────────────────
+            // Everything above edits a node the caller already knows the id of. These are how it finds one.
+            new DelegateClientTool("product_find",
+                "Find nodes whose id, title or description contains a term — the way to turn a feature name "
+                + "into node ids. Returns each match with the path that locates it.",
+                [new ClientToolParameter("term", "Substring to search for.")],
+                ToolSafety.SafeOperation,
+                (a, _) => Task.FromResult(Find(productRoot, a))),
+
+            new DelegateClientTool("product_query",
+                "Filter nodes by subtree, concern, status and shape — 'which leaves under this feature still "
+                + "owe a test', 'which nodes claim tests=done with nothing backing them'. Every filter is "
+                + "optional; 'unbacked' needs 'concern' to mean anything.",
+                [new ClientToolParameter("under", "Limit to this node's subtree.", Required: false),
+                 new ClientToolParameter("concern", "Keep nodes carrying this concern; shows its status + snaplink count.", Required: false),
+                 new ClientToolParameter("status", "should | done | shouldnt | faulted.", Required: false),
+                 new ClientToolParameter("shape", "'leaf' or 'panel' to keep only one.", Required: false),
+                 new ClientToolParameter("unbacked", "true to keep only nodes carrying the concern with NO snaplink.", Required: false, Type: "boolean")],
+                ToolSafety.SafeOperation,
+                (a, _) => Task.FromResult(Query(productRoot, a))),
+
+            new DelegateClientTool("product_tree",
+                "The whole subtree under a node as an indented outline — 'show me this entire feature'. "
+                + "Set full=true to include each node's description, note and snaplinks rather than a link count.",
+                [new ClientToolParameter("node_id", "Root of the subtree to print."),
+                 new ClientToolParameter("depth", "Cap the walk (the node itself is 0).", Required: false, Type: "number"),
+                 new ClientToolParameter("full", "true to include about/note/snaplinks.", Required: false, Type: "boolean")],
+                ToolSafety.SafeOperation,
+                (a, _) => Task.FromResult(Tree(productRoot, a))),
+
+            // ── Check ─────────────────────────────────────────────────────────
+            // Without these the model can set tests=done and never learn it just made a broken claim.
+            new DelegateClientTool("product_validate",
+                "Check every snaplink still points at a real target — file exists, markdown heading resolves, "
+                + "class/method still declared, URL well formed — and that no concern requiring a snaplink is "
+                + "done with nothing backing it. These are gating: the installer build fails on them.",
+                [], ToolSafety.SafeOperation,
+                (_, _) => Task.FromResult(Validate(productRoot))),
+
+            new DelegateClientTool("product_lint",
+                "Check the modelling rules — missing UI/Functionality backbone, a leaf with no tests concern, "
+                + "a panel that carries one, a tests=done naming no test. Advisory: nothing here fails a build.",
+                [new ClientToolParameter("under", "Limit to this feature's subtree.", Required: false)],
+                ToolSafety.SafeOperation,
+                (a, _) => Task.FromResult(Lint(productRoot, a))),
+
+            // ── Structure ─────────────────────────────────────────────────────
+            // Approval-gated: these change the shape of the tree rather than the contents of one node.
+            new DelegateClientTool("product_add_node",
+                "Add a child node. The id defaults to a slug of the title. Default concerns are attached, "
+                + "so this is how a leaf grows sub-nodes when it turns out to be several behaviours.",
+                [new ClientToolParameter("parent_id", "The parent node id."),
+                 new ClientToolParameter("title", "Title for the new node."),
+                 new ClientToolParameter("node_id", "Explicit id (defaults to a slug of the title).", Required: false),
+                 new ClientToolParameter("description", "What the node covers.", Required: false),
+                 new ClientToolParameter("status", "should | done | shouldnt | faulted (default should).", Required: false)],
+                ToolSafety.RequiresApproval,
+                (a, _) => Task.FromResult(AddNode(productRoot, a))),
+
+            new DelegateClientTool("product_move_node",
+                "Reparent a node and its subtree. Refuses a move that would make a cycle.",
+                [new ClientToolParameter("node_id", "The node to move."),
+                 new ClientToolParameter("new_parent_id", "Its new parent.")],
+                ToolSafety.RequiresApproval,
+                (a, _) => Task.FromResult(MoveNode(productRoot, a))),
+
+            new DelegateClientTool("product_rename_node",
+                "Change a node's id, retargeting its parent, its children and every node-type snaplink that "
+                + "points at it. Ids are one flat global namespace, so this is how a too-generic one is "
+                + "specialised. It cannot reach a [CoversNode(\"old-id\")] in test source — update those too.",
+                [new ClientToolParameter("node_id", "The current id."),
+                 new ClientToolParameter("new_id", "The new id.")],
+                ToolSafety.RequiresApproval,
+                (a, _) => Task.FromResult(RenameNode(productRoot, a))),
+
+            new DelegateClientTool("product_remove_node",
+                "Delete a node. Refuses a node that still has children unless recursive=true, which deletes "
+                + "the whole subtree.",
+                [new ClientToolParameter("node_id", "The node to delete."),
+                 new ClientToolParameter("recursive", "true to delete its descendants too.", Required: false, Type: "boolean")],
+                ToolSafety.RequiresApproval,
+                (a, _) => Task.FromResult(RemoveNode(productRoot, a))),
+
+            new DelegateClientTool("product_remap_snaplinks",
+                "Rewrite snaplink paths after a rename or move — an exact file, or a directory prefix. The "
+                + "safe way to follow code that moved, instead of re-pointing each link by hand.",
+                [new ClientToolParameter("old_path", "The path (or directory prefix) as recorded today."),
+                 new ClientToolParameter("new_path", "What it should become."),
+                 new ClientToolParameter("class", "Also set this class on every affected link.", Required: false),
+                 new ClientToolParameter("method", "Also set this method on every affected link.", Required: false)],
+                ToolSafety.RequiresApproval,
+                (a, _) => Task.FromResult(Remap(productRoot, a))),
+
+            new DelegateClientTool("product_doctor",
+                "Check the tree's own structure: every child id resolves, every node is listed by its parent, "
+                + "and no snaplink points into a linked git worktree. Set fix=true to repair what it can — "
+                + "dropping dangling child ids and re-rooting worktree paths onto the repo's own copy.",
+                [new ClientToolParameter("fix", "true to apply the repairs rather than just report them.", Required: false, Type: "boolean")],
+                ToolSafety.RequiresApproval,
+                (a, _) => Task.FromResult(Doctor(productRoot, a))),
         ];
+    }
+
+    // ── Navigate / check ────────────────────────────────────────────────────
+    //
+    // Each of these is the same service call the CLI verb makes, rendered by the same ProductReport, so the
+    // model reads exactly what a terminal would print. Anything the CLI can answer, the assistant can too.
+
+    private static ToolResult Find(string root, JsonObject a)
+    {
+        var term = Str(a, "term");
+        if (string.IsNullOrWhiteSpace(term)) return ToolResult.Error("Provide a 'term' to search for.");
+        var hits = ProductQuery.Find(new ProductStore(root).Load(), term);
+        return ToolResult.Ok($"{hits.Count} match(es) for '{term}'", ProductReport.Find(hits, term));
+    }
+
+    private static ToolResult Query(string root, JsonObject a)
+    {
+        var state = new ProductStore(root).Load();
+
+        var under = Blank(Str(a, "under") ?? string.Empty);
+        if (under is not null && !state.Nodes.ContainsKey(under)) return NoNode(under);
+
+        Status? status = null;
+        if (Blank(Str(a, "status") ?? string.Empty) is { } statusText)
+        {
+            if (!Enum.TryParse<Status>(statusText, ignoreCase: true, out var parsed))
+                return ToolResult.Error($"Unknown status '{statusText}' (should | done | shouldnt | faulted).");
+            status = parsed;
+        }
+
+        var shape = Blank(Str(a, "shape") ?? string.Empty)?.ToLowerInvariant();
+        bool? leafOnly = shape switch { "leaf" => true, "panel" => false, null => null, _ => null };
+        if (shape is not null and not "leaf" and not "panel")
+            return ToolResult.Error($"Unknown shape '{shape}' (leaf | panel).");
+
+        var concern = Blank(Str(a, "concern") ?? string.Empty);
+        var hits = ProductQuery.Query(state, under, concern, status, leafOnly);
+
+        if (Bool(a, "unbacked"))
+        {
+            if (concern is null) return ToolResult.Error("'unbacked' needs 'concern' — which concern is unbacked?");
+            hits = [.. hits.Where(h => h.ConcernSnaplinks == 0)];
+        }
+
+        return ToolResult.Ok($"{hits.Count} node(s)", ProductReport.Query(hits, concern));
+    }
+
+    private static ToolResult Tree(string root, JsonObject a)
+    {
+        var id = Str(a, "node_id");
+        if (string.IsNullOrWhiteSpace(id)) return ToolResult.Error("Provide a 'node_id' to print the subtree of.");
+
+        int? depth = null;
+        if (a["depth"] is { } d && int.TryParse(d.ToString(), out var parsed))
+        {
+            if (parsed < 0) return ToolResult.Error("'depth' must be zero or more.");
+            depth = parsed;
+        }
+
+        var rows = ProductQuery.Outline(new ProductStore(root).Load(), id, depth);
+        if (rows is null) return NoNode(id);
+        return ToolResult.Ok($"{rows.Count} node(s) under {id}", ProductReport.Outline(rows, Bool(a, "full")));
+    }
+
+    private static ToolResult Validate(string root)
+    {
+        if (!ProductStore.Exists(root)) return ToolResult.Ok("no product", $"No .product/ under {root} — nothing to validate.");
+        var state = new ProductStore(root).Load();
+        var report = SnaplinkValidator.Validate(state, root, [root]);
+        return ToolResult.Ok(report.IsClean ? "snaplinks OK" : $"{report.IssueCount} broken snaplink(s)",
+                             ProductReport.Validate(report));
+    }
+
+    private static ToolResult Lint(string root, JsonObject a)
+    {
+        var state = new ProductStore(root).Load();
+        var under = Blank(Str(a, "under") ?? string.Empty);
+        if (under is not null && !state.Nodes.ContainsKey(under)) return NoNode(under);
+
+        var findings = StructureLinter.Lint(state, under);
+        return ToolResult.Ok(findings.Count == 0 ? "follows the modelling rules" : $"{findings.Count} finding(s)",
+                             ProductReport.Lint(findings, under));
+    }
+
+    // ── Structure ───────────────────────────────────────────────────────────
+
+    private static ToolResult AddNode(string root, JsonObject a)
+    {
+        var parentId = Str(a, "parent_id");
+        var title = Str(a, "title");
+        if (string.IsNullOrWhiteSpace(parentId)) return ToolResult.Error("Provide a 'parent_id'.");
+        if (string.IsNullOrWhiteSpace(title)) return ToolResult.Error("Provide a 'title'.");
+
+        var store = new ProductStore(root);
+        var state = store.Load();
+        if (!state.Nodes.TryGetValue(parentId, out var parent)) return NoNode(parentId);
+
+        string id;
+        if (Blank(Str(a, "node_id") ?? string.Empty) is { } explicitId)
+        {
+            id = Slug(explicitId);
+            if (state.Nodes.ContainsKey(id)) return ToolResult.Error($"Node id '{id}' already exists.");
+        }
+        else id = UniqueId(state, Slug(title));
+
+        var status = ParseStatus(Str(a, "status"));
+        if (status is null) return ToolResult.Error("'status' must be should | done | shouldnt | faulted.");
+
+        // The default concerns are what make a new node lint-clean from the start.
+        var defaults = state.Product.Concerns.Where(c => c.IsDefault).Select(c => c.Name).ToList();
+        state.Nodes[id] = new ProductNode
+        {
+            Title = title,
+            Description = Blank(Str(a, "description") ?? string.Empty),
+            Status = status.Value,
+            Parent = parentId,
+            Children = [],
+            Concerns = defaults.Count > 0
+                ? [.. defaults.Select(n => new ConcernLink { Tag = n, Status = Status.Should })]
+                : null,
+        };
+        parent.Children.Add(id);
+        store.SaveTree(state.Nodes);
+        return ToolResult.Ok($"added {id}", $"Added node '{id}' under '{parentId}': {title}.");
+    }
+
+    private static ToolResult MoveNode(string root, JsonObject a)
+    {
+        var id = Str(a, "node_id");
+        var newParent = Str(a, "new_parent_id");
+        var store = new ProductStore(root);
+        var state = store.Load();
+        if (id is null || !state.Nodes.ContainsKey(id)) return NoNode(id);
+        if (newParent is null || !state.Nodes.ContainsKey(newParent)) return NoNode(newParent);
+
+        if (!ProductTreeOps.Reparent(state, id, newParent))
+            return ToolResult.Error($"Cannot move '{id}' under '{newParent}' — that would make a cycle.");
+
+        store.SaveTree(state.Nodes);
+        return ToolResult.Ok($"moved {id}", $"Moved '{id}' under '{newParent}'.");
+    }
+
+    private static ToolResult RenameNode(string root, JsonObject a)
+    {
+        var oldId = Str(a, "node_id");
+        var newId = Str(a, "new_id");
+        if (string.IsNullOrWhiteSpace(oldId) || string.IsNullOrWhiteSpace(newId))
+            return ToolResult.Error("Provide both 'node_id' and 'new_id'.");
+
+        var store = new ProductStore(root);
+        var state = store.Load();
+        return ProductTreeOps.Rename(state, oldId, newId) switch
+        {
+            ProductTreeOps.RenameError.NoSuchNode => NoNode(oldId),
+            ProductTreeOps.RenameError.IdTaken => ToolResult.Error($"Node id '{newId}' already exists."),
+            ProductTreeOps.RenameError.IdInvalid => ToolResult.Error($"'{newId}' is not a valid node id."),
+            _ => Saved(store, state, $"renamed to {newId}",
+                       $"Renamed '{oldId}' to '{newId}' — parent, children and node snaplinks retargeted. "
+                     + $"Any [CoversNode(\"{oldId}\")] in test source still needs updating."),
+        };
+    }
+
+    private static ToolResult RemoveNode(string root, JsonObject a)
+    {
+        var id = Str(a, "node_id");
+        var store = new ProductStore(root);
+        var state = store.Load();
+        if (id is null || !state.Nodes.ContainsKey(id)) return NoNode(id);
+
+        var recursive = Bool(a, "recursive");
+        var removed = ProductTreeOps.Remove(state, id, recursive);
+        if (removed is null)
+            return ToolResult.Error($"'{id}' still has children — pass recursive=true to delete the whole subtree.");
+
+        return Saved(store, state, $"removed {removed.Count} node(s)",
+                     removed.Count == 1
+                         ? $"Removed '{id}'."
+                         : $"Removed '{id}' and {removed.Count - 1} descendant(s): {string.Join(", ", removed)}.");
+    }
+
+    private static ToolResult Remap(string root, JsonObject a)
+    {
+        var oldPath = Str(a, "old_path");
+        var newPath = Str(a, "new_path");
+        if (string.IsNullOrWhiteSpace(oldPath) || string.IsNullOrWhiteSpace(newPath))
+            return ToolResult.Error("Provide both 'old_path' and 'new_path'.");
+
+        var store = new ProductStore(root);
+        var state = store.Load();
+        var changed = SnaplinkRemapper.Remap(state, oldPath, newPath,
+                                             Blank(Str(a, "class") ?? string.Empty),
+                                             Blank(Str(a, "method") ?? string.Empty));
+        if (changed == 0) return ToolResult.Ok("nothing to remap", $"No snaplink records '{oldPath}'.");
+
+        return Saved(store, state, $"remapped {changed} snaplink(s)",
+                     $"Rewrote {changed} snaplink(s) from '{oldPath}' to '{newPath}'.");
+    }
+
+    private static ToolResult Doctor(string root, JsonObject a)
+    {
+        var fix = Bool(a, "fix");
+        var store = new ProductStore(root);
+        var state = store.Load();
+
+        var repairs = ProductTreeOps.RepairChildren(state, apply: fix);
+        var orphans = state.Nodes
+            .Where(kv => kv.Value.Parent is { } p && !state.Nodes.ContainsKey(p))
+            .Select(kv => $"{kv.Key}: parent '{kv.Value.Parent}' does not exist")
+            .ToList();
+        var worktreeLinks = SnaplinkRemapper.NormalizeWorktreePaths(state, root);
+
+        if (repairs.Count == 0 && orphans.Count == 0 && worktreeLinks.Count == 0)
+            return ToolResult.Ok("tree structure OK",
+                "Tree structure OK - every child id resolves, every node is listed by its parent, and no "
+              + "snaplink points into a linked worktree.");
+
+        var sb = new StringBuilder();
+        foreach (var r in repairs)
+            sb.AppendLine($"  {r.Parent}\n      before: [{string.Join(", ", r.Before)}]"
+                        + $"\n      after:  [{string.Join(", ", r.After)}]"
+                        + (r.Dropped.Count > 0 ? $"\n      dropped (unrecoverable): {string.Join(", ", r.Dropped)}" : ""));
+        foreach (var o in orphans)
+            sb.AppendLine($"  {o} - re-parent it with product_move_node (structural, not a children[] issue).");
+        if (worktreeLinks.Count > 0)
+        {
+            sb.AppendLine($"  {worktreeLinks.Count} snaplink(s) point into a linked git worktree:");
+            foreach (var (before, after) in worktreeLinks.DistinctBy(c => c.Before).OrderBy(c => c.Before, StringComparer.Ordinal))
+                sb.AppendLine($"      {before}\n        -> {after}");
+        }
+
+        if (!fix)
+        {
+            sb.Append("Nothing was changed. Call again with fix=true to apply the repairs.");
+            return ToolResult.Ok("repairs available", sb.ToString());
+        }
+
+        store.SaveTree(state.Nodes);
+        sb.Append("Applied.");
+        return ToolResult.Ok("repaired", sb.ToString());
+    }
+
+    /// <summary>Persists <paramref name="state"/> and reports success — the tail of every structural edit.</summary>
+    private static ToolResult Saved(ProductStore store, ProductState state, string summary, string detail)
+    {
+        store.SaveTree(state.Nodes);
+        return ToolResult.Ok(summary, detail);
+    }
+
+    private static bool Bool(JsonObject a, string key) =>
+        a[key] is { } v && bool.TryParse(v.ToString(), out var b) && b;
+
+    private static Status? ParseStatus(string? s) => string.IsNullOrWhiteSpace(s)
+        ? Status.Should
+        : Enum.TryParse<Status>(s, ignoreCase: true, out var parsed) ? parsed : null;
+
+    /// <summary>A node id from free text: lowercase, non-alphanumerics to single hyphens.</summary>
+    private static string Slug(string text)
+    {
+        var sb = new StringBuilder(text.Length);
+        foreach (var ch in text.Trim().ToLowerInvariant())
+            sb.Append(char.IsLetterOrDigit(ch) ? ch : '-');
+        var slug = sb.ToString();
+        while (slug.Contains("--")) slug = slug.Replace("--", "-");
+        return slug.Trim('-');
+    }
+
+    private static string UniqueId(ProductState s, string seed)
+    {
+        if (!s.Nodes.ContainsKey(seed)) return seed;
+        for (var i = 2; ; i++)
+            if (!s.Nodes.ContainsKey($"{seed}-{i}")) return $"{seed}-{i}";
     }
 
     // ── Read renderers ──────────────────────────────────────────────────────

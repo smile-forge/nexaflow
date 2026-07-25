@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.ProductManager.ClientTools;
 using Nexaflow.Features.ProductManager.Graph.Converters;
 using Nexaflow.Features.ProductManager.Graph.Layout;
 using Nexaflow.Features.ProductManager.Graph.Loaders;
@@ -509,15 +510,36 @@ public sealed partial class GraphViewModel : ObservableObject, IPageViewModel
                "Product nodes, code files, types and members with their relationships.";
     }
 
-    public string? GetSecurityContext() => FilePath;
+    /// <summary>
+    /// The product folder this graph was built from — <c>&lt;root&gt;/.product/graph.json</c>, so two levels
+    /// up. Deliberately *not* the graph.json path: the sunburst, the integrity page and this canvas are three
+    /// views of one tree, and scoping them together is what lets a conversation pin two of them without the
+    /// shared tools collapsing first-wins across what would look like different datasets.
+    /// </summary>
+    public string ProductRoot =>
+        Path.GetDirectoryName(Path.GetDirectoryName(FilePath)) ?? Path.GetDirectoryName(FilePath) ?? string.Empty;
+
+    public string? GetSecurityContext() => string.IsNullOrEmpty(ProductRoot) ? FilePath : ProductRoot;
 
     /// <summary>
-    /// The read-only act surface. Both tools are <see cref="ToolSafety.SafeOperation"/>: <c>read_graph</c> is a pure
-    /// observer of the in-memory neighbourhood, and <c>focus_node</c> only re-centres the view (a camera/selection
-    /// move, nothing committed to disk). Focusing mutates the UI-bound node/edge collections, so it is marshalled to
+    /// The whole product surface, plus the two tools that are about *this view* rather than the model.
+    /// <para>
+    /// The split is the useful one: <see cref="ProductTools.ForRoot"/> acts on the tree on disk and is
+    /// identical on every Product view, because all three are views of the same data. <c>read_graph</c> and
+    /// <c>focus_node</c> act on what is rendered here — which node is centred and what is visible — which is
+    /// the part that genuinely differs per view.
+    /// </para>
+    /// <para>
+    /// Both view tools are <see cref="ToolSafety.SafeOperation"/>: <c>read_graph</c> is a pure observer of the
+    /// in-memory neighbourhood, and <c>focus_node</c> only re-centres the view (a camera/selection move,
+    /// nothing committed to disk). Focusing mutates the UI-bound node/edge collections, so it is marshalled to
     /// the UI thread via <see cref="IShellServices.RunOnUiAsync(Action)"/> — a feature never touches the dispatcher.
+    /// </para>
     /// </summary>
     public IReadOnlyList<IClientTool> GetClientTools() =>
+        [.. ProductTools.ForRoot(ProductRoot), .. ViewTools()];
+
+    private IReadOnlyList<IClientTool> ViewTools() =>
     [
         new DelegateClientTool(
             "read_graph",

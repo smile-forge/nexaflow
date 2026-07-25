@@ -4,7 +4,7 @@ This is the template for representing a feature as product-tree nodes and backin
 *right kind* of test, so the tree stays an honest, mechanically-checkable map of **what exists** and **what's
 tested**. It was distilled from the **Text Viewer** gold-standard pass (2026-07) and is meant to be applied to
 every feature. **Text Viewer, Code, Tabular, Markdown, Processes, SysInfo, Installed Apps, Win Registry, Log
-Viewer, Images, Audio, 3D Model, Scratchpad, Projects, Video, Notebook, Win Search, AI Chat, DICOM, Console, Win File System, Hex, Json, SVG, Email, Virtual Disk and Compressed** have all had the pass and all lint clean — read whichever is closest in
+Viewer, Images, Audio, 3D Model, Scratchpad, Projects, Video, Notebook, Win Search, AI Chat, DICOM, Console, Win File System, Hex, Json, SVG, Email, Virtual Disk, Compressed and Product** have all had the pass and all lint clean — read whichever is closest in
 shape to the feature you're modelling:
 
 | Reference | Read it for |
@@ -36,6 +36,7 @@ shape to the feature you're modelling:
 | **Email** | a feature modelled *only* below the waterline — parse, VFS, AI — with the whole visible half unwritten, so read it for building a UI subtree from the view rather than re-pointing an existing one |
 | **Virtual Disk** | the same again but starker: eight nodes of which seven were AI. Also the reference for a viewer that deliberately opens nothing — content is reached by browsing the image, so a file inside has one open path rather than two |
 | **Compressed** | the widest Functionality subtree — one backend assembly per container family — and an action bar where every destructive action goes through a choice or password overlay, so the leaf tests are all "cancelling leaves the archive byte-for-byte as it was" |
+| **Product** | the multi-view reference: three views (five planned) as panels under one UI node, one shared Functionality subtree, and *one* AI node — because the views are views of one tree. Also where `get_context` splits per view while the tool set stays shared |
 
 ### Testing a feature that acts on the machine
 
@@ -98,6 +99,44 @@ Each feature root lives under `Features` and has (up to) three children — **UI
 **Granularity:** a node for every button and every display control. Split a group (cut/copy/paste) into
 separate leaves when their **test states differ** (copy works read-only; cut/paste are edit-only), because each
 is tested separately.
+
+### A feature with more than one view
+
+Several features are more than one tab — SysInfo is three pages, Processes and Projects and AI Chat are two,
+Product is three with two more planned. It is tempting to make each view its own subtree with its own
+UI/Functionality/AI beneath it, because a view genuinely *is* a bundle. Don't: **category first, views as
+panels under `UI`.**
+
+The reason is that the concerns don't decompose per view. `AI Ready` is a single feature-level verdict by
+definition; `theming` only ever sits on UI nodes. Split by view and "does this feature's theming hold up?"
+becomes a mental union of N subtrees instead of one node's derived status — and the feature-wide AI node has
+nowhere natural to live. (Product had tried view-first, and its `product-ai` had ended up parented *inside*
+the Sunburst view.)
+
+The navigational appeal of the view bundle is real, though, so keep it — in the **id prefix** rather than the
+hierarchy, which can only encode one grouping:
+
+```
+UI            → product-integrity            (the page, a panel)
+                product-integrity-issue-list
+Functionality → product-integrity-scan
+AI            → product-ai-context-integrity
+```
+
+`find integrity` then returns the whole view bundle across all three categories in one call. The shape gives
+you the concern roll-up; the namespace gives you the view bundle.
+
+**The one thing that does split per view is `get_context`.** Each view has its own `IPageViewModel`, so its
+own `GetContext`, its own readiness gate and therefore **its own test state** — which is the rule from
+*Granularity* above. Collapsed into a single `<feature>-ai-context`, a view whose context is untested is
+invisible; splitting Product, SysInfo, Processes, Projects and AI Chat immediately surfaced five untested
+contexts, including AI Chat's entire context surface and `ProcessDetailViewModel`'s distinctive
+`HasData || IsGone` gate (a process that has exited is describable as *gone*, rather than waiting forever for
+data that will never arrive).
+
+The **tool set does not split**: the views act on one underlying model, so a tool means the same thing
+wherever it is called from. Only tools that act on what is *rendered* — the graph canvas's `focus_node` and
+`read_graph` — are view-specific, and they sit beside the model tools under the one `-ai-act` node.
 
 ---
 
@@ -230,6 +269,16 @@ Don't loop trying to test the genuinely-hard ones — mark `shouldnt` + note and
 ---
 
 ## 5. The CLI (edit the tree only through it)
+
+> **The in-app assistant has this same surface.** Every verb below that reads or changes the tree is also a
+> `product_*` client tool on all three Product views, running the same `Services.Initiatives` call and
+> rendering through the same `ProductReport`, so the CLI and the assistant print identical text. Reads and
+> in-place edits auto-run; the structural ones (`add-node` / `move` / `rename` / `remove` / `remap` /
+> `doctor --fix`) are approval-gated. `batch` is deliberately CLI-only — the model already has the individual
+> operations. So the loop this document describes — `find` the node, `query` what it owes, edit, then
+> `validate` and `lint` to check the edit — is one a model can run unaided; before the tools existed it could
+> set `tests=done` and had no way to learn it had just made an unbacked claim.
+
 
 `nexaflow-initiatives.exe` self-locates the `.product` tree (follows a git worktree to its main checkout), so
 run it from anywhere with no root arg. Build once and call the exe directly, or use the prebuilt
@@ -379,7 +428,7 @@ author-time nudges prove worth an analyzer.
 8. `doctor` + `validate` + `lint --under <feature>`; build + run the feature's unit tests (and the UI
    journey on a desktop).
 
-The twenty-seven subtrees listed at the top are the worked references for every step above.
+The twenty-eight subtrees listed at the top are the worked references for every step above.
 
 One thing the pass keeps turning up, so look for it: a node claiming `tests=done` (or a `theming=done` over
 a hard-coded colour) that nothing actually backs. The lint's `TestsDoneWithoutSnaplink` finds the first kind;

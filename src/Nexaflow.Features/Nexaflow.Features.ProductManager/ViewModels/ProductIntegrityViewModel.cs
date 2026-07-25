@@ -5,6 +5,8 @@ using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.ProductManager.ClientTools;
 using Nexaflow.Features.ProductManager.Services;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
@@ -459,9 +461,22 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
              + (IssueCount > 30 ? $"\n  …and {IssueCount - 30} more." : string.Empty);
     }
 
+    /// <summary>
+    /// The same product surface every other Product view exposes. The Integrity page is the one place the
+    /// model is most likely to need it — it is looking at a list of broken snaplinks, and without these it
+    /// could describe the breakage but not re-point a single link.
+    /// </summary>
+    public IReadOnlyList<IClientTool> GetClientTools() => _tools ??= ProductTools.ForRoot(ProductRoot);
+    private IReadOnlyList<IClientTool>? _tools;
+
+    /// <summary>The product folder, so this page and the sunburst and the graph share one scope — they are
+    /// three views of the same tree, and pinning two of them should not read as two datasets.</summary>
+    public string? GetSecurityContext() => ProductRoot;
+
     public string? GetAiSystemPromptGuidance() =>
         "A list of snaplinks whose target no longer exists (missing file, renamed heading, undeclared " +
-        "class/method, malformed URL). Each can be re-pointed by editing its target, or removed.";
+        "class/method, malformed URL). Each can be re-pointed by editing its target, or removed — " +
+        "product_remap_snaplinks follows a file that moved, and product_validate re-checks the whole tree.";
 
     public void Dispose() => _watch?.Dispose();
 }

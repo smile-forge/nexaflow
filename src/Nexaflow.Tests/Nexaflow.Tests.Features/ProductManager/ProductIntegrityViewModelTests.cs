@@ -98,6 +98,71 @@ public class ProductIntegrityViewModelTests
         Assert.AreEqual("Spin", saved.Method, "the fix persisted to the tree");
     }
 
+    // ── the AI surface ───────────────────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("product-ai-context-integrity")]
+    public void TheContextReportsTheScanVerdict_AndNamesTheBrokenLinks()
+    {
+        WriteFile("src/Widget.cs", WidgetCs);
+        SaveTree(new Snaplink { Type = "code", Doc = "src/Widget.cs", Class = "Widget", Method = "Wobble" });
+
+        var ctx = Open().GetContext();
+
+        StringAssert.Contains(ctx, _root, "which product was scanned");
+        StringAssert.Contains(ctx, "Wobble",
+                              "naming the actual broken links is the difference between 'something is wrong' "
+                            + "and a model that can repair them");
+    }
+
+    [TestMethod]
+    [CoversNode("product-ai-context-integrity")]
+    public void ACleanTreeSaysSoOutright_RatherThanJustOmittingTheIssues()
+    {
+        WriteFile("src/Widget.cs", WidgetCs);
+        SaveTree(new Snaplink { Type = "code", Doc = "src/Widget.cs", Class = "Widget", Method = "Spin" });
+
+        var ctx = Open().GetContext();
+
+        StringAssert.Contains(ctx, "every snaplink points at a real target",
+                              "silence would read as 'not scanned' rather than 'scanned and clean'");
+    }
+
+    [TestMethod]
+    [CoversNode("product-ai-context-integrity")]
+    public void TheSendIsHeldWhileTheScanIsStillRunning()
+    {
+        // A full scan tree-sitter-parses every referenced file on the background queue. Pinned mid-scan, an
+        // ungated page would report "no issues" for a tree nobody had checked yet — the worst possible
+        // answer, because it is indistinguishable from a genuinely clean one.
+        WriteFile("src/Widget.cs", WidgetCs);
+        SaveTree(new Snaplink { Type = "code", Doc = "src/Widget.cs", Class = "Widget", Method = "Wobble" });
+        var vm = Open();
+        Assert.IsTrue(vm.IsContextReady, "precondition: the stub scans synchronously, so it has finished");
+
+        vm.IsScanning = true;
+
+        Assert.IsFalse(vm.IsContextReady);
+        StringAssert.Contains(vm.GetContext(), "still running");
+    }
+
+    [TestMethod]
+    [CoversNode("product-ai-act")]
+    public void TheIntegrityPageOffersTheSameProductToolsAsEveryOtherView()
+    {
+        // This page is where the model is most likely to need them: it is looking at a list of broken
+        // snaplinks, and without the tools it could describe the breakage but not repair a single link.
+        var vm = Open();
+
+        var names = vm.GetClientTools().Select(t => t.Name).ToList();
+
+        CollectionAssert.IsSubsetOf(
+            new[] { "product_validate", "product_remap_snaplinks", "product_remove_node_snaplink",
+                    "product_add_concern_snaplink", "product_find" },
+            names);
+        Assert.AreEqual(_root, vm.GetSecurityContext(), "one scope across all three views of one tree");
+    }
+
     // ── the removal regression ───────────────────────────────────────────────
 
     [TestMethod]
