@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Services;
+using Nexaflow.Visuals.Common.Layout;
 using Nexaflow.Features.Images.ViewModels;
 using System;
 using System.Linq;

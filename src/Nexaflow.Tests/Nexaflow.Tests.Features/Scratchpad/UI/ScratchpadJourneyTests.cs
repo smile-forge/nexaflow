@@ -25,6 +25,7 @@ public class ScratchpadJourneyTests : UiJourneyTestBase
     protected override string? LaunchTabKind => "Scratchpad";
 
     [TestMethod]
+    [CoversNode("scratchpad-ui")]
     public void Scratchpad_Controls_RespondInOnePass()
     {
         var view = WaitForId("ScratchpadView", 15);

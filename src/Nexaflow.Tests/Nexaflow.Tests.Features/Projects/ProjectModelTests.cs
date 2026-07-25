@@ -9,7 +9,6 @@ namespace Nexaflow.Tests.Features.Projects;
 
 /// <summary>POCO defaults and JSON round-trip for the v2 project model.</summary>
 [TestClass]
-[CoversNode("projects")]
 public class ProjectModelTests
 {
     private static readonly JsonSerializerOptions Options = new()
@@ -20,6 +19,7 @@ public class ProjectModelTests
     };
 
     [TestMethod]
+    [CoversNode("projects-backlog-states")]
     public void BacklogItem_Defaults_AreNotStarted_WithUniqueId()
     {
         var a = new BacklogItem();
@@ -31,6 +31,7 @@ public class ProjectModelTests
     }
 
     [TestMethod]
+    [CoversNode("projects-migration")]
     public void ProjectInfo_Defaults_AreV2_WithEmptyCollections()
     {
         var p = new ProjectInfo();
@@ -43,6 +44,7 @@ public class ProjectModelTests
     }
 
     [TestMethod]
+    [CoversNode("projects-store")]
     public void ProjectInfo_RoundTrips_WithStatusKeyAndCriterionStatusAsString()
     {
         var p = new ProjectInfo

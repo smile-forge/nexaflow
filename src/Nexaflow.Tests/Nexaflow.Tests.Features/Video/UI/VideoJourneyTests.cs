@@ -24,6 +24,7 @@ namespace Nexaflow.Tests.Features.Video.UI;
 public class VideoJourneyTests : UiJourneyTestBase
 {
     [TestMethod]
+    [CoversNode("video-ui")]
     public void Video_Controls_RespondInOnePass()
     {
         var file = Path.GetFileName(TestSampleData.Files("video").First());

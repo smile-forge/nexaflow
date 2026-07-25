@@ -23,6 +23,7 @@ public class PostItViewModelTests
     };
 
     [TestMethod]
+    [CoversNode("scratchpad-persistence")]
     public void Ctor_CopiesValuesFromNote()
     {
         var note = MakeNote();
@@ -42,6 +43,7 @@ public class PostItViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("scratchpad-persistence")]
     public void PropertyChange_SyncsBackToNote()
     {
         var note = MakeNote();
@@ -69,6 +71,7 @@ public class PostItViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("scratchpad-persistence")]
     public void PropertyChange_FiresRequestSave()
     {
         var vm = new PostItViewModel(MakeNote());
@@ -83,6 +86,7 @@ public class PostItViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("scratchpad-persistence")]
     public void DerivedProperties_DoNotFireRequestSave()
     {
         var vm = new PostItViewModel(MakeNote()) { ExpiresAt = null };
@@ -95,6 +99,7 @@ public class PostItViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("postit-pin-timer")]
     public void TimeRemainingText_Pinned_ShowsPin()
     {
         var vm = new PostItViewModel(MakeNote()) { ExpiresAt = null };
@@ -103,6 +108,7 @@ public class PostItViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("postit-pin-timer")]
     public void TimeRemainingText_Expired_ShowsAlarm()
     {
         var vm = new PostItViewModel(MakeNote()) { ExpiresAt = DateTimeOffset.Now.AddMinutes(-1) };
@@ -110,6 +116,7 @@ public class PostItViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("postit-pin-timer")]
     public void TimeRemainingText_MinutesOnly_FormatsMinutes()
     {
         var vm = new PostItViewModel(MakeNote()) { ExpiresAt = DateTimeOffset.Now.AddMinutes(20) };
@@ -119,6 +126,7 @@ public class PostItViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("postit-pin-timer")]
     public void TimeRemainingText_OverAnHour_FormatsHoursAndMinutes()
     {
         var vm = new PostItViewModel(MakeNote()) { ExpiresAt = DateTimeOffset.Now.AddHours(3).AddMinutes(15) };
@@ -127,6 +135,7 @@ public class PostItViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("postit-colors")]
     public void ChangeColorCommand_UpdatesColor()
     {
         var vm = new PostItViewModel(MakeNote());
@@ -136,6 +145,10 @@ public class PostItViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("square")]
+    [CoversNode("rounded")]
+    [CoversNode("diagonal")]
+    [CoversNode("speech")]
     public void ChangeShapeCommand_UpdatesShape()
     {
         var vm = new PostItViewModel(MakeNote());
@@ -145,6 +158,7 @@ public class PostItViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("postit-pin-timer")]
     public void TogglePin_FromPinned_StartsCountdownUsingLifetime()
     {
         var vm = new PostItViewModel(MakeNote())
@@ -162,6 +176,7 @@ public class PostItViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("postit-pin-timer")]
     public void TogglePin_FromCountdown_PinsNote()
     {
         var vm = new PostItViewModel(MakeNote())
@@ -174,6 +189,7 @@ public class PostItViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("postit-pin-timer")]
     public void TogglePin_NoLifetimeProvider_FallsBackTo2Hours()
     {
         var vm = new PostItViewModel(MakeNote()) { ExpiresAt = null };
@@ -226,6 +242,7 @@ public class PostItViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("postit-pin-timer")]
     public void ExpiresAtChange_RaisesIsPinnedAndTimeRemaining()
     {
         var vm = new PostItViewModel(MakeNote()) { ExpiresAt = null };
@@ -252,10 +269,12 @@ public class PostItViewModelTests
         => Assert.AreEqual("hi there", WithContent("hi there").RecycleBinLabel);
 
     [TestMethod]
+    [CoversNode("recycle-list")]
     public void RecycleBinLabel_LongContent_TruncatedTo15()
         => Assert.AreEqual("abcdefghijklmno", WithContent("abcdefghijklmnopqrstuvwxyz").RecycleBinLabel);
 
     [TestMethod]
+    [CoversNode("recycle-list")]
     public void RecycleBinLabel_UsesFirstNonEmptyLine()
         => Assert.AreEqual("first line", WithContent("\n\n   \nfirst line\nsecond line").RecycleBinLabel);
 
@@ -268,6 +287,7 @@ public class PostItViewModelTests
         => Assert.AreEqual(string.Empty, WithContent("   \n\t\n  ").RecycleBinLabel);
 
     [TestMethod]
+    [CoversNode("recycle-list")]
     public void RecycleBinLabel_TracksContentChanges()
     {
         var vm = WithContent("old");

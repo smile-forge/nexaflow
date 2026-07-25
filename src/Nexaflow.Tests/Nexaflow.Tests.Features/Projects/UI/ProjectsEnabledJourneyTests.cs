@@ -18,6 +18,7 @@ public class ProjectsEnabledJourneyTests : UiJourneyTestBase
     protected override void SeedConfig(string configDir) => ProjectsUiSeed.Write(configDir);
 
     [TestMethod]
+    [CoversNode("projects-ui")]
     public void Projects_Enabled_ListBucketsAndDetail_RespondInOnePass()
     {
         var view = WaitForId("ProjectsView", 15);

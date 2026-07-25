@@ -4,7 +4,7 @@ This is the template for representing a feature as product-tree nodes and backin
 *right kind* of test, so the tree stays an honest, mechanically-checkable map of **what exists** and **what's
 tested**. It was distilled from the **Text Viewer** gold-standard pass (2026-07) and is meant to be applied to
 every feature. **Text Viewer, Code, Tabular, Markdown, Processes, SysInfo, Installed Apps, Win Registry, Log
-Viewer, Images, Audio and 3D Model** have all had the pass and all lint clean — read whichever is closest in
+Viewer, Images, Audio, 3D Model, Scratchpad, Projects and Video** have all had the pass and all lint clean — read whichever is closest in
 shape to the feature you're modelling:
 
 | Reference | Read it for |
@@ -21,6 +21,9 @@ shape to the feature you're modelling:
 | **Images** | four mutually-exclusive content surfaces, each its own panel under one UI node, with the shared floating tools as a fifth — and the collage's pan/zoom maths pulled out as a pure seam |
 | **Audio** | the shape of a feature over a *device*: the readouts either side of playback are unit-tested, the device-bound half is `shouldnt` with a note naming what covers the rest |
 | **3D Model** | the same again for a live viewport — the camera maths came out of the code-behind (`CameraMath`) so every gesture and AI camera tool is assertable without a rendered scene |
+| **Video** | what to do when the whole feature sits on a native engine: the window *before* the engine exists is the tested one, because that is where the tab is actually exposed |
+| **Scratchpad** | a canvas rather than a document — and where a seam turned out to belong in `Visuals.Common` because two features had grown the same one |
+| **Projects** | two tabs plus two file-explorer viewlets under one UI node, over an operations layer that already carried most of the tests — largely a re-pointing job |
 
 ### Testing a feature that acts on the machine
 
@@ -146,13 +149,19 @@ usually a few lines and leaves the control thinner:
   `CameraPose → CameraPose`; the code-behind kept "read the camera, apply, write it back". The turn gesture
   went from `should` to done, and every AI camera tool gained a real assertion instead of only a
   fails-without-a-viewport one.
-- **The collage's pan/zoom** — cursor-anchored zoom, centring, and the minimap's canvas↔minimap mapping and
-  its inverse were interleaved with `ScaleTransform`/`Canvas.SetLeft` in `ImageView`. They moved to
-  `CollageGeometry`, so "zooming keeps the point under the cursor still", "the minimap only appears when
-  something is off-screen" and "clicking the minimap centres the viewport there" are all assertable.
+- **Pan/zoom canvases with an overview minimap** — cursor-anchored zoom, centring, and the canvas↔minimap
+  mapping and its inverse were interleaved with `ScaleTransform`/`Canvas.SetLeft` in both `ImageView` and
+  `ScratchpadView`. They live in `Visuals.Common`'s `PanZoomMiniMap` — the second feature was where it
+  became clear the seam was shared, not feature-specific (the collage had been copied from the scratchpad).
+  "Zooming keeps the point under the cursor still", "the minimap only appears when something is off-screen"
+  and "clicking the minimap centres the viewport there" are now asserted once, for both.
+- **Resizing a rotated post-it** — the rule is that the corner you are *not* dragging stays put, which needs
+  the drag projected onto the note's own axes. It came out of `PostItControl` as `PostItGeometry.Resize`;
+  unrotated resizing is arithmetic nobody gets wrong, and the rotated case is what the tests are for.
 
 Reach for this before reaching for `shouldnt`. Prefer changing the abstraction's shape over adding a
-test-only hook.
+test-only hook — and when the *second* feature needs the same seam, that is the signal it belongs in
+`Visuals.Common` rather than twice over in two code-behinds.
 
 A **device** is not automatically an excuse either. Audio's engine only exists after the first play, so
 "every transport command is safe before it exists" — the half that actually breaks — is unit-testable even
@@ -338,7 +347,7 @@ author-time nudges prove worth an analyzer.
 8. `doctor` + `validate` + `lint --under <feature>`; build + run the feature's unit tests (and the UI
    journey on a desktop).
 
-The twelve subtrees listed at the top are the worked references for every step above.
+The fifteen subtrees listed at the top are the worked references for every step above.
 
 One thing the pass keeps turning up, so look for it: a node claiming `tests=done` (or a `theming=done` over
 a hard-coded colour) that nothing actually backs. The lint's `TestsDoneWithoutSnaplink` finds the first kind;

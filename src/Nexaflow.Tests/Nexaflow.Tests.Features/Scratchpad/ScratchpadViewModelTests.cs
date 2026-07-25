@@ -58,6 +58,7 @@ public class ScratchpadViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("scratchpad-persistence")]
     public void Ctor_LoadsExistingNotesFromStore()
     {
         _store.Save(new PostItNote { Content = "preloaded" });
@@ -128,6 +129,7 @@ public class ScratchpadViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("note-file-link")]
     public void AddFileLinkNote_CreatesClickableFileLink()
     {
         var file = Path.Combine(_root, "report.pdf");
@@ -141,6 +143,7 @@ public class ScratchpadViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("note-url-preview")]
     public void AddUrlNote_ShowsBareUrlImmediately()
     {
         using var vm = NewVm();   // null shell → no preview task, just the bare URL
@@ -150,6 +153,7 @@ public class ScratchpadViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("note-image")]
     public void AddImageNote_EmbedsImageAndCopiesIntoAttachmentFolder()
     {
         var img = Path.Combine(_root, "pic.png");
@@ -165,6 +169,7 @@ public class ScratchpadViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("postit-close")]
     public void LoadedNote_RemoveCommand_MovesToRecycleBin()
     {
         var existing = new PostItNote { Content = "kill me" };
@@ -182,6 +187,7 @@ public class ScratchpadViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("toolbar-recycle-toggle")]
     public void ToggleRecycleBinCommand_LoadsBinContents()
     {
         var trash = new PostItNote { Content = "old" };
@@ -201,6 +207,7 @@ public class ScratchpadViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("recycle-empty")]
     public void EmptyRecycleBin_Confirmed_ClearsBin()
     {
         var trash = new PostItNote();
@@ -216,6 +223,7 @@ public class ScratchpadViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("recycle-empty")]
     public void EmptyRecycleBin_Cancelled_KeepsBin()
     {
         var trash = new PostItNote();
@@ -231,6 +239,7 @@ public class ScratchpadViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("recycle-restore")]
     public void RestoreNote_MovesBackToActiveNotes_AndUnpins()
     {
         var trash = new PostItNote
@@ -256,6 +265,7 @@ public class ScratchpadViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("recycle-delete")]
     public void DeleteFromBinCommand_PermanentlyDeletes()
     {
         var trash = new PostItNote { Content = "bye" };
