@@ -17,6 +17,7 @@ namespace Nexaflow.Tests.Features.VirtualDisk;
 [TestClass]
 [TestCategory("UI")]
 [CoversNode("virtual-disk-viewer")]
+[CoversNode("vdisk-ui")]
 public class VirtualDiskOpenUiTests : FileSystemUiTestBase
 {
     private string? _dir;

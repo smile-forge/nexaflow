@@ -17,7 +17,7 @@ namespace Nexaflow.Tests.Features.Compressed;
 /// <summary>The Compressed inspector view-model: archive metadata + the flattened directory tree it
 /// builds from the VFS, and folder expand/collapse of the visible rows.</summary>
 [TestClass]
-[CoversNode("compressed-inspector")]
+[CoversNode("compressed-ui")]
 [CoversNode("compressed-entry-tree")]
 public class CompressedViewModelTests
 {

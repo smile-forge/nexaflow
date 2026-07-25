@@ -10,7 +10,7 @@ namespace Nexaflow.Tests.Features.VirtualDisk;
 /// <summary>The disk-image <see cref="IArchiveHandler"/> and its lazy session, and that a disk registered in
 /// the VFS browses as a folder and reads inner files through the materialisation path.</summary>
 [TestClass]
-[CoversNode("virtual-disk-viewer")]
+[CoversNode("vdisk-vfs")]
 public class DiskImageArchiveHandlerTests
 {
     [TestMethod]

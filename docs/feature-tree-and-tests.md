@@ -4,7 +4,7 @@ This is the template for representing a feature as product-tree nodes and backin
 *right kind* of test, so the tree stays an honest, mechanically-checkable map of **what exists** and **what's
 tested**. It was distilled from the **Text Viewer** gold-standard pass (2026-07) and is meant to be applied to
 every feature. **Text Viewer, Code, Tabular, Markdown, Processes, SysInfo, Installed Apps, Win Registry, Log
-Viewer, Images, Audio, 3D Model, Scratchpad, Projects, Video, Notebook, Win Search, AI Chat, DICOM, Console, Win File System, Hex, Json and SVG** have all had the pass and all lint clean — read whichever is closest in
+Viewer, Images, Audio, 3D Model, Scratchpad, Projects, Video, Notebook, Win Search, AI Chat, DICOM, Console, Win File System, Hex, Json, SVG, Email, Virtual Disk and Compressed** have all had the pass and all lint clean — read whichever is closest in
 shape to the feature you're modelling:
 
 | Reference | Read it for |
@@ -33,6 +33,9 @@ shape to the feature you're modelling:
 | **Hex** | a feature that was already well tested and simply unlinked — read it for the re-pointing job, and for splitting one omnibus AI test into one per tool so eight leaves stop all naming the same method |
 | **Json** | where the guard is the whole story: the document is held windowed, so Save and Format have to refuse while any part is unread, and that refusal is what the leaf's test asserts |
 | **SVG** | the smallest complete example — one canvas, three toolbar controls — and the second surface to need the fit/zoom seam, which is what moved it into `Visuals.Common` |
+| **Email** | a feature modelled *only* below the waterline — parse, VFS, AI — with the whole visible half unwritten, so read it for building a UI subtree from the view rather than re-pointing an existing one |
+| **Virtual Disk** | the same again but starker: eight nodes of which seven were AI. Also the reference for a viewer that deliberately opens nothing — content is reached by browsing the image, so a file inside has one open path rather than two |
+| **Compressed** | the widest Functionality subtree — one backend assembly per container family — and an action bar where every destructive action goes through a choice or password overlay, so the leaf tests are all "cancelling leaves the archive byte-for-byte as it was" |
 
 ### Testing a feature that acts on the machine
 
@@ -376,7 +379,7 @@ author-time nudges prove worth an analyzer.
 8. `doctor` + `validate` + `lint --under <feature>`; build + run the feature's unit tests (and the UI
    journey on a desktop).
 
-The twenty-four subtrees listed at the top are the worked references for every step above.
+The twenty-seven subtrees listed at the top are the worked references for every step above.
 
 One thing the pass keeps turning up, so look for it: a node claiming `tests=done` (or a `theming=done` over
 a hard-coded colour) that nothing actually backs. The lint's `TestsDoneWithoutSnaplink` finds the first kind;
