@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:Nexaflow.Features.WindowsApps.ViewModels"
              xmlns:conv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             AutomationProperties.AutomationId="WindowsAppsView"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
@@ -200,6 +201,7 @@
             </TextBlock>
 
             <Button Grid.Column="1" Content="Refresh" Command="{Binding RefreshCommand}"
+                    AutomationProperties.AutomationId="WindowsApps_Refresh"
                     Foreground="{StaticResource TextBrush}" Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                     Padding="12,5" Cursor="Hand"/>
@@ -207,6 +209,7 @@
 
         <!-- ── App list ─────────────────────────────────────────────────────── -->
         <ListView Grid.Row="1" x:Name="AppListView"
+                  AutomationProperties.AutomationId="WindowsApps_List"
                   ItemsSource="{Binding Apps}"
                   ItemContainerStyle="{StaticResource AppRowStyle}"
                   Background="{StaticResource BgBrush}" BorderThickness="0"

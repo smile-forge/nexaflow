@@ -9,7 +9,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.Processes;
 
 [TestClass]
-[CoversNode("tree-vs-list")]
+[CoversNode("processes-tree-build")]
 public class ProcessTreeBuilderTests
 {
     // Tree mode isn't the default (flat list is) — these tests are specifically about the hierarchy.

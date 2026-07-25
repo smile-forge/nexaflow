@@ -5,7 +5,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.Processes;
 
 [TestClass]
-[CoversNode("process-view")]
+[CoversNode("processes-cpu-sampling")]
 public class CpuSamplingTests
 {
     [TestMethod]

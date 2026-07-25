@@ -15,7 +15,7 @@ namespace Nexaflow.Tests.Features.Processes.UI;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
-[CoversNode("process-view")]
+[CoversNode("details-view")]
 public class ProcessesViewTests : UITestBase
 {
     [TestMethod]

@@ -13,23 +13,51 @@ internal static class Wmi
     public static IEnumerable<ManagementObject> Query(string className)
         => Query(@"root\cimv2", $"SELECT * FROM {className}");
 
-    /// <summary>Runs an arbitrary WQL query against <paramref name="scope"/>; yields nothing on any failure.</summary>
+    /// <summary>
+    /// Runs an arbitrary WQL query against <paramref name="scope"/>; yields nothing on any failure.
+    /// <para>
+    /// WMI evaluates <b>lazily</b> — <c>searcher.Get()</c> only describes the query, and "invalid class",
+    /// "access denied" and "provider not present" all surface from the first <c>MoveNext</c>. So the
+    /// enumeration is stepped by hand with its own guard; a plain <c>foreach</c> inside a try/catch around
+    /// <c>Get()</c> would let those throw straight through to the caller and blank the dashboard.
+    /// </para>
+    /// </summary>
     public static IEnumerable<ManagementObject> Query(string scope, string wql)
     {
+        ManagementObjectSearcher searcher;
         ManagementObjectCollection results;
         try
         {
-            using var searcher = new ManagementObjectSearcher(scope, wql);
-            results = searcher.Get();
+            searcher = new ManagementObjectSearcher(scope, wql);
+            results  = searcher.Get();
         }
         catch
         {
             yield break;
         }
 
-        foreach (ManagementBaseObject o in results)
-            if (o is ManagementObject mo)
-                yield return mo;
+        using (searcher)
+        using (results)
+        {
+            var e = results.GetEnumerator();
+            using (e as IDisposable)
+            {
+                while (true)
+                {
+                    ManagementBaseObject? current;
+                    try
+                    {
+                        if (!e.MoveNext()) yield break;   // the query really runs here
+                        current = e.Current;
+                    }
+                    catch
+                    {
+                        yield break;
+                    }
+                    if (current is ManagementObject mo) yield return mo;
+                }
+            }
+        }
     }
 
     /// <summary>The first instance of <paramref name="className"/>, or null.</summary>

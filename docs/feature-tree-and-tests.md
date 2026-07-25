@@ -3,7 +3,35 @@
 This is the template for representing a feature as product-tree nodes and backing each node with the
 *right kind* of test, so the tree stays an honest, mechanically-checkable map of **what exists** and **what's
 tested**. It was distilled from the **Text Viewer** gold-standard pass (2026-07) and is meant to be applied to
-every feature.
+every feature. **Text Viewer, Code, Tabular, Markdown, Processes, SysInfo, Installed Apps and Win Registry**
+have all had the pass and all lint clean — read whichever is closest in shape to the feature you're modelling:
+
+| Reference | Read it for |
+|-----------|-------------|
+| **Text Viewer** | the canonical shape: many toolbar controls, a state-gated group (`Edit_mode`), pop-over panels |
+| **Code** | a feature whose UI lives in a *shared* control (`Nexaflow.Visuals.Text.Editor`) — the panels/leaves are modelled on the Code tab even though the XAML is elsewhere |
+| **Tabular** | the widest UI: five panels, a state node for the header context menu, and a Functionality subtree (detection/parsing) deeper than the UI one |
+| **Markdown** | the smallest UI over the largest shared control — and the worked example of *extracting a pure seam* so a leaf becomes unit-testable (§3) |
+| **Processes** | a feature spanning **two tabs** (the list and the per-process details page) under one UI node, plus a Functionality subtree for the sampling/reconciliation/tree-building behind the grid |
+| **SysInfo** | a feature spanning **three tabs** (Dashboard / Services / Environment Variables) — one panel per page — over a system-probe layer |
+| **Installed Apps** | the shape of a *destructive* row menu: the safety gate is the leaf's test, and the journey never opens the menu at all |
+| **Win Registry** | a feature where every write routes through an in-tab overlay — the overlays are their own panel, and the leaves are tested at "the right prompt opened, seeded correctly, and the guard fired" |
+
+### Testing a feature that acts on the machine
+
+Processes, SysInfo, Installed Apps and Win Registry all kill, uninstall, reconfigure or overwrite real
+system state, so "drive the control and assert the outcome" is not available. The pattern that replaces it:
+**assert the gate, not the effect.**
+
+- Every destructive leaf's test declines its confirmation (or its UAC prompt) and asserts that *nothing*
+  reached the bridge / the background queue — a passing test therefore proves the guard exists, and it can
+  never damage the machine it runs on.
+- Where the action goes through `IShellServices.RunElevatedAsync`, assert the **request**: the right
+  operation name carrying the right target (`service.stop` on `Spooler`, `env.set` with `Target=Machine`).
+  That pins the wiring without a privileged run.
+- A **declined** elevation must be silent and a **failed** one must surface — assert both; they're easy to
+  collapse into one path by accident.
+- The UI journey stays on the read-only controls and says in its summary why the rest are excluded.
 
 Related: the tree/CLI mechanics live in the [product-folder skill](../.claude/skills/product-folder/SKILL.md)
 and [CLAUDE.md → product tree]; testing conventions in [testing.md](testing.md); the AI-page contract in
@@ -88,6 +116,34 @@ Two tiers, matching the two node roles:
 **Functionality** behaviours are VM unit tests too — everything under `Functionality` should be unit-testable,
 or explicitly declared `shouldnt`.
 
+### Before declaring a leaf untestable, look for the pure seam
+
+The commonest reason a leaf "can't be tested" is that its *rule* is buried inside a WPF control alongside the
+caret, the selection and the document rebuild — not that the rule is untestable. Lifting the rule out is
+usually a few lines and leaves the control thinner:
+
+- **Markdown's formatting mini-toolbar** — heading / bold / quote / code-fence were private methods on
+  `InlineMarkdownEditor` mutating `_blocks[_active]`. The text rule moved to `MarkdownBlockFormat` (pure
+  `(block, …) → (newBlock, caret)`); the editor keeps the caret and the rebuild. Four leaves went from
+  `should` to a real unit test.
+- **Markdown's scroll-to-heading deep link** — the interesting part is matching a `>`-joined heading path
+  against the block list (so duplicate names under different parents stay distinct), not the
+  `ScrollToVerticalOffset`. It moved to `MarkdownBlocks.FindHeadingBlock`.
+- **Code's `.xshd` theming** — the name→role heuristic moved out of `XshdTheming` into `SyntaxTokenMap`,
+  which already owned the tree-sitter capture→role map. One role palette, both engines, both testable.
+- **SysInfo's health colouring** — the status→`TextSwatch.*` mapping came out of `StatusToBrushConverter.
+  Convert` as `ResourceKey`, so "every status resolves to a semantic token, and an unknown one paints as
+  plain text rather than implying a verdict" is assertable without an `Application`.
+- **Block-level undo** — no seam to extract, but `Undo()` became `public` (as `TextBox.Undo()` is), so the
+  step *granularity* — one step per block session, not per keystroke — is assertable.
+
+Reach for this before reaching for `shouldnt`. Prefer changing the abstraction's shape over adding a
+test-only hook.
+
+Some leaves are only reachable through the real control (a rendered `RichTextBox`, a live AvalonEdit
+selection). Those get a control-level test in an off-screen window (`MarkdownEditorHarness`) tagged
+`TestCategory=UI` — still one test per leaf, just not headless.
+
 **When a node genuinely can't be unit-tested → `tests=shouldnt` + a `note` saying why and who covers it.**
 Recurring cases:
 - **WPF `ApplicationCommands` forwarders** (cut/copy/paste, a right-click menu) — need a *focused* control;
@@ -137,8 +193,10 @@ run it from anywhere with no root arg. Build once and call the exe directly, or 
   **`lint [--under <id>]`** — checks a feature against §1–§4 (backbone present, `AI Ready` only on the feature
   root, panels/state nodes journey-covered, every leaf unit-tested, a `done` `tests` concern naming its test).
   Advisory: roles are inferred from position, so a finding is a prompt to look, not a verdict, and nothing
-  here fails a build. **Run `lint --under <feature>` at the start and end of a pass like this one** —
-  Text Viewer, Git and DotNet all lint clean, so a finding means you've diverged from them.
+  here fails a build. **Run `lint --under <feature>` at the start and end of a pass like this one** — the
+  eight references above plus Git and DotNet all lint clean, so a finding means you've diverged from them.
+  On an unconverted feature the first run reports only `MissingBackbone` (it short-circuits); add the
+  `UI` / `Functionality` nodes and re-run to see the real list.
 
 > `validate` resolves a snaplink's file against **your working tree first**, then the product root — so in a
 > worktree it checks the code on the branch you're editing (matching `describe --code`) instead of reporting
@@ -254,9 +312,12 @@ author-time nudges prove worth an analyzer.
 3. `add-node` the **Functionality** behaviours (the non-UI / non-AI logic).
 4. Set concerns by role (§2): panels `theming`; leaves `theming`+`tests`; state nodes none; `AI Ready` only on
    the feature root. `remove-concern` anything that auto-attached wrongly.
-5. Write the **one UI journey** (`[CoversNode("<ui>")]`) + **a unit test per leaf/behaviour**
-   (`[CoversNode("<leaf>")]`); `shouldnt` + note the genuinely-untestable ones.
-6. Snaplink each `done` leaf → its **unit** test; `ui` → the **journey**.
-7. `doctor` + `validate`; build + run the feature's unit tests (and the UI journey on a desktop).
+5. Give every command-bound control in the view an `AutomationProperties.AutomationId` — the journey can
+   only reach a control by its id, and an untagged button is invisible to it (§6f).
+6. Write the **one UI journey** (`[CoversNode("<ui>")]`) + **a unit test per leaf/behaviour**
+   (`[CoversNode("<leaf>")]`); extract the pure seam where one is hiding (§3); `shouldnt` + note the rest.
+7. Snaplink each `done` leaf → its **unit** test; `ui` → the **journey**.
+8. `doctor` + `validate` + `lint --under <feature>`; build + run the feature's unit tests (and the UI
+   journey on a desktop).
 
-The Text Viewer subtree is the worked reference for every step above.
+The eight subtrees listed at the top are the worked references for every step above.

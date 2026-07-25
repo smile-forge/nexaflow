@@ -6,7 +6,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.SystemInfo;
 
 [TestClass]
-[CoversNode("sysinfo-services")]
+[CoversNode("sysinfo-services-grid")]
 public class ServicesCollectorTests
 {
     [TestMethod]

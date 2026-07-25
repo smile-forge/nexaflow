@@ -8,7 +8,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.SystemInfo;
 
 [TestClass]
-[CoversNode("sysinfo-envvars")]
+[CoversNode("sysinfo-envvars-scope")]
 public class EnvVarsCollectorTests
 {
     [TestMethod]
