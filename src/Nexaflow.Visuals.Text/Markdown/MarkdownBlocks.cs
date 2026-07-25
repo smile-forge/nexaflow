@@ -81,4 +81,39 @@ public static class MarkdownBlocks
         if (kept.Count == 0) kept.Add(string.Empty);
         return kept;
     }
+
+    /// <summary>
+    /// Index of the block whose ATX heading's <em>ancestor path</em> equals <paramref name="titlePath"/>
+    /// (case- and whitespace-insensitive), or -1. Matching on the full hierarchy — not a document-wide text
+    /// match — is what keeps two "Overview" headings under different parents distinct, so a snaplink deep
+    /// link lands on the one it named.
+    /// </summary>
+    public static int FindHeadingBlock(IReadOnlyList<string> blocks, IReadOnlyList<string>? titlePath)
+    {
+        if (titlePath is not { Count: > 0 }) return -1;
+
+        var stack = new List<(int Level, string Text)>();
+        for (int i = 0; i < blocks.Count; i++)
+        {
+            var firstLine = blocks[i].Split('\n', 2)[0].TrimStart();
+            if (!firstLine.StartsWith('#')) continue;
+            int level = firstLine.Length - firstLine.TrimStart('#').Length;
+            var text  = firstLine.TrimStart('#').Trim().TrimEnd('#').Trim();
+            if (text.Length == 0) continue;
+
+            while (stack.Count > 0 && stack[^1].Level >= level) stack.RemoveAt(stack.Count - 1);
+            var path = stack.Select(s => s.Text).Append(text).ToList();
+            stack.Add((level, text));
+            if (PathEquals(path, titlePath)) return i;
+        }
+        return -1;
+    }
+
+    private static bool PathEquals(List<string> a, IReadOnlyList<string> b)
+    {
+        if (a.Count != b.Count) return false;
+        for (int i = 0; i < a.Count; i++)
+            if (!string.Equals(a[i].Trim(), b[i].Trim(), StringComparison.OrdinalIgnoreCase)) return false;
+        return true;
+    }
 }

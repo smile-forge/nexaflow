@@ -30,6 +30,30 @@ public class ShapeDetectorTests
         Assert.IsTrue(top.HasHeader, "Header row of all-string cells over numeric body should be detected.");
     }
 
+    /// <summary>
+    /// A space-aligned report has no separator worth scoring, so the detector falls back to reading the
+    /// character positions that are blank in <i>every</i> row as column boundaries. Without this fallback a
+    /// fixed-width file collapses into a single unusable column.
+    /// </summary>
+    [TestMethod]
+    [CoversNode("tabular-fixed-width")]
+    public void DetectAll_SpaceAlignedReport_FallsBackToFixedWidthColumns()
+    {
+        var rows = new[]
+        {
+            "alice    30   9.5",
+            "bob      42   7.0",
+            "carol    25   8.1",
+            "dan      33   6.2",
+        };
+        var sample = MakeSample(head: rows, tail: rows);
+
+        var top = ShapeDetector.DetectAll(sample)[0];
+
+        Assert.AreEqual(3, top.FieldCount, "the three aligned fields become three columns");
+        Assert.IsTrue(top.FieldCount > 1, "a fixed-width file must not collapse to one column");
+    }
+
     [TestMethod]
     public void DetectAll_TabSeparated_NoHeader_DetectsTab()
     {

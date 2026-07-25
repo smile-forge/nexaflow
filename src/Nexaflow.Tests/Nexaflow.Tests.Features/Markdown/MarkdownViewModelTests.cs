@@ -16,9 +16,11 @@ namespace Nexaflow.Tests.Features.Markdown;
 ///
 /// The view-model takes an <c>IShellServices</c> (used only to marshal AI-tool edits to the UI
 /// thread); none of these pure-state tests invoke a tool, so a bare substitute suffices.
+///
+/// Coverage is declared per method: each toolbar control is its own product-tree leaf, so the test that
+/// drives that control's command/state names it rather than the panel that hosts them.
 /// </summary>
 [TestClass]
-[CoversNode("markdown-toolbar")]
 public class MarkdownViewModelTests
 {
     private readonly List<string> _tempFiles = [];
@@ -38,9 +40,23 @@ public class MarkdownViewModelTests
         return new MarkdownViewModel(path, Substitute.For<IShellServices>());
     }
 
+    // ── File name label ───────────────────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("markdown-filename")]
+    public void FileName_IsTheOpenDocumentsName_NotItsPath()
+    {
+        var vm = Make();
+
+        Assert.AreEqual(Path.GetFileName(vm.FilePath), vm.FileName);
+        Assert.IsFalse(vm.FileName.Contains(Path.DirectorySeparatorChar),
+                       "The toolbar label shows the file name only.");
+    }
+
     // ── Source / preview toggle (pure state) ──────────────────────────────────
 
     [TestMethod]
+    [CoversNode("markdown-source-toggle")]
     public void SourceOnly_RoundTrips_OffOnOff()
     {
         var vm = Make();
@@ -53,6 +69,8 @@ public class MarkdownViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("markdown-source-toggle")]
+    [CoversNode("markdown-source-box")]
     public void TogglingSourceOnly_PreservesMarkdownText()
     {
         var vm = Make("# Heading\n\nA paragraph.\n");
@@ -67,6 +85,7 @@ public class MarkdownViewModelTests
     // ── Save command (pure state) ─────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("markdown-save")]
     public void SaveCommand_CannotExecute_WhenClean()
     {
         var vm = Make();
@@ -75,6 +94,7 @@ public class MarkdownViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("markdown-save")]
     public void SaveCommand_ExecuteWhenClean_IsNoOp_AndStaysClean()
     {
         var vm = Make("# Clean\n");
@@ -86,6 +106,7 @@ public class MarkdownViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("markdown-save")]
     public void EditThenSave_FlipsCanExecute_ThenBackToFalse()
     {
         var vm = Make("# Original\n");
@@ -101,6 +122,7 @@ public class MarkdownViewModelTests
     // ── AI-context surface ────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("markdown-ai-context")]
     public void GetContext_Clean_OmitsUnsavedMarker_AndNamesFile()
     {
         var vm = Make();
@@ -112,6 +134,7 @@ public class MarkdownViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("markdown-ai-context")]
     public void GetContext_Dirty_AdvertisesUnsavedChanges()
     {
         var vm = Make();
@@ -123,6 +146,7 @@ public class MarkdownViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("markdown-ai-context")]
     public void GetContextObject_SelectsTheFile_UnderItsFolder()
     {
         var vm = Make();

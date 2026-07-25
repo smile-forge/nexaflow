@@ -45,6 +45,7 @@ public class CodeIntelligenceTests
     // ── Extraction ──────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("code-structure")]
     public void Extract_CSharp_FindsImportsTypesAndMembers()
     {
         var outline = new CodeStructureExtractor().Extract("c-sharp", CSharp);
@@ -69,6 +70,7 @@ public class CodeIntelligenceTests
     }
 
     [TestMethod]
+    [CoversNode("code-structure")]
     public void ResolveLine_IsStableAcrossInsertedLines()
     {
         var ext = new CodeStructureExtractor();
@@ -81,6 +83,7 @@ public class CodeIntelligenceTests
     }
 
     [TestMethod]
+    [CoversNode("code-structure")]
     public void ResolveLine_ReturnsNull_WhenMemberRenamed()
     {
         var ext = new CodeStructureExtractor();
@@ -133,6 +136,7 @@ public class CodeIntelligenceTests
     }
 
     [TestMethod]
+    [CoversNode("code-map-class-view")]
     public void Build_EmitsInheritanceEdgesAndVisibility()
     {
         var outline = new CodeStructureExtractor().Extract("c-sharp", Inheritance);
@@ -146,6 +150,7 @@ public class CodeIntelligenceTests
     }
 
     [TestMethod]
+    [CoversNode("code-map-class-view")]
     public void Build_AbbreviatesLongMemberSignatures()
     {
         const string src = """
@@ -162,6 +167,7 @@ public class CodeIntelligenceTests
     }
 
     [TestMethod]
+    [CoversNode("code-map-deps")]
     public void Extract_Python_ResolvesRelativeImportButNotLibrary()
     {
         var dir = Path.Combine(Path.GetTempPath(), $"codeintel_{System.Guid.NewGuid():N}");
@@ -383,6 +389,7 @@ public class CodeIntelligenceTests
         "<html>\n<body>\n<script>\nfunction greet(name) { return name; }\n</script>\n</body>\n</html>\n";
 
     [TestMethod]
+    [CoversNode("code-embedded")]
     public void Extract_Html_EmbedsJavaScriptStructure_AtAbsoluteLine()
     {
         var outline = new CodeStructureExtractor().Extract("html", HtmlWithScript);
@@ -406,6 +413,7 @@ public class CodeIntelligenceTests
     }
 
     [TestMethod]
+    [CoversNode("code-embedded")]
     public void Build_EmitsEmbeddedNamespaceCluster_WithMemberLink()
     {
         var outline = new CodeStructureExtractor().Extract("html", HtmlWithScript);
@@ -418,7 +426,37 @@ public class CodeIntelligenceTests
 
     // ── Markdown ────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Languages with free functions (Python, JS, Go…) have code that belongs to no type, so the class
+    /// diagram alone would hide most of the file. Those land in a "Members" list, each linking to its
+    /// definition line — and a file that is all classes must not grow an empty Members heading.
+    /// </summary>
     [TestMethod]
+    [CoversNode("code-map-members")]
+    public void Build_ListsFreeFunctions_UnderMembers_AndOmitsTheHeadingWhenThereAreNone()
+    {
+        var freeFunctions = new CodeOutline(
+            Imports: [],
+            Types: [],
+            TopLevel: [new OutlineMember("helper", 7, OutlineKind.Method, "helper()", "M:helper")]);
+
+        var md = CodeIntelligenceMarkdown.Build(@"C:\proj\util.py", freeFunctions);
+
+        StringAssert.Contains(md, "## Members");
+        StringAssert.Contains(md, "helper");
+        StringAssert.Contains(md, "#ast=M%3Ahelper", "each free function links to its definition");
+
+        var classesOnly = new CodeOutline(
+            Imports: [],
+            Types: [new OutlineType("Shape", 1, OutlineKind.Class, "T:Shape", [])],
+            TopLevel: []);
+
+        Assert.IsFalse(CodeIntelligenceMarkdown.Build(@"C:\proj\shape.cs", classesOnly).Contains("## Members"),
+                       "no free functions ⇒ no Members section");
+    }
+
+    [TestMethod]
+    [CoversNode("code-map-deps")]
     public void Build_EmitsDependencyLinksAndClickableMermaid()
     {
         var outline = new CodeOutline(
@@ -460,6 +498,7 @@ public class CodeIntelligenceTests
     // ── Actions ─────────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("code-open-action")]
     public void ShowCodeAction_OpensCodeTab()
     {
         var shell = Substitute.For<IShellServices>();

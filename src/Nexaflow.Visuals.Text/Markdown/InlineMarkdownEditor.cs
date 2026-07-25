@@ -306,23 +306,7 @@ public partial class InlineMarkdownEditor : UserControl
     /// no such heading exists. Deferred to a layout pass so the block rects are measured first.</summary>
     public void ScrollToHeading(IReadOnlyList<string>? titlePath)
     {
-        if (titlePath is not { Count: > 0 }) return;
-
-        int blockIndex = -1;
-        var stack = new List<(int Level, string Text)>();
-        for (int i = 0; i < _blocks.Count; i++)
-        {
-            var firstLine = _blocks[i].Split('\n', 2)[0].TrimStart();
-            if (!firstLine.StartsWith('#')) continue;
-            int level = firstLine.Length - firstLine.TrimStart('#').Length;
-            var text = firstLine.TrimStart('#').Trim().TrimEnd('#').Trim();
-            if (text.Length == 0) continue;
-
-            while (stack.Count > 0 && stack[^1].Level >= level) stack.RemoveAt(stack.Count - 1);
-            var path = stack.Select(s => s.Text).Append(text).ToList();
-            stack.Add((level, text));
-            if (PathEquals(path, titlePath)) { blockIndex = i; break; }
-        }
+        int blockIndex = MarkdownBlocks.FindHeadingBlock(_blocks, titlePath);
         if (blockIndex < 0) return;
 
         Dispatcher.BeginInvoke(() =>
@@ -330,14 +314,6 @@ public partial class InlineMarkdownEditor : UserControl
             try { if (BlockTopY(blockIndex) is double y) _rtb.ScrollToVerticalOffset(_rtb.VerticalOffset + y - 8); }
             catch { /* not laid out yet — leave the scroll where it is */ }
         }, DispatcherPriority.Loaded);
-    }
-
-    private static bool PathEquals(List<string> a, IReadOnlyList<string> b)
-    {
-        if (a.Count != b.Count) return false;
-        for (int i = 0; i < a.Count; i++)
-            if (!string.Equals(a[i].Trim(), b[i].Trim(), StringComparison.OrdinalIgnoreCase)) return false;
-        return true;
     }
 
     /// <summary>
@@ -854,7 +830,12 @@ public partial class InlineMarkdownEditor : UserControl
         _undoGroupBlock = block;
     }
 
-    private void Undo()
+    /// <summary>
+    /// Restores the block model to the start of the last editing session (Ctrl+Z). Edits within one block
+    /// coalesce into a single step, so undo is block-level rather than per-keystroke. No-op with nothing to
+    /// undo. Public so a host can wire its own undo affordance — and so the step granularity is assertable.
+    /// </summary>
+    public void Undo()
     {
         if (_undo.Count == 0) return;
         ClearNativeSession();                     // undo discards the in-flight Word-style edit
@@ -1260,7 +1241,7 @@ public partial class InlineMarkdownEditor : UserControl
     {
         var (from, to) = SelectionInActiveBlock();
         var selected = _blocks[_active].Substring(from, to - from);
-        EditActive(from, to, marker + selected + marker);
+        EditActive(from, to, MarkdownBlockFormat.WrapSelection(selected, marker));
     }
 
     private void OnPasting(object? sender, DataObjectPastingEventArgs e)

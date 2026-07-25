@@ -44,53 +44,25 @@ public partial class InlineMarkdownEditor
         var (from, to) = SelectionInActiveBlock();
         var block = _blocks[_active];
         if (from == to)
-        {
-            SetActiveBlock(block[..from] + marker + marker + block[from..], from + marker.Length);
-        }
+            Apply(MarkdownBlockFormat.InsertMarkers(block, from, marker));
         else
-        {
-            var selected = block.Substring(from, to - from);
-            EditActive(from, to, marker + selected + marker);
-        }
+            EditActive(from, to, MarkdownBlockFormat.WrapSelection(block.Substring(from, to - from), marker));
     }
 
     /// <summary>Sets the active block's first line to a heading of <paramref name="level"/>, or removes the
     /// heading when it is already that level.</summary>
-    private void SetHeading(int level)
-    {
-        var block = _blocks[_active];
-        int nl = block.IndexOf('\n');
-        string first = nl < 0 ? block : block[..nl];
-        string rest  = nl < 0 ? string.Empty : block[nl..];
-        string body  = first.TrimStart('#').TrimStart(' ');
-        string prefix = new string('#', level) + " ";
-        string newFirst = first.StartsWith(prefix, StringComparison.Ordinal) ? body : prefix + body;
-        SetActiveBlock(newFirst + rest, newFirst.Length);
-    }
+    private void SetHeading(int level) => Apply(MarkdownBlockFormat.SetHeading(_blocks[_active], level));
 
     /// <summary>Adds <paramref name="prefix"/> to every line of the active block, or strips it when every
     /// line already has it (toggle). Used for block quotes.</summary>
-    private void ToggleLinePrefix(string prefix)
-    {
-        var lines = _blocks[_active].Split('\n');
-        bool allPrefixed = lines.All(l => l.StartsWith(prefix, StringComparison.Ordinal));
-        for (int i = 0; i < lines.Length; i++)
-            lines[i] = allPrefixed ? lines[i][prefix.Length..] : prefix + lines[i];
-        var joined = string.Join("\n", lines);
-        SetActiveBlock(joined, joined.Length);
-    }
+    private void ToggleLinePrefix(string prefix) =>
+        Apply(MarkdownBlockFormat.ToggleLinePrefix(_blocks[_active], prefix));
 
     /// <summary>Wraps the active block in a <c>```</c> fence, or unwraps it when already fenced.</summary>
-    private void ToggleCodeFence()
-    {
-        var block = _blocks[_active];
-        var lines = block.Split('\n');
-        bool fenced = lines.Length >= 2
-            && lines[0].StartsWith("```", StringComparison.Ordinal)
-            && lines[^1].StartsWith("```", StringComparison.Ordinal);
-        string result = fenced ? string.Join("\n", lines[1..^1]) : "```\n" + block + "\n```";
-        SetActiveBlock(result, result.Length);
-    }
+    private void ToggleCodeFence() => Apply(MarkdownBlockFormat.ToggleCodeFence(_blocks[_active]));
+
+    /// <summary>Applies a <see cref="MarkdownBlockFormat"/> result to the active block.</summary>
+    private void Apply((string Text, int Caret) result) => SetActiveBlock(result.Text, result.Caret);
 
     /// <summary>Replaces the whole active block and re-activates it with the caret at <paramref name="caret"/>.</summary>
     private void SetActiveBlock(string text, int caret)
