@@ -66,7 +66,7 @@
                                   IsChecked="{Binding HighlightFatal}"
                                   ToolTip="Highlight FATAL lines">
                         <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="7" Height="7" Fill="#C8143C" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                            <Ellipse Width="7" Height="7" Fill="{DynamicResource Log.Fatal.Pip}" Margin="0,0,5,0" VerticalAlignment="Center"/>
                             <TextBlock Text="FATAL"/>
                         </StackPanel>
                     </ToggleButton>
@@ -76,7 +76,7 @@
                                   IsChecked="{Binding HighlightError}"
                                   ToolTip="Highlight ERROR lines">
                         <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="7" Height="7" Fill="#FF453A" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                            <Ellipse Width="7" Height="7" Fill="{DynamicResource Log.Error.Pip}" Margin="0,0,5,0" VerticalAlignment="Center"/>
                             <TextBlock Text="ERROR"/>
                         </StackPanel>
                     </ToggleButton>
@@ -86,7 +86,7 @@
                                   IsChecked="{Binding HighlightWarning}"
                                   ToolTip="Highlight WARN lines">
                         <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="7" Height="7" Fill="#FFA500" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                            <Ellipse Width="7" Height="7" Fill="{DynamicResource Log.Warning.Pip}" Margin="0,0,5,0" VerticalAlignment="Center"/>
                             <TextBlock Text="WARN"/>
                         </StackPanel>
                     </ToggleButton>
@@ -96,7 +96,7 @@
                                   IsChecked="{Binding HighlightInfo}"
                                   ToolTip="Highlight INFO lines">
                         <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="7" Height="7" Fill="#1E90FF" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                            <Ellipse Width="7" Height="7" Fill="{DynamicResource Log.Info.Pip}" Margin="0,0,5,0" VerticalAlignment="Center"/>
                             <TextBlock Text="INFO"/>
                         </StackPanel>
                     </ToggleButton>
@@ -106,7 +106,7 @@
                                   IsChecked="{Binding HighlightDebug}"
                                   ToolTip="Highlight DEBUG/TRACE lines">
                         <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="7" Height="7" Fill="#808080" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                            <Ellipse Width="7" Height="7" Fill="{DynamicResource Log.Debug.Pip}" Margin="0,0,5,0" VerticalAlignment="Center"/>
                             <TextBlock Text="DEBUG"/>
                         </StackPanel>
                     </ToggleButton>
@@ -390,7 +390,7 @@
                 <Separator Style="{StaticResource TbSep}"
                            Visibility="{Binding IsFilterActive, Converter={StaticResource BoolVis}}"/>
 
-                <TextBlock Foreground="#FFA500"
+                <TextBlock Foreground="{StaticResource WarningBrush}"
                            FontSize="11"
                            Visibility="{Binding IsFilterActive, Converter={StaticResource BoolVis}}">
                     <Run Text="Filter: "/><Run Text="{Binding FilterRegex, Mode=OneWay}"/>

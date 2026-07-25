@@ -14,6 +14,15 @@
     <SolidColorBrush x:Key="Log.Info"    Color="#281E90FF"/>  <!-- a=40  blue         -->
     <SolidColorBrush x:Key="Log.Debug"   Color="#1E808080"/>  <!-- a=30  grey         -->
 
+    <!-- Opaque counterparts of the washes above, for the toolbar toggles' severity pips. The washes are
+         deliberately translucent (they paint over text) and read as almost nothing at 7px, so the pip needs
+         the solid colour. Retune a wash and its pip together. -->
+    <SolidColorBrush x:Key="Log.Fatal.Pip"   Color="#C8143C"/>
+    <SolidColorBrush x:Key="Log.Error.Pip"   Color="#FF453A"/>
+    <SolidColorBrush x:Key="Log.Warning.Pip" Color="#FFA500"/>
+    <SolidColorBrush x:Key="Log.Info.Pip"    Color="#1E90FF"/>
+    <SolidColorBrush x:Key="Log.Debug.Pip"   Color="#808080"/>
+
     <!-- Line-selection feedback (margin bar, margin hover preview, full-line highlight). -->
     <SolidColorBrush x:Key="Log.Selection"      Color="#6464A0FF"/>  <!-- a=100 margin bar      -->
     <SolidColorBrush x:Key="Log.SelectionHover" Color="#3264A0FF"/>  <!-- a=50  margin hover    -->
