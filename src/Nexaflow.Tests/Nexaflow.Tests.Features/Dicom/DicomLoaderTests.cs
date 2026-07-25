@@ -12,7 +12,7 @@ namespace Nexaflow.Tests.Features.Dicom;
 /// the <c>DICM</c> magic (extensionless CD files).
 /// </summary>
 [TestClass]
-[CoversNode("content-tree")]
+[CoversNode("dicom-load")]
 public class DicomLoaderTests
 {
     private static string SampleDcm => TestSampleData.Path("dicom", "ct.dcm");
@@ -33,6 +33,7 @@ public class DicomLoaderTests
     }
 
     [TestMethod]
+    [CoversNode("dicom-sniffer")]
     public void Sniffer_Recognises_Dcm_And_Magic_ButNotText()
     {
         Assert.IsTrue(DicomFileSniffer.HasDicomExtension("scan.dcm"));
@@ -67,6 +68,7 @@ public class DicomLoaderTests
     }
 
     [TestMethod]
+    [CoversNode("dicom-hide-patient")]
     public void Load_SingleImage_PatientNodeCarriesPhi_MaskedWhenHidden()
     {
         var container = DicomContainerLoader.Load([SampleDcm]);

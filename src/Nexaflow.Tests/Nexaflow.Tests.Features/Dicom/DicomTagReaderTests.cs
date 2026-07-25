@@ -7,7 +7,7 @@ namespace Nexaflow.Tests.Features.Dicom;
 /// <summary>The DICOM tag drawer's data source: flattens a dataset to (tag, name, value) rows, and masks
 /// identifying tag values when patient info is hidden.</summary>
 [TestClass]
-[CoversNode("tag-drawer")]
+[CoversNode("dicom-tag-list")]
 public class DicomTagReaderTests
 {
     private static string SampleDcm => TestSampleData.Path("dicom", "ct.dcm");

@@ -30,7 +30,7 @@ public class DicomViewModelAiTests
     }
 
     [TestMethod]
-    [CoversNode("ai-integration")]
+    [CoversNode("dicom-ai-context")]
     public void GetContext_WithholdsPatientIdentifiers()
     {
         var vm = LoadedVm();
@@ -47,6 +47,7 @@ public class DicomViewModelAiTests
     }
 
     [TestMethod]
+    [CoversNode("dicom-ai-context")]
     public void SecurityRisk_IsRaised_ForMedicalData()
     {
         var vm = LoadedVm();
@@ -55,7 +56,7 @@ public class DicomViewModelAiTests
     }
 
     [TestMethod]
-    [CoversNode("ai-integration")]
+    [CoversNode("dicom-ai-act-capture")]
     public void ClientTools_ExposeDeidentifiedSurface()
     {
         var vm = LoadedVm();
@@ -72,7 +73,9 @@ public class DicomViewModelAiTests
     }
 
     [TestMethod]
-    [CoversNode("ai-integration")]
+    [CoversNode("dicom-ai-act-current-info")]
+    [CoversNode("dicom-ai-act-next-frame")]
+    [CoversNode("dicom-ai-act-prev-frame")]
     public void ClientTools_ExposeTagAndNavigationSurface()
     {
         var vm = LoadedVm();
@@ -87,7 +90,7 @@ public class DicomViewModelAiTests
     }
 
     [TestMethod]
-    [CoversNode("ai-integration")]
+    [CoversNode("dicom-ai-act-read-tags")]
     public void ReadTagsTool_IsDeidentified_EvenThoughHideIsOff()
     {
         var vm = LoadedVm();
@@ -104,7 +107,7 @@ public class DicomViewModelAiTests
     }
 
     [TestMethod]
-    [CoversNode("ai-integration")]
+    [CoversNode("dicom-ai-act-list-contents")]
     public void ListContentsTool_ListsSeries_WithoutPhi()
     {
         var vm = LoadedVm();
@@ -119,7 +122,7 @@ public class DicomViewModelAiTests
     }
 
     [TestMethod]
-    [CoversNode("ai-integration")]
+    [CoversNode("dicom-ai-act-view-image")]
     public void ViewImageTool_ValidatesIndex()
     {
         var vm = LoadedVm();
@@ -136,7 +139,7 @@ public class DicomViewModelAiTests
         => tool.InvokeAsync(args, CancellationToken.None).GetAwaiter().GetResult();
 
     [TestMethod]
-    [CoversNode("patient-info-toggle")]
+    [CoversNode("dicom-hide-patient")]
     public void HidePatientInfo_MasksPatientNodeInTree()
     {
         var vm = LoadedVm();

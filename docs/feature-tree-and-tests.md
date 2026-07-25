@@ -4,7 +4,7 @@ This is the template for representing a feature as product-tree nodes and backin
 *right kind* of test, so the tree stays an honest, mechanically-checkable map of **what exists** and **what's
 tested**. It was distilled from the **Text Viewer** gold-standard pass (2026-07) and is meant to be applied to
 every feature. **Text Viewer, Code, Tabular, Markdown, Processes, SysInfo, Installed Apps, Win Registry, Log
-Viewer, Images, Audio, 3D Model, Scratchpad, Projects, Video, Notebook, Win Search and AI Chat** have all had the pass and all lint clean — read whichever is closest in
+Viewer, Images, Audio, 3D Model, Scratchpad, Projects, Video, Notebook, Win Search, AI Chat, DICOM, Console and Win File System** have all had the pass and all lint clean — read whichever is closest in
 shape to the feature you're modelling:
 
 | Reference | Read it for |
@@ -27,6 +27,9 @@ shape to the feature you're modelling:
 | **Notebook** | the smallest complete example — two panels, four behaviours — and where the pass closed a readiness gap the tree had already written down |
 | **Win Search** | a feature whose core (the index query) genuinely cannot run headlessly, so everything either side of it is what carries the tests |
 | **AI Chat** | the hardest `shouldnt` calls: approvals and interjections only exist inside a running agent turn, so the note has to say what covers them instead |
+| **DICOM** | a feature that was *built* without the backbone and retrofitted: read it for what that costs — nine flat children, seven ids too generic to live in one namespace, and a duplicate feature root nobody had noticed |
+| **Console** | a feature whose logic almost all lives in shared libraries (`Visuals.Terminal`, `IO.Terminal`), so its leaves snaplink outward and its one irreducible decision — where a typed line goes — had to be lifted out of a live PTY to be testable at all |
+| **Win File System** | the largest subtree, and the reference for an action strip: most buttons end in a shell call or the clipboard, so the tests sit on the *gate* and the `shouldnt` notes have to say where each rule is actually asserted |
 
 ### Testing a feature that acts on the machine
 
@@ -161,6 +164,24 @@ usually a few lines and leaves the control thinner:
 - **Resizing a rotated post-it** — the rule is that the corner you are *not* dragging stays put, which needs
   the drag projected onto the note's own axes. It came out of `PostItControl` as `PostItGeometry.Resize`;
   unrotated resizing is arithmetic nobody gets wrong, and the rotated case is what the tests are for.
+- **Fitting an image into a viewport** — the DICOM stage cannot lean on WPF's `Stretch`, because the
+  measurement overlay is drawn in *screen* space (so strokes stay one width at any zoom) and the view
+  therefore owns the matrix. `ImageViewTransform` holds fit, actual-size and cursor-anchored zoom. Note what
+  the tests turned out to be about: that fit letterboxes rather than crops, that 1:1 lets an oversized image
+  overflow rather than being clamped, and that a stage which layout has not measured yet yields the identity
+  instead of an infinite scale.
+- **Where a typed line goes when you press Enter** — the terminal's one genuinely consequential decision,
+  and it was unreachable: `HandleEnter` read a private `_atPrompt` flag that only a live pseudo-console sets.
+  The inputs are trivial (is the cursor on a prompt, what was typed, what this shell calls a built-in), so
+  `TerminalEnterRouting.Decide` takes them directly. The third case is the one worth having a test for —
+  mid-program there is no prompt, and the line belongs to whatever is reading stdin whatever it looks like.
+- **A panel's listing order** — the terminal's Files panel deliberately lists files *before* folders, the
+  opposite of Explorer, because the panel exists to drag a path onto the console. That inversion is the kind
+  of thing a later "fix" quietly reverts, so it moved to `TerminalFileList.Enumerate`.
+- **An editor's rename semantics** — the console environments editor pins folders to an environment *by
+  name*, so a rename is the moment every pin can silently stop resolving. `ConsoleEnvironmentEditing` holds
+  the three rules that fail without a symptom: pins follow a rename unless another environment still owns the
+  old name, a new environment must not collide, and the last one cannot be removed.
 
 Reach for this before reaching for `shouldnt`. Prefer changing the abstraction's shape over adding a
 test-only hook — and when the *second* feature needs the same seam, that is the signal it belongs in
@@ -350,9 +371,18 @@ author-time nudges prove worth an analyzer.
 8. `doctor` + `validate` + `lint --under <feature>`; build + run the feature's unit tests (and the UI
    journey on a desktop).
 
-The eighteen subtrees listed at the top are the worked references for every step above.
+The twenty-one subtrees listed at the top are the worked references for every step above.
 
 One thing the pass keeps turning up, so look for it: a node claiming `tests=done` (or a `theming=done` over
 a hard-coded colour) that nothing actually backs. The lint's `TestsDoneWithoutSnaplink` finds the first kind;
 the second only shows up by reading the view. Both are worth fixing while you are in the feature — that is
 the point of the pass.
+
+Two more, from retrofitting a feature that was built without the backbone. **Ids are one flat global
+namespace**, so a feature modelled in isolation tends to claim generic ones — `cine`, `measurement`,
+`reports`, `ai-integration` — which read fine inside their own subtree and are unusable from outside it.
+`rename` fixes them under validation, but it cannot reach a `[CoversNode("<old-id>")]` in test source, so
+retag in the same commit (NXCOV002 flags what you miss). And **check for a stray duplicate root** before you
+start: the DICOM pass found an empty `dicom-viewer` sibling of `dicom`, carrying the feature-root-only
+`AI Ready` concern and nothing else — a placeholder from before the feature was named, invisible in every
+view that starts from the real root.

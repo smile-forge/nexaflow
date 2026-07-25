@@ -9,7 +9,7 @@ namespace Nexaflow.Tests.Features.Dicom;
 /// <summary>The measurement geometry: length converts pixels to mm via PixelSpacing (falls back to px when
 /// uncalibrated), angle is the interior angle at the vertex, and ROI reports area.</summary>
 [TestClass]
-[CoversNode("measurement")]
+[CoversNode("dicom-measurements")]
 public class MeasurementMathTests
 {
     private static DicomInstanceInfo Calibrated(double spacing) => new(
@@ -56,6 +56,7 @@ public class MeasurementMathTests
     }
 
     [TestMethod]
+    [CoversNode("dicom-probe")]
     public void Probe_OnRealImage_ReadsRawPixelValue()
     {
         // Exercises PixelSampler end-to-end against the hand-rolled 8-bit sample (raw pixel access).

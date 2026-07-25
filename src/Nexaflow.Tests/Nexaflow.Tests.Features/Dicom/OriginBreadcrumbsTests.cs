@@ -10,7 +10,7 @@ namespace Nexaflow.Tests.Features.Dicom;
 /// <see cref="FileBreadcrumbs.SetFileBreadcrumbs"/> build an origin parent crumb instead of a folder crumb.
 /// </summary>
 [TestClass]
-[CoversNode("reports")]
+[CoversNode("dicom-reports")]
 public class OriginBreadcrumbsTests
 {
     [TestMethod]

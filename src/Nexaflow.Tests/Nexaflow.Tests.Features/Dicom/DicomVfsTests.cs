@@ -11,7 +11,7 @@ namespace Nexaflow.Tests.Features.Dicom;
 /// the loader and renderer go through the shell's VFS, so a study delivered zipped just works.
 /// </summary>
 [TestClass]
-[CoversNode("content-tree")]
+[CoversNode("dicom-load")]
 public class DicomVfsTests
 {
     private string _tmp = string.Empty;

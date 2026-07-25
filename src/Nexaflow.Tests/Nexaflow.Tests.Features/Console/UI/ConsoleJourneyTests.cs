@@ -24,10 +24,11 @@ namespace Nexaflow.Tests.Features.Console.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
+[CoversNode("console")]
 public class ConsoleJourneyTests : UiJourneyTestBase
 {
     [TestMethod]
-    [CoversNode("console-panels-group")]
+    [CoversNode("console-ui")]
     [CoversNode("console-configure-button")]
     public void Console_Controls_RespondInOnePass()
     {
