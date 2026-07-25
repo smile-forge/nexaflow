@@ -24,7 +24,7 @@ public sealed class TextTabRegistration(IShellServices shell) : IPageRegistratio
             ContentFactory = () => new TextView(vm),
         };
         page.SetFileBreadcrumbs(path, title);
-        vm.DirtyChanged += dirty => page.Title = dirty ? "● " + title : title;
+        vm.DirtyChanged += dirty => page.Title = dirty ? "*" + title : title;
         return page;
     }
 }
