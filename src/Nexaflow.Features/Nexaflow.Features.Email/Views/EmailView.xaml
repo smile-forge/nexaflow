@@ -100,7 +100,7 @@
 
                     <!-- Full raw header list, collapsed by default. Capped height + scrollbar so a message
                          with many/long headers (Received chains, DKIM, ARC) can't push the body offscreen. -->
-                    <Expander Header="All headers" IsExpanded="{Binding HeadersExpanded, Mode=TwoWay}"
+                    <Expander Header="All headers" AutomationProperties.AutomationId="Email_AllHeaders" IsExpanded="{Binding HeadersExpanded, Mode=TwoWay}"
                               Margin="0,8,0,0" Foreground="{StaticResource TextMutedBrush}">
                         <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
                         <ItemsControl ItemsSource="{Binding AllHeaders}">
@@ -128,7 +128,7 @@
 
             <!-- ── Body-view toolbar ───────────────────────────────────────── -->
             <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="16,8,16,0">
-                <Button Content="Rendered" Command="{Binding ShowRenderedCommand}">
+                <Button Content="Rendered" AutomationProperties.AutomationId="Email_Rendered" Command="{Binding ShowRenderedCommand}">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource BodyToggle}">
                             <Style.Triggers>
@@ -141,7 +141,7 @@
                         </Style>
                     </Button.Style>
                 </Button>
-                <Button Content="Plain text" Command="{Binding ShowPlainTextCommand}"
+                <Button Content="Plain text" AutomationProperties.AutomationId="Email_PlainText" Command="{Binding ShowPlainTextCommand}"
                         Visibility="{Binding HasPlainText, Converter={StaticResource BoolToVis}}">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource BodyToggle}">
@@ -155,7 +155,7 @@
                         </Style>
                     </Button.Style>
                 </Button>
-                <Button Content="HTML source" Command="{Binding ShowHtmlSourceCommand}"
+                <Button Content="HTML source" AutomationProperties.AutomationId="Email_HtmlSource" Command="{Binding ShowHtmlSourceCommand}"
                         Visibility="{Binding HasHtmlBody, Converter={StaticResource BoolToVis}}">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource BodyToggle}">
@@ -170,7 +170,7 @@
                     </Button.Style>
                 </Button>
 
-                <Button Content="Open in browser" Style="{StaticResource BodyToggle}"
+                <Button Content="Open in browser" AutomationProperties.AutomationId="Email_OpenInBrowser" Style="{StaticResource BodyToggle}"
                         Command="{Binding OpenInBrowserCommand}"
                         Visibility="{Binding HasHtmlBody, Converter={StaticResource BoolToVis}}"
                         HorizontalAlignment="Right" Margin="16,0,0,0"/>

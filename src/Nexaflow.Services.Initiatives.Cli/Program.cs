@@ -272,18 +272,12 @@ internal static class Program
             return report.IsClean ? Clean : Broken;
         }
 
-        foreach (var i in report.Issues)
-            Console.Error.WriteLine($"  {i.NodeId} [{i.Scope}] #{i.Index}  {i.Detail}");
+        // Same text the AI tool returns; the CLI adds the stream + exit-code convention on top, since a
+        // broken tree has to fail a build script while the model just needs to read the verdict.
+        var text = ProductReport.Validate(report);
+        if (report.IsClean) { Console.WriteLine(text); return Clean; }
 
-        var scanned = $"scanned {report.ScannedSnaplinks} snaplinks across {report.ScannedNodes} nodes";
-        if (report.IsClean)
-        {
-            Console.WriteLine($"Snaplinks OK — {scanned}.");
-            return Clean;
-        }
-
-        var nodes = report.Issues.Select(i => i.NodeId).Distinct().Count();
-        Console.Error.WriteLine($"{report.IssueCount} broken snaplink(s) across {nodes} node(s) — {scanned}.");
+        Console.Error.WriteLine(text);
         return Broken;
     }
 
@@ -460,21 +454,8 @@ internal static class Program
         if (!TryIntOpt(a, "--limit", 40, out var limit)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
 
-        var type = a.Value("--type");
-        int Match(GraphNode n) =>                                   // exact label < prefix < label-substring < id-only
-            n.Label is null ? 3
-            : n.Label.Equals(term, StringComparison.OrdinalIgnoreCase) ? 0
-            : n.Label.StartsWith(term, StringComparison.OrdinalIgnoreCase) ? 1
-            : n.Label.Contains(term, StringComparison.OrdinalIgnoreCase) ? 2 : 3;
-        var hits = g.Nodes.Where(n =>
-                (type is null || n.Type == type) &&
-                (n.Id.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                 (n.Label?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false)))
-            .OrderBy(Match).ThenBy(n => TypeRank(n.Type)).ThenBy(n => n.Label?.Length ?? int.MaxValue).ThenBy(n => n.Id, StringComparer.Ordinal)
-            .ToList();
-
-        foreach (var n in hits.Take(limit)) Console.WriteLine(NodeLine(n));
-        Console.WriteLine($"{hits.Count} match(es)" + (hits.Count > limit ? $" — showing {limit} (raise --limit or narrow --type)" : "") + ".");
+        var hits = GraphQuery.Search(g, term, a.Value("--type"));
+        Console.WriteLine(GraphReport.Search(hits, term, limit));
         return Clean;
     }
 
@@ -872,11 +853,7 @@ internal static class Program
             Console.WriteLine(JsonSerializer.Serialize(hits, ProductJson.Options));
             return Clean;
         }
-        if (hits.Count == 0) { Console.WriteLine($"No nodes match '{term}'."); return Clean; }
-        foreach (var h in hits)
-            Console.WriteLine($"  {h.Id,-28} [{h.Status.ToString().ToLowerInvariant()}]  {h.Title}"
-                            + $"   ({string.Join(" > ", h.Path.Take(h.Path.Count - 1).Select(c => c.Title))})");
-        Console.WriteLine($"{hits.Count} match(es).");
+        Console.WriteLine(ProductReport.Find(hits, term));
         return Clean;
     }
 
@@ -914,18 +891,7 @@ internal static class Program
             Console.WriteLine(JsonSerializer.Serialize(hits, ProductJson.Options));
             return Clean;
         }
-        if (hits.Count == 0) { Console.WriteLine("No matching nodes."); return Clean; }
-
-        foreach (var h in hits)
-        {
-            var shape = h.IsLeaf ? "leaf" : "panel";
-            var concernCol = h.ConcernStatus is { } cs
-                ? $"{concern}={cs.ToString().ToLowerInvariant()}({h.ConcernSnaplinks} sl)"
-                : $"[{h.NodeStatus.ToString().ToLowerInvariant()}]";
-            Console.WriteLine($"  {h.Id,-26} {shape,-5} {concernCol,-22} "
-                            + string.Join(" > ", h.Path.Select(c => c.Title)));
-        }
-        Console.WriteLine($"{hits.Count} node(s).");
+        Console.WriteLine(ProductReport.Query(hits, concern));
         return Clean;
     }
 
@@ -944,20 +910,7 @@ internal static class Program
             return Clean;
         }
 
-        // Status is the derived (rolled-up) value the UI shows; for a parent it's computed from its children,
-        // so flag it as derived (the stored field on a parent is never shown).
-        var derived = d.Children.Count > 0 ? "  (derived)" : "";
-        Console.WriteLine($"{d.Id}  [{d.Status.ToString().ToLowerInvariant()}]{derived}  {d.Title}");
-        Console.WriteLine($"  path:    {string.Join(" > ", d.Path.Select(c => c.Title))}");
-        if (!string.IsNullOrWhiteSpace(d.Description)) Console.WriteLine($"  about:   {d.Description}");
-        if (!string.IsNullOrWhiteSpace(d.Note))        Console.WriteLine($"  note:    {d.Note}");
-        if (d.Concerns.Count > 0)
-            Console.WriteLine("  concerns: " + string.Join("  ", d.Concerns.Select(c => $"{c.Tag}={c.Status.ToString().ToLowerInvariant()}")));
-        foreach (var g in d.Snaplinks.GroupBy(l => l.Kind).OrderBy(g => g.Key))
-            foreach (var l in g)
-                Console.WriteLine($"  {g.Key,-6} {l.Display}");
-        if (d.Children.Count > 0)
-            Console.WriteLine("  children: " + string.Join(", ", d.Children.Select(c => c.Id)));
+        Console.WriteLine(ProductReport.Describe(d));
 
         if (a.Has("--code") && state.Nodes.TryGetValue(d.Id, out var raw))
         {
@@ -994,25 +947,7 @@ internal static class Program
             return Clean;
         }
 
-        var full = a.Has("--full");
-        foreach (var (depth, n) in rows)
-        {
-            var pad = new string(' ', depth * 2);
-            var concerns = n.Concerns.Count > 0
-                ? "   " + string.Join(" ", n.Concerns.Select(c => $"{c.Tag}={c.Status.ToString().ToLowerInvariant()}"))
-                : "";
-            // Without --full the snaplinks stay a count, so the shape of a big subtree still fits on a screen.
-            var links = !full && n.Snaplinks.Count > 0 ? $"   ({n.Snaplinks.Count} link{(n.Snaplinks.Count == 1 ? "" : "s")})" : "";
-            Console.WriteLine($"{pad}{n.Id}  [{n.Status.ToString().ToLowerInvariant()}]  {n.Title}{concerns}{links}");
-
-            if (!full) continue;
-            if (!string.IsNullOrWhiteSpace(n.Description)) Console.WriteLine($"{pad}    about: {n.Description}");
-            if (!string.IsNullOrWhiteSpace(n.Note))        Console.WriteLine($"{pad}    note:  {n.Note}");
-            foreach (var g in n.Snaplinks.GroupBy(l => l.Kind).OrderBy(g => g.Key))
-                foreach (var l in g)
-                    Console.WriteLine($"{pad}    {g.Key,-6} {l.Display}");
-        }
-        Console.WriteLine($"{rows.Count} node(s).");
+        Console.WriteLine(ProductReport.Outline(rows, a.Has("--full")));
         return Clean;
     }
 
@@ -1784,23 +1719,7 @@ internal static class Program
             return Clean;
         }
 
-        if (findings.Count == 0)
-        {
-            Console.WriteLine(under is null
-                ? "Every feature follows the modelling rules."
-                : $"'{under}' follows the modelling rules.");
-            return Clean;
-        }
-
-        foreach (var byFeature in findings.GroupBy(f => f.FeatureId))
-        {
-            Console.WriteLine($"\n{byFeature.Key}  ({byFeature.Count()} finding(s))");
-            foreach (var f in byFeature)
-                Console.WriteLine($"  [{f.Rule}] {f.NodeId} — {f.Title}\n      {f.Detail}");
-        }
-
-        var features = findings.Select(f => f.FeatureId).Distinct().Count();
-        Console.WriteLine($"\n{findings.Count} finding(s) across {features} feature(s) — advisory (nothing fails a build).");
+        Console.WriteLine(ProductReport.Lint(findings, under));
         // Advisory by design: exit 0 so this can be run freely without tripping a script's error handling.
         return Clean;
     }

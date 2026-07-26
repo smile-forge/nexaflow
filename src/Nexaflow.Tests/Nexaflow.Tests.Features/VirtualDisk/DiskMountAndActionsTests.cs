@@ -10,7 +10,7 @@ namespace Nexaflow.Tests.Features.VirtualDisk;
 /// <summary>Mount policy (which formats, elevation gating, drive-letter parsing) and the disk file/folder
 /// actions' contracts. Live mounting needs admin + real hardware, so these cover the routing, not the attach.</summary>
 [TestClass]
-[CoversNode("virtual-disk-viewer")]
+[CoversNode("vdisk-mount-service")]
 public class DiskMountAndActionsTests
 {
     [TestMethod]
@@ -32,6 +32,7 @@ public class DiskMountAndActionsTests
     }
 
     [TestMethod]
+    [CoversNode("vdisk-open-actions")]
     public void OpenAsDisk_OpensInspectorTabForThePath()
     {
         var shell = Substitute.For<IShellServices>();
@@ -50,6 +51,7 @@ public class DiskMountAndActionsTests
     }
 
     [TestMethod]
+    [CoversNode("vdisk-open-actions")]
     public void Mount_TargetsTheMountableExperience()
     {
         var action = new MountDiskAction(Substitute.For<IShellServices>());
@@ -59,6 +61,7 @@ public class DiskMountAndActionsTests
     }
 
     [TestMethod]
+    [CoversNode("vdisk-open-actions")]
     public void Unmount_IsDriveAction_HiddenForNonDrivePaths()
     {
         var action = new UnmountDiskAction(Substitute.For<IShellServices>());
