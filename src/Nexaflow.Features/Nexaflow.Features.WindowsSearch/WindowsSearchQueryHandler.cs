@@ -24,6 +24,8 @@ public sealed class WindowsSearchQueryHandler(IShellServices shellServices) : IQ
         if (pageVm?.GetContextObject() is not FileSystemContext fs) return 0f;
         if (string.IsNullOrEmpty(fs.RootPath) && fs.AvailableDrives.Count == 0) return 0f;
 
+        if (prefixed)
+            return 1f;
         var score = SearchQueryScorer.Score(input);
 
         // A bare absolute path (not quoted) should route to the navigation handler, not search.
