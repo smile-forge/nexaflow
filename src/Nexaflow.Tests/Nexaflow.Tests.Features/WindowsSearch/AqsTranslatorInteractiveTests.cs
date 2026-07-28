@@ -51,14 +51,57 @@ public class AqsTranslatorInteractiveTests
     }
 
     [TestMethod]
-    public void GeneratesAWhereClauseForAKnownProperty()
+    public void ParsesAKnownPropertyIntoATree()
     {
-        var where = _aqs.ToWhereClause("kind:document");
+        var condition = _aqs.Parse("kind:document");
 
-        Assert.IsNotNull(where, "Windows should parse a property every Explorer search box accepts");
-        StringAssert.Contains(where, "System.Kind",
-            "the clause must name the property, or we are sending the index something else entirely");
+        Assert.IsNotNull(condition, "Windows should parse a property every Explorer search box accepts");
+        Assert.IsTrue(condition.Properties.Any(p => p.Contains("Kind", StringComparison.OrdinalIgnoreCase)),
+            "the tree must name the property, or we are asking the index something else entirely");
     }
+
+    [TestMethod]
+    public void ASizeConstraintKeepsItsNumberAsANumber()
+    {
+        // The PROPVARIANT coercion order matters here: read as a string, 1mb becomes "1048576" and the
+        // emitted SQL compares sizes as text, where 9 sorts after 10.
+        var condition = _aqs.Parse("size:>1mb");
+        Assert.IsNotNull(condition);
+
+        var leaf = Leaves(condition).FirstOrDefault(l => l.Value is long);
+        Assert.IsNotNull(leaf, "the size must arrive as a number, not a string");
+        Assert.AreEqual(1024L * 1024L, leaf.Value, "1mb is 1048576 bytes");
+        Assert.AreEqual(SearchComparison.GreaterThan, leaf.Comparison);
+    }
+
+    [TestMethod]
+    public void ARelativeDateBecomesAnActualDate()
+    {
+        // The reason for delegating at all: "last week" is a localised phrase we would otherwise parse
+        // ourselves, wrongly, in every locale but ours.
+        var condition = _aqs.Parse("modified:lastweek");
+        Assert.IsNotNull(condition);
+
+        var dated = Leaves(condition).Where(l => l.Value is DateTime).ToList();
+        Assert.IsTrue(dated.Count > 0, "a relative date should resolve to a real DateTime");
+        Assert.IsTrue(dated.All(l => ((DateTime)l.Value!) > DateTime.UtcNow.AddYears(-1)),
+            "a date read out of the wrong PROPVARIANT field lands in 1601, not last week");
+    }
+
+    [TestMethod]
+    public void TheParsedTreeEmitsUsableSql()
+    {
+        var condition = _aqs.Parse("kind:document")!;
+        var where     = SearchConditionSql.ToWhereClause(condition);
+
+        Assert.IsNotNull(where);
+        StringAssert.Contains(where, "System.Kind");
+    }
+
+    private static IEnumerable<SearchCondition> Leaves(SearchCondition condition) =>
+        condition.Kind == SearchConditionKind.Leaf
+            ? [condition]
+            : condition.Children.SelectMany(Leaves);
 
     // ── The assumptions the rest of the code is built on ──────────────────────
 
@@ -86,19 +129,20 @@ public class AqsTranslatorInteractiveTests
         // These are the constraints worth having — the ones we would otherwise have hand-rolled regexes
         // for. If Windows stops recognising one, the feature quietly loses it, so name them explicitly.
         foreach (var token in new[] { "kind:document", "size:>1mb", "ext:.txt", "modified:lastweek" })
-            Assert.IsNotNull(_aqs.ToWhereClause(token), $"'{token}' should translate");
+            Assert.IsNotNull(_aqs.Parse(token), $"'{token}' should parse");
     }
 
     [TestMethod]
-    public void TheClauseIsARestrictionNotAWholeStatement()
+    public void NoLeafComesBackWithAnOperatorWeCannotExpress()
     {
-        // SearchQueryParser splices this into a bigger WHERE with AND. A leaked SELECT would produce SQL
-        // that either fails or, worse, silently means something else.
-        var where = _aqs.ToWhereClause("kind:document")!;
-
-        Assert.IsFalse(where.Contains("SELECT", StringComparison.OrdinalIgnoreCase));
-        Assert.IsFalse(where.Contains("FROM SystemIndex", StringComparison.OrdinalIgnoreCase));
-        Assert.IsFalse(where.Contains("ORDER BY", StringComparison.OrdinalIgnoreCase));
+        // Unsupported is deliberately not mapped to a nearby operator, so if a common constraint parses
+        // into one, the walk silently stops applying it. Better to learn that here.
+        foreach (var token in new[] { "kind:document", "size:>1mb", "ext:.txt" })
+        {
+            var condition = _aqs.Parse(token);
+            Assert.IsNotNull(condition);
+            Assert.IsFalse(condition.HasUnsupportedComparison, $"'{token}' produced an unmappable operator");
+        }
     }
 
     // ── End to end, through the real parser ───────────────────────────────────

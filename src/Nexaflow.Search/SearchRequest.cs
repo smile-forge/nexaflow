@@ -35,15 +35,42 @@ public sealed record SearchRequest(string Text, bool IsRegex = false, bool Match
     public bool HasNameOnlyTerms => Terms.Any(t => t.NameOnly);
 
     /// <summary>
-    /// Every term satisfied by <paramref name="name"/> alone.
+    /// Every term satisfied by <paramref name="name"/> alone, <b>for a row an index returned</b> —
+    /// structured terms count as already applied by the query that produced it.
     /// <para>
     /// A query with NO terms matches nothing. <c>All</c> over an empty sequence is vacuously true, which
     /// would silently mark every row the index returned as proven — the difference between "8 matches" and
     /// "2652 matches" on a broad seed.
     /// </para>
+    /// <para>
+    /// Never use this to judge a row no index produced. Use <see cref="Evaluate"/>, which takes nothing
+    /// on trust — see the note on <see cref="SearchTerm.Matches"/>.
+    /// </para>
     /// </summary>
     public bool MatchesName(string name) =>
         Terms.Count > 0 && Terms.All(t => t.Matches(name, isName: true));
+
+    /// <summary>
+    /// Judges the whole query against <paramref name="subject"/> with nothing pre-applied — the folder
+    /// walk's entry point. Null means some part couldn't be decided here.
+    /// <para>
+    /// Three-valued so an undecidable part only spoils the answer when it would have changed it. An
+    /// empty query stays a definite no-match, for the same reason as above.
+    /// </para>
+    /// </summary>
+    public bool? Evaluate(ISearchSubject subject, string name)
+    {
+        if (Terms.Count == 0) return false;
+
+        var unknown = false;
+        foreach (var term in Terms)
+        {
+            var result = term.Evaluate(subject, name);
+            if (result is false) return false;
+            if (result is null) unknown = true;
+        }
+        return unknown ? null : true;
+    }
 
     /// <summary>
     /// Every term satisfied by the file as a whole — each term may be met by the name OR, unless it is

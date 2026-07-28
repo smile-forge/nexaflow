@@ -38,13 +38,19 @@ public enum SearchTermKind
 /// arrives here already converted to an anchored regex, and a backend with its own query language (an index
 /// that speaks globs natively) needs the glob back, not the translation.
 /// </param>
+/// <param name="Condition">
+/// The parsed form of a <see cref="SearchTermKind.Structured"/> term. Present so the constraint can be
+/// answered by a backend that isn't the index — without it, a structured term is an opaque string that
+/// only the query language understands, and anything else must either drop it or pretend.
+/// </param>
 public sealed record SearchTerm(
     SearchTermKind Kind,
     IReadOnlyList<string> Alternatives,
     bool MatchCase = false,
     bool NameOnly = false,
     string? Display = null,
-    IReadOnlyList<string>? Sources = null)
+    IReadOnlyList<string>? Sources = null,
+    SearchCondition? Condition = null)
 {
     /// <summary>What the user actually wrote, per alternative — the translation when there was none.</summary>
     public IReadOnlyList<string> SourceForms => Sources ?? Alternatives;
@@ -68,6 +74,11 @@ public sealed record SearchTerm(
     /// <summary>
     /// True when <paramref name="candidate"/> satisfies any alternative. <paramref name="isName"/> tells
     /// the term whether it is looking at a filename, so a name-scoped term is never applied to a body.
+    /// <para>
+    /// <b>Only valid for rows an index returned.</b> A structured term reports true here because the
+    /// query that produced the row already applied it. Anywhere else — a folder walk, a page filtering
+    /// its own rows — that answer is a lie, and <see cref="Evaluate"/> is the method to use.
+    /// </para>
     /// </summary>
     public bool Matches(string candidate, bool isName)
     {
@@ -92,9 +103,26 @@ public sealed record SearchTerm(
         catch (ArgumentException) { return false; }
     }
 
+    /// <summary>
+    /// Judges this term against <paramref name="subject"/> with nothing taken on trust — for a folder
+    /// walk, or anywhere else no index has pre-applied it. Null means undecidable: an unknown property,
+    /// an operator this model can't express, or a structured term that was never parsed.
+    /// <para>
+    /// The tri-state is the whole point. A walk that can't answer <c>author:john</c> must say so rather
+    /// than pick a side, because both sides are wrong and neither looks like a bug.
+    /// </para>
+    /// </summary>
+    public bool? Evaluate(ISearchSubject subject, string candidate, bool isName = true)
+    {
+        if (Kind != SearchTermKind.Structured)
+            return Matches(candidate, isName);
+
+        return Condition is null ? null : SearchConditionEvaluator.Evaluate(Condition, subject);
+    }
+
     /// <summary>False (with a reason) when the pattern can't compile — reported rather than silently
     /// matching nothing.</summary>
-    public bool TryValidate(out string? error)
+    public bool TryValidate([System.Diagnostics.CodeAnalysis.NotNullWhen(false)] out string? error)
     {
         error = null;
         if (Kind != SearchTermKind.Regex) return true;

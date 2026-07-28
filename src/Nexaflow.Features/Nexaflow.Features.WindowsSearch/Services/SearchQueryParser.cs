@@ -154,8 +154,11 @@ public static class SearchQueryParser
             // rather than trying to seed it like text.
             if (term.Kind == SearchTermKind.Structured)
             {
-                var where = aqs?.ToWhereClause(term.Value);
-                if (where is null) continue;      // untranslatable: drop it, which widens — never narrows
+                // The condition was parsed when the term was recognised; this is just the SQL projection
+                // of it. The walk projection of the same tree is the Matches predicate below.
+                var condition = term.Condition ?? aqs?.Parse(term.Value);
+                var where     = condition is null ? null : SearchConditionSql.ToWhereClause(condition);
+                if (where is null) continue;      // unexpressible: drop it, which widens — never narrows
                 clauses.Add($"({where})");
                 nameOnly = false;
                 continue;
@@ -180,8 +183,12 @@ public static class SearchQueryParser
             RawInput    = string.Join(" ", terms.Select(t => t.Label)),
             IsGlob      = nameOnly,
             WhereClause = string.Join(" AND ", clauses),
-            // The live-walk fallback can only see names, so it judges the query on the name alone.
-            Matches     = p => request.MatchesName(p.Name),
+            // The walk's projection of the same terms. Unlike a row from the index, nothing here has been
+            // pre-applied — so this evaluates every term, including a property constraint, against what
+            // the walk can actually observe. A constraint it can't answer is undecidable, and an
+            // undecidable query is not a match: showing every file would be the wrong answer, stated
+            // confidently. (MatchesName would do exactly that — see the note on it.)
+            Matches     = p => request.Evaluate(p.AsSearchSubject(), p.Name) == true,
         };
     }
 

@@ -23,10 +23,14 @@ public sealed partial class AqsTermRecognizer(IAqsTranslator translator) : ISear
     public SearchTerm? Recognize(string token)
     {
         if (!PropertyShape.IsMatch(token)) return null;
-        if (!translator.Recognises(token)) return null;
 
-        // Carried as the raw AQS. Translation happens once, where the SQL is built — this layer stays free
-        // of both COM and SQL.
-        return new SearchTerm(SearchTermKind.Structured, [token], Display: token);
+        var condition = translator.Parse(token);
+        if (condition is null) return null;
+
+        // The parsed tree travels with the term, so whoever ends up answering the query — the index via
+        // SQL, or a folder walk via the evaluator — works from the same parse. The raw text is kept only
+        // for display.
+        return new SearchTerm(
+            SearchTermKind.Structured, [token], Display: token, Condition: condition);
     }
 }

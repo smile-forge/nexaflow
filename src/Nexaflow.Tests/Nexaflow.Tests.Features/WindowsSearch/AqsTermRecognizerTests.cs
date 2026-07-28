@@ -14,18 +14,17 @@ namespace Nexaflow.Tests.Features.WindowsSearch;
 [CoversNode("search-aqs")]
 public class AqsTermRecognizerTests
 {
-    /// <summary>Knows two properties and nothing else — enough to prove the routing.</summary>
+    /// <summary>Knows two properties and nothing else — enough to prove the routing. Returns a parsed
+    /// tree, exactly as the real COM parser does, so both projections can be exercised headlessly.</summary>
     private sealed class FakeAqs : IAqsTranslator
     {
-        public bool Recognises(string token) =>
-            token.StartsWith("kind:", StringComparison.OrdinalIgnoreCase) ||
-            token.StartsWith("size:", StringComparison.OrdinalIgnoreCase);
+        public bool Recognises(string token) => Parse(token) is not null;
 
-        public string? ToWhereClause(string token) =>
+        public SearchCondition? Parse(string token) =>
             token.StartsWith("kind:", StringComparison.OrdinalIgnoreCase)
-                ? $"System.Kind = '{token[5..]}'"
+                ? SearchCondition.Leaf("System.Kind", SearchComparison.Equal, token[5..])
                 : token.StartsWith("size:>", StringComparison.OrdinalIgnoreCase)
-                    ? "System.Size > 1048576"
+                    ? SearchCondition.Leaf("System.Size", SearchComparison.GreaterThan, 1048576L)
                     : null;
     }
 
@@ -121,6 +120,60 @@ public class AqsTermRecognizerTests
         Assert.IsNotNull(parsed);
         Assert.IsFalse(parsed.WhereClause.Contains("System.Size"));
         StringAssert.Contains(parsed.WhereClause, "ocr");
+    }
+
+    // ── The folder walk must answer the constraint, not assume it ─────────────
+
+    [TestMethod]
+    public void AWalkAppliesASizeConstraintInsteadOfPassingEverything()
+    {
+        // The regression this whole design exists for. A structured term used to report "already
+        // enforced" to every caller, which is true of a row the INDEX returned and a lie during a walk —
+        // so searching a non-indexed folder for "size:>1mb" returned the entire tree.
+        var terms  = SearchSyntax.ParseTerms("size:>1mb", Recognizers());
+        var parsed = SearchQueryParser.FromTerms(terms, new FakeAqs());
+        Assert.IsNotNull(parsed);
+
+        var big   = new FileProbe("big.bin",   2_000_000, DateTime.Now);
+        var small = new FileProbe("small.bin",       100, DateTime.Now);
+
+        Assert.IsTrue(parsed.Matches(big),    "a 2MB file satisfies size:>1mb");
+        Assert.IsFalse(parsed.Matches(small), "a 100-byte file must not come back from a walk");
+    }
+
+    [TestMethod]
+    public void AWalkExcludesWhatItCannotDecideRatherThanIncludingIt()
+    {
+        // A walk can see a name, a size and a date. It cannot see System.Kind — that needs the indexer.
+        // Undecidable must not become "matches": returning every file while claiming to have filtered is
+        // the failure mode that hides itself.
+        var terms  = SearchSyntax.ParseTerms("kind:document", Recognizers());
+        var parsed = SearchQueryParser.FromTerms(terms, new FakeAqs());
+        Assert.IsNotNull(parsed);
+
+        Assert.IsFalse(parsed.Matches(new FileProbe("report.docx", 5_000, DateTime.Now)));
+    }
+
+    [TestMethod]
+    public void ASizeConstraintIsNeverTrueForAFolder()
+    {
+        // A directory has no size in the sense the query means. Reporting 0 would make "size:<1kb" quietly
+        // true for every folder on the disk.
+        var terms  = SearchSyntax.ParseTerms("size:>1mb", Recognizers());
+        var parsed = SearchQueryParser.FromTerms(terms, new FakeAqs());
+        Assert.IsNotNull(parsed);
+
+        Assert.IsFalse(parsed.Matches(new FileProbe("Documents", 0, DateTime.Now, isDirectory: true)));
+    }
+
+    [TestMethod]
+    public void TheIndexPathStillTreatsAConstraintAsAlreadyApplied()
+    {
+        // The other half of the rule: a row the index returned HAS had the constraint applied, so
+        // re-testing it client-side would reject every row. Both halves have to stay true at once.
+        var request = SearchSyntax.ParseRequest("kind:document", Recognizers());
+
+        Assert.IsTrue(request.MatchesName("anything.docx"));
     }
 
     // ── Refinement must not round-trip through rendered text ──────────────────
