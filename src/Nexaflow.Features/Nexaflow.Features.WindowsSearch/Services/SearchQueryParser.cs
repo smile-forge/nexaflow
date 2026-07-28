@@ -142,13 +142,25 @@ public static class SearchQueryParser
     /// afterwards, so dropping only ever widens — which is safe, where narrowing would lose real results.
     /// </para>
     /// </summary>
-    public static ParsedQuery? FromTerms(IReadOnlyList<SearchTerm> terms)
+    public static ParsedQuery? FromTerms(
+        IReadOnlyList<SearchTerm> terms, IAqsTranslator? aqs = null)
     {
         var clauses = new List<string>();
         var nameOnly = true;
 
         foreach (var term in terms)
         {
+            // A structured constraint is the backend's own language — hand it to the translator whole
+            // rather than trying to seed it like text.
+            if (term.Kind == SearchTermKind.Structured)
+            {
+                var where = aqs?.ToWhereClause(term.Value);
+                if (where is null) continue;      // untranslatable: drop it, which widens — never narrows
+                clauses.Add($"({where})");
+                nameOnly = false;
+                continue;
+            }
+
             var seeds = AqsRegexTranslator.SeedsFor(term);
             if (seeds is null || seeds.Count == 0) continue;
 

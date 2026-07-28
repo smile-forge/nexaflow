@@ -105,7 +105,7 @@ public sealed record SearchRequest(string Text, bool IsRegex = false, bool Match
     /// </summary>
     public bool Matches(string candidate)
     {
-        var judgeable = Terms.Where(t => !t.NameOnly).ToList();
+        var judgeable = Terms.Where(t => !t.NameOnly && !t.IndexEnforced).ToList();
         return judgeable.Count > 0 && judgeable.All(t => t.Matches(candidate, isName: false));
     }
 

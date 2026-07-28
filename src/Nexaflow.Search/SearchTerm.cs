@@ -10,6 +10,13 @@ public enum SearchTermKind
 
     /// <summary>Literal text, matched as a substring.</summary>
     Text,
+
+    /// <summary>
+    /// A structured property constraint in the backend's own query language — <c>kind:document</c>,
+    /// <c>size:&gt;1mb</c>, <c>modified:last week</c>. Only the backend can evaluate it, so it is enforced
+    /// by the query rather than by any client-side filter.
+    /// </summary>
+    Structured,
 }
 
 /// <summary>
@@ -42,6 +49,13 @@ public sealed record SearchTerm(
     /// <summary>What the user actually wrote, per alternative — the translation when there was none.</summary>
     public IReadOnlyList<string> SourceForms => Sources ?? Alternatives;
 
+    /// <summary>
+    /// True when only the backend can evaluate this term, so the query itself enforces it and no
+    /// client-side filter may re-test it. Re-testing would fail every row: nothing in a filename or a
+    /// file's text can tell you whether <c>size:&gt;1mb</c> holds.
+    /// </summary>
+    public bool IndexEnforced => Kind == SearchTermKind.Structured;
+
     /// <summary>The single value, for the common one-alternative case.</summary>
     public string Value => Alternatives.Count > 0 ? Alternatives[0] : string.Empty;
 
@@ -57,6 +71,9 @@ public sealed record SearchTerm(
     /// </summary>
     public bool Matches(string candidate, bool isName)
     {
+        // Already guaranteed by the query that returned this row — re-testing it here can only fail it.
+        if (IndexEnforced) return true;
+
         if (Alternatives.Count == 0) return false;
         if (NameOnly && !isName) return false;
 
