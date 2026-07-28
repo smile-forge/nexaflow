@@ -1312,8 +1312,17 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
             .Select(t => { try { return Activator.CreateInstance(t) as IFileCorpusSearch; } catch { return null; } })
             .FirstOrDefault(e => e is not null);
 
-    /// <summary>This page searches files, so filename globs mean something here.</summary>
-    public IReadOnlyList<ISearchTermRecognizer> TermRecognizers { get; } = [new GlobTermRecognizer()];
+    /// <summary>
+    /// This page searches files, so filename globs mean something here — plus whatever extra syntax the
+    /// index backing it understands (property constraints like <c>kind:document</c>), which arrives with
+    /// the backend rather than by referencing the feature that owns it.
+    /// <para>
+    /// Deliberately not cached: the corpus resolves lazily, and a snapshot taken before it existed would
+    /// leave the browser silently unable to parse constraints it can in fact enforce.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<ISearchTermRecognizer> TermRecognizers =>
+        [new GlobTermRecognizer(), .. CorpusSearch?.TermRecognizers ?? []];
 
     public string SearchTargetDescription =>
         IsThisPcMode                     ? "files across this PC"

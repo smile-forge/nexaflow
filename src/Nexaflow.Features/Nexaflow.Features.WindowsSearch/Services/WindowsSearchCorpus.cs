@@ -21,21 +21,29 @@ public sealed class WindowsSearchCorpus : IFileCorpusSearch
     private const int CandidateMultiplier = 20;
     private const int MaxCandidates       = 5000;
 
+    private readonly AqsTranslator _aqs = new();
+
+    /// <summary>Property constraints, because this backend is the index that can enforce them.</summary>
+    public IReadOnlyList<ISearchTermRecognizer> TermRecognizers => [new AqsTermRecognizer(_aqs)];
+
     public async Task<IReadOnlyList<SearchHit>> SearchAsync(
         SearchRequest request, string root, IReadOnlyList<string> drives, int max, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(request.Text)) return [];
+        if (request.Terms.Count == 0) return [];
 
-        // A regex is seeded by the longest literal it must contain, searched as an ordinary term so file
-        // contents are covered; a literal query is already in the parser's own language.
-        var seed = request.IsRegex ? AqsRegexTranslator.ToIndexQuery(request.Text) : request.Text;
+        // Built from the whole term list, not just request.Text: each term is seeded in the index's own
+        // language and the results AND-ed. Structured terms carry their own WHERE fragment, which is why
+        // the translator is handed over here — a constraint the post-filter trusts as already applied
+        // must genuinely reach the query.
+        var parsed = SearchQueryParser.FromTerms(request.Terms, _aqs);
 
-        // No literal to narrow on ("^.+$") — better to return nothing than to drag back the whole corpus
+        // Nothing to narrow on ("^.+$") — better to return nothing than to drag back the whole corpus
         // and read every file in it. The caller reports why.
-        if (string.IsNullOrEmpty(seed)) return [];
+        if (parsed is null) return [];
 
-        var parsed = SearchQueryParser.Parse(seed);
-        var want   = request.IsRegex ? Math.Min(MaxCandidates, max * CandidateMultiplier) : max;
+        // Only a regex term is post-filtered, so only a regex term needs candidates beyond the cap.
+        var postFiltered = request.Terms.Any(t => t.Kind == SearchTermKind.Regex);
+        var want = postFiltered ? Math.Min(MaxCandidates, max * CandidateMultiplier) : max;
 
         try
         {
@@ -46,7 +54,7 @@ public sealed class WindowsSearchCorpus : IFileCorpusSearch
             var rows = entries.Take(want).ToList();
 
             // A literal query was fully evaluated by the index — every row is proven.
-            if (!request.IsRegex)
+            if (!postFiltered)
                 return rows.Take(max).Select(Hit).ToList();
 
             // A regex was only partly evaluated: AQS narrowed by name, and the name check below settles

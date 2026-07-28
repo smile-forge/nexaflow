@@ -56,8 +56,11 @@ jobs:
           dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Features/Nexaflow.Tests.Features.csproj -c Release --no-restore
           dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Providers/Nexaflow.Tests.Providers.csproj -c Release --no-restore
 
-      # UI tests (TestCategory=UI) drive the real app via FlaUI and need an interactive desktop session;
-      # skip them in CI. The MSTest/MTP test exes take --filter directly (see docs/testing.md).
+      # Two categories never run here. UI tests (TestCategory=UI) drive the real app via FlaUI and need an
+      # interactive desktop session. Interactive tests (TestCategory=Interactive) call a real Windows
+      # service — they assert against whatever that machine happens to have indexed, so they prove our COM
+      # usage on a developer box but would be a coin toss on a runner. See docs/testing.md.
+      # The MSTest/MTP test exes take --filter directly.
       # Tests.Providers targets plain net10.0-windows (no WinRT), hence the per-project TFM map.
       - name: Run unit tests (non-UI)
         shell: pwsh
@@ -71,7 +74,7 @@ jobs:
           foreach ($proj in $tests.Keys) {
             $exe = "src/Nexaflow.Tests/$proj/bin/x64/Release/$($tests[$proj])/$proj.exe"
             Write-Host "::group::$proj"
-            & $exe --filter 'TestCategory!=UI'
+            & $exe --filter 'TestCategory!=UI&TestCategory!=Interactive'
             if ($LASTEXITCODE -ne 0) { $failed = $true; Write-Host "::error::$proj failed (exit $LASTEXITCODE)" }
             Write-Host '::endgroup::'
           }

@@ -123,6 +123,36 @@ public class AqsTermRecognizerTests
         StringAssert.Contains(parsed.WhereClause, "ocr");
     }
 
+    // ── Refinement must not round-trip through rendered text ──────────────────
+
+    [TestMethod]
+    public void RefiningKeepsTheConstraintInTheIndexQuery()
+    {
+        // Refining "kind:document" with "ocr" must still ask the index for documents. Building the merged
+        // query from the combined TERMS is what preserves that.
+        var first  = SearchSyntax.ParseTerms("kind:document", Recognizers());
+        var second = SearchSyntax.ParseTerms("ocr", Recognizers());
+
+        var merged = SearchQueryParser.FromTerms([.. first, .. second], new FakeAqs());
+
+        Assert.IsNotNull(merged);
+        StringAssert.Contains(merged.WhereClause, "System.Kind = 'document'");
+        StringAssert.Contains(merged.WhereClause, "ocr");
+    }
+
+    [TestMethod]
+    public void RenderedQueryTextIsNotASubstituteForTheTerms()
+    {
+        // Why the merge above can't just re-parse the displayed query: the legacy single-string parser has
+        // no term model, so it reads "kind:document" as characters to look for and narrows the index to
+        // files literally containing that punctuation — none. Pinned so nobody reintroduces the round-trip.
+        var rendered = SearchSyntax.Format(SearchSyntax.ParseRequest("kind:document", Recognizers()));
+        var reparsed = SearchQueryParser.Parse(rendered);
+
+        Assert.IsFalse(reparsed.WhereClause.Contains("System.Kind"),
+            "the rendered text cannot carry a constraint only the term model knows about");
+    }
+
     [TestMethod]
     public void WithNoTranslator_StructuredTermsAreSkipped()
     {

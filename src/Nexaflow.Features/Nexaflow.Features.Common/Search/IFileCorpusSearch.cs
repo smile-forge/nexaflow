@@ -36,4 +36,17 @@ public interface IFileCorpusSearch
     /// </summary>
     Task<IReadOnlyList<SearchHit>> SearchAsync(
         SearchRequest request, string root, IReadOnlyList<string> drives, int max, CancellationToken ct);
+
+    /// <summary>
+    /// Extra query syntax this backend understands, offered to the page's parser on top of whatever it
+    /// already recognises. The engine that will run the query is the only thing that knows what it can
+    /// enforce, so a page picks up an index's property vocabulary by using that index — not by
+    /// referencing the feature that owns it.
+    /// <para>
+    /// A recogniser here MUST be one the backend actually honours. A term the parser marks structured is
+    /// trusted by the post-filter as already applied, so advertising syntax the query never enforces
+    /// turns a constraint into a no-op — worse than not recognising it, which leaves it as plain text.
+    /// </para>
+    /// </summary>
+    IReadOnlyList<ISearchTermRecognizer> TermRecognizers => [];
 }

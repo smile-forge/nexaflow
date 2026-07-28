@@ -105,7 +105,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         _activeRequest = request;
         _postFilter    = NeedsPostFilter(request) ? request : null;
 
-        var parsed = SearchQueryParser.FromTerms(request.Terms);
+        var parsed = SearchQueryParser.FromTerms(request.Terms, _aqs);
         if (parsed is null)
         {
             // Nothing to ask the index. Saying so beats an empty list the user reads as "no such files".
@@ -174,10 +174,12 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
             ? previous with { Terms = [.. previous.Terms, .. refinement.Terms] }
             : refinement;
 
-        var refinedQuery = SearchQueryParser.FromTerms(refinement.Terms);
-        var merged = refinedQuery is null
-            ? SearchQueryParser.Parse(_baseQuery)
-            : SearchQueryParser.Merge(SearchQueryParser.Parse(_baseQuery), refinedQuery);
+        // Built from the combined TERMS, not by re-parsing the base query's text. The rendered text is
+        // lossy on exactly the terms that need the index most: legacy parsing reads "kind:document" or
+        // "/ma(ths)/" as literal characters to look for, narrowing the query to the files that contain
+        // that punctuation — i.e. none. Same reason the post-filter is kept structured above.
+        var merged = SearchQueryParser.FromTerms(combined.Terms, _aqs)
+                     ?? SearchQueryParser.Parse(_baseQuery);
 
         _activeRequest = combined;
         _postFilter    = NeedsPostFilter(combined) ? combined : null;
@@ -509,8 +511,15 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
 
     // ── ISearchable ───────────────────────────────────────────────────────────
 
-    /// <summary>This page searches files, so filename globs mean something here.</summary>
-    public IReadOnlyList<ISearchTermRecognizer> TermRecognizers { get; } = [new GlobTermRecognizer()];
+    /// <summary>The AQS parser this page's queries are built against — shared by the recogniser that
+    /// spots a property constraint and the parser that turns it into SQL, so both agree on what the
+    /// index will actually enforce.</summary>
+    private readonly AqsTranslator _aqs = new();
+
+    /// <summary>This page searches files, so filename globs and index property constraints both mean
+    /// something here.</summary>
+    public IReadOnlyList<ISearchTermRecognizer> TermRecognizers =>
+        [new GlobTermRecognizer(), new AqsTermRecognizer(_aqs)];
 
     public string SearchTargetDescription =>
         $"files matching the current search '{SearchQuery}'" +
@@ -529,7 +538,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
             return SearchOutcome.Unsupported("This search tab has no scope to search.");
 
         // A refinement narrows on its terms' seeds, then exactly via the post-filter.
-        var refined = SearchQueryParser.FromTerms(request.Terms);
+        var refined = SearchQueryParser.FromTerms(request.Terms, _aqs);
         if (refined is null)
             return SearchOutcome.Unsupported(UnseedableNote(request.Text));
 
