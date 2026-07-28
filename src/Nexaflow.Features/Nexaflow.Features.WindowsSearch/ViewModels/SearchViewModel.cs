@@ -133,14 +133,6 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         VerificationBanner = message;
     }
 
-    /// <summary>
-    /// The index term seeding <paramref name="request"/>'s pattern — the longest literal every match must
-    /// contain, searched as an ordinary term so file CONTENTS are covered too. Null when the pattern has no
-    /// such literal, which the caller reports rather than dragging back the whole corpus.
-    /// </summary>
-    private static string? IndexQueryFor(SearchRequest request)   // single-pattern helper, kept for the corpus path
-        => AqsRegexTranslator.ToIndexQuery(request.Text);
-
     /// <summary>Message for a pattern with nothing to seed the index on.</summary>
     private static string UnseedableNote(string pattern) =>
         $"/{pattern}/ has no literal text to search on, so the index can't narrow it. " +
@@ -542,7 +534,13 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         if (refined is null)
             return SearchOutcome.Unsupported(UnseedableNote(request.Text));
 
-        var merged = SearchQueryParser.Merge(SearchQueryParser.Parse(_baseQuery), refined);
+        // Merged from the combined TERMS, for the same reason as MergeAndSearchAsync: re-parsing the
+        // rendered base query reads a constraint or a pattern as literal characters to look for.
+        var combined = _activeRequest is { Terms.Count: > 0 } previous
+            ? (IReadOnlyList<SearchTerm>)[.. previous.Terms, .. request.Terms]
+            : request.Terms;
+
+        var merged = SearchQueryParser.FromTerms(combined, _aqs) ?? refined;
 
         if (!display)
         {

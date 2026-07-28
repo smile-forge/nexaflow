@@ -41,19 +41,16 @@ public static class WindowsSearchService
     };
 
     /// <summary>
-    /// Searches the Windows Search index for <paramref name="query"/> under
+    /// Searches the Windows Search index for <paramref name="parsed"/> under
     /// <paramref name="rootPath"/>. Returns up to <paramref name="maxResults"/> entries
     /// sorted by most-recently modified first.
     /// Throws <see cref="OperationCanceledException"/> if the token fires.
     /// Throws <see cref="OleDbException"/> if the Windows Search service is unavailable.
+    /// <para>
+    /// Takes a parsed query, never a raw string: a query has to be parsed once, into terms, so the same
+    /// parse can drive both the index and the folder-walk fallback below.
+    /// </para>
     /// </summary>
-    public static Task<IReadOnlyList<SearchResultEntry>> SearchAsync(
-        string query,
-        string rootPath,
-        CancellationToken ct,
-        int maxResults = 500)
-        => SearchAsync(SearchQueryParser.Parse(query), rootPath, ct, maxResults);
-
     public static Task<IReadOnlyList<SearchResultEntry>> SearchAsync(
         ParsedQuery parsed,
         string rootPath,

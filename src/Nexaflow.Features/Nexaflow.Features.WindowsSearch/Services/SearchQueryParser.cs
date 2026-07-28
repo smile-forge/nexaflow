@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using Nexaflow.IO.Common;
@@ -27,15 +27,6 @@ public static class SearchQueryParser
 {
     private static readonly Regex QuotedWhole    = new(@"^""[^""]+""$",              RegexOptions.Compiled);
     private static readonly Regex PrefixSyntax   = new(@"(^|\s)[+\-]\S",            RegexOptions.Compiled);
-    private static readonly Regex FilterKeyword  = new(
-        @"\b(size|date|modified|before|after|larger|smaller):",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex SizeFilter     = new(
-        @"\b(size|larger|smaller):([><=]?)(\d+)(kb|mb|gb)?",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex DateFilter     = new(
-        @"\b(date|modified|before|after):([><=]?)(\d{4}(?:-\d{2}(?:-\d{2})?)?)",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public static ParsedQuery Parse(string raw)
     {
@@ -102,18 +93,10 @@ public static class SearchQueryParser
             };
         }
 
-        // ── Filter criteria (size:, date:, etc.) ─────────────────────────────
-        if (FilterKeyword.IsMatch(trimmed))
-        {
-            var (where, match) = BuildFilter(trimmed);
-            return new ParsedQuery
-            {
-                RawInput    = raw,
-                IsGlob      = false,
-                WhereClause = where,
-                Matches     = match
-            };
-        }
+        // Property constraints (size:, modified:, kind:, …) are NOT handled here. They are recognised
+        // while the query is tokenised, parsed by Windows' own AQS parser into a SearchCondition, and
+        // projected by FromTerms below — which is the only path that also gives the folder walk something
+        // it can evaluate. This overload sees only what a bare string can express.
 
         // ── Plain terms (content + filename) ─────────────────────────────────
         var terms = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -232,75 +215,4 @@ public static class SearchQueryParser
 
     private static bool NameHas(FileProbe p, string sub) =>
         p.Name.Contains(sub, StringComparison.OrdinalIgnoreCase);
-
-    private static bool CompareLong(long actual, string op, long expected) => op switch
-    {
-        ">"  => actual >  expected,
-        "<"  => actual <  expected,
-        ">=" => actual >= expected,
-        "<=" => actual <= expected,
-        _    => actual == expected,
-    };
-
-    private static bool CompareDate(DateTime actual, string op, DateTime expected) => op switch
-    {
-        "<"  => actual <  expected,
-        ">=" => actual >= expected,
-        "<=" => actual <= expected,
-        "="  => actual.Date == expected.Date,
-        _    => actual >  expected,   // default '>' mirrors the SQL date default
-    };
-
-    /// <summary>Builds the SQL WHERE fragment and the parallel filesystem predicate
-    /// for a size:/date:/… filter query. The two are kept in lockstep.</summary>
-    private static (string Where, Func<FileProbe, bool> Match) BuildFilter(string input)
-    {
-        var clauses = new List<string>();
-        var preds   = new List<Func<FileProbe, bool>>();
-
-        foreach (Match m in SizeFilter.Matches(input))
-        {
-            var op      = m.Groups[2].Value is "" ? "=" : m.Groups[2].Value;
-            var value   = long.Parse(m.Groups[3].Value);
-            var unit    = m.Groups[4].Value.ToUpperInvariant();
-            var bytes   = unit switch { "KB" => value * 1024L, "MB" => value * 1024L * 1024, "GB" => value * 1024L * 1024 * 1024, _ => value };
-            var keyword = m.Groups[1].Value.ToLowerInvariant();
-            if (keyword == "larger")  op = ">";
-            if (keyword == "smaller") op = "<";
-            clauses.Add($"System.Size {op} {bytes}");
-            var o = op; var b = bytes;
-            preds.Add(p => !p.IsDirectory && CompareLong(p.Size, o, b));
-        }
-
-        foreach (Match m in DateFilter.Matches(input))
-        {
-            var keyword = m.Groups[1].Value.ToLowerInvariant();
-            var op      = m.Groups[2].Value is "" ? ">" : m.Groups[2].Value;
-            var date    = m.Groups[3].Value;
-            if (keyword == "before") op = "<";
-            if (keyword == "after")  op = ">";
-            var iso = date.Length == 4 ? $"{date}-01-01" : date.Length == 7 ? $"{date}-01" : date;
-            clauses.Add($"System.DateModified {op} '{iso}'");
-            var o = op; var when = DateTime.Parse(iso, CultureInfo.InvariantCulture);
-            preds.Add(p => CompareDate(p.Modified, o, when));
-        }
-
-        // Any remaining plain tokens outside filter keywords
-        var stripped = FilterKeyword.Replace(SizeFilter.Replace(DateFilter.Replace(input, ""), ""), "").Trim();
-        if (!string.IsNullOrWhiteSpace(stripped))
-        {
-            foreach (var t in stripped.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-            {
-                clauses.Add($"System.FileName LIKE '%{EscapeLike(t)}%'");
-                var term = t;
-                preds.Add(p => NameHas(p, term));
-            }
-        }
-
-        var where = clauses.Count > 0 ? string.Join(" AND ", clauses) : "1=1";
-        Func<FileProbe, bool> match = preds.Count > 0
-            ? p => preds.All(f => f(p))
-            : static _ => true;   // matched the SQL "1=1"
-        return (where, match);
-    }
 }
