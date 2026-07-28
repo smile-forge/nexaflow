@@ -43,6 +43,16 @@ public enum SearchTermKind
 /// answered by a backend that isn't the index — without it, a structured term is an opaque string that
 /// only the query language understands, and anything else must either drop it or pretend.
 /// </param>
+/// <param name="ContentAlternatives">
+/// Patterns to use when matching a file's CONTENTS, where <paramref name="Alternatives"/> matches its
+/// name. Null when one form serves both.
+/// <para>
+/// A filename glob needs this: <c>book*</c> anchored to a whole name is the right question for a name and
+/// the wrong one for a document, where it should match the word "bookcase" and stop at the space. Two
+/// patterns rather than two terms, because it is one constraint the user typed once — "the name looks
+/// like this, or the text contains a word that does".
+/// </para>
+/// </param>
 public sealed record SearchTerm(
     SearchTermKind Kind,
     IReadOnlyList<string> Alternatives,
@@ -50,8 +60,14 @@ public sealed record SearchTerm(
     bool NameOnly = false,
     string? Display = null,
     IReadOnlyList<string>? Sources = null,
-    SearchCondition? Condition = null)
+    SearchCondition? Condition = null,
+    IReadOnlyList<string>? ContentAlternatives = null,
+    bool IsGlob = false)
 {
+    /// <summary>The patterns that apply to a file's body — the name patterns where there is no separate
+    /// content form.</summary>
+    public IReadOnlyList<string> ContentForms => ContentAlternatives ?? Alternatives;
+
     /// <summary>What the user actually wrote, per alternative — the translation when there was none.</summary>
     public IReadOnlyList<string> SourceForms => Sources ?? Alternatives;
 
@@ -88,9 +104,13 @@ public sealed record SearchTerm(
         if (Alternatives.Count == 0) return false;
         if (NameOnly && !isName) return false;
 
+        // A name and a body are different questions, and a glob asks them differently — anchored to the
+        // whole name, or bounded to one word inside the text.
+        var patterns = isName ? Alternatives : ContentForms;
+
         return Kind == SearchTermKind.Regex
-            ? Alternatives.Any(p => SafeRegex(p, candidate))
-            : Alternatives.Any(t => candidate.Contains(t, Comparison));
+            ? patterns.Any(p => SafeRegex(p, candidate))
+            : patterns.Any(t => candidate.Contains(t, Comparison));
     }
 
     private bool SafeRegex(string pattern, string candidate)

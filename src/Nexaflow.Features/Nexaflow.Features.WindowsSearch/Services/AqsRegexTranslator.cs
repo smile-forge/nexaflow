@@ -32,7 +32,7 @@ public static class AqsRegexTranslator
     public static IReadOnlyList<string>? SeedsFor(SearchTerm term)
     {
         // A glob already speaks the index's own language — use the source form, not its regex translation.
-        if (term.NameOnly) return term.SourceForms;
+        if (term.IsGlob || term.NameOnly) return term.SourceForms;
 
         if (term.Kind != SearchTermKind.Regex) return term.Alternatives;
 

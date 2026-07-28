@@ -1,4 +1,4 @@
-using Nexaflow.IO.Common;
+﻿using Nexaflow.IO.Common;
 using Nexaflow.Search;
 using Nexaflow.Tests.Fixtures;
 
@@ -26,7 +26,7 @@ public class SearchTermParsingTests
 
         Assert.AreEqual(3, terms.Count);
 
-        Assert.IsTrue(terms[0].NameOnly, "a filename glob is name-scoped");
+        Assert.IsTrue(terms[0].IsGlob, "a filename glob is recognised as one");
         Assert.AreEqual("*.txt|*.md", terms[0].Label);
 
         Assert.AreEqual(SearchTermKind.Regex, terms[1].Kind);
@@ -50,15 +50,16 @@ public class SearchTermParsingTests
     }
 
     [TestMethod]
-    public void WithAGlobRecognizer_TheSameTokenBecomesANameScopedPattern()
+    public void WithAGlobRecognizer_TheSameTokenBecomesAGlobPattern()
     {
         var term = SearchSyntax.ParseTerms("*.txt", WithGlobs)[0];
 
-        Assert.IsTrue(term.NameOnly);
+        Assert.IsTrue(term.IsGlob);
         Assert.IsTrue(term.Matches("notes.txt", isName: true));
         Assert.IsFalse(term.Matches("notes.txt.bak", isName: true), "a glob describes the whole name");
-        Assert.IsFalse(term.Matches("a body mentioning notes.txt", isName: false),
-            "a glob over file contents is meaningless, so it never applies to one");
+        Assert.IsTrue(term.Matches("a body mentioning notes.txt", isName: false),
+            "a glob asks about contents too — bounded to one word, so it matches the token, not the line");
+        Assert.IsFalse(term.Matches("a body mentioning notes.md", isName: false));
     }
 
     [TestMethod]
@@ -101,7 +102,7 @@ public class SearchTermParsingTests
         var terms = SearchSyntax.ParseTerms("*.txt \"the lost dog\" urgent", WithGlobs);
 
         Assert.AreEqual(3, terms.Count);
-        Assert.IsTrue(terms[0].NameOnly);
+        Assert.IsTrue(terms[0].IsGlob);
         Assert.AreEqual("the lost dog", terms[1].Value);
         Assert.AreEqual("urgent", terms[2].Value);
     }
@@ -170,12 +171,12 @@ public class SearchTermParsingTests
     }
 
     [TestMethod]
-    public void FormatThenParse_KeepsAGlobNameScoped()
+    public void FormatThenParse_KeepsAGlob()
     {
         var request  = SearchSyntax.ParseRequest("*.txt|*.md", WithGlobs);
         var reparsed = SearchSyntax.ParseRequest(SearchSyntax.Format(request), WithGlobs);
 
-        Assert.IsTrue(reparsed.Terms[0].NameOnly);
+        Assert.IsTrue(reparsed.Terms[0].IsGlob);
         Assert.AreEqual(2, reparsed.Terms[0].Alternatives.Count);
     }
 
