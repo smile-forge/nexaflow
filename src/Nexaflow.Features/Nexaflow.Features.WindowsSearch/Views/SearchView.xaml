@@ -109,6 +109,12 @@
                                 <DataTrigger Binding="{Binding VerificationPhase}" Value="Done">
                                     <Setter Property="Visibility" Value="Visible"/>
                                 </DataTrigger>
+                                <DataTrigger Binding="{Binding VerificationPhase}" Value="OfferScan">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding VerificationPhase}" Value="Scanning">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
@@ -135,6 +141,48 @@
                                     Style="{StaticResource TbBtn}"
                                     AutomationProperties.AutomationId="SkipVerification"
                                     Command="{Binding SkipVerificationCommand}"/>
+                        </StackPanel>
+
+                        <!-- The scan offer and its running state. A separate pair of buttons from the
+                             verification prompt above: this one costs minutes, not seconds. -->
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding VerificationPhase}" Value="OfferScan">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <Button Content="Scan"
+                                    Style="{StaticResource TbBtn}"
+                                    AutomationProperties.AutomationId="ScanFolder"
+                                    Command="{Binding ScanFolderCommand}"
+                                    Margin="8,0,4,0"/>
+                            <Button Content="No thanks"
+                                    Style="{StaticResource TbBtn}"
+                                    AutomationProperties.AutomationId="DeclineScan"
+                                    Command="{Binding StopScanCommand}"/>
+                        </StackPanel>
+
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding VerificationPhase}" Value="Scanning">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <Button Content="Stop"
+                                    Style="{StaticResource TbBtn}"
+                                    AutomationProperties.AutomationId="StopScan"
+                                    Command="{Binding StopScanCommand}"
+                                    Margin="8,0,0,0"/>
                         </StackPanel>
 
                         <TextBlock Text="{Binding VerificationBanner}"

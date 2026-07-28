@@ -196,4 +196,61 @@ public class VerificationPlannerTests
         Assert.AreEqual(VerifyPhase.Done, plan.Phase);
         StringAssert.Contains(plan.Banner, "290 unchecked");
     }
+
+    // ── The folder scan offer ─────────────────────────────────────────────────
+
+    [TestMethod]
+    public void OfferScan_IsAnOfferNotAnAction()
+    {
+        // A scan reads every file in a tree. It gets its own phase so the UI shows "scan?" rather than the
+        // verification prompt's "check them", which costs seconds instead of minutes.
+        var plan = VerificationPlanner.OfferScan(SearchOrigin.Index);
+
+        Assert.AreEqual(VerifyPhase.OfferScan, plan.Phase);
+        Assert.AreEqual(0, plan.SweepNow, "nothing may start on its own from an offer");
+        StringAssert.Contains(plan.Banner, "slow");
+    }
+
+    [TestMethod]
+    public void AnUnreachableIndexIsNotWordedAsAnEmptyOne()
+    {
+        // "The indexer didn't find anything" claims a search happened. When the service is down none did,
+        // and telling the user otherwise sends them looking for a file they were never told about.
+        var searched  = VerificationPlanner.OfferScan(SearchOrigin.Index).Banner;
+        var unreached = VerificationPlanner.OfferScan(SearchOrigin.IndexUnavailable).Banner;
+
+        Assert.AreNotEqual(searched, unreached);
+        StringAssert.Contains(unreached, "isn't running");
+        StringAssert.Contains(searched, "didn't find anything");
+    }
+
+    [TestMethod]
+    public void ScanningReportsWhatItHasFoundSoFar()
+    {
+        // A running scan has no total to report against — saying "3 of N" would invent the N.
+        Assert.AreEqual(VerifyPhase.Scanning, VerificationPlanner.Scanning(0).Phase);
+        StringAssert.Contains(VerificationPlanner.Scanning(0).Banner, "no matches yet");
+        StringAssert.Contains(VerificationPlanner.Scanning(3).Banner, "3 matches so far");
+        StringAssert.Contains(VerificationPlanner.Scanning(1).Banner, "1 match so far");
+    }
+
+    [TestMethod]
+    public void AStoppedScanNeverClaimsToBeComplete()
+    {
+        // It looked at part of the tree, so its count is a floor. "Found 4 matches" would read as "there
+        // are 4", which is the one thing a cancelled scan cannot know.
+        var stopped  = VerificationPlanner.AfterScan(4, cancelled: true);
+        var finished = VerificationPlanner.AfterScan(4);
+
+        StringAssert.Contains(stopped.Banner, "so far");
+        Assert.IsFalse(finished.Banner.Contains("so far"));
+        Assert.AreEqual(VerifyPhase.Done, stopped.Phase);
+    }
+
+    [TestMethod]
+    public void AnEmptyScanIsStatedAsAnAnswer()
+    {
+        // The scan read the files. Unlike the index's silence, this really does mean "not here".
+        StringAssert.Contains(VerificationPlanner.AfterScan(0).Banner, "no matches in this location");
+    }
 }

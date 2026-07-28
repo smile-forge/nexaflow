@@ -269,6 +269,95 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
             StartSweep(candidates.Take(plan.SweepNow).ToList());
     }
 
+    // ── The folder scan ───────────────────────────────────────────────────────
+
+    /// <summary>Somewhere real to walk. "This PC" qualifies now that the scan is the user's own informed
+    /// choice — the reason it used to be excluded was that a whole-drive walk could start on its own.</summary>
+    private bool CanScan =>
+        (!string.IsNullOrEmpty(SearchRoot) && Directory.Exists(SearchRoot)) || _drives.Count > 0;
+
+    private CancellationTokenSource? _scanCts;
+
+    /// <summary>Every root a scan should cover — the tab's folder, or each drive for "This PC".</summary>
+    private IReadOnlyList<string> ScanRoots =>
+        string.IsNullOrEmpty(SearchRoot) ? _drives : [SearchRoot];
+
+    /// <summary>
+    /// Walks the location, reading files, showing each match the moment it is found. Slow by nature, so
+    /// results stream in rather than arriving all at once at the end.
+    /// </summary>
+    [RelayCommand]
+    private async Task ScanFolder()
+    {
+        if (_activeRequest is not { Terms.Count: > 0 } request || !CanScan) return;
+
+        _scanCts?.Cancel();
+        _scanCts = new CancellationTokenSource();
+        var ct   = _scanCts.Token;
+
+        IsSearching        = true;
+        VerificationPhase  = VerifyPhase.Scanning;
+        VerificationBanner = VerificationPlanner.Scanning(0).Banner;
+        StatusText         = "Scanning…";
+
+        var found = 0;
+        try
+        {
+            foreach (var root in ScanRoots)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                await WindowsSearchService.WalkAsync(request, root, DefaultResultCap, hit =>
+                {
+                    // Off the walk's thread and onto the UI's — the feature never touches a dispatcher
+                    // itself, and a hit arriving mid-enumeration must not race the list.
+                    _ = _shellServices.RunOnUiAsync(() =>
+                    {
+                        Results.Add(hit);
+                        ResultCount        = Results.Count;
+                        VerificationBanner = VerificationPlanner.Scanning(++found).Banner;
+                    });
+                }, ct);
+            }
+
+            var done = VerificationPlanner.AfterScan(found);
+            VerificationPhase  = done.Phase;
+            VerificationBanner = done.Banner;
+        }
+        catch (OperationCanceledException)
+        {
+            var stopped = VerificationPlanner.AfterScan(found, cancelled: true);
+            VerificationPhase  = stopped.Phase;
+            VerificationBanner = stopped.Banner;
+        }
+        catch (Exception ex)
+        {
+            VerificationPhase  = VerifyPhase.Done;
+            VerificationBanner = $"Scan failed: {ex.Message}";
+        }
+        finally
+        {
+            IsSearching = false;
+            _lastOrigin = SearchOrigin.FolderScan;
+            StatusText  = ResultCount == 0
+                ? "No results."
+                : $"{ResultCount} result{(ResultCount == 1 ? "" : "s")}";
+        }
+    }
+
+    /// <summary>Stops a running scan, or declines the offer of one.</summary>
+    [RelayCommand]
+    private void StopScan()
+    {
+        _scanCts?.Cancel();
+
+        if (VerificationPhase == VerifyPhase.OfferScan)
+        {
+            VerificationPhase  = VerifyPhase.Done;
+            VerificationBanner = "Not scanned.";
+        }
+    }
+
     /// <summary>Checks the candidates the user was asked about.</summary>
     [RelayCommand]
     private void VerifyRemaining() => StartSweep(Candidates);
@@ -374,7 +463,9 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
             IReadOnlyList<SearchResultEntry> entries;
             if (_drives.Count > 0 && string.IsNullOrEmpty(SearchRoot))
             {
-                // "This PC" is index-only — walking whole drives isn't practical.
+                // Across drives the index is the only thing asked. A whole-machine scan is still possible,
+                // but only if the user asks for it after seeing the offer — it is not somewhere to arrive
+                // by accident.
                 entries       = await WindowsSearchService.SearchAcrossAsync(parsed, _drives, ct, fetch);
                 _lastOrigin   = SearchOrigin.Index;
             }
@@ -415,7 +506,18 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
                 ? "No results."
                 : $"{ResultCount} result{(ResultCount == 1 ? "" : "s")}";
 
-            BeginVerification();
+            // Nothing from the index isn't necessarily an answer — this folder may simply not be indexed.
+            // Offer the scan rather than starting it: it reads every file in the tree.
+            if (ResultCount == 0 && CanScan)
+            {
+                var offer = VerificationPlanner.OfferScan(_lastOrigin);
+                VerificationPhase  = offer.Phase;
+                VerificationBanner = offer.Banner;
+            }
+            else
+            {
+                BeginVerification();
+            }
         }
         catch (OperationCanceledException)
         {

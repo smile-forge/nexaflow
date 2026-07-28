@@ -9,6 +9,14 @@ public enum VerifyPhase
     /// <summary>Candidates remain and need the user's say-so before more files are read.</summary>
     Prompt,
 
+    /// <summary>The index had no answer, and a folder scan is being offered. A separate phase from
+    /// <see cref="Prompt"/> because it offers a different action at a very different cost — verifying a
+    /// handful of candidates is seconds, reading a directory tree is minutes.</summary>
+    OfferScan,
+
+    /// <summary>A folder scan is running and reporting hits as it finds them.</summary>
+    Scanning,
+
     /// <summary>A sweep is in progress.</summary>
     Running,
 
@@ -94,4 +102,37 @@ public static class VerificationPlanner
     /// <summary>What to say when the user declines the rest.</summary>
     public static VerifyPlan AfterSkip(int confirmed, int unchecked_) =>
         new(VerifyPhase.Done, 0, $"{confirmed} confirmed · {unchecked_} unchecked.");
+
+    // ── The folder scan ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The offer made when the index came back with nothing. A scan reads every file in the tree and can
+    /// run for minutes, so it is proposed rather than started — but it is proposed, because "no results"
+    /// from an index that never covered this folder is not an answer to the user's question.
+    /// <para>
+    /// The two cases are worded apart on purpose: an index that searched and found nothing is real
+    /// information ("probably isn't here"), while an index that couldn't be reached is none at all.
+    /// </para>
+    /// </summary>
+    public static VerifyPlan OfferScan(SearchOrigin origin) =>
+        new(VerifyPhase.OfferScan, 0, origin == SearchOrigin.IndexUnavailable
+            ? "Windows Search isn't running, so nothing could be looked up. Scan this location manually (slow)?"
+            : "The Windows indexer didn't find anything like that in this location — scan it manually (slow)?");
+
+    /// <summary>Progress while a scan runs. Counts are what it has found so far, not a total — a scan
+    /// can't know how many matches exist until it has finished looking.</summary>
+    public static VerifyPlan Scanning(int found) =>
+        new(VerifyPhase.Scanning, 0, found == 0
+            ? "Scanning… no matches yet."
+            : $"Scanning… {found} match{(found == 1 ? "" : "es")} so far.");
+
+    /// <summary>What a finished scan says. <paramref name="cancelled"/> matters: a stopped scan looked at
+    /// part of the tree, so its count is a floor, not a total.</summary>
+    public static VerifyPlan AfterScan(int found, bool cancelled = false) => new(
+        VerifyPhase.Done, 0,
+        cancelled
+            ? $"Scan stopped — {found} match(es) found so far."
+            : found == 0
+                ? "Folder scan finished — no matches in this location."
+                : $"Folder scan found {found} match{(found == 1 ? "" : "es")}.");
 }

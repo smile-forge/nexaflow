@@ -1353,10 +1353,12 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     // the search feature. So the agent is told which rows are proven and which are only possible, rather
     // than being handed a set that silently mixes the two.
     private static string RegexScopeNote(int confirmed, int possible, string pattern) =>
-        confirmed + possible == 0
-            ? $"Nothing matched /{pattern}/ here."
-            : $"{confirmed} match(es) confirmed by file name; {possible} more came back from the index and " +
-              "may match inside the file — open a Search tab to have those checked.";
+        $"{confirmed} match(es) confirmed by file name; {possible} more came back from the index and " +
+        "may match inside the file — open a Search tab to have those checked.";
+
+    /// <summary>The query as the user wrote it, for a message about it.</summary>
+    private static string Described(SearchRequest request) =>
+        request.IsRegex ? $"/{request.Text}/" : $"'{request.Text}'";
 
     public async Task<SearchOutcome> SearchAsync(SearchRequest request, bool display, CancellationToken ct)
     {
@@ -1377,8 +1379,18 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
                 return SearchOutcome.Unsupported("No file search index is available.");
 
             var hits = await engine.SearchAsync(request, scoped.Root, scoped.Drives, SearchHitCap, ct);
+
+            // Nothing from the index isn't proof of absence — this folder may simply not be indexed. Say
+            // so, rather than letting the agent report "no such files". The manual scan reads every file
+            // in the tree, so it stays the user's call and is not something an agent starts.
+            if (hits.Count == 0)
+                return SearchOutcome.Narrowed(hits,
+                    $"Nothing matched {Described(request)} here. The Windows index returned nothing, which " +
+                    "may mean this location isn't indexed rather than that no file matches — opening a " +
+                    "Search tab offers a manual folder scan.");
+
             if (!request.IsRegex)
-                return hits.Count == 0 ? SearchOutcome.None() : SearchOutcome.Found(hits);
+                return SearchOutcome.Found(hits);
 
             // Some of these are proven (the name matched) and some are only index candidates. Reporting the
             // split keeps the agent from presenting "might match" rows as findings.
