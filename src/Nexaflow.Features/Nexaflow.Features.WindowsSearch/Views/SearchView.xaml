@@ -82,7 +82,71 @@
 
             <!-- Result list -->
             <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Verification banner: a content regex can't be answered by the index alone, so results
+                     appear speculatively and this reports the background pass that settles them. -->
+                <Border Grid.Row="0"
+                        x:Name="VerificationBannerHost"
+                        AutomationProperties.AutomationId="VerificationBanner"
+                        Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource WarningBrush}"
+                        BorderThickness="0,0,0,1"
+                        Padding="10,6">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding VerificationPhase}" Value="Running">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding VerificationPhase}" Value="Prompt">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding VerificationPhase}" Value="Done">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+
+                    <DockPanel LastChildFill="True">
+                        <!-- Only the Prompt phase asks a question; the others just report. -->
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding VerificationPhase}" Value="Prompt">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <Button Content="Check them"
+                                    Style="{StaticResource TbBtn}"
+                                    AutomationProperties.AutomationId="VerifyRemaining"
+                                    Command="{Binding VerifyRemainingCommand}"
+                                    Margin="8,0,4,0"/>
+                            <Button Content="Skip"
+                                    Style="{StaticResource TbBtn}"
+                                    AutomationProperties.AutomationId="SkipVerification"
+                                    Command="{Binding SkipVerificationCommand}"/>
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding VerificationBanner}"
+                                   Foreground="{StaticResource TextBrush}"
+                                   FontSize="12"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </DockPanel>
+                </Border>
+
                 <ListView x:Name="ResultList"
+                          Grid.Row="1"
                           ItemsSource="{Binding Results}"
                           SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
                           ItemContainerStyle="{StaticResource FileListRowStyle}"
@@ -101,23 +165,100 @@
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <TextBlock FontSize="13" Margin="4,0,6,0" VerticalAlignment="Center">
+                                            <!-- Icon with a verification badge sitting ON it (fixed cell +
+                                                 an opaque disc), not beside it — a mark floating next to
+                                                 the icon reads as separate content rather than status. -->
+                                            <Grid Width="22" Height="18" Margin="4,0,6,0" VerticalAlignment="Center">
+                                                <TextBlock FontSize="13"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Text" Value="📄"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsFolder}" Value="True">
+                                                                    <Setter Property="Text" Value="📁"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+
+                                                <Border Width="12" Height="12"
+                                                        CornerRadius="6"
+                                                        HorizontalAlignment="Right"
+                                                        VerticalAlignment="Bottom"
+                                                        BorderThickness="1"
+                                                        BorderBrush="{StaticResource BgBrush}">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <!-- Not looked at yet: muted, so a list mid-sweep
+                                                                     doesn't shout at the user. -->
+                                                                <DataTrigger Binding="{Binding IsUnverified}" Value="True">
+                                                                    <Setter Property="Background" Value="{StaticResource TextMutedBrush}"/>
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                    <Setter Property="ToolTip" Value="Queued — not checked yet"/>
+                                                                </DataTrigger>
+                                                                <!-- Found, but in a file type we can't read properly.
+                                                                     Amber "?": a real hit that deserves a look. -->
+                                                                <DataTrigger Binding="{Binding IsUncertain}" Value="True">
+                                                                    <Setter Property="Background" Value="{StaticResource WarningBrush}"/>
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                    <Setter Property="ToolTip" Value="Probably matches — found in a file type we can't read properly, so it may be incidental"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsUnreadable}" Value="True">
+                                                                    <Setter Property="Background" Value="{StaticResource TextMutedBrush}"/>
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                    <Setter Property="ToolTip" Value="Couldn't be checked — this file's text is compressed or unreadable, so it may still match"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsRejected}" Value="True">
+                                                                    <Setter Property="Background" Value="{StaticResource DangerBrush}"/>
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                    <Setter Property="ToolTip" Value="Checked — does not match"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+
+                                                    <TextBlock FontSize="9"
+                                                               FontWeight="Bold"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{StaticResource OnAccentBrush}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Text" Value="?"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsRejected}" Value="True">
+                                                                        <Setter Property="Text" Value="✕"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Border>
+                                            </Grid>
+                                            <TextBlock Text="{Binding FileName}"
+                                                       FontSize="13"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
-                                                        <Setter Property="Text" Value="📄"/>
+                                                        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsFolder}" Value="True">
-                                                                <Setter Property="Text" Value="📁"/>
+                                                            <DataTrigger Binding="{Binding IsRejected}" Value="True">
+                                                                <Setter Property="TextDecorations" Value="Strikethrough"/>
+                                                                <Setter Property="Opacity" Value="0.5"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsUnverified}" Value="True">
+                                                                <Setter Property="Opacity" Value="0.75"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </TextBlock.Style>
                                             </TextBlock>
-                                            <TextBlock Text="{Binding FileName}"
-                                                       Foreground="{StaticResource TextBrush}"
-                                                       FontSize="13"
-                                                       VerticalAlignment="Center"
-                                                       TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>

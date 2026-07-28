@@ -2,6 +2,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.Common.Search;
+using Nexaflow.Search;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem.ClientTools;
 using Nexaflow.Features.WindowsFileSystem.Controls;
@@ -31,7 +33,7 @@ public enum EntryFilter { None, FoldersOnly, FilesOnly }
 
 // ── Main ViewModel ────────────────────────────────────────────────────────────
 
-public partial class FileSystemViewModel : ObservableObject, IPageViewModel
+public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISearchable
 {
     [ObservableProperty] private string _currentPath = string.Empty;
     [ObservableProperty] private FileSystemEntry? _selectedEntry;
@@ -1294,6 +1296,92 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel
             CurrentPath   = CurrentPath,
             SelectedItems = CurrentSelection.Select(e => e.FullPath).ToList()
         };
+    }
+
+    // ── ISearchable ───────────────────────────────────────────────────────────
+
+    /// <summary>Hits handed to the agent in one corpus query.</summary>
+    private const int SearchHitCap = 200;
+
+    private IFileCorpusSearch? _corpusSearch;
+
+    // Resolved lazily from whichever feature owns a file index — never referenced directly, so the browser
+    // stays independent of the search feature (same seam as the archive codecs).
+    private IFileCorpusSearch? CorpusSearch =>
+        _corpusSearch ??= (_shell.DiscoverImplementations<IFileCorpusSearch>() ?? [])
+            .Select(t => { try { return Activator.CreateInstance(t) as IFileCorpusSearch; } catch { return null; } })
+            .FirstOrDefault(e => e is not null);
+
+    /// <summary>This page searches files, so filename globs mean something here.</summary>
+    public IReadOnlyList<ISearchTermRecognizer> TermRecognizers { get; } = [new GlobTermRecognizer()];
+
+    public string SearchTargetDescription =>
+        IsThisPcMode                     ? "files across this PC"
+        : string.IsNullOrEmpty(RootPath) ? "files under the current folder"
+                                         : $"files under '{RootPath}'";
+
+    /// <summary>
+    /// Globs, quoted terms and property filters are strong evidence of a search; a bare path is
+    /// navigation and belongs to the <c>&gt;</c> handler, so it is damped rather than claimed.
+    /// </summary>
+    public float ScoreQuery(string input)
+    {
+        var score = SearchQueryScorer.Score(input);
+        var trimmed = input.Trim();
+        if (score > 0 && IsUnquotedAbsolutePath(trimmed)) score *= 0.25f;
+        return score;
+    }
+
+    private static bool IsUnquotedAbsolutePath(string input)
+    {
+        if (input.Length < 2) return false;
+        if (input[0] == '"' || input[0] == '\'') return false;
+        if (input.Contains('*') || input.Contains('?')) return false;   // globs stay as search
+        return Path.IsPathRooted(input);
+    }
+
+    // The browser can't settle a content regex itself — the verifier that reads candidate files lives with
+    // the search feature. So the agent is told which rows are proven and which are only possible, rather
+    // than being handed a set that silently mixes the two.
+    private static string RegexScopeNote(int confirmed, int possible, string pattern) =>
+        confirmed + possible == 0
+            ? $"Nothing matched /{pattern}/ here."
+            : $"{confirmed} match(es) confirmed by file name; {possible} more came back from the index and " +
+              "may match inside the file — open a Search tab to have those checked.";
+
+    public async Task<SearchOutcome> SearchAsync(SearchRequest request, bool display, CancellationToken ct)
+    {
+        if (request.IsRegex && !request.TryCompileRegex(out _, out var error))
+            return SearchOutcome.Unsupported($"Invalid regular expression: {error}");
+
+        var context = GetContextObject() as FileSystemContext;
+        var scoped  = new FileSearchRequest(request, context?.RootPath ?? RootPath, context?.AvailableDrives ?? []);
+        if (!scoped.HasScope)
+            return SearchOutcome.Unsupported("There is no folder or drive here to search.");
+
+        if (!display)
+        {
+            // Agent-side read: query the index directly and leave the browser exactly as it was. This can't
+            // go through HandleObject — that seam is fire-and-forget UI ("do the default thing with this"),
+            // and the agent needs the hits back.
+            if (CorpusSearch is not { } engine)
+                return SearchOutcome.Unsupported("No file search index is available.");
+
+            var hits = await engine.SearchAsync(request, scoped.Root, scoped.Drives, SearchHitCap, ct);
+            if (!request.IsRegex)
+                return hits.Count == 0 ? SearchOutcome.None() : SearchOutcome.Found(hits);
+
+            // Some of these are proven (the name matched) and some are only index candidates. Reporting the
+            // split keeps the agent from presenting "might match" rows as findings.
+            var confirmed = hits.Count(h => h.State == SearchHitState.Verified);
+            return SearchOutcome.Narrowed(hits, RegexScopeNote(confirmed, hits.Count - confirmed, request.Text));
+        }
+
+        // Hand the search off and let whichever feature owns file search present it — the browser doesn't
+        // know, or need to know, that a Search tab is what appears.
+        return _shell.HandleObject(scoped)
+            ? SearchOutcome.None()      // the results surface is the feedback; nothing to say in chat
+            : SearchOutcome.Unsupported("Nothing in this install can show file search results.");
     }
 
     private bool IsRootedOnDriveOrThisPc()

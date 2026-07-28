@@ -3,11 +3,14 @@ using CommunityToolkit.Mvvm.Input;
 using ICSharpCode.AvalonEdit.Document;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.Common.Search;
+using Nexaflow.Search;
 using Nexaflow.Features.Text.ClientTools;
 using Nexaflow.Features.Text.Services;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Controls;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -25,7 +28,7 @@ public sealed record SplitModeOption(SplitMode Mode, string Label)
     public override string ToString() => Label;
 }
 
-public sealed partial class TextViewModel : ObservableObject, IDisposable, IPageViewModel, IContextPreview
+public sealed partial class TextViewModel : ObservableObject, IDisposable, IPageViewModel, IContextPreview, ISearchable
 {
     private const long SmallFileSizeLimit = 100 * 1024; // 100 KB
     private const int  LinesPerPage       = 2000;        // page granularity for the line index
@@ -603,8 +606,13 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     }
 
     // Scans the CURRENT content (overlay-aware for large files) for matching line numbers + total count.
-    private async Task<(long[] lines, int count)> ScanAsync(Regex? regex, string? query, CancellationToken ct)
+    // The comparison is a parameter rather than SearchComparison so an agent-side search can run
+    // case-sensitively without flipping the find bar's MatchCase toggle under the user.
+    private async Task<(long[] lines, int count)> ScanAsync(
+        Regex? regex, string? query, CancellationToken ct,
+        StringComparison? comparison = null, List<SearchHit>? collect = null, int collectCap = 0)
     {
+        var cmp           = comparison ?? SearchComparison;
         var matchingLines = new List<long>();
         var total         = 0;
 
@@ -613,8 +621,8 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
             await foreach (var (line, text, _) in _file.EnumerateLinesAsync(ct))
             {
                 bool hit = regex is not null ? regex.IsMatch(text)
-                    : !string.IsNullOrEmpty(query) && text.Contains(query, SearchComparison);
-                if (hit) { matchingLines.Add(line); total++; }
+                    : !string.IsNullOrEmpty(query) && text.Contains(query, cmp);
+                if (hit) { matchingLines.Add(line); total++; Collect(line, text); }
             }
         }
         else
@@ -625,11 +633,112 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
                 ct.ThrowIfCancellationRequested();
                 var text = docLines[i];
                 bool hit = regex is not null ? regex.IsMatch(text)
-                    : !string.IsNullOrEmpty(query) && text.Contains(query, SearchComparison);
-                if (hit) { matchingLines.Add(i); total++; }
+                    : !string.IsNullOrEmpty(query) && text.Contains(query, cmp);
+                if (hit) { matchingLines.Add(i); total++; Collect(i, text); }
             }
         }
         return (matchingLines.ToArray(), total);
+
+        // Previews are taken from the scan itself, so a large file (whose Document holds only the
+        // resident window) still yields real line text rather than a placeholder.
+        void Collect(long line, string text)
+        {
+            if (collect is null || collect.Count >= collectCap) return;
+            collect.Add(new SearchHit(line.ToString(CultureInfo.InvariantCulture), $"line {line + 1}", text.TrimEnd('\r')));
+        }
+    }
+
+    // ── ISearchable ───────────────────────────────────────────────────────────
+
+    /// <summary>Hits handed to the agent in one call — enough to reason over without flooding its context.</summary>
+    private const int SearchHitCap = 200;
+
+    public string SearchTargetDescription =>
+        string.IsNullOrEmpty(FileName) ? "the open text file" : $"the open text file '{FileName}'";
+
+    /// <summary>Mirrors the old conventional-search handler's curve: a term or two is almost certainly a
+    /// search; four is borderline. Past that <see cref="SearchScoring.LooksLikeProse"/> has already bowed out.</summary>
+    public float ScoreQuery(string input) => SearchScoring.TermCount(input) switch
+    {
+        1 => 0.9f,
+        2 => 0.8f,
+        3 => 0.6f,
+        4 => 0.2f,
+        _ => 0f,
+    };
+
+    public async Task<SearchOutcome> SearchAsync(SearchRequest request, bool display, CancellationToken ct)
+    {
+        // This page has one body and no filenames to judge, so it never offers the glob recogniser and
+        // should never see a name-scoped term. Saying so beats silently dropping the constraint.
+        if (request.HasNameOnlyTerms)
+            return SearchOutcome.Unsupported(
+                "Filename filters don't apply when searching inside a file — drop them and search the text.");
+
+        Regex? regex = null;
+        if (request.IsRegex && !request.TryCompileRegex(out regex, out var error))
+            return SearchOutcome.Unsupported($"Invalid regular expression: {error}");
+
+        if (!display)
+        {
+            // Agent-side read: scan without touching highlights, the minimap or the find bar.
+            var hits = new List<SearchHit>();
+            var (_, found) = await ScanAsync(
+                regex, request.IsRegex ? null : request.Text, ct, request.Comparison, hits, SearchHitCap);
+            return found == 0 ? SearchOutcome.None() : SearchOutcome.Found(hits, found);
+        }
+
+        // Drive the page's own search so an AI-bar search lights up exactly what the find bar would.
+        if (MatchCase != request.MatchCase)
+        {
+            _suppressFindRun = true;
+            MatchCase = request.MatchCase;
+            _suppressFindRun = false;
+        }
+
+        if (request.IsRegex) await SearchRegexAsync(request.Text, ct);
+        else                 await SearchConventionalAsync(request.Text, ct);
+
+        return SearchMatchCount == 0
+            ? SearchOutcome.None()
+            : SearchOutcome.Found(VisibleHits(), SearchMatchCount);
+    }
+
+    /// <summary>
+    /// Narrows the match set to the agent's chosen lines — the minimap, match count and next/previous
+    /// navigation all follow it. In-window highlighting still paints every occurrence of the pattern,
+    /// since it is drawn from the pattern rather than the match list.
+    /// </summary>
+    public async Task<bool> ShowResultsAsync(IReadOnlyList<SearchHit> hits, CancellationToken ct)
+    {
+        var lines = hits.Select(h => long.TryParse(h.Id, out var l) ? l : -1)
+                        .Where(l => l >= 0)
+                        .Distinct()
+                        .OrderBy(l => l)
+                        .ToArray();
+        if (lines.Length == 0) return false;
+
+        _matchingLineNumbers = lines;
+        MiniMapMarks         = MarksFor(lines);
+        SearchMatchCount     = lines.Length;
+        IsSearchActive       = true;
+        _currentMatchIndex   = 0;
+        RefreshWindowHighlights();
+        await NavigateToMatchLineAsync(lines[0]);
+        return true;
+    }
+
+    // The current match lines as hits, previewed from the resident document.
+    private IReadOnlyList<SearchHit> VisibleHits()
+    {
+        var hits = new List<SearchHit>(Math.Min(_matchingLineNumbers.Length, SearchHitCap));
+        foreach (var l in _matchingLineNumbers)
+        {
+            if (hits.Count >= SearchHitCap) break;
+            var preview = IsLargeFile ? null : LineText((int)l);
+            hits.Add(new SearchHit(l.ToString(CultureInfo.InvariantCulture), $"line {l + 1}", preview));
+        }
+        return hits;
     }
 
     private IReadOnlyList<double> MarksFor(long[] lines)

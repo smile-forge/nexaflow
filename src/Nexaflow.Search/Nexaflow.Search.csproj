@@ -8,11 +8,8 @@
     <FileVersion>1.0.0.0</FileVersion>
   </PropertyGroup>
 
-  <ItemGroup>
-    <!-- The query language defines the recogniser contract; the glob one lives here, next to Glob itself,
-         so Nexaflow.Search needs no glob implementation and no reference back to this library. -->
-    <ProjectReference Include="..\Nexaflow.Search\Nexaflow.Search.csproj" />
-  </ItemGroup>
+  <!-- A leaf on purpose: no project references. Term kinds the base syntax doesn't know (filename globs)
+       arrive through ISearchTermRecognizer, so this library never needs a glob implementation. -->
 
   <ItemGroup>
     <InternalsVisibleTo Include="Nexaflow.Tests.Features" />

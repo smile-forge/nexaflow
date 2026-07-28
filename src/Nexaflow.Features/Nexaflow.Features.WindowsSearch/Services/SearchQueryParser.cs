@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using Nexaflow.IO.Common;
+using Nexaflow.Search;
 
 namespace Nexaflow.Features.WindowsSearch.Services;
 
@@ -129,6 +130,65 @@ public static class SearchQueryParser
             Matches     = p => terms.All(t =>
                 Glob.ContainsGlobChars(t) ? Glob.IsMatch(p.Name, t) : NameHas(p, t))
         };
+    }
+
+    /// <summary>
+    /// Builds one index query from a whole compound search: a term's alternatives OR'd, the terms AND'd —
+    /// so <c>*.txt|*.md /ma(ths|gic)/ ocr</c> asks for "(.txt or .md) and (maths or magic) and ocr" in a
+    /// single query rather than several.
+    /// <para>
+    /// Null when no term could be narrowed on at all. A term that individually can't be seeded is dropped
+    /// rather than failed: the rest still narrow and the caller's post-filter applies the full query
+    /// afterwards, so dropping only ever widens — which is safe, where narrowing would lose real results.
+    /// </para>
+    /// </summary>
+    public static ParsedQuery? FromTerms(IReadOnlyList<SearchTerm> terms)
+    {
+        var clauses = new List<string>();
+        var nameOnly = true;
+
+        foreach (var term in terms)
+        {
+            var seeds = AqsRegexTranslator.SeedsFor(term);
+            if (seeds is null || seeds.Count == 0) continue;
+
+            var alternatives = seeds.Select(s => ClauseFor(term, s)).ToList();
+            clauses.Add(alternatives.Count == 1
+                ? alternatives[0]
+                : "(" + string.Join(" OR ", alternatives) + ")");
+
+            if (!term.NameOnly) nameOnly = false;
+        }
+
+        if (clauses.Count == 0) return null;
+
+        var request = new SearchRequest(terms[0].Value, terms[0].Kind == SearchTermKind.Regex) { Terms = terms };
+        return new ParsedQuery
+        {
+            RawInput    = string.Join(" ", terms.Select(t => t.Label)),
+            IsGlob      = nameOnly,
+            WhereClause = string.Join(" AND ", clauses),
+            // The live-walk fallback can only see names, so it judges the query on the name alone.
+            Matches     = p => request.MatchesName(p.Name),
+        };
+    }
+
+    // A name-scoped term constrains the filename; anything else may match the name or the contents.
+    //
+    // A regex seed is only a FRAGMENT of what the pattern wants — "math[sy]" seeds "math" — and CONTAINS
+    // matches whole WORDS, so an exact-word clause would never return a document containing "maths" and the
+    // post-filter would never get the chance to confirm it. A prefix match ("math*") restores it. Safe here
+    // precisely because a seeded query is always re-filtered afterwards; a plain literal term is NOT
+    // re-filtered, so widening that one would hand back rows the user never asked for.
+    private static string ClauseFor(SearchTerm term, string seed)
+    {
+        if (term.NameOnly) return $"System.FileName LIKE '{Glob.ToSqlLike(seed)}'";
+
+        var contents = term.Kind == SearchTermKind.Regex
+            ? $"CONTAINS(System.Search.Contents,'\"{EscapeSql(seed)}*\"')"
+            : $"CONTAINS(System.Search.Contents,'{EscapeSql(seed)}')";
+
+        return $"({contents} OR System.FileName LIKE '%{EscapeLike(seed)}%')";
     }
 
     /// <summary>

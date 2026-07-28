@@ -8,6 +8,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.Common.Search;
+using Nexaflow.Search;
 using Nexaflow.Features.WindowsApps.Models;
 using Nexaflow.Features.WindowsApps.Services;
 
@@ -18,7 +20,7 @@ namespace Nexaflow.Features.WindowsApps.ViewModels;
 /// any column, filterable by name (footer box or the shell query handler), with a per-row Uninstall.
 /// Loading and uninstalling run off the UI thread via the shell's background-activity queue.
 /// </summary>
-public sealed partial class WindowsAppsViewModel : ObservableObject, IPageViewModel
+public sealed partial class WindowsAppsViewModel : ObservableObject, IPageViewModel, ISearchable
 {
     private readonly IShellServices _shell;
     private readonly InstalledAppsService _service;
@@ -52,11 +54,28 @@ public sealed partial class WindowsAppsViewModel : ObservableObject, IPageViewMo
         Refresh();
     }
 
-    private bool MatchesFilter(InstalledAppItem item) =>
-        string.IsNullOrWhiteSpace(FilterText) ||
-        item.Name.Contains(FilterText.Trim(), StringComparison.OrdinalIgnoreCase);
+    // The footer box sets FilterText (literal); a search from the AI bar may instead install a compiled
+    // pattern, or an explicit set of names the agent picked. Checked most-specific first.
+    private bool MatchesFilter(InstalledAppItem item)
+    {
+        if (_pinnedNames is not null) return _pinnedNames.Contains(item.Name);
+        if (_filterRequest is not null) return _filterRequest.Matches(item.Name);
+        return string.IsNullOrWhiteSpace(FilterText) ||
+               item.Name.Contains(FilterText.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
 
-    partial void OnFilterTextChanged(string value) => _view.Refresh();
+    // Set when the filter came from a search request rather than the footer box.
+    private SearchRequest?  _filterRequest;
+    private HashSet<string>? _pinnedNames;
+
+    partial void OnFilterTextChanged(string value)
+    {
+        // Typing in the footer box supersedes any AI-driven filter.
+        if (!_suppressFilterReset) { _filterRequest = null; _pinnedNames = null; }
+        _view.Refresh();
+    }
+
+    private bool _suppressFilterReset;
 
     // ── Loading ───────────────────────────────────────────────────────────
     [RelayCommand]
@@ -193,6 +212,58 @@ public sealed partial class WindowsAppsViewModel : ObservableObject, IPageViewMo
         FilterText = text ?? string.Empty;
         return null;
     }
+
+    // ── ISearchable ───────────────────────────────────────────────────────────
+
+    public string SearchTargetDescription => "the installed application list, by application name";
+
+    public async Task<SearchOutcome> SearchAsync(SearchRequest request, bool display, CancellationToken ct)
+    {
+        // Apps have names, not files — a filename glob isn't a constraint this list can honour.
+        if (request.HasNameOnlyTerms)
+            return SearchOutcome.Unsupported("Filename filters don't apply to the application list.");
+
+        if (request.IsRegex && !request.TryCompileRegex(out _, out var error))
+            return SearchOutcome.Unsupported($"Invalid regular expression: {error}");
+
+        // Snapshot the names off the UI thread's collection before scanning.
+        var matches = Apps.Where(a => request.Matches(a.Name)).ToList();
+
+        if (display)
+        {
+            _suppressFilterReset = true;
+            FilterText     = SearchSyntax.Format(request);
+            _filterRequest = request;
+            _pinnedNames   = null;
+            _suppressFilterReset = false;
+            _view.Refresh();
+        }
+
+        await Task.CompletedTask;
+        return matches.Count == 0 ? SearchOutcome.None() : SearchOutcome.Found(HitsFor(matches));
+    }
+
+    /// <summary>Pins the list to exactly the apps the agent chose, by name.</summary>
+    public Task<bool> ShowResultsAsync(IReadOnlyList<SearchHit> hits, CancellationToken ct)
+    {
+        var names = hits.Select(h => h.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (names.Count == 0) return Task.FromResult(false);
+
+        _suppressFilterReset = true;
+        FilterText     = $"{names.Count} selected";
+        _filterRequest = null;
+        _pinnedNames   = names;
+        _suppressFilterReset = false;
+        _view.Refresh();
+        return Task.FromResult(true);
+    }
+
+    private static IReadOnlyList<SearchHit> HitsFor(IEnumerable<InstalledAppItem> apps) =>
+        apps.Select(a => new SearchHit(
+                a.Name,
+                a.Name,
+                string.IsNullOrEmpty(a.Publisher) ? a.Version : $"{a.Publisher} {a.Version}".Trim()))
+            .ToList();
 
     // ── IPageViewModel ───────────────────────────────────────────────────────
     public string GetContext()

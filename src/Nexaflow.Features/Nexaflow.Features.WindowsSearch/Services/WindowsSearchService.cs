@@ -3,6 +3,22 @@ using System.IO;
 
 namespace Nexaflow.Features.WindowsSearch.Services;
 
+/// <summary>Where a result set actually came from — the two cover different files and behave differently,
+/// so anything reporting counts to the user has to name which one produced them.</summary>
+public enum SearchOrigin
+{
+    /// <summary>The Windows Search index. Covers indexed locations and can match file contents.</summary>
+    Index,
+
+    /// <summary>A live walk of the folder tree, used for globs and when the index is unavailable or empty
+    /// under a real local directory. Sees every file, but can only match on what a walk exposes.</summary>
+    FolderScan,
+}
+
+/// <param name="Entries">The rows found.</param>
+/// <param name="Origin">Which mechanism produced them.</param>
+public sealed record SearchResults(IReadOnlyList<SearchResultEntry> Entries, SearchOrigin Origin);
+
 /// <summary>
 /// Queries the Windows Search index via OLE DB, with a live-filesystem fallback for
 /// locations the index doesn't cover (e.g. a data folder on a secondary drive).
@@ -43,6 +59,18 @@ public static class WindowsSearchService
         string rootPath,
         CancellationToken ct,
         int maxResults = 500)
+        => Task.Run(() => Search(parsed, rootPath, maxResults, allowWalk: true, ct).Entries, ct);
+
+    /// <summary>
+    /// As <see cref="SearchAsync(ParsedQuery,string,CancellationToken,int)"/>, but also reports whether the
+    /// rows came from the index or from a live folder scan. The two can return very different sets, so a UI
+    /// telling the user how many files were returned has to say which produced them.
+    /// </summary>
+    public static Task<SearchResults> SearchWithOriginAsync(
+        ParsedQuery parsed,
+        string rootPath,
+        CancellationToken ct,
+        int maxResults = 500)
         => Task.Run(() => Search(parsed, rootPath, maxResults, allowWalk: true, ct), ct);
 
     public static async Task<IReadOnlyList<SearchResultEntry>> SearchAcrossAsync(
@@ -57,7 +85,7 @@ public static class WindowsSearchService
             Task.Run(() => Search(parsed, r, maxResults, allowWalk: false, ct), ct));
         var results = await Task.WhenAll(tasks);
         return results
-            .SelectMany(r => r)
+            .SelectMany(r => r.Entries)
             .OrderByDescending(e => e.Modified)
             .Take(maxResults)
             .ToList();
@@ -69,11 +97,11 @@ public static class WindowsSearchService
     /// hits the index and falls back to a walk when the index is empty or unavailable
     /// under a real local directory.
     /// </summary>
-    private static IReadOnlyList<SearchResultEntry> Search(
+    private static SearchResults Search(
         ParsedQuery parsed, string rootPath, int maxResults, bool allowWalk, CancellationToken ct)
     {
         if (allowWalk && parsed.IsGlob)
-            return Walk(parsed, rootPath, maxResults, ct);
+            return new(Walk(parsed, rootPath, maxResults, ct), SearchOrigin.FolderScan);
 
         IReadOnlyList<SearchResultEntry> indexed;
         try
@@ -82,13 +110,13 @@ public static class WindowsSearchService
         }
         catch (OleDbException) when (allowWalk && Directory.Exists(rootPath))
         {
-            return Walk(parsed, rootPath, maxResults, ct);
+            return new(Walk(parsed, rootPath, maxResults, ct), SearchOrigin.FolderScan);
         }
 
         if (allowWalk && indexed.Count == 0 && Directory.Exists(rootPath))
-            return Walk(parsed, rootPath, maxResults, ct);
+            return new(Walk(parsed, rootPath, maxResults, ct), SearchOrigin.FolderScan);
 
-        return indexed;
+        return new(indexed, SearchOrigin.Index);
     }
 
     private static IReadOnlyList<SearchResultEntry> SearchIndex(

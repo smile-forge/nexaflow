@@ -376,10 +376,14 @@ public sealed class MyQueryHandler : IQueryHandler
     public string Description => "Handles my feature's input";
     public string? Symbol => null;                           // optional prefix character
 
-    public float CanProcess(string input, IPageViewModel? pageVm = null)
-        => pageVm is MyViewModel ? 0.9f : 0f;                // page-scoped via the type check
+    public float CanProcess(string input, bool prefixed, IPageViewModel? pageVm = null)
+    {
+        if (pageVm is not MyViewModel) return 0f;            // page-scoped via the type check
+        if (prefixed) return 1f;                             // the user chose this handler — take it
+        return LooksLikeMine(input) ? 0.9f : 0f;             // heuristics compete for bare text only
+    }
 
-    public async Task<string?> ProcessAsync(string input, IPageViewModel? pageVm = null)
+    public async Task<string?> ProcessAsync(string input, bool prefixed, IPageViewModel? pageVm = null)
     {
         if (pageVm is not MyViewModel vm) return "No active tab.";
         await vm.DoSomethingAsync(input);
@@ -387,6 +391,15 @@ public sealed class MyQueryHandler : IQueryHandler
     }
 }
 ```
+
+**The `prefixed` short-circuit is mandatory, not stylistic.** A symbol exists so the user can force a
+handler; gating a prefixed call on the same heuristics used for bare input means the forced invocation
+scores 0 and falls through to the agent, which is the opposite of what was asked. Anything that can't be
+done gets reported from `ProcessAsync`, which can say why.
+
+To make a page *searchable*, don't write a handler at all — implement `ISearchable`
+(`Features.Common/Search`) and the shell's `?` handler routes to it, with the agent's `search_page` /
+`show_search_results` tools added automatically. See [features.md](features.md) → *Searching a page*.
 
 ---
 

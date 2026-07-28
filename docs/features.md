@@ -73,13 +73,90 @@ Intercepts the AI input bar before text reaches the LLM. Handlers are **auto-dis
 `FeatureCatalog` index) and built per `WorkspaceRuntime` — there is **no registration step**. Scope is
 expressed inside `CanProcess(input, prefixed, pageVm)`: the active page's ViewModel is passed in, so a
 page-scoped handler is a type check returning 0 for pages it doesn't own. `Symbol` claims a single-char prefix
-(e.g. `>` → console, `/` → page quick-open, `\` → text regex, `$` → JSONPath): when the user types it, the
-router strips it, narrows to the owning handler(s), and passes `prefixed: true` — so a handler can score
-explicit invocation higher, or interpret the input differently, than the same text typed bare. Otherwise
-`CanProcess` returns a 0–1 score and `IAIService.DisambiguateToolSelection` breaks ties via the LLM.
-`ProcessAsync` returns null (handled silently) or a string (shown in AI Chat). It also receives `prefixed`, so
-a handler whose symbol is part of the payload (JSONPath's `$`) can restore it. Canonical example:
+(`?` → search the current page, `>` → console / file-browser navigation, `/` → page quick-open, `$` → JSONPath):
+`?` has exactly one owner — see `ISearchable` below.
+when the user types it, the router strips it, narrows to the owning handler(s), and passes `prefixed: true` — so
+a handler can score explicit invocation higher, or interpret the input differently, than the same text typed
+bare. Otherwise `CanProcess` returns a 0–1 score and `IAIService.DisambiguateToolSelection` breaks ties via the
+LLM. `ProcessAsync` returns null (handled silently) or a string (shown in AI Chat). It also receives `prefixed`,
+so a handler whose symbol is part of the payload (JSONPath's `$`) can restore it. Canonical example:
 `Nexaflow.Features.WindowsSearch`.
+
+**A symbol is a promise.** When the user types it they have *chosen* this handler, so `CanProcess` must return
+a winning score for `prefixed: true` before any of its own heuristics run — the guesswork exists to compete for
+bare text, and applying it to a forced invocation silently drops the input to the agent instead. Report the
+failure from `ProcessAsync` (which can explain it) rather than declining in `CanProcess` (which cannot).
+Two handlers may share a symbol when their page gates are disjoint (`>` is console *or* file browser).
+
+### Searching a page — `ISearchable`
+
+Don't write a query handler for search. Implement `ISearchable` on the page ViewModel and the shell's single
+`?` handler routes to it, the AI-bar status dot lights up, and the agent is automatically handed two tools —
+no registration, no per-feature handler.
+
+**It is not a filter-the-visible-list contract.** A text tab searches its file and highlights in place; the
+file browser searches the folder tree it's showing and hands the results off to be presented elsewhere. Both
+are "search here" to the user, both want the same syntax and the same agent tools, so both share the contract
+and differ only in `ScoreQuery` and what `SearchAsync` does with `display`.
+
+```csharp
+public sealed partial class MyViewModel : ObservableObject, IPageViewModel, ISearchable
+{
+    public string SearchTargetDescription => "the loaded rows";          // for the agent's tool catalogue
+    public bool   SupportsRegex           => true;                        // false ⇒ MUST refuse, not fall back
+
+    public async Task<SearchOutcome> SearchAsync(SearchRequest r, bool display, CancellationToken ct)
+    {
+        if (r.IsRegex && !r.TryCompileRegex(out var rx, out var err))
+            return SearchOutcome.Unsupported($"Invalid regular expression: {err}");
+        var hits = Rows.Where(x => r.Matches(x.Name)).Select(x => new SearchHit(x.Id, x.Name)).ToList();
+        if (display) ApplyFilter(r);        // drive the page's own search UI; skip entirely when false
+        return SearchOutcome.Found(hits);
+    }
+}
+```
+
+- **Regex is a mode, not a handler.** `SearchSyntax` parses `?/pattern/flags` (flags: `c` case-sensitive,
+  `i` insensitive) once, centrally, and hands the page a decided `SearchRequest`. An unterminated `?/pat` is
+  still a regex; anything whose trailing segment isn't valid flags stays literal, so `?/api/v1/users` searches
+  for that path. Use `request.Matches(...)` / `TryCompileRegex(...)` rather than re-deriving the rules.
+- **`display: false` must not touch the UI** — no highlight, no filter, no new tab. That's the agent reading
+  results privately; `true` is a user search and should present them however this page presents results.
+- **Presenting results you don't own** goes through `IShellServices.HandleObject` — raise a
+  `FileSearchRequest` and whichever feature owns file search claims it, exactly as the scratchpad hands off a
+  clicked URL without knowing the web feature exists. Use that for the `display: true` path. It's void and
+  fire-and-forget, so it can't serve `display: false`; a page needing *data* from another feature discovers a
+  compute engine instead (`IFileCorpusSearch`, like the archive codecs' `IArchiveEncryptor`). Present via
+  `HandleObject`, compute via `DiscoverImplementations` — don't reach for the second when the first will do.
+- **Regex is not optional and there is no opt-out flag.** A capability that works on some pages and not
+  others is worse than none, so every implementor honours `IsRegex`. A backend whose query language has no
+  regex operator translates the pattern into the widest query that still *covers* it and re-filters the rows
+  with the real `Regex` — widening only ever over-matches, so the post-filter restores exactness and
+  translation quality affects speed, never correctness. `AqsRegexTranslator` is the worked example against
+  Windows Search. `SearchableConformanceTests` (in `Nexaflow.Tests.Features/Search`) enforces this — derive a
+  `[TestClass]` from it per implementor and the shared assertions run against your page, including one that
+  fails if the "regex" result is indistinguishable from a literal `Contains`.
+- **Post-filtering needs the text you matched on**, and a file index returns names, not bodies. So a
+  content regex is answered in **two stages**: the index's rows appear immediately, those whose *name*
+  matches are already proven (no read needed), and the rest are `SearchHitState.Candidate` — shown with a
+  `?` overlay while a background `SearchVerifier` reads each one and flips it to a tick or strikes it
+  through. Past `AutoVerifyLimit` (50) the sweep is opt-in: the first 50 run anyway so the list is usable
+  and a banner offers the rest, because reading thousands of files off a keystroke is the user's call.
+  Content comes from a format-aware `IFileTextExtractor` when a feature provides one, else the file is read
+  as text (encoding sniffed, binaries skipped, size capped). Verification order matters — detect encoding
+  *before* the NUL binary sniff, or every UTF-16 file is discarded as binary.
+- **Bare input.** An explicit `?` always wins. Un-prefixed text is scored by `ScoreQuery` (default 0.5) after
+  a shared prose filter drops anything over 4 terms to the agent. Scoring runs per keystroke, so it must be
+  cheap — never speculatively run the search to see whether it matches.
+- **Agent tools** (added automatically by `AIService`): `search_page` reads matches without changing the view;
+  `show_search_results` narrows the view to ids from that read, so the agent can search broadly, filter by
+  meaning, then show only what survived. `ShowResultsAsync` returns false when a page can't render a subset.
+
+Worked example of the awkward case: `FileSystemViewModel` is `ISearchable` even though it displays none of
+the results itself. `ScoreQuery` uses the shared `SearchQueryScorer` (globs and property filters beat prose,
+a bare absolute path is damped so `>` navigation still wins it), `display: true` hands off a
+`FileSearchRequest`, and `display: false` runs the discovered `IFileCorpusSearch` so the agent can answer
+"find the office documents mentioning george" from a browser tab.
 
 The terminal also shows the richer chat-bar hooks — `IChatKeyHandler` (history/Tab-completion),
 `IChatInputPreview` (echo a `>` command), `IChatDropHandler` (dropped file → quoted path); see the interface

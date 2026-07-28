@@ -106,6 +106,53 @@ public class FileSystemQueryHandlerTests
         Assert.AreEqual(0f, new FileSystemQueryHandler().CanProcess("anything", false, vm));
     }
 
+    // ── CanProcess: the ">" prefix forces navigation ───────────────────────────
+
+    [TestMethod]
+    public void CanProcess_Prefixed_NonExistentRelativePath_IsClaimed()
+    {
+        var dir = TempDir();
+        try
+        {
+            var vm = AtPath(dir);
+
+            // Un-prefixed this scores 0 (see above); typed as ">no such folder" the user forced navigation,
+            // so the handler must take it and let ProcessAsync report the bad path.
+            Assert.IsTrue(new FileSystemQueryHandler().CanProcess("no such folder", true, vm) > 0f);
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [TestMethod]
+    public void CanProcess_Prefixed_Wildcard_IsClaimed()
+    {
+        var dir = TempDir();
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(dir, "logs"));
+            var vm = AtPath(dir);
+
+            // The wildcard rule yields to the search handlers on bare input only — ">" overrides it.
+            Assert.IsTrue(new FileSystemQueryHandler().CanProcess("logs\\*.txt", true, vm) > 0f);
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [TestMethod]
+    public void CanProcess_Prefixed_EmptyInput_IsRejected()
+    {
+        var dir = TempDir();
+        try
+        {
+            Assert.AreEqual(0f, new FileSystemQueryHandler().CanProcess("   ", true, AtPath(dir)));
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [TestMethod]
+    public void CanProcess_Prefixed_WrongPage_IsStillRejected()
+        => Assert.AreEqual(0f, new FileSystemQueryHandler().CanProcess("C:\\", true, null));
+
     // ── ProcessAsync ───────────────────────────────────────────────────────────
 
     [TestMethod]

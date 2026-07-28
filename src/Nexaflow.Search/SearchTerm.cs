@@ -1,0 +1,92 @@
+using System.Text.RegularExpressions;
+
+namespace Nexaflow.Search;
+
+/// <summary>What a term is matched against.</summary>
+public enum SearchTermKind
+{
+    /// <summary>A regular expression.</summary>
+    Regex,
+
+    /// <summary>Literal text, matched as a substring.</summary>
+    Text,
+}
+
+/// <summary>
+/// One constraint within a query. A query is the AND of its terms; a term with several
+/// <see cref="Alternatives"/> is the OR of those — so <c>*.txt|*.md /ma(ths|gic)/ ocr</c> is
+/// "(a .txt or .md file) AND (matching that pattern) AND (mentioning ocr)".
+/// </summary>
+/// <param name="Kind">How to interpret <paramref name="Alternatives"/>.</param>
+/// <param name="Alternatives">One or more values, OR'd together.</param>
+/// <param name="MatchCase">Case sensitivity.</param>
+/// <param name="NameOnly">
+/// True when this term can only sensibly be judged against a file's name — a filename glob, say. Kept as a
+/// flag rather than a term kind so this library needs no glob implementation of its own: a recogniser
+/// contributes the already-anchored pattern and marks it name-scoped.
+/// </param>
+/// <param name="Display">How the term was originally written, for messages. Falls back to the value.</param>
+/// <param name="Sources">
+/// The user's original alternatives when <paramref name="Alternatives"/> is a translation of them — a glob
+/// arrives here already converted to an anchored regex, and a backend with its own query language (an index
+/// that speaks globs natively) needs the glob back, not the translation.
+/// </param>
+public sealed record SearchTerm(
+    SearchTermKind Kind,
+    IReadOnlyList<string> Alternatives,
+    bool MatchCase = false,
+    bool NameOnly = false,
+    string? Display = null,
+    IReadOnlyList<string>? Sources = null)
+{
+    /// <summary>What the user actually wrote, per alternative — the translation when there was none.</summary>
+    public IReadOnlyList<string> SourceForms => Sources ?? Alternatives;
+
+    /// <summary>The single value, for the common one-alternative case.</summary>
+    public string Value => Alternatives.Count > 0 ? Alternatives[0] : string.Empty;
+
+    /// <summary>How to show this term to a user — what they typed, where that was kept.</summary>
+    public string Label => Display ?? string.Join("|", Alternatives);
+
+    private StringComparison Comparison =>
+        MatchCase ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+
+    /// <summary>
+    /// True when <paramref name="candidate"/> satisfies any alternative. <paramref name="isName"/> tells
+    /// the term whether it is looking at a filename, so a name-scoped term is never applied to a body.
+    /// </summary>
+    public bool Matches(string candidate, bool isName)
+    {
+        if (Alternatives.Count == 0) return false;
+        if (NameOnly && !isName) return false;
+
+        return Kind == SearchTermKind.Regex
+            ? Alternatives.Any(p => SafeRegex(p, candidate))
+            : Alternatives.Any(t => candidate.Contains(t, Comparison));
+    }
+
+    private bool SafeRegex(string pattern, string candidate)
+    {
+        try
+        {
+            return Regex.IsMatch(candidate, pattern,
+                MatchCase ? RegexOptions.None : RegexOptions.IgnoreCase);
+        }
+        catch (ArgumentException) { return false; }
+    }
+
+    /// <summary>False (with a reason) when the pattern can't compile — reported rather than silently
+    /// matching nothing.</summary>
+    public bool TryValidate(out string? error)
+    {
+        error = null;
+        if (Kind != SearchTermKind.Regex) return true;
+
+        foreach (var pattern in Alternatives)
+        {
+            try { _ = new Regex(pattern); }
+            catch (ArgumentException ex) { error = $"{Label} — {ex.Message}"; return false; }
+        }
+        return true;
+    }
+}

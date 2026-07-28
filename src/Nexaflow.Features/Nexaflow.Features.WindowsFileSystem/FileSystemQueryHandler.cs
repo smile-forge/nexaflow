@@ -27,6 +27,12 @@ public sealed class FileSystemQueryHandler : IQueryHandler
 
         var trimmed = input.Trim();
         if (trimmed.Length == 0) return 0f;
+
+        // An explicit ">" is the user forcing navigation: claim it without gating on wildcards, drive match
+        // or existence — those tests exist to yield to the search handlers on *un-prefixed* input, and
+        // ProcessAsync reports a bad path far better than handing the text to the agent.
+        if (prefixed) return 1f;
+
         if (trimmed.Contains('*') || trimmed.Contains('?')) return 0f;
 
         // Environment variable path — expand and treat as absolute
