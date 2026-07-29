@@ -107,6 +107,36 @@ public sealed class FileSystemSearchableTests : SearchableContentConformanceTest
     });
 
     [TestMethod]
+    public void DisplayingSearch_OpensTheSearchPage_EvenWithNoIndexBehindIt() => RunUnpumped(async () =>
+    {
+        // The browser hands the query over and stops thinking about it. It does not pre-check whether the
+        // search will succeed, so it needs no banner of its own — an empty result, an unreachable indexer
+        // and the offer of a folder scan are all the Search page's business.
+        var shell = Shell(withCorpus: false);          // nothing here can run a search
+        shell.HandleObject(Arg.Any<object>()).Returns(true);
+
+        await Vm(shell, Path.GetTempPath()).SearchAsync(new SearchRequest("*.cs"), display: true, default);
+
+        shell.Received(1).HandleObject(Arg.Any<FileSearchRequest>());
+    });
+
+    [TestMethod]
+    public void DisplayingSearch_DoesNotConsultTheIndexFirst() => RunUnpumped(async () =>
+    {
+        // Querying before handing off would make the browser decide whether the Search page is worth
+        // opening — and it would decide wrongly, because "the index found nothing" is exactly the case
+        // that page exists to offer a way out of.
+        var shell = Shell(withCorpus: true);
+        shell.HandleObject(Arg.Any<object>()).Returns(true);
+
+        var outcome = await Vm(shell, Path.GetTempPath())
+            .SearchAsync(new SearchRequest("zqxwv-no-such-token-8813"), display: true, default);
+
+        Assert.IsFalse(outcome.Failed, "a display search reports the handoff, not the search's outcome");
+        shell.Received(1).HandleObject(Arg.Any<FileSearchRequest>());
+    });
+
+    [TestMethod]
     public void DisplayingSearch_WithNothingToShowResults_SaysSo() => RunUnpumped(async () =>
     {
         var shell = Shell();

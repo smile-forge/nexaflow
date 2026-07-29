@@ -133,10 +133,17 @@ public class SearchScanOfferViewTests : UITestBase
 
         decline!.Click();
         Wait.UntilInputIsProcessed();
+        Thread.Sleep(500);
 
         var stillOffered = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("ScanFolder"));
         Assert.IsTrue(stillOffered is null || stillOffered.IsOffscreen,
             "declining must retire the offer — an option that survives being declined reads as broken");
+
+        // The whole banner goes, not just its buttons. Leaving the text behind would keep telling the user
+        // about a decision they have already made.
+        var text = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("VerificationBannerText"));
+        Assert.IsTrue(text is null || text.IsOffscreen,
+            "the banner should be gone once its question has been answered");
     }
 
     /// <summary>Waits for the banner to say something containing <paramref name="fragment"/>.</summary>

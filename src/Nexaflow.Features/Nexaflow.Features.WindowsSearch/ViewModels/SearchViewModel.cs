@@ -345,7 +345,15 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         }
     }
 
-    /// <summary>Stops a running scan, or declines the offer of one.</summary>
+    /// <summary>
+    /// Stops a running scan, or declines the offer of one.
+    /// <para>
+    /// Declining retires the banner entirely rather than leaving a "not scanned" note: the user answered
+    /// the question, and a banner that stays put after being dismissed reads as one that didn't listen. A
+    /// scan that was actually stopped is different — it looked at part of the tree, and what it found is
+    /// worth reporting.
+    /// </para>
+    /// </summary>
     [RelayCommand]
     private void StopScan()
     {
@@ -353,8 +361,8 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
 
         if (VerificationPhase == VerifyPhase.OfferScan)
         {
-            VerificationPhase  = VerifyPhase.Done;
-            VerificationBanner = "Not scanned.";
+            VerificationPhase  = VerifyPhase.None;
+            VerificationBanner = string.Empty;
         }
     }
 
