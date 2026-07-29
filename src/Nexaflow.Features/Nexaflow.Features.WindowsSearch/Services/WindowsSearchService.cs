@@ -81,17 +81,36 @@ public static class WindowsSearchService
         IEnumerable<string> roots,
         CancellationToken ct,
         int maxResults = 500)
+        => (await SearchAcrossWithOriginAsync(parsed, roots, ct, maxResults)).Entries;
+
+    /// <summary>
+    /// Every drive at once, reporting where the rows came from. The origin matters even here: if the
+    /// indexer is down, every drive comes back empty, and "no results" would be indistinguishable from a
+    /// genuine miss across the whole machine.
+    /// </summary>
+    public static async Task<SearchResults> SearchAcrossWithOriginAsync(
+        ParsedQuery parsed,
+        IEnumerable<string> roots,
+        CancellationToken ct,
+        int maxResults = 500)
     {
-        // "This PC" (all drives) stays index-only: a live walk of entire drives is
-        // impractical, and the index is exactly what a whole-machine search is for.
         var tasks   = roots.Select(r =>
-            Task.Run(() => Search(parsed, r, maxResults, allowWalk: false, ct), ct));
+            Task.Run(() => Search(parsed, r, maxResults, allowWalk: true, ct), ct));
         var results = await Task.WhenAll(tasks);
-        return results
+
+        var entries = results
             .SelectMany(r => r.Entries)
             .OrderByDescending(e => e.Modified)
             .Take(maxResults)
             .ToList();
+
+        // Unavailable only when NO drive could be asked — one working drive means the search really did
+        // run, and reporting it as broken would be worse than saying nothing.
+        var origin = results.Length > 0 && results.All(r => r.Origin == SearchOrigin.IndexUnavailable)
+            ? SearchOrigin.IndexUnavailable
+            : SearchOrigin.Index;
+
+        return new SearchResults(entries, origin);
     }
 
     /// <summary>
@@ -110,10 +129,11 @@ public static class WindowsSearchService
         {
             return new(SearchIndex(parsed, rootPath, maxResults, ct), SearchOrigin.Index);
         }
-        catch (OleDbException) when (allowWalk && Directory.Exists(rootPath))
+        catch (OleDbException)
         {
-            // The indexer is unavailable, not empty. Report nothing rather than guessing — the caller
-            // offers the scan, which is the only thing that can answer this query now.
+            // The indexer is unavailable, not empty. Reported rather than thrown, because an exception
+            // here dead-ends at a "service unavailable" message — while the folder scan can still answer
+            // the question, and is exactly what the caller should offer.
             return new([], SearchOrigin.IndexUnavailable);
         }
     }

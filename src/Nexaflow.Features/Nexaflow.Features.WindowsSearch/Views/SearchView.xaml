@@ -185,7 +185,10 @@
                                     Margin="8,0,0,0"/>
                         </StackPanel>
 
+                        <!-- The Border carries an AutomationId too, but a Border is not a UIA control and
+                             is not reliably discoverable; the text is. -->
                         <TextBlock Text="{Binding VerificationBanner}"
+                                   AutomationProperties.AutomationId="VerificationBannerText"
                                    Foreground="{StaticResource TextBrush}"
                                    FontSize="12"
                                    VerticalAlignment="Center"

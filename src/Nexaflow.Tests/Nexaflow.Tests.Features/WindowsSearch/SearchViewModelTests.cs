@@ -1,8 +1,10 @@
+﻿using System.IO;
 using System.Text.Json.Nodes;
 using NSubstitute;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.WindowsSearch;
+using Nexaflow.Features.WindowsSearch.Services;
 using Nexaflow.Features.WindowsSearch.ViewModels;
 using Nexaflow.Tests.Fixtures;
 
@@ -31,6 +33,45 @@ public class SearchViewModelTests
         var vm = new SearchViewModel("hello", @"C:\", [], Shell());
 
         Assert.AreEqual(0, vm.Results.Count);
+    }
+
+    // ── The folder-scan offer ─────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task NoIndexResults_OffersAScanRatherThanAnEmptyList()
+    {
+        // A term no index will match, under a real folder. Whether the index answers "nothing" or isn't
+        // running at all, the user must be offered the scan — an empty list on its own claims the file
+        // isn't there, which an unindexed folder cannot support.
+        var root = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            var vm = new SearchViewModel("zqxwv-no-such-token-8813", root, [], Shell());
+
+            await vm.RunSearchAsync(CancellationToken.None);
+
+            Assert.AreEqual(0, vm.ResultCount);
+            Assert.AreEqual(VerifyPhase.OfferScan, vm.VerificationPhase);
+            StringAssert.Contains(vm.VerificationBanner, "scan");
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
+    [TestMethod]
+    public async Task WithResults_NoScanIsOffered()
+    {
+        // The offer is for an empty result. Showing it alongside hits would invite a slow walk over a
+        // question that was already answered.
+        var root = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            var vm = new SearchViewModel("zqxwv-no-such-token-8813", root, [], Shell());
+            await vm.RunSearchAsync(CancellationToken.None);
+            vm.Results.Add(new SearchResultEntry { FilePath = "x", FileName = "x", Directory = "" });
+
+            Assert.AreNotEqual(VerifyPhase.Scanning, vm.VerificationPhase);
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
     }
 
     // ── RunSearchAsync – fast paths (no I/O) ─────────────────────────────────

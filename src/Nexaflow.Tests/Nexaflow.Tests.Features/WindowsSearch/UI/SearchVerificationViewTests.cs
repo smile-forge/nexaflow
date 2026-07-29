@@ -37,19 +37,12 @@ public class SearchVerificationViewTests : UITestBase
     }
 
     [TestMethod]
-    public void LiteralSearch_ShowsNoVerificationBanner()
-    {
-        // The banner is a cost signal. Showing it for a search that needed no verification would train the
-        // user to ignore it — which is exactly when it matters.
-        var banner = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("VerificationBanner"));
-
-        Assert.IsTrue(banner is null || banner.IsOffscreen,
-            "a literal query is fully answered by the index, so nothing should be pending verification");
-    }
-
-    [TestMethod]
     public void VerificationControlsAreNotOfferedWhenThereIsNothingToVerify()
     {
+        // The banner is a cost signal. Offering to verify after a search that needed none would train the
+        // user to ignore it — which is exactly when it matters. (The banner itself may still be visible
+        // offering a folder scan, if this machine's index had nothing for the query; that is a different
+        // question with different buttons.)
         foreach (var id in new[] { "VerifyRemaining", "SkipVerification" })
         {
             var button = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(id));

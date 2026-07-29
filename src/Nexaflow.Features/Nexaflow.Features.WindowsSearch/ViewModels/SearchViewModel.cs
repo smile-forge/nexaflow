@@ -465,9 +465,12 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
             {
                 // Across drives the index is the only thing asked. A whole-machine scan is still possible,
                 // but only if the user asks for it after seeing the offer — it is not somewhere to arrive
-                // by accident.
-                entries       = await WindowsSearchService.SearchAcrossAsync(parsed, _drives, ct, fetch);
-                _lastOrigin   = SearchOrigin.Index;
+                // by accident. The origin is taken from the result, not assumed: an indexer that is down
+                // returns empty from every drive, and calling that "the index searched" hides the one
+                // fact that would let the user do something about it.
+                var across  = await WindowsSearchService.SearchAcrossWithOriginAsync(parsed, _drives, ct, fetch);
+                entries     = across.Entries;
+                _lastOrigin = across.Origin;
             }
             else
             {
@@ -528,6 +531,15 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
             StatusText  = "Windows Search service unavailable.";
             ResultCount = 0;
             Debug.WriteLine($"[WindowsSearch] OleDbException: {ex.Message}");
+
+            // A dead end otherwise: the index is the one thing that can't answer this, and the scan is
+            // the one thing that can.
+            if (CanScan)
+            {
+                var offer = VerificationPlanner.OfferScan(SearchOrigin.IndexUnavailable);
+                VerificationPhase  = offer.Phase;
+                VerificationBanner = offer.Banner;
+            }
         }
         catch (Exception ex)
         {
