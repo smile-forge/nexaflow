@@ -17,6 +17,10 @@ public enum VerifyPhase
     /// <summary>A folder scan is running and reporting hits as it finds them.</summary>
     Scanning,
 
+    /// <summary>A refinement was typed against an empty result set, and running it as a fresh search in the
+    /// same place is being offered instead.</summary>
+    OfferNewSearch,
+
     /// <summary>A sweep is in progress.</summary>
     Running,
 
@@ -128,6 +132,16 @@ public static class VerificationPlanner
     public static VerifyPlan OfferScanAfterSweep(string originPrefix = "") =>
         new(VerifyPhase.OfferScan, 0,
             originPrefix + "None of them matched. Scan this location manually (slow)?");
+
+    /// <summary>
+    /// Offered when a refinement is typed at an empty result set. Narrowing nothing yields nothing, so
+    /// taking the query at face value would answer with the same empty list and look like it ignored them.
+    /// The likely intent is a new search in the same place, but that discards their previous query — so it
+    /// is asked, not assumed.
+    /// </summary>
+    public static VerifyPlan OfferNewSearch(string query) =>
+        new(VerifyPhase.OfferNewSearch, 0,
+            $"There are no results here to search within. Run '{query}' as a new search in the same location?");
 
     /// <summary>Progress while a scan runs. Counts are what it has found so far, not a total — a scan
     /// can't know how many matches exist until it has finished looking.</summary>

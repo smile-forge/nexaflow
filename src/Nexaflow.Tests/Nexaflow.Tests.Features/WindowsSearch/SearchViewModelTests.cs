@@ -6,6 +6,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.WindowsSearch;
 using Nexaflow.Features.WindowsSearch.Services;
 using Nexaflow.Features.WindowsSearch.ViewModels;
+using Nexaflow.Search;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsSearch;
@@ -72,6 +73,117 @@ public class SearchViewModelTests
             Assert.AreNotEqual(VerifyPhase.Scanning, vm.VerificationPhase);
         }
         finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
+    // ── Refining a search that is already on screen ───────────────────────────
+
+    [TestMethod]
+    public void ASearchShapedQueryClaimsTheInput()
+    {
+        // Someone looking at results who types a search almost always means "narrow this". Leaving it to
+        // the default score made it compete with the agent for the input.
+        var vm = new SearchViewModel("needle", @"C:\", [], Shell());
+
+        Assert.AreEqual(SearchViewModel.RefineScore, vm.ScoreQuery("haystack"), 0.001f);
+        Assert.AreEqual(SearchViewModel.RefineScore, vm.ScoreQuery("*.txt"), 0.001f);
+        Assert.AreEqual(SearchViewModel.RefineScore, vm.ScoreQuery("/ma(ths|gic)/"), 0.001f);
+        Assert.AreEqual(SearchViewModel.RefineScore, vm.ScoreQuery("\"the lost dog\""), 0.001f);
+    }
+
+    [TestMethod]
+    public void AQuotedPhraseIsOneTerm_NotSeveralWords()
+    {
+        // The decay counts TERMS. Scoring a quoted phrase by its word count would push a perfectly ordinary
+        // refinement down towards prose.
+        var vm = new SearchViewModel("needle", @"C:\", [], Shell());
+
+        Assert.AreEqual(vm.ScoreQuery("dog"), vm.ScoreQuery("\"the lost dog\""), 0.001f);
+    }
+
+    [TestMethod]
+    public void EachExtraTermLooksALittleLessLikeAFilter()
+    {
+        Assert.AreEqual(0.9f, SearchViewModel.ScoreRefinement(1), 0.001f);
+        Assert.AreEqual(0.8f, SearchViewModel.ScoreRefinement(2), 0.001f);
+        Assert.AreEqual(0.7f, SearchViewModel.ScoreRefinement(3), 0.001f);
+
+        // Floored rather than cut off — a wordy refinement here still beats the same words on a page with
+        // nothing to refine, and a hard threshold would snap between the two.
+        Assert.AreEqual(0.5f, SearchViewModel.ScoreRefinement(20), 0.001f);
+    }
+
+    [TestMethod]
+    public async Task RefiningAnEmptyResultSet_OffersANewSearchInstead()
+    {
+        // Narrowing nothing yields nothing, so taking the query at face value answers with the same empty
+        // list — which reads as having been ignored.
+        var root = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            var vm = new SearchViewModel("zqxwv-no-such-token-8813", root, [], Shell());
+            await vm.RunSearchAsync(CancellationToken.None);
+            Assert.AreEqual(0, vm.ResultCount, "precondition: nothing to refine");
+
+            var outcome = await vm.SearchAsync(new SearchRequest("needle"), display: true, default);
+
+            Assert.AreEqual(VerifyPhase.OfferNewSearch, vm.VerificationPhase);
+            StringAssert.Contains(vm.VerificationBanner, "no results here to search within");
+            StringAssert.Contains(vm.VerificationBanner, "needle");
+            Assert.IsFalse(outcome.Failed, "a question is not a failure");
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
+    [TestMethod]
+    public async Task DecliningTheNewSearch_LeavesTheResultsAlone()
+    {
+        var root = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            var vm = new SearchViewModel("zqxwv-no-such-token-8813", root, [], Shell());
+            await vm.RunSearchAsync(CancellationToken.None);
+            await vm.SearchAsync(new SearchRequest("needle"), display: true, default);
+
+            vm.DeclineNewSearchCommand.Execute(null);
+
+            Assert.AreEqual(VerifyPhase.None, vm.VerificationPhase);
+            Assert.AreEqual(string.Empty, vm.VerificationBanner);
+            Assert.AreEqual("zqxwv-no-such-token-8813", vm.SearchQuery, "the original query is untouched");
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
+    [TestMethod]
+    public async Task AcceptingTheNewSearch_ReplacesTheQueryRatherThanNarrowingIt()
+    {
+        // Merging would carry forward a query that already found nothing, guaranteeing the new one finds
+        // nothing too — the exact outcome the offer exists to avoid.
+        var root = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            var vm = new SearchViewModel("zqxwv-no-such-token-8813", root, [], Shell());
+            await vm.RunSearchAsync(CancellationToken.None);
+            await vm.SearchAsync(new SearchRequest("needle"), display: true, default);
+
+            await vm.RunAsNewSearchCommand.ExecuteAsync(null);
+
+            Assert.AreEqual("needle", vm.SearchQuery);
+            Assert.IsFalse(vm.SearchQuery.Contains("zqxwv"), "the failed query must not be carried forward");
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
+    // ── Teardown ──────────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public void DisposingStopsWhatTheTabStarted()
+    {
+        // The shell disposes a page ViewModel when its tab closes. Without this a folder scan keeps walking
+        // the disk and reading files for a tab nobody can see, with nothing left to stop it.
+        var vm = new SearchViewModel("needle", @"C:\", [], Shell());
+
+        vm.Dispose();
+        vm.Dispose();   // idempotent — the shell may dispose a view and its ViewModel both
     }
 
     // ── RunSearchAsync – fast paths (no I/O) ─────────────────────────────────

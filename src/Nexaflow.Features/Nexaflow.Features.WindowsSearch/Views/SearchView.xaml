@@ -115,6 +115,9 @@
                                 <DataTrigger Binding="{Binding VerificationPhase}" Value="Scanning">
                                     <Setter Property="Visibility" Value="Visible"/>
                                 </DataTrigger>
+                                <DataTrigger Binding="{Binding VerificationPhase}" Value="OfferNewSearch">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
@@ -183,6 +186,29 @@
                                     AutomationProperties.AutomationId="StopScan"
                                     Command="{Binding StopScanCommand}"
                                     Margin="8,0,0,0"/>
+                        </StackPanel>
+
+                        <!-- Refining an empty result set: offer it as a fresh search instead. -->
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding VerificationPhase}" Value="OfferNewSearch">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <Button Content="Yes"
+                                    Style="{StaticResource TbBtn}"
+                                    AutomationProperties.AutomationId="RunAsNewSearch"
+                                    Command="{Binding RunAsNewSearchCommand}"
+                                    Margin="8,0,4,0"/>
+                            <Button Content="No"
+                                    Style="{StaticResource TbBtn}"
+                                    AutomationProperties.AutomationId="DeclineNewSearch"
+                                    Command="{Binding DeclineNewSearchCommand}"/>
                         </StackPanel>
 
                         <!-- The Border carries an AutomationId too, but a Border is not a UIA control and
@@ -359,8 +385,11 @@
                     </ListView.View>
                 </ListView>
 
-                <!-- Empty-state overlay -->
-                <TextBlock Text="No results found."
+                <!-- Empty-state overlay. Grid.Row="1" is load-bearing: without it this lands in row 0 and
+                     sits on top of the banner, which is where it collided with the banner's own text. It
+                     belongs over the LIST — that is the area that is empty. -->
+                <TextBlock Grid.Row="1"
+                           Text="No results found."
                            Foreground="{StaticResource TextMutedBrush}"
                            FontSize="14"
                            HorizontalAlignment="Center"

@@ -14,7 +14,7 @@ using System.Text.Json.Nodes;
 
 namespace Nexaflow.Features.WindowsSearch.ViewModels;
 
-public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, ISearchable
+public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, ISearchable, IDisposable
 {
     [ObservableProperty] private string             _searchQuery  = string.Empty;
     [ObservableProperty] private string             _searchRoot   = string.Empty;
@@ -378,6 +378,33 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         }
     }
 
+    // ── Refining an empty result set ──────────────────────────────────────────
+
+    /// <summary>The refinement that had nothing to narrow, held until the user says what to do with it.</summary>
+    private SearchRequest? _pendingNewSearch;
+
+    /// <summary>Runs the refinement as a fresh search, replacing the query rather than narrowing it.</summary>
+    [RelayCommand]
+    private async Task RunAsNewSearch()
+    {
+        if (_pendingNewSearch is not { } request) return;
+        _pendingNewSearch = null;
+
+        // Replaces rather than merges: the previous query found nothing, so carrying it forward would
+        // guarantee the new one finds nothing either.
+        SearchQuery = SearchSyntax.Format(request);
+        await RunSearchAsync(CancellationToken.None);
+    }
+
+    /// <summary>Leaves the empty result set alone.</summary>
+    [RelayCommand]
+    private void DeclineNewSearch()
+    {
+        _pendingNewSearch  = null;
+        VerificationPhase  = VerifyPhase.None;
+        VerificationBanner = string.Empty;
+    }
+
     /// <summary>Checks the candidates the user was asked about.</summary>
     [RelayCommand]
     private void VerifyRemaining() => StartSweep(Candidates);
@@ -492,6 +519,12 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
     private async Task ExecuteSearch(ParsedQuery parsed, CancellationToken externalCt)
     {
         _cts?.Cancel();
+
+        // A new query supersedes a scan of the old one. Left running, its callbacks would keep appending
+        // rows to a list that now belongs to a different question.
+        _scanCts?.Cancel();
+        _scanCts = null;
+
         _cts = CancellationTokenSource.CreateLinkedTokenSource(externalCt);
         var ct = _cts.Token;
 
@@ -669,9 +702,32 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         $"files matching the current search '{SearchQuery}'" +
         (string.IsNullOrEmpty(SearchRoot) ? " across this PC" : $" under '{SearchRoot}'");
 
-    /// <summary>Globs and property filters are strong evidence of a search; prose is not. This is the one
-    /// page whose backend can judge that properly, so it overrides the term-count default.</summary>
-    public float ScoreQuery(string input) => IsSearching ? 0f : SearchQueryScorer.Score(input);
+    /// <summary>Refining is the overwhelmingly likely intent on a page that is already showing search
+    /// results, so a well-formed query claims the input outright rather than competing with the agent.</summary>
+    public const float RefineScore = 0.9f;
+
+    /// <summary>
+    /// Someone looking at search results who types a search-shaped query almost always means "narrow this".
+    /// One term is the clearest case; every extra term reads a little more like a sentence and a little
+    /// less like a filter, so the score decays rather than cutting off — leaving genuine prose to the agent
+    /// without a threshold that snaps.
+    /// </summary>
+    /// <remarks>Floored, because even a wordy refinement here is likelier than the same words on a page
+    /// with nothing to refine.</remarks>
+    public static float ScoreRefinement(int termCount) =>
+        termCount <= 0 ? 0f : Math.Max(0.5f, RefineScore - 0.1f * (termCount - 1));
+
+    public float ScoreQuery(string input)
+    {
+        if (IsSearching) return 0f;
+
+        // Parsed with this page's own recognisers, so a glob, a quoted phrase or a /regex/ counts as the
+        // single term the user typed rather than as however many words it happens to contain.
+        var terms = SearchSyntax.ParseTerms(input, TermRecognizers);
+        return terms.Count > 0
+            ? ScoreRefinement(terms.Count)
+            : SearchQueryScorer.Score(input);
+    }
 
     public async Task<SearchOutcome> SearchAsync(SearchRequest request, bool display, CancellationToken ct)
     {
@@ -680,6 +736,17 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
 
         if (!HasSearchScope)
             return SearchOutcome.Unsupported("This search tab has no scope to search.");
+
+        // Narrowing nothing yields nothing. Answering with the same empty list would look like the query
+        // was ignored, so the likely intent — the same search, fresh, in the same place — is offered.
+        if (display && Results.Count == 0)
+        {
+            _pendingNewSearch = request;
+            var ask = VerificationPlanner.OfferNewSearch(SearchSyntax.Format(request));
+            VerificationPhase  = ask.Phase;
+            VerificationBanner = ask.Banner;
+            return SearchOutcome.None();
+        }
 
         // A refinement narrows on its terms' seeds, then exactly via the post-filter.
         var refined = SearchQueryParser.FromTerms(request.Terms, _aqs);
@@ -773,5 +840,23 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
             CurrentPath   = dir,
             SelectedItems = [entry.FilePath]
         };
+    }
+
+    /// <summary>
+    /// Stops everything this tab started. The shell disposes a page's ViewModel when the tab closes, so
+    /// without this a folder scan would keep walking the disk — and keep reading files — for a tab nobody
+    /// is looking at any more, with no way left to stop it.
+    /// </summary>
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _verifyCts?.Cancel();
+        _scanCts?.Cancel();
+
+        _cts       = null;
+        _verifyCts = null;
+        _scanCts   = null;
+
+        _aqs.Dispose();
     }
 }

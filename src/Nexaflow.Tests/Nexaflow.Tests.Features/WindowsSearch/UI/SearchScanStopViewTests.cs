@@ -17,8 +17,14 @@ namespace Nexaflow.Tests.Features.WindowsSearch.UI;
 /// The scan is read-only and cancellation is what is being verified, so it stops within moments.
 /// Requires an interactive desktop session — run manually or via --filter "TestCategory=UI".
 /// </summary>
+/// <remarks>
+/// Not parallelised. Each case reads its way through a large directory tree, and two of those racing the
+/// other UI tests starves the machine enough that they time out waiting for a window — a failure that looks
+/// exactly like the feature being broken.
+/// </remarks>
 [TestClass]
 [TestCategory("UI")]
+[DoNotParallelize]
 [CoversNode("win-search-folder-scan")]
 public class SearchScanStopViewTests : UITestBase
 {
