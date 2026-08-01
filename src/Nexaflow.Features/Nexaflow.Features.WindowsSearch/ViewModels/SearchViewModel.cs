@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using System.IO;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
@@ -299,13 +299,25 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
     /// results stream in rather than arriving all at once at the end.
     /// </summary>
     [RelayCommand]
-    private async Task ScanFolder()
+    private Task ScanFolder() => RunScanAsync();
+
+    /// <summary>
+    /// The scan itself, separate from the command that fronts it.
+    /// <para>
+    /// A refinement re-enters the scan while the command is mid-execution. Routing that through
+    /// <c>ScanFolderCommand.ExecuteAsync</c> makes the operation depend on the command's own execution
+    /// state — which is a UI affordance's business, not the operation's. Kept apart so re-entry is a plain
+    /// method call with no command semantics in the way.
+    /// </para>
+    /// </summary>
+    private async Task RunScanAsync()
     {
         if (_activeRequest is not { Terms.Count: > 0 } request || !CanScan) return;
 
         _scanCts?.Cancel();
-        _scanCts = new CancellationTokenSource();
-        var ct   = _scanCts.Token;
+        var cts  = new CancellationTokenSource();
+        _scanCts = cts;
+        var ct   = cts.Token;
 
         // A scan produces its own result set from scratch. Anything already listed was selected by a
         // different query — the broader one this is replacing, or the index query that found nothing.
@@ -341,30 +353,47 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
                 }, ct);
             }
 
+            if (!IsCurrentScan(cts)) return;
+
             var done = VerificationPlanner.AfterScan(found, truncated: found >= ScanResultCap);
             VerificationPhase  = done.Phase;
             VerificationBanner = done.Banner;
         }
         catch (OperationCanceledException)
         {
+            // Superseded rather than stopped: the scan that replaced this one owns the banner now, and
+            // "Scan stopped" landing on top of its "Scanning…" would report the wrong thing entirely.
+            if (!IsCurrentScan(cts)) return;
+
             var stopped = VerificationPlanner.AfterScan(found, cancelled: true);
             VerificationPhase  = stopped.Phase;
             VerificationBanner = stopped.Banner;
         }
         catch (Exception ex)
         {
+            if (!IsCurrentScan(cts)) return;
+
             VerificationPhase  = VerifyPhase.Done;
             VerificationBanner = $"Scan failed: {ex.Message}";
         }
         finally
         {
-            IsSearching = false;
-            _lastOrigin = SearchOrigin.FolderScan;
-            StatusText  = ResultCount == 0
-                ? "No results."
-                : $"{ResultCount} result{(ResultCount == 1 ? "" : "s")}";
+            // Same reason: a superseded scan must not clear the busy flag or rewrite the status line for
+            // the scan still running.
+            if (IsCurrentScan(cts))
+            {
+                IsSearching = false;
+                _lastOrigin = SearchOrigin.FolderScan;
+                StatusText  = ResultCount == 0
+                    ? "No results."
+                    : $"{ResultCount} result{(ResultCount == 1 ? "" : "s")}";
+            }
         }
     }
+
+    /// <summary>True while <paramref name="cts"/> is still the scan this page is running. False once a
+    /// newer scan has taken over, or the page has been disposed.</summary>
+    private bool IsCurrentScan(CancellationTokenSource cts) => ReferenceEquals(_scanCts, cts);
 
     /// <summary>True when what the user is looking at came from a folder scan — one still running, or one
     /// that has finished.</summary>
@@ -389,7 +418,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         _postFilter    = NeedsPostFilter(combined) ? combined : null;
         SearchQuery    = SearchSyntax.Format(combined);
 
-        await ScanFolderCommand.ExecuteAsync(null);
+        await RunScanAsync();
     }
 
     /// <summary>

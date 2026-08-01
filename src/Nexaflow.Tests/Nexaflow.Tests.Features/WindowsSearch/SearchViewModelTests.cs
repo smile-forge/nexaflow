@@ -137,6 +137,50 @@ public class SearchViewModelTests
         finally { try { Directory.Delete(root, true); } catch { } }
     }
 
+    /// <remarks>
+    /// Serial: it depends on catching the scan mid-walk, and under 32-way parallel load the poll interval
+    /// stretches far enough that the scan finishes first — which trips the precondition rather than the
+    /// assertion, but is a flake either way.
+    /// </remarks>
+    [TestMethod]
+    [DoNotParallelize]
+    public async Task RefiningWhileAScanIsRunning_NarrowsItInsteadOfFaulting()
+    {
+        // Refining mid-scan is the case a user actually hits, and it was reported reaching the AI instead
+        // of narrowing. This pins the behaviour that matters — the scan is superseded, the result narrows,
+        // and neither the superseded scan's banner nor its busy flag overwrites the live one.
+        var root = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            // Enough files, and enough bytes each, that the walk is unambiguously still running when the
+            // refinement lands. Too few and the scan finishes first, which tests the already-covered
+            // post-scan path while looking like it tested this one.
+            var filler = new string('x', 512);
+            for (var i = 0; i < 4000; i++)
+                await File.WriteAllTextAsync(Path.Combine(root, $"f{i}.txt"), $"needle {filler}");
+            await File.WriteAllTextAsync(Path.Combine(root, "both.txt"), "needle and haystack");
+
+            var vm = new SearchViewModel("needle", root, [], Shell());
+            await vm.RunSearchAsync(CancellationToken.None);
+
+            var scanning = vm.ScanFolderCommand.ExecuteAsync(null);   // deliberately not awaited
+            while (vm.ResultCount == 0 && !scanning.IsCompleted) await Task.Delay(1);
+
+            Assert.IsFalse(scanning.IsCompleted,
+                "the scan finished before the refinement — this case was never exercised");
+
+            await vm.SearchAsync(new SearchRequest("haystack"), display: true, default);
+            await scanning;
+
+            Assert.AreEqual(1, vm.ResultCount, "only the file containing both terms should survive");
+            Assert.AreEqual("both.txt", vm.Results[0].FileName);
+            Assert.AreEqual(VerifyPhase.Done, vm.VerificationPhase,
+                "the superseded scan must not leave the banner claiming it was stopped");
+            Assert.IsFalse(vm.IsSearching, "the superseded scan must not clear the busy flag for the live one");
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
     [TestMethod]
     public void AQuotedPhraseIsOneTerm_NotSeveralWords()
     {
