@@ -434,11 +434,38 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         RefreshCounts();
         ResortByConfidence();
 
+        // A search can arrive with rows and end with none: the index returned candidates and verification
+        // rejected every one. That leaves the same empty list as a query the index never answered, so it
+        // gets the same offer — deciding this only on the row count as it ARRIVED left the user looking at
+        // "returned 1 file, 0 confirmed", an empty list, and no way forward.
+        if (OfferScanIfNothingToShow(afterSweep: true)) return;
+
         // "Confirmed" means proven — NOT the row count, which still includes everything unsettled and
         // reads as a far stronger claim than it is.
         var plan = VerificationPlanner.AfterSweep(VerifiedCount, PendingCount, UnreadableCount, UncertainCount, OriginPrefix);
         VerificationPhase  = plan.Phase;
         VerificationBanner = plan.Banner;
+    }
+
+    /// <summary>
+    /// Offers the folder scan when the search has left nothing on screen, whether it started empty or was
+    /// emptied by verification. True when the offer was made.
+    /// <para>
+    /// Keyed on what the user can SEE, not on what the index returned — those differ by exactly the rows
+    /// the post-filter throws away, which is the case that used to fall through the gap.
+    /// </para>
+    /// </summary>
+    private bool OfferScanIfNothingToShow(bool afterSweep = false)
+    {
+        if (Results.Count > 0 || !CanScan) return false;
+
+        var offer = afterSweep
+            ? VerificationPlanner.OfferScanAfterSweep(OriginPrefix)
+            : VerificationPlanner.OfferScan(_lastOrigin);
+
+        VerificationPhase  = offer.Phase;
+        VerificationBanner = offer.Banner;
+        return true;
     }
 
     // Format-aware extractors live in whichever feature owns the format; none is required, since the
@@ -519,16 +546,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
 
             // Nothing from the index isn't necessarily an answer — this folder may simply not be indexed.
             // Offer the scan rather than starting it: it reads every file in the tree.
-            if (ResultCount == 0 && CanScan)
-            {
-                var offer = VerificationPlanner.OfferScan(_lastOrigin);
-                VerificationPhase  = offer.Phase;
-                VerificationBanner = offer.Banner;
-            }
-            else
-            {
-                BeginVerification();
-            }
+            if (!OfferScanIfNothingToShow()) BeginVerification();
         }
         catch (OperationCanceledException)
         {

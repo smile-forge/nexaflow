@@ -225,6 +225,32 @@ public class VerificationPlannerTests
     }
 
     [TestMethod]
+    public void EverythingRejected_StillOffersTheScan()
+    {
+        // The case that fell through: the index returned a row, verification rejected it, and the user was
+        // left with "returned 1 file(s). 0 confirmed", an empty list and nowhere to go. An empty list is an
+        // empty list however it got that way.
+        var plan = VerificationPlanner.OfferScanAfterSweep(
+            VerificationPlanner.OriginPrefix(SearchOrigin.Index, 1));
+
+        Assert.AreEqual(VerifyPhase.OfferScan, plan.Phase);
+        StringAssert.Contains(plan.Banner, "Scan this location");
+    }
+
+    [TestMethod]
+    public void AfterASweep_TheOfferDoesNotContradictTheCountJustShown()
+    {
+        // "The indexer didn't find anything" is false here — it found rows and they were checked. Saying it
+        // anyway would have the banner argue with the number the user just watched appear.
+        var plan = VerificationPlanner.OfferScanAfterSweep(
+            VerificationPlanner.OriginPrefix(SearchOrigin.Index, 1));
+
+        Assert.IsFalse(plan.Banner.Contains("didn't find anything"), plan.Banner);
+        StringAssert.Contains(plan.Banner, "returned 1 file");
+        StringAssert.Contains(plan.Banner, "None of them matched");
+    }
+
+    [TestMethod]
     public void ScanningReportsWhatItHasFoundSoFar()
     {
         // A running scan has no total to report against — saying "3 of N" would invent the N.

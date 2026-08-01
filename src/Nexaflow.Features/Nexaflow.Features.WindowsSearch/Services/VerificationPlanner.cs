@@ -119,6 +119,16 @@ public static class VerificationPlanner
             ? "Windows Search isn't running, so nothing could be looked up. Scan this location manually (slow)?"
             : "The Windows indexer didn't find anything like that in this location — scan it manually (slow)?");
 
+    /// <summary>
+    /// The same offer, after a verification sweep has thrown every row away. The index DID return rows, so
+    /// the "found nothing" wording above would contradict the count the user just watched appear — but the
+    /// end state is identical: an empty list from a location the index may never have covered, and the
+    /// scan is still the only thing that can settle it.
+    /// </summary>
+    public static VerifyPlan OfferScanAfterSweep(string originPrefix = "") =>
+        new(VerifyPhase.OfferScan, 0,
+            originPrefix + "None of them matched. Scan this location manually (slow)?");
+
     /// <summary>Progress while a scan runs. Counts are what it has found so far, not a total — a scan
     /// can't know how many matches exist until it has finished looking.</summary>
     public static VerifyPlan Scanning(int found) =>
