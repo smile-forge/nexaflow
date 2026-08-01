@@ -43,12 +43,15 @@ public sealed class SearchTabSearchableTests : SearchableConformanceTests
     }
 
     [TestMethod]
-    public void ScoreQuery_IsZeroWhileASearchIsRunning()
+    public void ScoreQuery_StillClaimsARefinementWhileASearchIsRunning()
     {
         var vm = Vm();
         vm.IsSearching = true;
 
-        // Bare input shouldn't jump an in-flight query; an explicit "?" still forces it (handler-side).
-        Assert.AreEqual(0f, vm.ScoreQuery("*.pdf"));
+        // Previously zero, on the reasoning that bare input shouldn't jump an in-flight query. That reads
+        // backwards during a folder scan, which runs for minutes while the user watches rows arrive and
+        // decides to narrow them — the moment they are MOST likely to be refining. Superseding a running
+        // query is the ViewModel's job; scoring only decides who the input belongs to.
+        Assert.IsTrue(vm.ScoreQuery("*.pdf") > 0.5f);
     }
 }

@@ -15,7 +15,15 @@ namespace Nexaflow.Tests.Features.WindowsSearch;
 [CoversNode("win-search-ai-act-search")]
 public class SearchViewModelTests
 {
-    private static IShellServices Shell() => Substitute.For<IShellServices>();
+    /// <summary>A shell whose RunOnUiAsync actually runs the action — the substitute's default swallows it,
+    /// which silently no-ops every UI-marshalled path, the folder scan's streamed results included.</summary>
+    private static IShellServices Shell()
+    {
+        var shell = Substitute.For<IShellServices>();
+        shell.RunOnUiAsync(Arg.Any<Action>())
+             .Returns(ci => { ci.Arg<Action>()(); return Task.CompletedTask; });
+        return shell;
+    }
 
     // ── Construction ──────────────────────────────────────────────────────────
 
@@ -88,6 +96,45 @@ public class SearchViewModelTests
         Assert.AreEqual(SearchViewModel.RefineScore, vm.ScoreQuery("*.txt"), 0.001f);
         Assert.AreEqual(SearchViewModel.RefineScore, vm.ScoreQuery("/ma(ths|gic)/"), 0.001f);
         Assert.AreEqual(SearchViewModel.RefineScore, vm.ScoreQuery("\"the lost dog\""), 0.001f);
+    }
+
+    [TestMethod]
+    public void ARefinementTypedDuringASearchStillBelongsToThisPage()
+    {
+        // It used to score zero while busy, which sent a refinement typed during a folder scan to the AI —
+        // and a scan is exactly when the user is watching rows arrive and deciding to narrow them. Whether
+        // the page is busy is a question for whoever handles the query, not for who should get it.
+        var vm = new SearchViewModel("needle", @"C:\", [], Shell()) { IsSearching = true };
+
+        Assert.AreEqual(SearchViewModel.RefineScore, vm.ScoreQuery("haystack"), 0.001f);
+    }
+
+    [TestMethod]
+    public async Task RefiningScanResults_RescansRatherThanAskingTheIndex()
+    {
+        // The index already had nothing to say about this location — that is why the scan ran. Sending the
+        // narrower query back to it would answer a tighter question with an emptier list.
+        var root = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "one.txt"), "needle and haystack");
+            await File.WriteAllTextAsync(Path.Combine(root, "two.txt"), "needle alone");
+
+            var vm = new SearchViewModel("needle", root, [], Shell());
+            await vm.RunSearchAsync(CancellationToken.None);
+
+            // Scan first, so the results on screen are the scan's.
+            await vm.ScanFolderCommand.ExecuteAsync(null);
+            Assert.AreEqual(2, vm.ResultCount, "precondition: the scan found both files");
+
+            await vm.SearchAsync(new SearchRequest("haystack"), display: true, default);
+
+            Assert.AreEqual(1, vm.ResultCount, "the refinement should have narrowed the scan, not emptied it");
+            Assert.AreEqual("one.txt", vm.Results[0].FileName);
+            StringAssert.Contains(vm.SearchQuery, "haystack");
+            StringAssert.Contains(vm.SearchQuery, "needle");
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
     }
 
     [TestMethod]

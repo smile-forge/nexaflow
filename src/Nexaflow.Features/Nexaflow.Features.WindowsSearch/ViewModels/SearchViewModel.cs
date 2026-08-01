@@ -307,6 +307,11 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         _scanCts = new CancellationTokenSource();
         var ct   = _scanCts.Token;
 
+        // A scan produces its own result set from scratch. Anything already listed was selected by a
+        // different query — the broader one this is replacing, or the index query that found nothing.
+        Results.Clear();
+        ResultCount = 0;
+
         IsSearching        = true;
         VerificationPhase  = VerifyPhase.Scanning;
         VerificationBanner = VerificationPlanner.Scanning(0).Banner;
@@ -325,6 +330,10 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
                     // itself, and a hit arriving mid-enumeration must not race the list.
                     _ = _shellServices.RunOnUiAsync(() =>
                     {
+                        // A superseded scan can still have callbacks queued behind it. Without this they
+                        // land in the list belonging to the query that replaced them.
+                        if (ct.IsCancellationRequested) return;
+
                         Results.Add(hit);
                         ResultCount        = Results.Count;
                         VerificationBanner = VerificationPlanner.Scanning(++found).Banner;
@@ -355,6 +364,32 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
                 ? "No results."
                 : $"{ResultCount} result{(ResultCount == 1 ? "" : "s")}";
         }
+    }
+
+    /// <summary>True when what the user is looking at came from a folder scan — one still running, or one
+    /// that has finished.</summary>
+    private bool ScanOwnsTheResults =>
+        VerificationPhase == VerifyPhase.Scanning || _lastOrigin == SearchOrigin.FolderScan;
+
+    /// <summary>
+    /// Narrows a scan by running a tighter one. The walk takes its query up front, so a refinement cannot
+    /// be applied to a scan already in flight — it is superseded and restarted with the combined terms.
+    /// <para>
+    /// Rows already found are discarded rather than filtered down: they were selected by the looser query,
+    /// and keeping the subset that survives would present a partly-scanned tree as a fully-scanned one.
+    /// </para>
+    /// </summary>
+    private async Task RefineByRescan(SearchRequest refinement)
+    {
+        var combined = _activeRequest is { Terms.Count: > 0 } previous
+            ? previous with { Terms = [.. previous.Terms, .. refinement.Terms] }
+            : refinement;
+
+        _activeRequest = combined;
+        _postFilter    = NeedsPostFilter(combined) ? combined : null;
+        SearchQuery    = SearchSyntax.Format(combined);
+
+        await ScanFolderCommand.ExecuteAsync(null);
     }
 
     /// <summary>
@@ -717,10 +752,17 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
     public static float ScoreRefinement(int termCount) =>
         termCount <= 0 ? 0f : Math.Max(0.5f, RefineScore - 0.1f * (termCount - 1));
 
+    /// <summary>
+    /// Deliberately does NOT bow out while a search or scan is running.
+    /// <para>
+    /// It used to return zero, which sent a refinement typed during a long folder scan to the AI instead —
+    /// and a scan is precisely when the user is sat watching results arrive and deciding to narrow them.
+    /// Whether the page is busy is a question for whoever handles the query, not for whether it belongs
+    /// here.
+    /// </para>
+    /// </summary>
     public float ScoreQuery(string input)
     {
-        if (IsSearching) return 0f;
-
         // Parsed with this page's own recognisers, so a glob, a quoted phrase or a /regex/ counts as the
         // single term the user typed rather than as however many words it happens to contain.
         var terms = SearchSyntax.ParseTerms(input, TermRecognizers);
@@ -736,6 +778,15 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
 
         if (!HasSearchScope)
             return SearchOutcome.Unsupported("This search tab has no scope to search.");
+
+        // Results that came from a folder scan can only be narrowed by another folder scan. Re-querying the
+        // index would ask the one source that already had nothing to say about this location — which is
+        // why the scan ran in the first place — and answer a narrower question with an emptier list.
+        if (display && ScanOwnsTheResults)
+        {
+            await RefineByRescan(request);
+            return SearchOutcome.None();
+        }
 
         // Narrowing nothing yields nothing. Answering with the same empty list would look like the query
         // was ignored, so the likely intent — the same search, fresh, in the same place — is offered.
