@@ -98,6 +98,54 @@ public class GlobContentMatchingTests
             "the name failing is no longer the end of the question");
     }
 
+    // ── A literal term means the word it spells ───────────────────────────────
+
+    [TestMethod]
+    public void APlainTermDoesNotMatchALongerWord()
+    {
+        // "needle" finding "needless" is the reported bug. It is also what the index does NOT do — CONTAINS
+        // is word-based — so substring matching here made the post-filter disagree with the query feeding it.
+        var term = new SearchTerm(SearchTermKind.Text, ["needle"]);
+
+        Assert.IsTrue(term.Matches("a needle in the haystack", isName: false));
+        Assert.IsFalse(term.Matches("this is needless", isName: false));
+        Assert.IsFalse(term.Matches("threadneedle street", isName: false));
+    }
+
+    [TestMethod]
+    public void PunctuationStillEndsAWord()
+    {
+        // Otherwise the rule would be useless on filenames and prose alike, where words butt against dots,
+        // hyphens and commas far more often than spaces.
+        var term = new SearchTerm(SearchTermKind.Text, ["needle"]);
+
+        Assert.IsTrue(term.Matches("needle.txt", isName: true));
+        Assert.IsTrue(term.Matches("find-needle-here.md", isName: true));
+        Assert.IsTrue(term.Matches("the needle, obviously", isName: false));
+        Assert.IsFalse(term.Matches("needles.txt", isName: true));
+    }
+
+    [TestMethod]
+    public void TheLooserMatchIsStillAvailableAsAGlob()
+    {
+        // The reason whole-word is safe to impose: anyone unsure of the ending can say so, and that spelling
+        // means exactly what it looks like.
+        var term = Glob("needle*");
+
+        Assert.IsTrue(term.Matches("this is needless", isName: false));
+        Assert.IsTrue(term.Matches("a needle", isName: false));
+    }
+
+    [TestMethod]
+    public void AQuotedPhraseIsBoundedTheSameWay()
+    {
+        // Boundary-checked rather than tokenised, so a phrase behaves like one long word.
+        var term = new SearchTerm(SearchTermKind.Text, ["the lost dog"]);
+
+        Assert.IsTrue(term.Matches("we found the lost dog yesterday", isName: false));
+        Assert.IsFalse(term.Matches("the lost dogma of it", isName: false));
+    }
+
     [TestMethod]
     public void AlternativesKeepBothForms()
     {

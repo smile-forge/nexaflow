@@ -145,6 +145,16 @@ public sealed partial class MyViewModel : ObservableObject, IPageViewModel, ISea
   Content comes from a format-aware `IFileTextExtractor` when a feature provides one, else the file is read
   as text (encoding sniffed, binaries skipped, size capped). Verification order matters — detect encoding
   *before* the NUL binary sniff, or every UTF-16 file is discarded as binary.
+- **A literal term means the word it spells.** `?needle` matches the word "needle", not "needless" — matching
+  is boundary-checked at both ends (a quoted phrase the same way, so `?"the lost dog"` won't hit "the lost
+  dogma"). Two reasons it isn't a substring: the index's own `CONTAINS` is word-based, so substring matching
+  in the post-filter made it disagree with the query that fed it; and the looser match already has a
+  spelling — `?needle*` — whereas whole-word had none. Filename clauses use `CONTAINS(System.FileName, …)`
+  rather than `LIKE '%…%'` for the same reason.
+- **Globs match names *and* contents.** `?*.txt` is a filename glob against a name and a word-bounded pattern
+  against a body, carried as two patterns on one term (`Alternatives` / `ContentAlternatives`). `*` means
+  "rest of the name" in the first and "rest of this word" in the second, so `?book*` finds "bookcase" inside
+  a sentence without swallowing the line.
 - **Bare input.** An explicit `?` always wins. Un-prefixed text is scored by `ScoreQuery` (default 0.5) after
   a shared prose filter drops anything over 4 terms to the agent. Scoring runs per keystroke, so it must be
   cheap — never speculatively run the search to see whether it matches.

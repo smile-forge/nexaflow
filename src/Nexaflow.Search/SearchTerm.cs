@@ -110,7 +110,42 @@ public sealed record SearchTerm(
 
         return Kind == SearchTermKind.Regex
             ? patterns.Any(p => SafeRegex(p, candidate))
-            : patterns.Any(t => candidate.Contains(t, Comparison));
+            : patterns.Any(t => ContainsWholeWord(candidate, t, Comparison));
+    }
+
+    /// <summary>
+    /// True when <paramref name="text"/> contains <paramref name="needle"/> as a whole word — bounded at
+    /// both ends by something that isn't a letter or digit.
+    /// <para>
+    /// A literal term means the word it spells. Substring matching makes <c>needle</c> find "needless",
+    /// which is not what was asked and not what the index does either — <c>CONTAINS</c> is word-based, so
+    /// substring matching here also made the post-filter disagree with the query that fed it. Anyone who
+    /// wants the looser match can say so with <c>needle*</c>.
+    /// </para>
+    /// <para>
+    /// Boundary-checked rather than tokenised, so a quoted phrase works the same way: "the lost dog"
+    /// matches inside a sentence but not inside "the lost dogma".
+    /// </para>
+    /// </summary>
+    private static bool ContainsWholeWord(string text, string needle, StringComparison comparison)
+    {
+        if (string.IsNullOrEmpty(needle)) return false;
+
+        var from = 0;
+        while (from <= text.Length - needle.Length)
+        {
+            var at = text.IndexOf(needle, from, comparison);
+            if (at < 0) return false;
+
+            var beforeOk = at == 0 || !char.IsLetterOrDigit(text[at - 1]);
+            var end      = at + needle.Length;
+            var afterOk  = end == text.Length || !char.IsLetterOrDigit(text[end]);
+
+            if (beforeOk && afterOk) return true;
+
+            from = at + 1;
+        }
+        return false;
     }
 
     private bool SafeRegex(string pattern, string candidate)

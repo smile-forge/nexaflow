@@ -136,13 +136,19 @@ public static class VerificationPlanner
             ? "Scanning… no matches yet."
             : $"Scanning… {found} match{(found == 1 ? "" : "es")} so far.");
 
-    /// <summary>What a finished scan says. <paramref name="cancelled"/> matters: a stopped scan looked at
-    /// part of the tree, so its count is a floor, not a total.</summary>
-    public static VerifyPlan AfterScan(int found, bool cancelled = false) => new(
+    /// <summary>
+    /// What a finished scan says. Both qualifiers matter for the same reason: they turn a total into a
+    /// floor. A <paramref name="cancelled"/> scan looked at part of the tree, and a
+    /// <paramref name="truncated"/> one stopped collecting before the tree ran out — either way there may
+    /// be more, and a bare count would say there isn't.
+    /// </summary>
+    public static VerifyPlan AfterScan(int found, bool cancelled = false, bool truncated = false) => new(
         VerifyPhase.Done, 0,
         cancelled
             ? $"Scan stopped — {found} match(es) found so far."
-            : found == 0
-                ? "Folder scan finished — no matches in this location."
-                : $"Folder scan found {found} match{(found == 1 ? "" : "es")}.");
+            : truncated
+                ? $"Folder scan stopped at its {found}-row limit — narrow the search to see the rest."
+                : found == 0
+                    ? "Folder scan finished — no matches in this location."
+                    : $"Folder scan found {found} match{(found == 1 ? "" : "es")}.");
 }

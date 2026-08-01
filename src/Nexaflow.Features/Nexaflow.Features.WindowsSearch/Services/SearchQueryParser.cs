@@ -199,11 +199,19 @@ public static class SearchQueryParser
                 : $"({name} OR CONTAINS(System.Search.Contents,'\"{EscapeSql(literal)}*\"'))";
         }
 
-        var contents = term.Kind == SearchTermKind.Regex
-            ? $"CONTAINS(System.Search.Contents,'\"{EscapeSql(seed)}*\"')"
-            : $"CONTAINS(System.Search.Contents,'{EscapeSql(seed)}')";
+        // A regex seed is a FRAGMENT, so it is prefix-matched and re-filtered afterwards. A literal term is
+        // the word the user typed, and is NOT re-filtered when it stands alone — so it is matched exactly
+        // as a word, on both sides.
+        //
+        // CONTAINS on the file name rather than LIKE '%…%': LIKE has no notion of a word, so "needle" would
+        // return "needless.txt" and the row would either be shown wrongly or rejected later by a
+        // post-filter that disagrees with the query that produced it.
+        if (term.Kind == SearchTermKind.Regex)
+            return $"(CONTAINS(System.Search.Contents,'\"{EscapeSql(seed)}*\"')" +
+                   $" OR System.FileName LIKE '%{EscapeLike(seed)}%')";
 
-        return $"({contents} OR System.FileName LIKE '%{EscapeLike(seed)}%')";
+        return $"(CONTAINS(System.Search.Contents,'\"{EscapeSql(seed)}\"')" +
+               $" OR CONTAINS(System.FileName,'\"{EscapeSql(seed)}\"'))";
     }
 
     /// <summary>

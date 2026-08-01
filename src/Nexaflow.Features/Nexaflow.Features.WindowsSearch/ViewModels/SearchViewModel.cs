@@ -276,6 +276,18 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
     private bool CanScan =>
         (!string.IsNullOrEmpty(SearchRoot) && Directory.Exists(SearchRoot)) || _drives.Count > 0;
 
+    /// <summary>
+    /// How many rows a folder scan will add before it stops.
+    /// <para>
+    /// Far above the index's own cap: that one bounds a query the user can refine and re-run in seconds,
+    /// while a scan may have spent minutes reading the tree and stopping it early throws that work away.
+    /// A limit still exists because every row is a live UI element, and an unbounded list on a broad query
+    /// over a large tree is how the window stops responding. When it bites, the banner says so — a
+    /// truncated list that claims to be complete is worse than a smaller one that admits it.
+    /// </para>
+    /// </summary>
+    private const int ScanResultCap = 10_000;
+
     private CancellationTokenSource? _scanCts;
 
     /// <summary>Every root a scan should cover — the tab's folder, or each drive for "This PC".</summary>
@@ -307,7 +319,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
             {
                 ct.ThrowIfCancellationRequested();
 
-                await WindowsSearchService.WalkAsync(request, root, DefaultResultCap, hit =>
+                await WindowsSearchService.WalkAsync(request, root, ScanResultCap, hit =>
                 {
                     // Off the walk's thread and onto the UI's — the feature never touches a dispatcher
                     // itself, and a hit arriving mid-enumeration must not race the list.
@@ -320,7 +332,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
                 }, ct);
             }
 
-            var done = VerificationPlanner.AfterScan(found);
+            var done = VerificationPlanner.AfterScan(found, truncated: found >= ScanResultCap);
             VerificationPhase  = done.Phase;
             VerificationBanner = done.Banner;
         }

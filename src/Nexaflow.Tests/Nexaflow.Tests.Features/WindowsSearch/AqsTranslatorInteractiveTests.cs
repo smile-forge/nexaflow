@@ -176,6 +176,41 @@ public class AqsTranslatorInteractiveTests
         Assert.IsNotNull(results);
     }
 
+    [TestMethod]
+    public void APlainTermQueryIsAcceptedByTheIndex()
+    {
+        // CONTAINS on System.FileName is what gives a literal term whole-word matching on the name. If the
+        // provider rejected it, the OleDbException would be swallowed as "index unavailable" and the
+        // feature would look broken rather than wrong — so the origin is asserted, not just the count.
+        var terms  = SearchSyntax.ParseTerms("needle", []);
+        var parsed = SearchQueryParser.FromTerms(terms);
+        Assert.IsNotNull(parsed);
+        StringAssert.Contains(parsed.WhereClause, "CONTAINS(System.FileName");
+
+        var found = WindowsSearchService
+            .SearchWithOriginAsync(parsed, KnownFolder(), CancellationToken.None)
+            .GetAwaiter().GetResult();
+
+        Assert.AreEqual(SearchOrigin.Index, found.Origin,
+            "the query did not run — a rejected clause is reported as an unreachable index");
+    }
+
+    [TestMethod]
+    public void AQuotedPhraseQueryIsAcceptedByTheIndex()
+    {
+        // A phrase goes into CONTAINS with its spaces intact; unbalanced quoting is the usual way to break
+        // this, and it breaks at execution rather than at parse.
+        var terms  = SearchSyntax.ParseTerms("\"the lost dog\"", []);
+        var parsed = SearchQueryParser.FromTerms(terms);
+        Assert.IsNotNull(parsed);
+
+        var found = WindowsSearchService
+            .SearchWithOriginAsync(parsed, KnownFolder(), CancellationToken.None)
+            .GetAwaiter().GetResult();
+
+        Assert.AreEqual(SearchOrigin.Index, found.Origin);
+    }
+
     private static string KnownFolder() =>
         Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
 }
