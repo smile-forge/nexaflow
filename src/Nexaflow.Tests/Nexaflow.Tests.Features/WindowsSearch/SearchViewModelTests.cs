@@ -317,6 +317,64 @@ public class SearchViewModelTests
         finally { try { Directory.Delete(root, true); } catch { } }
     }
 
+    // ── Tab label and breadcrumbs ─────────────────────────────────────────────
+
+    [TestMethod]
+    public void TheTabLabelNamesTheSearch()
+    {
+        Assert.AreEqual("🔍: needle", SearchViewModel.TabTitleFor("needle"));
+        Assert.AreEqual("🔍 Search",  SearchViewModel.TabTitleFor("   "));
+    }
+
+    [TestMethod]
+    public void ALongQueryIsElidedRatherThanWideningTheTab()
+    {
+        var title = SearchViewModel.TabTitleFor(new string('x', 60));
+
+        StringAssert.EndsWith(title, "…");
+        Assert.IsTrue(title.Length <= SearchViewModel.TabQueryChars + 5, title);
+    }
+
+    [TestMethod]
+    public void TheBreadcrumbLeadsWithTheFolderBeingSearched()
+    {
+        // It used to show only the folder's NAME, which is ambiguous between every "temp" on the machine —
+        // and unclickable, so there was no way back to the place being searched.
+        var page = new Page();
+        _ = new SearchViewModel("needle", @"C:\temp", [], Shell()) { Tab = page };
+
+        Assert.AreEqual(2, page.Breadcrumbs.Count);
+        Assert.AreEqual(@"C:\temp", page.Breadcrumbs[0].Label);
+        Assert.AreEqual(FileBreadcrumbs.FileSystemPageKind, page.Breadcrumbs[0].TargetPageKind,
+            "the scope crumb should navigate, like every other feature's directory crumb");
+        StringAssert.Contains(page.Breadcrumbs[1].Label, "needle");
+    }
+
+    [TestMethod]
+    public void ACrossDriveSearchSaysSoRatherThanShowingAnEmptyCrumb()
+    {
+        var page = new Page();
+        _ = new SearchViewModel("needle", "", [@"C:\", @"D:\"], Shell()) { Tab = page };
+
+        Assert.AreEqual("This PC", page.Breadcrumbs[0].Label);
+    }
+
+    [TestMethod]
+    public void RefiningUpdatesTheTabAndBreadcrumb()
+    {
+        // The regression: both were written once, where the tab was created, so every later refinement left
+        // them describing a query the page was no longer showing.
+        var page = new Page();
+        var vm   = new SearchViewModel("needle", @"C:\temp", [], Shell()) { Tab = page };
+
+        vm.SearchQuery = "needle haystack";
+
+        StringAssert.Contains(page.Breadcrumbs[1].Label, "haystack");
+        StringAssert.Contains(page.Title, "needle");
+        Assert.AreEqual("needle haystack", page.PageParams!["query"],
+            "a reopened tab is rebuilt from these, so they have to follow the query too");
+    }
+
     // ── Teardown ──────────────────────────────────────────────────────────────
 
     [TestMethod]

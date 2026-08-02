@@ -39,7 +39,57 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
     public bool HasSearchScope => !string.IsNullOrEmpty(SearchRoot) || _drives.Count > 0;
 
     /// <summary>Set by <see cref="SearchTabRegistration"/> so this VM can keep tab meta in sync.</summary>
-    public Page? Tab { get; set; }
+    public Page? Tab
+    {
+        get;
+        set { field = value; SyncTab(); }
+    }
+
+    /// <summary>Query characters kept in the tab label before it is elided.</summary>
+    public const int TabQueryChars = 14;
+
+    /// <summary>The tab label for a query — the magnifier, then as much of the query as fits.</summary>
+    public static string TabTitleFor(string query) =>
+        string.IsNullOrWhiteSpace(query)
+            ? "🔍 Search"
+            : $"🔍: {(query.Length > TabQueryChars ? query[..TabQueryChars] + "…" : query)}";
+
+    /// <summary>
+    /// Pushes the current query out to the tab — title, breadcrumbs and the params a reopened tab is
+    /// rebuilt from.
+    /// <para>
+    /// Driven by <see cref="SearchQuery"/> changing rather than called from each search path, because
+    /// there are now several: a fresh run, a refinement, a re-scan, accepting "run as a new search", and
+    /// the header field being edited. Wiring them individually is how the breadcrumb ended up showing the
+    /// query the tab opened with rather than the one it is showing.
+    /// </para>
+    /// </summary>
+    private void SyncTab()
+    {
+        if (Tab is null) return;
+
+        Tab.Title      = TabTitleFor(SearchQuery);
+        Tab.PageParams = new()
+        {
+            ["query"]  = SearchQuery,
+            ["root"]   = SearchRoot,
+            ["drives"] = string.Join(";", _drives),
+        };
+
+        Tab.Breadcrumbs.Clear();
+
+        // The scope as its own crumb, and a clickable one: a search under C:\temp should offer the way back
+        // to C:\temp. FileBreadcrumbs owns what a directory crumb points at, so this matches every other
+        // feature's trail rather than inventing a second convention.
+        if (!string.IsNullOrEmpty(SearchRoot))
+            Tab.Breadcrumbs.Add(FileBreadcrumbs.ForDirectory(SearchRoot));
+        else
+            Tab.Breadcrumbs.Add(new BreadcrumbSegment { Label = _drives.Count > 0 ? "This PC" : "Search" });
+
+        Tab.Breadcrumbs.Add(new BreadcrumbSegment { Label = $"Query : {SearchQuery}" });
+    }
+
+    partial void OnSearchQueryChanged(string value) => SyncTab();
 
     private readonly IShellServices      _shellServices;
     private readonly IReadOnlyList<string> _drives;
@@ -178,21 +228,6 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         SearchQuery    = SearchSyntax.Format(combined);
         _lastParsed    = merged;
         await ExecuteSearch(merged, CancellationToken.None);
-
-        if (Tab is not null)
-        {
-            var q  = SearchQuery;
-            var r  = SearchRoot;
-            var qs = q.Length > 12 ? q[..12] + "…" : q;
-            var rl = string.IsNullOrEmpty(r)
-                ? (_drives.Count > 0 ? "This PC" : "Search")
-                : Path.GetFileName(r.TrimEnd('\\', '/'));
-            Tab.Title = qs;
-            Tab.PageParams = new() { ["query"] = q, ["root"] = r, ["drives"] = string.Join(";", _drives) };
-            Tab.Breadcrumbs.Clear();
-            Tab.Breadcrumbs.Add(new BreadcrumbSegment { Label = rl });
-            Tab.Breadcrumbs.Add(new BreadcrumbSegment { Label = $"Query : {qs}" });
-        }
     }
 
     // ── Content verification ──────────────────────────────────────────────────
@@ -290,6 +325,13 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
 
     private CancellationTokenSource? _scanCts;
 
+    /// <summary>
+    /// True after a scan was stopped part-way. Stopping leaves a partial result set and no obvious way
+    /// back — retyping the query in the header works, but only if you already know that — so the banner
+    /// offers to run it again.
+    /// </summary>
+    [ObservableProperty] private bool _canRescan;
+
     /// <summary>Every root a scan should cover — the tab's folder, or each drive for "This PC".</summary>
     private IReadOnlyList<string> ScanRoots =>
         string.IsNullOrEmpty(SearchRoot) ? _drives : [SearchRoot];
@@ -325,6 +367,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         ResultCount = 0;
 
         IsSearching        = true;
+        CanRescan          = false;
         VerificationPhase  = VerifyPhase.Scanning;
         VerificationBanner = VerificationPlanner.Scanning(0).Banner;
         StatusText         = "Scanning…";
@@ -368,6 +411,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
             var stopped = VerificationPlanner.AfterScan(found, cancelled: true);
             VerificationPhase  = stopped.Phase;
             VerificationBanner = stopped.Banner;
+            CanRescan          = true;
         }
         catch (Exception ex)
         {

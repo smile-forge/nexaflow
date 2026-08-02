@@ -24,11 +24,12 @@
                 BorderThickness="0,0,0,1"
                 Padding="12,8">
             <Grid>
+                <!-- Two halves. The path gets the whole left half — it is the longest thing here and the
+                     one that reads worst when trimmed — and the query starts exactly at the midpoint. The
+                     status shares the right half rather than taking a column of its own, which is what
+                     otherwise pushes the query off centre. -->
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
-                    <!-- Wider than the text it holds: the query is editable, so it needs room to type in
-                         rather than only room to read. -->
-                    <ColumnDefinition Width="2*" MinWidth="220"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
@@ -43,6 +44,22 @@
                 <!-- The query, editable in place. Terms can be dropped or reworded here and re-run, which
                      is the only way to UNDO a refinement — everything else in this page narrows. -->
                 <DockPanel Grid.Column="1" VerticalAlignment="Center" LastChildFill="True">
+                    <StackPanel DockPanel.Dock="Right"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Margin="8,0,0,0">
+                        <TextBlock Text="&#xE72C;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="13"
+                                   Foreground="{StaticResource AccentBrush}"
+                                   Margin="0,0,6,0"
+                                   Visibility="{Binding IsSearching, Converter={StaticResource BoolVis}}"/>
+                        <TextBlock Text="{Binding StatusText}"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   FontSize="12"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
                     <TextBlock Text="&#xE721;"
                                DockPanel.Dock="Left"
                                FontFamily="Segoe MDL2 Assets"
@@ -88,21 +105,6 @@
                     </TextBox>
                 </DockPanel>
 
-                <StackPanel Grid.Column="2"
-                            Orientation="Horizontal"
-                            HorizontalAlignment="Right"
-                            VerticalAlignment="Center">
-                    <TextBlock Text="&#xE72C;"
-                               FontFamily="Segoe MDL2 Assets"
-                               FontSize="13"
-                               Foreground="{StaticResource AccentBrush}"
-                               Margin="0,0,6,0"
-                               Visibility="{Binding IsSearching, Converter={StaticResource BoolVis}}"/>
-                    <TextBlock Text="{Binding StatusText}"
-                               Foreground="{StaticResource TextMutedBrush}"
-                               FontSize="12"
-                               VerticalAlignment="Center"/>
-                </StackPanel>
             </Grid>
         </Border>
 
@@ -218,6 +220,30 @@
                                     Style="{StaticResource TbBtn}"
                                     AutomationProperties.AutomationId="StopScan"
                                     Command="{Binding StopScanCommand}"
+                                    Margin="8,0,0,0"/>
+                        </StackPanel>
+
+                        <!-- After a stopped scan. Re-running is possible from the query field, but only if
+                             you already know that — a stop with no way back reads as a dead end. -->
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding VerificationPhase}" Value="Done"/>
+                                                <Condition Binding="{Binding CanRescan}" Value="True"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <Button Content="Scan again"
+                                    Style="{StaticResource TbBtn}"
+                                    AutomationProperties.AutomationId="RescanFolder"
+                                    Command="{Binding ScanFolderCommand}"
                                     Margin="8,0,0,0"/>
                         </StackPanel>
 
