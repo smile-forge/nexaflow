@@ -172,6 +172,14 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
             return;
         }
 
+        // Once the scan is this location's answer, a re-run is a re-scan. Going back to the index would
+        // show an empty list and offer a scan the user has already asked for.
+        if (_scanChosen && CanScan)
+        {
+            await RunScanAsync();
+            return;
+        }
+
         _baseQuery  = parsed.RawInput;
         _lastParsed = parsed;
         await ExecuteSearch(_lastParsed, externalCt);
@@ -335,6 +343,16 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
     private CancellationTokenSource? _scanCts;
 
     /// <summary>
+    /// True once the user has chosen to scan this location.
+    /// <para>
+    /// The choice sticks for the life of the tab. Asking the index again would find the same nothing, offer
+    /// the same scan, and put the same question back in front of someone who has already answered it — so
+    /// every later query here goes straight to the scan.
+    /// </para>
+    /// </summary>
+    private bool _scanChosen;
+
+    /// <summary>
     /// True after a scan was stopped part-way. Stopping leaves a partial result set and no obvious way
     /// back — retyping the query in the header works, but only if you already know that — so the banner
     /// offers to run it again.
@@ -364,6 +382,8 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
     private async Task RunScanAsync()
     {
         if (_activeRequest is not { Terms.Count: > 0 } request || !CanScan) return;
+
+        _scanChosen = true;
 
         _scanCts?.Cancel();
         var cts  = new CancellationTokenSource();
@@ -451,7 +471,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
     /// <summary>True when what the user is looking at came from a folder scan — one still running, or one
     /// that has finished.</summary>
     private bool ScanOwnsTheResults =>
-        VerificationPhase == VerifyPhase.Scanning || _lastOrigin == SearchOrigin.FolderScan;
+        _scanChosen || VerificationPhase == VerifyPhase.Scanning || _lastOrigin == SearchOrigin.FolderScan;
 
     /// <summary>
     /// Narrows a scan by running a tighter one. The walk takes its query up front, so a refinement cannot
@@ -683,7 +703,11 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         Results.Clear();
         ResultCount = 0;
 
-        _ = AnnounceIfSlow(ct);
+        // Its own token, cancelled the moment this search ends. Linked to ct alone was not enough: on a
+        // NORMAL finish nothing cancels ct, so the notice still fired three seconds later — and if a scan
+        // had started by then it wrote "waiting for the index" over the scan's own banner.
+        var notice = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        _ = AnnounceIfSlow(notice.Token);
 
         try
         {
@@ -772,6 +796,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         }
         finally
         {
+            notice.Cancel();
             IsSearching = false;
 
             // The waiting notice is the only phase nothing else replaces — every other exit from here

@@ -312,7 +312,85 @@ public class SearchViewModelTests
             await vm.RunSearchAsync(CancellationToken.None);
 
             Assert.AreEqual(0, vm.ResultCount, "the previous scan's rows belong to a query that is gone");
-            Assert.AreEqual(VerifyPhase.OfferScan, vm.VerificationPhase);
+
+            // Re-scanned rather than re-offered: the scan is already this location's answer, so the run
+            // finishes with its own report instead of asking to scan a second time.
+            Assert.AreEqual(VerifyPhase.Done, vm.VerificationPhase);
+            StringAssert.Contains(vm.VerificationBanner, "Folder scan");
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
+    // ── A chosen scan sticks ──────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task OnceScanned_ARerunScansRatherThanAskingTheIndexAgain()
+    {
+        // Reported: scan an unindexed folder, edit the query, and the page went back to the index — an
+        // empty list and "this location is not indexed, scan?" put to someone who had already said yes.
+        var root = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "needle");
+            await File.WriteAllTextAsync(Path.Combine(root, "b.txt"), "haystack");
+
+            var vm = new SearchViewModel("needle", root, [], Shell());
+            await vm.RunSearchAsync(CancellationToken.None);
+            await vm.ScanFolderCommand.ExecuteAsync(null);
+            Assert.AreEqual(1, vm.ResultCount, "precondition: the scan answered");
+
+            vm.SearchQuery = "haystack";
+            await vm.RunSearchAsync(CancellationToken.None);
+
+            Assert.AreEqual(1, vm.ResultCount, "the re-run should have scanned, not queried the index");
+            Assert.AreEqual("b.txt", vm.Results[0].FileName);
+            Assert.AreNotEqual(VerifyPhase.OfferScan, vm.VerificationPhase,
+                "the scan was already chosen — asking again ignores an answer already given");
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
+    [TestMethod]
+    public async Task OnceScanned_RefiningDoesNotReopenTheIndexingQuestion()
+    {
+        var root = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "needle and haystack");
+
+            var vm = new SearchViewModel("needle", root, [], Shell());
+            await vm.RunSearchAsync(CancellationToken.None);
+            await vm.ScanFolderCommand.ExecuteAsync(null);
+
+            await vm.SearchAsync(new SearchRequest("haystack"), display: true, default);
+
+            Assert.AreEqual(1, vm.ResultCount);
+            Assert.AreNotEqual(VerifyPhase.OfferScan, vm.VerificationPhase);
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
+    [TestMethod]
+    public async Task TheWaitingNoticeCannotOutliveItsOwnSearch()
+    {
+        // It used to be tied only to the search's token, which a NORMAL finish never cancels — so it still
+        // fired three seconds later and wrote over whatever the page was showing by then, a running scan
+        // included. That is the 1-in-3 "waiting for the index" on a folder nobody was asking the index about.
+        var root = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "needle");
+
+            var vm = new SearchViewModel("needle", root, [], Shell());
+            await vm.RunSearchAsync(CancellationToken.None);
+            await vm.ScanFolderCommand.ExecuteAsync(null);
+
+            var settled = vm.VerificationPhase;
+            await Task.Delay(TimeSpan.FromSeconds(4));
+
+            Assert.AreEqual(settled, vm.VerificationPhase,
+                "a finished search's notice must not surface after the fact");
+            Assert.AreNotEqual(VerifyPhase.Searching, vm.VerificationPhase);
         }
         finally { try { Directory.Delete(root, true); } catch { } }
     }
