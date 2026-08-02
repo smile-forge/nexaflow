@@ -124,6 +124,41 @@ public static class VerificationPlanner
             : "The Windows indexer didn't find anything like that in this location — scan it manually (slow)?");
 
     /// <summary>
+    /// What to say about a result set, given how much of the location the indexer actually covers.
+    /// <para>
+    /// The coverage is the whole point. "No results" from a folder the indexer was never pointed at is not
+    /// an answer at all, while the same words from a fully-indexed folder very nearly are — and offering a
+    /// minutes-long scan just as eagerly in both cases spends the user's time on the one where it is least
+    /// likely to help.
+    /// </para>
+    /// </summary>
+    /// <param name="coverage">What the crawl scope says about this location.</param>
+    /// <param name="hasResults">Whether anything came back.</param>
+    public static VerifyPlan ForCoverage(IndexCoverageKind coverage, bool hasResults) => coverage switch
+    {
+        IndexCoverageKind.None =>
+            new(VerifyPhase.OfferScan, 0,
+                "This location is not indexed by Windows. Would you like to run a full (slow) scan anyway?"),
+
+        IndexCoverageKind.Partial =>
+            new(VerifyPhase.OfferScan, 0,
+                "Not all folders in this location are indexed — you can also run a full (slow) scan."),
+
+        IndexCoverageKind.Full when !hasResults =>
+            new(VerifyPhase.OfferScan, 0,
+                "The Windows indexer didn't find anything here — run a full (slow) scan anyway?"),
+
+        IndexCoverageKind.Full =>
+            new(VerifyPhase.OfferScan, 0,
+                "The following results are reported by the Windows indexer. You can also run a full (slow) scan."),
+
+        // Coverage unknown: say only what is certain, which is what the search itself did.
+        _ => hasResults
+            ? new(VerifyPhase.None, 0, string.Empty)
+            : OfferScan(SearchOrigin.Index),
+    };
+
+    /// <summary>
     /// The same offer, after a verification sweep has thrown every row away. The index DID return rows, so
     /// the "found nothing" wording above would contradict the count the user just watched appear — but the
     /// end state is identical: an empty list from a location the index may never have covered, and the

@@ -250,6 +250,68 @@ public class VerificationPlannerTests
         StringAssert.Contains(plan.Banner, "None of them matched");
     }
 
+    // ── Wording follows what the indexer actually covers ──────────────────────
+
+    [TestMethod]
+    public void AnUnindexedLocationSaysSoRatherThanClaimingNothingMatched()
+    {
+        // The distinction the whole coverage read exists for: "found nothing" from a folder the indexer
+        // was never pointed at is not a result, and telling the user it is sends them away from a file
+        // that is sitting right there.
+        var plan = VerificationPlanner.ForCoverage(IndexCoverageKind.None, hasResults: false);
+
+        Assert.AreEqual(VerifyPhase.OfferScan, plan.Phase);
+        StringAssert.Contains(plan.Banner, "not indexed by Windows");
+    }
+
+    [TestMethod]
+    public void APartiallyIndexedLocationWarnsEvenWhenItFoundThings()
+    {
+        // Results here are real but possibly incomplete, so the scan is offered alongside them rather
+        // than instead of them.
+        var plan = VerificationPlanner.ForCoverage(IndexCoverageKind.Partial, hasResults: true);
+
+        Assert.AreEqual(VerifyPhase.OfferScan, plan.Phase);
+        StringAssert.Contains(plan.Banner, "Not all folders");
+    }
+
+    [TestMethod]
+    public void AFullyIndexedLocationDistinguishesFoundFromNotFound()
+    {
+        var found    = VerificationPlanner.ForCoverage(IndexCoverageKind.Full, hasResults: true);
+        var notFound = VerificationPlanner.ForCoverage(IndexCoverageKind.Full, hasResults: false);
+
+        StringAssert.Contains(found.Banner, "reported by the Windows indexer");
+        StringAssert.Contains(notFound.Banner, "didn't find anything here");
+        Assert.AreNotEqual(found.Banner, notFound.Banner);
+    }
+
+    [TestMethod]
+    public void EveryCoverageStillOffersTheScan()
+    {
+        // Even a fully-indexed folder that found things: the index skips file types it has no filter for,
+        // so "the index is complete" is never quite the same claim as "these are all the matches".
+        foreach (var coverage in new[] { IndexCoverageKind.None, IndexCoverageKind.Partial, IndexCoverageKind.Full })
+        foreach (var hasResults in new[] { true, false })
+        {
+            var plan = VerificationPlanner.ForCoverage(coverage, hasResults);
+            Assert.AreEqual(VerifyPhase.OfferScan, plan.Phase, $"{coverage}/{hasResults}");
+            StringAssert.Contains(plan.Banner, "slow", $"{coverage}/{hasResults}");
+        }
+    }
+
+    [TestMethod]
+    public void UnknownCoverageSaysNothingItCannotSupport()
+    {
+        // The indexer could not be asked. With results on screen there is nothing honest to add; with none,
+        // it falls back to reporting only what the search itself did.
+        Assert.AreEqual(VerifyPhase.None,
+            VerificationPlanner.ForCoverage(IndexCoverageKind.Unknown, hasResults: true).Phase);
+
+        Assert.AreEqual(VerifyPhase.OfferScan,
+            VerificationPlanner.ForCoverage(IndexCoverageKind.Unknown, hasResults: false).Phase);
+    }
+
     [TestMethod]
     public void ScanningReportsWhatItHasFoundSoFar()
     {

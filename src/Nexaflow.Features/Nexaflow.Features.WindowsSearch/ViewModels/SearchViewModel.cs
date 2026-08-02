@@ -605,6 +605,39 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
     /// the post-filter throws away, which is the case that used to fall through the gap.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// Describes the result set in terms of what the indexer actually covers here — and offers the folder
+    /// scan where it would tell the user something the index cannot.
+    /// </summary>
+    private void ApplyCoverageBanner()
+    {
+        if (!CanScan)
+        {
+            VerificationPhase = VerifyPhase.None;
+            return;
+        }
+
+        // An indexer that could not be reached is a different claim from one that covers nothing, and only
+        // the first is worth naming as a fault.
+        if (_lastOrigin == SearchOrigin.IndexUnavailable)
+        {
+            var unavailable = VerificationPlanner.OfferScan(SearchOrigin.IndexUnavailable);
+            VerificationPhase  = unavailable.Phase;
+            VerificationBanner = unavailable.Banner;
+            return;
+        }
+
+        // Coverage is a question about ONE location. Across drives there is no single answer, so the
+        // reader is not asked and the wording falls back to what the search itself did.
+        var coverage = string.IsNullOrEmpty(SearchRoot)
+            ? IndexCoverageKind.Unknown
+            : _coverage.Coverage(SearchRoot);
+
+        var plan = VerificationPlanner.ForCoverage(coverage, Results.Count > 0);
+        VerificationPhase  = plan.Phase;
+        VerificationBanner = plan.Banner;
+    }
+
     private bool OfferScanIfNothingToShow(bool afterSweep = false)
     {
         if (Results.Count > 0 || !CanScan) return false;
@@ -700,9 +733,10 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
                 ? "No results."
                 : $"{ResultCount} result{(ResultCount == 1 ? "" : "s")}";
 
-            // Nothing from the index isn't necessarily an answer — this folder may simply not be indexed.
-            // Offer the scan rather than starting it: it reads every file in the tree.
-            if (!OfferScanIfNothingToShow()) BeginVerification();
+            // Rows that might not be real outrank how complete the search was: settle them first, and let
+            // CompleteSweep have the last word on the banner.
+            if (_postFilter is not null && Candidates.Count > 0) BeginVerification();
+            else ApplyCoverageBanner();
         }
         catch (OperationCanceledException)
         {
@@ -794,6 +828,48 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
                 SearchQuery = query;
                 _ = RunSearchAsync(CancellationToken.None);
                 return Task.FromResult(ToolResult.Ok($"searching for {query}", $"Started search for '{query}'."));
+            }),
+
+        new DelegateClientTool(
+            "index_coverage",
+            "Reports whether Windows indexes a folder, and the crawl-scope rules that decide it. " +
+            "Use this to answer 'why isn't this indexed?' or 'why did the search find nothing?' — the " +
+            "rules explain a result the search itself can only show. Read-only: it reports the machine's " +
+            "indexing configuration and never changes it.",
+            [new ClientToolParameter(
+                "path",
+                "Folder to explain. Defaults to the folder this search tab is scoped to.",
+                Required: false)],
+            ToolSafety.SafeOperation,
+            (arguments, ct) =>
+            {
+                var path = arguments["path"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(path)) path = SearchRoot;
+
+                if (string.IsNullOrWhiteSpace(path))
+                    return Task.FromResult(ToolResult.Error(
+                        "This search covers several drives, so there is no single location to report on. " +
+                        "Name a folder to explain."));
+
+                var coverage = _coverage.Coverage(path);
+                var rules    = _coverage.RulesFor(path);
+
+                var summary = coverage switch
+                {
+                    IndexCoverageKind.Full    => $"'{path}' is fully indexed.",
+                    IndexCoverageKind.Partial => $"'{path}' is indexed, but part of it is excluded.",
+                    IndexCoverageKind.None    => $"'{path}' is not indexed by Windows.",
+                    _                         => $"Windows Search could not be asked about '{path}'.",
+                };
+
+                // The rules ARE the explanation — a verdict on its own just restates what the user saw.
+                var detail = rules.Count == 0
+                    ? "No crawl-scope rule mentions this path, so it is covered (or not) by the indexer's defaults."
+                    : string.Join("\n", rules.Select(r => "  " + r));
+
+                return Task.FromResult(ToolResult.Ok(
+                    summary,
+                    $"{summary}\n\nCrawl-scope rules affecting it:\n{detail}"));
             })
     ];
 
@@ -803,6 +879,10 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
     /// spots a property constraint and the parser that turns it into SQL, so both agree on what the
     /// index will actually enforce.</summary>
     private readonly AqsTranslator _aqs = new();
+
+    /// <summary>Reads how much of this location the indexer covers, so an empty result can be reported as
+    /// what it actually means rather than as "not found".</summary>
+    private readonly IndexCoverageReader _coverage = new();
 
     /// <summary>This page searches files, so filename globs and index property constraints both mean
     /// something here.</summary>
@@ -985,5 +1065,6 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         _scanCts   = null;
 
         _aqs.Dispose();
+        _coverage.Dispose();
     }
 }

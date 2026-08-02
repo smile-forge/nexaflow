@@ -87,8 +87,90 @@ internal interface ISearchCatalogManager
     [return: MarshalAs(UnmanagedType.Interface)]
     ISearchQueryHelper GetQueryHelper();
 
-    // Remaining slots (put_/get_DiacriticSensitivity, GetCrawlScopeManager) are deliberately not
-    // declared — nothing after the last member we call can affect layout.
+    // Slots 26-27 — position only, never called.
+    void put_DiacriticSensitivity();
+    void get_DiacriticSensitivity();
+
+    /// <summary>Slot 28. Which locations the indexer is configured to cover.</summary>
+    [return: MarshalAs(UnmanagedType.Interface)]
+    ISearchCrawlScopeManager GetCrawlScopeManager();
+}
+
+/// <summary>
+/// What the indexer has been told to cover. Read-only here on purpose: this tells the user why a search
+/// found nothing, it does not reconfigure their machine.
+/// </summary>
+[ComImport]
+[Guid("AB310581-AC80-11D1-8DF3-00C04FB6EF55")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface ISearchCrawlScopeManager
+{
+    // Slots 3-9 — position only, never called. All of them MUTATE the machine's indexing configuration;
+    // none should ever be given a real signature here without a deliberate decision to allow that.
+    void AddDefaultScopeRule();
+    void AddRoot();
+    void RemoveRoot();
+    void EnumerateRoots();
+    void AddHierarchicalScope();
+    void AddUserScopeRule();
+    void RemoveScopeRule();
+
+    /// <summary>Slot 10. Every include/exclude rule, which is what explains a coverage answer.</summary>
+    [return: MarshalAs(UnmanagedType.Interface)]
+    IEnumSearchScopeRules EnumerateScopeRules();
+
+    // Slot 11 — position only.
+    void HasParentScopeRule();
+
+    /// <summary>
+    /// Slot 12. True when something BELOW this path carries its own rule — which is what separates a
+    /// wholly-covered folder from one with a hole in it.
+    /// </summary>
+    [PreserveSig]
+    int HasChildScopeRule([MarshalAs(UnmanagedType.LPWStr)] string pszURL,
+                          [MarshalAs(UnmanagedType.Bool)] out bool pfHasChildRule);
+
+    /// <summary>Slot 13. Whether the indexer covers this path at all.</summary>
+    [PreserveSig]
+    int IncludedInCrawlScope([MarshalAs(UnmanagedType.LPWStr)] string pszURL,
+                             [MarshalAs(UnmanagedType.Bool)] out bool pfIsIncluded);
+
+    // RevertToDefaultScopes, SaveAll, GetParentScopeVersionId, RemoveDefaultScopeRule follow.
+}
+
+[ComImport]
+[Guid("AB310581-AC80-11D1-8DF3-00C04FB6EF54")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IEnumSearchScopeRules
+{
+    [PreserveSig]
+    int Next(uint celt,
+             [Out, MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.Interface, SizeParamIndex = 0)]
+             ISearchScopeRule?[] pprgelt,
+             out uint pceltFetched);
+
+    [PreserveSig] int Skip(uint celt);
+    void Reset();
+    void Clone(out IEnumSearchScopeRules ppenum);
+}
+
+/// <summary>One include or exclude rule in the indexer's crawl scope.</summary>
+[ComImport]
+[Guid("AB310581-AC80-11D1-8DF3-00C04FB6EF53")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface ISearchScopeRule
+{
+    [PreserveSig]
+    int get_PatternOrURL([MarshalAs(UnmanagedType.LPWStr)] out string? ppszPatternOrURL);
+
+    [PreserveSig]
+    int get_IsIncluded([MarshalAs(UnmanagedType.Bool)] out bool pfIsIncluded);
+
+    [PreserveSig]
+    int get_IsDefault([MarshalAs(UnmanagedType.Bool)] out bool pfIsDefault);
+
+    [PreserveSig]
+    int get_FollowFlags(out uint pFollowFlags);
 }
 
 /// <summary>

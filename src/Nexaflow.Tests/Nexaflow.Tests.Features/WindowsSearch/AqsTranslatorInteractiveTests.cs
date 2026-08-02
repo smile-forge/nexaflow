@@ -211,6 +211,64 @@ public class AqsTranslatorInteractiveTests
         Assert.AreEqual(SearchOrigin.Index, found.Origin);
     }
 
+    // ── Crawl scope, against the real machine ─────────────────────────────────
+
+    [TestMethod]
+    public void AKnownIndexedFolderReadsAsIndexed()
+    {
+        // Documents is indexed by default on every Windows install. If this comes back None, the URL form
+        // we hand the crawl scope is wrong — which would make every location look unindexed and turn the
+        // banner into a permanent, wrong warning.
+        using var reader = new IndexCoverageReader();
+
+        var coverage = reader.Coverage(KnownFolder());
+
+        Assert.AreNotEqual(IndexCoverageKind.None, coverage,
+            "the user's Documents folder should not read as outside the crawl scope");
+        Assert.AreNotEqual(IndexCoverageKind.Unknown, coverage, "the crawl scope could not be read at all");
+    }
+
+    [TestMethod]
+    public void AnUnindexedFolderIsDistinguishedFromAnIndexedOne()
+    {
+        // Windows excludes its own directory from indexing. Two locations reading the SAME way would mean
+        // the answer is not actually derived from the machine.
+        using var reader = new IndexCoverageReader();
+
+        var indexed   = reader.Coverage(KnownFolder());
+        var windows   = reader.Coverage(Environment.GetFolderPath(Environment.SpecialFolder.Windows));
+
+        Assert.AreNotEqual(indexed, windows,
+            "an indexed folder and the Windows directory should not report identical coverage");
+    }
+
+    [TestMethod]
+    public void TheScopeRulesCanBeRead()
+    {
+        // The rules are what the AI reports when asked why something isn't indexed; an empty list would
+        // make that command answer every question with a shrug.
+        using var reader = new IndexCoverageReader();
+
+        var rules = reader.Rules();
+
+        Assert.IsTrue(rules.Count > 0, "a configured indexer always has at least the default scope rules");
+        Assert.IsTrue(rules.Any(r => r.IsIncluded), "at least one rule should be an inclusion");
+        Assert.IsTrue(rules.All(r => !string.IsNullOrWhiteSpace(r.PatternOrUrl)),
+            "a rule with no path explains nothing");
+    }
+
+    [TestMethod]
+    public void RulesForAFolderAreNarrowerThanAllOfThem()
+    {
+        using var reader = new IndexCoverageReader();
+
+        var all   = reader.Rules();
+        var mine  = reader.RulesFor(KnownFolder());
+
+        Assert.IsTrue(mine.Count <= all.Count);
+        Assert.IsTrue(mine.Count > 0, "some rule must bear on a folder that is in scope");
+    }
+
     private static string KnownFolder() =>
         Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
 }
