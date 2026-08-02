@@ -1,3 +1,5 @@
+using Nexaflow.Features.Common.Search;
+using Nexaflow.Search;
 using Nexaflow.Features.WindowsSearch.Services;
 using Nexaflow.Tests.Fixtures;
 

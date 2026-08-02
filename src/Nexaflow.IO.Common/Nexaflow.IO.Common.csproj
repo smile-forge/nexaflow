@@ -9,6 +9,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The query language defines the recogniser contract; the glob one lives here, next to Glob itself,
+         so Nexaflow.Search needs no glob implementation and no reference back to this library. -->
+    <ProjectReference Include="..\Nexaflow.Search\Nexaflow.Search.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="Nexaflow.Tests.Features" />
   </ItemGroup>
 

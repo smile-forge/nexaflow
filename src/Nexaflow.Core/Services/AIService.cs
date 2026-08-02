@@ -3,6 +3,8 @@ using Nexaflow.Core.Models;
 using Nexaflow.Core.Services.Agent;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.Common.Search;
+using Nexaflow.Search;
 using Nexaflow.Providers.Common;
 using System.IO;
 using System.Text;
@@ -298,6 +300,11 @@ public sealed class AIService : IAIService
 
         var pageContext = includeContext ? page?.GetContext() ?? "No specific context." : "No specific context.";
         var pageTools   = new List<IClientTool>(includeContext ? page?.GetClientTools() ?? [] : []);
+
+        // A searchable page gets its search tools automatically — declaring ISearchable is the whole
+        // opt-in, so no feature has to remember to hand them out in GetClientTools.
+        if (includeContext && page is ISearchable searchable)
+            pageTools.AddRange(new SearchClientTools(searchable).Tools);
 
         // Fold in shell-level context + tools (local time, workspace, theme, open windows/tabs,
         // openable pages, and the shell tools) alongside the active page's.

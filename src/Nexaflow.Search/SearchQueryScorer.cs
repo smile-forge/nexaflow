@@ -1,11 +1,16 @@
 using System.Text.RegularExpressions;
 
-namespace Nexaflow.Features.WindowsSearch.Services;
+namespace Nexaflow.Search;
 
 /// <summary>
 /// Stateless scorer that assigns a 0–1 confidence that an input string is a
-/// Windows Search query (glob, quoted term, prefix syntax, filter criteria)
+/// file-search query (glob, quoted term, prefix syntax, filter criteria)
 /// rather than a conversation or path navigation.
+/// <para>
+/// Shared rather than owned by the Windows Search feature: it is the default
+/// <c>ISearchable.ScoreQuery</c> for any page whose search is over files, and both the
+/// file browser and the Search tab lean on it to tell a glob from a question.
+/// </para>
 /// </summary>
 public static class SearchQueryScorer
 {

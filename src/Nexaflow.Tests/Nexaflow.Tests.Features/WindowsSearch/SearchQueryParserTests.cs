@@ -1,4 +1,4 @@
-using Nexaflow.Features.WindowsSearch.Services;
+﻿using Nexaflow.Features.WindowsSearch.Services;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsSearch;
@@ -76,67 +76,6 @@ public class SearchQueryParserTests
         var result = SearchQueryParser.Parse("+alpha -beta");
 
         StringAssert.Contains(result.WhereClause, " AND ");
-    }
-
-    // ── Size filters ─────────────────────────────────────────────────────────
-
-    [TestMethod]
-    public void Parse_SizeFilterMb_ConvertsToBytes()
-    {
-        var result = SearchQueryParser.Parse("size:>1mb");
-
-        StringAssert.Contains(result.WhereClause, $"System.Size > {1L * 1024 * 1024}");
-    }
-
-    [TestMethod]
-    public void Parse_LargerFilter_UsesGreaterThan()
-    {
-        var result = SearchQueryParser.Parse("larger:100kb");
-
-        StringAssert.Contains(result.WhereClause, $"System.Size > {100L * 1024}");
-    }
-
-    [TestMethod]
-    public void Parse_SmallerFilter_UsesLessThan()
-    {
-        var result = SearchQueryParser.Parse("smaller:500kb");
-
-        StringAssert.Contains(result.WhereClause, $"System.Size < {500L * 1024}");
-    }
-
-    // ── Date filters ─────────────────────────────────────────────────────────
-
-    [TestMethod]
-    public void Parse_DateYear_ExpandsToIsoDate()
-    {
-        var result = SearchQueryParser.Parse("date:2023");
-
-        StringAssert.Contains(result.WhereClause, "System.DateModified");
-        StringAssert.Contains(result.WhereClause, "2023-01-01");
-    }
-
-    [TestMethod]
-    public void Parse_DateYearMonth_ExpandsToFirstOfMonth()
-    {
-        var result = SearchQueryParser.Parse("modified:2023-06");
-
-        StringAssert.Contains(result.WhereClause, "2023-06-01");
-    }
-
-    [TestMethod]
-    public void Parse_BeforeKeyword_UsesLessThan()
-    {
-        var result = SearchQueryParser.Parse("before:2024-01-01");
-
-        StringAssert.Contains(result.WhereClause, "System.DateModified < '2024-01-01'");
-    }
-
-    [TestMethod]
-    public void Parse_AfterKeyword_UsesGreaterThan()
-    {
-        var result = SearchQueryParser.Parse("after:2024-01-01");
-
-        StringAssert.Contains(result.WhereClause, "System.DateModified > '2024-01-01'");
     }
 
     // ── Plain terms ───────────────────────────────────────────────────────────
@@ -270,32 +209,18 @@ public class SearchQueryParserTests
     }
 
     [TestMethod]
-    public void Matches_SizeFilter_ComparesBytes()
-    {
-        var q = SearchQueryParser.Parse("larger:100kb");
-
-        Assert.IsTrue(q.Matches(Probe("big.bin", size: 200 * 1024)));
-        Assert.IsFalse(q.Matches(Probe("small.bin", size: 50 * 1024)));
-    }
-
-    [TestMethod]
-    public void Matches_DateFilter_ComparesModified()
-    {
-        var q = SearchQueryParser.Parse("after:2024-01-01");
-
-        Assert.IsTrue(q.Matches(Probe("recent.txt", year: 2025)));
-        Assert.IsFalse(q.Matches(Probe("old.txt", year: 2023)));
-    }
-
-    [TestMethod]
     public void Matches_Merge_AndsBothPredicates()
     {
         var merged = SearchQueryParser.Merge(
             SearchQueryParser.Parse("*.log"),
-            SearchQueryParser.Parse("larger:1kb"));
+            SearchQueryParser.Parse("app"));
 
-        Assert.IsTrue(merged.Matches(Probe("app.log", size: 4096)));
-        Assert.IsFalse(merged.Matches(Probe("app.log", size: 100)));
-        Assert.IsFalse(merged.Matches(Probe("app.txt", size: 4096)));
+        Assert.IsTrue(merged.Matches(Probe("app.log")));
+        Assert.IsFalse(merged.Matches(Probe("other.log")));
+        Assert.IsFalse(merged.Matches(Probe("app.txt")));
     }
+
+    // Size and date constraints are no longer this overload's business — they are parsed by Windows into
+    // a SearchCondition and applied by both projections. Covered in AqsTermRecognizerTests, which asserts
+    // the folder walk actually evaluates them rather than waving them through.
 }

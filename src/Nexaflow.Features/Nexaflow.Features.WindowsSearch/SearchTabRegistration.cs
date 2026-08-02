@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsSearch.ViewModels;
 using Nexaflow.Features.WindowsSearch.Views;
@@ -26,7 +26,8 @@ public sealed class SearchTabRegistration(IShellServices shellServices) : IPageR
 
         var queryShort = query.Length > 12 ? query[..12] + "…" : query;
 
-        var tabTitle = string.IsNullOrWhiteSpace(query) ? "Search" : queryShort;
+        // One source of truth for the label — the ViewModel re-applies it on every query change.
+        var tabTitle = SearchViewModel.TabTitleFor(query);
 
         var vm = new SearchViewModel(query, root, driveList, shellServices);
 

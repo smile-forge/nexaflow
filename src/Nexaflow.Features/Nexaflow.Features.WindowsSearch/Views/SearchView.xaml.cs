@@ -16,12 +16,23 @@ public partial class SearchView : UserControl, IPageView
     private GridViewColumnHeader? _lastSortHeader;
     private ListSortDirection     _lastSortDir = ListSortDirection.Ascending;
 
+    private bool _searchStarted;
+
     public SearchView(SearchViewModel vm)
     {
         InitializeComponent();
         _vm = vm;
         DataContext = vm;
-        Loaded += async (_, _) => await _vm.RunSearchAsync(CancellationToken.None);
+
+        // ONCE, not on every Loaded. In a tabbed shell Loaded fires again every time the tab is switched
+        // back to, so re-running here wiped the results the user came back to look at, restarted the query,
+        // and left any scan already in flight writing into a list that had just been cleared.
+        Loaded += async (_, _) =>
+        {
+            if (_searchStarted) return;
+            _searchStarted = true;
+            await _vm.RunSearchAsync(CancellationToken.None);
+        };
     }
 
     // ── IPageView ────────────────────────────────────────────────────────────

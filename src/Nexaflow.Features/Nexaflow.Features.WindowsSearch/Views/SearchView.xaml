@@ -1,4 +1,4 @@
-<UserControl x:Class="Nexaflow.Features.WindowsSearch.Views.SearchView"
+﻿<UserControl x:Class="Nexaflow.Features.WindowsSearch.Views.SearchView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
@@ -24,9 +24,12 @@
                 BorderThickness="0,0,0,1"
                 Padding="12,8">
             <Grid>
+                <!-- Two halves. The path gets the whole left half — it is the longest thing here and the
+                     one that reads worst when trimmed — and the query starts exactly at the midpoint. The
+                     status shares the right half rather than taking a column of its own, which is what
+                     otherwise pushes the query off centre. -->
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
@@ -38,38 +41,70 @@
                            TextTrimming="CharacterEllipsis"
                            ToolTip="{Binding SearchRoot}"/>
 
-                <StackPanel Grid.Column="1"
-                            Orientation="Horizontal"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center">
+                <!-- The query, editable in place. Terms can be dropped or reworded here and re-run, which
+                     is the only way to UNDO a refinement — everything else in this page narrows. -->
+                <DockPanel Grid.Column="1" VerticalAlignment="Center" LastChildFill="True">
+                    <StackPanel DockPanel.Dock="Right"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Margin="8,0,0,0">
+                        <TextBlock Text="&#xE72C;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="13"
+                                   Foreground="{StaticResource AccentBrush}"
+                                   Margin="0,0,6,0"
+                                   Visibility="{Binding IsSearching, Converter={StaticResource BoolVis}}"/>
+                        <TextBlock Text="{Binding StatusText}"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   FontSize="12"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
                     <TextBlock Text="&#xE721;"
+                               DockPanel.Dock="Left"
                                FontFamily="Segoe MDL2 Assets"
                                FontSize="14"
                                Foreground="{StaticResource AccentBrush}"
                                Margin="0,0,8,0"
                                VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding SearchQuery}"
-                               Foreground="{StaticResource TextBrush}"
-                               FontSize="14"
-                               FontWeight="SemiBold"
-                               VerticalAlignment="Center"/>
-                </StackPanel>
 
-                <StackPanel Grid.Column="2"
-                            Orientation="Horizontal"
-                            HorizontalAlignment="Right"
-                            VerticalAlignment="Center">
-                    <TextBlock Text="&#xE72C;"
-                               FontFamily="Segoe MDL2 Assets"
-                               FontSize="13"
-                               Foreground="{StaticResource AccentBrush}"
-                               Margin="0,0,6,0"
-                               Visibility="{Binding IsSearching, Converter={StaticResource BoolVis}}"/>
-                    <TextBlock Text="{Binding StatusText}"
-                               Foreground="{StaticResource TextMutedBrush}"
-                               FontSize="12"
-                               VerticalAlignment="Center"/>
-                </StackPanel>
+                    <!-- Chromeless until focused, so it still reads as the page's title rather than as a
+                         form field sitting in the header. -->
+                    <TextBox x:Name="QueryBox"
+                             AutomationProperties.AutomationId="SearchQueryBox"
+                             Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Edit the search and press Enter to run it again"
+                             Foreground="{StaticResource TextBrush}"
+                             CaretBrush="{StaticResource AccentBrush}"
+                             SelectionBrush="{StaticResource AccentBrush}"
+                             Background="Transparent"
+                             BorderThickness="0,0,0,1"
+                             BorderBrush="Transparent"
+                             Padding="0,1"
+                             FontSize="14"
+                             FontWeight="SemiBold"
+                             VerticalContentAlignment="Center">
+                        <TextBox.InputBindings>
+                            <!-- PropertyChanged above is what makes this work: with the default LostFocus
+                                 trigger the edit would not have reached the ViewModel by the time Enter
+                                 runs the command, and the old query would be re-run instead. -->
+                            <KeyBinding Key="Enter" Command="{Binding RunSearchCommand}"/>
+                        </TextBox.InputBindings>
+                        <TextBox.Style>
+                            <Style TargetType="TextBox">
+                                <Style.Triggers>
+                                    <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                        <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                    </Trigger>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBox.Style>
+                    </TextBox>
+                </DockPanel>
+
             </Grid>
         </Border>
 
@@ -82,7 +117,175 @@
 
             <!-- Result list -->
             <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Verification banner: a content regex can't be answered by the index alone, so results
+                     appear speculatively and this reports the background pass that settles them. -->
+                <Border Grid.Row="0"
+                        x:Name="VerificationBannerHost"
+                        AutomationProperties.AutomationId="VerificationBanner"
+                        Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource WarningBrush}"
+                        BorderThickness="0,0,0,1"
+                        Padding="10,6">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding VerificationPhase}" Value="Running">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding VerificationPhase}" Value="Prompt">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding VerificationPhase}" Value="Done">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding VerificationPhase}" Value="OfferScan">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding VerificationPhase}" Value="Scanning">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding VerificationPhase}" Value="Searching">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding VerificationPhase}" Value="OfferNewSearch">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+
+                    <DockPanel LastChildFill="True">
+                        <!-- Only the Prompt phase asks a question; the others just report. -->
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding VerificationPhase}" Value="Prompt">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <Button Content="Check them"
+                                    Style="{StaticResource TbBtn}"
+                                    AutomationProperties.AutomationId="VerifyRemaining"
+                                    Command="{Binding VerifyRemainingCommand}"
+                                    Margin="8,0,4,0"/>
+                            <Button Content="Skip"
+                                    Style="{StaticResource TbBtn}"
+                                    AutomationProperties.AutomationId="SkipVerification"
+                                    Command="{Binding SkipVerificationCommand}"/>
+                        </StackPanel>
+
+                        <!-- The scan offer and its running state. A separate pair of buttons from the
+                             verification prompt above: this one costs minutes, not seconds. -->
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding VerificationPhase}" Value="OfferScan">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <Button Content="Scan"
+                                    Style="{StaticResource TbBtn}"
+                                    AutomationProperties.AutomationId="ScanFolder"
+                                    Command="{Binding ScanFolderCommand}"
+                                    Margin="8,0,4,0"/>
+                            <Button Content="No thanks"
+                                    Style="{StaticResource TbBtn}"
+                                    AutomationProperties.AutomationId="DeclineScan"
+                                    Command="{Binding StopScanCommand}"/>
+                        </StackPanel>
+
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding VerificationPhase}" Value="Scanning">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <Button Content="Stop"
+                                    Style="{StaticResource TbBtn}"
+                                    AutomationProperties.AutomationId="StopScan"
+                                    Command="{Binding StopScanCommand}"
+                                    Margin="8,0,0,0"/>
+                        </StackPanel>
+
+                        <!-- After a stopped scan. Re-running is possible from the query field, but only if
+                             you already know that — a stop with no way back reads as a dead end. -->
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding VerificationPhase}" Value="Done"/>
+                                                <Condition Binding="{Binding CanRescan}" Value="True"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <Button Content="Scan again"
+                                    Style="{StaticResource TbBtn}"
+                                    AutomationProperties.AutomationId="RescanFolder"
+                                    Command="{Binding ScanFolderCommand}"
+                                    Margin="8,0,0,0"/>
+                        </StackPanel>
+
+                        <!-- Refining an empty result set: offer it as a fresh search instead. -->
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding VerificationPhase}" Value="OfferNewSearch">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <Button Content="Yes"
+                                    Style="{StaticResource TbBtn}"
+                                    AutomationProperties.AutomationId="RunAsNewSearch"
+                                    Command="{Binding RunAsNewSearchCommand}"
+                                    Margin="8,0,4,0"/>
+                            <Button Content="No"
+                                    Style="{StaticResource TbBtn}"
+                                    AutomationProperties.AutomationId="DeclineNewSearch"
+                                    Command="{Binding DeclineNewSearchCommand}"/>
+                        </StackPanel>
+
+                        <!-- The Border carries an AutomationId too, but a Border is not a UIA control and
+                             is not reliably discoverable; the text is. -->
+                        <TextBlock Text="{Binding VerificationBanner}"
+                                   AutomationProperties.AutomationId="VerificationBannerText"
+                                   Foreground="{StaticResource TextBrush}"
+                                   FontSize="12"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </DockPanel>
+                </Border>
+
                 <ListView x:Name="ResultList"
+                          Grid.Row="1"
                           ItemsSource="{Binding Results}"
                           SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
                           ItemContainerStyle="{StaticResource FileListRowStyle}"
@@ -101,23 +304,100 @@
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <TextBlock FontSize="13" Margin="4,0,6,0" VerticalAlignment="Center">
+                                            <!-- Icon with a verification badge sitting ON it (fixed cell +
+                                                 an opaque disc), not beside it — a mark floating next to
+                                                 the icon reads as separate content rather than status. -->
+                                            <Grid Width="22" Height="18" Margin="4,0,6,0" VerticalAlignment="Center">
+                                                <TextBlock FontSize="13"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Text" Value="📄"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsFolder}" Value="True">
+                                                                    <Setter Property="Text" Value="📁"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+
+                                                <Border Width="12" Height="12"
+                                                        CornerRadius="6"
+                                                        HorizontalAlignment="Right"
+                                                        VerticalAlignment="Bottom"
+                                                        BorderThickness="1"
+                                                        BorderBrush="{StaticResource BgBrush}">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <!-- Not looked at yet: muted, so a list mid-sweep
+                                                                     doesn't shout at the user. -->
+                                                                <DataTrigger Binding="{Binding IsUnverified}" Value="True">
+                                                                    <Setter Property="Background" Value="{StaticResource TextMutedBrush}"/>
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                    <Setter Property="ToolTip" Value="Queued — not checked yet"/>
+                                                                </DataTrigger>
+                                                                <!-- Found, but in a file type we can't read properly.
+                                                                     Amber "?": a real hit that deserves a look. -->
+                                                                <DataTrigger Binding="{Binding IsUncertain}" Value="True">
+                                                                    <Setter Property="Background" Value="{StaticResource WarningBrush}"/>
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                    <Setter Property="ToolTip" Value="Probably matches — found in a file type we can't read properly, so it may be incidental"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsUnreadable}" Value="True">
+                                                                    <Setter Property="Background" Value="{StaticResource TextMutedBrush}"/>
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                    <Setter Property="ToolTip" Value="Couldn't be checked — this file's text is compressed or unreadable, so it may still match"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsRejected}" Value="True">
+                                                                    <Setter Property="Background" Value="{StaticResource DangerBrush}"/>
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                    <Setter Property="ToolTip" Value="Checked — does not match"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+
+                                                    <TextBlock FontSize="9"
+                                                               FontWeight="Bold"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{StaticResource OnAccentBrush}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Text" Value="?"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsRejected}" Value="True">
+                                                                        <Setter Property="Text" Value="✕"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Border>
+                                            </Grid>
+                                            <TextBlock Text="{Binding FileName}"
+                                                       FontSize="13"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
-                                                        <Setter Property="Text" Value="📄"/>
+                                                        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsFolder}" Value="True">
-                                                                <Setter Property="Text" Value="📁"/>
+                                                            <DataTrigger Binding="{Binding IsRejected}" Value="True">
+                                                                <Setter Property="TextDecorations" Value="Strikethrough"/>
+                                                                <Setter Property="Opacity" Value="0.5"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsUnverified}" Value="True">
+                                                                <Setter Property="Opacity" Value="0.75"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </TextBlock.Style>
                                             </TextBlock>
-                                            <TextBlock Text="{Binding FileName}"
-                                                       Foreground="{StaticResource TextBrush}"
-                                                       FontSize="13"
-                                                       VerticalAlignment="Center"
-                                                       TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
@@ -167,8 +447,11 @@
                     </ListView.View>
                 </ListView>
 
-                <!-- Empty-state overlay -->
-                <TextBlock Text="No results found."
+                <!-- Empty-state overlay. Grid.Row="1" is load-bearing: without it this lands in row 0 and
+                     sits on top of the banner, which is where it collided with the banner's own text. It
+                     belongs over the LIST — that is the area that is empty. -->
+                <TextBlock Grid.Row="1"
+                           Text="No results found."
                            Foreground="{StaticResource TextMutedBrush}"
                            FontSize="14"
                            HorizontalAlignment="Center"

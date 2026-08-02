@@ -26,8 +26,9 @@ test exe dragging in another (and without pulling Core's x64 RID into the Featur
 dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Features/Nexaflow.Tests.Features.csproj
 $exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/x64/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.Features.exe"
 
-& $exe --filter "TestCategory!=UI"                       # everything except UI (CI-safe, headless)
+& $exe --filter "TestCategory!=UI&TestCategory!=Interactive"   # CI-safe, headless
 & $exe --filter "TestCategory=UI"                        # UI tests — needs an interactive desktop
+& $exe --filter "TestCategory=Interactive"               # calls real OS services — dev machines only
 & $exe --filter "FullyQualifiedName~SampleFileDetection" # one class
 ```
 
@@ -39,6 +40,14 @@ $exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/x64/Debug/net10.0-windows
   launches a fresh app against an **isolated config root** (`NEXAFLOW_CONFIG_DIR` → a throwaway temp
   dir), so it neither depends on nor pollutes the developer's real `%APPDATA%` config. See
   `UITestBase`.
+- **`TestCategory("Interactive")`** — calls a real Windows service instead of a fake, to prove our use
+  of an external API is actually correct. Read-only and safe to run on any developer machine, but the
+  results depend on that machine's state, so CI never runs them (the workflow filters out both this
+  and `UI`). The worked example is `AqsTranslatorInteractiveTests`, which exercises the Windows Search
+  COM interop: the interop declarations are a hand-transcribed vtable, and only a real call can prove
+  the layout is right — a wrong slot is an access violation, not a failed assertion. Such a test
+  asserts on the *contract* (a clause came back naming the property asked for), never on what happens
+  to be indexed, and calls `Assert.Inconclusive` when the service isn't running.
 
 ### Coverage declaration (`[CoversNode]` / `[NoCoverage]`)
 

@@ -170,6 +170,10 @@
   <Project Path="src/Nexaflow.IO.Terminal/Nexaflow.IO.Terminal.csproj">
     <Platform Project="x64" />
   </Project>
+  <!-- The search query language: syntax, terms, scoring. Shared behaviour, not contracts. -->
+  <Project Path="src/Nexaflow.Search/Nexaflow.Search.csproj">
+    <Platform Project="x64" />
+  </Project>
   <!-- WPF-free backend for the Product tracker (and, later, Projects) + its headless CLI. -->
   <Project Path="src/Nexaflow.Services.Initiatives/Nexaflow.Services.Initiatives.csproj">
     <Platform Project="x64" />

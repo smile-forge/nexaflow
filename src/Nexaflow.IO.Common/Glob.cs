@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -43,7 +43,12 @@ public static class Glob
                .Replace("*", "%")
                .Replace("?", "_");
 
-    private static Regex Compile(string pattern)
+    /// <summary>
+    /// The glob as an anchored regular expression. Public so a caller that already has a regex engine — the
+    /// search query language — can express a filename glob without depending on this library or
+    /// re-deriving what <c>*</c> and <c>?</c> mean.
+    /// </summary>
+    public static string ToRegexPattern(string pattern)
     {
         var sb = new StringBuilder("^");
         int i = 0, n = pattern.Length;
@@ -92,7 +97,10 @@ public static class Glob
             }
         }
         sb.Append('$');
-        return new Regex(sb.ToString(),
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+        return sb.ToString();
     }
+
+    private static Regex Compile(string pattern)
+        => new(ToRegexPattern(pattern),
+               RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 }
