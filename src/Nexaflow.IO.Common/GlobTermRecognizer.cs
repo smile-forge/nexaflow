@@ -1,4 +1,4 @@
-using Nexaflow.Search;
+﻿using Nexaflow.Search;
 
 namespace Nexaflow.IO.Common;
 
@@ -23,19 +23,17 @@ public sealed class GlobTermRecognizer : ISearchTermRecognizer
         // text than half-interpreted.
         if (!alternatives.All(Glob.ContainsGlobChars)) return null;
 
-        // Handed over already translated, so the search library matches it with the regex engine it already
+        // Handed over already anchored, so the search library matches it with the regex engine it already
         // has — "*" and "?" keep their glob meanings rather than their regex ones.
         //
-        // NOT name-scoped. A glob is the wildcard syntax people reach for when they don't want to write a
-        // regex, and restricting it to filenames makes it a different feature from the one they typed. So
-        // it matches the name OR a word in the contents — which is two patterns, because "*" means "the
-        // rest of the name" in one and "the rest of this word" in the other.
+        // Name-scoped: a glob NARROWS which files are considered, which is what makes it worth typing —
+        // it lets a folder scan skip a file without opening it. Someone who wants "*.txt" found INSIDE a
+        // document quotes it, and gets a literal text term instead.
         return new SearchTerm(
             SearchTermKind.Regex,
             alternatives.Select(Glob.ToRegexPattern).ToList(),
-            Display:             token,
-            Sources:             alternatives,   // the globs themselves, for a backend that speaks them
-            ContentAlternatives: alternatives.Select(Glob.ToContentRegexPattern).ToList(),
-            IsGlob:              true);
+            NameOnly: true,
+            Display:  token,
+            Sources:  alternatives);   // the globs themselves, for a backend that speaks them natively
     }
 }

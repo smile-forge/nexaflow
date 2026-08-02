@@ -1,4 +1,4 @@
-# Building a Feature
+﻿# Building a Feature
 
 A feature is a class library (`Nexaflow.Features.MyFeature`) that references only `Nexaflow.Features.Common` and WPF. Core never imports your types directly — everything goes through the contracts in `Features.Common`.
 
@@ -151,10 +151,10 @@ public sealed partial class MyViewModel : ObservableObject, IPageViewModel, ISea
   in the post-filter made it disagree with the query that fed it; and the looser match already has a
   spelling — `?needle*` — whereas whole-word had none. Filename clauses use `CONTAINS(System.FileName, …)`
   rather than `LIKE '%…%'` for the same reason.
-- **Globs match names *and* contents.** `?*.txt` is a filename glob against a name and a word-bounded pattern
-  against a body, carried as two patterns on one term (`Alternatives` / `ContentAlternatives`). `*` means
-  "rest of the name" in the first and "rest of this word" in the second, so `?book*` finds "bookcase" inside
-  a sentence without swallowing the line.
+- **A glob restricts the file set; quoting asks for it in the text.** `?*.txt` is name-scoped, which is what
+  makes it worth typing — a folder scan skips a non-matching file without opening it. `?"*.txt"` is a literal
+  term and is matched against the contents like any other text. Keeping the two apart is why `NameOnly`
+  exists, and why `NameRulesItOut` can reject a row before anything reads it.
 - **Bare input.** An explicit `?` always wins. Un-prefixed text is scored by `ScoreQuery` (default 0.5) after
   a shared prose filter drops anything over 4 terms to the agent. Scoring runs per keystroke, so it must be
   cheap — never speculatively run the search to see whether it matches.

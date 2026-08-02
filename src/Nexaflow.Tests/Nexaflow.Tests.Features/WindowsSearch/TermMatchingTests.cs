@@ -1,4 +1,4 @@
-using Nexaflow.IO.Common;
+﻿using Nexaflow.IO.Common;
 using Nexaflow.Search;
 using Nexaflow.Tests.Fixtures;
 
@@ -11,55 +11,47 @@ namespace Nexaflow.Tests.Features.WindowsSearch;
 /// </summary>
 [TestClass]
 [CoversNode("search-terms")]
-public class GlobContentMatchingTests
+public class TermMatchingTests
 {
     private static SearchTerm Glob(string token) =>
         new GlobTermRecognizer().Recognize(token)
         ?? throw new AssertFailedException($"'{token}' was not recognised as a glob");
 
-    // ── The wildcard must stop at whitespace ──────────────────────────────────
+    // ── A glob restricts the file set ─────────────────────────────────────────
 
     [TestMethod]
-    public void TrailingStar_MatchesTheWordNotTheRestOfTheLine()
+    public void AGlobIsAFilenameGlob()
     {
-        // The whole point: "book*" in "bookcase in the corner" is a hit on "bookcase". Anchored the way a
-        // filename glob is, it would instead ask whether the entire text is one word starting "book".
-        var term = Glob("book*");
+        // It narrows WHICH FILES are considered — which is the point of typing one, and what lets a folder
+        // scan skip a file without opening and reading it.
+        var term = Glob("*.txt");
 
-        Assert.IsTrue(term.Matches("bookcase in the corner", isName: false));
-        Assert.IsTrue(term.Matches("the bookcase", isName: false));
-        Assert.IsFalse(term.Matches("a notebook", isName: false),
-            "the wildcard extends the word, it does not float to the middle of another one");
+        Assert.IsTrue(term.NameOnly);
+        Assert.IsTrue(term.Matches("notes.txt", isName: true));
+        Assert.IsFalse(term.Matches("a line mentioning notes.txt", isName: false),
+            "a glob is not a content pattern");
     }
 
     [TestMethod]
-    public void LeadingStar_IsBoundedAtTheStartOfTheWord()
+    public void QuotingItAsksForItInTheContentsInstead()
     {
-        var term = Glob("*case");
+        // The escape hatch, and the reason the glob can stay name-scoped: "*.txt" quoted is a literal term,
+        // so it is matched against the body like any other text.
+        var term = SearchSyntax.ParseTerms("\"*.txt\"", [new GlobTermRecognizer()])[0];
 
-        Assert.IsTrue(term.Matches("the bookcase stands", isName: false));
-        Assert.IsFalse(term.Matches("bookcases everywhere", isName: false),
-            "the token ends at 'case'; 'bookcases' is a different word");
+        Assert.AreEqual(SearchTermKind.Text, term.Kind);
+        Assert.IsFalse(term.NameOnly);
+        Assert.IsTrue(term.Matches("see *.txt in the readme", isName: false));
     }
 
     [TestMethod]
-    public void AWildcardNeverSpansASpace()
+    public void AGlobRulesAFileOutByNameAlone()
     {
-        // The failure this guards: "*" compiled as ".*" happily swallows the whole document, so every
-        // file matches and the search looks like it worked.
-        var term = Glob("the*corner");
+        // What makes it cheap: NameRulesItOut lets the walk reject a file before it is ever read.
+        var request = SearchSyntax.ParseRequest("*.txt", [new GlobTermRecognizer()]);
 
-        Assert.IsFalse(term.Matches("the bookcase in the corner", isName: false));
-        Assert.IsTrue(term.Matches("theothercorner", isName: false));
-    }
-
-    [TestMethod]
-    public void QuestionMark_IsOneNonSpaceCharacter()
-    {
-        var term = Glob("boo?");
-
-        Assert.IsTrue(term.Matches("book on the shelf", isName: false));
-        Assert.IsFalse(term.Matches("boo hoo", isName: false));
+        Assert.IsTrue(request.NameRulesItOut("readme.md"));
+        Assert.IsFalse(request.NameRulesItOut("readme.txt"));
     }
 
     // ── Names still behave as filenames ───────────────────────────────────────
@@ -74,29 +66,7 @@ public class GlobContentMatchingTests
             "a filename glob is anchored — otherwise every archive of a .txt matches");
     }
 
-    [TestMethod]
-    public void TheSameTermAnswersBothQuestions()
-    {
-        // One constraint the user typed once, applied to whichever side is being asked about.
-        var term = Glob("report*");
-
-        Assert.IsTrue(term.Matches("report-2026.pdf", isName: true));
-        Assert.IsTrue(term.Matches("see reports for detail", isName: false));
-    }
-
     // ── It is no longer name-scoped ───────────────────────────────────────────
-
-    [TestMethod]
-    public void AGlobNoLongerRulesOutAFileByNameAlone()
-    {
-        // Previously name-only, so a file whose CONTENTS matched was discarded before anything read it.
-        var request = SearchSyntax.ParseRequest("*.txt", [new GlobTermRecognizer()]);
-
-        Assert.IsFalse(request.HasNameOnlyTerms,
-            "a glob now asks about contents too, so a page with no filenames must not be told otherwise");
-        Assert.IsFalse(request.NameRulesItOut("readme.md"),
-            "the name failing is no longer the end of the question");
-    }
 
     // ── A literal term means the word it spells ───────────────────────────────
 
@@ -126,14 +96,14 @@ public class GlobContentMatchingTests
     }
 
     [TestMethod]
-    public void TheLooserMatchIsStillAvailableAsAGlob()
+    public void TheLooserMatchIsStillAvailableOnANameAsAGlob()
     {
-        // The reason whole-word is safe to impose: anyone unsure of the ending can say so, and that spelling
-        // means exactly what it looks like.
+        // Whole-word is safe to impose on a literal because anyone unsure of the ending can say so — on the
+        // file name, where a glob applies.
         var term = Glob("needle*");
 
-        Assert.IsTrue(term.Matches("this is needless", isName: false));
-        Assert.IsTrue(term.Matches("a needle", isName: false));
+        Assert.IsTrue(term.Matches("needless.txt", isName: true));
+        Assert.IsTrue(term.Matches("needle.txt",   isName: true));
     }
 
     [TestMethod]
@@ -147,13 +117,13 @@ public class GlobContentMatchingTests
     }
 
     [TestMethod]
-    public void AlternativesKeepBothForms()
+    public void AlternativesAreOrEdWithinTheTerm()
     {
         var term = Glob("*.txt|*.md");
 
         Assert.AreEqual(2, term.Alternatives.Count);
-        Assert.AreEqual(2, term.ContentForms.Count);
-        Assert.IsTrue(term.Matches("notes.md", isName: true));
-        Assert.IsTrue(term.Matches("see notes.txt here", isName: false));
+        Assert.IsTrue(term.Matches("notes.md",  isName: true));
+        Assert.IsTrue(term.Matches("notes.txt", isName: true));
+        Assert.IsFalse(term.Matches("notes.pdf", isName: true));
     }
 }

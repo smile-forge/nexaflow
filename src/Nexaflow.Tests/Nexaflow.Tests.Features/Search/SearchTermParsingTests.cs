@@ -26,7 +26,7 @@ public class SearchTermParsingTests
 
         Assert.AreEqual(3, terms.Count);
 
-        Assert.IsTrue(terms[0].IsGlob, "a filename glob is recognised as one");
+        Assert.IsTrue(terms[0].NameOnly, "a filename glob is recognised as one");
         Assert.AreEqual("*.txt|*.md", terms[0].Label);
 
         Assert.AreEqual(SearchTermKind.Regex, terms[1].Kind);
@@ -54,12 +54,13 @@ public class SearchTermParsingTests
     {
         var term = SearchSyntax.ParseTerms("*.txt", WithGlobs)[0];
 
-        Assert.IsTrue(term.IsGlob);
+        Assert.IsTrue(term.NameOnly);
         Assert.IsTrue(term.Matches("notes.txt", isName: true));
         Assert.IsFalse(term.Matches("notes.txt.bak", isName: true), "a glob describes the whole name");
-        Assert.IsTrue(term.Matches("a body mentioning notes.txt", isName: false),
-            "a glob asks about contents too — bounded to one word, so it matches the token, not the line");
-        Assert.IsFalse(term.Matches("a body mentioning notes.md", isName: false));
+        // Name-scoped on purpose: a glob NARROWS which files are considered, which is what lets a folder
+        // scan skip one without opening it. Someone wanting "*.txt" found inside a document quotes it.
+        Assert.IsFalse(term.Matches("a body mentioning notes.txt", isName: false),
+            "a glob restricts the file set; it is not a content pattern");
     }
 
     [TestMethod]
@@ -102,7 +103,7 @@ public class SearchTermParsingTests
         var terms = SearchSyntax.ParseTerms("*.txt \"the lost dog\" urgent", WithGlobs);
 
         Assert.AreEqual(3, terms.Count);
-        Assert.IsTrue(terms[0].IsGlob);
+        Assert.IsTrue(terms[0].NameOnly);
         Assert.AreEqual("the lost dog", terms[1].Value);
         Assert.AreEqual("urgent", terms[2].Value);
     }
@@ -176,7 +177,7 @@ public class SearchTermParsingTests
         var request  = SearchSyntax.ParseRequest("*.txt|*.md", WithGlobs);
         var reparsed = SearchSyntax.ParseRequest(SearchSyntax.Format(request), WithGlobs);
 
-        Assert.IsTrue(reparsed.Terms[0].IsGlob);
+        Assert.IsTrue(reparsed.Terms[0].NameOnly);
         Assert.AreEqual(2, reparsed.Terms[0].Alternatives.Count);
     }
 

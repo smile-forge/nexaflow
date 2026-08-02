@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -42,33 +42,6 @@ public static class Glob
                .Replace("'", "''")
                .Replace("*", "%")
                .Replace("?", "_");
-
-    /// <summary>
-    /// The glob as a regular expression for matching inside a body of TEXT rather than against a name.
-    /// <para>
-    /// A filename glob is anchored to the whole name, which is meaningless mid-document: anchoring
-    /// <c>book*</c> to a file's contents would ask whether the entire file is one word starting "book".
-    /// Here the glob matches a single whitespace-delimited token instead, so <c>book*</c> finds "bookcase"
-    /// inside "bookcase in the corner" and stops at the space rather than swallowing the line.
-    /// </para>
-    /// </summary>
-    public static string ToContentRegexPattern(string pattern)
-    {
-        var sb = new StringBuilder("(?<!\\S)");   // token start: preceded by whitespace or nothing
-
-        foreach (var c in pattern)
-        {
-            switch (c)
-            {
-                // Within text, a wildcard runs to the end of the token — never across a space.
-                case '*': sb.Append("\\S*"); break;
-                case '?': sb.Append("\\S");  break;
-                default:  sb.Append(Regex.Escape(c.ToString())); break;
-            }
-        }
-
-        return sb.Append("(?!\\S)").ToString();   // token end
-    }
 
     /// <summary>
     /// The glob as an anchored regular expression. Public so a caller that already has a regex engine — the

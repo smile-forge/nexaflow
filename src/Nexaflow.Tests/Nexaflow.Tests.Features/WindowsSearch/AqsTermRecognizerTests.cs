@@ -47,7 +47,7 @@ public class AqsTermRecognizerTests
         var terms = SearchSyntax.ParseTerms(@"*.txt /ma(ths)/ kind:document ocr", Recognizers());
 
         Assert.AreEqual(4, terms.Count);
-        Assert.IsTrue(terms[0].IsGlob);
+        Assert.IsTrue(terms[0].NameOnly);
         Assert.AreEqual(SearchTermKind.Regex,      terms[1].Kind);
         Assert.AreEqual(SearchTermKind.Structured, terms[2].Kind);
         Assert.AreEqual(SearchTermKind.Text,       terms[3].Kind);

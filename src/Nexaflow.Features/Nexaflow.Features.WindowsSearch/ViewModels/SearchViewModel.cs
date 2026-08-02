@@ -100,6 +100,19 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
     private ParsedQuery? _lastParsed;
     private CancellationTokenSource? _cts;
 
+    /// <summary>
+    /// How long an index query runs before a way out is offered.
+    /// <para>
+    /// Not offered immediately: most queries answer well inside this, and a Stop button that appears and
+    /// vanishes on every search is noise that trains you to ignore it. Past a few seconds it stops being
+    /// noise and starts being the only thing you want.
+    /// </para>
+    /// </summary>
+    private static readonly TimeSpan SlowSearchThreshold = TimeSpan.FromSeconds(3);
+
+    /// <summary>True once the running index query has taken long enough to be worth abandoning.</summary>
+    [ObservableProperty] private bool _canCancelSearch;
+
     // Set while the active query is a regex. AQS can only be widened to cover a pattern, so the rows it
     // returns are re-filtered through the real regex before the user ever sees them.
     private SearchRequest? _postFilter;
@@ -370,6 +383,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         ResultCount = 0;
 
         IsSearching        = true;
+        CanCancelSearch    = false;   // the scan has its own Stop, in the banner
         CanRescan          = false;
         VerificationPhase  = VerifyPhase.Scanning;
         VerificationBanner = VerificationPlanner.Scanning(0).Banner;
@@ -677,6 +691,8 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         Results.Clear();
         ResultCount = 0;
 
+        _ = OfferCancelIfSlow(ct);
+
         try
         {
             // When a post-filter is going to discard most rows, the index has to be asked for far more than
@@ -764,8 +780,31 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         }
         finally
         {
-            IsSearching = false;
+            IsSearching     = false;
+            CanCancelSearch = false;
         }
+    }
+
+    /// <summary>Shows the cancel affordance if the query is still running after
+    /// <see cref="SlowSearchThreshold"/>.</summary>
+    private async Task OfferCancelIfSlow(CancellationToken ct)
+    {
+        try { await Task.Delay(SlowSearchThreshold, ct); }
+        catch (OperationCanceledException) { return; }   // finished, or superseded
+
+        if (ct.IsCancellationRequested || !IsSearching) return;
+
+        // The delay resumes off the UI thread when there is no context to capture, so this goes through
+        // the shell rather than assuming one — features never touch a dispatcher themselves.
+        await _shellServices.RunOnUiAsync(() => CanCancelSearch = true);
+    }
+
+    /// <summary>Abandons a slow index query. The tab keeps whatever it was showing before.</summary>
+    [RelayCommand]
+    private void CancelSearch()
+    {
+        _cts?.Cancel();
+        CanCancelSearch = false;
     }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]

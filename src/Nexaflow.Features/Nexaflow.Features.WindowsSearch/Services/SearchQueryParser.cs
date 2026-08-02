@@ -186,19 +186,6 @@ public static class SearchQueryParser
     {
         if (term.NameOnly) return $"System.FileName LIKE '{Glob.ToSqlLike(seed)}'";
 
-        // A glob asks about the name AND the contents, in two different languages: LIKE understands the
-        // glob as-is, while CONTAINS is word-based and can only be given the glob's longest literal run,
-        // prefix-matched. Widening the content half is safe because a glob is always post-filtered.
-        if (term.IsGlob)
-        {
-            var name    = $"System.FileName LIKE '{Glob.ToSqlLike(seed)}'";
-            var literal = LongestLiteralRun(seed);
-
-            return literal is null
-                ? name       // nothing to search text for ("*") — the name is the whole question
-                : $"({name} OR CONTAINS(System.Search.Contents,'\"{EscapeSql(literal)}*\"'))";
-        }
-
         // A regex seed is a FRAGMENT, so it is prefix-matched and re-filtered afterwards. A literal term is
         // the word the user typed, and is NOT re-filtered when it stands alone — so it is matched exactly
         // as a word, on both sides.
@@ -237,19 +224,4 @@ public static class SearchQueryParser
     private static bool NameHas(FileProbe p, string sub) =>
         p.Name.Contains(sub, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>
-    /// The longest wildcard-free run in a glob — what a word-based index can actually be asked for.
-    /// Null when there is nothing substantial enough to narrow on, in which case the caller must not
-    /// invent a content clause.
-    /// </summary>
-    private static string? LongestLiteralRun(string glob)
-    {
-        var best = glob.Split(['*', '?'], StringSplitOptions.RemoveEmptyEntries)
-                       .Select(s => s.Trim('.'))          // ".txt" tokenises to "txt" anyway
-                       .Where(s => s.Length >= 2)
-                       .OrderByDescending(s => s.Length)
-                       .FirstOrDefault();
-
-        return string.IsNullOrEmpty(best) ? null : best;
-    }
 }

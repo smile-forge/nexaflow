@@ -379,6 +379,35 @@ public class SearchViewModelTests
             "a reopened tab is rebuilt from these, so they have to follow the query too");
     }
 
+    // ── Cancelling a slow query ───────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task AQuickSearchNeverOffersACancel()
+    {
+        // A Stop that flickers on every search is noise, and noise is what trains people to ignore the
+        // control when it finally matters.
+        var root = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            var vm = new SearchViewModel("zqxwv-no-such-token-8813", root, [], Shell());
+
+            await vm.RunSearchAsync(CancellationToken.None);
+
+            Assert.IsFalse(vm.CanCancelSearch, "this search answered immediately");
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
+    [TestMethod]
+    public void CancellingClearsTheAffordanceRatherThanLeavingItUp()
+    {
+        var vm = new SearchViewModel("needle", @"C:\", [], Shell()) { CanCancelSearch = true };
+
+        vm.CancelSearchCommand.Execute(null);
+
+        Assert.IsFalse(vm.CanCancelSearch);
+    }
+
     // ── Teardown ──────────────────────────────────────────────────────────────
 
     [TestMethod]
