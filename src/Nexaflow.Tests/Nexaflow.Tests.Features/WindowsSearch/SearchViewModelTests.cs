@@ -61,7 +61,13 @@ public class SearchViewModelTests
 
             Assert.AreEqual(0, vm.ResultCount);
             Assert.AreEqual(VerifyPhase.OfferScan, vm.VerificationPhase);
-            StringAssert.Contains(vm.VerificationBanner, "scan");
+
+            // Case-insensitive on purpose. Which wording appears depends on the MACHINE: with the indexer
+            // running it is the coverage sentence, without it the service-unavailable one, and they differ
+            // in whether "scan" starts a sentence. Both offer the scan, which is the whole assertion —
+            // pinning one spelling made this pass on a dev box and fail on CI.
+            Assert.IsTrue(vm.VerificationBanner.Contains("scan", StringComparison.OrdinalIgnoreCase),
+                vm.VerificationBanner);
         }
         finally { try { Directory.Delete(root, true); } catch { } }
     }
