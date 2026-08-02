@@ -264,6 +264,59 @@ public class SearchViewModelTests
         finally { try { Directory.Delete(root, true); } catch { } }
     }
 
+    [TestMethod]
+    public async Task EditingTheQueryReplacesTheSearchRatherThanNarrowingIt()
+    {
+        // The header field is the only way to UNDO a refinement — everything else on this page narrows.
+        // If an edit merged with what was already there, a term could be added but never removed.
+        var root = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "needle");
+            await File.WriteAllTextAsync(Path.Combine(root, "b.txt"), "haystack");
+
+            var vm = new SearchViewModel("needle", root, [], Shell());
+            await vm.RunSearchAsync(CancellationToken.None);
+            await vm.ScanFolderCommand.ExecuteAsync(null);
+
+            Assert.AreEqual(1, vm.ResultCount);
+            Assert.AreEqual("a.txt", vm.Results[0].FileName);
+
+            // What the header TextBox does: write the property, then run.
+            vm.SearchQuery = "haystack";
+            await vm.RunSearchAsync(CancellationToken.None);
+            await vm.ScanFolderCommand.ExecuteAsync(null);
+
+            Assert.AreEqual(1, vm.ResultCount);
+            Assert.AreEqual("b.txt", vm.Results[0].FileName,
+                "the replaced term must be gone — a merge would have left nothing matching both");
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
+    [TestMethod]
+    public async Task EditingTheQueryDuringAScanSupersedesIt()
+    {
+        // Re-running from the header while a scan is walking must abandon that walk, not race it.
+        var root = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "a.txt"), "needle");
+
+            var vm = new SearchViewModel("needle", root, [], Shell());
+            await vm.RunSearchAsync(CancellationToken.None);
+            await vm.ScanFolderCommand.ExecuteAsync(null);
+            Assert.AreEqual(1, vm.ResultCount);
+
+            vm.SearchQuery = "zqxwv-no-such-token-8813";
+            await vm.RunSearchAsync(CancellationToken.None);
+
+            Assert.AreEqual(0, vm.ResultCount, "the previous scan's rows belong to a query that is gone");
+            Assert.AreEqual(VerifyPhase.OfferScan, vm.VerificationPhase);
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
     // ── Teardown ──────────────────────────────────────────────────────────────
 
     [TestMethod]
