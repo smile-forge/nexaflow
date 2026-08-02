@@ -322,8 +322,12 @@ public class SearchViewModelTests
     [TestMethod]
     public void TheTabLabelNamesTheSearch()
     {
-        Assert.AreEqual("🔍: needle", SearchViewModel.TabTitleFor("needle"));
-        Assert.AreEqual("🔍 Search",  SearchViewModel.TabTitleFor("   "));
+        Assert.AreEqual("needle", SearchViewModel.TabTitleFor("needle"));
+        Assert.AreEqual("Search",  SearchViewModel.TabTitleFor("   "));
+
+        // The tab strip renders Page.Icon itself, so a magnifier here would be the second one.
+        Assert.IsFalse(SearchViewModel.TabTitleFor("needle").Any(char.IsSurrogate),
+            "the label carries no icon of its own");
     }
 
     [TestMethod]
@@ -332,7 +336,7 @@ public class SearchViewModelTests
         var title = SearchViewModel.TabTitleFor(new string('x', 60));
 
         StringAssert.EndsWith(title, "…");
-        Assert.IsTrue(title.Length <= SearchViewModel.TabQueryChars + 5, title);
+        Assert.IsTrue(title.Length <= SearchViewModel.TabQueryChars + 1, title);
     }
 
     [TestMethod]

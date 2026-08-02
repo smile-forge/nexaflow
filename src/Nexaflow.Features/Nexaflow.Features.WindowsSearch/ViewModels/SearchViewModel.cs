@@ -48,11 +48,14 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
     /// <summary>Query characters kept in the tab label before it is elided.</summary>
     public const int TabQueryChars = 14;
 
-    /// <summary>The tab label for a query — the magnifier, then as much of the query as fits.</summary>
+    /// <summary>
+    /// The tab label for a query — as much of it as fits, elided. No magnifier: the tab strip already
+    /// renders <see cref="Page.Icon"/>, so putting one here shows two.
+    /// </summary>
     public static string TabTitleFor(string query) =>
         string.IsNullOrWhiteSpace(query)
-            ? "🔍 Search"
-            : $"🔍: {(query.Length > TabQueryChars ? query[..TabQueryChars] + "…" : query)}";
+            ? "Search"
+            : query.Length > TabQueryChars ? query[..TabQueryChars] + "…" : query;
 
     /// <summary>
     /// Pushes the current query out to the tab — title, breadcrumbs and the params a reopened tab is
