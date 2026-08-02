@@ -812,11 +812,12 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
     [
         new DelegateClientTool(
             "search",
-            "Search files using Windows Search. Supports plain terms (budget report), " +
-            "quoted phrases (\"annual report\"), file globs (*.xml, *.doc*, name.*), " +
-            "property filters (kind:document, size:>1mb, author:john, date:>2024-01, " +
-            "modified:2023, before:2024, after:2023-06), and boolean prefix syntax " +
-            "(+required -excluded).",
+            "Search files using Windows Search. Terms are AND-ed; use | inside a term for alternatives " +
+            "(*.txt|*.md). Supports plain words matched WHOLE (needle does not match needless), quoted " +
+            "phrases (\"annual report\"), file globs matched against the name and the text (*.xml, " +
+            "report*), regular expressions between slashes (/ma(ths|gic)/), and Advanced Query Syntax " +
+            "property constraints (kind:document, size:>1mb, author:john, modified:last week) — anything " +
+            "Explorer's search box accepts.",
             [new ClientToolParameter("query", "The search query to run.")],
             ToolSafety.SafeOperation,
             (arguments, ct) =>
