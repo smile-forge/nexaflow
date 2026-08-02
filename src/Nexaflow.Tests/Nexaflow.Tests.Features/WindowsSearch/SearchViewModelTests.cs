@@ -379,13 +379,12 @@ public class SearchViewModelTests
             "a reopened tab is rebuilt from these, so they have to follow the query too");
     }
 
-    // ── Cancelling a slow query ───────────────────────────────────────────────
+    // ── A slow index query ────────────────────────────────────────────────────
 
     [TestMethod]
-    public async Task AQuickSearchNeverOffersACancel()
+    public async Task AQuickSearchNeverAnnouncesAWait()
     {
-        // A Stop that flickers on every search is noise, and noise is what trains people to ignore the
-        // control when it finally matters.
+        // A banner that appears on every search is noise, and noise is what trains people to ignore it.
         var root = Directory.CreateTempSubdirectory().FullName;
         try
         {
@@ -393,19 +392,28 @@ public class SearchViewModelTests
 
             await vm.RunSearchAsync(CancellationToken.None);
 
-            Assert.IsFalse(vm.CanCancelSearch, "this search answered immediately");
+            Assert.AreNotEqual(VerifyPhase.Searching, vm.VerificationPhase,
+                "this search answered immediately");
         }
         finally { try { Directory.Delete(root, true); } catch { } }
     }
 
     [TestMethod]
-    public void CancellingClearsTheAffordanceRatherThanLeavingItUp()
+    public async Task TheWaitingNoticeNeverOutlivesTheSearch()
     {
-        var vm = new SearchViewModel("needle", @"C:\", [], Shell()) { CanCancelSearch = true };
+        // It is the one phase nothing else overwrites — every other exit writes its own banner — so a
+        // search that ends while it is up must take it down, or the page claims to still be waiting.
+        var root = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            var vm = new SearchViewModel("zqxwv-no-such-token-8813", root, [], Shell());
 
-        vm.CancelSearchCommand.Execute(null);
+            await vm.RunSearchAsync(CancellationToken.None);
 
-        Assert.IsFalse(vm.CanCancelSearch);
+            Assert.AreNotEqual(VerifyPhase.Searching, vm.VerificationPhase);
+            Assert.IsFalse(vm.IsSearching);
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
     }
 
     // ── Teardown ──────────────────────────────────────────────────────────────

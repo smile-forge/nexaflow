@@ -1,4 +1,4 @@
-namespace Nexaflow.Features.WindowsSearch.Services;
+﻿namespace Nexaflow.Features.WindowsSearch.Services;
 
 /// <summary>What the verification banner is currently saying.</summary>
 public enum VerifyPhase
@@ -16,6 +16,9 @@ public enum VerifyPhase
 
     /// <summary>A folder scan is running and reporting hits as it finds them.</summary>
     Scanning,
+
+    /// <summary>The index query has been running long enough to be worth mentioning.</summary>
+    Searching,
 
     /// <summary>A refinement was typed against an empty result set, and running it as a fresh search in the
     /// same place is being offered instead.</summary>
@@ -177,6 +180,18 @@ public static class VerificationPlanner
     public static VerifyPlan OfferNewSearch(string query) =>
         new(VerifyPhase.OfferNewSearch, 0,
             $"There are no results here to search within. Run '{query}' as a new search in the same location?");
+
+    /// <summary>
+    /// Shown when the index has been thinking for a while.
+    /// <para>
+    /// It reports and does not offer to stop, because stopping is not something we can honestly provide: an
+    /// OLE DB query already in flight cannot be aborted, so a Stop here would abandon the UI's interest in
+    /// a query that keeps running — a button that does not do what it says. Saying who we are waiting for
+    /// is the useful part; the previous silence read as a hang.
+    /// </para>
+    /// </summary>
+    public static VerifyPlan WaitingForIndex() =>
+        new(VerifyPhase.Searching, 0, "Waiting for the Windows index service to respond…");
 
     /// <summary>Progress while a scan runs. Counts are what it has found so far, not a total — a scan
     /// can't know how many matches exist until it has finished looking.</summary>

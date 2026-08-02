@@ -58,16 +58,6 @@
                                    Foreground="{StaticResource TextMutedBrush}"
                                    FontSize="12"
                                    VerticalAlignment="Center"/>
-
-                        <!-- Only once the query has been running a few seconds. A Stop that flickers on
-                             every search is noise; one that appears when you have started to wonder is the
-                             only thing you want. -->
-                        <Button Content="Stop"
-                                Style="{StaticResource TbBtn}"
-                                AutomationProperties.AutomationId="CancelSearch"
-                                Command="{Binding CancelSearchCommand}"
-                                Margin="8,0,0,0"
-                                Visibility="{Binding CanCancelSearch, Converter={StaticResource BoolVis}}"/>
                     </StackPanel>
 
                     <TextBlock Text="&#xE721;"
@@ -158,6 +148,9 @@
                                     <Setter Property="Visibility" Value="Visible"/>
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding VerificationPhase}" Value="Scanning">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding VerificationPhase}" Value="Searching">
                                     <Setter Property="Visibility" Value="Visible"/>
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding VerificationPhase}" Value="OfferNewSearch">
