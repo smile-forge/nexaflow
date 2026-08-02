@@ -103,7 +103,9 @@ and differ only in `ScoreQuery` and what `SearchAsync` does with `display`.
 public sealed partial class MyViewModel : ObservableObject, IPageViewModel, ISearchable
 {
     public string SearchTargetDescription => "the loaded rows";          // for the agent's tool catalogue
-    public bool   SupportsRegex           => true;                        // false ⇒ MUST refuse, not fall back
+
+    // No opt-out flag: regex is not optional. A page whose backend has no regex operator widens the query
+    // and re-filters the rows — see the rule below.
 
     public async Task<SearchOutcome> SearchAsync(SearchRequest r, bool display, CancellationToken ct)
     {
