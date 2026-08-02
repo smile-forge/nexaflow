@@ -1342,6 +1342,30 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         // Runs one prompt → answer. Returns how it ended so the outer loop can deliver any late interjections.
         async Task<TurnOutcome> RunTurn(string input)
         {
+            // Scored BEFORE anything is shown. A query handler that owns the input never reaches the AI, so
+            // presenting the AI's response surface for it is wrong even briefly — and not briefly at all
+            // when the handler is slow: the overlay stayed up for the whole of a folder scan, sitting over
+            // the results that scan was busy producing. Scoring is synchronous, so there is nothing to
+            // show during it.
+            var (scored, clearWinner, effectiveText, prefixed) = svc.ScoreHandlers(input, pageVm);
+            var effective = effectiveText;
+
+            if (clearWinner is not null)
+            {
+                string? won;
+                try   { won = await clearWinner.ProcessAsync(effective, prefixed, pageVm); }
+                catch (Exception ex) { ShowError("AI error", ex.Message); return TurnOutcome.Error; }
+
+                // Only a handler with something to SAY needs the surface. One that renders its own result —
+                // a search filling its list — stays silent, and the overlay never appears.
+                if (won is not null)
+                {
+                    handler.BeginResponse(input);
+                    handler.ShowFinal(won);
+                }
+                return TurnOutcome.Completed;
+            }
+
             handler.BeginResponse(input);   // echo the user + show a "considering" placeholder
 
             // Pinned context may still be gathering (e.g. SystemInfo's background scan). Hold the turn
@@ -1349,11 +1373,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
             await WaitForContextAsync(handler, pageVm, sendToken);
             if (sendToken.IsCancellationRequested) { handler.Abort(); return TurnOutcome.Cancelled; }
 
-            var (scored, clearWinner, effectiveText, prefixed) = svc.ScoreHandlers(input, pageVm);
-            var selected = clearWinner;
-            var effective = effectiveText;
-
-            if (selected is null && scored.Count > 0)
+            // No clear winner: asking the model which tool to use is itself an AI call, so the surface is
+            // already up by here and stays up.
+            IQueryHandler? selected = null;
+            if (scored.Count > 0)
             {
                 try   { selected = await svc.DisambiguateToolSelection(pageVm, effective, scored); }
                 catch (Exception ex) { handler.Abort(); ShowError("AI error", ex.Message); return TurnOutcome.Error; }

@@ -170,7 +170,7 @@ public class SearchViewModelTests
                 "the scan finished before the refinement — this case was never exercised");
 
             await vm.SearchAsync(new SearchRequest("haystack"), display: true, default);
-            await scanning;
+            await scanning;              // the superseded walk unwinds
 
             Assert.AreEqual(1, vm.ResultCount, "only the file containing both terms should survive");
             Assert.AreEqual("both.txt", vm.Results[0].FileName);
