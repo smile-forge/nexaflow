@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:avalon="http://icsharpcode.net/sharpdevelop/avalonedit"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:ed="clr-namespace:Nexaflow.Visuals.Text.Editor"
              AutomationProperties.AutomationId="TextEditorView"
              Background="{StaticResource BgBrush}">
 
@@ -50,6 +51,36 @@
                               ToolTip="Line endings written on save"/>
                 </StackPanel>
 
+                <!-- Middle: search chip — what a "?" search found, and how to step through or dismiss it.
+                     Placed at the top like the Text and Markdown viewers, for a consistent search indicator. -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
+                            HorizontalAlignment="Center"
+                            AutomationProperties.AutomationId="Editor_SearchStatus"
+                            Visibility="{Binding IsSearchActive, Converter={StaticResource BoolVis}}">
+                    <TextBlock Text="{Binding SearchMatchCount, StringFormat='{}{0} match(es)'}"
+                               AutomationProperties.AutomationId="Editor_SearchMatchCount"
+                               Foreground="{StaticResource AccentBrush}" FontSize="11"
+                               VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding CurrentSearchTerm, StringFormat=' for {0}'}"
+                               Foreground="{StaticResource TextMutedBrush}" FontSize="11"
+                               MaxWidth="220" TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center"/>
+                    <Button Style="{StaticResource TbBtn}" Content="‹" Padding="6,0" Margin="8,0,0,0"
+                            AutomationProperties.AutomationId="Editor_SearchPrevious"
+                            ToolTip="Previous match"
+                            Visibility="{Binding HasSearchMatches, Converter={StaticResource BoolVis}}"
+                            Command="{Binding FindPreviousMatchCommand}"/>
+                    <Button Style="{StaticResource TbBtn}" Content="›" Padding="6,0"
+                            AutomationProperties.AutomationId="Editor_SearchNext"
+                            ToolTip="Next match"
+                            Visibility="{Binding HasSearchMatches, Converter={StaticResource BoolVis}}"
+                            Command="{Binding FindNextMatchCommand}"/>
+                    <Button Style="{StaticResource TbBtn}" Content="✕" Padding="6,0"
+                            AutomationProperties.AutomationId="Editor_SearchClear"
+                            ToolTip="Clear the search"
+                            Command="{Binding ClearSearchCommand}"/>
+                </StackPanel>
+
                 <!-- Right: display toggles + save (command groups live in the floating panel on the right) -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                     <ToggleButton Style="{StaticResource TbToggle}"
@@ -74,9 +105,15 @@
             </Grid>
         </Border>
 
-        <!-- ══════════════ EDITOR ══════════════ -->
+        <!-- ══════════════ EDITOR (+ minimap match strip) ══════════════ -->
         <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="14"/>
+            </Grid.ColumnDefinitions>
+
             <avalon:TextEditor x:Name="Editor"
+                               Grid.Column="0"
                                IsReadOnly="{Binding IsReadOnlyMode}"
                                ShowLineNumbers="{Binding ShowLineNumbers}"
                                FontFamily="Cascadia Code, Consolas, Courier New, monospace"
@@ -154,6 +191,11 @@
                            AutomationProperties.AutomationId="Editor_ChangeBanner"
                            Foreground="{StaticResource AccentBrush}" FontSize="12"/>
             </Border>
+
+            <!-- Minimap match strip: proportional tick marks for the current search's matches -->
+            <ed:MiniMapStrip x:Name="MiniMapCanvas"
+                             Grid.Column="1"
+                             Background="{StaticResource DeepBgBrush}"/>
         </Grid>
 
         <!-- ══════════════ STATUS BAR ══════════════ -->

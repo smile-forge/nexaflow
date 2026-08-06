@@ -2,10 +2,12 @@ using ICSharpCode.AvalonEdit.Rendering;
 using System.Windows;
 using System.Windows.Media;
 
-namespace Nexaflow.Features.Text.Rendering;
+namespace Nexaflow.Visuals.Text.Editor;
 
 /// <summary>
-/// AvalonEdit background renderer that draws gold highlights behind search matches.
+/// AvalonEdit background renderer that draws highlights behind search matches.
+/// Shared: every AvalonEdit surface that answers a search (the Text viewer's find, the editor's
+/// <see cref="FileTextEditorViewModel"/> search) paints matches the same way, from the same theme token.
 /// </summary>
 public sealed class SearchHighlightRenderer : IBackgroundRenderer
 {

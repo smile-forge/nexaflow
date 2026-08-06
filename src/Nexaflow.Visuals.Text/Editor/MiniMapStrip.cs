@@ -1,11 +1,12 @@
 using System.Windows;
 using System.Windows.Media;
 
-namespace Nexaflow.Features.Text.Views;
+namespace Nexaflow.Visuals.Text.Editor;
 
 /// <summary>
-/// A thin vertical strip drawn to the right of the editor that shows proportional
-/// positions of search matches as gold tick marks.
+/// A thin vertical strip drawn to the right of a text surface showing the proportional positions of search
+/// matches as tick marks (like the Visual Studio scrollbar map). Shared by the Text viewer, the code/text
+/// editor and the markdown editor — each feeds it normalised (0–1) match positions via <see cref="Marks"/>.
 /// </summary>
 public sealed class MiniMapStrip : FrameworkElement
 {

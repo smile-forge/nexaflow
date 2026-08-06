@@ -55,7 +55,7 @@ internal sealed partial class EmailViewModel : ObservableObject, IPageViewModel,
 
     [ObservableProperty] private bool _headersExpanded;
 
-    public ObservableCollection<EmailHeader> AllHeaders { get; } = [];
+    public ObservableCollection<EmailHeaderItem> AllHeaders { get; } = [];
     public ObservableCollection<EmailAttachmentItem> Attachments { get; } = [];
 
     /// <summary>Folder the rendered view resolves inline (<c>cid:</c>) images against; null when there are none.</summary>
@@ -96,7 +96,7 @@ internal sealed partial class EmailViewModel : ObservableObject, IPageViewModel,
             PlainText = doc.TextBody ?? string.Empty;
             HtmlSource = doc.HtmlBody ?? string.Empty;
 
-            foreach (var h in doc.Headers) AllHeaders.Add(h);
+            foreach (var h in doc.Headers) AllHeaders.Add(new EmailHeaderItem(h.Field, h.Value));
 
             if (!string.IsNullOrEmpty(doc.HtmlBody))
             {
@@ -115,7 +115,7 @@ internal sealed partial class EmailViewModel : ObservableObject, IPageViewModel,
             foreach (var a in doc.Attachments)
             {
                 if (a.IsInline) { inline++; continue; }
-                Attachments.Add(new EmailAttachmentItem(a.EntryName, a.DisplayName, a.ContentType, a.Size));
+                Attachments.Add(new EmailAttachmentItem(a));
             }
             InlineImageCount = inline;
 

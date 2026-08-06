@@ -129,6 +129,10 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     [ObservableProperty] private string _findText    = string.Empty;
     [ObservableProperty] private string _replaceText = string.Empty;
     [ObservableProperty] private bool   _matchCase;
+    /// <summary>Treat <c>*</c>/<c>?</c> in the find box as wildcards (word-bounded), not literal characters.
+    /// On by default and mutually exclusive with <see cref="UseRegex"/> — a query is wildcards or regex,
+    /// never both. Turned on when a literal "?" search is injected, so the box reproduces it.</summary>
+    [ObservableProperty] private bool   _useWildcards = true;
     [ObservableProperty] private bool   _useRegex;
 
     private bool _suppressFindRun;   // guards the live re-run when the engine sets FindText/UseRegex back
@@ -140,9 +144,6 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     /// <summary>Raised when the bar opens so the view can focus the find box.</summary>
     public event Action? FindBarFocusRequested;
-
-    private StringComparison SearchComparison =>
-        MatchCase ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
 
     // -1 means "not yet navigated"; code-behind watches this to trigger centering
     [ObservableProperty] private int _scrollToOffset = -1;
@@ -186,8 +187,14 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     // All line numbers (0-based) across the full file that contain at least one match.
     private long[]  _matchingLineNumbers  = [];
+
+    // The active query — the ONE authority for what matches, so the text viewer honours whole-word,
+    // wildcards and quoting exactly like every other ISearchable page (a literal "needle" is the word, not
+    // a substring of "needless"). Line scanning, highlight spans and match navigation all read this.
+    private SearchRequest? _activeRequest;
+
+    // Kept only for regex-mode Replace's $1 expansion; null for a literal/wildcard query.
     private Regex? _activeRegex;
-    private string _activeSearchPattern  = string.Empty;
     private int    _currentMatchIndex     = -1;
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -290,6 +297,12 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         long nwin  = CountNewlines(_winText);
         long bottom = (total - 1) - _winStartLine - nwin;
 
+        // Where the caret logically is, as a FILE line + column. Replacing Document.Text below resets the
+        // editor caret, and the view echoes that reset straight back into CurrentCaretOffset — which moved
+        // the user's cursor whenever the window slid, and left Find Next/Previous stepping from the window
+        // start instead of from the caret (so they only ever cycled the matches in the resident window).
+        var (caretLine, caretColumn) = CaretLineAndColumn();
+
         var sb = new StringBuilder();
         if (_winStartLine > 0) sb.Append('\n', checked((int)_winStartLine));
         _winDocOffset = (int)_winStartLine;
@@ -307,7 +320,42 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         // it. (For a large file being edited, a window slide therefore resets undo history — safe, never
         // corrupts; small-file editing keeps the whole session's history since it never re-composes.)
         Document.UndoStack.ClearAll();
+
+        RestoreCaret(caretLine, caretColumn);
     }
+
+    /// <summary>The caret's FILE line (0-based) and its column within that line. Document lines are file
+    /// lines (the window's real text is padded to its file position), so this needs no window arithmetic.</summary>
+    private (long Line, int Column) CaretLineAndColumn()
+    {
+        try
+        {
+            var offset = Math.Clamp(CurrentCaretOffset, 0, Document.TextLength);
+            var line   = Document.GetLineByOffset(offset);
+            return (line.LineNumber - 1, offset - line.Offset);
+        }
+        catch { return (0, 0); }
+    }
+
+    /// <summary>Puts the caret back on the same file line after a recomposition, and tells the view to move
+    /// the editor caret there — without scrolling, so a window slide never yanks the view.</summary>
+    private void RestoreCaret(long fileLine, int column)
+    {
+        try
+        {
+            var docLineNo = (int)Math.Clamp(fileLine + 1, 1, Math.Max(1, Document.LineCount));
+            var line      = Document.GetLineByNumber(docLineNo);
+            var offset    = line.Offset + Math.Clamp(column, 0, line.Length);
+
+            CurrentCaretOffset = offset;
+            CaretRestoreRequested?.Invoke(offset);
+        }
+        catch { }
+    }
+
+    /// <summary>Raised after a window slide so the view can put the editor caret back where it logically
+    /// was. Caret only — never scrolls.</summary>
+    public event Action<int>? CaretRestoreRequested;
 
     /// <summary>Document offset where the editable (real, resident) text begins.</summary>
     public int LoadedRealStart => IsLargeFile ? _winDocOffset : 0;
@@ -541,63 +589,77 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     // ── Search ────────────────────────────────────────────────────────────────
 
-    public async Task SearchRegexAsync(string pattern, CancellationToken externalCt = default)
+    /// <summary>A plain (simple) find — the raw text as one whole-word literal, so <c>*</c>/<c>?</c> are
+    /// ordinary characters. Reflects itself into the bar and runs. Kept for the AI find tool and tests.</summary>
+    public Task SearchConventionalAsync(string query, CancellationToken externalCt = default)
     {
-        _lastSearch = ct => SearchRegexAsync(pattern, ct);
-        _searchCts?.Cancel();
-        _searchCts = new CancellationTokenSource();
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(_searchCts.Token, externalCt);
-        var ct = linked.Token;
-
-        IsSearchRunning = true;
-        try
-        {
-            Regex regex;
-            var opts = RegexOptions.Compiled | (MatchCase ? RegexOptions.None : RegexOptions.IgnoreCase);
-            try   { regex = new Regex(pattern, opts); }
-            catch { IsSearchRunning = false; return; }
-
-            _activeRegex         = regex;
-            _activeSearchPattern = string.Empty;
-            var (lines, count)   = await ScanAsync(regex, null, ct);
-            _matchingLineNumbers = lines;
-
-            CurrentSearchTerm  = $"/{pattern}/";
-            MiniMapMarks       = MarksFor(lines);
-            SearchMatchCount   = count;
-            IsSearchActive     = count > 0;
-            _currentMatchIndex = count > 0 ? 0 : -1;
-            SurfaceSearchInBar(pattern, regex: true);
-            RefreshWindowHighlights();
-            if (count > 0) await NavigateToMatchLineAsync(lines[0]);
-        }
-        catch (OperationCanceledException) { }
-        finally { IsSearchRunning = false; }
+        if (string.IsNullOrWhiteSpace(query)) return Task.CompletedTask;
+        var request = SimpleLiteralRequest(query);
+        SurfaceSearchInBar(query, wildcards: false, regex: false);
+        return RunSearchAsync(request, externalCt);
     }
 
-    public async Task SearchConventionalAsync(string query, CancellationToken externalCt = default)
+    /// <summary>A regex find. Reflects itself into the bar and runs.</summary>
+    public Task SearchRegexAsync(string pattern, CancellationToken externalCt = default)
     {
-        if (string.IsNullOrWhiteSpace(query)) return;
-        _lastSearch = ct => SearchConventionalAsync(query, ct);
+        var request = new SearchRequest(pattern, IsRegex: true, MatchCase: MatchCase);
+        SurfaceSearchInBar(pattern, wildcards: false, regex: true);
+        return RunSearchAsync(request, externalCt);
+    }
+
+    /// <summary>The whole find-box text as one literal term: whole-word (a phrase stays a phrase), Match-case
+    /// applied, and <c>*</c>/<c>?</c> taken literally. <see cref="SearchTerm.Exact"/> is what suppresses the
+    /// wildcards; the Display keeps the term rendering as the user typed it.</summary>
+    private SearchRequest SimpleLiteralRequest(string text) =>
+        new(text, MatchCase: MatchCase)
+        {
+            Terms = [new SearchTerm(SearchTermKind.Text, [text], MatchCase, Exact: true, Display: text)],
+        };
+
+    /// <summary>Builds the request the find box represents right now, honouring its three toggles: regex,
+    /// wildcards (the shared syntax, so <c>needle*</c> and <c>"a phrase"</c> work), or a plain literal.</summary>
+    private SearchRequest BuildFindRequest(string text)
+    {
+        if (UseRegex) return new SearchRequest(text, IsRegex: true, MatchCase: MatchCase);
+        if (!UseWildcards) return SimpleLiteralRequest(text);
+
+        var parsed = SearchSyntax.ParseRequest(text);
+        return MatchCase
+            ? parsed with { MatchCase = true, Terms = parsed.Terms.Select(t => t with { MatchCase = true }).ToList() }
+            : parsed;
+    }
+
+    /// <summary>
+    /// Runs a parsed query against the current content and drives the on-screen search: the match count, the
+    /// minimap ticks, the in-window highlights and navigation to the first match. The find bar's text and
+    /// toggles are set by the caller (a "?" injection or a driver), not here, so live typing isn't fought.
+    /// </summary>
+    private async Task RunSearchAsync(SearchRequest request, CancellationToken externalCt = default)
+    {
+        _lastSearch = ct => RunSearchAsync(request, ct);
         _searchCts?.Cancel();
         _searchCts = new CancellationTokenSource();
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(_searchCts.Token, externalCt);
         var ct = linked.Token;
 
+        _activeRequest = request;
+        // Only a single-regex query keeps a compiled Regex, for Replace's $1 expansion.
+        _activeRegex = request.Terms is [{ Kind: SearchTermKind.Regex }]
+            && request.TryCompileRegex(out var rx, out _) ? rx : null;
+
+        IsFindBarOpen     = true;              // opens even for a large streaming scan, or a no-match search
+        CurrentSearchTerm = SearchSyntax.Format(request);
+
         IsSearchRunning = true;
         try
         {
-            _activeRegex         = null;
-            _activeSearchPattern = query;
-            var (lines, count)   = await ScanAsync(null, query, ct);
+            var (lines, count) = await ScanAsync(request, ct);
             _matchingLineNumbers = lines;
 
-            CurrentSearchTerm  = query;
             MiniMapMarks       = MarksFor(lines);
             SearchMatchCount   = count;
             IsSearchActive     = count > 0;
             _currentMatchIndex = count > 0 ? 0 : -1;
-            SurfaceSearchInBar(query, regex: false);
             RefreshWindowHighlights();
             if (count > 0) await NavigateToMatchLineAsync(lines[0]);
         }
@@ -606,24 +668,19 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     }
 
     // Scans the CURRENT content (overlay-aware for large files) for matching line numbers + total count.
-    // The comparison is a parameter rather than SearchComparison so an agent-side search can run
-    // case-sensitively without flipping the find bar's MatchCase toggle under the user.
+    // Matching is the request's own — whole-word literals, wildcards, quoted phrases and regex all decided
+    // in one place (SearchTerm), so the text viewer can't drift from the rest of the app.
     private async Task<(long[] lines, int count)> ScanAsync(
-        Regex? regex, string? query, CancellationToken ct,
-        StringComparison? comparison = null, List<SearchHit>? collect = null, int collectCap = 0)
+        SearchRequest request, CancellationToken ct,
+        List<SearchHit>? collect = null, int collectCap = 0)
     {
-        var cmp           = comparison ?? SearchComparison;
         var matchingLines = new List<long>();
         var total         = 0;
 
         if (IsLargeFile && _file is not null)
         {
             await foreach (var (line, text, _) in _file.EnumerateLinesAsync(ct))
-            {
-                bool hit = regex is not null ? regex.IsMatch(text)
-                    : !string.IsNullOrEmpty(query) && text.Contains(query, cmp);
-                if (hit) { matchingLines.Add(line); total++; Collect(line, text); }
-            }
+                if (request.Matches(text)) { matchingLines.Add(line); total++; Collect(line, text); }
         }
         else
         {
@@ -631,10 +688,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
             for (var i = 0; i < docLines.Length; i++)
             {
                 ct.ThrowIfCancellationRequested();
-                var text = docLines[i];
-                bool hit = regex is not null ? regex.IsMatch(text)
-                    : !string.IsNullOrEmpty(query) && text.Contains(query, cmp);
-                if (hit) { matchingLines.Add(i); total++; Collect(i, text); }
+                if (request.Matches(docLines[i])) { matchingLines.Add(i); total++; Collect(i, docLines[i]); }
             }
         }
         return (matchingLines.ToArray(), total);
@@ -669,35 +723,29 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     public async Task<SearchOutcome> SearchAsync(SearchRequest request, bool display, CancellationToken ct)
     {
-        // This page has one body and no filenames to judge, so it never offers the glob recogniser and
-        // should never see a name-scoped term. Saying so beats silently dropping the constraint.
-        if (request.HasNameOnlyTerms)
-            return SearchOutcome.Unsupported(
-                "Filename filters don't apply when searching inside a file — drop them and search the text.");
-
-        Regex? regex = null;
-        if (request.IsRegex && !request.TryCompileRegex(out regex, out var error))
-            return SearchOutcome.Unsupported($"Invalid regular expression: {error}");
+        // Validate against what a single-body page can run (filename filters, bad patterns) with the same
+        // words every other ISearchable page uses.
+        if (!TextSearchMatcher.TryCreate(request, out _, out var error))
+            return SearchOutcome.Unsupported(error);
 
         if (!display)
         {
             // Agent-side read: scan without touching highlights, the minimap or the find bar.
             var hits = new List<SearchHit>();
-            var (_, found) = await ScanAsync(
-                regex, request.IsRegex ? null : request.Text, ct, request.Comparison, hits, SearchHitCap);
+            var (_, found) = await ScanAsync(request, ct, hits, SearchHitCap);
             return found == 0 ? SearchOutcome.None() : SearchOutcome.Found(hits, found);
         }
 
-        // Drive the page's own search so an AI-bar search lights up exactly what the find bar would.
-        if (MatchCase != request.MatchCase)
-        {
-            _suppressFindRun = true;
-            MatchCase = request.MatchCase;
-            _suppressFindRun = false;
-        }
+        // Inject the query into the find bar so it lights up exactly what the bar would, and turn on the
+        // toggle that reproduces it — regex for a regex, wildcards for anything else (so the box stays
+        // aligned when re-run).
+        var single = request.Terms.Count == 1 ? request.Terms[0] : null;
+        if (single is { Kind: SearchTermKind.Regex })
+            SurfaceSearchInBar(single.Value, wildcards: false, regex: true);
+        else
+            SurfaceSearchInBar(SearchSyntax.Format(request), wildcards: true, regex: false);
 
-        if (request.IsRegex) await SearchRegexAsync(request.Text, ct);
-        else                 await SearchConventionalAsync(request.Text, ct);
+        await RunSearchAsync(request, ct);
 
         return SearchMatchCount == 0
             ? SearchOutcome.None()
@@ -751,31 +799,16 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     // Computes search highlights for the resident window only (Document offsets), called after a search
     // and after every slide. Highlights outside the window aren't drawn (those lines are placeholders).
+    // Spans come from the request itself, so what is painted can't drift from what was counted.
     private void RefreshWindowHighlights()
     {
-        if (!IsSearchActive) { SearchHighlights = []; return; }
+        if (!IsSearchActive || _activeRequest is null) { SearchHighlights = []; return; }
 
         var text    = IsLargeFile ? _winText : Document.Text;
         var baseOff = IsLargeFile ? _winDocOffset : 0;
         var result  = new List<(int, int)>();
-
-        if (_activeRegex is not null)
-        {
-            foreach (Match m in _activeRegex.Matches(text))
-                result.Add((baseOff + m.Index, m.Length));
-        }
-        else if (!string.IsNullOrEmpty(_activeSearchPattern))
-        {
-            var cmp = SearchComparison;
-            var start = 0;
-            while (true)
-            {
-                var i = text.IndexOf(_activeSearchPattern, start, cmp);
-                if (i < 0) break;
-                result.Add((baseOff + i, _activeSearchPattern.Length));
-                start = i + _activeSearchPattern.Length;
-            }
-        }
+        foreach (var (index, length) in _activeRequest.Occurrences(text))
+            result.Add((baseOff + index, length));
         SearchHighlights = result;
     }
 
@@ -794,35 +827,49 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         _currentMatchIndex   = -1;
         ScrollToOffset       = -1;
         _matchingLineNumbers = [];
+        _activeRequest       = null;
         _activeRegex         = null;
-        _activeSearchPattern = string.Empty;
     }
 
+    /// <summary>The editor caret offset (Document-relative), mirrored from the view on every caret move.
+    /// Find Next/Previous read it to step from wherever the cursor is.</summary>
     public int CurrentCaretOffset { get; set; }
 
+    // Next/Previous find the match after/before the CARET — the first match whose file line is past the
+    // caret's, so a plain click-then-F3 lands on the next occurrence like every editor. It works while
+    // streaming because ComposeDocument keeps Document line numbers equal to file line numbers (the window's
+    // real text is padded to its file position), so the caret's file line is just its document line — no
+    // window arithmetic. The match list is file-line-sorted, so a binary search picks the neighbour, and
+    // navigation slides the window to whatever line it lands on.
     [RelayCommand]
-    private async Task FindNext()
+    private Task FindNext() => StepFromCaret(forward: true);
+
+    [RelayCommand]
+    private Task FindPrevious() => StepFromCaret(forward: false);
+
+    private async Task StepFromCaret(bool forward)
     {
-        if (_matchingLineNumbers.Length == 0) return;
-        var caretLine = GetCaretLine();
-        var idx = LowerBound(_matchingLineNumbers, caretLine + 1);
-        if (idx >= _matchingLineNumbers.Length) idx = 0;
+        var n = _matchingLineNumbers.Length;
+        if (n == 0) return;
+
+        var caretLine = CaretFileLine();
+        int idx;
+        if (forward)
+        {
+            idx = LowerBound(_matchingLineNumbers, caretLine + 1);   // first match strictly after the caret
+            if (idx >= n) idx = 0;                                   // past the last → wrap to the first
+        }
+        else
+        {
+            idx = LowerBound(_matchingLineNumbers, caretLine) - 1;   // last match strictly before the caret
+            if (idx < 0) idx = n - 1;                                // before the first → wrap to the last
+        }
+
         _currentMatchIndex = idx;
         await NavigateToMatchLineAsync(_matchingLineNumbers[idx]);
     }
 
-    [RelayCommand]
-    private async Task FindPrevious()
-    {
-        if (_matchingLineNumbers.Length == 0) return;
-        var caretLine = GetCaretLine();
-        var idx = LowerBound(_matchingLineNumbers, caretLine) - 1;
-        if (idx < 0) idx = _matchingLineNumbers.Length - 1;
-        _currentMatchIndex = idx;
-        await NavigateToMatchLineAsync(_matchingLineNumbers[idx]);
-    }
-
-    // First index whose value is >= target.
+    // First index whose value is >= target (the match list is ascending file lines).
     private static int LowerBound(long[] arr, long target)
     {
         int lo = 0, hi = arr.Length;
@@ -830,12 +877,11 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         return lo;
     }
 
-    private long GetCaretLine()
+    // The caret's FILE line (0-based). Document lines == file lines even when streaming (see StepFromCaret),
+    // so this is simply the caret's document line.
+    private long CaretFileLine()
     {
-        try
-        {
-            return Document.GetLineByOffset(Math.Clamp(CurrentCaretOffset, 0, Document.TextLength)).LineNumber - 1;
-        }
+        try { return Document.GetLineByOffset(Math.Clamp(CurrentCaretOffset, 0, Document.TextLength)).LineNumber - 1; }
         catch { return 0; }
     }
 
@@ -843,7 +889,13 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     {
         await EnsureLineResidentAsync(lineNumber);
         var offset = FindMatchOffsetOnLine(lineNumber);
-        if (offset >= 0) ScrollToOffset = offset;
+        if (offset < 0) return;
+
+        // Set the caret authoritatively here rather than waiting for the view to echo it back: across a
+        // window slide that round-trip was unreliable, leaving the reference line stale so the next step
+        // re-picked the same match. The view still moves the editor caret to the same offset for the user.
+        CurrentCaretOffset = offset;
+        ScrollToOffset = offset;
     }
 
     // Slides the resident window so <paramref name="lineNumber"/> (0-based file line) is in it — a no-op
@@ -870,23 +922,15 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         catch { }
     }
 
-    // The Document offset+length of the first match on <paramref name="lineNumber"/> (0-based), or (-1, 0).
+    // The first match's (Document offset, length) on <paramref name="lineNumber"/> (0-based), or (-1, 0).
     private (int off, int len) MatchSpanOnLine(long lineNumber)
     {
         try
         {
             var docLine  = Document.GetLineByNumber((int)lineNumber + 1);
             var lineText = Document.GetText(docLine.Offset, docLine.Length);
-            if (_activeRegex is not null)
-            {
-                var m = _activeRegex.Match(lineText);
-                if (m.Success) return (docLine.Offset + m.Index, m.Length);
-            }
-            else if (!string.IsNullOrEmpty(_activeSearchPattern))
-            {
-                var i = lineText.IndexOf(_activeSearchPattern, SearchComparison);
-                if (i >= 0) return (docLine.Offset + i, _activeSearchPattern.Length);
-            }
+            if (FirstSpanOnLine(lineText) is { } span)
+                return (docLine.Offset + span.Index, span.Length);
         }
         catch { }
         return (-1, 0);
@@ -898,29 +942,49 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         {
             var docLine  = Document.GetLineByNumber((int)lineNumber + 1);
             var lineText = Document.GetText(docLine.Offset, docLine.Length);
-
-            if (_activeRegex is not null)
-            {
-                var m = _activeRegex.Match(lineText);
-                return m.Success ? docLine.Offset + m.Index : docLine.Offset;
-            }
-            if (!string.IsNullOrEmpty(_activeSearchPattern))
-            {
-                var i = lineText.IndexOf(_activeSearchPattern, SearchComparison);
-                return i >= 0 ? docLine.Offset + i : docLine.Offset;
-            }
+            return FirstSpanOnLine(lineText) is { } span ? docLine.Offset + span.Index : docLine.Offset;
         }
         catch { }
         return -1;
     }
 
+    // The first match span on a line, from the active request, so navigation lands where highlighting paints.
+    private (int Index, int Length)? FirstSpanOnLine(string lineText)
+    {
+        if (_activeRequest is null) return null;
+        foreach (var span in _activeRequest.Occurrences(lineText)) return span;
+        return null;
+    }
+
     // ── Find & Replace bar ────────────────────────────────────────────────────
 
     // Live re-run when the user edits the find text or flips a toggle (guarded so the engine writing
-    // FindText/UseRegex back doesn't recurse).
-    partial void OnFindTextChanged(string value) { if (!_suppressFindRun) DebouncedRunFind(); }
-    partial void OnMatchCaseChanged(bool value)  { if (!_suppressFindRun) DebouncedRunFind(); }
-    partial void OnUseRegexChanged(bool value)   { if (!_suppressFindRun) DebouncedRunFind(); }
+    // FindText/UseRegex/UseWildcards back doesn't recurse). Wildcards and regex are mutually exclusive:
+    // turning one on turns the other off. That sibling-set is itself suppressed, so it neither recurses nor
+    // schedules a second search.
+    partial void OnFindTextChanged(string value)     { if (!_suppressFindRun) DebouncedRunFind(); }
+    partial void OnMatchCaseChanged(bool value)      { if (!_suppressFindRun) DebouncedRunFind(); }
+
+    partial void OnUseWildcardsChanged(bool value)
+    {
+        if (_suppressFindRun) return;                 // programmatic set (injection sets both correctly)
+        if (value && UseRegex) SetSuppressed(() => UseRegex = false);
+        DebouncedRunFind();
+    }
+
+    partial void OnUseRegexChanged(bool value)
+    {
+        if (_suppressFindRun) return;
+        if (value && UseWildcards) SetSuppressed(() => UseWildcards = false);
+        DebouncedRunFind();
+    }
+
+    private void SetSuppressed(Action set)
+    {
+        _suppressFindRun = true;
+        try { set(); }
+        finally { _suppressFindRun = false; }
+    }
 
     private async void DebouncedRunFind()
     {
@@ -932,19 +996,23 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         try { await RunFindAsync(); } catch { }
     }
 
+    // The user typed in the box (or flipped a toggle): build the request the box represents and run it.
+    // No bar reflection here — the box's own text/toggles are the source, so we mustn't fight the user.
     private Task RunFindAsync()
     {
         var q = FindText;
         if (string.IsNullOrWhiteSpace(q)) { CancelSearch(); return Task.CompletedTask; }
-        return UseRegex ? SearchRegexAsync(q) : SearchConventionalAsync(q);
+        return RunSearchAsync(BuildFindRequest(q));
     }
 
-    // Reflects an executed search back into the bar so an AI-input-bar search lights up the same UI.
-    private void SurfaceSearchInBar(string term, bool regex)
+    // Reflects a driver-run search back into the bar so it lights up the same UI, and sets the toggle that
+    // reproduces it (regex OR wildcards). Suppressed so setting these doesn't trigger a redundant re-run.
+    private void SurfaceSearchInBar(string term, bool wildcards, bool regex)
     {
         _suppressFindRun = true;
         if (FindText != term) FindText = term;
-        UseRegex = regex;
+        UseWildcards = wildcards;
+        UseRegex     = regex;
         _suppressFindRun = false;
         IsFindBarOpen = true;
     }
@@ -1106,7 +1174,8 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         }
         else
         {
-            var (lines, _) = await ScanAsync(regex ? SafeRegex(query, caseSensitive) : null, regex ? null : query, ct);
+            var request = new SearchRequest(query, IsRegex: regex, MatchCase: caseSensitive);
+            var (lines, _) = await ScanAsync(request, ct);
             foreach (var l in lines)
             {
                 if (shown >= max) break;
@@ -1116,8 +1185,6 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
             }
         }
         return shown == 0 ? "No matches." : $"{SearchMatchCount} match(es). Showing {shown}:\n{sb}";
-
-        static Regex? SafeRegex(string p, bool cs) { try { return new Regex(p, cs ? RegexOptions.None : RegexOptions.IgnoreCase); } catch { return null; } }
     }
 
     private string LineText(int line0)

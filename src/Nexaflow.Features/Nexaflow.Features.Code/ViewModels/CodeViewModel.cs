@@ -33,6 +33,11 @@ public sealed partial class CodeViewModel : FileTextEditorViewModel
     /// then stays hidden).</summary>
     public string? GrammarId { get; }
 
+    /// <summary>Names the file as code, so the agent's search tool reads "searches the open code file
+    /// 'Foo.cs'" rather than the base editor's generic phrasing. The search itself is the base class's.</summary>
+    public override string SearchTargetDescription =>
+        string.IsNullOrEmpty(FileName) ? "the open code file" : $"the open code file '{FileName}'";
+
     [ObservableProperty] private string _intelligenceMarkdown = string.Empty;
 
     [NotifyPropertyChangedFor(nameof(PanelVisible))]

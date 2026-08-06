@@ -4,6 +4,7 @@ using ICSharpCode.AvalonEdit.Editing;
 using ICSharpCode.AvalonEdit.Rendering;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Text.Rendering;
+using Nexaflow.Visuals.Text.Editor;
 using Nexaflow.Features.Text.ViewModels;
 using System.ComponentModel;
 using System.Windows;
@@ -67,6 +68,9 @@ public partial class TextView : UserControl, IPageView
 
         vm.PropertyChanged += OnVmPropertyChanged;
         Editor.TextArea.Caret.PositionChanged += (_, _) => vm.CurrentCaretOffset = Editor.CaretOffset;
+        // A window slide rebuilds the document and resets the editor caret; the view-model has kept the
+        // logical position, so put the caret back. Caret only — deliberately no scroll.
+        vm.CaretRestoreRequested += RestoreCaret;
         Unloaded += OnUnloaded;
 
         Loaded += async (_, _) =>
@@ -201,6 +205,14 @@ public partial class TextView : UserControl, IPageView
     private int EditableStart() => Editable ? _vm.LoadedRealStart : 0;
     private int EditableEnd()   => Editable ? _vm.LoadedRealEnd   : -1;
 
+    // Moves only the caret (no scroll) — used to keep the cursor put across a window recomposition.
+    private void RestoreCaret(int offset)
+    {
+        if (Editor.Document is null) return;
+        if (offset < 0 || offset > Editor.Document.TextLength) return;
+        if (Editor.CaretOffset != offset) Editor.CaretOffset = offset;
+    }
+
     private void ScrollToOffset(int offset)
     {
         if (Editor.Document is null) return;
@@ -266,6 +278,7 @@ public partial class TextView : UserControl, IPageView
     {
         _vm.PropertyChanged      -= OnVmPropertyChanged;
         _vm.FindBarFocusRequested -= FocusFindBox;
+        _vm.CaretRestoreRequested -= RestoreCaret;
         Editor.PreviewMouseWheel  -= OnEditorPreviewMouseWheel;
         _vm.Dispose();
     }

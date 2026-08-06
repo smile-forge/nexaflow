@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
+             xmlns:ed="clr-namespace:Nexaflow.Visuals.Text.Editor;assembly=Nexaflow.Visuals.Text"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="MarkdownView"
              Background="{StaticResource BgBrush}">
@@ -32,14 +33,42 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- File name -->
-                <TextBlock Grid.Column="0"
-                           Text="{Binding FileName}"
-                           Foreground="{StaticResource TextBrush}"
-                           FontSize="13"
-                           FontWeight="SemiBold"
-                           VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis"/>
+                <!-- File name + the search chip an AI-bar "?" search leaves behind -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding FileName}"
+                               Foreground="{StaticResource TextBrush}"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"/>
+
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0"
+                                AutomationProperties.AutomationId="Markdown_SearchStatus"
+                                Visibility="{Binding IsSearchActive, Converter={StaticResource BoolVis}}">
+                        <TextBlock Text="{Binding SearchMatchCount, StringFormat='{}{0} match(es)'}"
+                                   AutomationProperties.AutomationId="Markdown_SearchMatchCount"
+                                   Foreground="{StaticResource AccentBrush}" FontSize="11"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding CurrentSearchTerm, StringFormat=' for {0}'}"
+                                   Foreground="{StaticResource TextMutedBrush}" FontSize="11"
+                                   MaxWidth="200" TextTrimming="CharacterEllipsis"
+                                   VerticalAlignment="Center"/>
+                        <Button Style="{StaticResource TbBtn}" Content="‹" Padding="6,0" Margin="8,0,0,0"
+                                AutomationProperties.AutomationId="Markdown_SearchPrevious"
+                                ToolTip="Previous match"
+                                Visibility="{Binding HasSearchMatches, Converter={StaticResource BoolVis}}"
+                                Command="{Binding FindPreviousMatchCommand}"/>
+                        <Button Style="{StaticResource TbBtn}" Content="›" Padding="6,0"
+                                AutomationProperties.AutomationId="Markdown_SearchNext"
+                                ToolTip="Next match"
+                                Visibility="{Binding HasSearchMatches, Converter={StaticResource BoolVis}}"
+                                Command="{Binding FindNextMatchCommand}"/>
+                        <Button Style="{StaticResource TbBtn}" Content="✕" Padding="6,0"
+                                AutomationProperties.AutomationId="Markdown_SearchClear"
+                                ToolTip="Clear the search and restore the view"
+                                Command="{Binding ClearSearchCommand}"/>
+                    </StackPanel>
+                </StackPanel>
 
                 <!-- Source-only toggle (default off → rendered + inline editing) -->
                 <ToggleButton Grid.Column="1"
@@ -66,13 +95,19 @@
         </Border>
 
         <!-- ══════════════════════════════════════════════════════════
-             DOCUMENT — two surfaces over the same text, toggled by SourceOnly
+             DOCUMENT — two surfaces over the same text, toggled by SourceOnly (+ minimap match strip)
              ══════════════════════════════════════════════════════════ -->
         <Grid Grid.Row="1" Background="{StaticResource BgBrush}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="14"/>
+            </Grid.ColumnDefinitions>
 
-            <!-- Default: rendered markdown with inline editing -->
+            <!-- Default: rendered markdown with inline editing. The reading inset is ContentPadding, not a
+                 Margin, so the editor's scrollbar sits flush against the minimap (a right margin would gap it). -->
             <md:InlineMarkdownEditor x:Name="Editor"
-                                     Margin="40,24,40,48"
+                                     Grid.Column="0"
+                                     ContentPadding="40,24,40,48"
                                      EditOnDoubleClick="True"
                                      AutomationProperties.AutomationId="Markdown_Editor"
                                      Visibility="{Binding SourceOnly, Converter={StaticResource InvBoolVis}}"
@@ -80,6 +115,7 @@
 
             <!-- Source-only: the whole document as raw markdown -->
             <TextBox x:Name="SourceBox"
+                     Grid.Column="0"
                      AutomationProperties.AutomationId="Markdown_SourceBox"
                      Visibility="{Binding SourceOnly, Converter={StaticResource BoolVis}}"
                      Text="{Binding Markdown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -96,6 +132,11 @@
                      Padding="40,24,40,48"
                      VerticalScrollBarVisibility="Auto"
                      HorizontalScrollBarVisibility="Auto"/>
+
+            <!-- Minimap match strip: proportional tick marks for the current search's matches -->
+            <ed:MiniMapStrip x:Name="MiniMapCanvas"
+                             Grid.Column="1"
+                             Background="{StaticResource DeepBgBrush}"/>
         </Grid>
 
     </Grid>

@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:avalon="http://icsharpcode.net/sharpdevelop/avalonedit"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:ed="clr-namespace:Nexaflow.Visuals.Text.Editor;assembly=Nexaflow.Visuals.Text"
              xmlns:local="clr-namespace:Nexaflow.Features.Text.Views"
              AutomationProperties.AutomationId="TextView"
              Background="{StaticResource BgBrush}">
@@ -311,6 +312,11 @@
                                   ToolTip="Match case" AutomationProperties.AutomationId="Text_MatchCase">
                         <TextBlock Text="Aa" FontSize="12"/>
                     </ToggleButton>
+                    <ToggleButton Style="{StaticResource TbToggle}" IsChecked="{Binding UseWildcards}"
+                                  ToolTip="Use wildcards (* matches a run, ? matches one character)"
+                                  AutomationProperties.AutomationId="Text_UseWildcards">
+                        <TextBlock Text="*?" FontSize="12"/>
+                    </ToggleButton>
                     <ToggleButton Style="{StaticResource TbToggle}" IsChecked="{Binding UseRegex}"
                                   ToolTip="Use regular expression" AutomationProperties.AutomationId="Text_UseRegex">
                         <TextBlock Text=".*" FontSize="12"/>
@@ -390,9 +396,9 @@
                 </avalon:TextEditor.ContextMenu>
             </avalon:TextEditor>
 
-            <local:MiniMapStrip x:Name="MiniMapCanvas"
-                                Grid.Column="1"
-                                Background="{StaticResource DeepBgBrush}"/>
+            <ed:MiniMapStrip x:Name="MiniMapCanvas"
+                             Grid.Column="1"
+                             Background="{StaticResource DeepBgBrush}"/>
 
             <!-- File-changed banner — a transient overlay at the top of the editor -->
             <Border Grid.Column="0"

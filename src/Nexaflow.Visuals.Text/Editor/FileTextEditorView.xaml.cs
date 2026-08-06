@@ -19,6 +19,10 @@ public partial class FileTextEditorView : UserControl, IPageView
 {
     private readonly FileTextEditorViewModel _vm;
 
+    /// <summary>Paints the search matches. Shared with the Text viewer, so a search looks the same wherever
+    /// it lands.</summary>
+    private readonly SearchHighlightRenderer _searchHighlights = new();
+
     IPageViewModel? IPageView.ViewModel => _vm;
 
     public FileTextEditorView(FileTextEditorViewModel vm)
@@ -34,9 +38,11 @@ public partial class FileTextEditorView : UserControl, IPageView
             Editor.LineNumbersForeground = gutter;
 
         ApplyHighlighting(vm.FileName);
+        Editor.TextArea.TextView.BackgroundRenderers.Add(_searchHighlights);
         OnEditorReady(Editor);
 
         vm.ScrollToLineRequested += ScrollEditorToLine;
+        vm.PropertyChanged += OnViewModelPropertyChanged;         // search highlights
         Editor.TextArea.SelectionChanged += OnEditorSelectionChanged; // drives selection-only commands
 
         Loaded   += async (_, _) => await _vm.LoadAsync();
@@ -44,9 +50,26 @@ public partial class FileTextEditorView : UserControl, IPageView
         {
             _treeSitter?.Dispose();
             _vm.ScrollToLineRequested -= ScrollEditorToLine;
+            _vm.PropertyChanged -= OnViewModelPropertyChanged;
             Editor.TextArea.SelectionChanged -= OnEditorSelectionChanged;
             _vm.Dispose();
         };
+    }
+
+    // The highlight spans are a plain list rather than a bindable collection, so the renderer is refreshed
+    // from the change notification — the same shape the Text viewer uses.
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(FileTextEditorViewModel.SearchHighlights):
+                _searchHighlights.Highlights = _vm.SearchHighlights;
+                Editor.TextArea.TextView.InvalidateLayer(_searchHighlights.Layer);
+                break;
+            case nameof(FileTextEditorViewModel.MiniMapMarks):
+                MiniMapCanvas.Marks = _vm.MiniMapMarks;
+                break;
+        }
     }
 
     private void OnEditorSelectionChanged(object? sender, EventArgs e)
