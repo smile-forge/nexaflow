@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Markdown.ViewModels;
+using System;
 using System.ComponentModel;
 using System.IO;
 using System.Windows.Controls;
@@ -24,6 +25,20 @@ public partial class MarkdownView : UserControl, IPageView
 
         // Move focus to whichever surface the toggle just revealed, so typing works immediately.
         viewModel.PropertyChanged += OnViewModelChanged;
+
+        // Search collaboration: the rendered surface (the inline editor) owns its own highlighting; the
+        // source box's match is shown by selecting it. The VM decides which is active.
+        viewModel.FindInRendered        = Editor.FindInRendered;
+        viewModel.StepRendered          = Editor.StepSearch;
+        viewModel.ClearRendered         = Editor.ClearSearch;
+        viewModel.RenderedMarkPositions = Editor.SearchMarkPositions;
+        viewModel.SourceSelectionRequested += SelectInSource;
+        viewModel.PropertyChanged += OnSearchPropertyChanged;
+        Unloaded += (_, _) =>
+        {
+            viewModel.SourceSelectionRequested -= SelectInSource;
+            viewModel.PropertyChanged -= OnSearchPropertyChanged;
+        };
 
         // Ctrl+S → save (fires in either mode — it's on the UserControl).
         KeyDown += (_, e) =>
@@ -53,6 +68,29 @@ public partial class MarkdownView : UserControl, IPageView
             if (ViewModel.SourceOnly) SourceBox.Focus();
             else                      Editor.Focus();
         });
+    }
+
+    // The rendered surface reports its match positions only after it has laid out, so read them on a queued
+    // pass rather than the instant the count changes.
+    private void OnSearchPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(MarkdownViewModel.MiniMapMarks)) return;
+        MiniMapCanvas.Marks = ViewModel.MiniMapMarks;
+    }
+
+    /// <summary>Selects a span of the raw source and scrolls it into view. Queued at Loaded priority because
+    /// the search switches to the source surface in the same beat — the box has no layout until that lands.</summary>
+    private void SelectInSource(int offset, int length)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            var max = SourceBox.Text.Length;
+            if (offset < 0 || offset > max) return;
+
+            SourceBox.Focus();
+            SourceBox.Select(offset, Math.Min(length, max - offset));
+            SourceBox.ScrollToLine(SourceBox.GetLineIndexFromCharacterIndex(offset));
+        }, System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     // ── IPageView ─────────────────────────────────────────────────────────

@@ -96,14 +96,33 @@ public class TermMatchingTests
     }
 
     [TestMethod]
-    public void TheLooserMatchIsStillAvailableOnANameAsAGlob()
+    public void ABareWildcardWordIsNotAFilenameGlob()
     {
-        // Whole-word is safe to impose on a literal because anyone unsure of the ending can say so — on the
-        // file name, where a glob applies.
-        var term = Glob("needle*");
+        // "needle*" has no extension or path, so it is NOT a file-only glob — the recogniser declines it and
+        // it becomes an ordinary wildcard text term, matched against contents as well as the name.
+        Assert.IsNull(new GlobTermRecognizer().Recognize("needle*"),
+            "a bare wildcard word is a content wildcard, not a filename glob");
 
-        Assert.IsTrue(term.Matches("needless.txt", isName: true));
-        Assert.IsTrue(term.Matches("needle.txt",   isName: true));
+        var term = SearchSyntax.ParseTerms("needle*")[0];
+
+        Assert.AreEqual(SearchTermKind.Text, term.Kind);
+        Assert.IsFalse(term.NameOnly, "it searches contents too");
+        Assert.IsTrue(term.Matches("needless.txt",       isName: true),  "the looser match, on the name");
+        Assert.IsTrue(term.Matches("a needless remark",  isName: false), "and in the content");
+    }
+
+    [TestMethod]
+    public void OnlyANameShapedPatternIsAFilenameGlob()
+    {
+        var glob = new GlobTermRecognizer();
+
+        // Name-shaped — an extension or a path — so these are file-only.
+        foreach (var name in new[] { "*.txt", "something*.*", "*a*b?c.*d*", @"src\**\*.cs" })
+            Assert.IsNotNull(glob.Recognize(name), $"'{name}' is a filename glob");
+
+        // No filename shape — these match name AND content.
+        foreach (var word in new[] { "*term*", "term*", "*term", "*term1*term2*term?" })
+            Assert.IsNull(glob.Recognize(word), $"'{word}' is a content wildcard, not a filename glob");
     }
 
     [TestMethod]
@@ -125,5 +144,110 @@ public class TermMatchingTests
         Assert.IsTrue(term.Matches("notes.md",  isName: true));
         Assert.IsTrue(term.Matches("notes.txt", isName: true));
         Assert.IsFalse(term.Matches("notes.pdf", isName: true));
+    }
+
+    // ── Wildcards widen a literal term, inside content as well as on a name ────
+
+    [TestMethod]
+    public void APrefixWildcardMatchesAWordStartingWithIt()
+    {
+        // "fig*" is the word starting "fig" — so it finds "configure"? No: whole-word still holds, the
+        // wildcard only relaxes the END. It finds "figure" and "fig", not "prefigure".
+        var term = new SearchTerm(SearchTermKind.Text, ["fig*"]);
+
+        Assert.IsTrue(term.Matches("draw the figure", isName: false));
+        Assert.IsTrue(term.Matches("a fig, ripe",     isName: false));
+        Assert.IsFalse(term.Matches("we prefigure it", isName: false), "the word still starts at a boundary");
+        Assert.IsFalse(term.Matches("nothing here",    isName: false));
+    }
+
+    [TestMethod]
+    public void ASuffixWildcardMatchesAWordEndingWithIt()
+    {
+        var term = new SearchTerm(SearchTermKind.Text, ["*fig"]);
+
+        Assert.IsTrue(term.Matches("the config value", isName: false));
+        Assert.IsTrue(term.Matches("just fig",          isName: false));
+        Assert.IsFalse(term.Matches("configure it",     isName: false), "the word still ends at a boundary");
+    }
+
+    [TestMethod]
+    public void SurroundingWildcardsAreTheSubstringEscapeHatch()
+    {
+        // The looser match the whole-word rule deliberately withholds — asked for explicitly.
+        var term = new SearchTerm(SearchTermKind.Text, ["*fig*"]);
+
+        Assert.IsTrue(term.Matches("reconfigure now", isName: false));
+        Assert.IsTrue(term.Matches("the config",       isName: false));
+        Assert.IsFalse(term.Matches("nothing here",    isName: false));
+    }
+
+    [TestMethod]
+    public void BarePartial_DoesNotMatchALongerWord_ButPartialStarDoes()
+    {
+        // The exact contrast the reported bug is about: plain "fig" is the word, "fig*" opts into the prefix.
+        Assert.IsFalse(new SearchTerm(SearchTermKind.Text, ["fig"]).Matches("configure", isName: false));
+        Assert.IsFalse(new SearchTerm(SearchTermKind.Text, ["fig"]).Matches("figure",    isName: false));
+        Assert.IsTrue (new SearchTerm(SearchTermKind.Text, ["fig*"]).Matches("figure",   isName: false));
+    }
+
+    [TestMethod]
+    public void AQuestionMarkIsExactlyOneWordCharacter()
+    {
+        var term = new SearchTerm(SearchTermKind.Text, ["f?g"]);
+
+        Assert.IsTrue(term.Matches("fig tree", isName: false));
+        Assert.IsTrue(term.Matches("a fog",    isName: false));
+        Assert.IsFalse(term.Matches("flag",    isName: false), "? is one character, not any run");
+    }
+
+    [TestMethod]
+    public void QuotingTurnsAWildcardBackIntoLiteralText()
+    {
+        // Exact is the parser's record that the user quoted the term — "partial*" is a search for an
+        // asterisk, not a prefix. Set here directly; SearchSyntax sets it when it unquotes.
+        var literal  = new SearchTerm(SearchTermKind.Text, ["fig*"], Exact: true);
+        var wildcard = new SearchTerm(SearchTermKind.Text, ["fig*"]);
+
+        Assert.IsTrue(literal.Matches("fig* is literal here", isName: false), "the asterisk is a character");
+        Assert.IsFalse(literal.Matches("the figure",          isName: false), "quoted, it is not a prefix");
+        Assert.IsTrue(wildcard.Matches("the figure",          isName: false), "unquoted, it is");
+    }
+
+    [TestMethod]
+    public void QuotingIsWhatSearchSyntaxRecordsAsExact()
+    {
+        // End to end: the quotes are stripped, but the "as written" intent survives on the term.
+        var quoted = SearchSyntax.ParseTerms("\"fig*\"")[0];
+        var bare   = SearchSyntax.ParseTerms("fig*")[0];
+
+        Assert.IsTrue(quoted.Exact);
+        Assert.IsFalse(bare.Exact);
+        Assert.IsFalse(quoted.Matches("the figure", isName: false));
+        Assert.IsTrue(bare.Matches("the figure",    isName: false));
+    }
+
+    // ── Occurrences agree with Matches, span by span ──────────────────────────
+
+    [TestMethod]
+    public void OccurrencesPointAtEveryMatchedWord()
+    {
+        var term = new SearchTerm(SearchTermKind.Text, ["fig*"]);
+        const string text = "a figure and a fig, but not prefigure";
+
+        var spans = term.Occurrences(text).ToList();
+
+        Assert.AreEqual(2, spans.Count, "figure and fig — not the embedded one in prefigure");
+        foreach (var (index, length) in spans)
+            StringAssert.StartsWith(text.Substring(index, length), "fig");
+        // The count a page shows and the spans it paints come from the same call, so they cannot disagree.
+        Assert.AreEqual(term.Matches(text, isName: false), spans.Count > 0);
+    }
+
+    [TestMethod]
+    public void Occurrences_AreEmpty_ForANameScopedTerm()
+    {
+        // There is no name in a body being painted, so a glob contributes no spans to it.
+        Assert.AreEqual(0, Glob("*.txt").Occurrences("see notes.txt inside").Count());
     }
 }

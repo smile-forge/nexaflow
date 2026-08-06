@@ -132,10 +132,12 @@ public static class SearchSyntax
 
             // A quoted token is a phrase: one literal term, spaces and all. Quoting means "take this
             // exactly", so no recogniser gets to reinterpret it and "|" inside it is just a character —
-            // otherwise "the lost dog" would become three separate AND-ed words.
+            // otherwise "the lost dog" would become three separate AND-ed words. Exact carries that same
+            // "as written" intent past the parser: it is what keeps "partial*" a search for an asterisk
+            // while bare partial* is a prefix match.
             if (IsQuoted(token))
             {
-                terms.Add(new SearchTerm(SearchTermKind.Text, [Unquote(token)], Display: token));
+                terms.Add(new SearchTerm(SearchTermKind.Text, [Unquote(token)], Display: token, Exact: true));
                 continue;
             }
 

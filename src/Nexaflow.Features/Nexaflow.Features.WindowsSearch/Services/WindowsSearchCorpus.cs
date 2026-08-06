@@ -41,8 +41,9 @@ public sealed class WindowsSearchCorpus : IFileCorpusSearch
         // and read every file in it. The caller reports why.
         if (parsed is null) return [];
 
-        // Only a regex term is post-filtered, so only a regex term needs candidates beyond the cap.
-        var postFiltered = request.Terms.Any(t => t.Kind == SearchTermKind.Regex);
+        // A regex or a wildcard word is only seeded on a literal fragment, so the index answer is a superset
+        // that has to be re-filtered — and so needs candidates beyond the cap.
+        var postFiltered = request.Terms.Any(t => t.Kind == SearchTermKind.Regex || t.HasWildcards);
         var want = postFiltered ? Math.Min(MaxCandidates, max * CandidateMultiplier) : max;
 
         try

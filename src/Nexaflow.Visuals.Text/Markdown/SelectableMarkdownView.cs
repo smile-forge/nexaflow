@@ -1,8 +1,10 @@
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using Nexaflow.Features.Common.Search;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -142,8 +144,30 @@ public class SelectableMarkdownView : UserControl
     /// selectable surfaces where the scrollbar can be grabbed (the "As Code" structure panel).</summary>
     public bool ScrollWideDiagrams { get; set; }
 
-    private void Rebuild() => _rtb.Document = MarkdownFlowDocument.Build(
-        Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = LinkNavigate, BaseDirectory = BaseDirectory, FitContentToWidth = FitContentToWidth, ScrollWideDiagrams = ScrollWideDiagrams });
+    private void Rebuild()
+    {
+        _search?.Clear();
+        _rtb.Document = MarkdownFlowDocument.Build(
+            Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = LinkNavigate, BaseDirectory = BaseDirectory, FitContentToWidth = FitContentToWidth, ScrollWideDiagrams = ScrollWideDiagrams });
+    }
+
+    // ── Search (rendered text) ────────────────────────────────────────────────
+
+    private RenderedMarkdownSearch? _search;
+    private RenderedMarkdownSearch Search => _search ??= new RenderedMarkdownSearch(_rtb);
+
+    /// <summary>Highlights every match of <paramref name="matcher"/> in the rendered text and focuses the
+    /// first. Returns the matches so the caller can report a count or hand ids to the model.</summary>
+    public IReadOnlyList<RenderedMatch> FindInRendered(TextSearchMatcher matcher) => Search.Run(matcher);
+
+    /// <summary>Removes the search highlights (no rebuild — scroll is preserved).</summary>
+    public void ClearSearch() => _search?.Clear();
+
+    /// <summary>Steps to the next (<paramref name="delta"/> = +1) or previous match.</summary>
+    public void StepSearch(int delta) => _search?.Step(delta);
+
+    /// <summary>Narrows the painted matches to the given ordinals; returns how many survived.</summary>
+    public int RestrictSearch(IReadOnlySet<int> keep) => _search?.Restrict(keep) ?? 0;
 
     /// <summary>
     /// Inner editor's vertical scrollbar. Default <see cref="ScrollBarVisibility.Disabled"/>

@@ -33,6 +33,20 @@ public static class Glob
     public static bool ContainsGlobChars(string s) => s.IndexOfAny(['*', '?']) >= 0;
 
     /// <summary>
+    /// True when <paramref name="s"/> is a wildcard pattern aimed at a <em>file name or path</em> — it has a
+    /// wildcard AND a name's shape: an extension dot or a path separator (<c>*.txt</c>, <c>src/**/*.cs</c>,
+    /// <c>*a*b?c.*d*</c>).
+    /// <para>
+    /// The distinction is what a bare wildcard word is <em>not</em>: <c>*term*</c>, <c>term*</c> and
+    /// <c>*term</c> carry no filename shape, so they are ordinary content wildcards matched against a file's
+    /// text as well as its name — not a name-only glob. A name-only glob is worth typing precisely because a
+    /// folder scan can skip a file by its name without opening it; a wildcard word can't claim that.
+    /// </para>
+    /// </summary>
+    public static bool IsFilenameGlob(string s) =>
+        ContainsGlobChars(s) && s.IndexOfAny(['.', '/', '\\']) >= 0;
+
+    /// <summary>
     /// Converts a glob to a SQL <c>LIKE</c> pattern: existing <c>%</c>/<c>_</c> are escaped to literals,
     /// single quotes doubled, then <c>*</c>→<c>%</c> and <c>?</c>→<c>_</c>. For OLE DB / SQL query builders.
     /// </summary>

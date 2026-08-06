@@ -34,6 +34,20 @@ public static class AqsRegexTranslator
         // A glob already speaks the index's own language — use the source form, not its regex translation.
         if (term.NameOnly) return term.SourceForms;
 
+        // A wildcard word ("*fig*", "fig?") is a fragment too: the index can't run the wildcards, so it is
+        // seeded on the literal run between them (the same superset-and-re-filter contract as a regex).
+        if (term.HasWildcards)
+        {
+            var wildSeeds = new List<string>(term.Alternatives.Count);
+            foreach (var pattern in term.Alternatives)
+            {
+                var core = LongestLiteralRun(pattern);
+                if (core is null) return null;   // nothing long enough to narrow on — widen, then post-filter
+                wildSeeds.Add(core);
+            }
+            return wildSeeds;
+        }
+
         if (term.Kind != SearchTermKind.Regex) return term.Alternatives;
 
         var seeds = new List<string>(term.Alternatives.Count);
@@ -44,6 +58,18 @@ public static class AqsRegexTranslator
             seeds.Add(seed);
         }
         return seeds;
+    }
+
+    /// <summary>The longest wildcard-free run of a glob-word (the piece between its <c>*</c>/<c>?</c>), or
+    /// null when none is long enough to narrow on — the literal the index is seeded with.</summary>
+    private static string? LongestLiteralRun(string pattern)
+    {
+        var best = pattern.Split(['*', '?'], StringSplitOptions.RemoveEmptyEntries)
+            .Where(s => s.Length >= MinUsefulTermLength && !s.Contains(' '))
+            .OrderByDescending(s => s.Length)
+            .FirstOrDefault();
+
+        return string.IsNullOrEmpty(best) ? null : best;
     }
 
     /// <summary>

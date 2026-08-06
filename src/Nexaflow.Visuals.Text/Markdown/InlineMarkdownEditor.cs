@@ -230,6 +230,25 @@ public partial class InlineMarkdownEditor : UserControl
         set => SetValue(EditOnDoubleClickProperty, value);
     }
 
+    /// <summary>Inset applied to the document text (as the FlowDocument's page padding) rather than as a
+    /// control margin. The difference matters at the right edge: a margin pushes the whole control — and its
+    /// vertical scrollbar — inward, leaving an odd gap before anything sitting beside it (e.g. a minimap);
+    /// page padding insets only the text, so the scrollbar stays flush against the control's edge.</summary>
+    public static readonly DependencyProperty ContentPaddingProperty =
+        DependencyProperty.Register(nameof(ContentPadding), typeof(Thickness), typeof(InlineMarkdownEditor),
+            new PropertyMetadata(default(Thickness), (d, _) => ((InlineMarkdownEditor)d).ApplyContentPadding()));
+
+    public Thickness ContentPadding
+    {
+        get => (Thickness)GetValue(ContentPaddingProperty);
+        set => SetValue(ContentPaddingProperty, value);
+    }
+
+    private void ApplyContentPadding()
+    {
+        if (_rtb.Document is { } doc) doc.PagePadding = ContentPadding;
+    }
+
     private MarkdownRenderContext Context => new()
     {
         Palette           = Pal,
@@ -299,6 +318,32 @@ public partial class InlineMarkdownEditor : UserControl
         _rtb.Focus();
         Keyboard.Focus(_rtb);
     }
+
+    // ── Search (rendered text) ────────────────────────────────────────────────
+
+    private RenderedMarkdownSearch? _search;
+    private RenderedMarkdownSearch Search => _search ??= new RenderedMarkdownSearch(_rtb);
+
+    /// <summary>Highlights every match of <paramref name="matcher"/> in the rendered text and focuses the
+    /// first. Returns the matches so the caller can report a count or hand ids to the model. A live edit is
+    /// committed first, so the search runs against fully-rendered text.</summary>
+    public IReadOnlyList<RenderedMatch> FindInRendered(Nexaflow.Features.Common.Search.TextSearchMatcher matcher)
+    {
+        if (_active >= 0 || _nativeBlock >= 0) RenderAll(); // leave edit mode → stable, fully-rendered runs
+        return Search.Run(matcher);
+    }
+
+    /// <summary>Removes the search highlights (no rebuild — scroll is preserved).</summary>
+    public void ClearSearch() => _search?.Clear();
+
+    /// <summary>Steps to the next (<paramref name="delta"/> = +1) or previous match.</summary>
+    public void StepSearch(int delta) => _search?.Step(delta);
+
+    /// <summary>Narrows the painted matches to the given ordinals; returns how many survived.</summary>
+    public int RestrictSearch(IReadOnlySet<int> keep) => _search?.Restrict(keep) ?? 0;
+
+    /// <summary>Normalised (0–1) vertical positions of the current matches, for a minimap tick strip.</summary>
+    public IReadOnlyList<double> SearchMarkPositions() => _search?.Positions() ?? [];
 
     /// <summary>Scrolls the rendered view so the heading whose <em>ancestor path</em> equals
     /// <paramref name="titlePath"/> sits at the top — matched on the full heading hierarchy (not a
@@ -1442,6 +1487,11 @@ public partial class InlineMarkdownEditor : UserControl
         if (!IsVisible) { _renderPending = true; return; }
         _renderPending = false;
 
+        // The document is about to be rebuilt, so the highlighted ranges from any live search would point
+        // into a stale text container. Drop them first; the feature re-runs the search if it still wants it.
+        _search?.Clear();
+        _search = null;
+
         SyncNativeModel();                                  // never drop an in-flight Word-style edit
         ClearNativeSession();                               // the paragraph is about to be replaced
 
@@ -1558,7 +1608,7 @@ public partial class InlineMarkdownEditor : UserControl
         FontSize    = BlockRenderer.BaseFontSize,
         Foreground  = Pal.Text,
         Background  = Brushes.Transparent,
-        PagePadding = new Thickness(0),
+        PagePadding = ContentPadding,   // insets the text; the scrollbar stays at the control edge
     };
 
     private IEnumerable<Block> RenderBlock(int index)

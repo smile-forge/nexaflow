@@ -106,18 +106,32 @@
                         <ItemsControl ItemsSource="{Binding AllHeaders}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Margin="0,0,0,3">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="160"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="{Binding Field}"
-                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                   FontSize="11" TextWrapping="Wrap" Margin="0,0,10,0"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding Value}"
-                                                   Foreground="{StaticResource TextBrush}"
-                                                   FontSize="11" TextWrapping="Wrap"/>
-                                    </Grid>
+                                    <!-- The row washes with the search colour when a "?" search matched it. -->
+                                    <Border Margin="0,0,0,3" CornerRadius="2" Padding="2,1"
+                                            AutomationProperties.AutomationId="Email_HeaderRow">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="Transparent"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Highlighted}" Value="True">
+                                                        <Setter Property="Background" Value="{StaticResource Text.SearchMatch}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="160"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding Field}"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       FontSize="11" TextWrapping="Wrap" Margin="0,0,10,0"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Value}"
+                                                       Foreground="{StaticResource TextBrush}"
+                                                       FontSize="11" TextWrapping="Wrap"/>
+                                        </Grid>
+                                    </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
@@ -174,6 +188,34 @@
                         Command="{Binding OpenInBrowserCommand}"
                         Visibility="{Binding HasHtmlBody, Converter={StaticResource BoolToVis}}"
                         HorizontalAlignment="Right" Margin="16,0,0,0"/>
+
+                <!-- Search chip: what an AI-bar "?" search found across headers, body and attachments -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0"
+                            AutomationProperties.AutomationId="Email_SearchStatus"
+                            Visibility="{Binding IsSearchActive, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{Binding SearchMatchCount, StringFormat='{}{0} match(es)'}"
+                               AutomationProperties.AutomationId="Email_SearchMatchCount"
+                               Foreground="{StaticResource AccentBrush}" FontSize="11"
+                               VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding CurrentSearchTerm, StringFormat=' for {0}'}"
+                               Foreground="{StaticResource TextMutedBrush}" FontSize="11"
+                               MaxWidth="200" TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center"/>
+                    <Button Content="‹" Style="{StaticResource BodyToggle}" Margin="8,0,0,0" Padding="6,0"
+                            AutomationProperties.AutomationId="Email_SearchPrevious"
+                            ToolTip="Previous body match"
+                            Visibility="{Binding HasSearchMatches, Converter={StaticResource BoolToVis}}"
+                            Command="{Binding FindPreviousMatchCommand}"/>
+                    <Button Content="›" Style="{StaticResource BodyToggle}" Padding="6,0"
+                            AutomationProperties.AutomationId="Email_SearchNext"
+                            ToolTip="Next body match"
+                            Visibility="{Binding HasSearchMatches, Converter={StaticResource BoolToVis}}"
+                            Command="{Binding FindNextMatchCommand}"/>
+                    <Button Content="✕" Style="{StaticResource BodyToggle}" Margin="0,0,0,0" Padding="6,0"
+                            AutomationProperties.AutomationId="Email_SearchClear"
+                            ToolTip="Clear the search and restore the view"
+                            Command="{Binding ClearSearchCommand}"/>
+                </StackPanel>
             </StackPanel>
 
             <!-- ── Body ────────────────────────────────────────────────────── -->
@@ -191,7 +233,7 @@
 
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
                                   Visibility="{Binding IsPlainTextView, Converter={StaticResource BoolToVis}}">
-                        <TextBox Text="{Binding PlainText, Mode=OneWay}" IsReadOnly="True"
+                        <TextBox x:Name="PlainTextBody" Text="{Binding PlainText, Mode=OneWay}" IsReadOnly="True"
                                  BorderThickness="0" Background="Transparent"
                                  Foreground="{StaticResource TextBrush}"
                                  FontFamily="Consolas, Cascadia Mono, monospace"
@@ -200,7 +242,7 @@
 
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
                                   Visibility="{Binding IsHtmlSourceView, Converter={StaticResource BoolToVis}}">
-                        <TextBox Text="{Binding HtmlSource, Mode=OneWay}" IsReadOnly="True"
+                        <TextBox x:Name="HtmlSourceBody" Text="{Binding HtmlSource, Mode=OneWay}" IsReadOnly="True"
                                  BorderThickness="0" Background="Transparent"
                                  Foreground="{StaticResource TextMutedBrush}"
                                  FontFamily="Consolas, Cascadia Mono, monospace"
@@ -223,13 +265,27 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
+                                <!-- The tile gets an accent border when a "?" search matched this attachment
+                                     (its name, its text, or a message it carries). -->
                                 <Button Command="{Binding DataContext.OpenAttachmentCommand,
                                                           RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                         CommandParameter="{Binding}"
+                                        AutomationProperties.AutomationId="Email_AttachmentTile"
                                         Margin="0,0,8,8" Padding="10,6" Cursor="Hand"
                                         Background="{StaticResource Surface2Brush}"
-                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                                         ToolTip="{Binding ContentType}">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                                            <Setter Property="BorderThickness" Value="1"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Highlighted}" Value="True">
+                                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                                    <Setter Property="BorderThickness" Value="2"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="📎" Margin="0,0,6,0"/>
                                         <TextBlock Text="{Binding DisplayName}" Foreground="{StaticResource TextBrush}"
