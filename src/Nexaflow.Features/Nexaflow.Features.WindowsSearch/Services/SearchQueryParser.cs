@@ -46,8 +46,10 @@ public static class SearchQueryParser
             };
         }
 
-        // ── File glob (no spaces, contains * or ?) ────────────────────────────
-        if (Glob.ContainsGlobChars(trimmed) && !trimmed.Contains(' '))
+        // ── File glob (a name-shaped wildcard: "*.txt", "src\**\*.cs") ────────
+        // A bare wildcard word ("*term*") is NOT a file-only glob — it falls through to the plain-term
+        // path below, which searches contents as well as the name.
+        if (Glob.IsFilenameGlob(trimmed) && !trimmed.Contains(' '))
         {
             return new ParsedQuery
             {
@@ -186,14 +188,15 @@ public static class SearchQueryParser
     {
         if (term.NameOnly) return $"System.FileName LIKE '{Glob.ToSqlLike(seed)}'";
 
-        // A regex seed is a FRAGMENT, so it is prefix-matched and re-filtered afterwards. A literal term is
-        // the word the user typed, and is NOT re-filtered when it stands alone — so it is matched exactly
-        // as a word, on both sides.
+        // A regex seed OR a wildcard word ("*fig*") is a FRAGMENT — the index can't run the pattern, so it
+        // is prefix-matched on the literal core and re-filtered afterwards (both mark the query as needing
+        // the post-filter). A plain literal term is the word the user typed, is NOT re-filtered when it
+        // stands alone, and so is matched exactly as a word on both sides.
         //
         // CONTAINS on the file name rather than LIKE '%…%': LIKE has no notion of a word, so "needle" would
         // return "needless.txt" and the row would either be shown wrongly or rejected later by a
         // post-filter that disagrees with the query that produced it.
-        if (term.Kind == SearchTermKind.Regex)
+        if (term.Kind == SearchTermKind.Regex || term.HasWildcards)
             return $"(CONTAINS(System.Search.Contents,'\"{EscapeSql(seed)}*\"')" +
                    $" OR System.FileName LIKE '%{EscapeLike(seed)}%')";
 

@@ -1,4 +1,5 @@
 ﻿using Nexaflow.Features.WindowsSearch.Services;
+using Nexaflow.Search;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsSearch;
@@ -7,6 +8,38 @@ namespace Nexaflow.Tests.Features.WindowsSearch;
 [CoversNode("search-query-parser")]
 public class SearchQueryParserTests
 {
+    // ── Wildcard word ("*fig*") — a content wildcard, seeded as a fragment ──────
+
+    [TestMethod]
+    public void FromTerms_WildcardWord_SeedsOnItsCoreAndSearchesContentAndName()
+    {
+        // Parsed with the glob recogniser present, exactly as the file browser does — "*config*" is a
+        // content wildcard, NOT a filename glob, so it must reach the index as a re-filtered fragment.
+        var request = SearchSyntax.ParseRequest("*config*", [new Nexaflow.IO.Common.GlobTermRecognizer()]);
+        var term    = request.Terms.Single();
+        Assert.IsTrue(term.HasWildcards);
+        Assert.IsFalse(term.NameOnly, "a bare wildcard word searches contents too");
+
+        var parsed = SearchQueryParser.FromTerms(request.Terms);
+        Assert.IsNotNull(parsed);
+
+        // The index can't run the wildcards, so it is seeded on the literal core as a prefix and re-filtered.
+        StringAssert.Contains(parsed.WhereClause, "CONTAINS(System.Search.Contents,'\"config*\"')");
+        StringAssert.Contains(parsed.WhereClause, "System.FileName LIKE '%config%'");
+        Assert.IsFalse(parsed.WhereClause.Contains("'\"*config*\"'"),
+            "a leading '*' inside CONTAINS is invalid AQS — the core must be seeded, not the raw pattern");
+    }
+
+    [TestMethod]
+    public void FromTerms_WildcardWord_TooShortToSeed_IsDroppedNotBroken()
+    {
+        // "a*b" has no run long enough to narrow on. It must not emit a broken CONTAINS; the term is dropped
+        // (the query widens) and the post-filter enforces it. Here it's the only term, so nothing to seed.
+        var request = SearchSyntax.ParseRequest("a*b", [new Nexaflow.IO.Common.GlobTermRecognizer()]);
+        Assert.IsNull(SearchQueryParser.FromTerms(request.Terms),
+            "nothing seedable — better to report that than to search the whole corpus");
+    }
+
     // ── Quoted single term ────────────────────────────────────────────────────
 
     [TestMethod]

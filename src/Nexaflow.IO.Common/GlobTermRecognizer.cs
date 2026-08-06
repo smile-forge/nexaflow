@@ -19,9 +19,12 @@ public sealed class GlobTermRecognizer : ISearchTermRecognizer
         var alternatives = token.Split('|', StringSplitOptions.RemoveEmptyEntries);
         if (alternatives.Length == 0) return null;
 
-        // Every alternative has to look like a glob: "*.txt|notes" is a mixed bag better left as plain
-        // text than half-interpreted.
-        if (!alternatives.All(Glob.ContainsGlobChars)) return null;
+        // Every alternative has to be a filename-shaped glob — one with an extension or a path, the only
+        // kind that can be judged against a name alone. A bare wildcard word ("*term*", "term*") is NOT
+        // claimed here: it falls through to a plain text term, which the search library matches with its
+        // wildcards against a file's CONTENT as well as its name. Mixing the two ("*.txt|notes*") is a bag
+        // better left as text than half-interpreted.
+        if (!alternatives.All(Glob.IsFilenameGlob)) return null;
 
         // Handed over already anchored, so the search library matches it with the regex engine it already
         // has — "*" and "?" keep their glob meanings rather than their regex ones.

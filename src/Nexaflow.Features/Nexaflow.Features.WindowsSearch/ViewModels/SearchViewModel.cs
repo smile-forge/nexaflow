@@ -189,7 +189,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
     /// rows it returns still have to be judged against the real query.</summary>
     private static bool NeedsPostFilter(SearchRequest request) =>
         request.Terms.Count > 1 ||
-        request.Terms.Any(t => t.Kind == SearchTermKind.Regex);
+        request.Terms.Any(t => t.Kind == SearchTermKind.Regex || t.HasWildcards);
 
     private void ShowQueryProblem(string message)
     {

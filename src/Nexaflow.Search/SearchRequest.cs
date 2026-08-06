@@ -136,6 +136,22 @@ public sealed record SearchRequest(string Text, bool IsRegex = false, bool Match
         return judgeable.Count > 0 && judgeable.All(t => t.Matches(candidate, isName: false));
     }
 
+    /// <summary>
+    /// Every span of <paramref name="candidate"/> this query matches, in document order — what a page
+    /// paints highlights or drives a selection from. Spans from different terms may overlap; a caller that
+    /// can't render an overlap should take the first.
+    /// <para>
+    /// Deliberately the same source as <see cref="Matches"/>, so what is painted and what is counted can
+    /// never drift apart.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<(int Index, int Length)> Occurrences(string candidate)
+    {
+        var spans = Terms.SelectMany(t => t.Occurrences(candidate)).ToList();
+        spans.Sort((a, b) => a.Index != b.Index ? a.Index.CompareTo(b.Index) : b.Length.CompareTo(a.Length));
+        return spans;
+    }
+
     /// <summary>False (with a reason) when any term's pattern can't compile.</summary>
     public bool TryValidate([NotNullWhen(false)] out string? error)
     {
