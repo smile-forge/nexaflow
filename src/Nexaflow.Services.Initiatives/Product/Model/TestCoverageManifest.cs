@@ -5,7 +5,7 @@ namespace Nexaflow.Services.Initiatives.Product.Model;
 /// <em>declare</em> they cover it (via <c>[CoversNode]</c>), produced by reflecting the built test
 /// assemblies. It is not truth about the tree (the tree stays authoritative); it is the cross-check the
 /// Integrity page reconciles against to surface "a test declares this node but the tree has no link". Safe
-/// to delete — regenerate with <c>nexaflow-initiatives scan-tests</c>.
+/// to delete — regenerate with <c>nfi scan-tests</c>.
 /// </summary>
 public sealed class TestCoverageManifest
 {

@@ -39,7 +39,7 @@ public sealed class CoverageDeclarationAnalyzer : DiagnosticAnalyzer
     private static readonly DiagnosticDescriptor ClassLevelLeaf = new(
         "NXCOV003",
         "Class-level [CoversNode] over-claims a leaf node",
-        "[CoversNode(\"{0}\")] is at class level, '{0}' is a leaf node (no children), and this class covers other nodes too — so claiming a specific behaviour for the whole class over-claims. Move it to the [TestMethod](s) that exercise it, or add sub-nodes under '{0}' (nexaflow-initiatives add-node) and map methods to them.",
+        "[CoversNode(\"{0}\")] is at class level, '{0}' is a leaf node (no children), and this class covers other nodes too — so claiming a specific behaviour for the whole class over-claims. Move it to the [TestMethod](s) that exercise it, or add sub-nodes under '{0}' (nfi add-node) and map methods to them.",
         Category, DiagnosticSeverity.Warning, isEnabledByDefault: true,
         description: "When a test class covers several nodes, a class-level [CoversNode] should name a container (a node with children); a leaf node names a specific behaviour that belongs on the method(s) covering it. A single-purpose class that covers exactly one leaf is fine and is not flagged.");
 

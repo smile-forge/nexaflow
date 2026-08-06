@@ -34,7 +34,7 @@ src/
   Nexaflow.Services.Initiatives/    WPF-free backend for the "initiatives" domain — Product today, Projects later:
                                     model, ProductStore, ProductAggregator/TreeOps, SnaplinkValidator. Never
                                     reference WPF/Core/Features.* from here
-  Nexaflow.Services.Initiatives.Cli/ `nexaflow-initiatives validate <root>` — the SAME SnaplinkValidator, headless.
+  Nexaflow.Services.Initiatives.Cli/ `nfi validate <root>` — the SAME SnaplinkValidator, headless.
                                     Powers the installer build gate and PowerShell tooling (exit 1 = broken links)
   Nexaflow.Elevation/               Elevation.Contracts (pure DTO leaf) + PrivilegeBridge (separate requireAdministrator
                                     exe) — the RunElevatedAsync trust boundary; see docs/Architecture.md → Elevation
@@ -48,37 +48,40 @@ inventory and per-component status (incl. the `tests` / `AI Ready` / `theming` /
 **product tree**. **To locate a feature's code/tests/docs, query the tree first** (it beats grepping — every
 node carries snaplinks to its source):
 
-**`nexaflow-initiatives.exe` self-locates the `.product` tree — it follows a git worktree to its main checkout (where
+**`nfi.exe` self-locates the `.product` tree — it follows a git worktree to its main checkout (where
 the gitignored tree lives) — so run it from any checkout or worktree with NO root arg.** Build it once, then call the
 exe directly (fast; no per-call rebuild). In the main checkout a prebuilt copy also sits at `tools/graph-cli/`
-(`tools/publish-graph-cli.ps1` refreshes it). `$ni` below is that exe:
+(`tools/publish-graph-cli.ps1` refreshes it). `$nfi` below is that exe. (The installer also ships it as an
+opt-in **Command-line tools** feature — `[InstallFolder]\tools` added to the system PATH — so on an installed
+box `nfi` is just on PATH. Off by default; `nexaflowBundle.exe /quiet InstallTools=1` for unattended.)
 
 ```powershell
 dotnet build src/Nexaflow.Services.Initiatives.Cli    # once
-$ni = "src/Nexaflow.Services.Initiatives.Cli/bin/x64/Debug/net10.0/nexaflow-initiatives.exe"   # or tools/graph-cli/nexaflow-initiatives.exe
-& $ni find <term>                # nodes matching id/title/description
-& $ni describe <node-id>         # path, concerns, code/test/doc snaplinks
-& $ni describe <node-id> --code  # …plus every code snaplink resolved to its real source block (from YOUR working tree)
-& $ni tree <node-id> [--full]    # the WHOLE subtree as an outline — "show me this entire feature" (--full = +snaplinks/about)
-& $ni lint --under <node-id>     # does this feature follow the modelling rules? (advisory; see docs/feature-tree-and-tests.md)
-& $ni diff                       # what changed in the tree since the last release snapshot (nodes added/removed, status, concerns)
+$nfi = "src/Nexaflow.Services.Initiatives.Cli/bin/x64/Debug/net10.0/nfi.exe"   # or tools/graph-cli/nfi.exe
+& $nfi find <term>                # nodes matching id/title/description
+& $nfi describe <node-id>         # path, concerns, code/test/doc snaplinks
+& $nfi describe <node-id> --code  # …plus every code snaplink resolved to its real source block (from YOUR working tree)
+& $nfi tree <node-id> [--full]    # the WHOLE subtree as an outline — "show me this entire feature" (--full = +snaplinks/about)
+& $nfi lint --under <node-id>     # does this feature follow the modelling rules? (advisory; see docs/feature-tree-and-tests.md)
+& $nfi diff                       # what changed in the tree since the last release snapshot (nodes added/removed, status, concerns)
 ```
 
-**Code discovery is graph-first — reach for the graph before Read/Grep, and before spawning an Explore/Plan
-agent (and require any sub-agent you do spawn to use it too).** The `graph` command builds
+**Code discovery is graph-first, always — there is no case in this repo where discovery starts with
+Read/Grep/Glob.** Query the graph FIRST; then Read only the specific block it names. Same before spawning an
+Explore/Plan agent — and require any sub-agent you do spawn to use it too. The `graph` command builds
 `.product/graph.json` — the product tree ⊕ whole-repo AST ⊕ their snaplinks — and queries it headlessly. It's more
 token-efficient than reading files and surfaces relationships grep can't (who calls/instantiates a type, a project's
 `depends_on`, a view's `view_of` code-behind, the file a member `mentions`, the product feature that owns a code
 node). Regenerate with `graph build` (incremental) after code changes, then explore (`graph help` lists the full set):
 
 ```powershell
-& $ni graph search <term>     # find nodes (product/type/member/file) by id/label
-& $ni graph node <id>         # a node + ALL its edges (both directions) + hyperedges
-& $ni graph context <id>      # ONE-SHOT: node + its source + neighbours + owning feature
-& $ni graph walk <id> --hops 2                                # its N-hop neighbourhood
-& $ni graph grep <regex> --from <id> --hops 2 --mode content  # grep source of nodes near <id>
-& $ni graph code <code-id>    # a code node's source block; `graph cat file:<path>` = whole file
-& $ni graph build             # regenerate .product/graph.json after code changes (incremental)
+& $nfi graph search <term>     # find nodes (product/type/member/file) by id/label
+& $nfi graph node <id>         # a node + ALL its edges (both directions) + hyperedges
+& $nfi graph context <id>      # ONE-SHOT: node + its source + neighbours + owning feature
+& $nfi graph walk <id> --hops 2                                # its N-hop neighbourhood
+& $nfi graph grep <regex> --from <id> --hops 2 --mode content  # grep source of nodes near <id>
+& $nfi graph code <code-id>    # a code node's source block; `graph cat file:<path>` = whole file
+& $nfi graph build             # regenerate .product/graph.json after code changes (incremental)
 ```
 
 Node ids: `product:<slug>` · `code:<relpath>#<astpath>` · `file:<relpath>` · `external:<name>`. **`graph` is
@@ -167,6 +170,7 @@ Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI), `Nexaflow.IO.*` (I
 
 ## Hard Rules
 
+- **Discovery goes through `nfi.exe` — never Grep/Glob/Read-first.** "Where is X / what is X / who calls or instantiates X / what feature owns X / how does X relate to Y" is answered by `graph search`, `graph context`, `find` or `describe` (see above) **before any file is opened**; Read is for the specific block the graph names. Reach for it as reflexively as for Grep — it is cheaper and it surfaces call/ownership/dependency edges grep cannot. Sub-agents follow the same rule: point them at the exe, or spawn `nexaflow-explorer`.
 - Features depend only on `Features.Common` (and the `Nexaflow.Visuals.*` UI libs) — never on Core, rarely on each other
 - Providers depend only on 'Providers.Common' - never on Core, never on each other.
 - Core never instantiates feature view or ViewModel types directly. All view (tabs) and viewlet creation goes through `FeatureManager`.

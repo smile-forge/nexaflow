@@ -2,7 +2,14 @@
   <Fragment>
     <StandardDirectory Id="ProgramFiles6432Folder">
       <Directory Id="ManufacturerFolder" Name="!(bind.Property.Manufacturer)">
-        <Directory Id="INSTALLFOLDER" Name="!(bind.Property.ProductName)" />
+        <Directory Id="INSTALLFOLDER" Name="!(bind.Property.ProductName)">
+          <!--
+            Command-line tools (the optional Tools feature). A dedicated subfolder, NOT INSTALLFOLDER
+            itself: this directory is what goes on the system PATH, and putting the whole app folder
+            there would expose ~200 payload DLLs and Nexaflow.exe to bare-name resolution.
+          -->
+          <Directory Id="TOOLSFOLDER" Name="tools" />
+        </Directory>
       </Directory>
     </StandardDirectory>
     <StandardDirectory Id="ProgramMenuFolder">
@@ -17,6 +24,26 @@
       <Component>
         <RegistryValue Root="HKMU" Key="Software\Smile-forge\Nexaflow" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
         <RemoveFolder Id="RemoveManufacturerFolder" Directory="ManufacturerFolder" On="uninstall" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <!--
+      PATH entry for the optional command-line tools. Lives in its own component inside the Tools
+      feature, so Windows Installer adds the entry when that feature is installed and removes it on
+      uninstall or on a Modify that deselects the feature — no custom action, no orphaned PATH.
+
+      System="yes" = the machine PATH (HKLM). This is a per-machine install into Program Files and the
+      bundle already elevates, so every user on the box gets the tool; a per-user entry would follow the
+      elevated identity rather than the person installing. Part="last" appends rather than replacing.
+    -->
+    <ComponentGroup Id="ToolsPathComponents" Directory="TOOLSFOLDER">
+      <Component Id="ToolsPathEntry" Guid="{2F1B84A6-7C05-4E5B-9E3A-6D0C4A8B1E72}">
+        <Environment Id="ToolsOnPath" Name="PATH" Value="[TOOLSFOLDER]" Part="last"
+                     Action="set" System="yes" Permanent="no" />
+        <RegistryValue Root="HKMU" Key="Software\Smile-forge\Nexaflow" Name="ToolsOnPath"
+                       Type="integer" Value="1" KeyPath="yes" />
       </Component>
     </ComponentGroup>
   </Fragment>

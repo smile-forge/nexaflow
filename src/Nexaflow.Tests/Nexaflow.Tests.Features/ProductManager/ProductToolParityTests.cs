@@ -15,7 +15,7 @@ namespace Nexaflow.Tests.Features.ProductManager;
 /// <summary>
 /// The AI's product surface against a real <c>.product/</c> folder.
 /// <para>
-/// The point of these is <i>parity</i>. Everything the <c>nexaflow-initiatives</c> CLI can do to the tree,
+/// The point of these is <i>parity</i>. Everything the <c>nfi</c> CLI can do to the tree,
 /// the assistant can do from inside the app — otherwise a model told to follow the modelling pass can edit a
 /// node but cannot create one, cannot search for the id it needs, and cannot run the checks that would tell
 /// it the edit was wrong. The checks are the sharp end: without <c>product_validate</c> and

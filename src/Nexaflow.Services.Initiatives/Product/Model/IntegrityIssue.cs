@@ -41,7 +41,32 @@ public enum IntegrityKind
     /// <see cref="ConcernDef.RequiresSnaplink"/> — the claim has nothing backing it. Unlike the other kinds
     /// this hangs off the concern itself, not an existing link, so <see cref="IntegrityIssue.Index"/> is -1.
     /// </summary>
-    MissingSnaplink
+    MissingSnaplink,
+
+    /// <summary>
+    /// A test declares <c>[CoversNode("id")]</c> for an id that is not in the tree — the node was renamed or
+    /// deleted and the declaration rotted, so the test claims to back something that does not exist. The
+    /// gating counterpart of <see cref="CoverageAdvisoryKind.UnknownNode"/>: provable from the manifest and
+    /// the tree alone, with no judgement about whether the test is *good* coverage.
+    /// <para>
+    /// Hangs off a test declaration rather than an existing link, so <see cref="IntegrityIssue.Index"/> is -1
+    /// and <see cref="IntegrityIssue.Link"/> is empty — there is nothing in the tree to repair; the fix is in
+    /// the test's attribute (or in restoring the node).
+    /// </para>
+    /// </summary>
+    StaleCoverageNode,
+
+    /// <summary>
+    /// A feature or provider assembly ships on disk but no node under its family links its <c>.csproj</c>, so
+    /// the tree — the inventory of what exists — does not know about it. It has no owning node, no concerns
+    /// and no status, which is exactly how a shipped assembly goes untracked.
+    /// <para>
+    /// Found by walking the filesystem rather than an existing link, so <see cref="IntegrityIssue.Index"/> is
+    /// -1 and <see cref="IntegrityIssue.NodeId"/> holds the family node the assembly *should* sit under —
+    /// there is no node for it, which is the finding.
+    /// </para>
+    /// </summary>
+    UnlinkedProject
 }
 
 /// <summary>

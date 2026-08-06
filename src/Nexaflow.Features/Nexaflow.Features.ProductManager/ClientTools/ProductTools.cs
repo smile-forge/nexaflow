@@ -17,7 +17,7 @@ public static class ProductTools
     /// <summary>
     /// Everything the assistant can do to a product folder: the tree commands below, plus the knowledge-graph
     /// commands from <see cref="GraphTools"/>. Both families are the same operations the
-    /// <c>nexaflow-initiatives</c> CLI exposes, over the same services and rendered by the same reporters.
+    /// <c>nfi</c> CLI exposes, over the same services and rendered by the same reporters.
     /// </summary>
     public static IReadOnlyList<IClientTool> ForRoot(string productRoot) =>
         [.. TreeTools(productRoot), .. GraphTools.ForRoot(productRoot)];

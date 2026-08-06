@@ -5,7 +5,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.ProductManager;
 
 /// <summary>
-/// The advisory modelling-rule checks behind <c>nexaflow-initiatives lint</c> (docs/feature-tree-and-tests.md
+/// The advisory modelling-rule checks behind <c>nfi lint</c> (docs/feature-tree-and-tests.md
 /// §1–§4). The bar is the mirror of <see cref="SnaplinkValidatorTests"/>'s: this one must not cry wolf on a
 /// correctly-modelled feature, because a noisy advisory gets ignored — so <see cref="AWellModelledFeature_LintsClean"/>
 /// (built to the Text Viewer's shape) is the anchor test.

@@ -447,5 +447,5 @@ nexaflowSetup/*.exe
 src/Nexaflow.Analyzers/Nexaflow.Analyzers.Coverage/bin/
 src/Nexaflow.Analyzers/Nexaflow.Analyzers.Coverage/obj/
 
-# Published product-graph / initiatives CLI (nexaflow-initiatives.exe; regenerate with tools/publish-graph-cli.ps1)
+# Published product-graph / initiatives CLI (nfi.exe; regenerate with tools/publish-graph-cli.ps1)
 tools/graph-cli/

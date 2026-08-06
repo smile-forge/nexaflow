@@ -59,7 +59,7 @@ and [CLAUDE.md → product tree]; testing conventions in [testing.md](testing.md
 [features.md](features.md); theming in [theming.md](theming.md).
 
 > The `.product/` tree is gitignored working state (the app live-reloads it). Edit it **only through the
-> `nexaflow-initiatives` CLI**, never by hand — see *The CLI* below.
+> `nfi` CLI**, never by hand — see *The CLI* below.
 
 ---
 
@@ -284,7 +284,7 @@ Don't loop trying to test the genuinely-hard ones — mark `shouldnt` + note and
 > regex to a neighbourhood, which plain text search cannot do at all.
 
 
-`nexaflow-initiatives.exe` self-locates the `.product` tree (follows a git worktree to its main checkout), so
+`nfi.exe` self-locates the `.product` tree (follows a git worktree to its main checkout), so
 run it from anywhere with no root arg. Build once and call the exe directly, or use the prebuilt
 `tools/graph-cli/` copy.
 

@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using System.Linq;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
@@ -112,5 +114,118 @@ public class TestCoverageReconcilerTests
         var report = SnaplinkValidator.Validate(state, ".");
 
         Assert.IsFalse(report.Issues.Any(i => i.Kind == IntegrityKind.MissingSnaplink));
+    }
+
+    [TestMethod]
+    [CoversNode("integrity-scan")]
+    public void A_coversnode_id_absent_from_the_tree_is_a_gating_issue()
+    {
+        var state = State(("real-node", [new ConcernLink { Tag = "tests", Status = Status.Should }]));
+        var manifest = Manifest("ghost-node", Ref("src/Tests/GhostTests.cs", "GhostTests", "Explodes"));
+
+        var report = SnaplinkValidator.Validate(state, ".", null, manifest);
+
+        var issue = report.Issues.Single(i => i.Kind == IntegrityKind.StaleCoverageNode);
+        Assert.AreEqual("ghost-node", issue.NodeId);
+        Assert.AreEqual(-1, issue.Index, "there is no link in the tree to repair — the fix is in the test");
+        // The detail has to name the test, or the build failure is unactionable: the tree cannot point at it.
+        StringAssert.Contains(issue.Detail, "GhostTests.Explodes");
+        StringAssert.Contains(issue.Detail, "ghost-node");
+        Assert.IsFalse(report.IsClean, "a stale [CoversNode] id must fail the release gate");
+    }
+
+    [TestMethod]
+    [CoversNode("integrity-scan")]
+    public void A_declared_id_that_exists_is_not_gated_even_with_no_link_back()
+    {
+        // The deliberate line between the two halves of the reconciliation: a LIVE node whose tests concern
+        // has no snaplink back stays a non-gating advisory (the Integrity page's "Add link"), because it is a
+        // bookkeeping gap rather than proof of breakage. Only the unknown-id half fails the build.
+        var state = State(("live-node", [new ConcernLink { Tag = "tests", Status = Status.Should }]));
+        var manifest = Manifest("live-node", Ref("src/Tests/LiveTests.cs", "LiveTests"));
+
+        var report = SnaplinkValidator.Validate(state, ".", null, manifest);
+
+        Assert.IsFalse(report.Issues.Any(i => i.Kind == IntegrityKind.StaleCoverageNode));
+        Assert.AreEqual(CoverageAdvisoryKind.DeclaredButUnlinked,
+            TestCoverageReconciler.Reconcile(state, manifest).Advisories.Single().Kind);
+    }
+
+    [TestMethod]
+    [CoversNode("integrity-scan")]
+    public void With_no_manifest_the_coverage_gate_is_skipped_not_passed()
+    {
+        // A clean CI checkout has no test-coverage.json (it is gitignored, derived state). Nothing is
+        // claimed there, so nothing can be disproved — the gate must not invent issues, and equally the
+        // overload without a manifest must not be read as "coverage checked and clean".
+        var state = State(("real-node", [new ConcernLink { Tag = "tests", Status = Status.Should }]));
+
+        Assert.IsFalse(SnaplinkValidator.Validate(state, ".", null, null)
+            .Issues.Any(i => i.Kind == IntegrityKind.StaleCoverageNode));
+        Assert.IsFalse(SnaplinkValidator.Validate(state, ".")
+            .Issues.Any(i => i.Kind == IntegrityKind.StaleCoverageNode));
+    }
+
+    // ── the reverse check: a shipped assembly the tree does not know about ─────────────────────────
+
+    /// <summary>A repo skeleton with one feature assembly on disk, and a features family node linking
+    /// whichever csprojs the caller names. Enough for the filesystem-walking half of the validator.</summary>
+    private static string RepoWith(params string[] assemblies)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "nfi-proj-" + Guid.NewGuid().ToString("N")[..8]);
+        foreach (var asm in assemblies)
+        {
+            var dir = Path.Combine(root, "src", "Nexaflow.Features", asm);
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(Path.Combine(dir, asm + ".csproj"), "<Project />");
+        }
+        return root;
+    }
+
+    private static ProductState FamilyLinking(params string[] csprojDocs)
+    {
+        var state = new ProductState { Product = new ProductDocument { Concerns = [] } };
+        state.Nodes["features"] = new ProductNode { Title = "Features", Children = ["feat"] };
+        state.Nodes["feat"] = new ProductNode
+        {
+            Title = "A Feature",
+            Snaplinks = [.. csprojDocs.Select(d => new Snaplink { Type = "code", Doc = d })]
+        };
+        return state;
+    }
+
+    [TestMethod]
+    [CoversNode("integrity-scan")]
+    public void A_shipped_assembly_no_node_links_is_a_gating_untracked_project()
+    {
+        var root = RepoWith("Nexaflow.Features.Ghost");
+        try
+        {
+            var report = SnaplinkValidator.Validate(FamilyLinking(), root);
+
+            var issue = report.Issues.Single(i => i.Kind == IntegrityKind.UnlinkedProject);
+            StringAssert.Contains(issue.Detail, "Nexaflow.Features.Ghost");
+            Assert.AreEqual("features", issue.NodeId, "the finding hangs off the family that should own it");
+            Assert.IsFalse(report.IsClean);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [TestMethod]
+    [CoversNode("integrity-scan")]
+    public void A_linked_assembly_and_the_exempt_shapes_are_not_flagged()
+    {
+        // Ghost is linked; Common is shared contracts; Compressed.Modern is a codec backend behind a feature.
+        // The latter two are implementation detail of an existing node — demanding their own node would force
+        // noise into the tree, so they are exempt (mirroring the ProductTreeCoverageTests guard).
+        var root = RepoWith("Nexaflow.Features.Ghost", "Nexaflow.Features.Common", "Nexaflow.Features.Compressed.Modern");
+        try
+        {
+            var report = SnaplinkValidator.Validate(
+                FamilyLinking("src/Nexaflow.Features/Nexaflow.Features.Ghost/Nexaflow.Features.Ghost.csproj"), root);
+
+            Assert.IsFalse(report.Issues.Any(i => i.Kind == IntegrityKind.UnlinkedProject));
+        }
+        finally { Directory.Delete(root, recursive: true); }
     }
 }

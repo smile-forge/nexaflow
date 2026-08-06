@@ -147,8 +147,26 @@ public static class ProductReport
         var sb = new StringBuilder();
         foreach (var i in report.Issues)
             sb.AppendLine($"  {i.NodeId} [{i.Scope}] #{i.Index}  {i.Detail}");
-        sb.Append($"{report.Issues.Count} broken snaplink(s) across "
+
+        // Not every gating issue is a broken *snaplink* any more — a stale [CoversNode] id is a rotten test
+        // declaration, and MissingSnaplink is an absent one. Counting them all as "broken snaplinks" sent the
+        // reader hunting the tree for a link that was never there, so the tally names each family it found.
+        var byFamily = report.Issues
+            .GroupBy(Family)
+            .OrderByDescending(g => g.Count())
+            .Select(g => $"{g.Count()} {g.Key}");
+
+        sb.Append($"{string.Join(", ", byFamily)} across "
                 + $"{report.Issues.Select(i => i.NodeId).Distinct().Count()} node(s) — {scanned}.");
         return sb.ToString();
     }
+
+    /// <summary>The noun for an issue kind, so the summary tally reads as what actually has to be fixed.</summary>
+    private static string Family(IntegrityIssue issue) => issue.Kind switch
+    {
+        IntegrityKind.StaleCoverageNode => "stale test coverage declaration(s)",
+        IntegrityKind.UnlinkedProject   => "untracked assembly/assemblies",
+        IntegrityKind.MissingSnaplink   => "unbacked concern(s)",
+        _                               => "broken snaplink(s)"
+    };
 }

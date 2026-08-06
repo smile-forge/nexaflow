@@ -34,6 +34,13 @@
         Result="exists"
         Bitness="always32" />
 
+    <!--
+      Opt-in for the MSI's Tools feature, surfaced as a checkbox on the theme's Options page and passed
+      through as a property below. Off by default. Overridable so an unattended install can request it:
+      nexaflowBundle.exe /quiet InstallTools=1
+    -->
+    <Variable Name="InstallTools" bal:Overridable="yes" Type="numeric" Value="0" />
+
     <Chain>
       <ExePackage Id="NetDesktopRuntime10"
                   DisplayName=".NET 10 Desktop Runtime (x64)"
@@ -57,7 +64,11 @@
       <MsiPackage Id="NexaflowApp"
                   SourceFile="$(var.nexaflowSetup.TargetPath)"
                   Visible="no"
-                  Vital="yes" />
+                  Vital="yes">
+        <!-- Drives the MSI's Tools feature Level (Package.wxs). The MSI declares INSTALLTOOLS
+             Secure="yes" so it survives the handoff to the elevated execute sequence. -->
+        <MsiProperty Name="INSTALLTOOLS" Value="[InstallTools]" />
+      </MsiPackage>
     </Chain>
 
   </Bundle>

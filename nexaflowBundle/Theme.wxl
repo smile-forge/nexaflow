@@ -21,6 +21,7 @@
   <String Id="OptionsPerUserScopeText" Value="Install [WixBundleName] just for &amp;me" />
   <String Id="OptionsPerMachineScopeText" Value="Install [WixBundleName] for all &amp;users" />
   <String Id="OptionsBrowseButton" Value="&amp;Browse" />
+  <String Id="OptionsInstallToolsCheckbox" Value="Install command-line &amp;tools (nfi.exe) and add them to the system PATH" />
   <String Id="OptionsOkButton" Value="&amp;OK" />
   <String Id="OptionsCancelButton" Value="&amp;Cancel" />
   <String Id="ProgressHeader" Value="Setup Progress" />

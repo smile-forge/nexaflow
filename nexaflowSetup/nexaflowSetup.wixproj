@@ -3,6 +3,17 @@
     <AcceptEula>wix7</AcceptEula>
     <!-- ICE61 is the expected, benign companion of MajorUpgrade/@AllowSameVersionUpgrades. -->
     <SuppressIces>ICE61</SuppressIces>
+    <!--
+      NexaflowSetup.slnx deliberately contains ONLY the two wixprojs — Nexaflow.Core and everything under
+      it arrive transitively through the ProjectReference below. During a *solution* build MSBuild unsets
+      the parent's Configuration/Platform before building a ProjectReference whose project is not a member
+      of the solution, so Core fell back to its own default (Debug) while this project stayed Release. The
+      harvest targets then queried Release, found nothing, and failed — or, on a machine holding a stale
+      bin\x64\Release from an older build, silently packaged THAT. Keeping the parent's configuration makes
+      `dotnet build NexaflowSetup.slnx -c Release` mean Release for the whole graph, which is the only way
+      this solution is ever built. Building the wixproj directly was always unaffected.
+    -->
+    <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
     <_CoreCsproj>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\src\Nexaflow.Core\Nexaflow.Core.csproj'))</_CoreCsproj>
     <NexaflowVersion>$([System.Text.RegularExpressions.Regex]::Match($(_CoreCsproj), '&lt;Version&gt;([^&lt;]+)&lt;/Version&gt;').Groups[1].Value)</NexaflowVersion>
     <DefineConstants>AppVersion=$(NexaflowVersion)</DefineConstants>
@@ -61,15 +72,107 @@
       <Output TaskParameter="TargetOutputs" ItemName="_SnaplinkCli" />
     </MSBuild>
 
+    <!--
+      Prove the validator is actually there before running it. `dotnet <missing>.dll` exits 1 — the SAME
+      code the CLI uses for "broken snaplinks" — so without this guard a validator that never launched is
+      indistinguishable from one that found real breakage, and the Error below blames the product tree for
+      a build-wiring problem. That misdiagnosis cost real time: the Product tab reported a clean tree while
+      the build insisted snaplinks were broken. Fail here instead, naming the true cause.
+    -->
+    <Error Condition="!Exists('@(_SnaplinkCli)')"
+           Text="Snaplink validator not found at '@(_SnaplinkCli)' — Nexaflow.Services.Initiatives.Cli was not built for $(Configuration)|$(Platform). This is a build-wiring problem, NOT a snaplink failure: the product tree has not been checked at all. Confirm the tree separately with `dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- validate .`" />
+
     <Message Importance="high" Text="Validating product snaplinks in $(_RepoRoot)…" />
     <Exec Command="dotnet &quot;@(_SnaplinkCli)&quot; validate &quot;$(_RepoRoot)&quot;" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="_SnaplinkExit" />
     </Exec>
 
+    <!--
+      Kind-agnostic on purpose: the gate now covers more than broken snaplinks (a stale [CoversNode] id is a
+      rotten test declaration, not a link), and naming only snaplinks sent the reader hunting the tree for a
+      link that was never there. The listed issues above say which family each one is.
+    -->
     <Error Condition="'$(_SnaplinkExit)' == '1'"
-           Text="Product snaplink integrity check failed: one or more snaplinks point at a target that no longer exists (see the list above). Fix them in the Product tab (⋮ → Validate snaplinks → Integrity), or run: dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- validate ." />
+           Text="Product tree integrity check failed (see the itemised list above). Snaplink issues are fixable in the Product tab (⋮ → Validate snaplinks → Integrity); a stale test coverage declaration is fixed in the test's [CoversNode] attribute, or by restoring the node. Re-run with: dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- validate ." />
     <Error Condition="'$(_SnaplinkExit)' != '0' and '$(_SnaplinkExit)' != '1'"
            Text="Product snaplink validator failed to run (exit $(_SnaplinkExit))." />
+  </Target>
+
+  <!--
+    Payload for the optional Tools feature: nfi.exe and its dependencies, harvested into
+    [INSTALLFOLDER]tools.
+
+    Published RID-specific (win-x64) rather than harvested from the CLI's plain build output, because
+    tree-sitter and libgit2 ship native binaries for EVERY runtime identifier — the framework build
+    output is ~618 MB of linux/osx/arm payload we would otherwise put in the MSI. A win-x64 publish
+    prunes that to ~73 MB. SelfContained=false because the bundle already installs the .NET 10 runtime.
+
+    Invoked through the MSBuild task, not Exec("dotnet publish"): a raw Exec would spawn a second,
+    concurrent build of Syntax/IO.Common and race the ProjectReference build on the same obj/bin — the
+    CS2012 hazard documented in HarvestCoreOutput below. AfterTargets=ResolveProjectReferences means the
+    CLI's non-RID build has already finished; the RID-specific publish writes to its own obj/bin subpath.
+  -->
+  <Target Name="HarvestToolsOutput" AfterTargets="ResolveProjectReferences" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <_ToolsCliProj>$(MSBuildThisFileDirectory)..\src\Nexaflow.Services.Initiatives.Cli\Nexaflow.Services.Initiatives.Cli.csproj</_ToolsCliProj>
+      <_ToolsStage>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)tools-payload'))\</_ToolsStage>
+      <_ToolsWxs>$(IntermediateOutputPath)ToolsComponents.wxs</_ToolsWxs>
+    </PropertyGroup>
+
+    <Message Importance="high" Text="Publishing nfi.exe (win-x64) for the optional Tools feature…" />
+
+    <MSBuild Projects="$(_ToolsCliProj)" Targets="Publish"
+             Properties="Configuration=$(Configuration);Platform=$(Platform);RuntimeIdentifier=win-x64;SelfContained=false;PublishDir=$(_ToolsStage)" />
+
+    <Error Condition="!Exists('$(_ToolsStage)nfi.exe')"
+           Text="Tools payload is missing: expected nfi.exe in $(_ToolsStage) after publishing Nexaflow.Services.Initiatives.Cli for win-x64. Check the CLI project's AssemblyName and RuntimeIdentifiers." />
+
+    <ItemGroup>
+      <_ToolsFile Include="$(_ToolsStage)**\*" Exclude="$(_ToolsStage)**\*.pdb" />
+    </ItemGroup>
+
+    <!--
+      Guard against a stale staging directory silently shipping the wrong RID's natives: a win-x64
+      publish must not contain linux/osx payload, and it must contain the tree-sitter grammars the
+      graph build needs.
+    -->
+    <ItemGroup>
+      <_ToolsForeignNative Include="@(_ToolsFile)"
+          Condition="'%(Extension)' == '.so' or '%(Extension)' == '.dylib'" />
+      <_ToolsTreeSitter Include="@(_ToolsFile)"
+          Condition="$([System.String]::Copy('%(Filename)').StartsWith('tree-sitter'))" />
+    </ItemGroup>
+
+    <Error Condition="'@(_ToolsForeignNative->Count())' != '0'"
+           Text="Tools payload is polluted: $(_ToolsStage) holds @(_ToolsForeignNative->Count()) non-Windows native binaries (.so/.dylib), so the publish was not RID-specific or the staging dir is stale. Delete $(_ToolsStage) and rebuild." />
+    <Error Condition="'@(_ToolsTreeSitter->Count())' == '0'"
+           Text="Tools payload is incomplete: no tree-sitter native grammars in $(_ToolsStage), so `nfi graph build` would fail on every file. Check that Nexaflow.Syntax's natives flow into the CLI's publish output." />
+
+    <ItemGroup>
+      <_ToolsWxsComp Include="@(_ToolsFile)" Condition="'%(_ToolsFile.RecursiveDir)' == ''">
+        <Line>      &lt;Component&gt;&lt;File Source=&quot;%(_ToolsFile.Identity)&quot; /&gt;&lt;/Component&gt;</Line>
+      </_ToolsWxsComp>
+      <_ToolsWxsComp Include="@(_ToolsFile)" Condition="'%(_ToolsFile.RecursiveDir)' != ''">
+        <Line>      &lt;Component Subdirectory=&quot;$([System.Text.RegularExpressions.Regex]::Replace('%(_ToolsFile.RecursiveDir)', '\\$', ''))&quot;&gt;&lt;File Source=&quot;%(_ToolsFile.Identity)&quot; /&gt;&lt;/Component&gt;</Line>
+      </_ToolsWxsComp>
+    </ItemGroup>
+
+    <ItemGroup>
+      <_ToolsWxsLine Include="&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;" />
+      <_ToolsWxsLine Include="&lt;Wix xmlns=&quot;http://wixtoolset.org/schemas/v4/wxs&quot;&gt;" />
+      <_ToolsWxsLine Include="  &lt;Fragment&gt;" />
+      <_ToolsWxsLine Include="    &lt;ComponentGroup Id=&quot;ToolsComponents&quot; Directory=&quot;TOOLSFOLDER&quot;&gt;" />
+      <_ToolsWxsLine Include="@(_ToolsWxsComp->'%(Line)')" />
+      <_ToolsWxsLine Include="    &lt;/ComponentGroup&gt;" />
+      <_ToolsWxsLine Include="  &lt;/Fragment&gt;" />
+      <_ToolsWxsLine Include="&lt;/Wix&gt;" />
+    </ItemGroup>
+
+    <WriteLinesToFile File="$(_ToolsWxs)" Lines="@(_ToolsWxsLine)" Overwrite="true" />
+
+    <ItemGroup>
+      <Compile Include="$(_ToolsWxs)" />
+    </ItemGroup>
   </Target>
 
   <!--

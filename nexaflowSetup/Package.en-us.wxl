@@ -5,4 +5,9 @@ This file contains the declaration of all the localizable strings.
 
   <String Id="DowngradeError" Value="A newer version of [ProductName] is already installed." />
 
+  <String Id="FeatureMainTitle" Value="Nexaflow" />
+  <String Id="FeatureMainDescription" Value="The Nexaflow application. Required." />
+  <String Id="FeatureToolsTitle" Value="Command-line tools" />
+  <String Id="FeatureToolsDescription" Value="Installs nfi.exe (product tree and code graph queries) into the tools folder and adds it to the system PATH, so it can be run from any terminal." />
+
 </WixLocalization>

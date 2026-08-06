@@ -10,7 +10,9 @@ namespace Nexaflow.Tests.Features.WindowsSearch;
 /// anchored to a whole name, or bounded to one word inside a document.
 /// </summary>
 [TestClass]
-[CoversNode("search-terms")]
+// Class-level because SearchTerm is the shared data object every child of this node parses, scores or
+// refines — the whole class exercises the container, not one of its leaves.
+[CoversNode("search-user-input")]
 public class TermMatchingTests
 {
     private static SearchTerm Glob(string token) =>

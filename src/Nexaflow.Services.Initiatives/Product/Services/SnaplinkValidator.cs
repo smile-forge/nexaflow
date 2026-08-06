@@ -82,7 +82,16 @@ public sealed class SnaplinkValidator
     /// <summary>Validates every snaplink in <paramref name="state"/> against the files under
     /// <paramref name="productRoot"/>, or — when given — <paramref name="fileRoots"/> first.</summary>
     public static IntegrityReport Validate(ProductState state, string productRoot, IEnumerable<string>? fileRoots = null)
-        => new SnaplinkValidator(productRoot, fileRoots).Run(state);
+        => new SnaplinkValidator(productRoot, fileRoots).Run(state, manifest: null);
+
+    /// <summary>
+    /// Validates as above and additionally gates the test-coverage declarations in <paramref name="manifest"/>
+    /// against the tree. Split from the parameterless overload because the manifest is <em>derived</em> state
+    /// (<c>scan-tests</c> writes it, it is gitignored): a caller without one — a clean CI checkout, the
+    /// single-link recheck — gets the snaplink checks alone rather than a false all-clear on coverage.
+    /// </summary>
+    public static IntegrityReport Validate(ProductState state, string productRoot, IEnumerable<string>? fileRoots, TestCoverageManifest? manifest)
+        => new SnaplinkValidator(productRoot, fileRoots).Run(state, manifest);
 
     /// <summary>
     /// Re-checks a <em>single</em> link. The Integrity page uses this after an inline edit so a fix is
@@ -102,7 +111,7 @@ public sealed class SnaplinkValidator
         return validator.Check(link);
     }
 
-    private IntegrityReport Run(ProductState state)
+    private IntegrityReport Run(ProductState state, TestCoverageManifest? manifest)
     {
         var report = new IntegrityReport
         {
@@ -120,6 +129,8 @@ public sealed class SnaplinkValidator
         }
 
         FlagUnbackedConcerns(state, report);
+        FlagStaleCoverageNodes(state, manifest, report);
+        FlagUnlinkedProjects(state, report);
 
         report.Issues = [.. report.Issues
             .OrderBy(i => i.NodeId, StringComparer.Ordinal)
@@ -153,6 +164,108 @@ public sealed class SnaplinkValidator
                         Detail = $"concern '{link.Tag}' is {link.Status.ToString().ToLowerInvariant()} but has no snaplink",
                         Link = new Snaplink()
                     });
+    }
+
+    /// <summary>
+    /// Flags <c>[CoversNode("id")]</c> declarations naming an id the tree no longer has. The tree is the
+    /// authority on what exists, so a declaration pointing outside it is provably rotten — a rename or a
+    /// delete left the attribute behind, and the test now claims to back nothing.
+    /// <para>
+    /// Deliberately only the *unknown id* half of the reconciliation. Its sibling —
+    /// <see cref="CoverageAdvisoryKind.DeclaredButUnlinked"/>, a live node with no <c>tests</c> snaplink back —
+    /// stays a non-gating advisory: that is a gap in the tree's bookkeeping, not proof of breakage, and it is
+    /// resolved by the Integrity page's *Add link* rather than by failing a release.
+    /// </para>
+    /// <para>
+    /// No manifest (a clean CI checkout, where <c>.product/test-coverage.json</c> is gitignored and absent)
+    /// means nothing is claimed, so nothing can be disproved — skip, keeping the "only report what we can
+    /// prove broken" bar. The Roslyn analyzer NXCOV002 catches the same mistake at author time; this is the
+    /// build-time backstop for anyone who never compiled with the analyzer.
+    /// </para>
+    /// </summary>
+    private static void FlagStaleCoverageNodes(ProductState state, TestCoverageManifest? manifest, IntegrityReport report)
+    {
+        if (manifest is null) return;
+
+        foreach (var advisory in TestCoverageReconciler.Reconcile(state, manifest).Advisories)
+        {
+            if (advisory.Kind != CoverageAdvisoryKind.UnknownNode) continue;
+
+            var where = advisory.Method is { Length: > 0 } m ? $"{advisory.Class}.{m}" : advisory.Class;
+            report.Issues.Add(new IntegrityIssue
+            {
+                NodeId = advisory.NodeId,
+                NodeTitle = string.Empty,   // there is no node — that is the finding
+                Concern = TestCoverageReconciler.TestsConcern,
+                Index = -1,
+                Kind = IntegrityKind.StaleCoverageNode,
+                Detail = $"test '{where}' declares [CoversNode(\"{advisory.NodeId}\")] but no such node is in the tree"
+                       + (advisory.File is { Length: > 0 } f ? $" ({f})" : string.Empty),
+                Link = new Snaplink()
+            });
+        }
+    }
+
+    /// <summary>Family node id → the <c>src</c> subdirectory whose assemblies it is the inventory for.</summary>
+    private static readonly (string Node, string SubDir)[] ProjectFamilies =
+        [("features", "Nexaflow.Features"), ("providers", "Nexaflow.Providers")];
+
+    /// <summary>
+    /// Flags a feature/provider assembly on disk that no node under its family links by <c>.csproj</c> — the
+    /// reverse direction of the usual check: not "does this link still resolve?" but "is this shipping thing
+    /// in the tree at all?". That is the failure that let GraphViewer ship with no node.
+    /// <para>
+    /// Two assembly shapes are deliberately exempt, matching the <c>ProductTreeCoverageTests</c> guard this
+    /// mirrors: <c>*.Common</c> (shared contracts — not a feature) and any name carrying a further dot, e.g.
+    /// <c>Compressed.Modern</c> (a codec backend behind a feature rather than a feature itself). Both are
+    /// implementation detail of a node that already exists, so demanding their own node would force noise
+    /// nodes into the tree.
+    /// </para>
+    /// <para>
+    /// Only direct children of the family node count as linkers, so an assembly cannot be "covered" by a
+    /// snaplink buried on some unrelated leaf. Skipped entirely when the family node or its source directory
+    /// is absent — nothing to compare, so nothing is provable.
+    /// </para>
+    /// </summary>
+    private void FlagUnlinkedProjects(ProductState state, IntegrityReport report)
+    {
+        var root = _fileRoots.FirstOrDefault(r => Directory.Exists(Path.Combine(r, "src")));
+        if (root is null) return;
+
+        foreach (var (familyId, subDir) in ProjectFamilies)
+        {
+            var srcDir = Path.Combine(root, "src", subDir);
+            if (!Directory.Exists(srcDir)) continue;
+            if (!state.Nodes.TryGetValue(familyId, out var family)) continue;
+
+            var linked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var childId in family.Children ?? [])
+                if (state.Nodes.TryGetValue(childId, out var child))
+                    foreach (var link in child.Snaplinks ?? [])
+                        if (link.Doc is { } doc && doc.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+                            linked.Add(doc.Replace('\\', '/').Trim('/'));
+
+            foreach (var dir in Directory.GetDirectories(srcDir, subDir + ".*"))
+            {
+                var asm = Path.GetFileName(dir);
+                // A removed assembly leaves its gitignored bin/obj behind; only a real .csproj ships.
+                if (!File.Exists(Path.Combine(dir, asm + ".csproj"))) continue;
+
+                var shortName = asm[(subDir.Length + 1)..];
+                if (shortName is "Common" || shortName.Contains('.')) continue;
+
+                if (linked.Contains($"src/{subDir}/{asm}/{asm}.csproj")) continue;
+
+                report.Issues.Add(new IntegrityIssue
+                {
+                    NodeId = familyId, NodeTitle = family.Title, Concern = null, Index = -1,
+                    Kind = IntegrityKind.UnlinkedProject,
+                    Detail = $"assembly '{asm}' ships but no node under '{familyId}' links "
+                           + $"src/{subDir}/{asm}/{asm}.csproj — it is untracked in the product tree",
+                    Link = new Snaplink()
+                });
+            }
+        }
     }
 
     private void Scan(List<Snaplink>? links, string nodeId, string title, string? concern, IntegrityReport report)

@@ -8,8 +8,13 @@
     <Icon Id="NexaflowIcon" SourceFile="..\src\Nexaflow.Core\Appicon.ico" />
     <Property Id="ARPPRODUCTICON" Value="NexaflowIcon" />
 
-    <!-- Branded wizard UI: welcome, license, choose-folder, progress, finish -->
-    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <!--
+      Branded wizard UI: welcome, license, customize (feature tree + folder browse), progress, finish.
+      FeatureTree rather than InstallDir because the Tools feature below is opt-in and needs to be
+      reachable when the MSI is run standalone — the bundle installs it with Visible="no", so the MSI's
+      own UI never renders on the normal install path (the bundle's Options page carries the checkbox).
+    -->
+    <ui:WixUI Id="WixUI_FeatureTree" InstallDirectory="INSTALLFOLDER" />
     <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
     <WixVariable Id="WixUIBannerBmp" Value="banner.bmp" />
     <WixVariable Id="WixUIDialogBmp" Value="dialog.bmp" />
@@ -26,10 +31,31 @@
                Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed" Order="2" />
     </UI>
 
-    <Feature Id="Main">
+    <!--
+      Opt-in switch for the Tools feature. Secure="yes" so it survives the handoff to the elevated
+      execute sequence — without it the bundle's INSTALLTOOLS=1 would be visible to the UI sequence and
+      then silently dropped, and the feature would never install.
+    -->
+    <Property Id="INSTALLTOOLS" Secure="yes" />
+
+    <Feature Id="Main" Title="!(loc.FeatureMainTitle)" Description="!(loc.FeatureMainDescription)"
+             Level="1" AllowAbsent="no" AllowAdvertise="no">
       <ComponentGroupRef Id="AppComponents" />
       <ComponentGroupRef Id="ShortcutComponents" />
       <ComponentGroupRef Id="CleanupComponents" />
+    </Feature>
+
+    <!--
+      Optional command-line tools (nfi.exe) into [INSTALLFOLDER]tools, with that folder added to the
+      system PATH. Level="2" > the default INSTALLLEVEL of 1, so it is OFF by default but still listed
+      and selectable in the feature tree; INSTALLTOOLS=1 (from the bundle checkbox, or an msiexec
+      command line) drops it to Level 1 and installs it.
+    -->
+    <Feature Id="Tools" Title="!(loc.FeatureToolsTitle)" Description="!(loc.FeatureToolsDescription)"
+             Level="2" AllowAdvertise="no">
+      <Level Value="1" Condition="INSTALLTOOLS = &quot;1&quot;" />
+      <ComponentGroupRef Id="ToolsComponents" />
+      <ComponentGroupRef Id="ToolsPathComponents" />
     </Feature>
   </Package>
 </Wix>

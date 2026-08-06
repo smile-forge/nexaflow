@@ -10,7 +10,12 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <AssemblyName>nexaflow-initiatives</AssemblyName>
+    <!--
+      Short on purpose: this exe goes on PATH via the installer's optional "command-line tools" feature, so
+      it is typed by hand. NOT `ni` — that is a ReadOnly PowerShell alias for New-Item and wins over an
+      external command, so `ni find x` would silently create a file in the repo's own documented shell.
+    -->
+    <AssemblyName>nfi</AssemblyName>
     <RootNamespace>Nexaflow.Services.Initiatives.Cli</RootNamespace>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>

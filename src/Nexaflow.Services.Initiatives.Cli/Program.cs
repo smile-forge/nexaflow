@@ -9,7 +9,7 @@ using Nexaflow.Syntax;
 namespace Nexaflow.Services.Initiatives.Cli;
 
 /// <summary>
-/// <c>nexaflow-initiatives</c> — headless access to the initiatives backend.
+/// <c>nfi</c> — headless access to the initiatives backend.
 /// </summary>
 /// <remarks>
 /// Exit codes are the contract the installer build (and any script) relies on:
@@ -58,32 +58,32 @@ internal static class Program
     {
         if (error is not null) Console.Error.WriteLine($"error: {error}");
         Console.WriteLine("""
-            nexaflow-initiatives — product tracker tooling
+            nfi — product tracker tooling
 
             usage:
-              nexaflow-initiatives validate   [<root>] [--json] [--save]
-              nexaflow-initiatives find       <term> [<root>] [--json]
-              nexaflow-initiatives query      [<root>] [--under <id>] [--concern <tag>] [--status <s>] [--leaf|--panel] [--json]
-              nexaflow-initiatives describe   <node-id> [<root>] [--json] [--code]
-              nexaflow-initiatives tree       <node-id> [<root>] [--depth <n>] [--full] [--json]
-              nexaflow-initiatives diff       [<root>] [--from <version>]
-              nexaflow-initiatives remap      <old-path> <new-path> [<root>] [--class <name>] [--method <name>]
-              nexaflow-initiatives scan-tests [<root>] [--test-dll <path>]... [--suggest-attributes]
-              nexaflow-initiatives add-node   <parent-id> <title> [<root>] [--id <slug>] [--desc <text>] [--status <s>]
-              nexaflow-initiatives set-status  <node-id> <status> [<root>]
-              nexaflow-initiatives set-concern <node-id> <tag> <status> [<root>]
-              nexaflow-initiatives remove-concern <node-id> <tag> [<root>]
-              nexaflow-initiatives add-snaplink <node-id> --type <code|markdown|node|url> [<root>] [--concern <tag>]
+              nfi validate   [<root>] [--json] [--save]
+              nfi find       <term> [<root>] [--json]
+              nfi query      [<root>] [--under <id>] [--concern <tag>] [--status <s>] [--leaf|--panel] [--json]
+              nfi describe   <node-id> [<root>] [--json] [--code]
+              nfi tree       <node-id> [<root>] [--depth <n>] [--full] [--json]
+              nfi diff       [<root>] [--from <version>]
+              nfi remap      <old-path> <new-path> [<root>] [--class <name>] [--method <name>]
+              nfi scan-tests [<root>] [--test-dll <path>]... [--suggest-attributes]
+              nfi add-node   <parent-id> <title> [<root>] [--id <slug>] [--desc <text>] [--status <s>]
+              nfi set-status  <node-id> <status> [<root>]
+              nfi set-concern <node-id> <tag> <status> [<root>]
+              nfi remove-concern <node-id> <tag> [<root>]
+              nfi add-snaplink <node-id> --type <code|markdown|node|url> [<root>] [--concern <tag>]
                                                 [--doc <p>] [--class <c>] [--method <m>] [--target <id>] [--url <u>] [--title-path a>b] [--status <s>]
-              nexaflow-initiatives remove-snaplink <node-id> [<root>] [--concern <tag>] [--index <n>]
-              nexaflow-initiatives set-node   <node-id> [<root>] [--title <t>] [--desc <d>] [--note <n>]
-              nexaflow-initiatives move       <node-id> <new-parent-id> [<root>]
-              nexaflow-initiatives rename     <old-id> <new-id> [<root>]
-              nexaflow-initiatives remove     <node-id> [<root>] [--recursive]
-              nexaflow-initiatives batch      <script-file> [<root>] [--dry-run]
-              nexaflow-initiatives lint       [<root>] [--under <id>] [--json]
-              nexaflow-initiatives doctor     [<root>] [--fix]
-              nexaflow-initiatives graph      [<root>] [--json] [--product-anchored]   (see: graph help — build + explore)
+              nfi remove-snaplink <node-id> [<root>] [--concern <tag>] [--index <n>]
+              nfi set-node   <node-id> [<root>] [--title <t>] [--desc <d>] [--note <n>]
+              nfi move       <node-id> <new-parent-id> [<root>]
+              nfi rename     <old-id> <new-id> [<root>]
+              nfi remove     <node-id> [<root>] [--recursive]
+              nfi batch      <script-file> [<root>] [--dry-run]
+              nfi lint       [<root>] [--under <id>] [--json]
+              nfi doctor     [<root>] [--fix]
+              nfi graph      [<root>] [--json] [--product-anchored]   (see: graph help — build + explore)
 
             validate   Checks every snaplink still points at a real target (file exists, md heading resolves,
                        class/method declared, URL well formed) and that no RequiresSnaplink concern is
@@ -255,9 +255,13 @@ internal static class Program
         IntegrityReport report;
         try
         {
-            var state = new ProductStore(root).Load();
-            report = SnaplinkValidator.Validate(state, root, FileRootsFor(root));
-            if (save) new ProductStore(root).SaveIntegrity(report);
+            var store = new ProductStore(root);
+            var state = store.Load();
+            // The coverage manifest gates [CoversNode] ids that no longer exist. It is derived, gitignored
+            // state, so LoadTestCoverage() returning null (clean CI checkout, or scan-tests never run) simply
+            // means that check is skipped — never a failure, and never a false all-clear either.
+            report = SnaplinkValidator.Validate(state, root, FileRootsFor(root), store.LoadTestCoverage());
+            if (save) store.SaveIntegrity(report);
         }
         catch (Exception ex)
         {
