@@ -563,7 +563,12 @@ public sealed class ShellServices : IShellServices
             // Watch the outermost real container, so a request to watch a file *inside* an archive
             // (a non-existent OS path) watches the archive that actually changes on disk. Resolving such
             // a container change back to the specific inner view is deferred.
-            return VirtualFileSystem.Instance.SplitOutermostContainer(Path.GetFullPath(path)).RealContainer;
+            //
+            // SplitOutermostContainer runs FIRST because it is the mount-aware one: Path.GetFullPath
+            // cannot parse a "::mount\…" path and would throw straight into the catch, leaving the
+            // watcher pointed at a virtual path that no FileSystemWatcher can observe.
+            var real = VirtualFileSystem.Instance.SplitOutermostContainer(path).RealContainer;
+            return Path.GetFullPath(real);
         }
         catch { return path; }
     }
@@ -856,7 +861,7 @@ public sealed class ShellServices : IShellServices
             return dispatcher.Invoke(() => PickOpenFileAsync(extensions, initialPath));
 
         var owner = FocusedWindow?.Window;
-        return Task.FromResult(FileBrowserWindow.Show(initialPath, extensions, owner));
+        return Task.FromResult(FileBrowserWindow.Show(initialPath, extensions, owner, _workspace));
     }
 
     public Task<string?> PickFolderAsync(string? initialPath = null)
@@ -865,7 +870,7 @@ public sealed class ShellServices : IShellServices
         if (dispatcher is not null && !dispatcher.CheckAccess())
             return dispatcher.Invoke(() => PickFolderAsync(initialPath));
 
-        return Task.FromResult(FolderBrowserWindow.Show(initialPath, FocusedWindow?.Window));
+        return Task.FromResult(FolderBrowserWindow.Show(initialPath, FocusedWindow?.Window, _workspace));
     }
 
     public Task<string?> PickSaveFileAsync(string defaultFileName,
@@ -878,7 +883,7 @@ public sealed class ShellServices : IShellServices
 
         // Pick the destination folder, then prompt for the file name — composing the two existing
         // picker surfaces gives a save-target without a Win32 SaveFileDialog.
-        var folder = FolderBrowserWindow.Show(initialPath, FocusedWindow?.Window);
+        var folder = FolderBrowserWindow.Show(initialPath, FocusedWindow?.Window, _workspace);
         if (folder is null) return Task.FromResult<string?>(null);
 
         var ext = extensions is { Count: > 0 } ? extensions[0] : null;

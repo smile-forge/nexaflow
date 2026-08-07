@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -52,11 +53,16 @@ public sealed class ShellVerbAction : IFileAction
     public ImageSource? IconImage => _iconImage;
     public string?      Tooltip   => _tooltip;
 
+    /// <summary>A registered verb hands the file to whatever program claims it, which may expect the
+    /// file's neighbours to be there too. Offered only where the whole folder really is on disk.</summary>
+    public bool RequiresFullyBackedPath => true;
+
     public bool PerformAction(string filePath)
     {
         try
         {
-            Process.Start(new ProcessStartInfo(filePath)
+            var real = VirtualFileSystem.Instance.TryResolveReal(filePath) ?? filePath;
+            Process.Start(new ProcessStartInfo(real)
             {
                 Verb            = _verb,
                 UseShellExecute = true

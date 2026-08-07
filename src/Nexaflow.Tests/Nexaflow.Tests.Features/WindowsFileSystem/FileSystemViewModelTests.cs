@@ -86,7 +86,7 @@ public class FileSystemViewModelTests
         var vm = ThisPc();
 
         Assert.IsTrue(vm.Entries.Count > 0, "Expected at least one drive entry");
-        Assert.IsTrue(vm.Entries.All(e => e.IsDrive));
+        Assert.IsTrue(vm.Entries.All(e => e.IsThisPcItem));
     }
 
     // ── Path constructor ──────────────────────────────────────────────────────

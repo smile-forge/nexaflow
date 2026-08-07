@@ -76,6 +76,10 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         Loaded   += (_, _) => ViewModel.AttachBusyTracking();
         Unloaded += (_, _) => ViewModel.DetachBusyTracking();
 
+        // Same rule for the This PC contributors and the mount table, which the shell also outlives.
+        Loaded   += (_, _) => ViewModel.AttachThisPcProviderTracking();
+        Unloaded += (_, _) => ViewModel.DetachThisPcProviderTracking();
+
         // Column-header sorting. GridViewColumnHeader is a ButtonBase that captures the
         // mouse on press, so a Button inside the header template never sees the click —
         // handle its Click at the ListView level instead. Whole header is clickable.
@@ -630,7 +634,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
             Name        = node.Name,
             FullPath    = node.FullPath,
             IsDirectory = true,
-            IsDrive     = node.Kind == TreeNodeKind.Drive,
+            IsThisPcItem     = node.Kind == TreeNodeKind.Drive,
         };
 
         var actions = ViewModel.BuildContextActions([entry]);
@@ -861,11 +865,13 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         _listDragPending   = false;
         _deselectOnMouseUp = null;  // a drag is not a click — keep the dragged item selected
 
-        var paths = FileListView.SelectedItems
-            .OfType<FileSystemEntry>()
-            .Where(entry => !entry.IsDrive)
-            .Select(entry => entry.FullPath)
-            .ToArray();
+        // Explorer (or whatever receives the drop) understands only real paths, so resolve a mount and
+        // materialise an in-archive entry on the way out.
+        var paths = Services.ShellPath.Realize(
+            FileListView.SelectedItems
+                .OfType<FileSystemEntry>()
+                .Where(entry => !entry.IsThisPcItem)
+                .Select(entry => entry.FullPath));
 
         if (paths.Length == 0) return;
 

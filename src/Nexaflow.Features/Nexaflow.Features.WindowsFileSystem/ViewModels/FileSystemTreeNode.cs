@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
@@ -6,7 +7,10 @@ using System.Runtime.CompilerServices;
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 
 public enum DriveStatus   { Ready, Loading, Unavailable }
-public enum DriveIconType { HDD, SSD, Network, Removable, CDDVD }
+
+/// <summary>Which icon a This PC row draws. <c>Cloud</c> is for rows contributed by an
+/// <c>IThisPcItemProvider</c>; the rest map from <see cref="System.IO.DriveType"/>.</summary>
+public enum DriveIconType { HDD, SSD, Network, Removable, CDDVD, Cloud }
 
 // ── Tree node ─────────────────────────────────────────────────────────────────
 public enum TreeNodeKind { Folder, Drive, ThisPc }
@@ -78,7 +82,7 @@ public class FileSystemTreeNode : INotifyPropertyChanged
         Kind     = TreeNodeKind.Folder;
         _isDummy = isDummy;
 
-        if (!isDummy && Directory.Exists(fullPath) && HasSubDirectoriesSafe(fullPath))
+        if (!isDummy && DirectoryExistsSafe(fullPath) && HasSubDirectoriesSafe(fullPath))
             Children.Add(Dummy);
     }
 
@@ -95,9 +99,20 @@ public class FileSystemTreeNode : INotifyPropertyChanged
         // Drive children (Dummy) are added by CheckDriveAsync once IsReady is confirmed
     }
 
+    /// <summary>The VFS the tree resolves through, so a mounted node expands like any other folder.
+    /// Settable for tests; defaults to the process singleton.</summary>
+    internal static IVirtualFileSystem Vfs { get; set; } = VirtualFileSystem.Instance;
+
+    /// <summary>The real directory behind a (possibly mounted) node path, or null if there isn't one.</summary>
+    internal static string? RealDirOf(string path)
+        => Vfs.TryResolveReal(path) is { } real && Directory.Exists(real) ? real : null;
+
+    internal static bool DirectoryExistsSafe(string path) => RealDirOf(path) is not null;
+
     internal static bool HasSubDirectoriesSafe(string path)
     {
-        try { return Directory.EnumerateDirectories(path).Any(); }
+        if (RealDirOf(path) is not { } real) return false;
+        try { return Directory.EnumerateDirectories(real).Any(); }
         catch { return false; }
     }
 
@@ -106,12 +121,16 @@ public class FileSystemTreeNode : INotifyPropertyChanged
         if (Children.Count == 1 && Children[0] == Dummy)
         {
             Children.Clear();
+            if (RealDirOf(FullPath) is not { } real) return;
             try
             {
-                foreach (var dir in Directory.GetDirectories(FullPath)
+                foreach (var dir in Directory.GetDirectories(real)
                                              .OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
                 {
-                    Children.Add(new FileSystemTreeNode(Path.GetFileName(dir), dir));
+                    // Child paths extend THIS node's path, which under a mount is the virtual one —
+                    // taking `dir` verbatim would leak the real location into the tree.
+                    var name = Path.GetFileName(dir);
+                    Children.Add(new FileSystemTreeNode(name, Path.Combine(FullPath, name)));
                 }
             }
             catch { /* access denied etc. */ }

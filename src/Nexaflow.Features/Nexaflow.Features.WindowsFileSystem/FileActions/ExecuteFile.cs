@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using System.Collections.Generic;
 using System.Diagnostics;
 
@@ -20,9 +21,14 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
         public bool   RequiresRefresh        => false;
         public bool   CanPerformAction       => true;
 
+        /// <summary>An executable needs whatever sits beside it — DLLs, config, data. Extracting it
+        /// alone from an archive would launch something that cannot work, so don't offer to.</summary>
+        public bool   RequiresFullyBackedPath => true;
+
         public bool PerformAction(string filePath)
         {
-            Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true });
+            var real = VirtualFileSystem.Instance.TryResolveReal(filePath) ?? filePath;
+            Process.Start(new ProcessStartInfo(real) { UseShellExecute = true });
             return true;
         }
 

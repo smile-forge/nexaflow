@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using System.Collections.Generic;
 using System.Diagnostics;
 
@@ -21,9 +22,15 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
         public bool   RequiresRefresh        => false;
         public bool   CanPerformAction       => true;
 
+        /// <summary>An installer routinely reads a payload sitting next to it (an .msi's cab files, a
+        /// bundle's members). Pulled out of an archive on its own it would fail partway through — worse
+        /// than not offering the action.</summary>
+        public bool   RequiresFullyBackedPath => true;
+
         public bool PerformAction(string filePath)
         {
-            Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true });
+            var real = VirtualFileSystem.Instance.TryResolveReal(filePath) ?? filePath;
+            Process.Start(new ProcessStartInfo(real) { UseShellExecute = true });
             return true;
         }
 

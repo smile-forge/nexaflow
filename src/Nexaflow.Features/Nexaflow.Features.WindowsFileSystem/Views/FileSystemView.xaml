@@ -322,16 +322,19 @@
                                              HorizontalAlignment="Right" VerticalAlignment="Bottom">
                                         <Ellipse.Style>
                                             <Style TargetType="Ellipse">
-                                                <Setter Property="Fill" Value="#888888"/>
+                                                <Setter Property="Fill" Value="{StaticResource Drive.Unknown}"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding DriveIconType}" Value="HDD">
-                                                        <Setter Property="Fill" Value="#0047AB"/>
+                                                        <Setter Property="Fill" Value="{StaticResource Drive.Hdd}"/>
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding DriveIconType}" Value="SSD">
-                                                        <Setter Property="Fill" Value="#002D8A"/>
+                                                        <Setter Property="Fill" Value="{StaticResource Drive.Ssd}"/>
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding DriveIconType}" Value="Network">
-                                                        <Setter Property="Fill" Value="#00AA44"/>
+                                                        <Setter Property="Fill" Value="{StaticResource Drive.Network}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding DriveIconType}" Value="Cloud">
+                                                        <Setter Property="Fill" Value="{StaticResource Drive.Cloud}"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -361,6 +364,32 @@
                                               StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                                               StrokeLineJoin="Round"
                                               Data="M10,3 L10,14 M10,3 L6,7 M10,3 L14,7 M6,7 L6,11 M14,7 L14,11 M6,11 L10,15 L14,11 M10,15 L10,19"/>
+                                    </Canvas>
+                                </Viewbox>
+
+                                <!-- Cloud (a provider-supplied location). Its silhouette is already
+                                     distinct, so it carries no status dot — the tint does that job. -->
+                                <Viewbox Width="13" Height="13"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Viewbox.Style>
+                                        <Style TargetType="Viewbox">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding Kind}" Value="Drive"/>
+                                                        <Condition Binding="{Binding DriveIconType}" Value="Cloud"/>
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Viewbox.Style>
+                                    <Canvas Width="24" Height="24">
+                                        <Path Stroke="{StaticResource Drive.Cloud}" StrokeThickness="1.9"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                              StrokeLineJoin="Round"
+                                              Data="M7,18 A4,4 0 0 1 7.4,10.1 A5.6,5.6 0 0 1 18,9.4 A4,4 0 0 1 17.6,18 Z"/>
                                     </Canvas>
                                 </Viewbox>
 
@@ -512,16 +541,19 @@
                                                          HorizontalAlignment="Right" VerticalAlignment="Bottom">
                                                     <Ellipse.Style>
                                                         <Style TargetType="Ellipse">
-                                                            <Setter Property="Fill" Value="#888888"/>
+                                                            <Setter Property="Fill" Value="{StaticResource Drive.Unknown}"/>
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding DriveIconType}" Value="HDD">
-                                                                    <Setter Property="Fill" Value="#0047AB"/>
+                                                                    <Setter Property="Fill" Value="{StaticResource Drive.Hdd}"/>
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding DriveIconType}" Value="SSD">
-                                                                    <Setter Property="Fill" Value="#002D8A"/>
+                                                                    <Setter Property="Fill" Value="{StaticResource Drive.Ssd}"/>
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding DriveIconType}" Value="Network">
-                                                                    <Setter Property="Fill" Value="#00AA44"/>
+                                                                    <Setter Property="Fill" Value="{StaticResource Drive.Network}"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding DriveIconType}" Value="Cloud">
+                                                                    <Setter Property="Fill" Value="{StaticResource Drive.Cloud}"/>
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
@@ -547,6 +579,28 @@
                                                           StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                                                           StrokeLineJoin="Round"
                                                           Data="M10,3 L10,14 M10,3 L6,7 M10,3 L14,7 M6,7 L6,11 M14,7 L14,11 M6,11 L10,15 L14,11 M10,15 L10,19"/>
+                                                </Canvas>
+                                            </Viewbox>
+
+                                            <!-- Cloud (a provider-supplied location). Its silhouette is
+                                                 already distinct, so it carries no status dot. -->
+                                            <Viewbox Width="15" Height="15"
+                                                     HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <Viewbox.Style>
+                                                    <Style TargetType="Viewbox">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding DriveIconType}" Value="Cloud">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Viewbox.Style>
+                                                <Canvas Width="24" Height="24">
+                                                    <Path Stroke="{StaticResource Drive.Cloud}" StrokeThickness="1.9"
+                                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                          StrokeLineJoin="Round"
+                                                          Data="M7,18 A4,4 0 0 1 7.4,10.1 A5.6,5.6 0 0 1 18,9.4 A4,4 0 0 1 17.6,18 Z"/>
                                                 </Canvas>
                                             </Viewbox>
 

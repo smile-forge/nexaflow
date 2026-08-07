@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 
 namespace Nexaflow.IO.Common;
 
@@ -88,23 +89,206 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
         return null;
     }
 
+    // ── Mounts ───────────────────────────────────────────────────────────────
+
+    private const string MountPrefix = VirtualMount.Prefix;
+
+    // Immutable snapshot swapped wholesale: reads vastly outnumber writes and every public method takes
+    // one, so a lock here would serialise the whole facade. Kept sorted longest-RealRoot-first so the
+    // innermost mount wins when two nest.
+    private VirtualMount[] _mounts = [];
+
+    public IReadOnlyList<VirtualMount> Mounts => Volatile.Read(ref _mounts);
+
+    public event System.Action? MountsChanged;
+
+    public void RegisterMount(VirtualMount mount)
+    {
+        if (string.IsNullOrWhiteSpace(mount.Id) || mount.Id.AsSpan().IndexOfAny(@"\/:") >= 0)
+            throw new System.ArgumentException(
+                $"Mount id '{mount.Id}' must be non-empty and free of \\ / : — it forms a single path segment.",
+                nameof(mount));
+        if (string.IsNullOrWhiteSpace(mount.RealRoot))
+            throw new System.ArgumentException("Mount RealRoot must be non-empty.", nameof(mount));
+
+        while (true)
+        {
+            var current = Volatile.Read(ref _mounts);
+            if (current.Contains(mount)) return;   // record equality — nothing changed, stay silent
+            var next = current.Where(m => !IdEquals(m.Id, mount.Id))
+                              .Append(mount)
+                              .OrderByDescending(m => m.RealRoot.Length)
+                              .ToArray();
+            if (ReferenceEquals(Interlocked.CompareExchange(ref _mounts, next, current), current)) break;
+        }
+        MountsChanged?.Invoke();
+    }
+
+    public void UnregisterMount(string id)
+    {
+        while (true)
+        {
+            var current = Volatile.Read(ref _mounts);
+            if (!current.Any(m => IdEquals(m.Id, id))) return;
+            var next = current.Where(m => !IdEquals(m.Id, id)).ToArray();
+            if (ReferenceEquals(Interlocked.CompareExchange(ref _mounts, next, current), current)) break;
+        }
+        MountsChanged?.Invoke();
+    }
+
+    private static bool IdEquals(string a, string b)
+        => string.Equals(a, b, System.StringComparison.OrdinalIgnoreCase);
+
+    private static bool LooksMounted(string path)
+        => path.StartsWith(MountPrefix, System.StringComparison.Ordinal);
+
+    /// <summary>Splits <c>::{id}\rest</c> into its mount and the remainder. Mount is null when the id
+    /// names nothing registered (a stale saved path, or a mount removed while a tab was open).</summary>
+    private (VirtualMount? Mount, string Remainder) SplitMount(string path)
+    {
+        var body = path[MountPrefix.Length..];
+        int sep  = body.IndexOfAny(['\\', '/']);
+        var id   = sep < 0 ? body : body[..sep];
+        var rest = sep < 0 ? string.Empty : body[(sep + 1)..].Trim('\\', '/');
+        foreach (var m in Volatile.Read(ref _mounts))
+            if (IdEquals(m.Id, id)) return (m, rest);
+        return (null, rest);
+    }
+
+    /// <summary>
+    /// Maps a mounted path onto its real equivalent; returns anything else unchanged. Called at the head
+    /// of every public method, BEFORE the <see cref="File.Exists"/> fast paths — after which a mounted
+    /// path simply <i>is</i> a real path, so every rule below (archive descent, materialisation, atomic
+    /// writes) applies verbatim with no mount-specific branch.
+    /// </summary>
+    private string ToReal(string path)
+    {
+        if (string.IsNullOrEmpty(path) || !LooksMounted(path)) return path;
+        var (mount, rest) = SplitMount(path);
+        if (mount is null) return path;   // unresolvable: leave it to fail as a missing path
+        return rest.Length == 0 ? mount.RealRoot : Path.Combine(mount.RealRoot, rest.Replace('/', '\\'));
+    }
+
+    public VirtualBacking GetBacking(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return VirtualBacking.Real;
+        bool mounted = LooksMounted(path) && SplitMount(path).Mount is not null;
+        var real = ToReal(path);
+        if (SplitRealContainer(real).Inner is not null) return VirtualBacking.Materialized;
+        return mounted ? VirtualBacking.PassThrough : VirtualBacking.Real;
+    }
+
+    public string? TryResolveReal(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return null;
+        if (LooksMounted(path) && SplitMount(path).Mount is null) return null;
+        var real = ToReal(path);
+        return SplitRealContainer(real).Inner is null ? real : null;
+    }
+
+    public string? TryToVirtual(string realPath)
+    {
+        if (string.IsNullOrEmpty(realPath) || LooksMounted(realPath)) return null;
+        var probe = realPath.TrimEnd('\\', '/');
+        foreach (var m in Volatile.Read(ref _mounts))   // longest root first → innermost mount wins
+        {
+            var root = m.RealRoot.TrimEnd('\\', '/');
+            if (root.Length == 0) continue;
+            if (probe.Length == root.Length && string.Equals(probe, root, System.StringComparison.OrdinalIgnoreCase))
+                return MountPrefix + m.Id;
+            if (probe.Length > root.Length
+                && probe.StartsWith(root, System.StringComparison.OrdinalIgnoreCase)
+                && (probe[root.Length] == '\\' || probe[root.Length] == '/'))
+                return MountPrefix + m.Id + "\\" + probe[(root.Length + 1)..];
+        }
+        return null;
+    }
+
+    public string? GetParentPath(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return null;
+        if (LooksMounted(path))
+        {
+            var body = path[MountPrefix.Length..].TrimEnd('\\', '/');
+            int sep  = body.LastIndexOfAny(['\\', '/']);
+            return sep < 0 ? null : MountPrefix + body[..sep];   // at the mount root → This PC
+        }
+        try { return Directory.GetParent(path)?.FullName; } catch { return null; }
+    }
+
+    public string GetDisplayName(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return string.Empty;
+        if (LooksMounted(path))
+        {
+            var (mount, rest) = SplitMount(path);
+            if (rest.Length > 0) return LastSegment(rest);
+            return mount?.Label ?? path[MountPrefix.Length..];
+        }
+        var name = Path.GetFileName(path.TrimEnd('\\', '/'));
+        return name.Length > 0 ? name : path;   // a drive root has no file name — show it whole
+    }
+
+    public IReadOnlyList<(string Label, string Path)> GetBreadcrumbs(string path)
+    {
+        var crumbs = new List<(string, string)>();
+        if (string.IsNullOrEmpty(path)) return crumbs;
+
+        string built;
+        string remainder;
+
+        if (LooksMounted(path))
+        {
+            var (mount, rest) = SplitMount(path);
+            var id = mount?.Id ?? path[MountPrefix.Length..].Split('\\', '/')[0];
+            built     = MountPrefix + id;
+            remainder = rest;
+            crumbs.Add((mount?.Label ?? id, built));
+        }
+        else
+        {
+            var root = Path.GetPathRoot(path);
+            if (string.IsNullOrEmpty(root)) { crumbs.Add((path, path)); return crumbs; }
+            built     = root;
+            remainder = path.Length > root.Length ? path[root.Length..] : string.Empty;
+            crumbs.Add((root.TrimEnd(Path.DirectorySeparatorChar), root));
+        }
+
+        foreach (var part in remainder.Split(['\\', '/'], System.StringSplitOptions.RemoveEmptyEntries))
+        {
+            built = LooksMounted(built) ? built + "\\" + part : Path.Combine(built, part);
+            crumbs.Add((part, built));
+        }
+        return crumbs;
+    }
+
     // ── Path classification ──────────────────────────────────────────────────
 
     public bool IsContainer(string path)
-        => !string.IsNullOrEmpty(path) && File.Exists(path) && HandlerFor(Path.GetFileName(path)) is not null;
+    {
+        path = ToReal(path);
+        return !string.IsNullOrEmpty(path) && File.Exists(path) && HandlerFor(Path.GetFileName(path)) is not null;
+    }
 
     public bool IsContainerName(string fileName)
         => !string.IsNullOrEmpty(fileName) && HandlerFor(Path.GetFileName(fileName)) is not null;
 
     public ArchiveSummary? DescribeArchive(string containerPath)
     {
+        containerPath = ToReal(containerPath);
         if (!IsContainer(containerPath)) return null;
         var handler = HandlerFor(Path.GetFileName(containerPath))!;
         using var session = OpenSession(containerPath, Path.GetFileName(containerPath));
         return new ArchiveSummary(handler.Name, handler.Capabilities, session.Entries, session.Comment, session.IsEncrypted);
     }
 
+    /// <summary>Mount-aware wrapper: a mounted path is mapped to its real equivalent first, so a pure
+    /// mount hit yields <c>(realPath, null)</c> — "not inside an archive" — while
+    /// <c>::docs\a.zip\x.cs</c> still splits at the real archive exactly as the unmounted path would.</summary>
     public (string RealContainer, string? Inner) SplitOutermostContainer(string path)
+        => SplitRealContainer(ToReal(path));
+
+    private (string RealContainer, string? Inner) SplitRealContainer(string path)
     {
         if (string.IsNullOrEmpty(path)) return (path, null);
         // Fast path: a real file/dir with nothing virtual below it (the overwhelmingly common case).
@@ -139,12 +323,14 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
 
     public bool Exists(string path)
     {
+        path = ToReal(path);
         if (File.Exists(path) || Directory.Exists(path)) return true;
         return GetEntryInfo(path) is not null;
     }
 
     public bool IsDirectory(string path)
     {
+        path = ToReal(path);
         if (Directory.Exists(path)) return true;
         if (IsContainer(path)) return true;                    // a real archive browses like a folder
         var info = GetEntryInfo(path);
@@ -156,6 +342,7 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
 
     public long GetLength(string path)
     {
+        path = ToReal(path);
         if (File.Exists(path)) return new FileInfo(path).Length;
         var info = GetEntryInfo(path);
         if (info is null || info.IsDirectory) throw new FileNotFoundException("No such file.", path);
@@ -164,6 +351,7 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
 
     public VirtualEntry? GetEntryInfo(string path)
     {
+        path = ToReal(path);
         if (Directory.Exists(path))
         {
             var di = new DirectoryInfo(path);
@@ -196,6 +384,7 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
 
     public IReadOnlyList<VirtualEntry> EnumerateEntries(string path)
     {
+        path = ToReal(path);
         if (Directory.Exists(path)) return EnumerateRealDirectory(path);
 
         Resolved? resolved;
@@ -261,6 +450,7 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
 
     public Stream OpenRead(string path)
     {
+        path = ToReal(path);
         if (File.Exists(path))
             return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         var real = MaterializeFile(path);
@@ -268,11 +458,12 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
     }
 
     public Stream OpenRead(string path, int bufferSize, bool useAsync)
-        => new FileStream(MaterializeFile(path), FileMode.Open, FileAccess.Read, FileShare.ReadWrite,
+        => new FileStream(MaterializeFile(ToReal(path)), FileMode.Open, FileAccess.Read, FileShare.ReadWrite,
                           bufferSize, useAsync);
 
     public Stream OpenReadWrite(string path)
     {
+        path = ToReal(path);
         if (File.Exists(path) || !IsVirtual(path))
             return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
         var real = MaterializeFile(path);
@@ -280,16 +471,21 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
     }
 
     public byte[] ReadAllBytes(string path)
-        => File.Exists(path) ? File.ReadAllBytes(path) : File.ReadAllBytes(MaterializeFile(path));
+    {
+        path = ToReal(path);
+        return File.Exists(path) ? File.ReadAllBytes(path) : File.ReadAllBytes(MaterializeFile(path));
+    }
 
     public string ReadAllText(string path, Encoding? encoding = null)
     {
+        path = ToReal(path);
         var real = File.Exists(path) ? path : MaterializeFile(path);
         return encoding is null ? File.ReadAllText(real) : File.ReadAllText(real, encoding);
     }
 
     public void WriteAllBytes(string path, byte[] bytes)
     {
+        path = ToReal(path);
         if (!IsVirtual(path)) { File.WriteAllBytes(path, bytes); return; }
         Replace(path, bytes);
     }
@@ -305,6 +501,7 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
 
     public void Replace(string path, byte[] newContent)
     {
+        path = ToReal(path);
         if (!IsVirtual(path))
         {
             var dir = Path.GetDirectoryName(path);
@@ -384,6 +581,10 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
     /// file path — e.g. handing an in-archive entry to a shell "open" verb — can get one.</summary>
     public string MaterializeFile(string path)
     {
+        // A mounted path maps to a real file, so this returns it as-is: no extraction, no temp, no cache
+        // entry. That is what lets every shell-handoff site (RealizeForShell, file properties, Open With)
+        // treat a mount exactly like a real path without knowing mounts exist.
+        path = ToReal(path);
         if (File.Exists(path)) return path;
         var (container, inner) = SplitOutermostContainer(path);
         if (inner is null) throw new FileNotFoundException("Path does not resolve.", path);
@@ -556,6 +757,8 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
 
     public void ExtractAll(string containerPath, string destinationDir)
     {
+        containerPath  = ToReal(containerPath);
+        destinationDir = ToReal(destinationDir);
         var summary = DescribeArchive(containerPath)
             ?? throw new System.NotSupportedException("Not a recognised archive.");
         var handler = HandlerFor(Path.GetFileName(containerPath))!;
@@ -595,6 +798,8 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
 
     public void CreateArchive(string archivePath, string sourceDir)
     {
+        archivePath = ToReal(archivePath);
+        sourceDir   = ToReal(sourceDir);
         var name = Path.GetFileName(archivePath);
         var handler = HandlerFor(name) ?? throw new System.NotSupportedException($"No archive handler for '{name}'.");
         if (!handler.CanWrite(name))
@@ -625,6 +830,8 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
 
     public void Repackage(string sourcePath, string targetPath, ArchiveWriteOptions? options = null)
     {
+        sourcePath = ToReal(sourcePath);
+        targetPath = ToReal(targetPath);
         if (!IsContainer(sourcePath)) throw new System.NotSupportedException("Not a recognised archive.");
         var srcName = Path.GetFileName(sourcePath);
         var srcHandler = HandlerFor(srcName)!;
@@ -722,13 +929,15 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
 
     public void AddFiles(string containerPath, IReadOnlyList<(string SourcePath, string EntryName)> files)
     {
+        containerPath = ToReal(containerPath);
         if (!IsContainer(containerPath)) throw new System.NotSupportedException("Not a recognised archive.");
         var name = Path.GetFileName(containerPath);
         var handler = HandlerFor(name) ?? throw new System.NotSupportedException("No archive handler.");
         if (!handler.Capabilities.HasFlag(ArchiveCapabilities.Modify))
             throw new System.NotSupportedException($"{handler.Name} archives are read-only.");
 
-        var additions = files.ToDictionary(f => Normalize(f.EntryName), f => f.SourcePath, System.StringComparer.OrdinalIgnoreCase);
+        // Sources may themselves be mounted (dragging a file from a cloud folder into a zip).
+        var additions = files.ToDictionary(f => Normalize(f.EntryName), f => ToReal(f.SourcePath), System.StringComparer.OrdinalIgnoreCase);
         var rebuilt = new List<ArchiveWriteEntry>();
         var replaced = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
 

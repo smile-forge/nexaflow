@@ -60,7 +60,7 @@ public sealed class ExternalAppRegistry
         bool multi = selected.Count > 1;
 
         // All selected entries must be files (CustomAction targets files, not folders/drives).
-        if (selected.Any(e => e.IsDirectory || e.IsDrive)) return Array.Empty<CustomAction>();
+        if (selected.Any(e => e.IsDirectory || e.IsThisPcItem)) return Array.Empty<CustomAction>();
 
         var exts = selected
             .Select(e => Path.GetExtension(e.Name).TrimStart('.').ToLowerInvariant())

@@ -4,6 +4,7 @@ using System.Linq;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Ribbon;
 using Nexaflow.Features.WindowsFileSystem.Services;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
 
@@ -81,7 +82,9 @@ public sealed class FileActionRibbonPinHandler : IRibbonPinHandler, IRibbonItemE
             }
         }
 
-        var missing = paths.Where(p => !File.Exists(p) && !Directory.Exists(p)).ToList();
+        // Through the VFS: a pinned action on a mounted or in-archive path is still valid, and asking
+        // File.Exists about it would wrongly offer to delete the user's ribbon button.
+        var missing = paths.Where(p => !VirtualFileSystem.Instance.Exists(p)).ToList();
         if (missing.Count > 0)
         {
             context.ShowConfirmation(

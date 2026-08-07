@@ -81,7 +81,7 @@
             <TreeView.ItemTemplate>
                 <HierarchicalDataTemplate ItemsSource="{Binding Children}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="📁 " FontSize="11" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding Glyph}" FontSize="11" VerticalAlignment="Center"/>
                         <TextBlock Text="{Binding DisplayName}"
                                    VerticalAlignment="Center"
                                    Foreground="{StaticResource TextBrush}"/>

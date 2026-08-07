@@ -1,6 +1,7 @@
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ThisPc;
 using Nexaflow.IO.Common;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -292,6 +293,12 @@ public sealed class FeatureManager
 
     public IReadOnlyList<IRibbonPinHandler> GetRibbonPinHandlers(WorkspaceRuntime ctx)
         => Instantiate<IRibbonPinHandler>(FeatureCatalog.Instance.TypesImplementing<IRibbonPinHandler>(), ctx);
+
+    /// <summary>Contributors of extra "This PC" rows, for shell surfaces that show them outside the file
+    /// browser — the themed file and folder pickers, which have no <see cref="IShellServices"/> of their
+    /// own and so cannot go through <c>FileSystemFeatureRegistry</c>.</summary>
+    public IReadOnlyList<IThisPcItemProvider> GetThisPcItemProviders(WorkspaceRuntime ctx)
+        => Instantiate<IThisPcItemProvider>(FeatureCatalog.Instance.TypesImplementing<IThisPcItemProvider>(), ctx);
 
     /// <summary>Chat-bar key handlers (Up/Down history, Tab completion) for this workspace.</summary>
     public IReadOnlyList<IChatKeyHandler> GetChatKeyHandlers(WorkspaceRuntime ctx)

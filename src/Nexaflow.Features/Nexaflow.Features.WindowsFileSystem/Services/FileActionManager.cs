@@ -87,13 +87,21 @@ public sealed class FileActionManager
         if (selected.Count == 0) return [];
 
         var file = File;
-        bool anyDrives     = selected.Any(e => e.IsDrive);
+        bool anyDrives     = selected.Any(e => e.IsThisPcItem);
         bool multipleFiles = selected.Count(e => !e.IsDirectory) > 1 || selected.Count > 1;
+
+        // An action that launches the file in another program may need its neighbours — a dependency,
+        // a sidecar, an installer payload. Inside an archive only the one file can be produced, so such
+        // an action is withheld rather than offered and left to fail confusingly. A mount is fine: the
+        // whole subtree is on disk behind it.
+        bool fullyBacked = selected.All(e =>
+            VirtualFileSystem.Instance.GetBacking(e.FullPath) != VirtualBacking.Materialized);
 
         var filtered = new List<IFileAction>();
         for (int i = 0; i < file.Count; i++)
         {
             if (!canPerform[i]) continue;
+            if (!fullyBacked && file[i].RequiresFullyBackedPath) continue;
             if (FileMatches(file[i], selected, anyDrives, multipleFiles, includeOptional))
                 filtered.Add(file[i]);
         }
@@ -112,7 +120,7 @@ public sealed class FileActionManager
     {
         var folder = Folder;
         bool emptySelection = selected.Count == 0;
-        bool anyDrives      = selected.Any(e => e.IsDrive);
+        bool anyDrives      = selected.Any(e => e.IsThisPcItem);
         bool multipleItems  = selected.Count > 1;
 
         var filtered = new List<IFileAction>();

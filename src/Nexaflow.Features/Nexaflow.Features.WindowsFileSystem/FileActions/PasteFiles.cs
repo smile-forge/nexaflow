@@ -27,7 +27,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
         public bool PerformAction(string destinationFolder)
         {
-            NativeMethods.ClipboardPasteFiles(destinationFolder);
+            NativeMethods.ClipboardPasteFiles(Services.ShellPath.RealForMutation(destinationFolder));
             return true;
         }
 
@@ -36,7 +36,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
             // When called with multiple paths, use the first one as destination.
             foreach (var path in folderPaths)
             {
-                NativeMethods.ClipboardPasteFiles(path);
+                NativeMethods.ClipboardPasteFiles(Services.ShellPath.RealForMutation(path));
                 break;
             }
             return true;
