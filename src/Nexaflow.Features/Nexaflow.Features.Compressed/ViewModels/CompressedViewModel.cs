@@ -95,6 +95,10 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
 
     private void Load()
     {
+        // Every action that reaches here rewrites the archive (add, recompress), so the tree is rebuilt
+        // from scratch — the search's node references would point at entries that no longer exist.
+        ClearSearch();
+
         VisibleRows.Clear();
         _root = null;
 
@@ -214,6 +218,8 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
         {
             foreach (var child in node.Children)
             {
+                // An active "?" search narrows this to the hits and the folders on the way to them.
+                if (_searchVisible is not null && !_searchVisible.Contains(child)) continue;
                 VisibleRows.Add(child);
                 if (child.IsFolder && child.IsExpanded) Walk(child);
             }
