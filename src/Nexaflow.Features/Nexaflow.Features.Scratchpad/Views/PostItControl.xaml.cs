@@ -156,10 +156,23 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         }
     }
 
+    /// <summary>Paints (or clears) the page search's matches inside this note's body. The view-model has no
+    /// document to paint and the editor has no idea what a page search is, so the control is what joins
+    /// them — the same rendered-text painter the markdown viewer and the email body use.</summary>
+    private void ApplySearchHighlight(PostItViewModel vm)
+    {
+        if (vm.SearchMatcher is { } matcher) Editor.FindInRendered(matcher);
+        else                                 Editor.ClearSearch();
+    }
+
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         switch (e.PropertyName)
         {
+            case nameof(PostItViewModel.SearchMatcher):
+                if (sender is PostItViewModel searched) ApplySearchHighlight(searched);
+                break;
+
             case nameof(PostItViewModel.Shape):
             case nameof(PostItViewModel.Width):
             case nameof(PostItViewModel.Height):

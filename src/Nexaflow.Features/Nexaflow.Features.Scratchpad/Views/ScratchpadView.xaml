@@ -4,6 +4,7 @@
              xmlns:conv="clr-namespace:Nexaflow.Features.Scratchpad.Converters"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:local="clr-namespace:Nexaflow.Features.Scratchpad.Views"
+             xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="ScratchpadView"
              Background="{StaticResource BgBrush}"
              Focusable="True">
@@ -274,6 +275,7 @@
                     <Button Content="＋ New" Style="{StaticResource TbBtn}"
                             AutomationProperties.AutomationId="Scratchpad_AddNote"
                             Click="AddNote_Click" ToolTip="Add a new post-it (or double-click canvas)"/>
+                    <vcc:SearchStatusChip PagePrefix="Scratchpad" Margin="12,0,0,0"/>
                     <Button Content="⤡ Fit" Style="{StaticResource TbBtn}"
                             AutomationProperties.AutomationId="Scratchpad_ZoomToFit"
                             Click="ZoomToFit_Click" ToolTip="Zoom to fit all notes"/>
@@ -407,7 +409,19 @@
                         </ItemsControl.ItemContainerStyle>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <local:PostItControl/>
+                                <!-- A "?" search clears the notes that missed off the board: a mark on a
+                                     note two screens away is a mark nobody sees. -->
+                                <local:PostItControl>
+                                    <local:PostItControl.Style>
+                                        <Style TargetType="local:PostItControl">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsHiddenBySearch}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </local:PostItControl.Style>
+                                </local:PostItControl>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

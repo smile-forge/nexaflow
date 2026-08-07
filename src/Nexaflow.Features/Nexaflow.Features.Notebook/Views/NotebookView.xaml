@@ -4,22 +4,39 @@
              xmlns:local="clr-namespace:Nexaflow.Features.Notebook.Views"
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
              xmlns:ed="clr-namespace:Nexaflow.Visuals.Text.Editor;assembly=Nexaflow.Visuals.Text"
+             xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="NotebookView"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
 
+        <!-- A cell a "?" search matched: the mark says which cell, and (in a code cell) the wash inside
+             says which words. Nothing is filtered — a notebook is read in order. -->
+        <Style x:Key="CellHit" TargetType="Border">
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsSearchHit}" Value="True">
+                    <Setter Property="BorderThickness" Value="3,0,0,0"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource Search.Mark}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
         <!-- Markdown cell: rendered markdown, no chrome. -->
         <DataTemplate x:Key="MarkdownCellTemplate">
-            <md:SelectableMarkdownView Markdown="{Binding Source}"
-                                       Margin="14,6,14,6"
-                                       FitContentToWidth="True"
-                                       ScrollWideDiagrams="True"/>
+            <Border Style="{StaticResource CellHit}" Padding="8,0,0,0" Margin="6,0,0,0">
+                <md:SelectableMarkdownView Markdown="{Binding Source}"
+                                           Margin="14,6,14,6"
+                                           FitContentToWidth="True"
+                                           ScrollWideDiagrams="True"/>
+            </Border>
         </DataTemplate>
 
         <!-- Code cell: an execution gutter label + horizontally-scrolling highlighted source. -->
         <DataTemplate x:Key="CodeCellTemplate">
+          <Border Style="{StaticResource CellHit}" Padding="8,0,0,0" Margin="6,0,0,0">
             <Border Margin="14,6,14,6" Padding="10,8,10,8"
                     Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
@@ -32,10 +49,12 @@
                                FontFamily="Cascadia Code, Consolas, monospace" FontSize="11"
                                Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Top"/>
                     <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                        <ed:CodeBlockView Code="{Binding Source}" GrammarId="{Binding GrammarId}"/>
+                        <ed:CodeBlockView Code="{Binding Source}" GrammarId="{Binding GrammarId}"
+                                          Highlights="{Binding SearchSpans}"/>
                     </ScrollViewer>
                 </Grid>
             </Border>
+          </Border>
         </DataTemplate>
 
         <local:NotebookCellTemplateSelector x:Key="CellSelector"
@@ -50,9 +69,20 @@
         </Grid.ColumnDefinitions>
 
         <!-- Cells -->
-        <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,8,0,8">
-            <ItemsControl ItemsSource="{Binding Cells}" ItemTemplateSelector="{StaticResource CellSelector}"/>
+        <ScrollViewer Grid.Column="0" x:Name="CellScroller"
+                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,8,0,8">
+            <ItemsControl x:Name="CellList" ItemsSource="{Binding Cells}"
+                          ItemTemplateSelector="{StaticResource CellSelector}"/>
         </ScrollViewer>
+
+        <!-- The "?" chip floats over the cells: the page has no chrome of its own to put it in. -->
+        <Border Grid.Column="0" HorizontalAlignment="Right" VerticalAlignment="Top"
+                Margin="0,8,18,0" Padding="8,3" CornerRadius="4"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                Visibility="{Binding IsSearchActive, Converter={StaticResource BoolToVis}}">
+            <vcc:SearchStatusChip PagePrefix="Notebook"/>
+        </Border>
 
         <!-- Outline (code structure per cell) -->
         <Border Grid.Column="1" Width="320" Visibility="{Binding HasOutline, Converter={StaticResource BoolToVis}}"

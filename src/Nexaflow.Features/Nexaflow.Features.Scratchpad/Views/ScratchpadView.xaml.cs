@@ -47,6 +47,16 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
         Loaded   += (_, _) => { Focus(); ApplyTransform(); };
         Unloaded += (_, _) => vm.Dispose();
 
+        // A "?" search asks for a note to be brought into view; the arithmetic is the view-model's, the
+        // viewport size is ours.
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(ScratchpadViewModel.ScrollToNote)) return;
+            if (vm.ScrollToNote is not { } note) return;
+            vm.CenterOnWithViewport(note, CanvasHost.ActualWidth, CanvasHost.ActualHeight);
+            ApplyTransform();
+        };
+
         vm.Notes.CollectionChanged += (_, e) =>
         {
             UpdateMiniMap();
