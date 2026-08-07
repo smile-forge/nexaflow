@@ -18,14 +18,29 @@ namespace Nexaflow.Tests.Features.Architecture;
 [NoCoverage("architecture guard — a rule about providers, not a feature behaviour")]
 public class ThisPcProviderRulesTests
 {
+    /// <summary>
+    /// Every provider shipped by a feature. Loaded from the DLLs beside the test exe rather than from
+    /// <c>AppDomain.CurrentDomain.GetAssemblies()</c>: a feature assembly is only in that list once some
+    /// other test has touched a type in it, so under parallel execution this guard could quietly check
+    /// nothing at all. Same approach as <c>ArchitectureRulesTests</c>.
+    /// </summary>
     private static IReadOnlyList<Type> ProviderTypes() =>
     [
-        .. AppDomain.CurrentDomain.GetAssemblies()
-            .Where(a => a.GetName().Name?.StartsWith("Nexaflow.Features.", StringComparison.Ordinal) == true)
+        .. System.IO.Directory.GetFiles(AppContext.BaseDirectory, "Nexaflow.Features.*.dll")
+            .Select(p => Assembly.Load(System.IO.Path.GetFileNameWithoutExtension(p)))
             .SelectMany(a => { try { return a.GetTypes(); } catch { return []; } })
             .Where(t => t is { IsAbstract: false, IsInterface: false }
                         && typeof(IThisPcItemProvider).IsAssignableFrom(t))
     ];
+
+    [TestMethod]
+    public void TheGuardIsActuallyLookingAtSomething()
+    {
+        // Without this, the two rules below pass vacuously the day the discovery above breaks.
+        Assert.IsTrue(ProviderTypes().Count > 0,
+                      "no IThisPcItemProvider found in any feature assembly — the scan is broken, "
+                      + "not the codebase");
+    }
 
     /// <summary>The parameter kinds the feature DI knows how to supply.</summary>
     private static bool IsResolvable(ParameterInfo p)
