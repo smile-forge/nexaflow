@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:avalon="http://icsharpcode.net/sharpdevelop/avalonedit"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="LogView"
              Background="{StaticResource BgBrush}">
 
@@ -395,6 +396,12 @@
                            Visibility="{Binding IsFilterActive, Converter={StaticResource BoolVis}}">
                     <Run Text="Filter: "/><Run Text="{Binding FilterRegex, Mode=OneWay}"/>
                 </TextBlock>
+
+                <!-- What a "?" search found. Sits beside the filter indicator because both answer
+                     "why does the log look like this" — but they are independent layers. -->
+                <Separator Style="{StaticResource TbSep}"
+                           Visibility="{Binding IsSearchActive, Converter={StaticResource BoolVis}}"/>
+                <vc:SearchStatusChip PagePrefix="Log" VerticalAlignment="Center"/>
 
             </StackPanel>
         </Border>
