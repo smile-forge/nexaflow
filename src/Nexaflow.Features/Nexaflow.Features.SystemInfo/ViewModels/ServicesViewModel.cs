@@ -57,11 +57,21 @@ public sealed partial class ServicesViewModel : ObservableObject, IPageViewModel
         Refresh();
     }
 
-    partial void OnFilterTextChanged(string value) => ServicesView.Refresh();
+    partial void OnFilterTextChanged(string value)
+    {
+        // Typing over the box drops whatever "?" put behind it — the text on screen is always what is
+        // being filtered by.
+        if (!_suppressFilterReset) ClearSearchState();
+        ServicesView.Refresh();
+    }
 
+    /// <summary>Most specific first: an agent's pinned set, then a compiled "?" query, then the typed text.</summary>
     private bool MatchesFilter(object item)
     {
         if (item is not ServiceRow r) return false;
+        if (_pinnedNames is not null)    return _pinnedNames.Contains(r.Name);
+        if (_filterRequest is not null)  return _filterRequest.Matches(r.Name)
+                                             || _filterRequest.Matches(r.DisplayName);
         if (string.IsNullOrWhiteSpace(FilterText)) return true;
         var f = FilterText.Trim();
         return r.DisplayName.Contains(f, StringComparison.OrdinalIgnoreCase)

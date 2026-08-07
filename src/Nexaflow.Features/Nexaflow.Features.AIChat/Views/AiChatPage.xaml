@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:Nexaflow.Features.AIChat.ViewModels"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
@@ -113,6 +114,9 @@
                           ToolTip="Filter by date"
                           ItemsSource="{Binding Filters}"
                           SelectedItem="{Binding SelectedFilter}"/>
+                <!-- Beside the date filter, because it replaces it: a "?" search spans every conversation
+                     regardless of the range picked here. -->
+                <vcc:SearchStatusChip PagePrefix="AiChat" Margin="16,0,0,0"/>
             </StackPanel>
             <Button Grid.Column="1"
                     Style="{StaticResource RibbonButton}" Padding="12,6"

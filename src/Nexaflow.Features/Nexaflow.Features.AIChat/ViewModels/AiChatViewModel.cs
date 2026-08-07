@@ -58,7 +58,13 @@ public partial class AiChatViewModel : ObservableObject, IPageViewModel
         _ = RefreshAsync();
     }
 
-    partial void OnSelectedFilterChanged(string value) => ApplyFilter();
+    partial void OnSelectedFilterChanged(string value)
+    {
+        // Picking a date range is a different question from the one "?" asked; ClearSearch re-applies the
+        // filter itself, so this only rebuilds when there was no search to drop.
+        if (IsSearchFiltering) ClearSearch();
+        else                   ApplyFilter();
+    }
 
     /// <summary>A conversation's artifact (analysis) was saved — reload that row so its summary appears.
     /// May arrive on a background thread, so marshal to the UI before touching <see cref="Items"/>.</summary>
@@ -118,16 +124,14 @@ public partial class AiChatViewModel : ObservableObject, IPageViewModel
         ApplyFilter();
     }
 
-    /// <summary>Rebuilds <see cref="Items"/> from <see cref="_allRecords"/> for the selected date range.</summary>
+    /// <summary>Rebuilds <see cref="Items"/> from <see cref="_allRecords"/> — for the selected date range,
+    /// or for a running "?" search, whichever is deciding (see <c>RecordsToList</c>).</summary>
     private void ApplyFilter()
     {
         AnalysisOverlayItem = null;
-        var cutoff = FilterCutoff();
 
         Items.Clear();
-        foreach (var r in _allRecords
-            .Where(r => ConversationPurgeTask.LastActivity(r) >= cutoff)
-            .OrderByDescending(ConversationPurgeTask.LastActivity))
+        foreach (var r in RecordsToList().OrderByDescending(ConversationPurgeTask.LastActivity))
         {
             var row = new ConversationRowViewModel(r, _aiService, _config.IsAnalysisEnabled);
             Items.Add(row);

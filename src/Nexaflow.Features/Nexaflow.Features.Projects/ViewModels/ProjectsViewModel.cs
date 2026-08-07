@@ -99,6 +99,10 @@ public partial class ProjectsViewModel : ObservableObject, IPageViewModel
 
     private void Load()
     {
+        // A reload replaces every row — including on a bucket switch, where a search of the old bucket
+        // would describe projects that are no longer on screen.
+        ClearSearch();
+
         Projects.Clear();
         SelectedProject = null;
 

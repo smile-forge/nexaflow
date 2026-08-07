@@ -51,6 +51,10 @@ public sealed partial class SystemInfoViewModel : ObservableObject, IPageViewMod
 
     private void Populate(SystemInfoSnapshot snapshot)
     {
+        // A re-gather replaces every fact object, so the marks a "?" search left behind belong to rows
+        // that no longer exist — the chip has to go with them.
+        ClearSearch();
+
         Sections.Clear();
         foreach (var section in snapshot.Sections) Sections.Add(section);
         _contextText = snapshot.ToPlainText();

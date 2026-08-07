@@ -80,9 +80,21 @@ public sealed partial class EnvironmentVariablesViewModel : ObservableObject, IP
         Refresh();
     }
 
-    partial void OnFilterTextChanged(string value) => VariablesView.Refresh();
+    partial void OnFilterTextChanged(string value)
+    {
+        // Typing over the box drops whatever "?" put behind it — the text on screen is always what is
+        // being filtered by.
+        if (!_suppressFilterReset) ClearSearchState();
+        VariablesView.Refresh();
+    }
 
-    partial void OnSelectedScopeChanged(EnvScope value) => PopulateScope();
+    partial void OnSelectedScopeChanged(EnvScope value)
+    {
+        // The page shows one scope at a time, so a search of the old one describes rows that are no
+        // longer on screen.
+        ClearSearchCommand.Execute(null);
+        PopulateScope();
+    }
 
     partial void OnSelectedVariableChanged(EnvVarRow? value) => EditValue = value?.Value ?? "";
 
@@ -92,9 +104,12 @@ public sealed partial class EnvironmentVariablesViewModel : ObservableObject, IP
         RebuildEntries();
     }
 
+    /// <summary>Most specific first: an agent's pinned set, then a compiled "?" query, then the typed text.</summary>
     private bool MatchesFilter(object item)
     {
         if (item is not EnvVarRow r) return false;
+        if (_pinnedNames is not null)   return _pinnedNames.Contains(r.Name);
+        if (_filterRequest is not null) return _filterRequest.Matches(r.Name);
         if (string.IsNullOrWhiteSpace(FilterText)) return true;
         return r.Name.Contains(FilterText.Trim(), StringComparison.OrdinalIgnoreCase);
     }
