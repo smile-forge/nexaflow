@@ -153,6 +153,10 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         var rec = all.FirstOrDefault(c => c.Id == conversationId);
         if (rec is null) return;
 
+        // Hit ids are thread positions, so loading a different conversation into this tab invalidates
+        // every one of them.
+        ClearSearch();
+
         Conversation = rec;
         Title        = rec.Title;
         Messages.Clear();
@@ -502,6 +506,10 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     /// activity line, approvals) are session-only and there is no turn in flight when this runs.</summary>
     private void RebuildTimeline()
     {
+        // Rewinding renumbers the thread, so the search's positions would land on bubbles that were
+        // never matched.
+        ClearSearch();
+
         Timeline.Clear();
         foreach (var m in Messages)
             Timeline.Add(m.IsUser ? new TimelineUserMessage(m) : (object)new TimelineAssistantMessage(m.Text));

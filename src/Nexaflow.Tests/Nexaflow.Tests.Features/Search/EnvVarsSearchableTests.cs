@@ -12,12 +12,11 @@ using NSubstitute;
 namespace Nexaflow.Tests.Features.Search;
 
 /// <summary>
-/// The Environment Variables page answering <c>?</c> over a seeded name list.
+/// The Environment Variables page answering <c>?</c> over a seeded list.
 /// <para>
-/// What is worth pinning beyond the shared contract: "?" drives the filter box the page already had, over
-/// the one field that box filters by — the <em>name</em>. A variable whose value carries the term is not a
-/// hit, and that is the point: one box filtering by two different rules depending on who filled it in is
-/// how a page comes to give two answers to one query.
+/// What is worth pinning beyond the shared contract: a variable matches on its name <em>or its value</em>
+/// — "which one still has the old SDK path in it" is the question this page exists to answer — and the
+/// typed box matches the same two fields, so the same string means the same thing wherever it is typed.
 /// </para>
 /// </summary>
 [TestClass]
@@ -27,9 +26,9 @@ public class EnvVarsSearchableTests : SearchableContentConformanceTests
     protected override string LiteralTermInContent => "alpha42";
     protected override string RegexOnlyPattern     => @"alpha\d+";
 
-    private const string ByName    = "alpha42_home";   // matches on the variable name
-    private const string ValueOnly = "PATH";           // carries the term in its VALUE only
-    private const string Quiet     = "TEMP";
+    private const string ByName  = "alpha42_home";   // matches on the variable name
+    private const string ByValue = "PATH";           // carries the term in its VALUE only
+    private const string Quiet   = "TEMP";
 
     private static IShellServices RunningShell()
     {
@@ -48,9 +47,9 @@ public class EnvVarsSearchableTests : SearchableContentConformanceTests
         // The substitute never runs the queued gather, so this machine's real environment never reaches
         // the page and the three rows below are the whole list.
         var vm = new EnvironmentVariablesViewModel(RunningShell());
-        vm.Variables.Add(new EnvVarRow(ByName,    @"C:\tools",              EnvScope.User));
-        vm.Variables.Add(new EnvVarRow(ValueOnly, @"C:\alpha42\bin;C:\bin", EnvScope.User));
-        vm.Variables.Add(new EnvVarRow(Quiet,     @"C:\temp",               EnvScope.User));
+        vm.Variables.Add(new EnvVarRow(ByName,  @"C:\tools",              EnvScope.User));
+        vm.Variables.Add(new EnvVarRow(ByValue, @"C:\alpha42\bin;C:\bin", EnvScope.User));
+        vm.Variables.Add(new EnvVarRow(Quiet,   @"C:\temp",               EnvScope.User));
         return vm;
     }
 
@@ -71,21 +70,35 @@ public class EnvVarsSearchableTests : SearchableContentConformanceTests
     // ── Env-vars-specific behaviour beyond the shared contract ────────────────
 
     [TestMethod]
-    public void AVariableMatchesOnItsName_AndNotOnItsValue() => WithPage(async page =>
+    public void AVariableMatchesOnItsName_OrOnItsValue() => WithPage(async page =>
     {
         var outcome = await page.SearchAsync(Query("alpha42"), display: false, default);
 
-        CollectionAssert.AreEqual(new[] { ByName }, outcome.Hits.Select(h => h.Id).ToArray(),
-            "the box this drives is the name list; 'which value mentions alpha42' is a different question, " +
-            "and get_environment_variable is what answers it");
+        CollectionAssert.AreEquivalent(new[] { ByName, ByValue }, outcome.Hits.Select(h => h.Id).ToArray(),
+            "'which one still has the old path in it' is the question this page exists to answer, and " +
+            "the names alone cannot");
     });
 
     [TestMethod]
-    public void TheHitPreviewCarriesTheValue_SoTheAgentNeedNotAskAgain() => WithPage(async page =>
+    public void TheTypedBoxMatchesTheSameTwoFields_SoOneStringMeansOneThing() => WithPage(page =>
+    {
+        var vm = (EnvironmentVariablesViewModel)page;
+
+        vm.FilterText = "alpha42";
+
+        CollectionAssert.AreEquivalent(new[] { ByName, ByValue }, Visible(vm),
+            "a box filtering by a narrower rule than \"?\" would give the same string two different answers");
+        return Task.CompletedTask;
+    });
+
+    [TestMethod]
+    public void TheHitPreviewCarriesTheValue_SoAValueMatchExplainsItself() => WithPage(async page =>
     {
         var outcome = await page.SearchAsync(Query("alpha42"), display: false, default);
 
-        StringAssert.Contains(outcome.Hits[0].Preview ?? "", @"C:\tools");
+        var byValue = outcome.Hits.Single(h => h.Id == ByValue);
+        StringAssert.Contains(byValue.Preview ?? "", @"C:\alpha42\bin",
+            "a row whose value matched looks like any other in a list of names");
     });
 
     [TestMethod]
@@ -95,10 +108,10 @@ public class EnvVarsSearchableTests : SearchableContentConformanceTests
 
         await vm.SearchAsync(Query("alpha42"), display: true, default);
 
-        CollectionAssert.AreEqual(new[] { ByName }, Visible(vm));
+        CollectionAssert.AreEquivalent(new[] { ByName, ByValue }, Visible(vm));
         Assert.AreEqual("alpha42", vm.FilterText,
             "the query is shown in the box it filtered by, so an AI-run search is visible and dismissible");
-        Assert.AreEqual(1, vm.SearchMatchCount);
+        Assert.AreEqual(2, vm.SearchMatchCount);
     });
 
     [TestMethod]

@@ -110,7 +110,7 @@
                      CaretBrush="{StaticResource TextBrush}"
                      BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                      Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"
-                     ToolTip="Filter by name"/>
+                     ToolTip="Filter by name or value"/>
 
             <Button Grid.Column="4" Content="Add" Command="{Binding AddNewCommand}" Style="{StaticResource ActionButton}"/>
             <Button Grid.Column="5" Content="Refresh" Command="{Binding RefreshCommand}" Style="{StaticResource ActionButton}"/>

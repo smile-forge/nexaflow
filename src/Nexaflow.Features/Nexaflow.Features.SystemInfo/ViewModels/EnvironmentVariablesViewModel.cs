@@ -104,14 +104,23 @@ public sealed partial class EnvironmentVariablesViewModel : ObservableObject, IP
         RebuildEntries();
     }
 
-    /// <summary>Most specific first: an agent's pinned set, then a compiled "?" query, then the typed text.</summary>
+    /// <summary>
+    /// Most specific first: an agent's pinned set, then a compiled "?" query, then the typed text.
+    /// <para>
+    /// All three judge the name <b>and the value</b>. A variable's value is the part people are looking
+    /// for — which one has the stale SDK path in it — and a box that filtered by a narrower rule than "?"
+    /// would have the same string give two different answers depending on where it was typed.
+    /// </para>
+    /// </summary>
     private bool MatchesFilter(object item)
     {
         if (item is not EnvVarRow r) return false;
         if (_pinnedNames is not null)   return _pinnedNames.Contains(r.Name);
-        if (_filterRequest is not null) return _filterRequest.Matches(r.Name);
+        if (_filterRequest is not null) return _filterRequest.Matches(r.Name) || _filterRequest.Matches(r.Value);
         if (string.IsNullOrWhiteSpace(FilterText)) return true;
-        return r.Name.Contains(FilterText.Trim(), StringComparison.OrdinalIgnoreCase);
+        var f = FilterText.Trim();
+        return r.Name.Contains(f, StringComparison.OrdinalIgnoreCase)
+            || r.Value.Contains(f, StringComparison.OrdinalIgnoreCase);
     }
 
     [RelayCommand]

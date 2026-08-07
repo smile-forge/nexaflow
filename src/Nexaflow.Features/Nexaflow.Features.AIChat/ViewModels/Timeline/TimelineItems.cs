@@ -22,13 +22,20 @@ public sealed partial class TimelineUserMessage(ConversationMessage message) : O
     /// discard everything after it, which is a different (and much sharper) gesture.</summary>
     [ObservableProperty] private bool _isLast;
 
+    /// <summary>True when a "?" page search matched this message — see ConversationViewModel.Search.</summary>
+    [ObservableProperty] private bool _isSearchHit;
+
     public void RefreshTimestamp() => OnPropertyChanged(nameof(TimestampDisplay));
 }
 
-/// <summary>A committed assistant message bubble (markdown).</summary>
-public sealed class TimelineAssistantMessage(string text)
+/// <summary>A committed assistant message bubble (markdown). Observable only so a "?" search can mark it
+/// in place — a conversation is read, not filtered, so marking is how a result is shown.</summary>
+public sealed partial class TimelineAssistantMessage(string text) : ObservableObject
 {
     public string Text => text;
+
+    /// <summary>True when a "?" page search matched this message — see ConversationViewModel.Search.</summary>
+    [ObservableProperty] private bool _isSearchHit;
 }
 
 /// <summary>A muted, session-only line — e.g. the model finished a turn without saying anything. Never

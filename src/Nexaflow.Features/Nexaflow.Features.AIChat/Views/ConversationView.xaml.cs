@@ -78,6 +78,24 @@ public partial class ConversationView : UserControl, IPageView
 
         if (e.PropertyName == nameof(ConversationViewModel.IsPreviewOpen))
             Dispatcher.Invoke(UpdatePreviewColumn);
+
+        if (e.PropertyName == nameof(ConversationViewModel.ScrollToTimelineIndex))
+            Dispatcher.Invoke(ScrollToSearchHit);
+    }
+
+    /// <summary>Brings the search's current hit into view. The thread's ItemsControl isn't virtualized, so
+    /// its container exists for every message — but it is generated on layout, hence the Loaded-priority
+    /// post rather than reading it straight away.</summary>
+    private void ScrollToSearchHit()
+    {
+        var index = ViewModel.ScrollToTimelineIndex;
+        if (index < 0) return;
+
+        Dispatcher.InvokeAsync(() =>
+        {
+            if (MessageList.ItemContainerGenerator.ContainerFromIndex(index) is FrameworkElement container)
+                container.BringIntoView();
+        }, System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     /// <summary>The width the preview had when last open, so a user's drag survives close/reopen within

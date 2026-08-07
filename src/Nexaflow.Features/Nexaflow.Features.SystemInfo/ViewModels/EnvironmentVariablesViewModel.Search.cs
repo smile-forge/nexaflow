@@ -7,14 +7,19 @@ using Nexaflow.Search;
 namespace Nexaflow.Features.SystemInfo.ViewModels;
 
 /// <summary>
-/// The Environment Variables page as an <see cref="ISearchable"/> page: "?" drives the filter box the tab
-/// already had, over the same field it already filters by — the variable name — but parsed by the shared
-/// query parser, so regex, quoted phrases and prefix wildcards mean here what they mean everywhere else.
+/// The Environment Variables page as an <see cref="ISearchable"/> page: "?" matches a variable's <b>name
+/// or its value</b> and drives the filter box the tab already had — parsed by the shared query parser, so
+/// regex, quoted phrases and prefix wildcards mean here what they mean everywhere else.
 /// <para>
-/// Name and not value, because the box it drives is the name list: one box filtering by two different
-/// rules depending on who filled it in is how a page comes to give two different answers to the same
-/// query. "Which variable's value mentions python" is a real question, and a different one — the
-/// <c>get_environment_variable</c> tool answers it against the full value.
+/// The value is in because it is what people are looking for: "which variable still has the old SDK path
+/// in it" is the question this page exists to answer, and the names alone cannot. The typed box matches
+/// the same two fields for the same reason — one box filtering by a narrower rule than "?" would have the
+/// same string give two different answers depending on where it was typed.
+/// </para>
+/// <para>
+/// A row whose <em>value</em> matched looks like any other in a list of names, which is why the hit
+/// preview carries the value: the agent can see why it matched without a second call, and selecting the
+/// row shows it to the user.
 /// </para>
 /// <para>
 /// Scoped to the scope on screen. The page shows User or Machine, never both, so searching the other one
@@ -44,14 +49,15 @@ public sealed partial class EnvironmentVariablesViewModel : ISearchable
     // ── ISearchable ───────────────────────────────────────────────────────────
 
     public string SearchTargetDescription =>
-        $"the {SelectedScope} environment variables on this machine, by variable name";
+        $"the {SelectedScope} environment variables on this machine, by variable name or value";
 
     public Task<SearchOutcome> SearchAsync(SearchRequest request, bool display, CancellationToken ct)
     {
-        // Variables have names, not files — a glob term has nothing here it could constrain.
+        // Variables have names, not files — a glob term has nothing here it could constrain. (A PATH entry
+        // looks like a filename, but it is one value among many inside one variable, not the row's identity.)
         if (request.HasNameOnlyTerms)
             return Task.FromResult(SearchOutcome.Unsupported(
-                "Filename filters don't apply to environment variables — search by variable name."));
+                "Filename filters don't apply to environment variables — search by variable name or value."));
 
         if (!request.TryValidate(out var invalid))
             return Task.FromResult(SearchOutcome.Unsupported($"Invalid regular expression: {invalid}"));
@@ -66,7 +72,7 @@ public sealed partial class EnvironmentVariablesViewModel : ISearchable
 
     private SearchOutcome RunSearch(SearchRequest request, bool display)
     {
-        var matches = Variables.Where(r => request.Matches(r.Name)).ToList();
+        var matches = Variables.Where(r => request.Matches(r.Name) || request.Matches(r.Value)).ToList();
 
         if (display) ApplyFilter(request, null, SearchSyntax.Format(request), matches.Count);
 
