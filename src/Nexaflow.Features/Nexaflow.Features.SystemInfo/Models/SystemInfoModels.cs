@@ -1,3 +1,5 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+
 namespace Nexaflow.Features.SystemInfo.Models;
 
 /// <summary>Advisory health of a single fact — drives the value's colour in the dashboard.</summary>
@@ -13,8 +15,20 @@ public enum SystemInfoStatus
     Bad,
 }
 
-/// <summary>One label → value fact within a <see cref="SystemInfoSection"/>.</summary>
-public sealed record SystemInfoItem(string Label, string Value, SystemInfoStatus Status = SystemInfoStatus.Neutral);
+/// <summary>
+/// One label → value fact within a <see cref="SystemInfoSection"/>. Observable rather than a plain record
+/// only so a "?" page search can mark it in place: the dashboard has no list to filter and no selection to
+/// move, so marking the card row IS how a result is shown.
+/// </summary>
+public sealed partial class SystemInfoItem(
+    string label, string value, SystemInfoStatus status = SystemInfoStatus.Neutral) : ObservableObject
+{
+    public string Label { get; } = label;
+    public string Value { get; } = value;
+    public SystemInfoStatus Status { get; } = status;
+
+    [ObservableProperty] private bool _isSearchHit;
+}
 
 /// <summary>A titled group of related facts (e.g. "Operating System"), shown as one dashboard card.</summary>
 public sealed class SystemInfoSection(string title, string icon, double width = 380)

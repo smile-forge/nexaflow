@@ -77,6 +77,9 @@ public partial class ProjectDetailViewModel : ObservableObject, IPageViewModel
 
     private void Load()
     {
+        // A reload replaces every backlog row, so a search's filter would be holding ids that are gone.
+        ClearSearch();
+
         _loading = true;
         try
         {

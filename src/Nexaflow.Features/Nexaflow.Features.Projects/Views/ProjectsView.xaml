@@ -5,6 +5,7 @@
              xmlns:pv="clr-namespace:Nexaflow.Features.Projects.Views"
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="ProjectsView"
              Background="{StaticResource BgBrush}">
 
@@ -169,12 +170,15 @@
                                          IsChecked="{Binding SelectedBucket, Converter={StaticResource EnumMatch},
                                                      ConverterParameter={x:Static vm:ProjectBucket.Archive}, Mode=TwoWay}"/>
                         </StackPanel>
-                        <Button HorizontalAlignment="Right" VerticalAlignment="Center"
-                                Style="{StaticResource IconButton}"
-                                AutomationProperties.AutomationId="Projects_Refresh"
-                                ToolTip="Refresh" Command="{Binding RefreshCommand}">
-                            <TextBlock Text="↻" FontSize="14"/>
-                        </Button>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                                    VerticalAlignment="Center">
+                            <vcc:SearchStatusChip PagePrefix="Projects" Margin="0,0,8,0"/>
+                            <Button Style="{StaticResource IconButton}"
+                                    AutomationProperties.AutomationId="Projects_Refresh"
+                                    ToolTip="Refresh" Command="{Binding RefreshCommand}">
+                                <TextBlock Text="↻" FontSize="14"/>
+                            </Button>
+                        </StackPanel>
                     </Grid>
                 </Border>
 

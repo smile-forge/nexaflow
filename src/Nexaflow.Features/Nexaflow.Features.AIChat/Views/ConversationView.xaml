@@ -7,6 +7,7 @@
              xmlns:m="clr-namespace:Nexaflow.Features.Common;assembly=Nexaflow.Features.Common"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
+             xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
@@ -19,9 +20,20 @@
 
         <DataTemplate DataType="{x:Type tl:TimelineUserMessage}">
             <StackPanel HorizontalAlignment="Right" MaxWidth="720">
-                <Border Background="{StaticResource UserBubbleBrush}"
-                        CornerRadius="14,14,4,14" Padding="14,10" Margin="0,6,0,0"
+                <!-- A "?" search marks bubbles in place: a thread is read in order, so hiding the ones
+                     that missed would leave replies with nothing to reply to. -->
+                <Border CornerRadius="14,14,4,14" Padding="14,10" Margin="0,6,0,0"
                         HorizontalAlignment="Right">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="{DynamicResource UserBubbleBrush}"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSearchHit}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource Search.RowWash}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
                     <md:SelectableMarkdownView Markdown="{Binding Text}"/>
                 </Border>
 
@@ -68,10 +80,19 @@
         </DataTemplate>
 
         <DataTemplate DataType="{x:Type tl:TimelineAssistantMessage}">
-            <Border Background="{StaticResource Surface2Brush}"
-                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                     CornerRadius="14,14,14,4" Padding="14,10" Margin="0,6"
                     MaxWidth="720" HorizontalAlignment="Left">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="{DynamicResource Surface2Brush}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsSearchHit}" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource Search.RowWash}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <md:SelectableMarkdownView Markdown="{Binding Text}"/>
             </Border>
         </DataTemplate>
@@ -540,12 +561,15 @@
                 Background="{StaticResource Surface2Brush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,0">
-            <TextBlock x:Name="TokenFooter"
-                       VerticalAlignment="Center"
-                       HorizontalAlignment="Right"
-                       Margin="20,0"
-                       FontSize="11"
-                       Foreground="{StaticResource TextMutedBrush}"/>
+            <Grid Margin="20,0">
+                <!-- Left of the token count: the chip is about the thread, the count about the budget. -->
+                <vcc:SearchStatusChip PagePrefix="Conversation" HorizontalAlignment="Left"/>
+                <TextBlock x:Name="TokenFooter"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Right"
+                           FontSize="11"
+                           Foreground="{StaticResource TextMutedBrush}"/>
+            </Grid>
         </Border>
 
         <!-- Drag handle between the thread and the preview. Only hit-testable while the preview is open. -->

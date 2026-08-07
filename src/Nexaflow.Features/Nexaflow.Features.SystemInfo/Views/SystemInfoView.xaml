@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:Nexaflow.Features.SystemInfo.Converters"
              xmlns:model="clr-namespace:Nexaflow.Features.SystemInfo.Models"
+             xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="SystemInfoView"
              Background="{StaticResource BgBrush}">
 
@@ -12,6 +13,16 @@
         <!-- One fact row: label on the left, value (status-coloured) on the right. -->
         <DataTemplate x:Key="ItemTemplate" DataType="{x:Type model:SystemInfoItem}">
             <Grid Margin="0,3">
+                <!-- A "?" search marks facts in place rather than filtering — the wash is the result. -->
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsSearchHit}" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource Search.RowWash}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="150"/>
                     <ColumnDefinition Width="*"/>
@@ -95,6 +106,9 @@
                     </TextBlock.Style>
                 </TextBlock>
             </StackPanel>
+
+            <vcc:SearchStatusChip Grid.Column="1" PagePrefix="SysInfo"
+                                  HorizontalAlignment="Right" Margin="0,0,12,0"/>
 
             <Button Grid.Column="2" Content="Refresh" Command="{Binding RefreshCommand}"
                     AutomationProperties.AutomationId="SysInfo_Refresh"

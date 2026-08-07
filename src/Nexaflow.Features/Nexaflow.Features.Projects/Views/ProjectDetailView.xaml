@@ -5,6 +5,7 @@
              xmlns:pv="clr-namespace:Nexaflow.Features.Projects.Views"
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="ProjectDetailView"
              Background="{StaticResource BgBrush}">
 
@@ -281,7 +282,11 @@
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
                             <StackPanel Grid.Row="0" Margin="16,14,16,8">
-                                <TextBlock Text="BACKLOG" Style="{StaticResource SectionLabel}"/>
+                                <Grid>
+                                    <TextBlock Text="BACKLOG" Style="{StaticResource SectionLabel}"/>
+                                    <!-- Beside the label it narrows: "?" filters this board and nothing else. -->
+                                    <vcc:SearchStatusChip PagePrefix="ProjectDetail" HorizontalAlignment="Right"/>
+                                </Grid>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
