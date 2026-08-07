@@ -25,6 +25,7 @@ public static class ThisPcItemSet
     /// types from it rather than each running their own <c>DriveInfo.GetDrives()</c> loop with their own
     /// labelling, which is how they previously drifted into disagreeing about names and icons.
     /// </summary>
+    /// <param name="providers">The contributors to ask. Each is queried once; one that throws is skipped.</param>
     /// <param name="readyDrivesOnly">Skip drives that aren't ready. The pickers do — you cannot browse
     /// an empty optical bay — while the browser lists them so it can show the unavailable badge. It also
     /// decides how much of the label is safe to read: see <see cref="DriveLabel"/>.</param>
@@ -139,9 +140,12 @@ public static class ThisPcItemSet
     /// </list>
     /// A provider that throws is skipped: one broken feature must not empty This PC.
     /// </summary>
+    /// <param name="providers">The contributors to ask. Each is queried once; one that throws is skipped.</param>
     /// <param name="existingRoots">The physical drive roots the caller is already showing. These differ
     /// per surface — the pickers list only ready drives, the browser lists them all — which is why the
     /// dedupe lives here rather than inside a provider.</param>
+    /// <param name="allowVirtual">Whether locations a provider serves itself may appear. False for a
+    /// caller that can only navigate real paths.</param>
     public static IReadOnlyList<ThisPcItem> Collect(
         IEnumerable<IThisPcItemProvider> providers,
         IEnumerable<string> existingRoots,
