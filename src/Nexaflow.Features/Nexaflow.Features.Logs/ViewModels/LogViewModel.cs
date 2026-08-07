@@ -232,6 +232,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
             IsLoadingHead = false;
             LineCount     = Document.LineCount;
             ScanForCustomHighlights();
+            RescanSearch();   // inserting at 0 shifted every offset — and the count is now the whole file
             if (HasTimestamps) ScanForTimeRange(); // refresh with oldest entries now available
             ScrollToBottomRequested?.Invoke(this, EventArgs.Empty);
         }
@@ -383,6 +384,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
                 Document.Insert(Document.TextLength, newContent);
                 LineCount = Document.LineCount;
                 ScanForCustomHighlights();
+                RescanSearch();
                 if (IsAutoScrolling) ScrollToBottomRequested?.Invoke(this, EventArgs.Empty);
             }
             else
@@ -410,6 +412,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
             _pendingAppendContent = string.Empty;
             LineCount = Document.LineCount;
             ScanForCustomHighlights();
+            RescanSearch();
             if (IsAutoScrolling) ScrollToBottomRequested?.Invoke(this, EventArgs.Empty);
         }
     }
@@ -641,7 +644,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
         if (SelectedLineCount > 0)
             sb.Append($"{SelectedLineCount} line(s) selected. ");
 
-        sb.Append("Use read_tail / read_lines / search_log to read the log content; "
+        sb.Append("Use read_tail / read_lines to read the log content and search_page to find lines; "
                 + "set_regex_filter / set_time_filter / highlight_levels / set_tail_paused mirror the toolbar controls.");
         return sb.ToString();
     }
@@ -685,42 +688,10 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
                 return ToolResult.Ok($"read lines {start}–{end} of {total}", ReadLineRange(start, end));
             })),
 
-        new DelegateClientTool(
-            "search_log",
-            "Search the whole loaded log for a substring or regular expression; returns matching lines with "
-          + "their line numbers (capped). Reads across the entire loaded document, not just the visible viewport.",
-            [
-                new ClientToolParameter("query", "Text or regular expression to find."),
-                new ClientToolParameter("regex", "Treat 'query' as a regular expression.", Required: false, Type: "boolean"),
-                new ClientToolParameter("max", "Maximum matches to return (default 100).", Required: false, Type: "number"),
-            ],
-            ToolSafety.SafeOperation,
-            (args, _) => OnUi(() =>
-            {
-                var query = ToolArgs.Str(args, "query", "pattern", "search", "term");
-                if (string.IsNullOrEmpty(query)) return ToolResult.Error("No 'query' provided.");
-
-                Regex? rx = null;
-                if (ToolArgs.Bool(args, "regex"))
-                {
-                    try   { rx = new Regex(query, RegexOptions.IgnoreCase); }
-                    catch (Exception ex) { return ToolResult.Error($"Invalid regular expression: {ex.Message}"); }
-                }
-
-                var max   = Math.Clamp(ToolArgs.Int(args, "max", 100), 1, 1000);
-                var total = Document.LineCount;
-                var hits  = new List<string>();
-                for (var i = 1; i <= total && hits.Count < max; i++)
-                {
-                    var dl   = Document.GetLineByNumber(i);
-                    var text = Document.GetText(dl.Offset, dl.Length);
-                    var ok   = rx is not null ? rx.IsMatch(text) : text.Contains(query, StringComparison.OrdinalIgnoreCase);
-                    if (ok) hits.Add($"{i}: {text}");
-                }
-                if (hits.Count == 0) return ToolResult.Ok($"no match for {query}", $"No loaded line matched '{query}'.");
-                var note = hits.Count >= max ? $"\n(stopped at {max} matches; more may exist.)" : string.Empty;
-                return ToolResult.Ok($"{hits.Count} match(es) for {query}", string.Join("\n", hits) + note);
-            })),
+        // No search tool here: the page declares ISearchable, so the shell attaches search_page /
+        // show_search_results automatically. A hand-rolled one drifted from what "?" means to the user —
+        // it matched a bare term as a substring rather than the word it spells, ignored match-case, and
+        // reported a bad pattern as a tool error instead of an unsupported search.
 
         new DelegateClientTool(
             "read_selected_lines",

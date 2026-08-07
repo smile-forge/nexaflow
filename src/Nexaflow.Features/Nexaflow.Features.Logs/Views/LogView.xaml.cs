@@ -19,6 +19,7 @@ public partial class LogView : UserControl, IPageView
     private readonly LogLevelColorizer             _levelColorizer;
     private readonly LogFilterColorizer            _filterColorizer;
     private readonly CustomTermHighlightRenderer   _customTermRenderer;
+    private readonly SearchMatchRenderer           _searchMatchRenderer;
     private readonly SelectedLinesHighlightRenderer _selectedLinesRenderer;
     private readonly LineSelectionMargin           _selectionMargin;
 
@@ -45,6 +46,11 @@ public partial class LogView : UserControl, IPageView
         // Custom term renderer (background renderer)
         _customTermRenderer = new CustomTermHighlightRenderer();
         Editor.TextArea.TextView.BackgroundRenderers.Add(_customTermRenderer);
+
+        // Page-search matches — added AFTER the custom term so that where a "?" match and the user's own
+        // marker overlap, the search wash is the one that reads.
+        _searchMatchRenderer = new SearchMatchRenderer();
+        Editor.TextArea.TextView.BackgroundRenderers.Add(_searchMatchRenderer);
 
         // Selected-lines renderer — draws persistent highlight behind selected lines
         _selectedLinesRenderer = new SelectedLinesHighlightRenderer();
@@ -96,6 +102,11 @@ public partial class LogView : UserControl, IPageView
 
             case nameof(LogViewModel.CustomTermHighlights):
                 _customTermRenderer.Highlights = _vm.CustomTermHighlights;
+                Editor.TextArea.TextView.InvalidateLayer(KnownLayer.Selection);
+                break;
+
+            case nameof(LogViewModel.SearchHighlights):
+                _searchMatchRenderer.Highlights = _vm.SearchHighlights;
                 Editor.TextArea.TextView.InvalidateLayer(KnownLayer.Selection);
                 break;
 
