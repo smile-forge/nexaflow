@@ -4,6 +4,7 @@
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
              xmlns:ed="clr-namespace:Nexaflow.Visuals.Text.Editor;assembly=Nexaflow.Visuals.Text"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="MarkdownView"
              Background="{StaticResource BgBrush}">
 
@@ -42,32 +43,8 @@
                                VerticalAlignment="Center"
                                TextTrimming="CharacterEllipsis"/>
 
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0"
-                                AutomationProperties.AutomationId="Markdown_SearchStatus"
-                                Visibility="{Binding IsSearchActive, Converter={StaticResource BoolVis}}">
-                        <TextBlock Text="{Binding SearchMatchCount, StringFormat='{}{0} match(es)'}"
-                                   AutomationProperties.AutomationId="Markdown_SearchMatchCount"
-                                   Foreground="{StaticResource AccentBrush}" FontSize="11"
-                                   VerticalAlignment="Center"/>
-                        <TextBlock Text="{Binding CurrentSearchTerm, StringFormat=' for {0}'}"
-                                   Foreground="{StaticResource TextMutedBrush}" FontSize="11"
-                                   MaxWidth="200" TextTrimming="CharacterEllipsis"
-                                   VerticalAlignment="Center"/>
-                        <Button Style="{StaticResource TbBtn}" Content="‹" Padding="6,0" Margin="8,0,0,0"
-                                AutomationProperties.AutomationId="Markdown_SearchPrevious"
-                                ToolTip="Previous match"
-                                Visibility="{Binding HasSearchMatches, Converter={StaticResource BoolVis}}"
-                                Command="{Binding FindPreviousMatchCommand}"/>
-                        <Button Style="{StaticResource TbBtn}" Content="›" Padding="6,0"
-                                AutomationProperties.AutomationId="Markdown_SearchNext"
-                                ToolTip="Next match"
-                                Visibility="{Binding HasSearchMatches, Converter={StaticResource BoolVis}}"
-                                Command="{Binding FindNextMatchCommand}"/>
-                        <Button Style="{StaticResource TbBtn}" Content="✕" Padding="6,0"
-                                AutomationProperties.AutomationId="Markdown_SearchClear"
-                                ToolTip="Clear the search and restore the view"
-                                Command="{Binding ClearSearchCommand}"/>
-                    </StackPanel>
+                    <vc:SearchStatusChip PagePrefix="Markdown"
+                                         VerticalAlignment="Center" Margin="16,0,0,0"/>
                 </StackPanel>
 
                 <!-- Source-only toggle (default off → rendered + inline editing) -->
