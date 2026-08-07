@@ -85,6 +85,16 @@
     <SolidColorBrush x:Key="Status.Done"     Color="#639922"/>  <!-- done      — green -->
     <SolidColorBrush x:Key="Status.Faulted"  Color="#E24B4A"/>  <!-- faulted   — red   -->
 
+    <!-- ════ Page search (? / ISearchable) ════
+         Every searchable page paints its matches from this bank, so a hit looks the same in a text
+         editor, a log, a grid and a JSON tree — the point of one `?` across the app. Lives HERE rather
+         than in a feature's IThemeContribution because a contribution only merges once that assembly
+         activates, and feature activation is lazy: a token owned by one feature is absent for every
+         other. Translucent washes drawn OVER content, so the alpha is baked in. -->
+    <SolidColorBrush x:Key="Search.Match"   Color="#64FFC800"/>  <!-- a=100 in-text match wash        -->
+    <SolidColorBrush x:Key="Search.RowWash" Color="#3CFFC800"/>  <!-- a=60  whole-row / whole-item wash -->
+    <SolidColorBrush x:Key="Search.Mark"    Color="#DCFFC800"/>  <!-- a=220 minimap / gutter tick     -->
+
     <!-- ════ Categorical swatch bank ════
          A dozen mutually-distinct hues for components that need RECOGNISABLY DIFFERENT colours next to
          one another — pie / chart series, status buckets, category dots — rather than the theme's

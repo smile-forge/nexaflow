@@ -11,10 +11,10 @@ namespace Nexaflow.Visuals.Text.Editor;
 /// </summary>
 public sealed class SearchHighlightRenderer : IBackgroundRenderer
 {
-    // Themed (Text.SearchMatch); resolved lazily per instance, throws if the token is missing.
+    // Themed (Search.Match); resolved lazily per instance, throws if the token is missing.
     private Brush? _brush;
-    private Brush HighlightBrush => _brush ??= Application.Current?.Resources["Text.SearchMatch"] as Brush
-        ?? throw new InvalidOperationException("Theme brush 'Text.SearchMatch' not found.");
+    private Brush HighlightBrush => _brush ??= Application.Current?.Resources["Search.Match"] as Brush
+        ?? throw new InvalidOperationException("Theme brush 'Search.Match' not found.");
 
     public IReadOnlyList<(int offset, int length)> Highlights { get; set; } = [];
 

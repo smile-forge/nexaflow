@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
              xmlns:conv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              x:ClassModifier="internal"
              AutomationProperties.AutomationId="EmailView"
              Background="{StaticResource BgBrush}">
@@ -114,7 +115,7 @@
                                                 <Setter Property="Background" Value="Transparent"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding Highlighted}" Value="True">
-                                                        <Setter Property="Background" Value="{StaticResource Text.SearchMatch}"/>
+                                                        <Setter Property="Background" Value="{StaticResource Search.Match}"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -190,32 +191,8 @@
                         HorizontalAlignment="Right" Margin="16,0,0,0"/>
 
                 <!-- Search chip: what an AI-bar "?" search found across headers, body and attachments -->
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0"
-                            AutomationProperties.AutomationId="Email_SearchStatus"
-                            Visibility="{Binding IsSearchActive, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Text="{Binding SearchMatchCount, StringFormat='{}{0} match(es)'}"
-                               AutomationProperties.AutomationId="Email_SearchMatchCount"
-                               Foreground="{StaticResource AccentBrush}" FontSize="11"
-                               VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding CurrentSearchTerm, StringFormat=' for {0}'}"
-                               Foreground="{StaticResource TextMutedBrush}" FontSize="11"
-                               MaxWidth="200" TextTrimming="CharacterEllipsis"
-                               VerticalAlignment="Center"/>
-                    <Button Content="‹" Style="{StaticResource BodyToggle}" Margin="8,0,0,0" Padding="6,0"
-                            AutomationProperties.AutomationId="Email_SearchPrevious"
-                            ToolTip="Previous body match"
-                            Visibility="{Binding HasSearchMatches, Converter={StaticResource BoolToVis}}"
-                            Command="{Binding FindPreviousMatchCommand}"/>
-                    <Button Content="›" Style="{StaticResource BodyToggle}" Padding="6,0"
-                            AutomationProperties.AutomationId="Email_SearchNext"
-                            ToolTip="Next body match"
-                            Visibility="{Binding HasSearchMatches, Converter={StaticResource BoolToVis}}"
-                            Command="{Binding FindNextMatchCommand}"/>
-                    <Button Content="✕" Style="{StaticResource BodyToggle}" Margin="0,0,0,0" Padding="6,0"
-                            AutomationProperties.AutomationId="Email_SearchClear"
-                            ToolTip="Clear the search and restore the view"
-                            Command="{Binding ClearSearchCommand}"/>
-                </StackPanel>
+                <vc:SearchStatusChip PagePrefix="Email"
+                                     VerticalAlignment="Center" Margin="16,0,0,0"/>
             </StackPanel>
 
             <!-- ── Body ────────────────────────────────────────────────────── -->

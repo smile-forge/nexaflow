@@ -35,7 +35,7 @@ public sealed class RenderedMarkdownSearch(RichTextBox surface)
 
     // Themed, resolved lazily. Every occurrence gets the search wash; the focused one gets the accent, so
     // stepping through matches is visible. Literals only as a last resort if a theme omits the token.
-    private static Brush MatchBrush   => Resource("Text.SearchMatch") ?? Brushes.Khaki;
+    private static Brush MatchBrush   => Resource("Search.Match")     ?? Brushes.Khaki;
     private static Brush CurrentBrush => Resource("AccentBrush")      ?? Brushes.DodgerBlue;
     private static Brush CurrentText  => Resource("OnAccentBrush")    ?? Brushes.White;
 

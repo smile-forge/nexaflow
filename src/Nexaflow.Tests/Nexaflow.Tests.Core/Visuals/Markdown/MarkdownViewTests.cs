@@ -37,20 +37,3 @@ public class MarkdownViewTests
         return null;
     }
 }
-
-internal static class UiThread
-{
-    public static void Run(Action action)
-    {
-        Exception? caught = null;
-        var thread = new System.Threading.Thread(() =>
-        {
-            try { action(); }
-            catch (Exception ex) { caught = ex; }
-        });
-        thread.SetApartmentState(System.Threading.ApartmentState.STA);
-        thread.Start();
-        thread.Join();
-        if (caught is not null) throw caught;
-    }
-}
