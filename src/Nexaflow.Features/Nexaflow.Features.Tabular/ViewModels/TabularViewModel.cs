@@ -199,7 +199,7 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
                 int fromRow = start - 1;
 
                 List<HydratedRow> rows;
-                try { rows = await _source.GetVisibleAsync(fromRow, count, BuildFilter(), ct); }
+                try { rows = await _source.GetVisibleAsync(fromRow, count, BuildColumnFilter(), ct); }
                 catch (Exception ex) { return ToolResult.Error($"Failed to read rows: {ex.Message}"); }
 
                 if (rows.Count == 0)
@@ -475,12 +475,19 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
         // rows starting AT that row so the in-memory window covers the visible viewport
         // (plus the off-screen buffer below for forward scrolling).
         int fromRow    = System.Math.Max(0, FocalRow);
-        var filter     = BuildFilter();
+        var filter     = BuildColumnFilter();
+
+        // While the grid is pinned to a search result set, ask for far more rows than fit: the
+        // restriction is by absolute index, which RowFilter (it only sees cells) cannot express.
+        int want = _restrictRows is null ? VisibleWindowSize : SearchScanCap;
 
         List<HydratedRow> rows;
-        try { rows = await _source.GetVisibleAsync(fromRow, VisibleWindowSize, filter, ct); }
+        try { rows = await _source.GetVisibleAsync(fromRow, want, filter, ct); }
         catch (Exception ex) { _shell.ShowError(ex.Message); return; }
         if (ct.IsCancellationRequested) return;  // a newer scroll superseded us — drop the result
+
+        if (_restrictRows is not null)
+            rows = rows.Where(r => _restrictRows.Contains(r.AbsoluteIndex)).Take(VisibleWindowSize).ToList();
 
         // Reconcile KnownRowCount with what the reader actually saw:
         //  - If we observed a row index past the current count, GROW (RowCounter may have
@@ -490,8 +497,10 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
         //  - If we got 0 rows back, we requested past EOF but we have no way to know where
         //    EOF actually is from this signal alone. Leave KnownRowCount alone so the count
         //    doesn't oscillate downward chasing the scroll position the user dragged to.
+        //  - A pinned search window is not an EOF signal either: it is a hand-picked subset, so its
+        //    last row says nothing about where the file ends.
         bool filterActive = Columns.Any(c => c.Filter.IsActive);
-        if (!filterActive && rows.Count > 0)
+        if (!filterActive && _restrictRows is null && rows.Count > 0)
         {
             int observedTotal = rows[^1].AbsoluteIndex + 1;
             if (KnownRowCount is null || observedTotal > KnownRowCount)
@@ -552,7 +561,9 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
         }
     }
 
-    private RowFilter BuildFilter()
+    /// <summary>The AND of every active per-column filter. Separate from the "?" search restriction,
+    /// which is cross-column and composes with this rather than replacing it.</summary>
+    private RowFilter BuildColumnFilter()
     {
         var active = Columns
             .Select((c, i) => (Filter: c.Filter, Index: i))
@@ -823,6 +834,7 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
     {
         var set = new HashSet<int>(SelectedRowIndices);
         foreach (var row in Window) row.IsSelected = set.Contains(row.AbsoluteIndex);
+        ApplySearchHitsToWindow();
     }
 
     /// <summary>Background row counter periodic callback. Only updates KnownRowCount if

@@ -71,9 +71,11 @@ public class LogAiTests
 
             var tools = vm.GetClientTools();
             CollectionAssert.AreEquivalent(
+                // No search tool of its own: the page is ISearchable, so the shell attaches
+                // search_page / show_search_results. Those are Core's to test, not this surface's.
                 new[]
                 {
-                    "read_tail", "read_lines", "search_log", "read_selected_lines",
+                    "read_tail", "read_lines", "read_selected_lines",
                     "set_regex_filter", "set_time_filter", "highlight_levels", "set_tail_paused",
                 },
                 tools.Select(t => t.Name).ToArray(),
@@ -91,16 +93,6 @@ public class LogAiTests
             var range = await readLines.InvokeAsync(new JsonObject { ["start"] = 1, ["count"] = 1 }, CancellationToken.None);
             Assert.IsFalse(range.IsError);
             StringAssert.Contains(range.ModelText, "service starting");
-
-            // ── search_log: matching lines with line numbers; invalid regex is surfaced, not thrown ──
-            var search = tools.Single(t => t.Name == "search_log");
-            var found = await search.InvokeAsync(new JsonObject { ["query"] = "ERROR" }, CancellationToken.None);
-            Assert.IsFalse(found.IsError);
-            StringAssert.Contains(found.ModelText, "connection refused");
-            StringAssert.Contains(found.Summary, "1 match");
-
-            var badRegex = await search.InvokeAsync(new JsonObject { ["query"] = "([", ["regex"] = true }, CancellationToken.None);
-            Assert.IsTrue(badRegex.IsError);
 
             // ── read_selected_lines: honest when there is no selection ──
             var readSel = tools.Single(t => t.Name == "read_selected_lines");

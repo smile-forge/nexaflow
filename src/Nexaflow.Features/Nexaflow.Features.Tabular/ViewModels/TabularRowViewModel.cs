@@ -12,6 +12,11 @@ public sealed partial class TabularRowViewModel : ObservableObject
 
     [ObservableProperty] private bool _isSelected;
 
+    /// <summary>True when a "?" page search matched a cell in this row. Row-level rather than
+    /// per-cell: the whole grid stack (RowFilter, GetVisibleAsync, FocalRow, SelectedRowIndices) is
+    /// row-addressed, and the cell backgrounds already have an owner in the column-selection tint.</summary>
+    [ObservableProperty] private bool _isSearchHit;
+
     public TabularRowViewModel(int absoluteIndex, IReadOnlyList<string> cells)
     {
         AbsoluteIndex = absoluteIndex;

@@ -1,15 +1,18 @@
+using ICSharpCode.AvalonEdit.Document;
 using ICSharpCode.AvalonEdit.Rendering;
 using System.Windows;
 using System.Windows.Media;
 
-namespace Nexaflow.Visuals.Text.Editor;
+namespace Nexaflow.Features.Logs.Rendering;
 
 /// <summary>
-/// AvalonEdit background renderer that draws highlights behind search matches.
-/// Shared: every AvalonEdit surface that answers a search (the Text viewer's find, the editor's
-/// <see cref="FileTextEditorViewModel"/> search) paints matches the same way, from the same theme token.
+/// AvalonEdit background renderer that paints the matches of a <c>?</c> page search.
+/// <para>Deliberately a sibling of <see cref="CustomTermHighlightRenderer"/> rather than a reuse of it:
+/// the custom term is the user's own persistent marker (case-insensitive substring, green) while a search
+/// match is transient and word-aware, and a log can show both at once. One renderer would make the two
+/// fight over the same span list.</para>
 /// </summary>
-public sealed class SearchHighlightRenderer : IBackgroundRenderer
+public sealed class SearchMatchRenderer : IBackgroundRenderer
 {
     // Themed (Search.Match); resolved lazily per instance, throws if the token is missing.
     private Brush? _brush;
@@ -18,6 +21,7 @@ public sealed class SearchHighlightRenderer : IBackgroundRenderer
 
     public IReadOnlyList<(int offset, int length)> Highlights { get; set; } = [];
 
+    // Same layer as the custom-term renderer; added after it, so on an overlap the search wash reads last.
     public KnownLayer Layer => KnownLayer.Selection;
 
     public void Draw(TextView textView, DrawingContext drawingContext)
@@ -30,12 +34,7 @@ public sealed class SearchHighlightRenderer : IBackgroundRenderer
         {
             if (offset < 0 || offset + length > textView.Document.TextLength) continue;
 
-            var segment = new ICSharpCode.AvalonEdit.Document.TextSegment
-            {
-                StartOffset = offset,
-                Length      = length,
-            };
-
+            var segment = new TextSegment { StartOffset = offset, Length = length };
             var builder = new BackgroundGeometryBuilder
             {
                 AlignToWholePixels = true,

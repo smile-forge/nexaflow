@@ -28,6 +28,33 @@ public class FileTextEditorViewModelTests
 
     private static string Temp() => Path.Combine(Path.GetTempPath(), $"editvm_{Guid.NewGuid():N}.txt");
 
+    /// <summary>
+    /// Runs a file operation, tolerating the brief window where the editor still holds the file open.
+    /// <para>The watcher callback is <c>async void</c>, so a test that fires it cannot await it: an
+    /// in-flight <c>File.ReadAllTextAsync</c> from one burst can still hold the handle when the test
+    /// writes the next change or deletes the temp file. Reading the file it was told changed is exactly
+    /// what the editor is supposed to do, so the test waits for it instead of racing it — which is also
+    /// what a real external editor writing the same file would have to do.</para>
+    /// </summary>
+    private static void WhenFree(Action op)
+    {
+        for (var i = 0; i < 100; i++)
+        {
+            try { op(); return; }
+            catch (IOException) { Thread.Sleep(20); }
+            catch (UnauthorizedAccessException) { Thread.Sleep(20); }
+        }
+        op();   // last attempt: let a genuine failure surface as itself
+    }
+
+    /// <summary>Cleanup form — a leaked temp file must never turn a green test red.</summary>
+    private static void DeleteWhenFree(string path)
+    {
+        try { WhenFree(() => File.Delete(path)); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
     private static IShellServices Shell()
     {
         var s = Substitute.For<IShellServices>();
@@ -61,7 +88,7 @@ public class FileTextEditorViewModelTests
             Assert.IsFalse(HasUtf8Bom(File.ReadAllBytes(path)));
             Assert.AreEqual("alpha\nbeta\ngamma\n", File.ReadAllText(path));
         }
-        finally { File.Delete(path); }
+        finally { DeleteWhenFree(path); }
     });
 
     [TestMethod]
@@ -107,7 +134,7 @@ public class FileTextEditorViewModelTests
             Assert.IsFalse(vm.IsDirty);
             StringAssert.Contains(File.ReadAllText(path), "0ne");
         }
-        finally { File.Delete(path); }
+        finally { DeleteWhenFree(path); }
     });
 
     [TestMethod]
@@ -127,7 +154,7 @@ public class FileTextEditorViewModelTests
 
             Assert.IsTrue(HasUtf8Bom(File.ReadAllBytes(path)), "BOM should be re-emitted on save");
         }
-        finally { File.Delete(path); }
+        finally { DeleteWhenFree(path); }
     });
 
     [TestMethod]
@@ -145,7 +172,7 @@ public class FileTextEditorViewModelTests
             Assert.AreEqual(string.Empty, vm.Document.Text);
             Assert.IsFalse(vm.SaveCommand.CanExecute(null));
         }
-        finally { File.Delete(path); }
+        finally { DeleteWhenFree(path); }
     });
 
     [TestMethod]
@@ -199,7 +226,7 @@ public class FileTextEditorViewModelTests
 
             Assert.AreEqual("a\r\nb\r\nc\r\n", File.ReadAllText(path));
         }
-        finally { File.Delete(path); }
+        finally { DeleteWhenFree(path); }
     });
 
     // ── Toolbar: line-number gutter ───────────────────────────────────────────
@@ -240,7 +267,7 @@ public class FileTextEditorViewModelTests
 
             Assert.AreNotEqual(onLoad, vm.FileSizeText, "the footer size refreshes from disk after a save");
         }
-        finally { File.Delete(path); }
+        finally { DeleteWhenFree(path); }
     });
 
     [TestMethod]
@@ -262,7 +289,7 @@ public class FileTextEditorViewModelTests
             vm.Document.UndoStack.Undo();     // back to the saved state
             Assert.IsFalse(vm.IsDirty, "undoing every edit clears unsaved, it doesn't stay stuck on");
         }
-        finally { File.Delete(path); }
+        finally { DeleteWhenFree(path); }
     });
 
     [TestMethod]
@@ -279,7 +306,7 @@ public class FileTextEditorViewModelTests
             Assert.IsTrue(vm.IsReadOnlyMode, "the footer shows 'read-only' for a file too large to edit");
             Assert.IsFalse(vm.IsDirty);
         }
-        finally { File.Delete(path); }
+        finally { DeleteWhenFree(path); }
     });
 
     // ── Reload (F5) + the external-change watch ───────────────────────────────
@@ -301,7 +328,7 @@ public class FileTextEditorViewModelTests
             Assert.AreEqual("changed elsewhere\n", vm.Document.Text);
             Assert.IsFalse(vm.IsDirty, "a reload is the new saved baseline");
         }
-        finally { File.Delete(path); }
+        finally { DeleteWhenFree(path); }
     });
 
     [TestMethod]
@@ -326,7 +353,7 @@ public class FileTextEditorViewModelTests
             Assert.AreEqual("my unsaved work\n", vm.Document.Text, "declining the prompt must keep the edits");
             await shell.Received().ConfirmAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         }
-        finally { File.Delete(path); }
+        finally { DeleteWhenFree(path); }
     });
 
     [TestMethod]
@@ -357,8 +384,9 @@ public class FileTextEditorViewModelTests
             await Task.Yield();
             Assert.IsFalse(vm.BannerVisible, "the editor's own write must not raise the banner");
 
-            // A real external edit reloads and announces it.
-            File.WriteAllText(path, "changed elsewhere\n", new UTF8Encoding(false));
+            // A real external edit reloads and announces it. The previous burst's read may still be in
+            // flight, so stand in for an external editor and wait for the handle rather than colliding.
+            WhenFree(() => File.WriteAllText(path, "changed elsewhere\n", new UTF8Encoding(false)));
             onChanged!();
             for (int i = 0; i < 50 && !vm.BannerVisible; i++) await Task.Delay(10);
 
@@ -366,6 +394,6 @@ public class FileTextEditorViewModelTests
             Assert.IsTrue(vm.BannerVisible);
             StringAssert.Contains(vm.BannerMessage, "changed on disk");
         }
-        finally { File.Delete(path); }
+        finally { DeleteWhenFree(path); }
     });
 }
