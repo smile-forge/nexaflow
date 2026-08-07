@@ -616,7 +616,8 @@ public partial class VirtualizedRowsControl : UserControl
         rv.Bound        = row;
         rv.BoundHandler = (_, e) =>
         {
-            if (e.PropertyName == nameof(TabularRowViewModel.IsSelected)) ApplyRowAppearance(rv);
+            if (e.PropertyName is nameof(TabularRowViewModel.IsSelected)
+                               or nameof(TabularRowViewModel.IsSearchHit)) ApplyRowAppearance(rv);
         };
         row.PropertyChanged += rv.BoundHandler;
     }
@@ -631,8 +632,12 @@ public partial class VirtualizedRowsControl : UserControl
     private void ApplyRowAppearance(RowVisual rv)
     {
         if (rv.Bound is not { } row) return;
+        // Selection outranks a search hit: the user's own pick should stay legible while a "?" search
+        // is washing rows behind it.
         if (row.IsSelected)
             rv.Container.Background = SelectionWash(0x55);
+        else if (row.IsSearchHit)
+            rv.Container.Background = (Brush)FindResource("Search.RowWash");
         else
             rv.Container.Background = row.IsAlternate
                 ? (Brush)FindResource("SurfaceBrush")
