@@ -97,7 +97,14 @@ public sealed partial class ProcessesViewModel : ObservableObject, IPageViewMode
     }
 
     partial void OnTreeModeChanged(bool value) => Resort();
-    partial void OnFilterTextChanged(string value) => Resort();
+
+    partial void OnFilterTextChanged(string value)
+    {
+        // Typing in the box takes the list back off the AI: a stale compiled pattern must not keep
+        // filtering underneath text the user is now driving.
+        if (!_suppressFilterReset) { _filterRequest = null; _pinnedPids = null; }
+        Resort();
+    }
 
     [RelayCommand]
     private void RefreshNow() => TriggerRefresh();
@@ -211,7 +218,7 @@ public sealed partial class ProcessesViewModel : ObservableObject, IPageViewMode
         var filter = FilterText.Trim();
 
         // Filtering always collapses to a flat list of matches — a partially-filtered tree is confusing.
-        if (!TreeMode || filter.Length > 0)
+        if (!TreeMode || IsFiltering)
         {
             var all = _rowsByPid.Values.Where(r => Matches(r, filter)).ToList();
             all.Sort(CompareRows);
@@ -225,15 +232,32 @@ public sealed partial class ProcessesViewModel : ObservableObject, IPageViewMode
         return result;
     }
 
-    private static bool Matches(ProcessRowViewModel r, string filter)
+    /// <summary>
+    /// The search box's rule, over the same five fields whatever drove it. Checked most-specific first: an
+    /// explicit set of PIDs the agent picked, then a compiled "?" query, then the literal text in the box.
+    /// </summary>
+    private bool Matches(ProcessRowViewModel r, string filter)
     {
+        if (_pinnedPids is not null)    return _pinnedPids.Contains(r.Pid);
+        if (_filterRequest is not null) return SearchFields(r).Any(_filterRequest.Matches);
         if (filter.Length == 0) return true;
-        return r.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)
-            || r.Pid.ToString().Contains(filter)
-            || r.Company.Contains(filter, StringComparison.OrdinalIgnoreCase)
-            || r.Description.Contains(filter, StringComparison.OrdinalIgnoreCase)
-            || r.Path.Contains(filter, StringComparison.OrdinalIgnoreCase);
+        return SearchFields(r).Any(f => f.Contains(filter, StringComparison.OrdinalIgnoreCase));
     }
+
+    /// <summary>Name, PID, company, description and path — the columns the box has always searched, in one
+    /// place so a "?" query and a typed filter can never drift onto different fields.</summary>
+    private static IEnumerable<string> SearchFields(ProcessRowViewModel r)
+    {
+        yield return r.Name;
+        yield return r.Pid.ToString();
+        yield return r.Company;
+        yield return r.Description;
+        yield return r.Path;
+    }
+
+    /// <summary>True when anything is narrowing the list — typed text, a "?" query, or a pinned PID set.</summary>
+    private bool IsFiltering =>
+        _pinnedPids is not null || _filterRequest is not null || FilterText.Trim().Length > 0;
 
     private void AddSubtree(ProcessRowViewModel row, int depth, List<ProcessRowViewModel> result)
     {

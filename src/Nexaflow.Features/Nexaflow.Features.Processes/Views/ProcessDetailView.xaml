@@ -243,6 +243,7 @@
                          TextWrapping="NoWrap"/>
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <vc:SearchStatusChip PagePrefix="ProcessDetail" Margin="0,0,12,0"/>
                 <ToggleButton Content="● Live" IsChecked="{Binding AutoRefreshEnabled}" Style="{StaticResource TbToggle}"
                               ToolTip="Auto-refresh once per second while this tab is active"/>
                 <Button Content="↻" Command="{Binding RefreshNowCommand}" Style="{StaticResource TbBtn}"
@@ -255,7 +256,11 @@
 
         <!-- ── Body ── -->
         <Grid Grid.Row="1">
-            <TabControl TabStripPlacement="Left">
+            <!-- SelectedValuePath="Tag" rather than SelectedIndex: the VM scopes "?" to the visible
+                 section, and an index would silently re-point it if these tabs were ever reordered. -->
+            <TabControl TabStripPlacement="Left"
+                        SelectedValuePath="Tag"
+                        SelectedValue="{Binding SelectedSection, Mode=TwoWay}">
                 <TabControl.Style>
                     <Style TargetType="TabControl" BasedOn="{StaticResource VTabControl}">
                         <Style.Triggers>
@@ -267,7 +272,7 @@
                 </TabControl.Style>
 
                 <!-- General -->
-                <TabItem Header="General">
+                <TabItem Header="General" Tag="General">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,14">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -338,7 +343,7 @@
                 </TabItem>
 
                 <!-- Performance -->
-                <TabItem Header="Performance">
+                <TabItem Header="Performance" Tag="Performance">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,14">
                         <StackPanel>
                             <Grid Margin="0,0,0,6">
@@ -394,7 +399,7 @@
                 </TabItem>
 
                 <!-- Threads -->
-                <TabItem Header="Threads">
+                <TabItem Header="Threads" Tag="Threads">
                     <Grid Margin="14,12">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -405,7 +410,7 @@
                             <TextBlock Text="Thread details require administrator rights to read."
                                        Foreground="{StaticResource TextBrush}" FontSize="12"/>
                         </Border>
-                        <ListView Grid.Row="1" ItemsSource="{Binding Threads}" Style="{StaticResource GridListView}"
+                        <ListView Grid.Row="1" ItemsSource="{Binding ThreadsView}" Style="{StaticResource GridListView}"
                                   Background="Transparent" BorderThickness="0"
                                   VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
                             <ListView.Resources>
@@ -435,7 +440,7 @@
                 </TabItem>
 
                 <!-- Modules -->
-                <TabItem Header="Modules">
+                <TabItem Header="Modules" Tag="Modules">
                     <Grid Margin="14,12">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -495,7 +500,7 @@
                 </TabItem>
 
                 <!-- Handles (loaded on demand via one elevated process.inspect) -->
-                <TabItem Header="Handles">
+                <TabItem Header="Handles" Tag="Handles">
                     <Grid Margin="14,12">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -510,7 +515,7 @@
                             <Button Content="↻ Reload (admin)" Command="{Binding LoadHandlesCommand}"
                                     Style="{StaticResource TbBtn}" FontSize="11" Margin="10,0,0,0"/>
                         </StackPanel>
-                        <ListView Grid.Row="1" ItemsSource="{Binding Handles}" Style="{StaticResource GridListView}"
+                        <ListView Grid.Row="1" ItemsSource="{Binding HandlesView}" Style="{StaticResource GridListView}"
                                   Visibility="{Binding HandlesLoaded, Converter={StaticResource BoolToVis}}"
                                   Background="Transparent" BorderThickness="0"
                                   VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">

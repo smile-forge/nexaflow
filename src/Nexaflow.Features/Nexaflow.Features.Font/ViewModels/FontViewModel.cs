@@ -41,7 +41,14 @@ public sealed partial class FontViewModel : ObservableObject, IPageViewModel, IC
     public FontViewModel(IEnumerable<string>? paths, IShellServices shell)
     {
         _shell = shell;
-        Fonts.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasFonts));
+        Fonts.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(HasFonts));
+            // Search hits are list positions, so adding or removing a font invalidates them. Dropping the
+            // search is the honest response — silently renumbering would step "next match" onto a row that
+            // never matched.
+            ClearSearch();
+        };
 
         var list = paths?.Where(p => !string.IsNullOrWhiteSpace(p)).ToList() ?? [];
         foreach (var p in list) LoadFontsFromFile(p, preselect: SelectedFont is null);
