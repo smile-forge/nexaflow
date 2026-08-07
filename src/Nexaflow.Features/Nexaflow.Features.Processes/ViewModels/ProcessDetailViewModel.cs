@@ -39,6 +39,11 @@ public sealed partial class ProcessDetailViewModel : ObservableObject, IPageView
     /// <summary>Sortable view over <see cref="Modules"/> (header-click sorting + resizable columns).</summary>
     public ICollectionView ModulesView { get; }
 
+    /// <summary>Views the three list sections bind through, so a "?" search can narrow one of them without
+    /// touching the collections the refresh tick reconciles.</summary>
+    public ICollectionView ThreadsView { get; }
+    public ICollectionView HandlesView { get; }
+
     [ObservableProperty] private string _moduleSortColumn = nameof(ModuleInfo.Name);
     [ObservableProperty] private bool _moduleSortAscending = true;
 
@@ -75,6 +80,11 @@ public sealed partial class ProcessDetailViewModel : ObservableObject, IPageView
         _pid    = pid;
         Title   = $"Process {pid}";
         ModulesView = CollectionViewSource.GetDefaultView(Modules);
+        ThreadsView = CollectionViewSource.GetDefaultView(Threads);
+        HandlesView = CollectionViewSource.GetDefaultView(Handles);
+        ModulesView.Filter = o => PassesSearch(Sections.Modules, o);
+        ThreadsView.Filter = o => PassesSearch(Sections.Threads, o);
+        HandlesView.Filter = o => PassesSearch(Sections.Handles, o);
         ApplyModuleSort();
         _timer  = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += (_, _) => TriggerRefresh();

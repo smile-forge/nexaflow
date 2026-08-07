@@ -30,6 +30,10 @@ public sealed partial class FontItemViewModel : ObservableObject
     /// <summary>True for a font from the installed system set (no backing file path).</summary>
     public bool IsInstalled => SourcePath is null;
 
+    /// <summary>True when a "?" page search matched this font's name. Marks rather than filters: the
+    /// compare list exists to be compared, so hiding the rows that didn't match would defeat the page.</summary>
+    [ObservableProperty] private bool _isSearchHit;
+
     private FontItemViewModel(FontFamily family, string displayName, string? sourcePath,
                              bool decoded, bool canRender, string? error)
     {
