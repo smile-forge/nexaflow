@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:avalon="http://icsharpcode.net/sharpdevelop/avalonedit"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              xmlns:local="clr-namespace:Nexaflow.Features.Json.Views"
              xmlns:m="clr-namespace:Nexaflow.Features.Json.Models"
              AutomationProperties.AutomationId="JsonView"
@@ -81,8 +82,11 @@
                     </ToggleButton>
                 </StackPanel>
 
-                <!-- Right: format + save -->
+                <!-- Right: search chip + format + save -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- What a "?" search found. SuffixText marks a count that is a floor, not a total. -->
+                    <vc:SearchStatusChip PagePrefix="Json" VerticalAlignment="Center" Margin="0,0,8,0"
+                                         SuffixText="{Binding SearchCountSuffix}"/>
                     <Button Style="{StaticResource TbBtn}"
                             AutomationProperties.AutomationId="Json_Format"
                             Command="{Binding FormatJsonCommand}"
@@ -169,6 +173,11 @@
                     <EventSetter Event="PreviewMouseLeftButtonDown"
                                  Handler="ListBoxItem_PreviewMouseLeftButtonDown"/>
                     <Style.Triggers>
+                        <!-- Search wash first: the last matching trigger wins in WPF, so selection and
+                             hover stay legible over a "?" result set rather than being masked by it. -->
+                        <DataTrigger Binding="{Binding IsSearchHit}" Value="True">
+                            <Setter Property="Background" Value="{StaticResource Search.RowWash}"/>
+                        </DataTrigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter Property="Background" Value="{StaticResource Surface2Brush}"/>
                         </Trigger>

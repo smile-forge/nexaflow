@@ -1293,7 +1293,12 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
         {
             SelectedDisplayItem = item;
             ScrollToItemRequested?.Invoke(this, item);
+            return;
         }
+        // The node exists in the model but has no display item — it lives outside the loaded window.
+        // Saying so beats the silent no-op this used to be.
+        _shellServices.ShowNotification(
+            $"'{jsonPath}' is outside the loaded part of this file — scroll toward it and try again.");
     }
 
     // ── Breadcrumb navigation ─────────────────────────────────────────────────
