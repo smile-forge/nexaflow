@@ -40,9 +40,11 @@ public partial class ViewletHost : UserControl, IViewletController
         _viewlet = viewlet;
         _mode    = viewlet.DefaultDisplayMode;
 
-        // Viewlets run real tools against this path — git, dotnet — and set it as a process working
-        // directory. Resolve once here so every viewlet gets a usable path without knowing about mounts.
-        folderPath = Nexaflow.IO.Common.VirtualFileSystem.Instance.TryResolveReal(folderPath) ?? folderPath;
+        // A viewlet that runs real tools against this path — git, dotnet — needs the folder they can
+        // actually work in, so a mount is resolved to its real location once, here, and no viewlet has to
+        // know mounts exist. One that opted out reads through the VFS and gets the path as browsed.
+        if (viewlet.RequiresFullyBackedPath)
+            folderPath = Nexaflow.IO.Common.VirtualFileSystem.Instance.TryResolveReal(folderPath) ?? folderPath;
 
         DisplayNameText.Text        = viewlet.DisplayName;
         ViewletContentArea.Content  = viewlet.CreateView(folderPath, this);

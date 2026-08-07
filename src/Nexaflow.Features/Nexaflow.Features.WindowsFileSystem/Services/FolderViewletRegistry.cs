@@ -13,9 +13,22 @@ public static class FolderViewletRegistry
     public static IReadOnlyList<IFolderViewlet> GetMatchingViewlets(
         string folderPath, FileSystemFeatureRegistry registry, bool isDrive = false)
     {
+        // Inside an archive there is no folder — only entries in a container — so a viewlet that shells
+        // out has nothing to work in. Checked up front rather than left to the structural probe below:
+        // that probe only fails by accident (enumerating a path that isn't a directory throws), and a
+        // viewlet declaring no criteria at all would otherwise sail past it.
+        //
+        // IsContainer covers the archive file itself. Its backing is Real — it IS a real file, which is
+        // the right answer for an action operating ON the archive — but browsing it means looking at its
+        // entries, and those are no more a folder than the ones a level deeper.
+        var vfs = VirtualFileSystem.Instance;
+        bool fullyBacked = vfs.GetBacking(folderPath) != VirtualBacking.Materialized
+                           && !vfs.IsContainer(folderPath);
+
         var result = new List<IFolderViewlet>();
         foreach (var viewlet in registry.FolderViewlets)
         {
+            if (!fullyBacked && viewlet.RequiresFullyBackedPath) continue;
             if (isDrive && !viewlet.AppliesToDrives) continue;
             if (!FolderNameMatches(viewlet, folderPath)) continue;
             if (!ContentsMatch(viewlet, folderPath)) continue;
