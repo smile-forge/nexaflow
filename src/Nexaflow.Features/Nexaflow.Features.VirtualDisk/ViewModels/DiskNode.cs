@@ -32,6 +32,10 @@ public sealed partial class DiskNode : ObservableObject
 
     [ObservableProperty] private bool _isExpanded;
 
+    /// <summary>True when a "?" page search matched this entry. Distinguishes a hit from a folder that is
+    /// only on screen because it is on the way to one, so the wash marks what was asked for.</summary>
+    [ObservableProperty] private bool _isSearchHit;
+
     public Thickness Indent => new(Depth * 14, 0, 0, 0);
 
     // Folders are assumed expandable until opened — we don't pre-read a directory just to draw a chevron.

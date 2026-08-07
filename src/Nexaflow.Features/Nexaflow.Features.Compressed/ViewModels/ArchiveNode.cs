@@ -28,6 +28,10 @@ public sealed partial class ArchiveNode : ObservableObject
 
     [ObservableProperty] private bool _isExpanded;
 
+    /// <summary>True when a "?" page search matched this entry. Distinguishes a hit from a folder that is
+    /// only on screen because it is on the way to one, so the wash marks what was asked for.</summary>
+    [ObservableProperty] private bool _isSearchHit;
+
     public bool HasChildren => Children.Count > 0;
     public Thickness Indent => new(Depth * 14, 0, 0, 0);
 
