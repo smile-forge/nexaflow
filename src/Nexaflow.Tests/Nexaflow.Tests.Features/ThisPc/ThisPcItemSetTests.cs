@@ -147,6 +147,81 @@ public class ThisPcItemSetTests
         Assert.AreEqual(0, ThisPcItemSet.Collect([], [@"C:\"]).Count);
     }
 
+    // ── The whole list ───────────────────────────────────────────────────────
+
+    [TestMethod]
+    public void EnumeratingYieldsTheDrivesFirstThenTheContributedLocations()
+    {
+        var provider = new FakeProvider("p", 10, Item("p.docs", System.IO.Path.GetTempPath()));
+
+        var places = ThisPcItemSet.Enumerate([provider]);
+
+        var drives = places.TakeWhile(p => p.Kind == ThisPcPlaceKind.Drive).Count();
+        Assert.AreEqual(System.IO.DriveInfo.GetDrives().Length, drives);
+        Assert.IsTrue(places.Skip(drives).All(p => p.Kind == ThisPcPlaceKind.Provided),
+                      "contributed locations follow the drives, never interleave with them");
+    }
+
+    [TestMethod]
+    public void EveryDrivePlaceCarriesItsDriveInfoSoTheBrowserCanProbeIt()
+    {
+        var places = ThisPcItemSet.Enumerate([]);
+
+        Assert.IsTrue(places.All(p => p.Drive is not null && p.Item is null));
+        Assert.IsTrue(places.All(p => !string.IsNullOrEmpty(p.RealPath)));
+    }
+
+    [TestMethod]
+    public void EveryContributedPlaceCarriesItsItemAndItsRealTarget()
+    {
+        var temp = System.IO.Path.GetTempPath();
+        var places = ThisPcItemSet.Enumerate([new FakeProvider("p", 10, Item("p.docs", temp))]);
+
+        var provided = places.Single(p => p.Kind == ThisPcPlaceKind.Provided);
+        Assert.AreEqual("p.docs", provided.Item!.Id);
+        Assert.AreEqual(temp, provided.RealPath, "a picker needs the real target, not the virtual root");
+        Assert.IsNull(provided.Drive);
+    }
+
+    [TestMethod]
+    public void AskingForReadyDrivesOnlyDropsTheRest()
+    {
+        var all   = ThisPcItemSet.Enumerate([], readyDrivesOnly: false);
+        var ready = ThisPcItemSet.Enumerate([], readyDrivesOnly: true);
+
+        Assert.IsTrue(ready.Count <= all.Count);
+        Assert.AreEqual(System.IO.DriveInfo.GetDrives().Count(d => d.IsReady), ready.Count);
+    }
+
+    [TestMethod]
+    public void ADriveLabelIsTheSameWhicheverSurfaceAsksForIt()
+    {
+        // The point of the shared rule: the browser and the pickers used to format this independently.
+        var drive = System.IO.DriveInfo.GetDrives().First(d => d.IsReady);
+
+        var fromEnumeration = ThisPcItemSet.Enumerate([], readyDrivesOnly: true)
+                                           .First(p => p.RealPath == drive.RootDirectory.FullName).Label;
+
+        Assert.AreEqual(ThisPcItemSet.DriveLabel(drive, ready: true), fromEnumeration);
+    }
+
+    [TestMethod]
+    public void ADriveThatIsNotReadyIsLabelledWithoutTouchingItsVolume()
+    {
+        // Reading VolumeLabel can block on the hardware, so the cheap label is used until a background
+        // probe confirms the drive answered.
+        var drive = System.IO.DriveInfo.GetDrives()[0];
+
+        Assert.AreEqual(drive.Name, ThisPcItemSet.DriveLabel(drive, ready: false));
+    }
+
+    [TestMethod]
+    public void ADrivesIconKindComesFromItsTypeAndNeverClaimsToKnowAboutSsds()
+    {
+        foreach (var place in ThisPcItemSet.Enumerate([]))
+            Assert.AreNotEqual(ThisPcItemIcon.Cloud, place.Icon, "a physical drive is never a cloud");
+    }
+
     [TestMethod]
     public void ProbingReportsAMissingLocationAsUnavailable()
     {

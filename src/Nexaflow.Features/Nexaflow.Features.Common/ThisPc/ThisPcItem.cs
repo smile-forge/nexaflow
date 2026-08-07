@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace Nexaflow.Features.Common.ThisPc;
 
 /// <summary>How a <see cref="ThisPcItem"/>'s contents are reached.</summary>
@@ -14,9 +16,17 @@ public enum ThisPcItemBacking
     Virtual,
 }
 
-/// <summary>Which icon a row shows. Semantic only: a provider never supplies a glyph, a colour or a
-/// brush, because the consumer owns the visual vocabulary and a theme must be able to retune it.</summary>
-public enum ThisPcItemIcon { Cloud, Network, Folder, Device }
+/// <summary>
+/// What kind of place a This PC row is, for icon purposes. Semantic only: a provider never supplies a
+/// glyph, a colour or a brush, because each surface owns its own visual vocabulary — themed vectors in
+/// the file browser, plain glyphs in the pickers — and a theme must be able to retune either.
+/// <para>
+/// It covers physical drives as well as contributed locations so that every surface classifies the whole
+/// list through one enum. Deliberately no SSD: that is a refinement the browser probes for after the
+/// fact, not something a contributor gets to claim.
+/// </para>
+/// </summary>
+public enum ThisPcItemIcon { Disk, Removable, Optical, Network, Cloud, Folder }
 
 /// <summary>
 /// One extra row in "This PC", contributed by an <see cref="IThisPcItemProvider"/> — a cloud sync root
@@ -45,6 +55,34 @@ public sealed record ThisPcItem
 
     /// <summary>Order among this provider's own rows.</summary>
     public int SortOrder { get; init; }
+}
+
+/// <summary>Whether a place is a volume Windows reported or a location a feature contributed.</summary>
+public enum ThisPcPlaceKind { Drive, Provided }
+
+/// <summary>
+/// One top-level place in "This PC", whatever its origin — the single vocabulary every surface builds its
+/// own row type from, so the drive list and the pickers can't drift apart in labelling, ordering or
+/// iconography the way four independent <c>DriveInfo.GetDrives()</c> loops did.
+/// </summary>
+public sealed record ThisPcPlace
+{
+    public required ThisPcPlaceKind Kind { get; init; }
+
+    /// <summary>Where the place is on disk. For a contributed location this is its real target: the file
+    /// browser navigates the virtual root instead, but a picker has to hand back an openable path.</summary>
+    public required string RealPath { get; init; }
+
+    public required string         Label     { get; init; }
+    public required string         TypeLabel { get; init; }
+    public required ThisPcItemIcon Icon      { get; init; }
+
+    /// <summary>The contributed item, when <see cref="Kind"/> is <see cref="ThisPcPlaceKind.Provided"/>.</summary>
+    public ThisPcItem? Item { get; init; }
+
+    /// <summary>The volume, when <see cref="Kind"/> is <see cref="ThisPcPlaceKind.Drive"/> — the browser
+    /// reads capacity and refines the icon from it on a background thread.</summary>
+    public DriveInfo? Drive { get; init; }
 }
 
 /// <summary>The part of a row that costs real work to discover, filled in off the UI thread.</summary>

@@ -17,6 +17,118 @@ public static class ThisPcItemSet
     public static string NormalizeRoot(string path)
         => string.IsNullOrEmpty(path) ? string.Empty : path.TrimEnd('\\', '/').ToLowerInvariant();
 
+    // ── The whole list ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Every top-level place: the physical drives, then the contributed locations, deduped against them.
+    /// This is the one enumeration of "This PC" — the file browser and both pickers build their own row
+    /// types from it rather than each running their own <c>DriveInfo.GetDrives()</c> loop with their own
+    /// labelling, which is how they previously drifted into disagreeing about names and icons.
+    /// </summary>
+    /// <param name="readyDrivesOnly">Skip drives that aren't ready. The pickers do — you cannot browse
+    /// an empty optical bay — while the browser lists them so it can show the unavailable badge. It also
+    /// decides how much of the label is safe to read: see <see cref="DriveLabel"/>.</param>
+    /// <param name="allowVirtual">Whether locations a provider serves itself may appear. False for the
+    /// pickers, whose result is consumed by ordinary <see cref="System.IO"/> callers.</param>
+    public static IReadOnlyList<ThisPcPlace> Enumerate(
+        IEnumerable<IThisPcItemProvider> providers,
+        bool readyDrivesOnly = false,
+        bool allowVirtual = true)
+    {
+        var places     = new List<ThisPcPlace>();
+        var driveRoots = new List<string>();
+
+        DriveInfo[] drives;
+        try { drives = DriveInfo.GetDrives(); }
+        catch { drives = []; }
+
+        foreach (var drive in drives)
+        {
+            bool ready;
+            try { ready = drive.IsReady; } catch { ready = false; }
+            if (readyDrivesOnly && !ready) continue;
+
+            string root;
+            try { root = drive.RootDirectory.FullName; } catch { continue; }
+
+            places.Add(new ThisPcPlace
+            {
+                Kind      = ThisPcPlaceKind.Drive,
+                RealPath  = root,
+                Label     = DriveLabel(drive, ready),
+                TypeLabel = DriveTypeLabel(drive),
+                Icon      = IconFor(drive),
+                Drive     = drive,
+            });
+            driveRoots.Add(root);
+        }
+
+        foreach (var item in Collect(providers, driveRoots, allowVirtual))
+            places.Add(new ThisPcPlace
+            {
+                Kind      = ThisPcPlaceKind.Provided,
+                RealPath  = item.TargetPath,
+                Label     = item.Label,
+                TypeLabel = item.TypeLabel,
+                Icon      = item.Icon,
+                Item      = item,
+            });
+
+        return places;
+    }
+
+    /// <summary>
+    /// A drive's display name: <c>"Volume (C:)"</c>, or bare <c>"C:\"</c> when the volume label can't be
+    /// had. Reading <see cref="DriveInfo.VolumeLabel"/> on a drive that isn't ready can block on the
+    /// hardware, so a caller listing every drive passes <paramref name="ready"/> false and re-labels once
+    /// its background probe has confirmed readiness.
+    /// </summary>
+    public static string DriveLabel(DriveInfo drive, bool ready)
+    {
+        if (!ready) return drive.Name;
+        try
+        {
+            return string.IsNullOrWhiteSpace(drive.VolumeLabel)
+                ? drive.Name
+                : $"{drive.VolumeLabel} ({drive.Name.TrimEnd('\\')})";
+        }
+        catch { return drive.Name; }
+    }
+
+    /// <summary>The "Type" column text for a drive.</summary>
+    public static string DriveTypeLabel(DriveInfo drive)
+    {
+        try
+        {
+            return drive.DriveType switch
+            {
+                DriveType.CDRom     => "CD/DVD Drive",
+                DriveType.Removable => "Removable Disk",
+                DriveType.Network   => "Network Drive",
+                DriveType.Ram       => "RAM Disk",
+                _                   => "Local Disk",
+            };
+        }
+        catch { return "Local Disk"; }
+    }
+
+    /// <summary>A drive's icon kind. <see cref="ThisPcItemIcon.Disk"/> covers fixed volumes; telling an
+    /// SSD from a spinning disk needs a device query, so the browser refines that separately.</summary>
+    public static ThisPcItemIcon IconFor(DriveInfo drive)
+    {
+        try
+        {
+            return drive.DriveType switch
+            {
+                DriveType.CDRom     => ThisPcItemIcon.Optical,
+                DriveType.Removable => ThisPcItemIcon.Removable,
+                DriveType.Network   => ThisPcItemIcon.Network,
+                _                   => ThisPcItemIcon.Disk,
+            };
+        }
+        catch { return ThisPcItemIcon.Disk; }
+    }
+
     /// <summary>
     /// Every provider's rows, ordered by provider then item, minus the ones that should not be shown:
     /// <list type="bullet">

@@ -66,20 +66,10 @@ internal sealed class FolderBrowserViewModel
     public ObservableCollection<FolderNodeViewModel> Roots { get; } = [];
 
     public FolderBrowserViewModel(WorkspaceRuntime? workspace = null,
-                                  IReadOnlyList<ThisPcItem>? provided = null)
+                                  IReadOnlyList<ThisPcPlace>? places = null)
     {
-        var driveRoots = new List<string>();
-        foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady))
-        {
-            var label = string.IsNullOrWhiteSpace(drive.VolumeLabel)
-                ? drive.Name
-                : $"{drive.VolumeLabel} ({drive.Name.TrimEnd('\\')})";
-            Roots.Add(new FolderNodeViewModel(drive.RootDirectory.FullName, label));
-            driveRoots.Add(drive.RootDirectory.FullName);
-        }
-
-        foreach (var item in provided ?? PickerRoots.For(workspace, driveRoots))
-            Roots.Add(new FolderNodeViewModel(item.TargetPath, item.Label, PickerRoots.GlyphFor(item.Icon)));
+        foreach (var place in places ?? PickerRoots.For(workspace))
+            Roots.Add(new FolderNodeViewModel(place.RealPath, place.Label, PickerRoots.GlyphFor(place.Icon)));
     }
 }
 
@@ -185,35 +175,49 @@ public partial class FolderBrowserWindow : Window
     }
 }
 
-// ── Provided roots (cloud/network locations contributed by features) ─────────
+// ── Picker roots ─────────────────────────────────────────────────────────────
 
 /// <summary>
-/// The extra This PC rows a picker should list beside the physical drives. They are listed by their
-/// REAL path, under the friendly label: a picker's result is consumed by ordinary System.IO callers,
-/// so it must hand back something they can open. Virtual-backed rows have no such path and are
-/// therefore skipped.
+/// The top-level places a picker lists: the ready drives plus any contributed location, from the same
+/// <see cref="ThisPcItemSet.Enumerate"/> the file browser uses — so the two can't drift apart on naming
+/// or iconography, which is what four independent drive loops had already let happen.
+/// <para>
+/// Everything is listed by its REAL path under a friendly label: a picker's result is consumed by
+/// ordinary <see cref="System.IO"/> callers, so it must hand back something they can open. Locations a
+/// provider serves itself have no such path and are excluded.
+/// </para>
 /// </summary>
 internal static class PickerRoots
 {
-    public static IReadOnlyList<ThisPcItem> For(WorkspaceRuntime? workspace, IEnumerable<string> driveRoots)
+    public static IReadOnlyList<ThisPcPlace> For(WorkspaceRuntime? workspace)
     {
         // Providers don't vary by workspace, so any live one will do when the caller has none to hand
-        // (the Options browse buttons, the workspace folder picker). With no live workspace at all —
-        // tests, early startup — there is nothing to build providers from, so just show the drives.
+        // (the Options browse buttons, the workspace folder picker).
         workspace ??= WorkspaceManager.Instance.FirstActive;
-        if (workspace is null) return [];
-        try
+
+        IEnumerable<IThisPcItemProvider> providers = [];
+        if (workspace is not null)
         {
-            var providers = FeatureManager.Instance.GetThisPcItemProviders(workspace);
-            return ThisPcItemSet.Collect(providers, driveRoots, allowVirtual: false);
+            // No live workspace — tests, early startup — means nothing to build providers from; the
+            // drives are still listed, which is what the picker did before any of this existed.
+            try { providers = FeatureManager.Instance.GetThisPcItemProviders(workspace); }
+            catch { providers = []; }
         }
+
+        try { return ThisPcItemSet.Enumerate(providers, readyDrivesOnly: true, allowVirtual: false); }
         catch { return []; }
     }
 
+    /// <summary>The picker's render vocabulary. It covers every place kind — a USB stick reading as a
+    /// plain folder while a cloud location gets its own mark is exactly the incoherence that having two
+    /// half-mappings produced.</summary>
     public static string GlyphFor(ThisPcItemIcon icon) => icon switch
     {
-        ThisPcItemIcon.Network => "🖧 ",
-        ThisPcItemIcon.Cloud   => "☁ ",
-        _                      => "📁 ",
+        ThisPcItemIcon.Disk      => "🖴 ",
+        ThisPcItemIcon.Removable => "🔌 ",
+        ThisPcItemIcon.Optical   => "💿 ",
+        ThisPcItemIcon.Network   => "🖧 ",
+        ThisPcItemIcon.Cloud     => "☁ ",
+        _                        => "📁 ",
     };
 }

@@ -84,21 +84,11 @@ internal sealed class FileBrowserViewModel
 
     public FileBrowserViewModel(IReadOnlyList<string>? extensions,
                                 WorkspaceRuntime? workspace = null,
-                                IReadOnlyList<ThisPcItem>? provided = null)
+                                IReadOnlyList<ThisPcPlace>? places = null)
     {
-        var driveRoots = new List<string>();
-        foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady))
-        {
-            var label = string.IsNullOrWhiteSpace(drive.VolumeLabel)
-                ? drive.Name
-                : $"{drive.VolumeLabel} ({drive.Name.TrimEnd('\\')})";
-            Roots.Add(new FileNodeViewModel(drive.RootDirectory.FullName, label, isDirectory: true, extensions));
-            driveRoots.Add(drive.RootDirectory.FullName);
-        }
-
-        foreach (var item in provided ?? PickerRoots.For(workspace, driveRoots))
-            Roots.Add(new FileNodeViewModel(item.TargetPath, item.Label, isDirectory: true, extensions,
-                                            PickerRoots.GlyphFor(item.Icon)));
+        foreach (var place in places ?? PickerRoots.For(workspace))
+            Roots.Add(new FileNodeViewModel(place.RealPath, place.Label, isDirectory: true, extensions,
+                                            PickerRoots.GlyphFor(place.Icon)));
     }
 }
 
