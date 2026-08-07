@@ -20,10 +20,15 @@ namespace Nexaflow.Features.Notebook.ViewModels;
 public sealed partial class NotebookViewModel : ObservableObject, IPageViewModel
 {
     private readonly CodeStructureExtractor _extractor = new();
+    private readonly IShellServices _shell;
     private string _grammarId = "python";
     private int _codeCells, _markdownCells;
 
-    public NotebookViewModel(string filePath) => FilePath = filePath;
+    public NotebookViewModel(string filePath, IShellServices shell)
+    {
+        FilePath = filePath;
+        _shell   = shell;
+    }
 
     public string FilePath { get; }
     public string FileName => Path.GetFileName(FilePath);
@@ -45,6 +50,9 @@ public sealed partial class NotebookViewModel : ObservableObject, IPageViewModel
 
         var notebook = NotebookDocument.Parse(text);
         _grammarId = notebook.GrammarId;
+
+        // Hits are cell positions, so re-parsing invalidates every one of them.
+        ClearSearch();
 
         Cells.Clear();
         _codeCells = _markdownCells = 0;

@@ -1,3 +1,5 @@
+using Nexaflow.Features.Common;
+using NSubstitute;
 using System;
 using System.IO;
 using System.Linq;
@@ -57,7 +59,7 @@ public class NotebookAiTests
     [CoversNode("notebook-ai-context")]
     public async Task Context_And_SecurityScope()
     {
-        var vm = new NotebookViewModel(_path);
+        var vm = new NotebookViewModel(_path, Substitute.For<IShellServices>());
         await vm.LoadAsync();
 
         // ── security scope is the notebook file path (the tool boundary) ──
@@ -79,7 +81,7 @@ public class NotebookAiTests
     [CoversNode("notebook-ai-act")]
     public async Task ReadNotebook_ReturnsEveryCellSourceAndOutputs()
     {
-        var vm = new NotebookViewModel(_path);
+        var vm = new NotebookViewModel(_path, Substitute.For<IShellServices>());
         await vm.LoadAsync();
 
         // ── the exact tool surface (a change here should force a tree reconcile) ──
@@ -108,7 +110,7 @@ public class NotebookAiTests
     [CoversNode("notebook-ai-act")]
     public async Task ReadCell_ReturnsRequestedCell_AndErrorsOutOfRange()
     {
-        var vm = new NotebookViewModel(_path);
+        var vm = new NotebookViewModel(_path, Substitute.For<IShellServices>());
         await vm.LoadAsync();
 
         var readCell = vm.GetClientTools().Single(t => t.Name == "read_cell");

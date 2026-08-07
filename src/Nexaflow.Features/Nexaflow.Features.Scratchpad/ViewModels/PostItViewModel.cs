@@ -26,6 +26,20 @@ public sealed partial class PostItViewModel : ObservableObject
 
     public bool IsPinned => ExpiresAt is null;
 
+    // ── "?" page search (all transient — never persisted) ─────────────────────
+
+    /// <summary>True when a page search matched this note's content.</summary>
+    [ObservableProperty] private bool _isSearchHit;
+
+    /// <summary>True when a page search is running and this note did <em>not</em> match — the board hides
+    /// it rather than leaving the user to spot the marked ones among fifty.</summary>
+    [ObservableProperty] private bool _isHiddenBySearch;
+
+    /// <summary>The query to paint inside this note's body, or null for none. The control watches it and
+    /// hands it to the editor, which highlights the rendered words — the view-model has no document to
+    /// paint and the editor has no idea what a page search is.</summary>
+    [ObservableProperty] private Nexaflow.Features.Common.Search.TextSearchMatcher? _searchMatcher;
+
     /// <summary>Transient (not persisted): the view enters edit mode on load when set —
     /// used so a freshly created empty note is immediately editable.</summary>
     public bool StartInEdit { get; set; }

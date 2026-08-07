@@ -7,7 +7,7 @@ namespace Nexaflow.Features.Notebook;
 
 /// <summary>Registers the "Notebook" page: a Jupyter <c>.ipynb</c> rendered as cells (markdown + highlighted
 /// code) with a code-structure outline. Discovered by <c>FeatureManager</c> via <see cref="StaticPageKind"/>.</summary>
-public sealed class NotebookTabRegistration : IPageRegistration
+public sealed class NotebookTabRegistration(IShellServices shell) : IPageRegistration
 {
     public static string StaticPageKind => "Notebook";
     public string PageKind => StaticPageKind;
@@ -21,7 +21,7 @@ public sealed class NotebookTabRegistration : IPageRegistration
         {
             Title       = title,
             Icon        = "📓",
-            ContentFactory = () => new NotebookView(new NotebookViewModel(path)),
+            ContentFactory = () => new NotebookView(new NotebookViewModel(path, shell)),
         };
         page.SetFileBreadcrumbs(path, title);
         return page;

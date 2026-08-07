@@ -93,7 +93,7 @@ public class NotebookSurfaceTests
             """, out var dir);
         try
         {
-            var vm = new NotebookViewModel(path);
+            var vm = new NotebookViewModel(path, Substitute.For<IShellServices>());
             await vm.LoadAsync();
 
             Assert.IsFalse(vm.HasOutline, "an empty column is worse than no column");
@@ -110,7 +110,7 @@ public class NotebookSurfaceTests
         var path = WriteNotebook(TwoCells, out var dir);
         try
         {
-            var vm = new NotebookViewModel(path);
+            var vm = new NotebookViewModel(path, Substitute.For<IShellServices>());
             await vm.LoadAsync();
 
             Assert.IsTrue(vm.HasOutline);
@@ -128,7 +128,7 @@ public class NotebookSurfaceTests
         var path = WriteNotebook(TwoCells, out var dir);
         try
         {
-            var vm = new NotebookViewModel(path);
+            var vm = new NotebookViewModel(path, Substitute.For<IShellServices>());
             Assert.IsFalse(vm.IsContextReady,
                            "pinned this early it would report the empty python/0/0 stub as if it were the file");
 
