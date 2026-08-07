@@ -66,6 +66,11 @@ public class JsonSearchableTests : SearchableContentConformanceTests
     {
         var vm = new JsonViewModel(path, new JsonFileLoader(), new JsonPathEvaluator(), RunningShell());
         await vm.LoadAsync(CancellationToken.None);
+
+        // For a large file LoadAsync returns before the placeholder fill finishes, so the first screen
+        // isn't blocked. Tests that count DisplayItems have to let it settle, or they read the collection
+        // while the thread-pool continuation is still adding to it.
+        await vm.Prepopulation;
         return vm;
     }
 

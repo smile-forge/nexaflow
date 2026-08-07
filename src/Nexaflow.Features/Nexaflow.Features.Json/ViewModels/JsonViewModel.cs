@@ -119,6 +119,19 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
     public bool HasVirtualItems
         => DisplayItems.OfType<JsonVirtualDisplayItem>().Any();
 
+    /// <summary>
+    /// The background estimate-and-pre-populate <see cref="LoadAsync"/> starts for a large file, which
+    /// fills <see cref="DisplayItems"/> with the placeholders <see cref="HasVirtualItems"/> reports on.
+    /// It completes after <c>LoadAsync</c> returns, by design — the first screen should not wait for it.
+    /// <para>
+    /// Exposed so a caller that reads the display list straight after loading can await the fill rather
+    /// than race it. In the app that never arises: both run on the dispatcher, so they are already
+    /// serialised. Off the dispatcher — a test — the continuation lands on the thread pool and an
+    /// unawaited read can catch the collection mid-mutation.
+    /// </para>
+    /// </summary>
+    internal Task Prepopulation { get; private set; } = Task.CompletedTask;
+
     public event EventHandler<JsonDisplayItem>? ScrollToItemRequested;
 
     partial void OnSelectedDisplayItemChanged(JsonDisplayItem? value)
@@ -185,8 +198,10 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
                 if (result.RootContentOffset > 0)
                     _byteOffsetIndex[0] = result.RootContentOffset;
 
-                // Estimate and pre-populate in background so initial render isn't blocked
-                _ = EstimateAndPrepopulateAsync(_loadCts.Token);
+                // Estimate and pre-populate in background so initial render isn't blocked. Deliberately
+                // not awaited — but kept, not dropped, so a caller that needs the placeholder list
+                // settled can wait for it instead of guessing (see Prepopulation).
+                Prepopulation = EstimateAndPrepopulateAsync(_loadCts.Token);
             }
         }
         catch (OperationCanceledException) { }
