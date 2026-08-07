@@ -46,11 +46,27 @@ public sealed partial class GraphViewModel : ObservableObject, IPageViewModel
     private const int MaxRealized = 700;
     private double _viewScale = 1.0;   // last zoom the view reported, for the LOD pass
 
-    public GraphViewModel(string filePath, GraphLoader? loader = null, IShellServices? shell = null)
+    public GraphViewModel(string filePath, GraphLoader? loader = null, IShellServices? shell = null,
+                          string? focusNodeId = null)
     {
         FilePath = filePath;
         _loader = loader ?? new GraphLoader();
         _shell = shell;
+        _initialFocusId = focusNodeId;
+    }
+
+    /// <summary>Node to land on instead of the root — a deep link from the graph search results.</summary>
+    private readonly string? _initialFocusId;
+
+    /// <summary>
+    /// Selects <paramref name="id"/> if the graph holds it, focusing its neighbourhood. False when it does
+    /// not — the caller can then say so rather than leaving the viewer sitting on an unrelated node.
+    /// </summary>
+    public bool SelectById(string? id)
+    {
+        if (id is not { Length: > 0 } || !_byId.TryGetValue(id, out var vm)) return false;
+        SelectedNode = vm;
+        return true;
     }
 
     public string FilePath { get; }
@@ -164,7 +180,9 @@ public sealed partial class GraphViewModel : ObservableObject, IPageViewModel
             }
             else
             {
-                SelectedNode = _rootNode;   // selecting drives the focus + neighbourhood (see OnSelectedNodeChanged)
+                // A deep link lands on the node that was asked for; everything else starts at the root.
+                // Selecting drives the focus + neighbourhood (see OnSelectedNodeChanged).
+                if (!SelectById(_initialFocusId)) SelectedNode = _rootNode;
             }
         }
         catch (Exception ex)

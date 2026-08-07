@@ -25,6 +25,7 @@ public sealed class GraphViewerTabRegistration : IPageRegistration
     public IReadOnlyList<PageParameter> Parameters =>
     [
         new("path", "Path to a knowledge-graph file (graph.json).", Required: true),
+        new("node", "Id of a node to select on open (deep link from the graph search results).", Required: false),
     ];
 
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
@@ -32,11 +33,17 @@ public sealed class GraphViewerTabRegistration : IPageRegistration
         var path = pageParams?.GetValueOrDefault("path") ?? string.Empty;
         var title = string.IsNullOrEmpty(path) ? "Graph" : Path.GetFileName(path);
 
+        // `node` is a one-shot navigation hint, NOT part of this tab's identity — same rule as the Product
+        // tab's. A tab keyed on {path,node} would stop matching a request for a different node and open a
+        // second graph tab per node instead of re-pointing the one that is already showing this graph.
+        string? focusNode = null;
+        if (pageParams is not null && pageParams.Remove("node", out var requested)) focusNode = requested;
+
         var page = new Page
         {
             Title = title,
             Icon = "🕸",
-            ContentFactory = () => new GraphView(new GraphViewModel(path, _loader, _shell)),
+            ContentFactory = () => new GraphView(new GraphViewModel(path, _loader, _shell, focusNode)),
         };
         page.SetFileBreadcrumbs(path, title);
         return page;
