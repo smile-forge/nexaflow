@@ -20,6 +20,13 @@ public sealed record ArchiveSummary(
 /// (e.g. <c>D:\a.zip\inner\x.cs</c>, including nesting like <c>a.zip\b.tar\c.txt</c>) the entry is
 /// resolved through the registered <see cref="IArchiveHandler"/>s — materialised to a cached temp file
 /// so callers always get a seekable stream and an ordinary on-disk path semantics.
+/// <para>
+/// It is also transparent over <b>mounts</b>: a path under <c>::{mountId}</c> maps by string
+/// substitution onto a real directory (see <see cref="RegisterMount"/>), so a mounted location browses
+/// and reads exactly like the directory behind it without ever naming it. Because the mapping happens
+/// before every other rule, a mounted path may itself descend into an archive
+/// (<c>::docs\a.zip\x.cs</c>) and behaves identically to the real equivalent.
+/// </para>
 /// </summary>
 public interface IVirtualFileSystem
 {
@@ -102,4 +109,48 @@ public interface IVirtualFileSystem
 
     /// <summary>Registers a compression backend. Called once per handler at startup.</summary>
     void RegisterHandler(IArchiveHandler handler);
+
+    // ── Mounts ───────────────────────────────────────────────────────────────
+
+    /// <summary>Every registered mount, innermost (longest <see cref="VirtualMount.RealRoot"/>) first.</summary>
+    IReadOnlyList<VirtualMount> Mounts { get; }
+
+    /// <summary>Adds the mount, replacing any with the same id. Idempotent: re-registering an identical
+    /// mount changes nothing and raises no event, so a caller may refresh unconditionally.
+    /// Throws <see cref="System.ArgumentException"/> if the id is empty or not path-segment-safe.</summary>
+    void RegisterMount(VirtualMount mount);
+
+    /// <summary>Removes the mount with this id, if present. Cheap — a pass-through mount owns no
+    /// materialised temp files and no open archive sessions.</summary>
+    void UnregisterMount(string id);
+
+    /// <summary>Raised when the mount set changes, so open browsers can re-query. May fire on any thread.</summary>
+    event System.Action? MountsChanged;
+
+    /// <summary>How this path's bytes are obtained — the safety classification an action consults
+    /// before handing the path to an external process.</summary>
+    VirtualBacking GetBacking(string path);
+
+    /// <summary>The real on-disk path for a real or mounted path, or null when the path only exists
+    /// inside an archive (use <see cref="MaterializeFile"/> to get a temp copy of those) or names a
+    /// mount that is not registered.</summary>
+    string? TryResolveReal(string path);
+
+    /// <summary>The inverse of mount resolution: the <c>::{id}\…</c> form of a real path that lies under
+    /// a mount, or null when it does not. Used to keep a real path from surfacing once the user is
+    /// browsing through a mount.</summary>
+    string? TryToVirtual(string realPath);
+
+    /// <summary>The containing directory, or null at a mount root or a drive root (i.e. "the level above
+    /// is This PC"). Use instead of <see cref="Directory.GetParent"/>, which cannot see mounts.</summary>
+    string? GetParentPath(string path);
+
+    /// <summary>The leaf name to show for this path — a mount root yields the mount's friendly
+    /// <see cref="VirtualMount.Label"/> rather than its id.</summary>
+    string GetDisplayName(string path);
+
+    /// <summary>The breadcrumb trail for the path, root-first, as (label, navigable path) pairs. The
+    /// first pair is the mount root or the drive root; no "This PC" crumb is included — that belongs to
+    /// the caller, which alone knows whether it is browsing rooted or from This PC.</summary>
+    IReadOnlyList<(string Label, string Path)> GetBreadcrumbs(string path);
 }

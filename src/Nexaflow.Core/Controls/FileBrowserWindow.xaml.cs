@@ -1,6 +1,10 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Nexaflow.Core.Models;
+using Nexaflow.Features.Common.ThisPc;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -18,7 +22,9 @@ internal sealed partial class FileNodeViewModel : ObservableObject
     public string DisplayName { get; }
     public bool   IsDirectory { get; }
 
-    public string Glyph => IsDirectory ? "📁 " : "📄 ";
+    /// <summary>Leading icon; a provided root supplies its own so a cloud location reads as one.</summary>
+    public string Glyph => _glyphOverride ?? (IsDirectory ? "📁 " : "📄 ");
+    private readonly string? _glyphOverride;
 
     public ObservableCollection<FileNodeViewModel> Children { get; } = [];
 
@@ -28,12 +34,13 @@ internal sealed partial class FileNodeViewModel : ObservableObject
     private bool _loaded;
 
     public FileNodeViewModel(string fullPath, string displayName, bool isDirectory,
-                             IReadOnlyList<string>? extensions)
+                             IReadOnlyList<string>? extensions, string? glyph = null)
     {
-        FullPath    = fullPath;
-        DisplayName = displayName;
-        IsDirectory = isDirectory;
-        _extensions = extensions;
+        FullPath       = fullPath;
+        DisplayName    = displayName;
+        IsDirectory    = isDirectory;
+        _extensions    = extensions;
+        _glyphOverride = glyph;
         if (isDirectory && !string.IsNullOrEmpty(fullPath))
             Children.Add(_placeholder);  // shows expand arrow
     }
@@ -75,15 +82,23 @@ internal sealed class FileBrowserViewModel
 {
     public ObservableCollection<FileNodeViewModel> Roots { get; } = [];
 
-    public FileBrowserViewModel(IReadOnlyList<string>? extensions)
+    public FileBrowserViewModel(IReadOnlyList<string>? extensions,
+                                WorkspaceRuntime? workspace = null,
+                                IReadOnlyList<ThisPcItem>? provided = null)
     {
+        var driveRoots = new List<string>();
         foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady))
         {
             var label = string.IsNullOrWhiteSpace(drive.VolumeLabel)
                 ? drive.Name
                 : $"{drive.VolumeLabel} ({drive.Name.TrimEnd('\\')})";
             Roots.Add(new FileNodeViewModel(drive.RootDirectory.FullName, label, isDirectory: true, extensions));
+            driveRoots.Add(drive.RootDirectory.FullName);
         }
+
+        foreach (var item in provided ?? PickerRoots.For(workspace, driveRoots))
+            Roots.Add(new FileNodeViewModel(item.TargetPath, item.Label, isDirectory: true, extensions,
+                                            PickerRoots.GlyphFor(item.Icon)));
     }
 }
 
@@ -95,10 +110,10 @@ public partial class FileBrowserWindow : Window
 
     public FileBrowserWindow() : this(null) { }
 
-    public FileBrowserWindow(IReadOnlyList<string>? extensions)
+    public FileBrowserWindow(IReadOnlyList<string>? extensions, WorkspaceRuntime? workspace = null)
     {
         InitializeComponent();
-        DataContext = new FileBrowserViewModel(extensions);
+        DataContext = new FileBrowserViewModel(extensions, workspace);
         if (extensions is { Count: > 0 })
             HeaderText.Text = $"Select File ({string.Join(", ", extensions.Select(e => "*" + e))})";
     }
@@ -107,9 +122,10 @@ public partial class FileBrowserWindow : Window
     /// <param name="extensions">Allowed extensions (e.g. ".exe"); null/empty offers any file.</param>
     public static string? Show(string? initialPath = null,
                                IReadOnlyList<string>? extensions = null,
-                               Window? owner = null)
+                               Window? owner = null,
+                               WorkspaceRuntime? workspace = null)
     {
-        var win = new FileBrowserWindow(extensions)
+        var win = new FileBrowserWindow(extensions, workspace)
         {
             Owner = owner ?? Application.Current.MainWindow
         };

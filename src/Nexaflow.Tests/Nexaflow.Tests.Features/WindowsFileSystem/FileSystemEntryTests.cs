@@ -21,7 +21,7 @@ public class FileSystemEntryTests
     [TestMethod]
     public void TypeLabel_Drive_ReturnsDriveKindLabel()
     {
-        var entry = new FileSystemEntry { IsDrive = true };
+        var entry = new FileSystemEntry { IsThisPcItem = true };
         entry.DriveKindLabel = "Local Disk";
 
         Assert.AreEqual("Local Disk", entry.TypeLabel);
@@ -80,7 +80,7 @@ public class FileSystemEntryTests
     [TestMethod]
     public void SizeLabel_Drive_ZeroTotal_Empty()
     {
-        var entry = new FileSystemEntry { IsDrive = true };
+        var entry = new FileSystemEntry { IsThisPcItem = true };
 
         Assert.AreEqual(string.Empty, entry.SizeLabel);
     }
@@ -88,7 +88,7 @@ public class FileSystemEntryTests
     [TestMethod]
     public void SizeLabel_Drive_ShowsUsedPercent()
     {
-        var entry = new FileSystemEntry { IsDrive = true };
+        var entry = new FileSystemEntry { IsThisPcItem = true };
         entry.DriveTotalBytes = 1024L * 1024 * 1024 * 100; // 100 GB
         entry.DriveUsedBytes  = 1024L * 1024 * 1024 * 50;  // 50 GB
 
@@ -101,7 +101,7 @@ public class FileSystemEntryTests
     [TestMethod]
     public void ModifiedLabel_Drive_Empty()
     {
-        var entry = new FileSystemEntry { IsDrive = true, Modified = DateTime.Now };
+        var entry = new FileSystemEntry { IsThisPcItem = true, Modified = DateTime.Now };
 
         Assert.AreEqual(string.Empty, entry.ModifiedLabel);
     }
@@ -127,7 +127,7 @@ public class FileSystemEntryTests
     [TestMethod]
     public void DriveUsedBytes_Set_FiresSizeLabelChange()
     {
-        var entry  = new FileSystemEntry { IsDrive = true };
+        var entry  = new FileSystemEntry { IsThisPcItem = true };
         entry.DriveTotalBytes = 1024L * 1024 * 1024;
         var fired  = new List<string?>();
         ((INotifyPropertyChanged)entry).PropertyChanged += (_, e) => fired.Add(e.PropertyName);
@@ -140,7 +140,7 @@ public class FileSystemEntryTests
     [TestMethod]
     public void DriveKindLabel_Set_FiresTypeLabelChange()
     {
-        var entry = new FileSystemEntry { IsDrive = true };
+        var entry = new FileSystemEntry { IsThisPcItem = true };
         var fired = new List<string?>();
         ((INotifyPropertyChanged)entry).PropertyChanged += (_, e) => fired.Add(e.PropertyName);
 

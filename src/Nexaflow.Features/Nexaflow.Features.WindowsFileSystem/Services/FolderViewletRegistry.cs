@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common.Viewlets;
+using Nexaflow.IO.Common;
 using System.IO;
 
 namespace Nexaflow.Features.WindowsFileSystem.Services;
@@ -36,6 +37,10 @@ public static class FolderViewletRegistry
         var fileGlobs   = viewlet.ContainsFileGlobs;
         var folderGlobs = viewlet.ContainsFolderGlobs;
         if (fileGlobs is null && folderGlobs is null) return true;
+
+        // Probe where the files actually are, or a mounted repo folder would match nothing and the Git
+        // and .NET viewlets would silently never appear there.
+        folderPath = VirtualFileSystem.Instance.TryResolveReal(folderPath) ?? folderPath;
 
         try
         {

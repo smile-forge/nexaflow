@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Common.Search;
+using Nexaflow.Features.Common.ThisPc;
 using Nexaflow.Search;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem.ClientTools;
@@ -214,7 +215,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     /// <summary>Opens the create overlay, populated live from every create-action source.</summary>
     public void OpenCreateOverlay()
     {
-        if (_isThisPcMode || string.IsNullOrEmpty(CurrentPath) || !Directory.Exists(CurrentPath))
+        if (_isThisPcMode || string.IsNullOrEmpty(CurrentPath) || !IsRealFolder(CurrentPath))
             return;
         OpenCreateOverlayWith(_actionRegistry.GetCreateActions());
     }
@@ -267,7 +268,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         bool exists = false;
         if (valid && !string.IsNullOrEmpty(CurrentPath))
         {
-            var full = Path.Combine(CurrentPath, name);
+            var full = Path.Combine(RealFolder(CurrentPath), name);
             exists = File.Exists(full) || Directory.Exists(full);
         }
 
@@ -287,7 +288,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         CreateOverlayVisible = false;
         try
         {
-            action.Create(CurrentPath, name);
+            action.Create(RealFolder(CurrentPath), name);
         }
         catch (Exception ex)
         {
@@ -311,7 +312,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     [RelayCommand(CanExecute = nameof(CanOpenDefineNewWizard))]
     private void OpenDefineNewWizard()
     {
-        if (CurrentSelection is not [{ IsDirectory: false, IsDrive: false } file]) return;
+        if (CurrentSelection is not [{ IsDirectory: false, IsThisPcItem: false } file]) return;
 
         Wizard = new DefineNewWizardViewModel(
             _shell, _externalAppsConfig, Registry.FileActions,
@@ -328,7 +329,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     }
 
     private bool CanOpenDefineNewWizard()
-        => !_isThisPcMode && CurrentSelection is [{ IsDirectory: false, IsDrive: false }];
+        => !_isThisPcMode && CurrentSelection is [{ IsDirectory: false, IsThisPcItem: false }];
 
     /// <summary>
     /// Opens the relevant Options editor for an existing action so the user can tweak it: a
@@ -388,6 +389,15 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     /// <summary>The nearest ancestor of <paramref name="path"/> that still exists on disk, or null if none
     /// does (the caller then falls back to This PC). Used to re-home a tab after its folder is deleted —
     /// walk up until something is displayable. Assumes <paramref name="path"/> itself is already gone.</summary>
+    /// <summary>The real directory behind a (possibly mounted) browse location, or the path itself when
+    /// there isn't one. Creation and collision checks work in real paths; the mount is only a view.</summary>
+    private string RealFolder(string path) => Vfs.TryResolveReal(path) ?? path;
+
+    /// <summary>True when the location is a real directory once mounts are resolved — the condition for
+    /// offering "New", which needs somewhere on disk to create into.</summary>
+    private bool IsRealFolder(string path)
+        => Vfs.TryResolveReal(path) is { } real && Directory.Exists(real);
+
     public static string? NearestExistingAncestor(string path)
     {
         for (var ancestor = Path.GetDirectoryName(path);
@@ -424,6 +434,38 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     /// <summary>Stops observing the shell's folder-busy signal. Called by the view on unload so the long-lived
     /// shell doesn't retain this VM.</summary>
     public void DetachBusyTracking() => _shell.FolderBusyChanged -= OnShellFolderBusyChanged;
+
+    /// <summary>
+    /// Begins observing the This PC contributors, so editing them in Options updates an open tab without
+    /// a switch away and back. Called by the view on load — the providers and the VFS are owned by the
+    /// shell and outlive the tab, so a permanent subscription would leak this VM.
+    /// <para>
+    /// The shell's own config→tab refresh cannot cover this: it maps a config to the page registrations
+    /// whose constructors take it, and the file browser's registration cannot reference another
+    /// feature's config type.
+    /// </para>
+    /// </summary>
+    public void AttachThisPcProviderTracking()
+    {
+        foreach (var provider in Registry.ThisPcItemProviders) provider.Changed += OnThisPcItemsChanged;
+        Vfs.MountsChanged += OnThisPcItemsChanged;
+        if (_isThisPcMode) OnThisPcItemsChanged();   // catch anything that moved while unloaded
+    }
+
+    /// <summary>Stops observing the This PC contributors. Called by the view on unload.</summary>
+    public void DetachThisPcProviderTracking()
+    {
+        foreach (var provider in Registry.ThisPcItemProviders) provider.Changed -= OnThisPcItemsChanged;
+        Vfs.MountsChanged -= OnThisPcItemsChanged;
+    }
+
+    /// <summary>A provider may signal from any thread (a file watcher, a background probe), so hop to the
+    /// UI thread before touching the entry list.</summary>
+    private void OnThisPcItemsChanged()
+        => _ = _shell.RunOnUiAsync(() =>
+        {
+            if (_isThisPcMode) GoToThisPc(rebuildTree: false);
+        });
 
     private void OnShellFolderBusyChanged() => RefreshBusyState();
 
@@ -467,12 +509,12 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         // In This PC mode the only entries are drives, and a drive is a valid folder-action target (the
         // anyDrives path below resolves through FilterFolderActions). Bail only when nothing was clicked —
         // right-clicking a drive here used to fall through to an empty menu.
-        if (_isThisPcMode && !entries.Any(e => e.IsDrive)) return [];
+        if (_isThisPcMode && !entries.Any(e => e.IsThisPcItem)) return [];
 
         var canPerform = _actionRegistry.SnapshotCanPerform();
 
         bool onlyFolders     = entries.Count > 0 && entries.All(e => e.IsDirectory);
-        bool anyDrives       = entries.Any(e => e.IsDrive);
+        bool anyDrives       = entries.Any(e => e.IsThisPcItem);
         bool useFolderActions = entries.Count == 0 || onlyFolders || anyDrives;
 
         IReadOnlyList<IFileAction> applicable = useFolderActions
@@ -521,7 +563,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
 
         // In This PC mode, a selected drive still gets folder actions (the debounce builder handles
         // anyDrives). Only an empty selection there yields an empty strip — which is correct.
-        if (_isThisPcMode && !selected.Any(e => e.IsDrive))
+        if (_isThisPcMode && !selected.Any(e => e.IsThisPcItem))
         {
             FileActions.Clear();
             return;
@@ -545,7 +587,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         var canPerform = _actionRegistry.SnapshotCanPerform();
 
         bool onlyFolders = selected.Count > 0 && selected.All(e => e.IsDirectory);
-        bool anyDrives   = selected.Any(e => e.IsDrive);
+        bool anyDrives   = selected.Any(e => e.IsThisPcItem);
         bool useFolderActions = selected.Count == 0 || onlyFolders || anyDrives;
         var  currentPath = CurrentPath;   // captured for the background filter (open-folder gating)
 
@@ -658,7 +700,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         // "New" — the first item when an empty folder area is in focus (no file selected). It is a
         // folder action (operates on the current folder) whose PerformAction opens the create overlay.
         if (useFolderActions && selected.Count == 0 && !_isThisPcMode
-            && !string.IsNullOrEmpty(CurrentPath) && Directory.Exists(CurrentPath))
+            && !string.IsNullOrEmpty(CurrentPath) && IsRealFolder(CurrentPath))
         {
             var newAction = new FolderActionAdapter(new NewMenuAction(OpenCreateOverlay));
             FileActions.Insert(0, BuildActionVm(newAction));
@@ -782,6 +824,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         // DriveInfo.GetDrives() is fast — just reads the drive table without I/O per drive.
         // Each drive is shown immediately in a Loading state; readiness is checked per-drive
         // on a background thread so slow/network drives never block the UI.
+        var driveRoots = new List<string>();
         foreach (var d in DriveInfo.GetDrives())
         {
             var node  = new FileSystemTreeNode(d.Name, d.RootDirectory.FullName, TreeNodeKind.Drive);
@@ -790,14 +833,17 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
                 Name          = d.Name,
                 FullPath      = d.RootDirectory.FullName,
                 IsDirectory   = true,
-                IsDrive       = true,
+                IsThisPcItem  = true,
                 DriveStatus   = DriveStatus.Loading,
                 DriveIconType = DriveIconType.HDD
             };
             thisPc.Children.Add(node);
             vm.Entries.Add(entry);
+            driveRoots.Add(d.RootDirectory.FullName);
             _ = CheckDriveAsync(d, node, entry);
         }
+
+        AddProvidedItems(vm, thisPc, driveRoots);
 
         vm.RecountEntries();
         vm.NavigationChanged?.Invoke([("This PC", string.Empty)]);
@@ -876,6 +922,96 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         {
             node.DriveStatus  = DriveStatus.Unavailable;
             entry.DriveStatus = DriveStatus.Unavailable;
+        }
+    }
+
+    /// <summary>
+    /// Appends the rows contributed by <see cref="IThisPcItemProvider"/>s after the physical drives.
+    /// Each row's path is its virtual root (<c>::{id}</c>), never the real location behind it, so the
+    /// user browses the mount rather than the folder it maps to.
+    /// <para>
+    /// Shaped exactly like the drive loop above: the row appears immediately in a Loading state and a
+    /// background probe settles it Ready or Unavailable, so a sync folder that has gone shows the
+    /// unavailable badge instead of pretending to work.
+    /// </para>
+    /// </summary>
+    private static void AddProvidedItems(FileSystemViewModel vm, FileSystemTreeNode? thisPc,
+                                         IReadOnlyList<string> existingRoots, bool addTreeNodes = true)
+    {
+        IReadOnlyList<ThisPcItem> items;
+        try { items = ThisPcItemSet.Collect(vm.Registry.ThisPcItemProviders, existingRoots); }
+        catch { return; }   // never let a contributor break This PC itself
+
+        foreach (var item in items)
+        {
+            var virtualRoot = VirtualMount.RootFor(item.Id);
+            var entry = new FileSystemEntry
+            {
+                Name           = item.Label,
+                FullPath       = virtualRoot,
+                IsDirectory    = true,
+                IsThisPcItem   = true,
+                ProviderId     = item.Id,
+                DriveStatus    = DriveStatus.Loading,
+                DriveIconType  = MapIcon(item.Icon),
+                DriveKindLabel = item.TypeLabel,
+            };
+            vm.Entries.Add(entry);
+
+            FileSystemTreeNode? node = null;
+            if (thisPc is not null)
+            {
+                node = addTreeNodes
+                    ? new FileSystemTreeNode(item.Label, virtualRoot, TreeNodeKind.Drive)
+                    : thisPc.Children.FirstOrDefault(c => string.Equals(c.FullPath, virtualRoot,
+                                                          StringComparison.OrdinalIgnoreCase));
+                if (addTreeNodes) thisPc.Children.Add(node!);
+                node ??= new FileSystemTreeNode(item.Label, virtualRoot, TreeNodeKind.Drive);
+                node.DriveIconType = entry.DriveIconType;
+            }
+            _ = CheckProvidedAsync(vm, item, node, entry);
+        }
+    }
+
+    private static DriveIconType MapIcon(ThisPcItemIcon icon) => icon switch
+    {
+        ThisPcItemIcon.Network => DriveIconType.Network,
+        ThisPcItemIcon.Cloud   => DriveIconType.Cloud,
+        _                      => DriveIconType.HDD,
+    };
+
+    /// <summary>The provided-row analogue of <see cref="CheckDriveAsync"/>: asks the owning provider for
+    /// the slow half off the UI thread, then settles the row's badge and expander.</summary>
+    private static async Task CheckProvidedAsync(FileSystemViewModel vm, ThisPcItem item,
+                                                 FileSystemTreeNode? node, FileSystemEntry entry)
+    {
+        ThisPcItemDetail detail;
+        try
+        {
+            var provider = vm.Registry.ThisPcItemProviders
+                .FirstOrDefault(p => item.Id.StartsWith(p.ProviderId, StringComparison.OrdinalIgnoreCase));
+            detail = provider is null
+                ? await ThisPcItemSet.ProbeLocalAsync(item)
+                : await provider.GetDetailAsync(item);
+        }
+        catch { detail = new ThisPcItemDetail { Available = false }; }
+
+        // Resumes on the WPF dispatcher — safe to touch UI objects directly (as CheckDriveAsync does).
+        if (detail.Label is { Length: > 0 } label)
+        {
+            entry.Name = label;
+            if (node is not null) node.Name = label;
+        }
+
+        entry.DriveUsedBytes  = detail.UsedBytes;
+        entry.DriveTotalBytes = detail.TotalBytes;
+        entry.DriveStatus     = detail.Available ? DriveStatus.Ready : DriveStatus.Unavailable;
+
+        if (node is not null)
+        {
+            node.DriveStatus = entry.DriveStatus;
+            if (detail.Available && detail.HasChildren && node.Children.Count == 0)
+                node.Children.Add(FileSystemTreeNode.Dummy);
         }
     }
 
@@ -1027,6 +1163,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
             // Populate entries immediately with all drives in Loading state,
             // then resolve each drive individually on a background thread.
             Entries.Clear();
+            var driveRoots = new List<string>();
             foreach (var d in DriveInfo.GetDrives())
             {
                 var entry = new FileSystemEntry
@@ -1034,11 +1171,12 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
                     Name          = d.Name,
                     FullPath      = d.RootDirectory.FullName,
                     IsDirectory   = true,
-                    IsDrive       = true,
+                    IsThisPcItem  = true,
                     DriveStatus   = DriveStatus.Loading,
                     DriveIconType = DriveIconType.HDD
                 };
                 Entries.Add(entry);
+                driveRoots.Add(d.RootDirectory.FullName);
 
                 if (rebuildTree && thisPcNode is not null)
                 {
@@ -1055,6 +1193,8 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
                     _ = CheckDriveAsync(d, existingNode ?? new FileSystemTreeNode(d.Name, d.RootDirectory.FullName, TreeNodeKind.Drive), entry);
                 }
             }
+
+            AddProvidedItems(this, thisPcNode, driveRoots, addTreeNodes: rebuildTree);
 
             RecountEntries();
             NavigationChanged?.Invoke([("This PC", string.Empty)]);
@@ -1151,11 +1291,14 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     public void NavigateUp()
     {
         if (_isThisPcMode) return;
-        var parent = Directory.GetParent(CurrentPath);
-        if (parent != null)
-            NavigateTo(parent.FullName);
+        // Through the VFS, not Directory.GetParent: inside a mount the chain runs up to the mount root
+        // and then to This PC, never out into the real folder the mount maps onto. Entering the same
+        // folder by its real path keeps the real chain — the two routes are separate journeys.
+        var parent = Vfs.GetParentPath(CurrentPath);
+        if (parent is not null)
+            NavigateTo(parent);
         else
-            GoToThisPc(rebuildTree: true); // at drive root, folder tree has no ThisPc node
+            GoToThisPc(rebuildTree: true); // at a drive or mount root, folder tree has no ThisPc node
     }
 
     // ── IPageViewModel ────────────────────────────────────────────────────────
@@ -1249,9 +1392,18 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         if (IsThisPcMode) return ContextSecurityRisk.High;             // unconfined — AI can go anywhere
         if (string.IsNullOrEmpty(CurrentPath)) return ContextSecurityRisk.High;
 
+        // Classify where the bytes REALLY are. A mounted path is "::id\…", which Path.GetFullPath cannot
+        // parse: the throw would land in the catch below and report Low — so a mount pointed at
+        // C:\Windows would read as safe. Inside an archive nothing resolves to a directory, so judge the
+        // archive file's own location instead. An unclassifiable path is High, not Low: not knowing where
+        // we are is precisely the case not to hand the AI.
         string full;
-        try { full = Path.GetFullPath(CurrentPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar); }
-        catch { return ContextSecurityRisk.Low; }
+        try
+        {
+            var real = Vfs.TryResolveReal(CurrentPath) ?? Vfs.SplitOutermostContainer(CurrentPath).RealContainer;
+            full = Path.GetFullPath(real).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+        catch { return ContextSecurityRisk.High; }
 
         var windowsDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows)
                                     .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
@@ -1430,25 +1582,12 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         }
         else if (string.IsNullOrEmpty(_rootPath))
         {
-            // Navigated from "This PC" into a drive or one of its subdirectories.
-            // Breadcrumb: This PC > C:\ > Folder > ...
+            // Navigated from "This PC" into a drive, a mount, or one of their subdirectories.
+            // Breadcrumb: This PC > C:\ > Folder > …, or This PC > OneDrive > Folder > …
+            // The VFS segments it because only it knows where a mount root is and what to call it —
+            // Path.GetPathRoot returns "" for a ::mount path and would collapse the trail.
             segments.Add(("This PC", string.Empty));
-
-            var driveRoot = Path.GetPathRoot(path) ?? path;
-            var driveLabel = driveRoot.TrimEnd(Path.DirectorySeparatorChar);
-            segments.Add((driveLabel, driveRoot));
-
-            var relative = Path.GetRelativePath(driveRoot, path);
-            if (relative != ".")
-            {
-                var parts = relative.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
-                var built = driveRoot;
-                foreach (var part in parts)
-                {
-                    built = Path.Combine(built, part);
-                    segments.Add((part, built));
-                }
-            }
+            segments.AddRange(Vfs.GetBreadcrumbs(path));
         }
         else
         {
@@ -1509,20 +1648,30 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         if (string.IsNullOrEmpty(node.FullPath)) return;
         if (node.Children.Count == 0 || node.Children[0] == FileSystemTreeNode.Dummy) return;
 
-        HashSet<string> diskDirs;
-        try { diskDirs = new HashSet<string>(Directory.GetDirectories(node.FullPath), StringComparer.OrdinalIgnoreCase); }
-        catch { diskDirs = []; }
+        // Enumerate the real directory but express the results in THIS node's path space: under a mount
+        // the children are ::mount\… while the disk reports C:\…, and comparing the two would find no
+        // match and empty the node on every refresh.
+        HashSet<string> childPaths;
+        try
+        {
+            childPaths = FileSystemTreeNode.RealDirOf(node.FullPath) is { } real
+                ? new HashSet<string>(
+                    Directory.GetDirectories(real).Select(d => Path.Combine(node.FullPath, Path.GetFileName(d))),
+                    StringComparer.OrdinalIgnoreCase)
+                : [];
+        }
+        catch { childPaths = []; }
 
         // Remove children no longer on disk
         for (int i = node.Children.Count - 1; i >= 0; i--)
         {
-            if (!diskDirs.Contains(node.Children[i].FullPath))
+            if (!childPaths.Contains(node.Children[i].FullPath))
                 node.Children.RemoveAt(i);
         }
 
         // Insert children new on disk (maintains alphabetical order)
         var existing = new HashSet<string>(node.Children.Select(c => c.FullPath), StringComparer.OrdinalIgnoreCase);
-        foreach (var dir in diskDirs.OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
+        foreach (var dir in childPaths.OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
         {
             if (existing.Contains(dir)) continue;
             var newNode = new FileSystemTreeNode(Path.GetFileName(dir), dir);
@@ -1594,7 +1743,11 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         if (IsFolderBusy) { Entries.Clear(); UpdateEntryCountLabel(0, 0, 0); IsLoadingEntries = false; return; }
 
         // Inside an archive (or on an archive file itself): the VFS enumerates the entries in one shot.
-        if (!Directory.Exists(path) && Vfs.IsDirectory(path)) { LoadVirtualEntries(path); return; }
+        // A MOUNTED folder deliberately does not come here — it resolves to a real directory, so it takes
+        // the streaming loader below instead. A synced Documents folder can hold tens of thousands of
+        // files, and LoadVirtualEntries fills synchronously on the UI thread.
+        var realPath = Vfs.TryResolveReal(path) ?? path;
+        if (!Directory.Exists(realPath) && Vfs.IsDirectory(path)) { LoadVirtualEntries(path); return; }
 
         // Cancel (don't dispose) the previous load: a background thread may still hold its
         // token, so disposing here could throw instead of cancelling cleanly.
@@ -1667,8 +1820,12 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
             bool streaming = false;
             int folders = 0, files = 0;
 
+            // Enumerate the real directory, but keep 'path' as the parent for the entries we hand back:
+            // under a mount those must stay virtual (see ToEntry).
+            var realPath = Vfs.TryResolveReal(path) ?? path;
+
             IEnumerator<FileSystemInfo> iterator;
-            try { iterator = new DirectoryInfo(path).EnumerateFileSystemInfos().GetEnumerator(); }
+            try { iterator = new DirectoryInfo(realPath).EnumerateFileSystemInfos().GetEnumerator(); }
             catch { return; } // path gone / access denied → empty list (finally completes writer)
 
             try
@@ -1684,7 +1841,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
                     if (!moved) break;
 
                     FileSystemEntry entry;
-                    try { entry = ToEntry(iterator.Current); }
+                    try { entry = ToEntry(iterator.Current, path); }
                     catch { continue; } // skip an entry we can't read
 
                     if (entry.IsDirectory) folders++; else files++;
@@ -1725,15 +1882,23 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         finally { writer.TryComplete(error); }
     }
 
-    /// <summary>Builds an entry from an already-populated <see cref="FileSystemInfo"/>;
-    /// reads cached metadata only (no extra syscall).</summary>
-    private static FileSystemEntry ToEntry(FileSystemInfo fsi)
+    /// <summary>
+    /// Builds an entry from an already-populated <see cref="FileSystemInfo"/>; reads cached metadata only
+    /// (no extra syscall).
+    /// <para>
+    /// <paramref name="parentPath"/> is the location the user navigated to, which is <b>not</b> always
+    /// where the bytes are: under a mount it is the virtual root. The child's path is composed from it
+    /// rather than taken from <c>fsi.FullName</c>, because the latter is the real location — and a mount
+    /// exists precisely so that never surfaces. For an ordinary folder the two are identical.
+    /// </para>
+    /// </summary>
+    private static FileSystemEntry ToEntry(FileSystemInfo fsi, string parentPath)
     {
         bool isDir = (fsi.Attributes & FileAttributes.Directory) != 0;
         return new FileSystemEntry
         {
             Name        = fsi.Name,
-            FullPath    = fsi.FullName,
+            FullPath    = Path.Combine(parentPath, fsi.Name),
             IsDirectory = isDir,
             SizeBytes   = isDir ? 0 : ((FileInfo)fsi).Length,
             Modified    = fsi.LastWriteTime
@@ -1746,7 +1911,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         {
             nameof(FileSystemEntry.Modified)  => e => e.Modified,
             // Drives report capacity via DriveTotalBytes; files via SizeBytes.
-            nameof(FileSystemEntry.SizeBytes) => e => (object)(e.IsDrive ? e.DriveTotalBytes : e.SizeBytes),
+            nameof(FileSystemEntry.SizeBytes) => e => (object)(e.IsThisPcItem ? e.DriveTotalBytes : e.SizeBytes),
             nameof(FileSystemEntry.TypeLabel) => e => e.TypeLabel,
             _ => e => e.Name
         };

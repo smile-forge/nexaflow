@@ -126,13 +126,8 @@ public sealed class DefaultFileOpener
 
     /// <summary>A real, launchable path for the shell. A virtual (in-archive) path — e.g. a PDF opened from
     /// an email or a zip — has no real file, so <see cref="Process.Start(ProcessStartInfo)"/> would silently
-    /// fail; materialise it to a temp copy first. Real paths pass straight through.</summary>
-    private static string RealizeForShell(string path)
-    {
-        if (File.Exists(path)) return path;
-        try { return VirtualFileSystem.Instance.MaterializeFile(path); }
-        catch { return path; }
-    }
+    /// fail; materialise it to a temp copy first. Real and mounted paths pass straight through.</summary>
+    private static string RealizeForShell(string path) => ShellPath.Realize(path);
 
     /// <summary>
     /// Runs an explicit Default Actions override. Returns false (so the caller falls back to automatic

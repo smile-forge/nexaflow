@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -43,6 +44,10 @@ public sealed class CustomAction : IFileAction
     public ImageSource? IconImage => _iconImage;
     public string?      Tooltip   => string.IsNullOrEmpty(_def.ApplicationPath) ? null : _def.ApplicationPath;
 
+    /// <summary>A user-configured program is opaque to us — it may open sibling files, write next to the
+    /// input, or use the working directory. Only offered where the folder genuinely exists on disk.</summary>
+    public bool RequiresFullyBackedPath => true;
+
     public bool PerformAction(string filePath) => Launch(new[] { filePath });
 
     public bool PerformAction(IEnumerable<string> filePaths)
@@ -68,6 +73,10 @@ public sealed class CustomAction : IFileAction
         if (string.IsNullOrWhiteSpace(_def.ApplicationPath)) return false;
         try
         {
+            // The external program receives these as plain paths and may look around them, so hand it
+            // real ones. Only reachable where the location is fully backed (RequiresFullyBackedPath).
+            paths = [.. paths.Select(p => VirtualFileSystem.Instance.TryResolveReal(p) ?? p)];
+
             var args = ActionTemplateExpander.Expand(_def.Arguments,        paths);
             var wd   = ActionTemplateExpander.Expand(_def.WorkingDirectory, paths);
             // Unspecified working directory → the launched app runs in the file's own folder,

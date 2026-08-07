@@ -55,7 +55,8 @@ public class DeleteFile : IFileAction, IFolderAction, ICacheable
 
     public bool PerformAction(IEnumerable<string> filePaths, bool force)
     {
-        var paths = new List<string>(filePaths);
+        // Delete what the row points at, not a temp copy of it — see ShellPath.RealForMutation.
+        var paths = new List<string>(Services.ShellPath.RealForMutation(filePaths));
         if (paths.Count == 0) return false;
 
         if (force)

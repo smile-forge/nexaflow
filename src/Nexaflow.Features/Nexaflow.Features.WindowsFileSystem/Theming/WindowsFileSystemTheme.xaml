@@ -1,12 +1,29 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- ════ File-system feature colour tokens ════
-         Shipped as an IThemeContribution so they merge BELOW the active theme (a fallback every
-         theme inherits and may retune by key). The action strip draws registry-derived shell-verb
-         entries with this border so users can tell them apart from built-in actions (and know they
-         can be disabled via "Use registry-based file type mapping"). Default: a slightly darker yellow. -->
+    <!-- ════ This PC row colour tokens ════
+         Shipped as an IThemeContribution so they merge BELOW the active theme (layer 3): every theme
+         gets these defaults for free, and any theme may retune a key by name without Core or the
+         feature referencing each other.
 
-    <SolidColorBrush x:Key="ExternalApp.Border" Color="#C9A227"/>
+         These tint each This PC row by DriveIconType. They live here rather than reusing the
+         categorical Swatch.* bank because the relationship BETWEEN them carries meaning that an
+         arbitrary hue assignment would destroy: SSD is deliberately a deeper shade of HDD's blue
+         ("both are internal disks, one is faster"), and a theme retuning one should be able to keep
+         that reading. Consumed by both the drive-list and folder-tree templates in FileSystemView.xaml.
+
+         The disk kinds share one 🖴 glyph and are told apart by a coloured dot; Cloud has its own
+         silhouette, so it takes the tint on its stroke and carries no dot (as USB carries none). -->
+
+    <!-- Internal disks: the same blue, SSD darker. -->
+    <SolidColorBrush x:Key="Drive.Hdd"     Color="#0047AB"/>
+    <SolidColorBrush x:Key="Drive.Ssd"     Color="#002D8A"/>
+
+    <!-- Elsewhere: something the machine reaches rather than holds. -->
+    <SolidColorBrush x:Key="Drive.Network" Color="#00AA44"/>
+    <SolidColorBrush x:Key="Drive.Cloud"   Color="#0A84C1"/>
+
+    <!-- Removable, optical, and anything an IThisPcItemProvider hasn't classified. -->
+    <SolidColorBrush x:Key="Drive.Unknown" Color="#888888"/>
 
 </ResourceDictionary>

@@ -12,7 +12,7 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem;
 public class ExternalAppRegistryTests
 {
     private static FileSystemEntry File(string path) =>
-        new() { Name = System.IO.Path.GetFileName(path), FullPath = path, IsDirectory = false, IsDrive = false };
+        new() { Name = System.IO.Path.GetFileName(path), FullPath = path, IsDirectory = false, IsThisPcItem = false };
 
     private static int ResolveCount(ExternalAppDefinition def, params string[] paths)
     {

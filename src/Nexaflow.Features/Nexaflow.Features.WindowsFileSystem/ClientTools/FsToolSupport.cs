@@ -49,14 +49,31 @@ internal static class FsTool
 
         try
         {
+            // Resolve the tab's location to where the bytes actually are before using it as the
+            // confinement root. Under a mount CurrentPath is "::id\…", which Path.GetFullPath cannot
+            // parse — it would throw into the catch below and turn every file tool into "not a valid
+            // path". Confining on the real path is equivalent (a mount is a bijection over its subtree)
+            // and it is the form every File/Directory call downstream needs anyway.
             var basePath = vm.CurrentPath;
             var confined = !string.IsNullOrEmpty(basePath);
-            var root     = confined ? Path.GetFullPath(basePath) : null;
+            string? root = null;
+            if (confined)
+            {
+                if (vm.Vfs.TryResolveReal(basePath) is not { } realBase)
+                {
+                    error = "This tab's location isn't backed by the file system, so it can't be used here.";
+                    return false;
+                }
+                root = Path.GetFullPath(realBase);
+            }
+
+            // A caller may name a mounted path directly; map it before deciding if it's absolute.
+            var mapped = vm.Vfs.TryResolveReal(nameOrPath) ?? nameOrPath;
 
             string candidate;
-            if (Path.IsPathFullyQualified(nameOrPath))
+            if (Path.IsPathFullyQualified(mapped))
             {
-                candidate = Path.GetFullPath(nameOrPath);
+                candidate = Path.GetFullPath(mapped);
             }
             else
             {

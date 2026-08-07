@@ -69,7 +69,7 @@ public class ThisPcDriveActionsTests
     }
 
     private static FileSystemEntry Drive(string letter) =>
-        new() { Name = $"{letter}:\\", FullPath = $"{letter}:\\", IsDirectory = true, IsDrive = true };
+        new() { Name = $"{letter}:\\", FullPath = $"{letter}:\\", IsDirectory = true, IsThisPcItem = true };
 
     [TestMethod]
     public void RightClickingADrive_ProducesTheDriveApplicableActions()

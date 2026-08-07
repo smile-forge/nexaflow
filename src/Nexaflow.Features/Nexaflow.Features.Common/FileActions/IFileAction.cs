@@ -74,6 +74,21 @@ namespace Nexaflow.Features.Common
         /// </summary>
         bool ShowsSuccessTick => true;
 
+        /// <summary>
+        /// True when this action hands the path to an external process that may need the file's
+        /// <b>neighbours</b> — a dependency DLL, a sidecar, an installer's payload. Such an action is
+        /// offered only where the whole subtree really is on disk: a plain path, or one under a
+        /// pass-through mount (which resolves to a real directory). It is <b>suppressed</b> inside an
+        /// archive, where materialising produces one lone temp file and the process would fail in
+        /// confusing ways — better not to offer it than to offer a half-truth.
+        /// <para>
+        /// Implementations that set this must run against the <i>resolved real</i> path
+        /// (<c>IVirtualFileSystem.TryResolveReal</c>), not the virtual one. Defaults to <c>false</c>:
+        /// an action that only reads bytes through the VFS is safe everywhere.
+        /// </para>
+        /// </summary>
+        bool RequiresFullyBackedPath => false;
+
         bool PerformAction(string filePath);
         bool PerformAction(IEnumerable<string> filePaths);
 

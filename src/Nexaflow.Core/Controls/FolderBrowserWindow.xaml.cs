@@ -1,6 +1,11 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Nexaflow.Core.Models;
+using Nexaflow.Core.Services;
+using Nexaflow.Features.Common.ThisPc;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -15,6 +20,9 @@ internal sealed partial class FolderNodeViewModel : ObservableObject
     public string FullPath    { get; }
     public string DisplayName { get; }
 
+    /// <summary>Leading icon. Provided roots get their own so a cloud location reads as one.</summary>
+    public string Glyph { get; }
+
     public ObservableCollection<FolderNodeViewModel> Children { get; } = [];
 
     [ObservableProperty] private bool _isExpanded;
@@ -22,10 +30,11 @@ internal sealed partial class FolderNodeViewModel : ObservableObject
 
     private bool _loaded;
 
-    public FolderNodeViewModel(string fullPath, string displayName)
+    public FolderNodeViewModel(string fullPath, string displayName, string glyph = "📁 ")
     {
         FullPath    = fullPath;
         DisplayName = displayName;
+        Glyph       = glyph;
         if (!string.IsNullOrEmpty(fullPath))
             Children.Add(_placeholder);  // shows expand arrow
     }
@@ -56,15 +65,21 @@ internal sealed class FolderBrowserViewModel
 {
     public ObservableCollection<FolderNodeViewModel> Roots { get; } = [];
 
-    public FolderBrowserViewModel()
+    public FolderBrowserViewModel(WorkspaceRuntime? workspace = null,
+                                  IReadOnlyList<ThisPcItem>? provided = null)
     {
+        var driveRoots = new List<string>();
         foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady))
         {
             var label = string.IsNullOrWhiteSpace(drive.VolumeLabel)
                 ? drive.Name
                 : $"{drive.VolumeLabel} ({drive.Name.TrimEnd('\\')})";
             Roots.Add(new FolderNodeViewModel(drive.RootDirectory.FullName, label));
+            driveRoots.Add(drive.RootDirectory.FullName);
         }
+
+        foreach (var item in provided ?? PickerRoots.For(workspace, driveRoots))
+            Roots.Add(new FolderNodeViewModel(item.TargetPath, item.Label, PickerRoots.GlyphFor(item.Icon)));
     }
 }
 
@@ -74,16 +89,19 @@ public partial class FolderBrowserWindow : Window
 {
     public string? SelectedPath { get; private set; }
 
-    public FolderBrowserWindow()
+    public FolderBrowserWindow() : this(null) { }
+
+    public FolderBrowserWindow(WorkspaceRuntime? workspace)
     {
         InitializeComponent();
-        DataContext = new FolderBrowserViewModel();
+        DataContext = new FolderBrowserViewModel(workspace);
     }
 
     /// <summary>Shows the folder browser and returns the selected path, or null if cancelled.</summary>
-    public static string? Show(string? initialPath = null, Window? owner = null)
+    public static string? Show(string? initialPath = null, Window? owner = null,
+                              WorkspaceRuntime? workspace = null)
     {
-        var win = new FolderBrowserWindow
+        var win = new FolderBrowserWindow(workspace)
         {
             Owner = owner ?? Application.Current.MainWindow
         };
@@ -165,4 +183,37 @@ public partial class FolderBrowserWindow : Window
     {
         DialogResult = false;
     }
+}
+
+// ── Provided roots (cloud/network locations contributed by features) ─────────
+
+/// <summary>
+/// The extra This PC rows a picker should list beside the physical drives. They are listed by their
+/// REAL path, under the friendly label: a picker's result is consumed by ordinary System.IO callers,
+/// so it must hand back something they can open. Virtual-backed rows have no such path and are
+/// therefore skipped.
+/// </summary>
+internal static class PickerRoots
+{
+    public static IReadOnlyList<ThisPcItem> For(WorkspaceRuntime? workspace, IEnumerable<string> driveRoots)
+    {
+        // Providers don't vary by workspace, so any live one will do when the caller has none to hand
+        // (the Options browse buttons, the workspace folder picker). With no live workspace at all —
+        // tests, early startup — there is nothing to build providers from, so just show the drives.
+        workspace ??= WorkspaceManager.Instance.FirstActive;
+        if (workspace is null) return [];
+        try
+        {
+            var providers = FeatureManager.Instance.GetThisPcItemProviders(workspace);
+            return ThisPcItemSet.Collect(providers, driveRoots, allowVirtual: false);
+        }
+        catch { return []; }
+    }
+
+    public static string GlyphFor(ThisPcItemIcon icon) => icon switch
+    {
+        ThisPcItemIcon.Network => "🖧 ",
+        ThisPcItemIcon.Cloud   => "☁ ",
+        _                      => "📁 ",
+    };
 }

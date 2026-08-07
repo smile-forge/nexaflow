@@ -40,6 +40,10 @@ public partial class ViewletHost : UserControl, IViewletController
         _viewlet = viewlet;
         _mode    = viewlet.DefaultDisplayMode;
 
+        // Viewlets run real tools against this path — git, dotnet — and set it as a process working
+        // directory. Resolve once here so every viewlet gets a usable path without knowing about mounts.
+        folderPath = Nexaflow.IO.Common.VirtualFileSystem.Instance.TryResolveReal(folderPath) ?? folderPath;
+
         DisplayNameText.Text        = viewlet.DisplayName;
         ViewletContentArea.Content  = viewlet.CreateView(folderPath, this);
 

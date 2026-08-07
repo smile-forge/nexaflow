@@ -37,6 +37,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
         public bool PerformAction(string path)
         {
+            path           = Services.ShellPath.RealForMutation(path);
             bool isDir     = Directory.Exists(path);
             string dir     = Path.GetDirectoryName(path)!;
             string oldName = Path.GetFileName(path);

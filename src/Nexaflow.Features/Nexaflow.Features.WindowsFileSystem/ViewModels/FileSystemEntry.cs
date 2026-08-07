@@ -19,18 +19,26 @@ public class FileSystemEntry : INotifyPropertyChanged
     public string   Name        { get; set; } = string.Empty;
     public string   FullPath    { get; init; } = string.Empty;
     public bool     IsDirectory { get; init; }
-    public bool     IsDrive     { get; init; }
     public long     SizeBytes   { get; init; }
     public DateTime Modified    { get; init; }
 
-    /// <summary>Drive readiness state — only meaningful for IsDrive entries.</summary>
+    /// <summary>A top-level row of "This PC" — a physical drive, or a location contributed by an
+    /// <c>IThisPcItemProvider</c>. Not "a Windows volume": the whole feature keys the This PC
+    /// presentation (type/size columns, the drive-only context menu) off this flag.</summary>
+    public bool IsThisPcItem { get; init; }
+
+    /// <summary>Set when this row came from an <c>IThisPcItemProvider</c> — the item's id. Null for a
+    /// physical drive, so the two kinds of top-level row can still be told apart.</summary>
+    public string? ProviderId { get; init; }
+
+    /// <summary>Readiness state — only meaningful for <see cref="IsThisPcItem"/> entries.</summary>
     public DriveStatus DriveStatus
     {
         get => _driveStatus;
         set { _driveStatus = value; OnPropertyChanged(); }
     }
 
-    /// <summary>Visual icon variant — only meaningful for IsDrive entries.</summary>
+    /// <summary>Visual icon variant — only meaningful for <see cref="IsThisPcItem"/> entries.</summary>
     public DriveIconType DriveIconType
     {
         get => _driveIconType;
@@ -67,7 +75,7 @@ public class FileSystemEntry : INotifyPropertyChanged
 
     // ── Computed display properties ────────────────────────────────────────────
 
-    public string TypeLabel => IsDrive
+    public string TypeLabel => IsThisPcItem
         ? _driveKindLabel
         : IsDirectory ? "Folder" : Path.GetExtension(Name).TrimStart('.').ToUpperInvariant();
 
@@ -75,7 +83,7 @@ public class FileSystemEntry : INotifyPropertyChanged
     {
         get
         {
-            if (IsDrive)
+            if (IsThisPcItem)
             {
                 if (_driveTotalBytes <= 0) return string.Empty;
                 double pct = (double)_driveUsedBytes / _driveTotalBytes * 100.0;
@@ -85,7 +93,7 @@ public class FileSystemEntry : INotifyPropertyChanged
         }
     }
 
-    public string ModifiedLabel => IsDrive || Modified == DateTime.MinValue
+    public string ModifiedLabel => IsThisPcItem || Modified == DateTime.MinValue
         ? string.Empty
         : Modified.ToString("yyyy-MM-dd HH:mm");
 

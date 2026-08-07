@@ -32,13 +32,13 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
         public bool PerformAction(string filePath)
         {
-            NativeMethods.ClipboardCopyFiles([filePath]);
+            NativeMethods.ClipboardCopyFiles(Services.ShellPath.Realize([filePath]));
             return true;
         }
 
         public bool PerformAction(IEnumerable<string> filePaths)
         {
-            NativeMethods.ClipboardCopyFiles([.. filePaths]);
+            NativeMethods.ClipboardCopyFiles(Services.ShellPath.Realize(filePaths));
             return true;
         }
     }

@@ -38,6 +38,10 @@ public sealed class FileSystemDropTarget : IDropTarget
         var    failures = new List<string>();
         string verb     = move ? "move" : "copy";
 
+        // FileTransfer works in real paths; dropping onto a mounted folder must land in the folder
+        // behind it. (Sources arrive from Windows as real paths already.)
+        destinationPath = Services.ShellPath.RealForMutation(destinationPath);
+
         foreach (var source in sources)
         {
             // Source vanished between drag and drop — nothing to do, not worth a complaint.

@@ -1,6 +1,8 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ThisPc;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -45,6 +47,15 @@ public sealed class FileSystemFeatureRegistry
     private readonly List<Type> _folderActionTypes     = [];
     private readonly List<Type> _fileCreateActionTypes = [];
     private readonly List<Type> _folderViewletTypes    = [];
+    private readonly List<Type> _thisPcProviderTypes   = [];
+
+    /// <summary>Mount ids this registry has registered, so a location that disappears from a provider
+    /// takes its mount with it. Guarded by <see cref="_cacheLock"/>.</summary>
+    private readonly HashSet<string> _ownedMounts = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The VFS mounts are published into. Settable for tests; defaults to the process singleton
+    /// because a mount is process-wide — every window browses the same namespace.</summary>
+    internal IVirtualFileSystem Vfs { get; set; } = VirtualFileSystem.Instance;
 
     private readonly Dictionary<Type, object> _cache = new();
     private readonly object _cacheLock = new();
@@ -74,6 +85,11 @@ public sealed class FileSystemFeatureRegistry
         foreach (var t in shell.DiscoverImplementations<IFileCreateAction>())
             if (typeof(ICacheable).IsAssignableFrom(t)) _fileCreateActionTypes.Add(t);
 
+        // No ICacheable filter: a provider is inherently one-per-shell, and the SAME instance must be
+        // handed out every time or the Changed subscription the browser holds would be on a dead object.
+        foreach (var t in shell.DiscoverImplementations<IThisPcItemProvider>())
+            _thisPcProviderTypes.Add(t);
+
         _allExperiences = _fileActionTypes
             .Select(t => t.GetProperty("StaticExperienceId",
                 BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
@@ -81,6 +97,11 @@ public sealed class FileSystemFeatureRegistry
             .Where(id => !string.IsNullOrEmpty(id))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList()!;
+
+        // Mounts must exist before anything navigates: a restored session can hand NavigateTo a
+        // ::mount path, and this registry is built in the view model's constructor, ahead of it.
+        foreach (var provider in ThisPcItemProviders) provider.Changed += SyncMounts;
+        SyncMounts();
     }
 
     // ── Typed accessors ──────────────────────────────────────────────────
@@ -90,7 +111,51 @@ public sealed class FileSystemFeatureRegistry
     public IReadOnlyList<IFileCreateAction> FileCreateActions => Materialize<IFileCreateAction>(_fileCreateActionTypes);
     public IReadOnlyList<IFolderViewlet>    FolderViewlets    => Materialize<IFolderViewlet>(_folderViewletTypes);
 
+    /// <summary>The This PC row contributors. Instances are cached, so the object returned here is the
+    /// one the browser subscribes to and the one <see cref="SyncMounts"/> reads.</summary>
+    public IReadOnlyList<IThisPcItemProvider> ThisPcItemProviders => Materialize<IThisPcItemProvider>(_thisPcProviderTypes);
+
     public IReadOnlyList<string> AllExperiences => _allExperiences;
+
+    // ── Mounts ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Publishes a pass-through mount for every local-path row the providers offer, and withdraws any
+    /// this registry previously published that no longer appears. Registration is idempotent by id, so
+    /// calling this repeatedly — and from more than one window — is free and raises no spurious change
+    /// events. Safe to call from any thread.
+    /// </summary>
+    public void SyncMounts()
+    {
+        var wanted = new Dictionary<string, VirtualMount>(StringComparer.OrdinalIgnoreCase);
+        foreach (var provider in ThisPcItemProviders)
+        {
+            IReadOnlyList<ThisPcItem> items;
+            try { items = provider.GetItems() ?? []; }
+            catch { continue; }   // one broken provider must not unmount everyone else's locations
+
+            foreach (var item in items)
+            {
+                if (item is null || item.Backing != ThisPcItemBacking.LocalPath) continue;
+                if (string.IsNullOrWhiteSpace(item.Id) || string.IsNullOrWhiteSpace(item.TargetPath)) continue;
+                wanted.TryAdd(item.Id, new VirtualMount(item.Id, item.Label, item.TargetPath));
+            }
+        }
+
+        lock (_cacheLock)
+        {
+            foreach (var stale in _ownedMounts.Where(id => !wanted.ContainsKey(id)).ToList())
+            {
+                Vfs.UnregisterMount(stale);
+                _ownedMounts.Remove(stale);
+            }
+            foreach (var (id, mount) in wanted)
+            {
+                try { Vfs.RegisterMount(mount); _ownedMounts.Add(id); }
+                catch (ArgumentException) { /* a provider offered an id that can't be a path segment */ }
+            }
+        }
+    }
 
     private IReadOnlyList<T> Materialize<T>(List<Type> types)
     {
