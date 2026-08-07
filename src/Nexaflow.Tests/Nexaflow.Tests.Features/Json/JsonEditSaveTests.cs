@@ -39,6 +39,12 @@ public class JsonEditSaveTests
         var shell = Substitute.For<IShellServices>();
         var vm = new JsonViewModel(_path, new JsonFileLoader(), new JsonPathEvaluator(), shell);
         await vm.LoadAsync(CancellationToken.None);
+
+        // LoadAsync deliberately returns before the placeholder fill finishes, so the first screen isn't
+        // blocked. Everything below reads that fill — HasVirtualItems is what it produces — and off the
+        // dispatcher its continuation runs on the thread pool, so reading now races the collection
+        // mid-mutation. Wait for it the way the running app's dispatcher would have serialised it.
+        await vm.Prepopulation;
         return (vm, shell);
     }
 

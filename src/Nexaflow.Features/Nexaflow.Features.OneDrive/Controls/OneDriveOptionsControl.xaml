@@ -1,0 +1,79 @@
+<UserControl x:Class="Nexaflow.Features.OneDrive.Controls.OneDriveOptionsControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignHeight="360" d:DesignWidth="620">
+
+    <UserControl.Resources>
+        <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
+    </UserControl.Resources>
+
+    <StackPanel>
+
+        <TextBlock Text="Locations shown under This PC"
+                   Foreground="{StaticResource TextBrush}"
+                   FontWeight="SemiBold" Margin="0,0,0,4"/>
+
+        <TextBlock TextWrapping="Wrap" Margin="0,0,0,10"
+                   Foreground="{StaticResource TextMutedBrush}"
+                   Text="Sync folders already set up on this PC are listed automatically. Rename or hide any of them, or add a folder yourself. Nexaflow only reads folders that are already on this machine — it never signs in to OneDrive."/>
+
+        <!-- Nothing detected and nothing added: say so plainly rather than showing an empty list. -->
+        <Border x:Name="EmptyHint" Visibility="Collapsed"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                CornerRadius="4" Padding="12" Margin="0,0,0,10">
+            <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"
+                       Text="OneDrive isn't set up on this PC. You can still add a folder below — anything you point at will appear under This PC."/>
+        </Border>
+
+        <ItemsControl x:Name="RowsList">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border Background="{StaticResource SurfaceBrush}"
+                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                            CornerRadius="4" Padding="10,8" Margin="0,0,0,6">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <CheckBox Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,0"
+                                      IsChecked="{Binding Shown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      ToolTip="Show this location under This PC"/>
+
+                            <StackPanel Grid.Column="1">
+                                <TextBox Text="{Binding Label, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource DarkTextBox}"/>
+                                <TextBlock Text="{Binding FolderPath}" Margin="2,3,0,0"
+                                           TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextMutedBrush}" FontSize="11"
+                                           ToolTip="{Binding FolderPath}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="Detected" Margin="10,0,0,0" VerticalAlignment="Center"
+                                           FontSize="11" Foreground="{StaticResource TextMutedBrush}"
+                                           Visibility="{Binding IsDetected, Converter={StaticResource BoolVis}}"
+                                           ToolTip="Found on this PC — its folder can't be changed here"/>
+                                <Button Content="✕" Margin="10,0,0,0" Tag="{Binding}"
+                                        Click="OnRemoveClick"
+                                        Style="{StaticResource IconButton}"
+                                        ToolTip="Remove this folder"
+                                        Visibility="{Binding IsCustom, Converter={StaticResource BoolVis}}"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <Button Content="Add folder…" HorizontalAlignment="Left" Margin="0,4,0,0"
+                Click="OnAddClick" Style="{StaticResource IconButton}"/>
+
+    </StackPanel>
+</UserControl>
