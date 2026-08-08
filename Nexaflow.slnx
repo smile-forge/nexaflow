@@ -39,6 +39,9 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Email/Nexaflow.Features.Email.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Executable/Nexaflow.Features.Executable.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Font/Nexaflow.Features.Font.csproj">
       <Platform Project="x64" />
     </Project>
@@ -168,6 +171,11 @@
     <Platform Project="x64" />
   </Project>
   <Project Path="src/Nexaflow.IO.Common/Nexaflow.IO.Common.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <!-- WPF-free Portable Executable reader: headers, imports/exports, resources, entropy,
+       Authenticode. Reaches the app transitively through Nexaflow.Features.Executable. -->
+  <Project Path="src/Nexaflow.IO.Pe/Nexaflow.IO.Pe.csproj">
     <Platform Project="x64" />
   </Project>
   <Project Path="src/Nexaflow.IO.Terminal/Nexaflow.IO.Terminal.csproj">

@@ -111,7 +111,20 @@ public partial class HexView : UserControl, IPageView
 
     // ── IPageView ─────────────────────────────────────────────────────────────
 
-    void IPageView.Reinitialize(Dictionary<string, string> pageParams) { }
+    /// <summary>
+    /// Re-points an already-open tab at a new byte range — what makes repeated "view in hex" jumps
+    /// from an inspector land in one tab rather than piling up. Only the offset moves; the file and
+    /// any pending edits stay as they are.
+    /// </summary>
+    void IPageView.Reinitialize(Dictionary<string, string> pageParams)
+    {
+        long offset = HexTabRegistration.ParseOffset(pageParams.GetValueOrDefault("offset"));
+        if (offset < 0) return;
+
+        long length = HexTabRegistration.ParseOffset(pageParams.GetValueOrDefault("length"));
+        _vm.RevealRange(offset, Math.Max(0, length));
+        HexPanel.Focus();
+    }
 
     // ── Simple relay command helper for keybindings ───────────────────────────
 

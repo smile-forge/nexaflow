@@ -60,6 +60,12 @@ public sealed class Subgraph
     /// <summary>Id of the enclosing subgraph for true nesting (state composites), or null at the top
     /// level. Flowchart subgraphs leave this null and are laid out as a single level.</summary>
     public string?      ParentId { get; set; }
+
+    /// <summary>Where a click on this group's title goes. See <see cref="Node.Href"/>.</summary>
+    public string?      Href     { get; set; }
+
+    /// <summary>Tooltip for the link; falls back to the href.</summary>
+    public string?      Tooltip  { get; set; }
 }
 
 /// <summary>A node in the graph.  All rendering properties are optional hints.</summary>
@@ -75,6 +81,17 @@ public sealed class Node
     /// <summary>Set only on <see cref="NodeShape.ClassBox"/> nodes — the UML class body
     /// (stereotype + attribute/method compartments). Null for every other shape.</summary>
     public ClassInfo? Class    { get; set; }
+
+    /// <summary>
+    /// Where a click on this node goes, from a mermaid <c>click</c> directive. Interaction lives on
+    /// the graph model rather than in one renderer so every diagram type that goes through the
+    /// shared layout gets it — a flowchart node, a state, an entity and a requirement are all just
+    /// nodes here.
+    /// </summary>
+    public string? Href { get; set; }
+
+    /// <summary>Tooltip for the link; falls back to the href.</summary>
+    public string? Tooltip { get; set; }
 }
 
 /// <summary>A directed edge between two nodes.</summary>
@@ -94,6 +111,12 @@ public sealed class Edge
     public string EndLabel   { get; set; } = string.Empty;
     /// <summary>Set true when cycle removal reverses this edge; renderers should draw the arrowhead reversed.</summary>
     public bool IsReversed  { get; set; }
+
+    /// <summary>Where a click on this edge's label goes. See <see cref="Node.Href"/>.</summary>
+    public string? Href { get; set; }
+
+    /// <summary>Tooltip for the link; falls back to the href.</summary>
+    public string? Tooltip { get; set; }
 }
 
 /// <summary>

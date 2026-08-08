@@ -1,0 +1,25 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Feature-owned tokens for the entropy heatmap. Merged below the active theme, so any theme can
+        retune the ramp by redefining these keys.
+
+        A three-stop ramp rather than a single hue: the reading that matters is not "how much
+        entropy" but "which end of the scale" — low is padding and structure, mid is ordinary code
+        and text, high is compressed or encrypted. Three stops make those three regions legible at a
+        glance in a strip only a few pixels tall.
+    -->
+    <Color x:Key="Executable.Entropy.LowColor">#2F6FB5</Color>
+    <Color x:Key="Executable.Entropy.MidColor">#C9A227</Color>
+    <Color x:Key="Executable.Entropy.HighColor">#C4463A</Color>
+
+    <SolidColorBrush x:Key="Executable.Entropy.Low"  Color="{DynamicResource Executable.Entropy.LowColor}"/>
+    <SolidColorBrush x:Key="Executable.Entropy.Mid"  Color="{DynamicResource Executable.Entropy.MidColor}"/>
+    <SolidColorBrush x:Key="Executable.Entropy.High" Color="{DynamicResource Executable.Entropy.HighColor}"/>
+
+    <!-- Baseline and the packed-threshold marker drawn over the strip. -->
+    <SolidColorBrush x:Key="Executable.Entropy.Grid"      Color="#33FFFFFF"/>
+    <SolidColorBrush x:Key="Executable.Entropy.Threshold" Color="#88FFFFFF"/>
+
+</ResourceDictionary>

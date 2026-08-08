@@ -80,6 +80,47 @@ public sealed partial class HexViewModel : ObservableObject, IPageViewModel, IDi
     {
         Buffer.EnsureWindow(TopRow, value);
         InvalidateView?.Invoke();
+
+        // A reveal requested before the view had measured itself could not scroll anywhere; now it can.
+        if (value > 0 && _pendingRevealOffset >= 0)
+        {
+            long offset = _pendingRevealOffset, length = _pendingRevealLength;
+            _pendingRevealOffset = -1;
+            RevealRange(offset, length);
+        }
+    }
+
+    // ── Reveal a range ────────────────────────────────────────────────────────
+
+    private long _pendingRevealOffset = -1;
+    private long _pendingRevealLength;
+
+    /// <summary>
+    /// Selects <paramref name="length"/> bytes at <paramref name="offset"/> and scrolls them into
+    /// view — how another feature says "show me this part of the file" (a PE section, a resource, a
+    /// TLS callback).
+    /// <para>
+    /// Called before the view has laid out — which is the normal case when the tab is opening — the
+    /// request is held until <see cref="VisibleRowCount"/> is known, because scrolling is meaningless
+    /// until then.
+    /// </para>
+    /// </summary>
+    public void RevealRange(long offset, long length)
+    {
+        if (offset < 0) return;
+
+        if (VisibleRowCount <= 0)
+        {
+            _pendingRevealOffset = offset;
+            _pendingRevealLength = length;
+            return;
+        }
+
+        if (length > 0) SetSelection(offset, length);
+        else            SetCursor(offset);
+
+        ScrollToRow(offset / 16);
+        InvalidateView?.Invoke();
     }
 
     partial void OnCursorOffsetChanged(long value)
