@@ -31,15 +31,17 @@ public static class DiagramRenderer
 
     public static FrameworkElement Render(string language, string source, MarkdownPalette? palette = null,
         Func<string, bool>? onNavigate = null)
+        => Render(language, source, DiagramRenderOptions.For(palette ?? MarkdownPalette.FromTheme(), onNavigate));
+
+    public static FrameworkElement Render(string language, string source, DiagramRenderOptions options)
     {
-        var pal = palette ?? MarkdownPalette.FromTheme();
         try
         {
             var handler = Handlers.FirstOrDefault(h => h.CanHandle(language));
             if (handler is null)
                 return ErrorElement($"No handler for diagram language '{language}'.", source);
 
-            return handler.Render(source, pal, onNavigate);
+            return handler.Render(source, options);
         }
         catch (Exception ex)
         {

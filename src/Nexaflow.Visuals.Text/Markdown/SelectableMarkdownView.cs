@@ -58,21 +58,38 @@ public class SelectableMarkdownView : UserControl
 
     private void OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ClickCount != 1) return;
-        var hit = VisualTreeHelper.HitTest(_rtb, e.GetPosition(_rtb))?.VisualHit;
+        var (block, element) = BlockAt(e.GetPosition(_rtb));
+        if (block is null || element is null)
+        {
+            if (e.ClickCount == 1) InteractiveSelection.ClearActive();   // a click on text drops any block selection
+            return;
+        }
+
+        // A double-click is the block's only if it says so; otherwise it stays with the host
+        // (source-edit mode), which is what it has always meant.
+        if (e.ClickCount > 1)
+        {
+            if (block.PointerDoubleClick(e.GetPosition(element!))) e.Handled = true;
+            return;
+        }
+
+        _pointerBlock = block;
+        block.BeginPointerSelect(e.GetPosition(element!));
+        Mouse.Capture(_rtb);   // keep the drag flowing to our move/up handlers
+        e.Handled = true;
+    }
+
+    /// <summary>The interactive block under <paramref name="pointInHost"/>, and the element to give
+    /// it coordinates in.</summary>
+    private (IInteractiveBlock? Block, UIElement? Element) BlockAt(Point pointInHost)
+    {
+        var hit = VisualTreeHelper.HitTest(_rtb, pointInHost)?.VisualHit;
         for (DependencyObject? d = hit; d is not null; d = VisualTreeHelper.GetParent(d))
         {
-            if (d is IInteractiveBlock ib && ib is UIElement uie)
-            {
-                _pointerBlock = ib;
-                ib.BeginPointerSelect(e.GetPosition(uie));
-                Mouse.Capture(_rtb);   // keep the drag flowing to our move/up handlers
-                e.Handled = true;
-                return;
-            }
+            if (d is IInteractiveBlock ib and UIElement uie) return (ib, uie);
             if (ReferenceEquals(d, _rtb)) break;   // stop at the host
         }
-        InteractiveSelection.ClearActive();        // a click on text drops any music selection
+        return (null, null);
     }
 
     private void OnPreviewMouseMove(object sender, MouseEventArgs e)
@@ -130,6 +147,58 @@ public class SelectableMarkdownView : UserControl
     /// renderer then skips opening the OS browser). When null, links open externally.</summary>
     public Func<string, bool>? LinkNavigate { get; set; }
 
+    /// <summary>
+    /// A diagram node's expand chip was clicked. Return true to claim it — a host that generated the
+    /// diagram re-emits <see cref="Markdown"/> with more of the tree walked. Left null, the diagram
+    /// opens the node itself from what its source already describes.
+    /// </summary>
+    public Func<DiagramExpandRequest, bool>? DiagramExpand { get; set; }
+
+    /// <summary>A diagram's selected node changed — for a host showing detail beside the diagram.
+    /// The key is null when the selection was dropped.</summary>
+    public Action<DiagramSelection>? DiagramSelect { get; set; }
+
+    /// <summary>In a diagram, a single click selects a node and a double-click opens it. Set it on a
+    /// pane where opening a node costs something the user may not have meant.</summary>
+    public bool DiagramOpenOnDoubleClick { get; set; }
+
+    /// <summary>A plain wheel over a diagram zooms it rather than scrolling this surface. Only for a
+    /// pane whose whole content is the diagram — in a flowing document it would trap the wheel.</summary>
+    public bool DiagramZoomOnWheel { get; set; }
+
+    /// <summary>
+    /// Height a diagram may take, for a pane that is entirely one diagram: bind it to the pane and
+    /// the diagram fills it instead of running past the bottom with its own chrome — the minimap and
+    /// the frame — off the end. Zero (the default) uses the built-in cap.
+    /// </summary>
+    public static readonly DependencyProperty MaxDiagramHeightProperty =
+        DependencyProperty.Register(nameof(MaxDiagramHeight), typeof(double), typeof(SelectableMarkdownView),
+            new PropertyMetadata(0.0, OnMaxDiagramHeightChanged));
+
+    public double MaxDiagramHeight
+    {
+        get => (double)GetValue(MaxDiagramHeightProperty);
+        set => SetValue(MaxDiagramHeightProperty, value);
+    }
+
+    // A pane resize walks this through every intermediate pixel; rebuilding the document on each
+    // would be absurd, and a diagram does not care about a few pixels either way.
+    private static void OnMaxDiagramHeightChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (Math.Abs((double)e.NewValue - (double)e.OldValue) >= 24) ((SelectableMarkdownView)d).Rebuild();
+    }
+
+    /// <summary>Where each diagram's expansion, selection and pan/zoom live between renders — on the
+    /// view rather than on the rendered element, which a host-driven re-emit replaces.</summary>
+    private readonly DiagramViewStates _diagramStates = new();
+
+    /// <summary>
+    /// Forgets what the reader had opened, selected and zoomed to in every diagram here, so the next
+    /// render starts fitted. For a host command that means "start over" — collapsing a whole tree —
+    /// where keeping the old viewport would leave the reader zoomed in on something that is gone.
+    /// </summary>
+    public void ResetDiagramViews() => _diagramStates.Clear();
+
     /// <summary>Base directory for resolving relative <c>![](file.png)</c> image paths to a local
     /// file. When null, only absolute/<c>file:</c> images render (remote images stay text).</summary>
     public string? BaseDirectory { get; set; }
@@ -147,8 +216,9 @@ public class SelectableMarkdownView : UserControl
     private void Rebuild()
     {
         _search?.Clear();
+        _diagramStates.Rewind();
         _rtb.Document = MarkdownFlowDocument.Build(
-            Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = LinkNavigate, BaseDirectory = BaseDirectory, FitContentToWidth = FitContentToWidth, ScrollWideDiagrams = ScrollWideDiagrams });
+            Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = LinkNavigate, OnDiagramExpand = DiagramExpand, OnDiagramSelect = DiagramSelect, BaseDirectory = BaseDirectory, FitContentToWidth = FitContentToWidth, ScrollWideDiagrams = ScrollWideDiagrams, DiagramOpenOnDoubleClick = DiagramOpenOnDoubleClick, DiagramZoomOnWheel = DiagramZoomOnWheel, MaxDiagramHeight = MaxDiagramHeight, DiagramStates = _diagramStates });
     }
 
     // ── Search (rendered text) ────────────────────────────────────────────────
@@ -200,6 +270,16 @@ public class SelectableMarkdownView : UserControl
 
     private void OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
+        // Ctrl+wheel is not a scroll request — it belongs to whatever is under the pointer (a diagram
+        // zooms with it). Redirecting it to the host would swallow it before it ever got there.
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0) return;
+
+        // Likewise a block that claims the plain wheel: the interception below happens on the way
+        // down, so a block that never gets asked never sees a wheel event at all.
+        var (block, element) = BlockAt(e.GetPosition(_rtb));
+        if (block is not null && element is not null && block.WantsPointerWheel(e.GetPosition(element)))
+            return;
+
         if (e.Handled || _rtb.VerticalScrollBarVisibility != ScrollBarVisibility.Disabled) return;
 
         e.Handled = true;

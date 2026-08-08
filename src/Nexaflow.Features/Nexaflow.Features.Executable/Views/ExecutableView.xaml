@@ -5,6 +5,7 @@
              xmlns:model="clr-namespace:Nexaflow.Features.Executable.Models"
              xmlns:ctl="clr-namespace:Nexaflow.Features.Executable.Controls"
              xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:vcv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
              xmlns:ae="clr-namespace:ICSharpCode.AvalonEdit;assembly=ICSharpCode.AvalonEdit"
              AutomationProperties.AutomationId="ExecutableView"
@@ -12,6 +13,7 @@
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <vcv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
 
         <!-- WPF greys out a selection when the window loses focus, and its stock inactive colours
              are a light grey that swallows dark-theme text entirely. Override both so a highlighted
@@ -493,17 +495,101 @@
                     </StackPanel>
 
                     <!-- One or the other, each getting the whole width. Side by side, neither the
-                         diagram nor the tree had room to be readable. -->
+                         diagram nor the tree had room to be readable. The detail pane is the one
+                         exception: it only appears once a module is picked, and it answers the
+                         question the graph provokes and cannot itself show — what is this used for. -->
                     <Grid>
+                        <!-- The detail column owns its width, and the pane inside stretches to it.
+                             With the width on the pane instead, a splitter drag resizes a column
+                             whose content refuses to follow — it just re-centres. The column is
+                             zero-width until something is selected; the code-behind swaps it in and
+                             out and keeps whatever width the last drag left. -->
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" MinWidth="240"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition x:Name="DependencyDetailColumn" Width="0"/>
+                        </Grid.ColumnDefinitions>
+
+                        <GridSplitter Grid.Column="1" Width="6" VerticalAlignment="Stretch"
+                                      HorizontalAlignment="Center" Background="Transparent"
+                                      ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
+                                      AutomationProperties.AutomationId="Executable_DependencyDetailSplitter"
+                                      Visibility="{Binding HasDependencySelection, Converter={StaticResource BoolToVis}}"/>
+
+                        <!-- The floor lives on the column, not here: the splitter resizes the column,
+                             and a MinWidth on the pane only makes it overflow one that got smaller. -->
+                        <Border Grid.Column="2" Style="{StaticResource Pane}"
+                                AutomationProperties.AutomationId="Executable_DependencyDetail"
+                                Visibility="{Binding HasDependencySelection, Converter={StaticResource BoolToVis}}">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Top" Text="{Binding SelectedDependency.Name}"
+                                           FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap"
+                                           AutomationProperties.AutomationId="Executable_DependencyDetailName"
+                                           Foreground="{StaticResource TextBrush}"/>
+                                <TextBlock DockPanel.Dock="Top" Text="{Binding SelectedDependencyDetail}"
+                                           FontSize="11" TextWrapping="Wrap" Margin="0,3,0,8"
+                                           Foreground="{StaticResource TextMutedBrush}"/>
+
+                                <!-- Inspecting the file you are already in is a no-op, so the root
+                                     only offers Locate. -->
+                                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                                    <Button Content="Inspect" Style="{StaticResource TbBtn}"
+                                            AutomationProperties.AutomationId="Executable_DependencyDetailInspect"
+                                            Visibility="{Binding SelectedDependencyIsRoot, Converter={StaticResource InvBoolVis}}"
+                                            Command="{Binding OpenSelectedDependencyCommand}"/>
+                                    <Button Content="Locate" Style="{StaticResource TbBtn}" Margin="6,0,0,0"
+                                            Command="{Binding LocateSelectedDependencyCommand}"/>
+                                </StackPanel>
+
+                                <TextBlock DockPanel.Dock="Top" Text="{Binding SelectedDependencyFunctionsCaption}"
+                                           FontSize="11" TextWrapping="Wrap" Margin="0,0,0,6"
+                                           Foreground="{StaticResource TextMutedBrush}"/>
+
+                                <!-- The root's own function detail does exist — one tab over. -->
+                                <TextBlock DockPanel.Dock="Top" FontSize="11" Margin="0,0,0,6" TextWrapping="Wrap"
+                                           Visibility="{Binding SelectedDependencyIsRoot, Converter={StaticResource BoolToVis}}">
+                                    <Hyperlink Command="{Binding ShowImportsSectionCommand}"
+                                               AutomationProperties.AutomationId="Executable_DependencyDetailImportsLink"
+                                               Foreground="{StaticResource AccentBrush}">
+                                        See Imports / Exports for function details
+                                    </Hyperlink>
+                                </TextBlock>
+
+                                <ListBox ItemsSource="{Binding SelectedDependency.ImportedFunctions}"
+                                         Background="Transparent" BorderThickness="0"
+                                         AutomationProperties.AutomationId="Executable_DependencyDetailFunctions"
+                                         ItemContainerStyle="{StaticResource StretchRow}"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         VirtualizingStackPanel.IsVirtualizing="True">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" FontFamily="Cascadia Mono, Consolas"
+                                                       FontSize="11" TextWrapping="Wrap"
+                                                       Foreground="{StaticResource TextBrush}"/>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </DockPanel>
+                        </Border>
+
                         <!-- No ScrollViewer wrapper: the view is a RichTextBox that scrolls itself,
                              and nesting it gave the document infinite width to measure against, so
-                             the diagram laid out to nothing. ScrollWideDiagrams is the supported way
-                             to let an oversized diagram scroll inside it. -->
-                        <Border Style="{StaticResource Pane}" Padding="4"
+                             the diagram laid out to nothing. An import tree outgrows any panel, so
+                             the diagram gives itself a pan/zoom viewport (drag, Ctrl+wheel, minimap)
+                             rather than scrollbars — that is the default for a surface which, like
+                             this one, does not ask for diagrams to be scaled down to its width. -->
+                        <!-- Padding 0: the diagram brings its own frame, and any padding here is
+                             height the diagram cannot see when sizing itself to the pane. -->
+                        <Border x:Name="DependencyPane" Style="{StaticResource Pane}" Padding="0"
                                 Visibility="{Binding ShowDependencyDiagram, Converter={StaticResource BoolToVis}}">
+                            <!-- The diagram is the whole pane, so it is sized to the pane: left to its
+                                 own devices it caps itself at a fixed height and runs its minimap and
+                                 frame off the bottom of the panel. -->
                             <md:SelectableMarkdownView x:Name="DependencyDiagram"
                                                        Markdown="{Binding DependencyMarkdown}"
-                                                       ScrollWideDiagrams="True"/>
+                                                       DiagramOpenOnDoubleClick="True"
+                                                       DiagramZoomOnWheel="True"
+                                                       MaxDiagramHeight="{Binding ActualHeight, ElementName=DependencyPane}"/>
                         </Border>
 
                         <Border Style="{StaticResource Pane}"
@@ -515,6 +601,7 @@
                                       ItemContainerStyle="{StaticResource TreeItemStyle}"
                                       ItemTemplate="{StaticResource NodeTemplate}"
                                       ContextMenu="{StaticResource DependencyMenu}"
+                                      SelectedItemChanged="DependencyTree_SelectedItemChanged"
                                       PreviewMouseRightButtonDown="Tree_PreviewMouseRightButtonDown"
                                       MouseDoubleClick="DependencyTree_MouseDoubleClick"/>
                         </Border>
@@ -631,9 +718,15 @@
                         <TextBlock Text="{Binding StringSummary}" VerticalAlignment="Center" Margin="16,0,0,0"
                                    FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
                     </StackPanel>
+                    <!-- Once a search is on, the line that told you how to start one is replaced by
+                         the chip that lets you step through it, change it or drop it — the list is
+                         filtered, so without that there is nothing on screen saying so. -->
                     <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" FontSize="11"
                                Foreground="{StaticResource TextMutedBrush}"
+                               Visibility="{Binding IsSearchActive, Converter={StaticResource InvBoolVis}}"
                                Text="Search with ? to narrow the list. Right-click a row to copy it or open it in the hex viewer."/>
+                    <vc:SearchStatusChip DockPanel.Dock="Top" PagePrefix="ExecutableStrings"
+                                         HorizontalAlignment="Left" Margin="0,0,0,8"/>
                     <ListBox x:Name="StringList" ItemsSource="{Binding StringView}"
                              Background="Transparent" BorderThickness="0"
                              AutomationProperties.AutomationId="Executable_StringList"

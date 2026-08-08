@@ -359,12 +359,81 @@ and transitions `domainA --> domainB : "label"` as labelled arrows. **The front-
 `width`/`height`/`padding`/`showDomainDescriptions`, and the `themeVariables: cynefin` domain backgrounds
 (`complexBg`/`complicatedBg`/`clearBg`/`chaoticBg`/`confusionBg`/`boundaryColor`, else the palette's series bank).
 
+### Expandable nodes + the viewport (graph-family diagrams)
+
+`graph`/`flowchart`, `stateDiagram`, `classDiagram`, `erDiagram` and `requirementDiagram` share the graph model,
+the Sugiyama layout and [`WpfGraphRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfGraphRenderer.cs),
+so they also share two things that only matter once a graph gets big.
+
+**A node can hide a subtree.** `Node.Expansion` is `Leaf` / `Collapsed` / `Expanded`, and a non-leaf node is drawn
+with a **`[+]` / `[−]` chip** on its top-right corner — a *second* hit region, so the node's body keeps its own
+`click` target and expansion doesn't have to be smuggled into the label or the href. Which nodes those are is
+declared in a **`config: nexaflow:`** front-matter block, namespaced so it can never collide with a real mermaid
+key and so stock mermaid simply ignores it
+([`NexaflowConfigParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/NexaflowConfigParser.cs) →
+[`NexaflowGraphConfig`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/NexaflowGraphConfig.cs)):
+
+```yaml
+---
+config:
+  nexaflow:
+    expandDepth: 2          # auto-open this many levels from the roots; deeper nodes get a [+]
+    maxFanOut: 24           # more siblings than this fold behind one "+N more" chip (0 = off)
+    collapsed: [n3, n7]     # ids owning a hidden subtree — or a keyed block, below
+    expanded:
+      n0: app.exe           # id → the producer's own name, echoed back on the expand request
+---
+```
+
+[`GraphExpansion`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Layout/GraphExpansion.cs) derives the *visible*
+graph from the parsed one plus that config plus whatever the reader has since opened — the parsed graph is never
+mutated, so re-laying it out is idempotent. A diagram that says nothing about expansion gets no chips and renders
+exactly as before. Clicking a chip goes to the host first (`SelectableMarkdownView.DiagramExpand` → a
+`DiagramExpandRequest`); a host that *generated* the diagram claims it and re-emits with more walked (the PE
+inspector's import tree), and if nobody claims it the diagram opens the node itself from its own source.
+
+**Layout.** The layout counts crossings and keeps the best ordering (barycenter ⊕ median ⊕ adjacent transposition),
+then pulls each node toward the median of its neighbours so a child sits under its parent. It also respects the
+width it has, in two ways: a layer too wide for the space wraps onto further rows rather than becoming one endless
+line, and a label long enough to set the width of its whole layer is capped and wrapped instead
+([`NodeLabelMetrics`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/NodeLabelMetrics.cs), shared with the renderer so
+the two agree about where text sits). The cap is derived from the space available and only ever binds on the labels
+that caused the overflow — so a diagram that already fits is untouched, and one that didn't spends height, where
+the room actually is, instead of growing sideways. The width laid out for is the view's **actual** width, not a
+per-diagram constant.
+
+**Viewport.** A graph diagram sits on a
+[`PanZoomSurface`](../src/Nexaflow.Visuals.Common/Layout/PanZoomSurface.cs) — drag to pan, Ctrl+wheel or the
+`−`/`+`/`Fit`/`1:1` chips to zoom, and an overview minimap (of the node boxes, not just the bounding box) that
+appears once part of the diagram is off-screen. **Always**, not only once the diagram happens to overflow: a
+gesture that comes and goes with the size of the content is one nobody can learn, and "it fits" is only true until
+the next node is opened. The one exception is a surface that set `FitContentToWidth` (the inline editor), which
+keeps scaling the diagram down to its column — panning inside an already-scaled picture would fight both the
+scaling and text selection.
+
+**Selecting.** Clicking a node selects it: the node and every edge touching it are drawn in the selection colour
+and lifted above the rest, which is what makes one line followable across a dense diagram. Two host options tune
+what else a click does, both off by default:
+
+| Option (on `SelectableMarkdownView`) | Effect |
+|---|---|
+| `DiagramOpenOnDoubleClick` | A single click only selects; the node's link opens on double-click. For a pane where opening costs something the user may not have meant — the PE inspector spawns a whole tab. |
+| `DiagramZoomOnWheel` | A plain wheel zooms the diagram instead of scrolling the page past it. Only for a pane whose whole content is the diagram; in a flowing document it would trap the wheel. |
+
+Both reach the diagram through `IInteractiveBlock` (`PointerDoubleClick`, `WantsPointerWheel`), because the host
+intercepts mouse input on the way down — a block that is never asked never sees a double-click or a wheel event
+at all, and the chrome of a surface inside a text container would otherwise need a second click to reach.
+
+`PanZoomSurface` lives in `Visuals.Common` beside the `PanZoomMiniMap` arithmetic it drives, because the scratchpad
+corkboard and the image collage each hand-rolled the same WPF half — transforms, drag, minimap redraw, zoom
+buttons — around that shared arithmetic. It is the half that was missing.
+
 Mermaid `--- … ---` front-matter (title/config) is stripped and a title applied
 (`MermaidFrontmatter`); this is tested directly (`DiagramParsersTests` →
 `Frontmatter_*`, and `DiagramRendererTests.Frontmatter_PieRoutesToChartNotSourceText`). The `config:` block is
 discarded for every diagram **except `xychart`, `radar-beta`, `ishikawa-beta`, `sankey`, `erDiagram`, `venn-beta`,
-`architecture-beta` and `cynefin-beta`**, which re-read it (via `MermaidFrontmatter.RawBlock`) and apply their
-`config:` options described above.
+`architecture-beta` and `cynefin-beta`** (which re-read it via `MermaidFrontmatter.RawBlock` and apply the
+`config:` options described above) **and the `config: nexaflow:` block**, which every graph-family diagram reads.
 A document-level YAML front-matter block is handled separately (`UseYamlFrontMatter`, parsed but
 not rendered — see the extensions table above); this Mermaid front-matter is a different, fence-local
 mechanism.

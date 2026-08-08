@@ -9,6 +9,7 @@ using Nexaflow.Features.Executable.FileActions;
 using Nexaflow.Features.Executable.Services;
 using Nexaflow.IO.Pe;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
 using NSubstitute;
 
 namespace Nexaflow.Tests.Features.Executable;
@@ -153,6 +154,70 @@ public sealed class ExecutableFeatureTests
     }
 
     [TestMethod, TestCategory("Unit")]
+    public void Expanding_two_different_modules_opens_two_different_subtrees()
+    {
+        // The counts and the contents must both follow the module that was opened. Same-looking
+        // results would mean the expansion set was not reaching the walk.
+        var baseline = new DependencyWalker().Walk(PeFixtures.Notepad);
+        var pair     = baseline.Root.Children.Where(c => c.CanExpand).Take(2).ToList();
+        if (pair.Count < 2) Assert.Inconclusive("Need two expandable modules to tell them apart.");
+
+        List<string> ChildrenOf(DependencyNode module) =>
+            new DependencyWalker()
+                .Walk(PeFixtures.Notepad, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { module.Name })
+                .Root.Children.First(c => c.Name == module.Name)
+                .Children.Select(c => c.Name).ToList();
+
+        var first  = ChildrenOf(pair[0]);
+        var second = ChildrenOf(pair[1]);
+
+        CollectionAssert.AreNotEqual(first, second,
+            $"{pair[0].Name} and {pair[1].Name} came back with the same imports.");
+    }
+
+    [TestMethod, TestCategory("Unit")]
+    public void A_module_that_imports_nothing_stops_offering_to_expand()
+    {
+        // Keyed off whether the walk has been there, not off whether it found anything: otherwise a
+        // module with no imports keeps a [+] chip that does nothing when clicked.
+        var node = new DependencyNode("empty.dll", DependencyKind.Resolved, @"C:\empty.dll");
+        Assert.IsTrue(node.CanExpand, "It has not been opened yet.");
+
+        node.Walked = true;
+        Assert.IsFalse(node.CanExpand, "It has now, and it turned out to import nothing.");
+        Assert.IsTrue(node.IsExpanded);
+    }
+
+    [TestMethod, TestCategory("Unit")]
+    public void A_nodes_number_says_what_it_counts()
+    {
+        // "3 imports" reads as "three modules behind this", which is wrong by an order of magnitude —
+        // it is how many functions the parent uses out of it.
+        var root  = new DependencyNode("app.exe", DependencyKind.Resolved, @"C:\app\app.exe") { Walked = true };
+        var child = new DependencyNode("ole32.dll", DependencyKind.Resolved, @"C:\app\ole32.dll")
+        { ImportedFunctions = ["CoInitializeEx", "CoCreateInstance", "CoUninitialize"] };
+        root.Children.Add(child);
+
+        var markdown = DependencyMermaid.Build(new DependencyGraph(root, 2, false, 1));
+
+        Assert.IsTrue(markdown.Contains("3 functions used"), "The label must say what the number counts.");
+        Assert.IsFalse(markdown.Contains("3 imports"));
+    }
+
+    [TestMethod, TestCategory("Unit")]
+    public void The_functions_an_edge_uses_are_kept_not_just_counted()
+    {
+        // The count on a node provokes exactly one question — which ones? — and for any edge below
+        // the root nothing else in the app can answer it: the Imports tab only knows the root's.
+        var graph  = new DependencyWalker().Walk(PeFixtures.Notepad);
+        var module = graph.Root.Children.First(c => c.ImportedFunctionCount > 0);
+
+        Assert.AreEqual(module.ImportedFunctionCount, module.ImportedFunctions.Count);
+        Assert.IsTrue(module.ImportedFunctions.All(f => !string.IsNullOrWhiteSpace(f)),
+            "every function the edge uses is named");
+    }
+
+    [TestMethod, TestCategory("Unit")]
     public void The_walk_honours_the_node_cap()
     {
         // Expand broadly so the cap is the thing that stops it, not the expansion set.
@@ -211,22 +276,67 @@ public sealed class ExecutableFeatureTests
     }
 
     [TestMethod, TestCategory("Unit")]
-    public void Expandable_and_openable_nodes_are_told_apart_by_their_href()
+    public void Expansion_is_declared_in_front_matter_not_smuggled_into_labels_or_hrefs()
     {
-        var root = new DependencyNode("app.exe", DependencyKind.Resolved, @"C:\app\app.exe");
+        // The walk always opens the root, so a root built by hand has to say so too.
+        var root = new DependencyNode("app.exe", DependencyKind.Resolved, @"C:\app\app.exe") { Walked = true };
         var child = new DependencyNode("lib.dll", DependencyKind.Resolved, @"C:\app\lib.dll");
         root.Children.Add(child);
 
         var markdown = DependencyMermaid.Build(new DependencyGraph(root, 2, false, 1));
 
-        // The root is already open, so clicking it inspects; the child still has a subtree behind
-        // it, so clicking it expands. The + in the label says which before it is clicked.
-        Assert.IsTrue(markdown.Contains($"{DependencyMermaid.OpenScheme}"),
-            "An expanded node links to its file.");
-        Assert.IsTrue(markdown.Contains($"{DependencyMermaid.ExpandScheme}lib.dll"),
-            "An unexpanded node links to an expand action.");
-        Assert.IsTrue(markdown.Contains("+ lib.dll"), "An expandable node is marked with a +.");
-        Assert.IsFalse(markdown.Contains("+ app.exe"), "An already-open node carries no + marker.");
+        // The child still has a subtree behind it, and that fact lives in the nexaflow config block —
+        // which stock mermaid ignores — rather than in a label or an href.
+        Assert.IsTrue(markdown.Contains("  nexaflow:"), "The expansion state is front-matter config.");
+        Assert.IsTrue(markdown.Contains("    collapsed:") && markdown.Contains("\"lib.dll\""),
+            "An unopened module is declared collapsed, keyed by its own name.");
+
+        Assert.IsFalse(markdown.Contains("+ lib.dll"), "No marker is smuggled into the node label.");
+        Assert.IsFalse(markdown.Contains("nexaflow-expand:"), "No private href scheme survives.");
+        Assert.IsFalse(markdown.Contains("nexaflow-open:"), "A node's href is just its path.");
+
+        // Both nodes are real files, so both keep an ordinary click target — a node no longer has to
+        // choose between being openable and being expandable.
+        Assert.IsTrue(markdown.Contains(@"click n0 href ""C:\app\app.exe"""));
+        Assert.IsTrue(markdown.Contains(@"click n1 href ""C:\app\lib.dll"""));
+    }
+
+    [TestMethod, TestCategory("Unit")]
+    public void The_root_offers_no_collapse_because_the_walk_always_opens_it()
+    {
+        // The walk always opens the binary you are inspecting, so there is no state in which the root
+        // is closed. A chip for it did nothing when clicked, and left the diagram believing the whole
+        // graph was folded away behind a node that could then never be opened again.
+        var root  = new DependencyNode("app.exe", DependencyKind.Resolved, @"C:\app\app.exe") { Walked = true };
+        var child = new DependencyNode("lib.dll", DependencyKind.Resolved, @"C:\app\lib.dll") { Walked = true };
+        child.Children.Add(new DependencyNode("deep.dll", DependencyKind.Resolved, @"C:\app\deep.dll"));
+        root.Children.Add(child);
+
+        var lines  = DependencyMermaid.Build(new DependencyGraph(root, 3, false, 2))
+                                      .Split('\n', StringSplitOptions.None);
+        var cfg = NexaflowConfigParser.Parse(MermaidFrontmatter.RawBlock(string.Join("\n", lines[1..^2])));
+
+        Assert.IsFalse(cfg.Expanded.ContainsKey("n0"), "the root is never declared collapsible");
+        Assert.AreEqual("lib.dll", cfg.Expanded["n1"], "…but an opened module below it still is");
+    }
+
+    [TestMethod, TestCategory("Unit")]
+    public void The_front_matter_parses_back_into_the_expansion_state_it_declared()
+    {
+        var root   = new DependencyNode("app.exe", DependencyKind.Resolved, @"C:\app\app.exe") { Walked = true };
+        var opened = new DependencyNode("lib.dll", DependencyKind.Resolved, @"C:\app\lib.dll") { Walked = true };
+        opened.Children.Add(new DependencyNode("shut.dll", DependencyKind.Resolved, @"C:\app\shut.dll"));
+        root.Children.Add(opened);
+
+        // The fence is markdown; the diagram source is what is inside it.
+        var lines  = DependencyMermaid.Build(new DependencyGraph(root, 3, false, 2))
+                                      .Split('\n', StringSplitOptions.None);
+        var source = string.Join("\n", lines[1..^2]);
+
+        var cfg = NexaflowConfigParser.Parse(MermaidFrontmatter.RawBlock(source));
+        Assert.AreEqual("lib.dll",  cfg.Expanded["n1"],  "an opened module can be closed again");
+        Assert.AreEqual("shut.dll", cfg.Collapsed["n2"], "an unopened one can be opened");
+        Assert.AreEqual(DependencyMermaid.MaxFanOut, cfg.MaxFanOut);
     }
 
     [TestMethod, TestCategory("Unit")]

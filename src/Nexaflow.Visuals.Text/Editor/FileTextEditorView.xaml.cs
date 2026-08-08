@@ -111,8 +111,7 @@ public partial class FileTextEditorView : UserControl, IPageView
         switch (resolution.Mode)
         {
             case HighlightMode.Xshd:
-                XshdTheming.ApplyTheme(resolution.Definition!); // retint built-in colours to the Swatch palette
-                Editor.SyntaxHighlighting = resolution.Definition;
+                Editor.SyntaxHighlighting = resolution.Definition;   // already retinted by the registry
                 break;
             case HighlightMode.TreeSitter:
                 var highlighter = CodeHighlighter.TryCreate(resolution.TreeSitterLanguage!);

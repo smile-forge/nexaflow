@@ -33,14 +33,33 @@ public sealed class DependencyNode(string name, DependencyKind kind, string? pat
     /// <summary>Delay-loaded rather than bound at load time.</summary>
     public bool IsDelayLoad { get; init; }
 
-    public int ImportCount { get; init; }
+    /// <summary>
+    /// The <i>functions</i> the importing module pulls out of this one — not what sits behind it.
+    /// The two are wildly different (three functions from <c>ole32</c>, which itself names eighty-odd
+    /// modules), so anything user-facing has to say which it means.
+    /// <para>
+    /// Kept, not just counted: "which three?" is the question a count provokes, and for any edge
+    /// below the root there is nowhere else in the app that could answer it — the Imports tab only
+    /// knows what the binary you opened imports.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<string> ImportedFunctions { get; init; } = [];
 
-    /// <summary>A real module on disk that has not been opened up yet — it can be expanded.</summary>
-    public bool CanExpand => Kind == DependencyKind.Resolved &&
-                             Path is { Length: > 0 } && Children.Count == 0;
+    public int ImportedFunctionCount => ImportedFunctions.Count;
 
-    /// <summary>Already opened up, so the affordance is "inspect", not "expand".</summary>
-    public bool IsExpanded => Children.Count > 0;
+    /// <summary>True once the walk actually opened this module, whatever it found inside.</summary>
+    public bool Walked { get; set; }
+
+    /// <summary>A real module on disk that has not been opened up yet — it can be expanded.
+    /// <para>
+    /// Keyed off whether the walk has been <i>there</i>, not off whether it came back with anything:
+    /// a module that imports nothing was still opened, and offering to open it again is an
+    /// affordance that does nothing when clicked.
+    /// </para></summary>
+    public bool CanExpand => Kind == DependencyKind.Resolved && Path is { Length: > 0 } && !Walked;
+
+    /// <summary>Already opened up, so the affordance is "close it again".</summary>
+    public bool IsExpanded => Walked;
 }
 
 /// <param name="Truncated">True when a depth or node cap stopped the walk short of the full graph.</param>
@@ -92,7 +111,7 @@ public sealed class DependencyWalker
     {
         _expanded = expanded ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        var root = new DependencyNode(Path.GetFileName(rootPath), DependencyKind.Resolved, rootPath);
+        var root = new DependencyNode(Path.GetFileName(rootPath), DependencyKind.Resolved, rootPath) { Walked = true };
         _resolved[root.Name] = root;
         _nodeCount = 1;
 
@@ -141,14 +160,14 @@ public sealed class DependencyWalker
                 if (_resolved.TryGetValue(module.Name, out var existing))
                 {
                     parent.Children.Add(new DependencyNode(module.Name, DependencyKind.Cycle, existing.Path)
-                    { IsDelayLoad = module.IsDelayLoad, ImportCount = module.Functions.Count });
+                    { IsDelayLoad = module.IsDelayLoad, ImportedFunctions = module.Functions.Select(f => f.Display).ToList() });
                     continue;
                 }
 
                 if (module.IsApiSet)
                 {
                     var apiSet = new DependencyNode(module.Name, DependencyKind.ApiSet)
-                    { IsDelayLoad = module.IsDelayLoad, ImportCount = module.Functions.Count };
+                    { IsDelayLoad = module.IsDelayLoad, ImportedFunctions = module.Functions.Select(f => f.Display).ToList() };
                     _resolved[module.Name] = apiSet;
                     parent.Children.Add(apiSet);
                     _nodeCount++;
@@ -162,7 +181,7 @@ public sealed class DependencyWalker
                     resolvedPath)
                 {
                     IsDelayLoad = module.IsDelayLoad,
-                    ImportCount = module.Functions.Count,
+                    ImportedFunctions = module.Functions.Select(f => f.Display).ToList(),
                 };
 
                 _resolved[module.Name] = child;
@@ -171,7 +190,10 @@ public sealed class DependencyWalker
 
                 // Only follow what the caller asked to open up.
                 if (resolvedPath is not null && _expanded.Contains(module.Name))
+                {
+                    child.Walked = true;
                     Expand(child, resolvedPath, depth + 1, ct);
+                }
             }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)

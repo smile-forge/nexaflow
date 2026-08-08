@@ -21,9 +21,13 @@ public sealed class GraphDiagramHandler : IDiagramHandler
     public bool CanHandle(string language) => _parser.CanParse(language);
 
     public FrameworkElement Render(string source, MarkdownPalette palette, Func<string, bool>? onNavigate = null)
+        => Render(source, DiagramRenderOptions.For(palette, onNavigate));
+
+    public FrameworkElement Render(string source, DiagramRenderOptions options)
     {
-        var graph  = _parser.Parse(source);
-        var layout = SugiyamaLayout.Compute(graph, preferredMaxWidth: 900);
-        return WpfGraphRenderer.Render(layout, palette);
+        // These languages have no front-matter, so there is nothing to configure — but they share the
+        // graph model, so they get the same viewport and the same width-aware layout for free.
+        var graph = _parser.Parse(source);
+        return new GraphDiagramView(graph, new Charts.NexaflowGraphConfig(), options.Palette, options, 900);
     }
 }

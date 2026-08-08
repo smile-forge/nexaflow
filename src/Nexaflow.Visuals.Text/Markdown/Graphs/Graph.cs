@@ -33,6 +33,26 @@ public enum NodeShape
 
 public enum EdgeStyle { Solid, Dashed, Dotted, Thick }
 
+/// <summary>
+/// Whether a node hides a subtree behind it, and whether that subtree is currently shown.
+/// <para>
+/// Expansion is modelled on the node rather than smuggled into its label, because "there is more
+/// behind this" is a fact about the graph — a generated diagram, a depth-limited one and a
+/// fan-out-collapsed one all mean the same thing by it, and every renderer should draw the same
+/// affordance for it. <see cref="Leaf"/> is the default, so a diagram that never mentions expansion
+/// carries no chips and renders exactly as it always did.
+/// </para>
+/// </summary>
+public enum NodeExpansion
+{
+    /// <summary>Nothing is hidden behind this node — no chip is drawn.</summary>
+    Leaf,
+    /// <summary>A hidden subtree — drawn with a <c>[+]</c> chip.</summary>
+    Collapsed,
+    /// <summary>Its subtree is shown — drawn with a <c>[−]</c> chip that closes it again.</summary>
+    Expanded,
+}
+
 /// <summary>The marker drawn at an edge end. <c>TriangleHollow</c>/<c>DiamondFilled</c>/<c>DiamondHollow</c>
 /// are UML class-diagram heads (inheritance / composition / aggregation); <c>CrossCircle</c> is the
 /// SysML composite-containment crosshair (requirement diagrams); the <c>Er*</c> markers are ER crow's-foot
@@ -92,6 +112,43 @@ public sealed class Node
 
     /// <summary>Tooltip for the link; falls back to the href.</summary>
     public string? Tooltip { get; set; }
+
+    /// <summary>
+    /// Whether this node hides a subtree, and whether that subtree is currently shown. Drawn as a
+    /// chip on the node's corner — a second hit region, independent of <see cref="Href"/>, so a node
+    /// can both navigate somewhere and open up in place.
+    /// </summary>
+    public NodeExpansion Expansion { get; set; } = NodeExpansion.Leaf;
+
+    /// <summary>How many nodes sit behind a <see cref="NodeExpansion.Collapsed"/> node, when that is
+    /// knowable. Zero means "unknown" — a generated diagram that simply declares a node expandable
+    /// has not walked what is behind it.</summary>
+    public int HiddenCount { get; set; }
+
+    /// <summary>
+    /// The producer's own name for this node, echoed back on an expand/collapse request so a host
+    /// can act without keeping a side table of mermaid ids. Null → the request carries the id.
+    /// </summary>
+    public string? ExpandKey { get; set; }
+
+    /// <summary>A copy carrying every property. Used when a view of the graph is derived (expansion
+    /// pruning) so the parsed graph stays intact and can be re-derived from.</summary>
+    public Node Copy() => new()
+    {
+        Id          = Id,
+        Label       = Label,
+        Shape       = Shape,
+        FillColor   = FillColor,
+        StrokeColor = StrokeColor,
+        TextColor   = TextColor,
+        Classifier  = Classifier,
+        Class       = Class,
+        Href        = Href,
+        Tooltip     = Tooltip,
+        Expansion   = Expansion,
+        HiddenCount = HiddenCount,
+        ExpandKey   = ExpandKey,
+    };
 }
 
 /// <summary>A directed edge between two nodes.</summary>

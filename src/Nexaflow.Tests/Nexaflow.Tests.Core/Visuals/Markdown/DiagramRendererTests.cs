@@ -111,16 +111,31 @@ public class DiagramRendererTests
             end note
         """;
 
+    /// <summary>
+    /// Asserts the source reached the graph renderer and came back drawn, rather than falling
+    /// through to the raw-text fallback. Deliberately not pinned to the exact chrome: which of a
+    /// scroller and a pan/zoom viewport wraps the canvas depends on how big the diagram turned out,
+    /// and that is not what these tests are about.
+    /// </summary>
+    private static void AssertGraphDiagram(FrameworkElement fe, string what)
+    {
+        Assert.IsInstanceOfType(fe, typeof(GraphDiagramView), $"{what} should route to the graph renderer");
+        fe.Measure(new Size(900, 900));
+        fe.Arrange(new Rect(0, 0, 900, 900));
+        Assert.IsNotNull(FindCanvas(fe), $"{what} should have drawn a canvas");
+    }
+
+    private static Canvas? FindCanvas(DependencyObject root)
+    {
+        if (root is Canvas c && c.Children.Count > 0) return c;
+        for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); i++)
+            if (FindCanvas(System.Windows.Media.VisualTreeHelper.GetChild(root, i)) is { } hit) return hit;
+        return null;
+    }
+
     [TestMethod]
     public void State_RendersGraphNotSourceText() => UiThread.Run(() =>
-    {
-        // A state diagram routes to the graph renderer: Border → ScrollViewer → Canvas.
-        var fe = DiagramRenderer.Render("mermaid", StateSrc, MarkdownPalette.Dark);
-        Assert.IsInstanceOfType(fe, typeof(Border));
-        var sv = ((Border)fe).Child as ScrollViewer;
-        Assert.IsNotNull(sv, "state diagram should route to the graph renderer (ScrollViewer/Canvas)");
-        Assert.IsInstanceOfType(sv!.Content, typeof(Canvas));
-    });
+        AssertGraphDiagram(DiagramRenderer.Render("mermaid", StateSrc, MarkdownPalette.Dark), "a state diagram"));
 
     [TestMethod]
     public void State_ConcurrencyAndForks_RenderWithoutThrowing() => UiThread.Run(() =>
@@ -137,9 +152,7 @@ public class DiagramRendererTests
                 B --> join_state
                 join_state --> [*]
             """;
-        var fe = DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark);
-        Assert.IsInstanceOfType(fe, typeof(Border));
-        Assert.IsInstanceOfType(((Border)fe).Child, typeof(ScrollViewer));
+        AssertGraphDiagram(DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark), "forks and joins");
     });
 
     // ── Class diagram ──────────────────────────────────────────────────────
@@ -169,14 +182,7 @@ public class DiagramRendererTests
 
     [TestMethod]
     public void Class_RendersGraphNotSourceText() => UiThread.Run(() =>
-    {
-        // A class diagram routes to the graph renderer: Border → ScrollViewer → Canvas.
-        var fe = DiagramRenderer.Render("mermaid", ClassSrc, MarkdownPalette.Dark);
-        Assert.IsInstanceOfType(fe, typeof(Border));
-        var sv = ((Border)fe).Child as ScrollViewer;
-        Assert.IsNotNull(sv, "class diagram should route to the graph renderer (ScrollViewer/Canvas)");
-        Assert.IsInstanceOfType(sv!.Content, typeof(Canvas));
-    });
+        AssertGraphDiagram(DiagramRenderer.Render("mermaid", ClassSrc, MarkdownPalette.Dark), "a class diagram"));
 
     [TestMethod]
     public void Class_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
@@ -205,13 +211,8 @@ public class DiagramRendererTests
 
     [TestMethod]
     public void Requirement_RendersGraphNotSourceText() => UiThread.Run(() =>
-    {
-        var fe = DiagramRenderer.Render("mermaid", RequirementSrc, MarkdownPalette.Dark);
-        Assert.IsInstanceOfType(fe, typeof(Border));
-        var sv = ((Border)fe).Child as ScrollViewer;
-        Assert.IsNotNull(sv, "requirement diagram should route to the graph renderer (ScrollViewer/Canvas)");
-        Assert.IsInstanceOfType(sv!.Content, typeof(Canvas));
-    });
+        AssertGraphDiagram(DiagramRenderer.Render("mermaid", RequirementSrc, MarkdownPalette.Dark),
+                           "a requirement diagram"));
 
     // ── Kanban board ───────────────────────────────────────────────────────
 
@@ -503,14 +504,8 @@ public class DiagramRendererTests
 
     [TestMethod]
     public void Er_RoutesToGraphRenderer() => UiThread.Run(() =>
-    {
-        // ER reuses the graph renderer: Border → ScrollViewer → Canvas (and is no longer raw source text).
-        var fe = DiagramRenderer.Render("mermaid", ErSrc, MarkdownPalette.Dark);
-        Assert.IsInstanceOfType(fe, typeof(Border));
-        var sv = ((Border)fe).Child as ScrollViewer;
-        Assert.IsNotNull(sv, "erDiagram should route to the graph renderer (ScrollViewer/Canvas)");
-        Assert.IsInstanceOfType(sv!.Content, typeof(Canvas));
-    });
+        // ER reuses the graph renderer, and is no longer raw source text.
+        AssertGraphDiagram(DiagramRenderer.Render("mermaid", ErSrc, MarkdownPalette.Dark), "an erDiagram"));
 
     [TestMethod]
     public void Er_WordCardinalityAndConfig_Render() => UiThread.Run(() =>
