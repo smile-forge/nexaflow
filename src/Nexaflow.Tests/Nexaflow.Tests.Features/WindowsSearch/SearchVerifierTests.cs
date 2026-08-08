@@ -219,12 +219,28 @@ public class SearchVerifierTests
             => throw new InvalidOperationException("boom");
     }
 
+    /// <summary>Claims the file and then admits it has no text — a scanned PDF, say.</summary>
+    private sealed class SilentExtractor : IFileTextExtractor
+    {
+        public bool CanExtract(string path) => true;
+        public Task<string?> ExtractAsync(string path, long maxBytes, CancellationToken ct)
+            => Task.FromResult<string?>(null);
+    }
+
+    /// <summary>
+    /// Mirrors <c>IShellServices.GetFileTextExtractor</c>: the first extractor whose <c>CanExtract</c> claims
+    /// the path, with a throwing claim disqualifying it. The verifier now borrows one shell-owned instance
+    /// rather than looping a list, so the tests resolve the same way the shell does.
+    /// </summary>
+    private static Func<string, IFileTextExtractor?> Resolver(params IFileTextExtractor[] extractors) =>
+        path => extractors.FirstOrDefault(e => { try { return e.CanExtract(path); } catch { return false; } });
+
     [TestMethod]
     public async Task FormatAwareExtractor_IsPreferredOverReadingAsText()
     {
         var path = Write("doc.weird", "the raw bytes say nothing useful");
 
-        var state = await new SearchVerifier([new UpperCaseExtractor()]).VerifyAsync(
+        var state = await new SearchVerifier(Resolver(new UpperCaseExtractor())).VerifyAsync(
             Hit(path), new SearchRequest("needle", IsRegex: true), default);
 
         Assert.AreEqual(SearchHitState.Verified, state, "the extractor's text should be what gets matched");
@@ -236,9 +252,55 @@ public class SearchVerifierTests
         var path = Write("notes.txt", "TODO: fix the parser");
 
         // One misbehaving feature must not sink the whole sweep.
-        var state = await new SearchVerifier([new ExplodingExtractor()]).VerifyAsync(
+        var state = await new SearchVerifier(Resolver(new ExplodingExtractor())).VerifyAsync(
             Hit(path), new SearchRequest(@"TODO:\s*fix", IsRegex: true), default);
 
         Assert.AreEqual(SearchHitState.Verified, state);
+    }
+
+    [TestMethod]
+    public async Task NoExtractorClaimsTheFile_ReadsItAsPlainText()
+    {
+        var path = Write("notes.txt", "TODO: fix the parser");
+
+        // The resolver declining is the ordinary case — most formats have no extractor and never will.
+        var state = await new SearchVerifier(Resolver()).VerifyAsync(
+            Hit(path), new SearchRequest(@"TODO:\s*fix", IsRegex: true), default);
+
+        Assert.AreEqual(SearchHitState.Verified, state);
+    }
+
+    [TestMethod]
+    public async Task ClaimantReturningNull_FallsBackToPlainText_RatherThanReportingNoText()
+    {
+        var path = Write("notes.txt", "TODO: fix the parser");
+
+        // Null is the extractor saying "couldn't tell", so the raw scan still gets a turn. An extractor that
+        // means "I read it and there is genuinely no text" returns an empty string instead, which settles the
+        // row as a real miss — see EmptyFromExtractor_IsAConclusiveMiss.
+        var state = await new SearchVerifier(Resolver(new SilentExtractor())).VerifyAsync(
+            Hit(path), new SearchRequest(@"TODO:\s*fix", IsRegex: true), default);
+
+        Assert.AreEqual(SearchHitState.Verified, state);
+    }
+
+    [TestMethod]
+    public async Task EmptyFromExtractor_IsAConclusiveMiss()
+    {
+        // The image-only-PDF case. The extractor understood the file and there was no text in it, so a miss
+        // really is proof of absence — Rejected, not Unreadable, and no raw byte scan behind its back.
+        var path = Write("scan.weird", "TODO: fix the parser");
+
+        var state = await new SearchVerifier(Resolver(new EmptyExtractor())).VerifyAsync(
+            Hit(path), new SearchRequest(@"TODO:\s*fix", IsRegex: true), default);
+
+        Assert.AreEqual(SearchHitState.Rejected, state);
+    }
+
+    private sealed class EmptyExtractor : IFileTextExtractor
+    {
+        public bool CanExtract(string path) => true;
+        public Task<string?> ExtractAsync(string path, long maxBytes, CancellationToken ct)
+            => Task.FromResult<string?>(string.Empty);
     }
 }

@@ -18,11 +18,17 @@ public sealed class SearchVerifier
     /// <summary>Bytes read per file before giving up on finding a match in it.</summary>
     public const long MaxBytesPerFile = 4 * 1024 * 1024;
 
-    private readonly IReadOnlyList<IFileTextExtractor> _extractors;
+    private readonly Func<string, IFileTextExtractor?> _resolveExtractor;
     private readonly PlainTextExtractor _fallback = new();
 
-    public SearchVerifier(IEnumerable<IFileTextExtractor>? extractors = null)
-        => _extractors = extractors?.ToList() ?? [];
+    /// <param name="resolveExtractor">
+    /// Supplies the format-aware extractor for a path, or null when none understands it — normally
+    /// <c>IShellServices.GetFileTextExtractor</c>. The shell owns those instances (built through the feature
+    /// DI, cached per workspace), so the verifier only ever borrows one; passing null here means every file
+    /// is read as plain text.
+    /// </param>
+    public SearchVerifier(Func<string, IFileTextExtractor?>? resolveExtractor = null)
+        => _resolveExtractor = resolveExtractor ?? (static _ => null);
 
     /// <summary>
     /// The state a hit deserves before anything is read: proven when the name matches, otherwise a
@@ -88,11 +94,19 @@ public sealed class SearchVerifier
 
     // A format-aware extractor first — one that claims a file understands it, so its text is trustworthy.
     // Plain text is the fallback and can never out-compete one.
+    //
+    // Whichever extractor claims the file is the only one asked: one feature owns a format, so a null from
+    // its claimant means "I understand this and there is no text in it to read", not "try someone else".
+    // That null still falls through to the raw scan rather than being reported as empty text, because the
+    // extractor uses null for "couldn't tell" — an empty string is how it says "genuinely no text".
     private async Task<ExtractedText?> ExtractAsync(string path, CancellationToken ct)
     {
-        foreach (var extractor in _extractors)
+        IFileTextExtractor? extractor;
+        try { extractor = _resolveExtractor(path); }
+        catch { extractor = null; }
+
+        if (extractor is not null)
         {
-            if (!SafeCanExtract(extractor, path)) continue;
             try
             {
                 var text = await extractor.ExtractAsync(path, MaxBytesPerFile, ct);
@@ -103,11 +117,5 @@ public sealed class SearchVerifier
         }
 
         return await _fallback.ExtractAsync(path, MaxBytesPerFile, ct);
-    }
-
-    private static bool SafeCanExtract(IFileTextExtractor extractor, string path)
-    {
-        try { return extractor.CanExtract(path); }
-        catch { return false; }
     }
 }

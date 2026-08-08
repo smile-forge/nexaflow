@@ -568,7 +568,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         VerificationPhase  = VerifyPhase.Running;
         VerificationBanner = $"Possible matches found — verifying {candidates.Count}…";
 
-        var verifier = new SearchVerifier(DiscoverExtractors(_shellServices));
+        var verifier = new SearchVerifier(_shellServices.GetFileTextExtractor);
         var hits     = candidates.ToDictionary(c => c.FilePath, StringComparer.OrdinalIgnoreCase);
 
         // Fire-and-forget: the sweep reports each row as it lands, so nothing waits on the whole pass.
@@ -676,15 +676,6 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         VerificationBanner = offer.Banner;
         return true;
     }
-
-    // Format-aware extractors live in whichever feature owns the format; none is required, since the
-    // verifier falls back to reading the file as text.
-    private static IReadOnlyList<IFileTextExtractor> DiscoverExtractors(IShellServices shell) =>
-        (shell.DiscoverImplementations<IFileTextExtractor>() ?? [])
-        .Select(t => { try { return Activator.CreateInstance(t) as IFileTextExtractor; } catch { return null; } })
-        .Where(e => e is not null)
-        .Select(e => e!)
-        .ToList();
 
     private async Task ExecuteSearch(ParsedQuery parsed, CancellationToken externalCt)
     {
@@ -1055,7 +1046,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
             // The agent asked for data, so give it settled data: verify inline rather than handing back
             // "maybe" rows it has no way to resolve. The user-facing path is the one that shows candidates
             // first and settles them in the background.
-            var verifier = new SearchVerifier(DiscoverExtractors(_shellServices));
+            var verifier = new SearchVerifier(_shellServices.GetFileTextExtractor);
             var settled  = new List<SearchHit>();
             foreach (var hit in HitsFor(entries))
             {

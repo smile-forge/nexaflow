@@ -59,6 +59,13 @@
     ]
   },
   {
+    "ExperienceId": "/document/pdf",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "OptionalExtension", "Value": "*.pdf" }
+    ]
+  },
+  {
     "ExperienceId": "/text/log",
     "Source": "User",
     "Criteria": [

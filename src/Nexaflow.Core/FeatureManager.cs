@@ -7,6 +7,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Windows.Threading;
 
 namespace Nexaflow.Core;
@@ -186,10 +187,25 @@ public sealed class FeatureManager
 
     /// <summary>
     /// Creates (or returns a cached) instance of <paramref name="targetType"/> with constructor args
-    /// resolved from <paramref name="workspace"/> and the registered global config instances. Returns null
-    /// when no satisfiable constructor is found.
+    /// resolved from <paramref name="workspace"/> and the registered global config instances.
+    /// <para>
+    /// <b>Never returns null — it throws.</b> Every way this can fail is a wiring defect: an unknown
+    /// constructor parameter, a global config that never registered, a scoped config whose load threw, a
+    /// constructor that threw, or a runtime handed over before <c>BootstrapServices</c> wired it. Returning
+    /// null for any of those is how a feature silently disappears — the caller enumerating implementations
+    /// just skips it, nothing logs, and the symptom surfaces months later as "that never worked".
+    /// </para>
+    /// <para>
+    /// In particular a missing <see cref="IShellServices"/> or <c>IAIService</c> is <b>not</b> a tolerable
+    /// state. <c>WorkspaceManager.BootstrapServices</c> creates both unconditionally — an
+    /// <c>AIService</c> exists whether or not the user configured a provider, and answers accordingly — so by
+    /// the time any runtime reaches a feature they are present. Null means pre-bootstrap or post-teardown,
+    /// and a feature built then would misbehave in ways far harder to trace than an exception here.
+    /// </para>
     /// </summary>
-    public object? Instantiate(Type targetType, WorkspaceRuntime workspace)
+    /// <exception cref="InvalidOperationException">The type has no public constructor, or no constructor
+    /// whose parameters can be satisfied.</exception>
+    public object Instantiate(Type targetType, WorkspaceRuntime workspace)
     {
         lock (_cacheLock)
         {
@@ -202,9 +218,8 @@ public sealed class FeatureManager
             if (ctxCache.TryGetValue(targetType, out var cached))
                 return cached;
 
-            var instance = TryInstantiateInternal(targetType, workspace);
-            if (instance is not null)
-                ctxCache[targetType] = instance;
+            var instance = BuildOrThrow(targetType, workspace);
+            ctxCache[targetType] = instance;
             return instance;
         }
     }
@@ -220,38 +235,78 @@ public sealed class FeatureManager
             _cache.Remove(workspace);
     }
 
-    private object? TryInstantiateInternal(Type t, WorkspaceRuntime workspace)
+    private object BuildOrThrow(Type t, WorkspaceRuntime workspace)
     {
-        foreach (var ctor in t.GetConstructors().OrderByDescending(c => c.GetParameters().Length))
+        var ctors = t.GetConstructors().OrderByDescending(c => c.GetParameters().Length).ToList();
+        if (ctors.Count == 0)
+            throw new InvalidOperationException(
+                $"The feature DI cannot build {t.FullName}: it has no public constructor.");
+
+        // Longest-first, so an optional dependency is taken when it can be. The reason the FIRST failure is
+        // the one reported: overloads are tried in descending arity, so it names the richest constructor the
+        // author meant to be used rather than whatever minimal one happened to be last.
+        string? defect = null;
+
+        foreach (var ctor in ctors)
         {
-            var args = TryResolveArgs(ctor, workspace);
-            if (args is null) continue;
-            try { return ctor.Invoke(args); }
-            catch { }
+            var args = TryResolveArgs(ctor, workspace, out var detail);
+            if (args is null) { defect ??= detail; continue; }
+
+            try { return ctor.Invoke(args)!; }
+            catch (TargetInvocationException ex) when (ex.InnerException is not null)
+            {
+                // A constructor that throws is a defect in the feature, and swallowing it here would present
+                // as the feature simply not existing. Rethrow the real exception with its original stack.
+                ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+                throw;   // unreachable; satisfies definite-assignment
+            }
         }
-        return null;
+
+        throw new InvalidOperationException(
+            $"The feature DI cannot build {t.FullName}: {defect}. It implements a discovered contract, so "
+            + "returning null instead would leave the caller enumerating implementations to skip it in "
+            + "silence, and the feature would look like it was never written.");
     }
 
-    private object?[]? TryResolveArgs(ConstructorInfo ctor, WorkspaceRuntime? workspace)
+    /// <summary>
+    /// The constructor arguments, or null with <paramref name="defect"/> describing why none could be found.
+    /// <para>
+    /// Every failure here is a defect rather than a tolerable state, including a missing
+    /// <see cref="IShellServices"/> / <c>IAIService</c>: <c>WorkspaceManager.BootstrapServices</c> builds both
+    /// unconditionally, so a runtime that reaches a feature always carries them.
+    /// </para>
+    /// </summary>
+    private object?[]? TryResolveArgs(ConstructorInfo ctor, WorkspaceRuntime workspace, out string? defect)
     {
         var parms = ctor.GetParameters();
         var args  = new object?[parms.Length];
+        defect    = null;
+
         for (int i = 0; i < parms.Length; i++)
         {
-            var pt = parms[i].ParameterType;
+            var pt   = parms[i].ParameterType;
+            var name = parms[i].Name;
+
             if (pt == typeof(WorkspaceRuntime))
             {
-                if (workspace is null) return null;
                 args[i] = workspace;
             }
             else if (typeof(IShellServices).IsAssignableFrom(pt))
             {
-                if (workspace?.ShellServices is null) return null;
+                if (workspace.ShellServices is null)
+                    return Defect(out defect, $"parameter '{name}' needs IShellServices, but this "
+                        + "WorkspaceRuntime has none — it was handed over before BootstrapServices wired it, "
+                        + "or after its last window closed");
                 args[i] = workspace.ShellServices;
             }
             else if (typeof(IAIService).IsAssignableFrom(pt))
             {
-                if (workspace?.AiService is null) return null;
+                // Not "the user has no AI provider" — that workspace still gets an AIService, which answers
+                // that it has none. A null here means the runtime itself isn't live.
+                if (workspace.AiService is null)
+                    return Defect(out defect, $"parameter '{name}' needs IAIService, but this "
+                        + "WorkspaceRuntime has none — it was handed over before BootstrapServices wired it, "
+                        + "or after its last window closed");
                 args[i] = workspace.AiService;
             }
             else if (pt == typeof(IReadOnlyDictionary<Type, IFeatureConfig>))
@@ -261,17 +316,23 @@ public sealed class FeatureManager
             else if (typeof(IFeatureConfig).IsAssignableFrom(pt))
             {
                 // Scoped config: workspace-specific instance (lazily materialized).
-                if (workspace?.Workspace.FindWorkspaceConfig(pt) is { } scoped)
+                if (workspace.Workspace.FindWorkspaceConfig(pt) is { } scoped)
                     args[i] = scoped;
                 else if (IsWorkspaceScopedConfig(pt))
-                    return null;   // scoped, but this (null/window-less) workspace can't supply it
+                    return Defect(out defect, $"the workspace-scoped config '{pt.Name}' required by parameter "
+                        + $"'{name}' could not be materialized for this workspace (its construction or its "
+                        + "load from disk threw)");
                 else
                 {
                     // Global config — ensure its owning assembly has been activated, then resolve.
                     if (!_configs.ContainsKey(pt) && pt.FullName is { } fn)
                         FeatureCatalog.Instance.ActivateAssemblyOwning(fn);
                     if (_configs.TryGetValue(pt, out var cfg)) args[i] = cfg;
-                    else return null;
+                    else
+                        // Activation is what registers a global config, so reaching here means the owning
+                        // assembly didn't ship one, its ConfigName is missing, or its construction threw.
+                        return Defect(out defect, $"the global config '{pt.Name}' required by parameter "
+                            + $"'{name}' is not registered, even after activating the assembly that owns it");
                 }
             }
             else if (parms[i].IsOptional)
@@ -280,10 +341,18 @@ public sealed class FeatureManager
             }
             else
             {
-                return null;
+                return Defect(out defect, $"parameter '{name}' is of type '{pt.Name}', which the feature DI "
+                    + "does not supply (it injects IShellServices, IAIService, WorkspaceRuntime and "
+                    + "IFeatureConfig)");
             }
         }
         return args;
+
+        static object?[]? Defect(out string? defect, string reason)
+        {
+            defect = reason;
+            return null;
+        }
     }
 
     // ── Typed Get* helpers ────────────────────────────────────────────────

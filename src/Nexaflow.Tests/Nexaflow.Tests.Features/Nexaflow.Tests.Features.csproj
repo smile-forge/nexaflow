@@ -41,6 +41,7 @@
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Notebook\Nexaflow.Features.Notebook.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.OneDrive\Nexaflow.Features.OneDrive.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Pdf\Nexaflow.Features.Pdf.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Compressed\Nexaflow.Features.Compressed.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Compressed.SharpCompress\Nexaflow.Features.Compressed.SharpCompress.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Compressed.Modern\Nexaflow.Features.Compressed.Modern.csproj" />

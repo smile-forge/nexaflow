@@ -60,5 +60,6 @@ internal sealed class FakeShellServices : IShellServices
     public void PinToRibbon(string format, object payload) => throw new NotSupportedException();
     public bool HandleObject(object obj) => throw new NotSupportedException();
     public IEnumerable<Type> DiscoverImplementations<TInterface>() => throw new NotSupportedException();
+    public Nexaflow.Features.Common.Search.IFileTextExtractor? GetFileTextExtractor(string path) => null;
     public Task<ElevatedResult> RunElevatedAsync(ElevatedRequest request, CancellationToken ct = default) => throw new NotSupportedException();
 }

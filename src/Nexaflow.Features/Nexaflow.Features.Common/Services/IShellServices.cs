@@ -277,6 +277,20 @@ public interface IShellServices
     IEnumerable<Type> DiscoverImplementations<TInterface>();
 
     /// <summary>
+    /// The feature-provided extractor that understands <paramref name="path"/>'s format, or null when none
+    /// claims it — the caller then reads the file as plain text.
+    /// <para>
+    /// A specific accessor rather than a general "construct this type for me", because the shell keeps
+    /// ownership: instances are built through the feature DI (so an extractor may take
+    /// <see cref="IShellServices"/>, an <c>IAIService</c> or its own <c>IFeatureConfig</c>), cached per
+    /// workspace, and released when that workspace is reconfigured or disposed. A page ViewModel doesn't own
+    /// its own lifetime and must not be handed responsibility for anyone else's, so <b>do not dispose or
+    /// retain the returned instance</b> — ask again per file; the lookup is a cache hit.
+    /// </para>
+    /// </summary>
+    Nexaflow.Features.Common.Search.IFileTextExtractor? GetFileTextExtractor(string path);
+
+    /// <summary>
     /// Performs an admin-only <paramref name="request"/> by launching the out-of-process privilege bridge
     /// elevated via UAC — one prompt per call; batch several operations into one request to use a single
     /// prompt. The host itself stays non-elevated (<c>asInvoker</c>); the request and its argument values

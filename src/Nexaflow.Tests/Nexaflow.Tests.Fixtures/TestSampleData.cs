@@ -67,6 +67,7 @@ public static class TestSampleData
         new SvgSamples(),
         new EmailSamples(),
         new DicomSamples(),
+        new PdfSamples(),
     ];
 
     private static readonly Lazy<string> RootLazy = new(EnsureAll);
@@ -162,5 +163,8 @@ public static class TestSampleData
         - `video/`    — a minimal MP4 container for the video viewer (routing/open smoke test).
         - `font/`     — a code-generated minimal TrueType font + its WOFF wrapping for the font viewer.
         - `svg/`      — a tiny hand-written SVG plus its gzipped `.svgz` for the vector viewer.
+        - `pdf/`      — hand-encoded PDFs for search text extraction and image extraction: text-bearing
+          (with title and form-field values absent from the body), image-only, one image reused across two
+          pages, a `/DCTDecode` image, and a corrupt file. No viewer — PDFs are searched, not rendered.
         """;
 }
