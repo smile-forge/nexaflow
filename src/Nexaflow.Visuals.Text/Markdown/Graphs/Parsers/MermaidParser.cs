@@ -108,9 +108,20 @@ public sealed class MermaidParser : IGraphParser
                 continue;
             }
 
+            // click: a node link. Real mermaid syntax, so a generated diagram stays portable.
+            if (line.StartsWith("click ", StringComparison.OrdinalIgnoreCase))
+            {
+                if (MermaidDirectives.TryParseClick(line, out var clickId, out var href, out var tip) &&
+                    graph.Nodes.FirstOrDefault(n => n.Id == clickId) is { } clicked)
+                {
+                    clicked.Href    = href;
+                    clicked.Tooltip = tip;
+                }
+                continue;
+            }
+
             // Other directives — skip
             if (line.StartsWith("style ", StringComparison.OrdinalIgnoreCase) ||
-                line.StartsWith("click ", StringComparison.OrdinalIgnoreCase) ||
                 line.StartsWith("linkStyle ", StringComparison.OrdinalIgnoreCase) ||
                 line.StartsWith("direction ", StringComparison.OrdinalIgnoreCase))   // per-subgraph direction — not laid out
                 continue;

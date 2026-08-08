@@ -27,4 +27,86 @@
         </Setter>
     </Style>
 
+    <!-- VerticalTabItem: a full-width rail row with a selection accent bar on its leading edge.
+         Theme brushes resolve with DynamicResource, not StaticResource: this dictionary is compiled
+         into the library and merged before the app's theme, so the keys do not exist yet at parse
+         time — and DynamicResource is also what lets a live theme switch retint the rail. -->
+    <Style TargetType="{x:Type c:VerticalTabItem}">
+        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+        <Setter Property="FontSize"   Value="13"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type c:VerticalTabItem}">
+                    <Border x:Name="bd" Background="Transparent" CornerRadius="6" Margin="0,2">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="3"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border x:Name="bar" Grid.Column="0" Background="Transparent"
+                                    CornerRadius="2" Margin="0,5"/>
+                            <ContentPresenter Grid.Column="1" ContentSource="Header"
+                                              VerticalAlignment="Center" Margin="12,9"/>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="bd"  Property="Background" Value="{DynamicResource Surface2Brush}"/>
+                            <Setter TargetName="bar" Property="Background" Value="{DynamicResource AccentBrush}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- VerticalTabControl: left nav rail + bordered content surface. -->
+    <Style TargetType="{x:Type c:VerticalTabControl}">
+        <!-- Declared here rather than only in the constructor so the value survives a consumer
+             applying its own Style. Without Stretch the hosted page is measured at its natural
+             width, so star columns collapse to content and a page's scrollbar floats mid-panel. -->
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="VerticalContentAlignment"   Value="Stretch"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type c:VerticalTabControl}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="{Binding RailWidth, RelativeSource={RelativeSource TemplatedParent}}"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel x:Name="HeaderPanel" Grid.Column="0" IsItemsHost="True"
+                                    VerticalAlignment="Top" Margin="0,0,12,0"/>
+                        <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                CornerRadius="6" ClipToBounds="True">
+                            <!--
+                                The alignments are set literally, and that is load-bearing.
+                                A ContentPresenter inside a ControlTemplate does not simply default
+                                to Stretch: it *implicitly aliases* several properties to the
+                                templated parent, and that aliasing covers HorizontalAlignment ←
+                                HorizontalContentAlignment (and the vertical pair). Since Control
+                                defaults HorizontalContentAlignment to Left, the hosted page was
+                                measured at its natural width — star columns collapsed to content
+                                and page scrollbars floated mid-panel.
+                                Writing nothing here does NOT disable that alias; only a local value
+                                overrides it. Do not "simplify" these away.
+                            -->
+                            <ContentPresenter x:Name="PART_SelectedContentHost" ContentSource="SelectedContent"
+                                              HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </ResourceDictionary>

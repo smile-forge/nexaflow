@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Authenticode decoding (SignedCms / SignerInfo). Unlike X509Chain, System.Formats.Asn1 and
+         System.Reflection.Metadata — all of which are in the net10.0 targeting pack — this one is
+         not, so the reference assembly has to come from the package.
+         At runtime it resolves from the shared framework for a WPF host (it ships in
+         Microsoft.WindowsDesktop.App, which is why it is correctly absent from Nexaflow.exe's
+         output), and gets copied locally for a plain Microsoft.NETCore.App consumer. Either way the
+         package reference is what makes both work. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.10" />
+  </ItemGroup>
+
+  <!-- No ProjectReference on purpose: hashing here is incremental over a mapped buffer rather than
+       over a path, so Nexaflow.IO.Common (and the Nexaflow.Search reference it drags in) would be
+       dead weight. -->
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features" />
+  </ItemGroup>
+
+</Project>

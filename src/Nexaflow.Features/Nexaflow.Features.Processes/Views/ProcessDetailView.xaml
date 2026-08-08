@@ -10,64 +10,6 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <vcc:InverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
-
-        <!-- Vertical nav-tab item -->
-        <Style x:Key="VTabItem" TargetType="TabItem">
-            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-            <Setter Property="FontSize"   Value="13"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TabItem">
-                        <Border x:Name="bd" Background="Transparent" CornerRadius="6" Margin="0,2">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="3"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <Border x:Name="bar" Grid.Column="0" Background="Transparent" CornerRadius="2" Margin="0,5"/>
-                                <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" Margin="12,9"/>
-                            </Grid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="{StaticResource SurfaceBrush}"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="bd"  Property="Background" Value="{StaticResource Surface2Brush}"/>
-                                <Setter TargetName="bar" Property="Background" Value="{StaticResource AccentBrush}"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Vertical TabControl: left nav column + bordered content surface -->
-        <Style x:Key="VTabControl" TargetType="TabControl">
-            <Setter Property="ItemContainerStyle" Value="{StaticResource VTabItem}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TabControl">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="150"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel x:Name="HeaderPanel" Grid.Column="0" IsItemsHost="True"
-                                        Margin="0,0,12,0" VerticalAlignment="Top"/>
-                            <Border Grid.Column="1" Background="{StaticResource SurfaceBrush}"
-                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                    CornerRadius="6" ClipToBounds="True">
-                                <ContentPresenter x:Name="PART_SelectedContentHost" ContentSource="SelectedContent"/>
-                            </Border>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
         <!-- Themed, resizable list header for threads/modules (drag the right edge to resize; click to sort
              where the column carries a SortableHeader). -->
         <Style x:Key="PlainHeader" TargetType="GridViewColumnHeader">
@@ -258,21 +200,15 @@
         <Grid Grid.Row="1">
             <!-- SelectedValuePath="Tag" rather than SelectedIndex: the VM scopes "?" to the visible
                  section, and an index would silently re-point it if these tabs were ever reordered. -->
-            <TabControl TabStripPlacement="Left"
-                        SelectedValuePath="Tag"
-                        SelectedValue="{Binding SelectedSection, Mode=TwoWay}">
-                <TabControl.Style>
-                    <Style TargetType="TabControl" BasedOn="{StaticResource VTabControl}">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsGone}" Value="True">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TabControl.Style>
+            <!-- Visibility is bound directly rather than driven by a Style trigger. A Style here
+                 replaces the control's default style — Template included — and it cannot be
+                 rescued with BasedOn, because the default lives in the library's theme dictionary
+                 (Themes/Generic.xaml) and StaticResource never searches theme dictionaries. -->
+            <vc:VerticalTabControl SelectedValue="{Binding SelectedSection, Mode=TwoWay}"
+                                   Visibility="{Binding IsGone, Converter={StaticResource InvBoolToVis}}">
 
                 <!-- General -->
-                <TabItem Header="General" Tag="General">
+                <vc:VerticalTabItem Header="General" Tag="General">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,14">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -340,10 +276,10 @@
                                        SelectedItem="{Binding SelectedPriority, Mode=TwoWay}"/>
                         </Grid>
                     </ScrollViewer>
-                </TabItem>
+                </vc:VerticalTabItem>
 
                 <!-- Performance -->
-                <TabItem Header="Performance" Tag="Performance">
+                <vc:VerticalTabItem Header="Performance" Tag="Performance">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,14">
                         <StackPanel>
                             <Grid Margin="0,0,0,6">
@@ -396,10 +332,10 @@
                             </UniformGrid>
                         </StackPanel>
                     </ScrollViewer>
-                </TabItem>
+                </vc:VerticalTabItem>
 
                 <!-- Threads -->
-                <TabItem Header="Threads" Tag="Threads">
+                <vc:VerticalTabItem Header="Threads" Tag="Threads">
                     <Grid Margin="14,12">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -437,10 +373,10 @@
                             </ListView.View>
                         </ListView>
                     </Grid>
-                </TabItem>
+                </vc:VerticalTabItem>
 
                 <!-- Modules -->
-                <TabItem Header="Modules" Tag="Modules">
+                <vc:VerticalTabItem Header="Modules" Tag="Modules">
                     <Grid Margin="14,12">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -497,10 +433,10 @@
                             </ListView.View>
                         </ListView>
                     </Grid>
-                </TabItem>
+                </vc:VerticalTabItem>
 
                 <!-- Handles (loaded on demand via one elevated process.inspect) -->
-                <TabItem Header="Handles" Tag="Handles">
+                <vc:VerticalTabItem Header="Handles" Tag="Handles">
                     <Grid Margin="14,12">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -563,8 +499,8 @@
                                        Visibility="{Binding HandlesError, Converter={x:Static conv:NonEmptyToVisibleConverter.Instance}}"/>
                         </StackPanel>
                     </Grid>
-                </TabItem>
-            </TabControl>
+                </vc:VerticalTabItem>
+            </vc:VerticalTabControl>
 
             <!-- Process-exited overlay -->
             <Border Background="{StaticResource BgBrush}"

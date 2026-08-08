@@ -188,7 +188,15 @@ public static class WpfGraphRenderer
             Canvas.SetLeft(lbl, ln.X - maxW / 2.0);
             Canvas.SetTop(lbl,  ln.Y - approxH / 2.0);
             canvas.Children.Add(lbl);
+
+            // The label sits over the shape, so it has to carry the gesture too — otherwise clicking
+            // the node's text (the obvious target) would miss.
+            DiagramInteraction.Attach(lbl, ln.Source.Href, ln.Source.Tooltip, _onNavigate);
         }
+
+        // Capture per render, matching the class-member links: a click after a later render must
+        // still route through whichever callback is current.
+        DiagramInteraction.Attach(shape, ln.Source?.Href, ln.Source?.Tooltip, _onNavigate);
     }
 
     private static Brush NodeFill(LayoutNode ln, Brush def) =>

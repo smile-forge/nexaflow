@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Required by the LibraryImport source generator behind the AMSI P/Invokes. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.IO.Pe\Nexaflow.IO.Pe.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- root\SecurityCenter2 — names the registered antivirus product for the Analysis tab. -->
+    <PackageReference Include="System.Management" Version="10.0.10" />
+    <!-- Read-only XML view behind the manifest tab's "raw" toggle. XML has no tree-sitter grammar
+         in this repo, but AvalonEdit ships a built-in .xshd for it. -->
+    <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features" />
+  </ItemGroup>
+
+</Project>

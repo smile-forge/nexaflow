@@ -286,6 +286,8 @@ reflect the tab's current state (set it after in-tab navigation so `FindTab` and
 | Projects | *(none)* |
 | ProjectDetail | `folder` |
 | VirtualDisk | `path` (a disk image — vhd/vhdx/vdi/vmdk/dmg/img/iso — opened via "As Disk") |
+| Executable | `path` (a Portable Executable — exe/dll/sys — opened via "Inspect") |
+| Hex | `path`, `offset` (optional, decimal or `0x` hex), `length` (optional — bytes to select) |
 
 ---
 

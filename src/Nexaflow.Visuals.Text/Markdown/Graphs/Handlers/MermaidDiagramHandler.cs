@@ -71,20 +71,20 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             MermaidSubtype.Gantt    => RenderGantt(body, title, palette),
             MermaidSubtype.Git      => RenderGit(body, title, palette),
             MermaidSubtype.Mindmap  => RenderMindmap(body, title, palette),
-            MermaidSubtype.State       => RenderState(body, title, palette),
+            MermaidSubtype.State       => RenderState(body, title, palette, onNavigate),
             MermaidSubtype.Class       => RenderClass(body, title, palette, onNavigate),
-            MermaidSubtype.Requirement => RenderRequirement(body, title, palette),
+            MermaidSubtype.Requirement => RenderRequirement(body, title, palette, onNavigate),
             MermaidSubtype.Kanban      => RenderKanban(body, title, palette),
             MermaidSubtype.XyChart     => RenderXyChart(source, body, title, palette),
             MermaidSubtype.Radar       => RenderRadar(source, body, title, palette),
             MermaidSubtype.Ishikawa    => RenderIshikawa(source, body, title, palette),
             MermaidSubtype.Sankey      => RenderSankey(source, body, title, palette),
-            MermaidSubtype.Er          => RenderEr(source, body, title, palette),
+            MermaidSubtype.Er          => RenderEr(source, body, title, palette, onNavigate),
             MermaidSubtype.Venn        => RenderVenn(source, body, title, palette),
             MermaidSubtype.Cynefin      => RenderCynefin(source, body, title, palette),
             MermaidSubtype.Architecture => RenderArchitecture(source, body, title, palette),
             MermaidSubtype.Swimlane     => RenderSwimlane(body, title, palette),
-            MermaidSubtype.Graph       => RenderGraph(body, title, palette),
+            MermaidSubtype.Graph       => RenderGraph(body, title, palette, onNavigate),
             _                       => RenderSourceText(body),
         };
     }
@@ -244,7 +244,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         return WpfSankeyRenderer.Render(diagram, palette);
     }
 
-    private static FrameworkElement RenderEr(string source, string body, string? title, MarkdownPalette palette)
+    private static FrameworkElement RenderEr(string source, string body, string? title, MarkdownPalette palette, Func<string, bool>? onNavigate)
     {
         // ER entities are UML-style boxes, so they reuse the shared graph model + Sugiyama + WpfGraphRenderer
         // (like class / requirement diagrams). The er config is applied here: an inline `direction` wins, else
@@ -262,7 +262,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         }
 
         var layout = SugiyamaLayout.Compute(graph, preferredMaxWidth: 1100);
-        return WpfGraphRenderer.Render(layout, palette);
+        return WpfGraphRenderer.Render(layout, palette, onNavigate);
     }
 
     private static FrameworkElement RenderVenn(string source, string body, string? title, MarkdownPalette palette)
@@ -315,20 +315,20 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             },
         };
 
-    private static FrameworkElement RenderGraph(string source, string? title, MarkdownPalette palette)
+    private static FrameworkElement RenderGraph(string source, string? title, MarkdownPalette palette, Func<string, bool>? onNavigate)
     {
         var graph  = FlowParser.Parse(source);
         graph.Title = Titled(graph.Title, title);
         var layout = SugiyamaLayout.Compute(graph, preferredMaxWidth: 900);
-        return WpfGraphRenderer.Render(layout, palette);
+        return WpfGraphRenderer.Render(layout, palette, onNavigate);
     }
 
-    private static FrameworkElement RenderState(string source, string? title, MarkdownPalette palette)
+    private static FrameworkElement RenderState(string source, string? title, MarkdownPalette palette, Func<string, bool>? onNavigate)
     {
         var graph  = StateParser.Parse(source);
         graph.Title = Titled(graph.Title, title);
         var layout = SugiyamaLayout.Compute(graph, preferredMaxWidth: 900);
-        return WpfGraphRenderer.Render(layout, palette);
+        return WpfGraphRenderer.Render(layout, palette, onNavigate);
     }
 
     private static FrameworkElement RenderClass(string source, string? title, MarkdownPalette palette,
@@ -341,11 +341,11 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         return WpfGraphRenderer.Render(layout, palette, onNavigate);
     }
 
-    private static FrameworkElement RenderRequirement(string source, string? title, MarkdownPalette palette)
+    private static FrameworkElement RenderRequirement(string source, string? title, MarkdownPalette palette, Func<string, bool>? onNavigate)
     {
         var graph  = RequirementParser.Parse(source);
         graph.Title = Titled(graph.Title, title);
         var layout = SugiyamaLayout.Compute(graph, preferredMaxWidth: 1100);
-        return WpfGraphRenderer.Render(layout, palette);
+        return WpfGraphRenderer.Render(layout, palette, onNavigate);
     }
 }
