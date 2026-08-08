@@ -152,10 +152,32 @@ public class AgentLoopTests
             => Task.FromResult<IReadOnlyList<string>>(["v"]);
     }
 
+    /// <summary>
+    /// An AIService on a runtime that carries both live services, the way
+    /// <c>WorkspaceManager.BootstrapServices</c> leaves one before any feature sees it.
+    /// <para>
+    /// It matters here because the agent loop builds its page catalog from this runtime
+    /// (<c>RunAgentAsync</c> → <c>ShellAiContext.BuildContext</c> → <c>GetPageCatalog</c>), and that catalog
+    /// is what tells the agent which pages it may open. A half-wired runtime silently dropped every
+    /// registration needing a service it lacked — so the agent was told AI Chat did not exist.
+    /// </para>
+    /// </summary>
+    private static AIService NewServiceOnAWiredRuntime()
+    {
+        var ws  = new WorkspaceRuntime();
+        var svc = new AIService(ws, Path.GetTempPath());
+        Set(nameof(WorkspaceRuntime.AiService), svc);
+        Set(nameof(WorkspaceRuntime.ShellServices), new ShellServices(ws));
+        return svc;
+
+        void Set(string property, object value) =>
+            typeof(WorkspaceRuntime).GetProperty(property)!.GetSetMethod(nonPublic: true)!.Invoke(ws, [value]);
+    }
+
     // Conversation on c1, a distinct image-recognition model on c2.
     private static AIService BuildServiceWithImageModel(ILlmProvider conversation, ILlmProvider image)
     {
-        var svc = new AIService(new WorkspaceRuntime(), Path.GetTempPath());
+        var svc = NewServiceOnAWiredRuntime();
         svc.Register("c1", conversation);
         svc.Register("c2", image);
         svc.LoadAbilityConfig(new AiConfig
@@ -169,7 +191,7 @@ public class AgentLoopTests
 
     private static AIService BuildService(ILlmProvider provider)
     {
-        var svc = new AIService(new WorkspaceRuntime(), Path.GetTempPath());
+        var svc = NewServiceOnAWiredRuntime();
         svc.Register("c1", provider);   // execution instances are keyed by column id
         svc.LoadAbilityConfig(new AiConfig
         {

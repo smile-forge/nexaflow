@@ -20,6 +20,11 @@ public static class Hashing
     public static string Sha256(string text, Encoding? encoding = null)
         => Convert.ToHexStringLower(SHA256.HashData((encoding ?? Encoding.UTF8).GetBytes(text)));
 
+    /// <summary>Digest of bytes already in hand — for deduplicating extracted blobs (an image reused on
+    /// every page of a document, say) without writing them to disk first.</summary>
+    public static string Sha256(ReadOnlySpan<byte> bytes)
+        => Convert.ToHexStringLower(SHA256.HashData(bytes));
+
     public static async Task<string> Md5FileAsync(string path, CancellationToken ct = default)
     {
         await using var fs = OpenRead(path);

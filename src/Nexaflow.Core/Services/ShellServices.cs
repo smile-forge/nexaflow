@@ -5,6 +5,7 @@ using Nexaflow.Core.ViewModels;
 using Nexaflow.Core.Views;
 using Nexaflow.Elevation.Contracts;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.Search;
 using Nexaflow.IO.Common;
 using Nexaflow.Providers.Common;
 using System;
@@ -1061,6 +1062,25 @@ public sealed class ShellServices : IShellServices
     // what keeps the first FileSystem page's action set complete before the background warm-up finishes.
     public IEnumerable<Type> DiscoverImplementations<TInterface>()
         => FeatureCatalog.Instance.TypesImplementing<TInterface>();
+
+    // Selection lives here rather than in the caller so the shell — which owns the instances' lifetime —
+    // also owns deciding which one applies. Instances are cached per (type, workspace) and ctor-injected with
+    // this workspace's shell/ai/configs, the same path as feature tab creation, and are released by
+    // FeatureManager.EvictWorkspace. A CanExtract that throws disqualifies that extractor rather than
+    // failing the lookup: one broken feature must not make every file unsearchable.
+    public IFileTextExtractor? GetFileTextExtractor(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return null;
+
+        foreach (var type in DiscoverImplementations<IFileTextExtractor>())
+        {
+            if (FeatureManager.Instance.Instantiate(type, _workspace) is not IFileTextExtractor extractor)
+                continue;
+            try { if (extractor.CanExtract(path)) return extractor; }
+            catch { }
+        }
+        return null;
+    }
 
     // ── Window positioning (tearoff) ──────────────────────────────────────
 

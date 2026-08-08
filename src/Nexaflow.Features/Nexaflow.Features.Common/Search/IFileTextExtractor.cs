@@ -13,9 +13,15 @@ namespace Nexaflow.Features.Common.Search;
 /// alongside its viewer instead.
 /// </para>
 /// <para>
-/// Found with <c>IShellServices.DiscoverImplementations&lt;IFileTextExtractor&gt;()</c> and constructed with
-/// <c>Activator.CreateInstance</c>, so implementations need a public parameterless constructor. When none
-/// claims a file, the verifier falls back to reading it as text.
+/// Resolved with <c>IShellServices.GetFileTextExtractor(path)</c>: the shell discovers the implementations,
+/// builds them through the feature DI — so an extractor may take <see cref="IShellServices"/>, an
+/// <c>IAIService</c> or its own <c>IFeatureConfig</c> as constructor arguments — and returns the first whose
+/// <see cref="CanExtract"/> claims the file. When none claims it, the verifier falls back to reading it as text.
+/// </para>
+/// <para>
+/// <b>Implementations must be stateless or thread-safe.</b> The shell caches one instance per workspace and
+/// reuses it across every sweep, and the agent-facing search path can run concurrently with a user one — so
+/// keep per-call working state in locals inside <see cref="ExtractAsync"/>, never on the instance.
 /// </para>
 /// </summary>
 public interface IFileTextExtractor
