@@ -5,6 +5,7 @@
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:local="clr-namespace:Nexaflow.Features.Scratchpad.Views"
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:vcl="clr-namespace:Nexaflow.Visuals.Common.Layout;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="ScratchpadView"
              Background="{StaticResource BgBrush}"
              Focusable="True">
@@ -343,28 +344,31 @@
         <!-- ── Main canvas area ── -->
         <Grid Grid.Row="1">
 
-            <!-- Canvas container -->
-            <Border x:Name="CanvasHost"
-                    ClipToBounds="True"
-                    AllowDrop="True"
-                    Focusable="True"
-                    FocusVisualStyle="{x:Null}"
-                    MouseWheel="CanvasHost_MouseWheel"
-                    MouseDown="CanvasHost_MouseDown"
-                    MouseMove="CanvasHost_MouseMove"
-                    MouseUp="CanvasHost_MouseUp"
-                    DragOver="CanvasHost_DragOver"
-                    Drop="CanvasHost_Drop"
-                    ContextMenuOpening="CanvasHost_ContextMenuOpening">
+            <!-- The corkboard, on the shared pan/zoom surface: drag to pan, wheel to zoom, overview
+                 minimap. Its own zoom chips stay off — this page already shows the zoom in the status
+                 bar and Fit on the toolbar — and the overview sits top-left, because the recycle-bin
+                 panel slides in over the right-hand edge. -->
+            <vcl:PanZoomSurface x:Name="Surface"
+                                AutomationProperties.AutomationId="Scratchpad_Canvas"
+                                AllowDrop="True"
+                                ZoomOnPlainWheel="True"
+                                ShowZoomChrome="False"
+                                MiniMapCorner="TopLeft"
+                                MinScale="0.08" MaxScale="4"
+                                DragOver="Surface_DragOver"
+                                Drop="Surface_Drop"
+                                ContextMenuOpening="Surface_ContextMenuOpening">
 
-                <Border.ContextMenu>
+                <vcl:PanZoomSurface.ContextMenu>
                     <ContextMenu>
                         <MenuItem Header="New post-it here" Click="NewNoteHere_Click"/>
                         <MenuItem x:Name="CanvasPasteItem" Header="Paste as post-it" Click="PasteHere_Click"/>
                     </ContextMenu>
-                </Border.ContextMenu>
+                </vcl:PanZoomSurface.ContextMenu>
 
-                <Border.Background>
+                <!-- The grid is the board's paper, not part of the content: it tiles the viewport and so
+                     stays the same size at any zoom. -->
+                <vcl:PanZoomSurface.Background>
                     <DrawingBrush TileMode="Tile" Viewport="0,0,40,40" ViewportUnits="Absolute">
                         <DrawingBrush.Drawing>
                             <DrawingGroup>
@@ -384,16 +388,9 @@
                             </DrawingGroup>
                         </DrawingBrush.Drawing>
                     </DrawingBrush>
-                </Border.Background>
+                </vcl:PanZoomSurface.Background>
 
-                <Canvas x:Name="InfiniteCanvas">
-                    <Canvas.RenderTransform>
-                        <TransformGroup>
-                            <ScaleTransform x:Name="CanvasScaleTransform"/>
-                            <TranslateTransform x:Name="CanvasTranslateTransform"/>
-                        </TransformGroup>
-                    </Canvas.RenderTransform>
-
+                <vcl:PanZoomSurface.SurfaceContent>
                     <ItemsControl x:Name="NotesControl" ItemsSource="{Binding Notes}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -425,28 +422,8 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                </Canvas>
-            </Border>
-
-            <!-- ── Minimap (top-left overlay, only visible when notes are off-screen) ── -->
-            <Border x:Name="MiniMapBorder"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
-                    Margin="8"
-                    Width="160" Height="100"
-                    Background="#CC141824"
-                    BorderBrush="#334060"
-                    BorderThickness="1"
-                    CornerRadius="4"
-                    Panel.ZIndex="100"
-                    Visibility="Collapsed"
-                    Cursor="SizeAll"
-                    MouseLeftButtonDown="MiniMap_MouseLeftButtonDown"
-                    MouseMove="MiniMap_MouseMove"
-                    MouseLeftButtonUp="MiniMap_MouseLeftButtonUp"
-                    ToolTip="Overview — drag to move the view; viewport shown in blue">
-                <Canvas x:Name="MiniMapCanvas" Width="158" Height="98"/>
-            </Border>
+                </vcl:PanZoomSurface.SurfaceContent>
+            </vcl:PanZoomSurface>
 
             <!-- ── Recycle Bin overlay panel (higher ZIndex than minimap) ── -->
             <Border Visibility="{Binding ShowingRecycleBin, Converter={StaticResource BoolVis}}"

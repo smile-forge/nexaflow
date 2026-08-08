@@ -10,7 +10,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Shapes;
 
 namespace Nexaflow.Features.Scratchpad.Views;
 
@@ -18,33 +17,45 @@ namespace Nexaflow.Features.Scratchpad.Views;
 /// IDropTarget is implemented for intra-app drops from the FileSystemView.
 /// Note: IDropTarget.Drop does not receive drop coordinates, so notes land at the viewport
 /// centre. External OS-level drops (from other applications) are handled by the XAML
-/// DragOver/Drop event handlers on CanvasHost, which DO have position information.
+/// DragOver/Drop event handlers on the surface, which DO have position information.
 /// </summary>
 public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyboardHandler, IDropTarget, IPageView
 {
     private ScratchpadViewModel Vm => (ScratchpadViewModel)DataContext;
 
-    public double CanvasScale => CanvasScaleTransform.ScaleX;
-
-    // ── Pan state ─────────────────────────────────────────────────────────
-    private bool   _isPanning;
-    private bool   _panArmed;   // left-pressed on empty space; pan begins once the pointer moves
-    private Point  _panStart;
-    private double _panStartOffX;
-    private double _panStartOffY;
-
     // ── Mini-ribbon target ────────────────────────────────────────────────
     private PostItViewModel? _ribbonTarget;
-
-    private const double MinScale = 0.08;
-    private const double MaxScale = 4.0;
 
     public ScratchpadView(ScratchpadViewModel vm)
     {
         InitializeComponent();
         DataContext = vm;
 
-        Loaded   += (_, _) => { Focus(); ApplyTransform(); };
+        // The board's extent is wherever the notes happen to be — it has no size of its own, and its
+        // origin is negative as soon as someone drags a note up and left.
+        Surface.ContentExtent = () => PanZoomMiniMap.Bounds(vm.Notes.Select(n => (n.X, n.Y, n.Width, n.Height)));
+
+        // Each note draws on the overview in its own paper colour, from the same converter the notes
+        // themselves use — no second copy of the palette to keep in sync.
+        Surface.MiniMapItems = () => vm.Notes.Select(
+            n => new MiniMapItem(n.X, n.Y, n.Width, n.Height, NoteColorToBrush(n.Color)));
+
+        Surface.MiniMapViewportStroke = TryFindResource("Scratchpad.MinimapViewportStroke") as Brush;
+        Surface.MiniMapViewportFill   = TryFindResource("Scratchpad.MinimapViewportFill")   as Brush;
+
+        // Where the reader left the board is the view-model's to remember, so switching tabs and back
+        // returns to it rather than to the origin.
+        Surface.ViewChanged += OnViewChanged;
+
+        // A press on empty board takes keyboard focus off whichever post-it was being edited, so it
+        // commits and leaves edit mode. Preview, because the surface claims the press for its own pan;
+        // a press that landed on a note is the note's, and stealing its focus would end the edit.
+        Surface.PreviewMouseLeftButtonDown += (_, e) =>
+        {
+            if (!IsWithinNote(e.OriginalSource)) Keyboard.Focus(this);
+        };
+
+        Loaded   += (_, _) => { Focus(); Surface.RestoreView(vm.Scale, vm.OffsetX, vm.OffsetY); };
         Unloaded += (_, _) => vm.Dispose();
 
         // A "?" search asks for a note to be brought into view; the arithmetic is the view-model's, the
@@ -53,19 +64,27 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
         {
             if (e.PropertyName != nameof(ScratchpadViewModel.ScrollToNote)) return;
             if (vm.ScrollToNote is not { } note) return;
-            vm.CenterOnWithViewport(note, CanvasHost.ActualWidth, CanvasHost.ActualHeight);
-            ApplyTransform();
+            vm.CenterOnWithViewport(note, Surface.ActualWidth, Surface.ActualHeight);
+            Surface.RestoreView(vm.Scale, vm.OffsetX, vm.OffsetY);
         };
 
         vm.Notes.CollectionChanged += (_, e) =>
         {
-            UpdateMiniMap();
+            Surface.RefreshOverview();
             if (e.Action == NotifyCollectionChangedAction.Add && e.NewItems != null)
             {
                 foreach (PostItViewModel note in e.NewItems)
-                    note.PropertyChanged += (_, _) => UpdateMiniMap();
+                    note.PropertyChanged += (_, _) => Surface.RefreshOverview();
             }
         };
+    }
+
+    private void OnViewChanged(double scale, double offsetX, double offsetY)
+    {
+        Vm.Scale   = scale;
+        Vm.OffsetX = offsetX;
+        Vm.OffsetY = offsetY;
+        ZoomLabel.Text = $"{(int)(scale * 100)}%";
     }
 
     // ── IKeyboardHandler ─────────────────────────────────────────────────
@@ -87,9 +106,9 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
             try { HandleDrop(Clipboard.GetDataObject(), ViewportCenter()); } catch { }
             return true;
         }
-        if (key == Key.Add      && modifiers == ModifierKeys.Control) { ZoomBy(1.15);       return true; }
-        if (key == Key.Subtract && modifiers == ModifierKeys.Control) { ZoomBy(1 / 1.15);   return true; }
-        if (key == Key.D0       && modifiers == ModifierKeys.Control) { ResetZoom();         return true; }
+        if (key == Key.Add      && modifiers == ModifierKeys.Control) { Surface.ZoomBy(1.15);      return true; }
+        if (key == Key.Subtract && modifiers == ModifierKeys.Control) { Surface.ZoomBy(1 / 1.15);  return true; }
+        if (key == Key.D0       && modifiers == ModifierKeys.Control) { Surface.RestoreView(1, 0, 0); return true; }
         return false;
     }
 
@@ -207,75 +226,14 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
         NoteRibbon.IsOpen = false;
     }
 
-    // ── Canvas mouse events ───────────────────────────────────────────────
+    // ── Canvas ────────────────────────────────────────────────────────────
+    //
+    // Pan, zoom and the overview are the shared PanZoomSurface's; what stays here is what is the
+    // board's own — where a drop or a new note lands, and keeping the view-model's copy of the
+    // transform up to date. (New post-its come from the toolbar, the canvas right-click menu, or
+    // paste — double-clicking the canvas deliberately does nothing.)
 
-    private void CanvasHost_MouseDown(object sender, MouseButtonEventArgs e)
-    {
-        // (New post-its are created via the toolbar, the canvas right-click menu, or paste —
-        //  double-clicking the canvas deliberately does nothing.)
-
-        // Middle button pans immediately.
-        if (e.ChangedButton == MouseButton.Middle)
-        {
-            _isPanning    = true;
-            _panStart     = e.GetPosition(CanvasHost);
-            _panStartOffX = CanvasTranslateTransform.X;
-            _panStartOffY = CanvasTranslateTransform.Y;
-            CanvasHost.CaptureMouse();
-            CanvasHost.Cursor = Cursors.SizeAll;
-            e.Handled = true;
-            return;
-        }
-
-        // Left button on empty space arms a pan; it only starts once the pointer
-        // actually moves, so a plain click (or the first half of a double-click)
-        // still behaves normally. Clicks on a note are handled by the note itself.
-        if (e.ChangedButton == MouseButton.Left && !IsWithinNote(e.OriginalSource))
-        {
-            _panArmed     = true;
-            _panStart     = e.GetPosition(CanvasHost);
-            _panStartOffX = CanvasTranslateTransform.X;
-            _panStartOffY = CanvasTranslateTransform.Y;
-
-            // Pull keyboard focus off any post-it that's being edited so it commits and leaves edit mode.
-            // (A click on a note is handled by the note itself; we don't steal its focus.)
-            Keyboard.Focus(CanvasHost);
-        }
-    }
-
-    private void CanvasHost_MouseMove(object sender, MouseEventArgs e)
-    {
-        if (_panArmed && !_isPanning)
-        {
-            if (e.LeftButton != MouseButtonState.Pressed) { _panArmed = false; return; }
-            var p = e.GetPosition(CanvasHost);
-            if (Math.Abs(p.X - _panStart.X) + Math.Abs(p.Y - _panStart.Y) > 3)
-            {
-                _isPanning = true;
-                CanvasHost.CaptureMouse();
-                CanvasHost.Cursor = Cursors.SizeAll;
-            }
-        }
-
-        if (!_isPanning) return;
-        var pos = e.GetPosition(CanvasHost);
-        CanvasTranslateTransform.X = _panStartOffX + (pos.X - _panStart.X);
-        CanvasTranslateTransform.Y = _panStartOffY + (pos.Y - _panStart.Y);
-        UpdateVmOffset();
-        UpdateMiniMap();
-        e.Handled = true;
-    }
-
-    private void CanvasHost_MouseUp(object sender, MouseButtonEventArgs e)
-    {
-        _panArmed = false;
-        if (!_isPanning) return;
-        _isPanning = false;
-        CanvasHost.ReleaseMouseCapture();
-        CanvasHost.Cursor = null;
-    }
-
-    // True when the click landed on a post-it (so the canvas should not pan).
+    // True when the press landed on a post-it, so the board leaves its editing focus alone.
     private static bool IsWithinNote(object? source)
     {
         var d = source as DependencyObject;
@@ -287,16 +245,9 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
         return false;
     }
 
-    private void CanvasHost_MouseWheel(object sender, MouseWheelEventArgs e)
-    {
-        var factor = e.Delta > 0 ? 1.1 : 1 / 1.1;
-        ZoomAt(factor, e.GetPosition(CanvasHost));
-        e.Handled = true;
-    }
-
     // ── External drag+drop (from other applications / OS) ────────────────
 
-    private void CanvasHost_DragOver(object sender, DragEventArgs e)
+    private void Surface_DragOver(object sender, DragEventArgs e)
     {
         if (CanAcceptDrop(e.Data))
             e.Effects = DragDropEffects.Copy;
@@ -305,10 +256,10 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
         e.Handled = true;
     }
 
-    private void CanvasHost_Drop(object sender, DragEventArgs e)
+    private void Surface_Drop(object sender, DragEventArgs e)
     {
         // Use actual drop position for placement — unavailable via IDropTarget.Drop
-        HandleDrop(e.Data, ScreenToCanvas(e.GetPosition(CanvasHost)));
+        HandleDrop(e.Data, ScreenToCanvas(e.GetPosition(Surface)));
         e.Handled = true;
     }
 
@@ -316,9 +267,9 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
 
     private Point _newNoteCanvasPt;
 
-    private void CanvasHost_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    private void Surface_ContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
-        _newNoteCanvasPt = ScreenToCanvas(Mouse.GetPosition(CanvasHost));
+        _newNoteCanvasPt = ScreenToCanvas(Mouse.GetPosition(Surface));
         CanvasPasteItem.IsEnabled = ClipboardHasContent();
     }
 
@@ -343,9 +294,10 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
 
     private void ZoomToFit_Click(object sender, RoutedEventArgs e)
     {
-        Vm.ZoomToFitWithViewport(CanvasHost.ActualWidth, CanvasHost.ActualHeight);
-        ApplyTransform();
-        UpdateMiniMap();
+        // The board's own fit, not the surface's: a corkboard fits with padding and will scale a
+        // sparse board up, where a laid-out diagram never goes past 1:1.
+        Vm.ZoomToFitWithViewport(Surface.ActualWidth, Surface.ActualHeight);
+        Surface.RestoreView(Vm.Scale, Vm.OffsetX, Vm.OffsetY);
     }
 
     private void ToggleBin_Click(object sender, RoutedEventArgs e)
@@ -376,55 +328,6 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
     private void EmptyBin_Click(object sender, RoutedEventArgs e)
         => Vm.EmptyRecycleBinCommand.Execute(null);
 
-    // ── Zoom helpers ─────────────────────────────────────────────────────
-
-    private void ZoomBy(double factor)
-        => ZoomAt(factor, new Point(CanvasHost.ActualWidth / 2, CanvasHost.ActualHeight / 2));
-
-    private void ResetZoom()
-    {
-        Vm.Scale   = 1.0;
-        Vm.OffsetX = 0;
-        Vm.OffsetY = 0;
-        ApplyTransform();
-        UpdateMiniMap();
-    }
-
-    private void ZoomAt(double factor, Point mouseOnHost)
-    {
-        var (scale, x, y) = PanZoomMiniMap.ZoomAt(
-            CanvasScaleTransform.ScaleX, CanvasTranslateTransform.X, CanvasTranslateTransform.Y,
-            mouseOnHost.X, mouseOnHost.Y, factor, MinScale, MaxScale);
-
-        CanvasTranslateTransform.X  = x;
-        CanvasTranslateTransform.Y  = y;
-        CanvasScaleTransform.ScaleX = scale;
-        CanvasScaleTransform.ScaleY = scale;
-
-        UpdateVmOffset();
-        UpdateMiniMap();
-    }
-
-    private void ApplyTransform()
-    {
-        CanvasScaleTransform.ScaleX    = Vm.Scale;
-        CanvasScaleTransform.ScaleY    = Vm.Scale;
-        CanvasTranslateTransform.X     = Vm.OffsetX;
-        CanvasTranslateTransform.Y     = Vm.OffsetY;
-        UpdateZoomLabel();
-    }
-
-    private void UpdateVmOffset()
-    {
-        Vm.Scale   = CanvasScaleTransform.ScaleX;
-        Vm.OffsetX = CanvasTranslateTransform.X;
-        Vm.OffsetY = CanvasTranslateTransform.Y;
-        UpdateZoomLabel();
-    }
-
-    private void UpdateZoomLabel()
-        => ZoomLabel.Text = $"{(int)(CanvasScaleTransform.ScaleX * 100)}%";
-
     // ── Zoom % preset picker ──────────────────────────────────────────────
 
     private void ZoomLabel_Click(object sender, MouseButtonEventArgs e)
@@ -437,126 +340,11 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
     {
         if (sender is FrameworkElement fe && fe.Tag is string tag &&
             double.TryParse(tag, NumberStyles.Any, CultureInfo.InvariantCulture, out var target))
-            SetZoom(target);
+            Surface.ZoomTo(target);
         ZoomPopup.IsOpen = false;
     }
 
-    private void SetZoom(double target)
-    {
-        var current = CanvasScaleTransform.ScaleX;
-        if (current <= 0) return;
-        ZoomAt(target / current, new Point(CanvasHost.ActualWidth / 2, CanvasHost.ActualHeight / 2));
-    }
-
-    // ── Minimap ───────────────────────────────────────────────────────────
-
-    // Last drawn minimap→canvas mapping, captured so a drag gesture can convert a
-    // minimap pixel back into a canvas point without recomputing (which would shift
-    // under the cursor as the viewport moves).
-    private MiniMapMapping? _mmMapping;
-    private bool   _mmDragging;
-    private Rectangle? _mmViewportRect;
-
-    private const double MiniMapW = 158, MiniMapH = 98;
-
-    private void UpdateMiniMap()
-    {
-        var mapping = IsLoaded && PanZoomMiniMap.Bounds(Vm.Notes.Select(n => (n.X, n.Y, n.Width, n.Height))) is { } bounds
-            ? PanZoomMiniMap.Compute(bounds, CanvasScaleTransform.ScaleX,
-                                     CanvasTranslateTransform.X, CanvasTranslateTransform.Y,
-                                     CanvasHost.ActualWidth, CanvasHost.ActualHeight, MiniMapW, MiniMapH)
-            : null;
-
-        _mmMapping = mapping;
-        if (mapping is not { } m) { MiniMapBorder.Visibility = Visibility.Collapsed; return; }
-
-        MiniMapCanvas.Children.Clear();
-
-        foreach (var note in Vm.Notes)
-        {
-            var (x, y, w, h) = PanZoomMiniMap.Box(m, note.X, note.Y, note.Width, note.Height, minSize: 2);
-            var r = new Rectangle
-            {
-                Width   = w,
-                Height  = h,
-                Fill    = NoteColorToBrush(note.Color),
-                Opacity = 0.85
-            };
-            Canvas.SetLeft(r, x);
-            Canvas.SetTop(r, y);
-            MiniMapCanvas.Children.Add(r);
-        }
-
-        var (vx, vy, vw, vh) = PanZoomMiniMap.ViewportBox(m, m.ViewLeft, m.ViewTop);
-        var vp = new Rectangle
-        {
-            Width           = vw,
-            Height          = vh,
-            Stroke          = (Brush)FindResource("Scratchpad.MinimapViewportStroke"),
-            StrokeThickness = 1,
-            Fill            = (Brush)FindResource("Scratchpad.MinimapViewportFill")
-        };
-        Canvas.SetLeft(vp, vx);
-        Canvas.SetTop(vp, vy);
-        MiniMapCanvas.Children.Add(vp);
-        _mmViewportRect = vp;
-
-        MiniMapBorder.Visibility = Visibility.Visible;
-    }
-
-    // ── Minimap drag-to-reposition ────────────────────────────────────────
-    // Dragging anywhere on the minimap recentres the viewport on the cursor, so the
-    // blue viewport rectangle follows the pointer. The mapping is frozen for the
-    // gesture (captured by UpdateMiniMap) and only fully redrawn on release.
-
-    private void MiniMap_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (_mmMapping is null) return;
-        _mmDragging = true;
-        MiniMapBorder.CaptureMouse();
-        MoveViewportTo(e.GetPosition(MiniMapCanvas));
-        e.Handled = true;
-    }
-
-    private void MiniMap_MouseMove(object sender, MouseEventArgs e)
-    {
-        if (!_mmDragging) return;
-        MoveViewportTo(e.GetPosition(MiniMapCanvas));
-        e.Handled = true;
-    }
-
-    private void MiniMap_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-    {
-        if (!_mmDragging) return;
-        _mmDragging = false;
-        MiniMapBorder.ReleaseMouseCapture();
-        UpdateMiniMap();   // resync mapping + visibility now the gesture is done
-        e.Handled = true;
-    }
-
-    private void MoveViewportTo(Point mm)
-    {
-        if (_mmMapping is not { } m) return;
-
-        // Minimap pixel → canvas point under the cursor (inverting the frozen mapping), then centre.
-        var (x, y, viewLeft, viewTop) = PanZoomMiniMap.TranslateForPoint(
-            m, mm.X, mm.Y, CanvasScaleTransform.ScaleX, CanvasHost.ActualWidth, CanvasHost.ActualHeight);
-
-        CanvasTranslateTransform.X = x;
-        CanvasTranslateTransform.Y = y;
-        UpdateVmOffset();
-
-        // Move the viewport rectangle live using the frozen mapping (no full redraw,
-        // which would shift the mapping under the cursor mid-drag).
-        if (_mmViewportRect is { } vp)
-        {
-            var (bx, by, _, _) = PanZoomMiniMap.ViewportBox(m, viewLeft, viewTop);
-            Canvas.SetLeft(vp, bx);
-            Canvas.SetTop(vp, by);
-        }
-    }
-
-    // Reuse the note-fill converter so the minimap draws from the SAME (themed) colour source as the
+    // Reuse the note-fill converter so the overview draws from the SAME (themed) colour source as the
     // notes — no second copy of the palette to keep in sync.
     private static readonly PostItColorToBrushConverter _fillConverter = new();
 
@@ -570,9 +358,11 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
     // ── Coordinate helpers ────────────────────────────────────────────────
 
     private Point ScreenToCanvas(Point hostPt)
-        => new((hostPt.X - CanvasTranslateTransform.X) / CanvasScaleTransform.ScaleX,
-               (hostPt.Y - CanvasTranslateTransform.Y) / CanvasScaleTransform.ScaleY);
+    {
+        var (scale, x, y) = Surface.View;
+        return scale <= 0 ? hostPt : new Point((hostPt.X - x) / scale, (hostPt.Y - y) / scale);
+    }
 
     private Point ViewportCenter()
-        => ScreenToCanvas(new Point(CanvasHost.ActualWidth / 2, CanvasHost.ActualHeight / 2));
+        => ScreenToCanvas(new Point(Surface.ActualWidth / 2, Surface.ActualHeight / 2));
 }
