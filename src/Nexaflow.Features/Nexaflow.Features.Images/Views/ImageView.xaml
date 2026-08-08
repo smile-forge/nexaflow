@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:Nexaflow.Features.Images.ViewModels"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:vcl="clr-namespace:Nexaflow.Visuals.Common.Layout;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="ImageView"
              Focusable="True"
              KeyDown="OnViewKeyDown"
@@ -638,19 +639,17 @@
                 </Grid>
             </Grid>
 
-            <!-- ── Collage: scattered, tilted thumbnails on a pan/zoom canvas ── -->
-            <Border x:Name="CollageHost" Visibility="{Binding IsCollage, Converter={StaticResource BoolToVis}}"
-                    Background="{StaticResource BgBrush}" ClipToBounds="True" Focusable="True"
-                    MouseWheel="Collage_MouseWheel" SizeChanged="Collage_SizeChanged"
-                    MouseDown="Collage_MouseDown" MouseMove="Collage_MouseMove" MouseUp="Collage_MouseUp">
-                <Grid>
-                    <ItemsControl ItemsSource="{Binding Thumbnails}">
-                        <ItemsControl.RenderTransform>
-                            <TransformGroup>
-                                <ScaleTransform x:Name="CollageScale"/>
-                                <TranslateTransform x:Name="CollageTranslate"/>
-                            </TransformGroup>
-                        </ItemsControl.RenderTransform>
+            <!-- ── Collage: scattered, tilted thumbnails on the shared pan/zoom surface — drag to pan,
+                 wheel to zoom about the cursor, zoom chips and a bottom-right overview. ── -->
+            <vcl:PanZoomSurface x:Name="CollageSurface"
+                                Visibility="{Binding IsCollage, Converter={StaticResource BoolToVis}}"
+                                Background="{StaticResource BgBrush}" Focusable="True"
+                                ZoomOnPlainWheel="True"
+                                MinScale="0.2" MaxScale="5"
+                                SizeChanged="Collage_SizeChanged">
+                <vcl:PanZoomSurface.SurfaceContent>
+                    <ItemsControl ItemsSource="{Binding Thumbnails}"
+                                  MouseLeftButtonDown="CollageCard_MouseDown">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <Canvas/>
@@ -673,22 +672,8 @@
                             <StaticResource ResourceKey="CollageCard"/>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-
-                    <!-- Minimap (shown only when the collage extends past the viewport; drag to reposition) -->
-                    <Border x:Name="CollageMiniMap" Visibility="Collapsed"
-                            HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="12"
-                            Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="1" CornerRadius="4" Padding="3" Cursor="Hand"
-                            MouseLeftButtonDown="CollageMiniMap_MouseDown"
-                            MouseMove="CollageMiniMap_MouseMove"
-                            MouseLeftButtonUp="CollageMiniMap_MouseUp">
-                        <Border.Effect>
-                            <DropShadowEffect BlurRadius="10" ShadowDepth="0" Opacity="0.4" Color="Black"/>
-                        </Border.Effect>
-                        <Canvas x:Name="CollageMiniMapCanvas" Width="170" Height="120"/>
-                    </Border>
-                </Grid>
-            </Border>
+                </vcl:PanZoomSurface.SurfaceContent>
+            </vcl:PanZoomSurface>
         </Grid>
     </Grid>
 </UserControl>

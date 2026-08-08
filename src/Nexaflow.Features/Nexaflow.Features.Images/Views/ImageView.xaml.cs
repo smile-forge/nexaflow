@@ -1,15 +1,12 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Services;
-using Nexaflow.Visuals.Common.Layout;
 using Nexaflow.Features.Images.ViewModels;
-using System;
 using System.Linq;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Shapes;
 
 namespace Nexaflow.Features.Images.Views;
 
@@ -19,23 +16,15 @@ public partial class ImageView : UserControl, IPageView
 
     private FullScreenImageWindow? _fullScreen;
 
-    // ── Collage pan state (arm on press, begin once the pointer moves) ────
-    private bool   _collagePanning;
-    private bool   _collagePanArmed;
-    private Point  _collagePanStart;
-    private double _collagePanOffX, _collagePanOffY;
-    private bool   _collageCentered;
-
-    // ── Collage minimap mapping (frozen during a drag, like the scratchpad) ──
-    private MiniMapMapping? _mmMapping;
-    private bool            _mmDragging;
-    private Rectangle?      _mmViewportRect;
+    private bool _collageCentered;
 
     public ImageView(ImageViewModel viewModel)
     {
         InitializeComponent();
         ViewModel   = viewModel;
         DataContext = viewModel;
+
+        ConfigureCollageSurface();
 
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
 
@@ -124,177 +113,47 @@ public partial class ImageView : UserControl, IPageView
     }
 
     // ── Collage pan / zoom ────────────────────────────────────────────────
+    //
+    // The gesture, the transform and the overview are the shared PanZoomSurface's. What is the
+    // collage's own is what it is a window onto: cards of a fixed footprint scattered across an
+    // unbounded canvas, whose extent is wherever the layout happened to put them.
+
+    private void ConfigureCollageSurface()
+    {
+        CollageSurface.ContentExtent = () =>
+            CollageContentBounds() is { } b ? b.ToCanvasBounds() : null;
+
+        CollageSurface.MiniMapItems = () =>
+            CollageGeometry.MiniMapItems(ViewModel.Thumbnails.Select(t => (t.CollageX, t.CollageY)),
+                                         (Brush)FindResource("TextMutedBrush"));
+
+        // The collage opens centred at natural size rather than fitted: these are photographs, and a
+        // big pile of them scaled down to fit is a pile of thumbnails of thumbnails. Setting the view
+        // up front also tells the surface not to fit it for us later.
+        CollageSurface.RestoreView(1, 0, 0);
+    }
 
     private void Collage_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (!_collageCentered && CollageHost.ActualWidth > 0 && ViewModel.Thumbnails.Count > 0)
-        {
-            CenterCollage();
-            _collageCentered = true;
-        }
-        UpdateCollageMiniMap();
+        if (_collageCentered || CollageSurface.ActualWidth <= 0) return;
+        if (CollageContentBounds() is not { } bounds) return;
+
+        var (x, y) = CollageGeometry.CentreOn(bounds, CollageSurface.ActualWidth, CollageSurface.ActualHeight);
+        CollageSurface.RestoreView(1, x, y);
+        _collageCentered = true;
     }
 
-    private void Collage_MouseWheel(object sender, MouseWheelEventArgs e)
+    // Double-click a card → open it in the carousel. Handled here, on the content, so the surface
+    // leaves the press alone; a single click anywhere still pans.
+    private void CollageCard_MouseDown(object sender, MouseButtonEventArgs e)
     {
-        var p = e.GetPosition(CollageHost);
-        var (scale, x, y) = CollageGeometry.ZoomAt(
-            CollageScale.ScaleX, CollageTranslate.X, CollageTranslate.Y, p.X, p.Y, zoomIn: e.Delta > 0);
-
-        CollageTranslate.X  = x;
-        CollageTranslate.Y  = y;
-        CollageScale.ScaleX = scale;
-        CollageScale.ScaleY = scale;
-        UpdateCollageMiniMap();
+        if (e.ClickCount != 2 || ThumbAt(e.OriginalSource) is not { } item) return;
+        ViewModel.OpenInCarousel(item.Index);
         e.Handled = true;
-    }
-
-    private void Collage_MouseDown(object sender, MouseButtonEventArgs e)
-    {
-        if (e.ChangedButton != MouseButton.Left) return;
-        if (CollageMiniMap.IsVisible && CollageMiniMap.IsMouseOver) return;   // minimap handles its own drag
-
-        // Double-click a card → open it in the carousel.
-        if (e.ClickCount == 2 && ThumbAt(e.OriginalSource) is { } item)
-        {
-            ViewModel.OpenInCarousel(item.Index);
-            return;
-        }
-
-        // Arm a pan from anywhere (background or a card); it begins once the pointer actually moves.
-        _collagePanArmed = true;
-        _collagePanStart = e.GetPosition(CollageHost);
-        _collagePanOffX  = CollageTranslate.X;
-        _collagePanOffY  = CollageTranslate.Y;
-    }
-
-    private void Collage_MouseMove(object sender, MouseEventArgs e)
-    {
-        if (_collagePanArmed && !_collagePanning)
-        {
-            if (e.LeftButton != MouseButtonState.Pressed) { _collagePanArmed = false; return; }
-            var p0 = e.GetPosition(CollageHost);
-            if (Math.Abs(p0.X - _collagePanStart.X) + Math.Abs(p0.Y - _collagePanStart.Y) > 3)
-            {
-                _collagePanning = true;
-                CollageHost.CaptureMouse();
-                CollageHost.Cursor = Cursors.SizeAll;
-            }
-        }
-
-        if (!_collagePanning) return;
-        var p = e.GetPosition(CollageHost);
-        CollageTranslate.X = _collagePanOffX + (p.X - _collagePanStart.X);
-        CollageTranslate.Y = _collagePanOffY + (p.Y - _collagePanStart.Y);
-        UpdateCollageMiniMap();
-    }
-
-    private void Collage_MouseUp(object sender, MouseButtonEventArgs e)
-    {
-        _collagePanArmed = false;
-        if (!_collagePanning) return;
-        _collagePanning = false;
-        CollageHost.ReleaseMouseCapture();
-        CollageHost.Cursor = null;
     }
 
     private CollageBounds? CollageContentBounds() =>
         CollageGeometry.ContentBounds(ViewModel.Thumbnails.Select(t => (t.CollageX, t.CollageY)));
-
-    private void CenterCollage()
-    {
-        if (CollageContentBounds() is not { } b) return;
-        CollageScale.ScaleX = CollageScale.ScaleY = 1;
-        (CollageTranslate.X, CollageTranslate.Y) =
-            CollageGeometry.CentreOn(b, CollageHost.ActualWidth, CollageHost.ActualHeight);
-    }
-
-    // ── Collage minimap (mirrors the scratchpad: thumbnail rects + a viewport box, drag to move) ──
-
-    private void UpdateCollageMiniMap()
-    {
-        var mapping = CollageContentBounds() is { } bb
-            ? CollageGeometry.MiniMap(bb, CollageScale.ScaleX, CollageTranslate.X, CollageTranslate.Y,
-                                      CollageHost.ActualWidth, CollageHost.ActualHeight,
-                                      CollageMiniMapCanvas.Width, CollageMiniMapCanvas.Height)
-            : null;
-
-        _mmMapping = mapping;
-        if (mapping is not { } m) { CollageMiniMap.Visibility = Visibility.Collapsed; return; }
-
-        var thumbBrush = (Brush)FindResource("TextMutedBrush");
-        var viewBrush  = (Brush)FindResource("AccentBrush");
-
-        CollageMiniMapCanvas.Children.Clear();
-        foreach (var t in ViewModel.Thumbnails)
-        {
-            var (x, y, w, h) = CollageGeometry.CardBox(m, t.CollageX, t.CollageY);
-            var r = new Rectangle { Width = w, Height = h, Fill = thumbBrush, Opacity = 0.85 };
-            Canvas.SetLeft(r, x);
-            Canvas.SetTop(r, y);
-            CollageMiniMapCanvas.Children.Add(r);
-        }
-
-        var (vx, vy, vw, vh) = CollageGeometry.ViewportBox(m, m.ViewLeft, m.ViewTop);
-        var vp = new Rectangle
-        {
-            Width           = vw,
-            Height          = vh,
-            Stroke          = viewBrush,
-            StrokeThickness = 1.5,
-            Fill            = Brushes.Transparent,
-        };
-        Canvas.SetLeft(vp, vx);
-        Canvas.SetTop(vp, vy);
-        CollageMiniMapCanvas.Children.Add(vp);
-        _mmViewportRect = vp;
-
-        CollageMiniMap.Visibility = Visibility.Visible;
-    }
-
-    private void CollageMiniMap_MouseDown(object sender, MouseButtonEventArgs e)
-    {
-        if (_mmMapping is null) return;
-        _mmDragging = true;
-        CollageMiniMap.CaptureMouse();
-        MoveCollageViewportTo(e.GetPosition(CollageMiniMapCanvas));
-        e.Handled = true;
-    }
-
-    private void CollageMiniMap_MouseMove(object sender, MouseEventArgs e)
-    {
-        if (!_mmDragging) return;
-        MoveCollageViewportTo(e.GetPosition(CollageMiniMapCanvas));
-        e.Handled = true;
-    }
-
-    private void CollageMiniMap_MouseUp(object sender, MouseButtonEventArgs e)
-    {
-        if (!_mmDragging) return;
-        _mmDragging = false;
-        CollageMiniMap.ReleaseMouseCapture();
-        UpdateCollageMiniMap();
-        e.Handled = true;
-    }
-
-    // Inverts the frozen mapping: minimap pixel → canvas point, then centres the viewport on it.
-    private void MoveCollageViewportTo(Point mm)
-    {
-        if (_mmMapping is not { } m) return;
-
-        var (x, y, viewLeft, viewTop) = CollageGeometry.TranslateForMiniMapPoint(
-            m, mm.X, mm.Y, CollageScale.ScaleX, CollageHost.ActualWidth, CollageHost.ActualHeight);
-
-        CollageTranslate.X = x;
-        CollageTranslate.Y = y;
-
-        if (_mmViewportRect is { } vp)
-        {
-            var (bx, by, _, _) = CollageGeometry.ViewportBox(m, viewLeft, viewTop);
-            Canvas.SetLeft(vp, bx);
-            Canvas.SetTop(vp, by);
-        }
-    }
 
     // ── Full-screen window lifecycle (a view concern, driven by the VM flag) ──
 

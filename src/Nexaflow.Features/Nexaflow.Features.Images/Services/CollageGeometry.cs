@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Windows.Media;
 using Nexaflow.Visuals.Common.Layout;
 
 namespace Nexaflow.Features.Images.Services;
@@ -10,23 +11,28 @@ public readonly record struct CollageBounds(double MinX, double MinY, double Max
     public double Width  => MaxX - MinX;
     public double Height => MaxY - MinY;
 
-    internal CanvasBounds ToCanvas() => new(MinX, MinY, MaxX, MaxY);
+    /// <summary>The same extent in the terms the pan/zoom surface reckons in.</summary>
+    public CanvasBounds ToCanvasBounds() => new(MinX, MinY, MaxX, MaxY);
 }
 
 /// <summary>
-/// The collage canvas's arithmetic, in the collage's own terms: fixed-size cards, its zoom step and its
-/// scale limits. The rules themselves — cursor-anchored zoom, centring, the minimap mapping and its
-/// inverse — are the shared <see cref="PanZoomMiniMap"/>, which the scratchpad's corkboard uses too.
+/// What the collage canvas is, as opposed to how a pan/zoom canvas behaves: fixed-footprint cards
+/// scattered across an unbounded surface, and the scale range that keeps them findable.
+/// <para>
+/// The behaviour — cursor-anchored zoom, the drag, the overview and its inverse mapping — is the shared
+/// <see cref="PanZoomSurface"/>, which the scratchpad's corkboard and markdown graph diagrams sit on
+/// too. What is left here is the two things only the collage knows: how big a card is, and where the
+/// cards are.
+/// </para>
 /// </summary>
 public static class CollageGeometry
 {
     /// <summary>Collage card footprint — mirrors the card template's size.</summary>
     public const double CardW = 170, CardH = 150;
 
+    /// <summary>How far the canvas may be zoomed. The floor stops a big collage being shrunk to
+    /// nothing; the ceiling stops a thumbnail filling the screen as a blur.</summary>
     public const double MinScale = 0.2, MaxScale = 5.0;
-
-    /// <summary>Zoom step per wheel notch.</summary>
-    public const double ZoomStep = 1.1;
 
     /// <summary>The union of every card's footprint, or null when there are no cards.</summary>
     public static CollageBounds? ContentBounds(IEnumerable<(double X, double Y)> cards)
@@ -34,37 +40,12 @@ public static class CollageGeometry
             ? new CollageBounds(b.MinX, b.MinY, b.MaxX, b.MaxY)
             : null;
 
-    /// <summary>One wheel notch of zoom anchored at the cursor, clamped to the collage's scale limits.</summary>
-    public static (double Scale, double X, double Y) ZoomAt(
-        double scale, double tx, double ty, double px, double py, bool zoomIn)
-        => PanZoomMiniMap.ZoomAt(scale, tx, ty, px, py,
-                                 zoomIn ? ZoomStep : 1 / ZoomStep, MinScale, MaxScale);
-
     /// <summary>The translation that centres the whole collage in a viewport, at scale 1.</summary>
     public static (double X, double Y) CentreOn(CollageBounds content, double viewW, double viewH)
-        => PanZoomMiniMap.CentreOn(content.ToCanvas(), viewW, viewH);
+        => PanZoomMiniMap.CentreOn(content.ToCanvasBounds(), viewW, viewH);
 
-    /// <summary>
-    /// The minimap mapping for the current pan/zoom, or null when the whole collage already fits on screen
-    /// (the minimap hides) or the viewport isn't laid out yet.
-    /// </summary>
-    public static MiniMapMapping? MiniMap(CollageBounds content, double scale, double tx, double ty,
-                                          double viewW, double viewH, double mmW, double mmH)
-        => PanZoomMiniMap.Compute(content.ToCanvas(), scale, tx, ty, viewW, viewH, mmW, mmH);
-
-    /// <summary>Where a card's box sits on the minimap.</summary>
-    public static (double X, double Y, double W, double H) CardBox(MiniMapMapping m, double cardX, double cardY)
-        => PanZoomMiniMap.Box(m, cardX, cardY, CardW, CardH, minSize: 2);
-
-    /// <summary>Where the viewport box sits on the minimap, for a viewport at (left, top) in canvas space.</summary>
-    public static (double X, double Y, double W, double H) ViewportBox(MiniMapMapping m, double viewLeft, double viewTop)
-        => PanZoomMiniMap.ViewportBox(m, viewLeft, viewTop);
-
-    /// <summary>
-    /// Inverts the mapping: a point on the minimap becomes the canvas translation that centres the viewport
-    /// on it, plus the viewport's new canvas-space corner so the drawn box can follow.
-    /// </summary>
-    public static (double X, double Y, double ViewLeft, double ViewTop) TranslateForMiniMapPoint(
-        MiniMapMapping m, double mmX, double mmY, double scale, double viewW, double viewH)
-        => PanZoomMiniMap.TranslateForPoint(m, mmX, mmY, scale, viewW, viewH);
+    /// <summary>Every card as a box for the overview, so it shows the shape of the pile rather than one
+    /// blank rectangle you cannot navigate by.</summary>
+    public static IEnumerable<MiniMapItem> MiniMapItems(IEnumerable<(double X, double Y)> cards, Brush fill)
+        => cards.Select(c => new MiniMapItem(c.X, c.Y, CardW, CardH, fill));
 }
