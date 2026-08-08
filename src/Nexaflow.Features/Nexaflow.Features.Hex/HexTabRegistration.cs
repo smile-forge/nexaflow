@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Hex.Buffer;
 using Nexaflow.Features.Hex.ViewModels;
 using Nexaflow.Features.Hex.Views;
 using System.Globalization;
@@ -40,18 +41,40 @@ public sealed class HexTabRegistration(IShellServices shell) : IPageRegistration
 
         var page = new Page
         {
-            Title          = title,
-            Icon           = "⬡",
-            PageParams     = pageParams,
-            ContentFactory = () =>
-            {
-                var vm = new HexViewModel(path, shell);
-                if (offset >= 0) vm.RevealRange(offset, Math.Max(0, length));
-                return new HexView(vm);
-            },
+            Title      = title,
+            Icon       = "⬡",
+            PageParams = pageParams,
         };
         page.SetFileBreadcrumbs(path, title);
+
+        page.ContentFactory = () =>
+        {
+            var vm = new HexViewModel(path, shell);
+            vm.ReadFailed += failure => _ = PromptRetryAsync(page, vm, failure);
+            if (offset >= 0) vm.RevealRange(offset, Math.Max(0, length));
+            return new HexView(vm);
+        };
+
         return page;
+    }
+
+    /// <summary>
+    /// The file behind an open tab can't be read. Says why in plain words and offers the only two useful
+    /// answers: try again — a lock may have been released, a share may be back — or close the tab. There
+    /// is no third state where the viewer sits there showing zeroes it never actually read.
+    /// </summary>
+    private async Task PromptRetryAsync(Page page, HexViewModel vm, HexReadFailure failure)
+    {
+        while (true)
+        {
+            bool retry = await shell.ConfirmAsync(
+                $"Can't read {Path.GetFileName(vm.FilePath)}", failure.Message, "Retry", "Close tab");
+
+            if (!retry) { shell.CloseTab(page); return; }
+            if (vm.Retry()) return;
+
+            failure = vm.LoadFailure ?? failure;
+        }
     }
 
     /// <summary>Accepts decimal or <c>0x</c> hex; -1 when absent or unparseable.</summary>

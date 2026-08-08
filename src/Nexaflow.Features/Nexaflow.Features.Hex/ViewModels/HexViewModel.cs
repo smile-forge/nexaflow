@@ -68,18 +68,67 @@ public sealed partial class HexViewModel : ObservableObject, IPageViewModel, IDi
         UpdateSelectionText();
     }
 
+    // ── Read failures ─────────────────────────────────────────────────────────
+
+    private bool _failureReported;
+
+    /// <summary>Why the file can't be read, or null while reads are succeeding.</summary>
+    public HexReadFailure? LoadFailure => Buffer.Failure;
+
+    /// <summary>
+    /// Raised once per failure episode when the file behind this view can't be read, so whoever owns the
+    /// tab can say so and offer a way out. Not raised from inside a read: the buffer only records the
+    /// fault there, and <see cref="CheckReadable"/> reports it from a safe point.
+    /// </summary>
+    public event Action<HexReadFailure>? ReadFailed;
+
+    /// <summary>
+    /// Reports a newly-failed read exactly once — called after anything that touches the file (the view
+    /// on load, a scroll that pulls a new window) rather than from the read itself, which runs per byte
+    /// during paint and would otherwise fire a prompt mid-render.
+    /// </summary>
+    public void CheckReadable()
+    {
+        if (Buffer.Failure is not { } failure) { _failureReported = false; return; }
+        if (_failureReported) return;
+        _failureReported = true;
+        ReadFailed?.Invoke(failure);
+    }
+
+    /// <summary>
+    /// Re-opens the file and rebuilds the view around it. Returns false if it still can't be read — the
+    /// caller is mid-prompt and owns what to say next, so this deliberately does not re-raise
+    /// <see cref="ReadFailed"/>.
+    /// </summary>
+    public bool Retry()
+    {
+        Buffer.Reload();
+        TotalRows    = Buffer.TotalRows;
+        FileSizeText = FormatSize(Buffer.FileLength);
+        IsModified   = Buffer.IsModified;
+        SetCursor(0);
+        DetectEncoding();
+        UpdateSelectionText();
+        InvalidateView?.Invoke();
+
+        _failureReported = Buffer.Failure is not null;
+        return Buffer.Failure is null;
+    }
+
     // ── Partial callbacks ─────────────────────────────────────────────────────
 
     partial void OnTopRowChanged(long value)
     {
         Buffer.EnsureWindow(value, VisibleRowCount);
         InvalidateView?.Invoke();
+        CheckReadable();
     }
 
     partial void OnVisibleRowCountChanged(int value)
     {
         Buffer.EnsureWindow(TopRow, value);
         InvalidateView?.Invoke();
+        CheckReadable();
 
         // A reveal requested before the view had measured itself could not scroll anywhere; now it can.
         if (value > 0 && _pendingRevealOffset >= 0)

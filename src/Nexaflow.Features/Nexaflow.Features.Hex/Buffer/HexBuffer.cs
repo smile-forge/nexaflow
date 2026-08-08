@@ -44,17 +44,71 @@ public sealed class HexBuffer : IDisposable
     public bool CanUndo     => _undoStack.Count > 0;
     public bool CanRedo     => _redoStack.Count > 0;
 
+    /// <summary>
+    /// Why this buffer has no bytes to show, or null while reads are succeeding. Set on the first
+    /// failure and left alone until <see cref="Reload"/> clears it — reads run per byte during paint,
+    /// so re-classifying on each one would be pure noise.
+    /// </summary>
+    public HexReadFailure? Failure { get; private set; }
+
     public HexBuffer(string filePath)
     {
         _filePath = filePath;
-        if (!string.IsNullOrEmpty(filePath) && VirtualFileSystem.Instance.Exists(filePath))
+        Open();
+    }
+
+    /// <summary>
+    /// Opens the file and seeds the piece table. An empty path is the legitimate "no file" buffer, not a
+    /// fault. Anything else that goes wrong is recorded rather than thrown: the tab is already on screen
+    /// by the time this runs, so the honest outcome is a view that knows it is empty and can say why.
+    /// </summary>
+    private void Open()
+    {
+        if (string.IsNullOrEmpty(_filePath)) return;
+
+        // Deliberately no Exists() pre-check: it is File.Exists underneath, which answers false for a
+        // file that is merely unreadable, so it would report every permission problem as "missing".
+        // Only the exception can tell those apart.
+        try
         {
-            _stream     = VirtualFileSystem.Instance.OpenRead(filePath);
-            FileLength  = _stream.Length;
+            _stream    = VirtualFileSystem.Instance.OpenRead(_filePath);
+            FileLength = _stream.Length;
         }
+        catch (Exception ex)
+        {
+            _stream    = null;
+            FileLength = 0;
+            Failure    = HexReadFailure.For(_filePath, ex);
+            return;
+        }
+
         if (FileLength > 0)
             _pieces.Add(new Piece(PieceSource.File, 0, FileLength));
     }
+
+    /// <summary>
+    /// Drops everything and re-opens the file — what "Retry" does after a read failure. The lock may
+    /// have been released, the share may be back. Edits do not survive: the buffer had nothing readable
+    /// to edit, and a piece table indexed into a file we could not read is not worth preserving.
+    /// </summary>
+    public void Reload()
+    {
+        _stream?.Dispose();
+        _stream       = null;
+        Failure       = null;
+        FileLength    = 0;
+        _windowOffset = -1;
+        _windowBytesLoaded = 0;
+        _pieces       = [];
+        _addBuffer.Clear();
+        _undoStack.Clear();
+        _redoStack.Clear();
+        IsModified    = false;
+        Open();
+    }
+
+    // First failure wins: see Failure.
+    private void Fail(HexReadFailure failure) => Failure ??= failure;
 
     // ── Window management ─────────────────────────────────────────────────────
 
@@ -66,15 +120,27 @@ public sealed class HexBuffer : IDisposable
         long available  = Math.Min(WindowSize, FileLength - _windowOffset);
         if (available <= 0) { _windowBytesLoaded = 0; return; }
 
-        _stream.Position = _windowOffset;
         int toRead = (int)available;
         int read   = 0;
-        while (read < toRead)
+        try
         {
-            int n = _stream.Read(_windowData, read, toRead - read);
-            if (n <= 0) break;
-            read += n;
+            _stream.Position = _windowOffset;
+            while (read < toRead)
+            {
+                int n = _stream.Read(_windowData, read, toRead - read);
+                if (n <= 0) break;
+                read += n;
+            }
         }
+        catch (Exception ex)
+        {
+            Fail(HexReadFailure.For(_filePath, ex));
+        }
+
+        // `available` is already clamped to the file length, so a short read is never a normal EOF —
+        // the handle stopped delivering. Left unreported this is exactly what paints a screen of 00s.
+        if (read < toRead) Fail(HexReadFailure.Truncated(_filePath));
+
         _windowBytesLoaded = read;
     }
 
@@ -106,11 +172,21 @@ public sealed class HexBuffer : IDisposable
             physicalOffset <  _windowOffset + _windowBytesLoaded)
             return _windowData[physicalOffset - _windowOffset];
 
-        // Absolute fallback
+        // Absolute fallback. Zero is the only thing left to return, so record why it is a zero —
+        // the caller is a paint loop and cannot tell this apart from a real 0x00 byte.
         if (_stream == null) return 0;
-        _stream.Position = physicalOffset;
-        int b = _stream.ReadByte();
-        return b < 0 ? (byte)0 : (byte)b;
+        try
+        {
+            _stream.Position = physicalOffset;
+            int b = _stream.ReadByte();
+            if (b >= 0) return (byte)b;
+            Fail(HexReadFailure.Truncated(_filePath));
+        }
+        catch (Exception ex)
+        {
+            Fail(HexReadFailure.For(_filePath, ex));
+        }
+        return 0;
     }
 
     // ── Reads ─────────────────────────────────────────────────────────────────

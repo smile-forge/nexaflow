@@ -47,6 +47,10 @@ public partial class HexView : UserControl, IPageView
     {
         SyncScrollBar();
         HexPanel.Focus();
+
+        // The buffer opened (or failed to) while the tab was being built. Report it now the view is
+        // real, so the prompt has a window to land in.
+        _vm.CheckReadable();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
