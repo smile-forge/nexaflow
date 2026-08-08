@@ -395,9 +395,24 @@ public sealed class FeatureManager
             // Record the params the tab was opened with. When opened with none, keep any defaults the
             // registration set on the page itself (e.g. a standalone tab that wants its own identity so
             // it isn't a null-param "matches anything" singleton).
-            tab.PageParams = pageParams ?? tab.PageParams;
+            tab.PageParams     = pageParams ?? tab.PageParams;
+            tab.LocationParams = LocationParamsOf(reg);
         }
         return tab;
+    }
+
+    /// <summary>
+    /// The parameter names <paramref name="reg"/> declares as non-identity — the ones that locate a view
+    /// inside the document rather than name it. Resolved once here, at tab creation, so tab dedup never has
+    /// to reach back through the catalog (and load a feature assembly) to ask.
+    /// </summary>
+    private static IReadOnlySet<string>? LocationParamsOf(IPageRegistration reg)
+    {
+        HashSet<string>? names = null;
+        foreach (var p in reg.Parameters)
+            if (!p.Identity)
+                (names ??= []).Add(p.Name);
+        return names;
     }
 
     /// <summary>

@@ -294,6 +294,7 @@ public sealed class ShellServices : IShellServices
             if (_tabToWindow.TryGetValue(existing, out var ownerWindow) && ownerWindow != targetWindow)
                 MoveTabCore(existing, ownerWindow, targetWindow);
 
+            UpdateLocationParams(existing, pageParams);
             (existing.Content as IPageView)?.Reinitialize(pageParams ?? []);
 
             targetWindow.BringToFront(existing);
@@ -768,7 +769,7 @@ public sealed class ShellServices : IShellServices
         {
             if (!string.Equals(tab.PageKind, pageKind, StringComparison.OrdinalIgnoreCase))
                 continue;
-            if (!ParamsCompatible(tab.PageParams, pageParams))
+            if (!ParamsCompatible(tab.PageParams, pageParams, tab.LocationParams))
                 continue;
             return tab;
         }
@@ -777,22 +778,51 @@ public sealed class ShellServices : IShellServices
 
     /// <summary>
     /// A tab with null/empty PageParams is a type-identity tab (matches any request for that
-    /// PageKind). A tab with params is a location-identity tab — every entry in its PageParams
-    /// must be present and equal in the requested params.
+    /// PageKind). A tab with params is a document-identity tab — every <em>identity</em> entry in its
+    /// PageParams must be present and equal in the requested params.
+    /// <para>
+    /// <paramref name="locationParams"/> names the keys the page kind declared non-identity
+    /// (<see cref="PageParameter.Identity"/>): where the tab is looking inside the document, not which
+    /// document it is. Those are skipped, so re-opening the same file at a different byte offset finds
+    /// the open tab and re-points it. Anything undeclared stays identity, so a page kind that declares
+    /// nothing matches exactly as before.
+    /// </para>
     /// </summary>
     private static bool ParamsCompatible(
         Dictionary<string, string>? tabParams,
-        Dictionary<string, string>? requested)
+        Dictionary<string, string>? requested,
+        IReadOnlySet<string>? locationParams)
     {
         if (tabParams is null || tabParams.Count == 0) return true;
-        if (requested is null || requested.Count == 0) return false;
         foreach (var kv in tabParams)
         {
-            if (!requested.TryGetValue(kv.Key, out var v) ||
+            if (locationParams?.Contains(kv.Key) == true) continue;   // location, not identity
+            if (requested is null ||
+                !requested.TryGetValue(kv.Key, out var v) ||
                 !string.Equals(v, kv.Value, StringComparison.OrdinalIgnoreCase))
                 return false;
         }
+        // Every param was a location one: nothing identifies this tab, so it is a type-identity tab.
         return true;
+    }
+
+    /// <summary>
+    /// Records where a re-pointed tab is now looking. Only the location params can differ (the identity
+    /// ones matched to get here), so only those are carried over — leaving a page kind with none of them
+    /// byte-for-byte as before, and a type-identity tab (null params) still one. The dictionary is
+    /// replaced rather than mutated: a tab shares its instance with whoever opened it.
+    /// </summary>
+    private static void UpdateLocationParams(Page tab, Dictionary<string, string>? requested)
+    {
+        if (tab.LocationParams is not { Count: > 0 } keys || tab.PageParams is not { } tabParams) return;
+
+        var merged = new Dictionary<string, string>(tabParams);
+        foreach (var key in keys)
+        {
+            if (requested is not null && requested.TryGetValue(key, out var v)) merged[key] = v;
+            else merged.Remove(key);
+        }
+        tab.PageParams = merged;
     }
 
     // ── Shell-level overlays (routed to the focused window) ──────────────────

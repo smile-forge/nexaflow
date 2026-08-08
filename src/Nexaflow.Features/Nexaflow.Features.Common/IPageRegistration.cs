@@ -36,6 +36,12 @@ public interface IPageRegistration
     /// The parameters this page kind accepts in its <c>pageParams</c> dictionary. Default: none.
     /// Override to advertise required/optional params so the shell can describe openable pages to
     /// the AI and other callers.
+    /// <para>
+    /// This is also what tells the shell which params make a tab a <em>different</em> tab. Mark any
+    /// param that merely locates a view inside the document — a byte offset, a selected node — as
+    /// <see cref="PageParameter.Identity"/> <c>false</c>, and re-opening that document at a new
+    /// location re-points the open tab via <see cref="IPageView.Reinitialize"/> instead of adding one.
+    /// </para>
     /// </summary>
     IReadOnlyList<PageParameter> Parameters => [];
 

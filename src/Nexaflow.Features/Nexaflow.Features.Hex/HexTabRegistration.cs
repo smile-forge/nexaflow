@@ -10,6 +10,11 @@ namespace Nexaflow.Features.Hex;
 /// Registers the Hex viewer page. Beyond <c>path</c> it accepts an optional <c>offset</c> and
 /// <c>length</c>, so another feature can open the file <em>at</em> a byte range rather than at the
 /// top — the PE inspector jumping to a section, a resource or a TLS callback.
+/// <para>
+/// Only <c>path</c> identifies the tab: the byte range says where you are looking, not which file
+/// this is. So jumping again from the inspector re-points the open tab (see
+/// <see cref="Views.HexView"/>'s <c>Reinitialize</c>) rather than stacking up a tab per offset.
+/// </para>
 /// </summary>
 public sealed class HexTabRegistration(IShellServices shell) : IPageRegistration
 {
@@ -19,8 +24,10 @@ public sealed class HexTabRegistration(IShellServices shell) : IPageRegistration
     public IReadOnlyList<PageParameter> Parameters =>
     [
         new("path",   "The file to open."),
-        new("offset", "Byte offset to reveal and select from. Decimal, or 0x-prefixed hex.", Required: false),
-        new("length", "How many bytes to select at that offset. Omit to just place the cursor.", Required: false),
+        new("offset", "Byte offset to reveal and select from. Decimal, or 0x-prefixed hex.",
+            Required: false, Identity: false),
+        new("length", "How many bytes to select at that offset. Omit to just place the cursor.",
+            Required: false, Identity: false),
     ];
 
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
