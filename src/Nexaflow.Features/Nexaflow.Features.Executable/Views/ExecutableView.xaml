@@ -369,7 +369,7 @@
                                SelectedValue="{Binding SelectedSection, Mode=TwoWay}">
 
             <!-- 1 · Overview -->
-            <vc:VerticalTabItem Header="Overview" Tag="Overview">
+            <vc:VerticalTabItem Header="Overview" Tag="Overview" AutomationProperties.AutomationId="Executable_Tab_Overview">
                 <ScrollViewer Style="{StaticResource PageScroll}">
                     <StackPanel>
                         <!-- Until the parse lands the page has nothing but headings, which reads as
@@ -415,7 +415,7 @@
             </vc:VerticalTabItem>
 
             <!-- 2 · Imports / exports -->
-            <vc:VerticalTabItem Header="Imports / Exports" Tag="ImportsExports">
+            <vc:VerticalTabItem Header="Imports / Exports" Tag="ImportsExports" AutomationProperties.AutomationId="Executable_Tab_ImportsExports">
                 <Grid Margin="16,14">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" MinWidth="220"/>
@@ -474,7 +474,7 @@
             </vc:VerticalTabItem>
 
             <!-- 3 · Dependencies -->
-            <vc:VerticalTabItem Header="Dependencies" Tag="Dependencies">
+            <vc:VerticalTabItem Header="Dependencies" Tag="Dependencies" AutomationProperties.AutomationId="Executable_Tab_Dependencies">
                 <DockPanel Margin="16,14">
                     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
                         <ToggleButton Content="Tree" Style="{StaticResource TbToggle}"
@@ -482,6 +482,7 @@
                                       IsChecked="{Binding ShowDependencyTree, Mode=TwoWay}"
                                       ToolTip="Switch between the diagram and the tree"/>
                         <Button Content="Collapse all" Style="{StaticResource TbBtn}" Margin="8,0,0,0"
+                                AutomationProperties.AutomationId="Executable_CollapseDependencies"
                                 Command="{Binding CollapseDependenciesCommand}"/>
                         <TextBlock Text="Mapping…" VerticalAlignment="Center" Margin="12,0,0,0" FontSize="12"
                                    Foreground="{StaticResource TextMutedBrush}"
@@ -522,7 +523,7 @@
             </vc:VerticalTabItem>
 
             <!-- 4 · Resources -->
-            <vc:VerticalTabItem Header="Resources" Tag="Resources">
+            <vc:VerticalTabItem Header="Resources" Tag="Resources" AutomationProperties.AutomationId="Executable_Tab_Resources">
                 <DockPanel Margin="16,14">
                     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
                         <TextBlock Text="{Binding ResourceSummary}" VerticalAlignment="Center" FontSize="12"
@@ -544,7 +545,7 @@
             </vc:VerticalTabItem>
 
             <!-- 5 · Manifest -->
-            <vc:VerticalTabItem Header="Manifest" Tag="Manifest">
+            <vc:VerticalTabItem Header="Manifest" Tag="Manifest" AutomationProperties.AutomationId="Executable_Tab_Manifest">
                 <DockPanel Margin="16,14">
                     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
                         <ToggleButton Content="Show raw XML" Style="{StaticResource TbToggle}"
@@ -603,16 +604,17 @@
             </vc:VerticalTabItem>
 
             <!-- 6 · .NET — present only for a managed image; a native binary has nothing to show. -->
-            <vc:VerticalTabItem Header=".NET" Tag="Dotnet"
+            <vc:VerticalTabItem Header=".NET" Tag="Dotnet" AutomationProperties.AutomationId="Executable_Tab_Dotnet"
                                 Visibility="{Binding IsManaged, Converter={StaticResource BoolToVis}}">
                 <ScrollViewer Style="{StaticResource PageScroll}">
                     <ItemsControl ItemsSource="{Binding DotnetCards}"
+                                  AutomationProperties.AutomationId="Executable_DotnetCards"
                                   ItemTemplate="{StaticResource CardTemplate}"/>
                 </ScrollViewer>
             </vc:VerticalTabItem>
 
             <!-- 7 · Strings -->
-            <vc:VerticalTabItem Header="Strings" Tag="Strings">
+            <vc:VerticalTabItem Header="Strings" Tag="Strings" AutomationProperties.AutomationId="Executable_Tab_Strings">
                 <DockPanel Margin="16,14">
                     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
                         <TextBlock Text="Minimum length" VerticalAlignment="Center" FontSize="12"
@@ -621,6 +623,7 @@
                                  Style="{StaticResource DarkTextBox}" Width="52"
                                  AutomationProperties.AutomationId="Executable_StringLength"/>
                         <Button Content="Rescan" Style="{StaticResource TbBtn}" Margin="8,0,0,0"
+                                AutomationProperties.AutomationId="Executable_RescanStrings"
                                 Command="{Binding RefreshStringsCommand}"/>
                         <TextBlock Text="Scanning…" VerticalAlignment="Center" Margin="12,0,0,0" FontSize="12"
                                    Foreground="{StaticResource TextMutedBrush}"
@@ -647,7 +650,7 @@
             </vc:VerticalTabItem>
 
             <!-- 8 · Analysis -->
-            <vc:VerticalTabItem Header="Analysis" Tag="Analysis">
+            <vc:VerticalTabItem Header="Analysis" Tag="Analysis" AutomationProperties.AutomationId="Executable_Tab_Analysis">
                 <ScrollViewer Style="{StaticResource PageScroll}">
                     <StackPanel>
                         <TextBlock Text="Entropy across the file" FontWeight="SemiBold" FontSize="13"

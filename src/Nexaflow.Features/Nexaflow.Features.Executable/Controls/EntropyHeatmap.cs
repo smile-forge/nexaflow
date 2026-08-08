@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Windows;
+using System.Windows.Automation.Peers;
 using System.Windows.Input;
 using System.Windows.Media;
 using Nexaflow.IO.Pe;
@@ -98,6 +99,13 @@ public sealed class EntropyHeatmap : FrameworkElement
         // A FrameworkElement with no background is not hit-testable; the strip needs to be.
         Focusable = false;
     }
+
+    /// <summary>
+    /// A bare <see cref="FrameworkElement"/> has no automation peer, so it never appears in the UI
+    /// automation tree — invisible to a screen reader, and to a UI test looking it up by
+    /// automation id. Publishing one costs nothing and makes the strip addressable.
+    /// </summary>
+    protected override AutomationPeer OnCreateAutomationPeer() => new FrameworkElementAutomationPeer(this);
 
     /// <summary>Painting a transparent backdrop is what makes the whole strip clickable, including
     /// the empty space above a short bar.</summary>
