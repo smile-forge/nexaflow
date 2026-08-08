@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using UserControl = System.Windows.Controls.UserControl;
@@ -82,6 +83,114 @@ public class ShellServicesTests
         var found = svc.FindTab("Files", null);
 
         Assert.IsNull(found);
+    }
+
+    // ── Identity vs location params (a byte offset must not fork a second tab) ──
+
+    private static Page HexTab(string path, string offset) => new()
+    {
+        PageKind       = "Hex",
+        PageParams     = new() { { "path", path }, { "offset", offset } },
+        LocationParams = new HashSet<string> { "offset", "length" },
+    };
+
+    [TestMethod, CoversNode("win-cux-tab-reuse")]
+    public void FindTab_LocationParamDiffers_StillMatches()
+    {
+        var svc  = CreateSvc();
+        var host = new FakeWindowHost();
+        svc.RegisterWindow(host);
+        var tab = HexTab(@"C:\a.exe", "0x400");
+        SeedTab(svc, tab, host);
+
+        var found = svc.FindTab("Hex", new() { { "path", @"C:\a.exe" }, { "offset", "0x8C00" } });
+
+        Assert.AreSame(tab, found, "offset is a location, not an identity — the open tab should be reused");
+    }
+
+    [TestMethod, CoversNode("win-cux-tab-reuse")]
+    public void FindTab_LocationParamDiffers_IdentityParamDiffers_ReturnsNull()
+    {
+        var svc  = CreateSvc();
+        var host = new FakeWindowHost();
+        svc.RegisterWindow(host);
+        SeedTab(svc, HexTab(@"C:\a.exe", "0x400"), host);
+
+        var found = svc.FindTab("Hex", new() { { "path", @"C:\b.exe" }, { "offset", "0x400" } });
+
+        Assert.IsNull(found, "a different file is a different document, whatever the offset");
+    }
+
+    [TestMethod, CoversNode("win-cux-tab-reuse")]
+    public void FindTab_LocationParamAbsentFromRequest_StillMatches()
+    {
+        var svc  = CreateSvc();
+        var host = new FakeWindowHost();
+        svc.RegisterWindow(host);
+        var tab = HexTab(@"C:\a.exe", "0x400");
+        SeedTab(svc, tab, host);
+
+        // "Open this file in hex" with no offset at all — same document, so same tab.
+        var found = svc.FindTab("Hex", new() { { "path", @"C:\a.exe" } });
+
+        Assert.AreSame(tab, found);
+    }
+
+    [TestMethod, CoversNode("win-cux-tab-reuse")]
+    public void OpenTab_SameFileNewOffset_ReusesTab_AndRepointsIt()
+    {
+        RunSta(() =>
+        {
+            var svc  = CreateSvc();
+            var host = new FakeWindowHost();
+            svc.RegisterWindow(host);
+
+            var view = new RecordingPageView();
+            var tab  = HexTab(@"C:\a.exe", "0x400");
+            tab.ContentFactory = () => view;
+            tab.GetOrCreateContent();          // the tab has been activated, so it has live content
+            host.AddTab(tab);
+            SeedTab(svc, tab, host);
+
+            svc.OpenTab("Hex", new() { { "path", @"C:\a.exe" }, { "offset", "0x8C00" } });
+
+            Assert.AreEqual(1, host.Tabs.Count, "a second 'view in hex' must not open a second tab");
+            Assert.AreEqual("0x8C00", view.LastParams?.GetValueOrDefault("offset"),
+                            "the open tab should have been re-pointed at the new offset");
+            Assert.AreEqual("0x8C00", tab.PageParams!["offset"],
+                            "and it should record where it is now looking");
+            Assert.AreEqual(@"C:\a.exe", tab.PageParams["path"], "its identity is untouched");
+        });
+    }
+
+    [TestMethod, CoversNode("win-cux-tab-reuse")]
+    public void OpenTab_NoLocationParams_LeavesRecordedParamsAlone()
+    {
+        RunSta(() =>
+        {
+            var svc  = CreateSvc();
+            var host = new FakeWindowHost();
+            svc.RegisterWindow(host);
+
+            var view = new RecordingPageView();
+            var tab  = new Page
+            {
+                PageKind       = "Files",
+                PageParams     = new() { { "path", @"C:\foo" } },
+                ContentFactory = () => view,
+            };
+            tab.GetOrCreateContent();
+            host.AddTab(tab);
+            SeedTab(svc, tab, host);
+
+            svc.OpenTab("Files", new() { { "path", @"C:\foo" }, { "selectFile", "a.txt" } });
+
+            Assert.AreEqual(1, host.Tabs.Count);
+            CollectionAssert.AreEquivalent(new[] { "path" }, tab.PageParams!.Keys.ToArray(),
+                "a page kind that declares no location params keeps exactly the params it was opened with");
+            Assert.AreEqual("a.txt", view.LastParams?.GetValueOrDefault("selectFile"),
+                "the extra param still reaches the page through Reinitialize");
+        });
     }
 
     [TestMethod]
@@ -247,6 +356,14 @@ public class ShellServicesTests
     {
         public FakePageView(IPageViewModel vm) => ViewModel = vm;
         public IPageViewModel? ViewModel { get; }
+    }
+
+    // Records the params it was last re-pointed with — stands in for HexView, which re-seeks on these.
+    private sealed class RecordingPageView : UserControl, IPageView
+    {
+        public IPageViewModel? ViewModel => null;
+        public Dictionary<string, string>? LastParams { get; private set; }
+        public void Reinitialize(Dictionary<string, string> pageParams) => LastParams = pageParams;
     }
 
     // Runs an action on an STA thread and rethrows — WPF UserControl construction requires STA.

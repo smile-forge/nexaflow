@@ -88,6 +88,18 @@ public sealed class HexOffsetTests
                 Assert.IsFalse(parameter.Required, $"'{parameter.Name}' must stay optional.");
     }
 
+    [TestMethod, TestCategory("Unit")]
+    public void Only_the_path_identifies_the_tab()
+    {
+        // The shell dedups open tabs on identity params alone. If the byte range counted, every jump
+        // from the PE inspector would fork another tab on the same file instead of re-seeking this one.
+        var registration = new HexTabRegistration(Substitute.For<IShellServices>());
+
+        foreach (var parameter in registration.Parameters)
+            Assert.AreEqual(parameter.Name == "path", parameter.Identity,
+                            $"'{parameter.Name}' identity flag");
+    }
+
     private static string PeFixturePath =>
         System.IO.Path.Combine(
             System.Environment.GetFolderPath(System.Environment.SpecialFolder.System), "notepad.exe");

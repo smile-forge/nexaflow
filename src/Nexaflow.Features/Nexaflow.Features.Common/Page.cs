@@ -32,6 +32,15 @@ public partial class Page : ObservableObject
     /// <summary>The parameters this page was created with (kept in sync with display state).</summary>
     public Dictionary<string, string>? PageParams { get; set; }
 
+    /// <summary>
+    /// The <see cref="PageParams"/> keys this page kind declared as non-identity
+    /// (<see cref="PageParameter.Identity"/> false) — where the page is looking, not which document
+    /// it is. Stamped by the shell from the registration, like <see cref="PageKind"/>; a feature
+    /// never sets it. Tab dedup ignores these keys, so a re-open that only moves the location
+    /// re-points this page instead of creating a second one. Null means every key is identity.
+    /// </summary>
+    public IReadOnlySet<string>? LocationParams { get; set; }
+
     /// <summary>Factory for the page's content UserControl.</summary>
     public Func<UserControl>? ContentFactory { get; set; }
 
