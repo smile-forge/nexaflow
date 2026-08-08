@@ -73,7 +73,19 @@ public static class BlockRenderer
                 Music.MusicBlock   mus => Music.MusicRenderer.Render(mus, ctx),
                 // Diagram blocks: check Info before falling through to generic code
                 FencedCodeBlock    fc when DiagramRenderer.IsDiagramLanguage(fc.Info)
-                                       => DiagramRenderer.Render(fc.Info!, ExtractFencedContent(fc, rawMarkdown), p, ctx.OnNavigate),
+                                       => DiagramRenderer.Render(fc.Info!, ExtractFencedContent(fc, rawMarkdown),
+                                              new DiagramRenderOptions
+                                              {
+                                                  Palette           = p,
+                                                  OnNavigate        = ctx.OnNavigate,
+                                                  OnExpand          = ctx.OnDiagramExpand,
+                                                  OnSelect          = ctx.OnDiagramSelect,
+                                                  FitToWidth        = ctx.FitContentToWidth,
+                                                  OpenOnDoubleClick = ctx.DiagramOpenOnDoubleClick,
+                                                  ZoomOnWheel       = ctx.DiagramZoomOnWheel,
+                                                  MaxHeight         = ctx.MaxDiagramHeight,
+                                                  ViewState         = ctx.DiagramStates?.Next(),
+                                              }),
                 FencedCodeBlock    fc  => RenderCode(fc.Lines.ToString(), ctx),
                 CodeBlock          cb  => RenderCode(cb.Lines.ToString(), ctx),
                 MdTable            t   => RenderTable(t, ctx),

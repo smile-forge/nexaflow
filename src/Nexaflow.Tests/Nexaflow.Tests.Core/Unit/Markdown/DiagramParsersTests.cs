@@ -2702,4 +2702,100 @@ public class DiagramParsersTests
         Assert.AreEqual(0, g.Nodes.Count);
         Assert.AreEqual(0, g.Edges.Count);
     }
+
+    // ── config: nexaflow: (expansion) ─────────────────────────────────────
+
+    private static string FrontMatter(string body) =>
+        MermaidFrontmatter.RawBlock("---\n" + body + "\n---\ngraph LR\n  a --> b\n")!;
+
+    [TestMethod]
+    [CoversNode("graph-expandable-nodes")]
+    public void Nexaflow_ExpandDepthAndFanOutAreRead()
+    {
+        var cfg = NexaflowConfigParser.Parse(FrontMatter(
+            """
+            config:
+              nexaflow:
+                expandDepth: 2
+                maxFanOut: 30
+            """));
+
+        Assert.AreEqual(2,  cfg.ExpandDepth);
+        Assert.AreEqual(30, cfg.MaxFanOut);
+    }
+
+    [TestMethod]
+    [CoversNode("graph-expandable-nodes")]
+    public void Nexaflow_CollapsedAcceptsBothAListAndAKeyedBlock()
+    {
+        // A producer that only needs ids uses the list; one that wants its own name back — the PE
+        // inspector thinks in module names, not in "n7" — uses the keyed form.
+        var list = NexaflowConfigParser.Parse(FrontMatter(
+            """
+            config:
+              nexaflow:
+                collapsed: [n1, n2]
+            """));
+        CollectionAssert.AreEquivalent(new[] { "n1", "n2" }, list.Collapsed.Keys.ToArray());
+        Assert.AreEqual("n1", list.Collapsed["n1"], "Without a key, a node answers with its own id.");
+
+        var keyed = NexaflowConfigParser.Parse(FrontMatter(
+            """
+            config:
+              nexaflow:
+                collapsed:
+                  n3: KERNEL32.dll
+                expanded:
+                  n0: "app.exe"
+            """));
+        Assert.AreEqual("KERNEL32.dll", keyed.Collapsed["n3"]);
+        Assert.AreEqual("app.exe",      keyed.Expanded["n0"]);
+    }
+
+    [TestMethod]
+    [CoversNode("graph-expandable-nodes")]
+    public void Nexaflow_KeysOutsideTheNamespaceAreNotMistakenForIt()
+    {
+        // The whole point of the namespace: another diagram's config can use these words freely.
+        var cfg = NexaflowConfigParser.Parse(FrontMatter(
+            """
+            config:
+              er:
+                expandDepth: 9
+              themeVariables:
+                collapsed:
+                  n1: nope
+            """));
+
+        Assert.IsNull(cfg.ExpandDepth);
+        Assert.AreEqual(0, cfg.Collapsed.Count);
+        Assert.IsTrue(cfg.IsEmpty, "Nothing outside config.nexaflow may switch expansion on.");
+    }
+
+    [TestMethod]
+    [CoversNode("graph-expandable-nodes")]
+    public void Nexaflow_UnknownKeysAndMalformedValuesAreIgnored()
+    {
+        var cfg = NexaflowConfigParser.Parse(FrontMatter(
+            """
+            config:
+              nexaflow:
+                expandDepth: soon
+                somethingNew: 4
+                maxFanOut: -3
+            """));
+
+        Assert.IsNull(cfg.ExpandDepth, "A value that isn't a number leaves the default alone.");
+        Assert.AreEqual(0, cfg.MaxFanOut, "A negative cap is not a cap.");
+        Assert.IsTrue(cfg.IsEmpty);
+    }
+
+    [TestMethod]
+    [CoversNode("graph-expandable-nodes")]
+    public void Nexaflow_NoFrontMatterMeansNoExpansion()
+    {
+        Assert.IsTrue(NexaflowConfigParser.Parse(null).IsEmpty);
+        Assert.IsTrue(NexaflowConfigParser.Parse("").IsEmpty);
+        Assert.IsTrue(NexaflowConfigParser.Parse("title: Just a title").IsEmpty);
+    }
 }

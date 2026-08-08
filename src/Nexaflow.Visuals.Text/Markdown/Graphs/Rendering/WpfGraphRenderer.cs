@@ -6,6 +6,35 @@ using System.Windows.Shapes;
 
 namespace Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 
+/// <summary>Per-render hooks for <see cref="WpfGraphRenderer"/>.</summary>
+public sealed class GraphRenderOptions
+{
+    /// <summary>Click hook for nodes / class-member rows carrying an <c>href</c>.</summary>
+    public Func<string, bool>? OnNavigate { get; init; }
+
+    /// <summary>
+    /// Click hook for a node's expand chip, given the node id. Null → no chip is drawn: an
+    /// affordance that promises to open something and then cannot is worse than none.
+    /// </summary>
+    public Func<string, bool>? OnToggleExpand { get; init; }
+
+    /// <summary>
+    /// Click hook for the body of a node, given its id. When set it replaces following the node's
+    /// <c>href</c> — the host decides what a click means (select, open, both) and every node becomes
+    /// clickable, not just the ones carrying a link.
+    /// </summary>
+    public Func<string, bool>? OnNodeClick { get; init; }
+
+    /// <summary>The node drawn as selected: it and the edges touching it are picked out, so a line
+    /// can be followed across a diagram too dense to trace by eye.</summary>
+    public string? SelectedNodeId { get; init; }
+
+    /// <summary>Cap on the scroller wrapped around the canvas by <see cref="WpfGraphRenderer.Render"/>.</summary>
+    public double MaxHeight { get; init; } = 600;
+
+    public static readonly GraphRenderOptions None = new();
+}
+
 /// <summary>
 /// Converts a <see cref="LayoutedGraph"/> to a WPF <see cref="Canvas"/>.
 ///
@@ -37,10 +66,19 @@ public static class WpfGraphRenderer
     private static Brush NoteBorder     = Frozen(Color.FromRgb(0xF5, 0x9E, 0x0B));
     private static Brush LinkBrush      = Frozen(Color.FromRgb(0x4F, 0x8E, 0xF7));   // clickable class-member rows
 
-    // Navigation hook for clickable class-diagram members. Set once per render (markdown renders synchronously
-    // on the UI thread), but each member row captures it into its own closure so a click after a later render
-    // still calls the right handler.
-    private static Func<string, bool>? _onNavigate;
+    // The interaction hooks are NOT statics like the theme above: every element that gets a click
+    // captures the callback from the options it was drawn with, so a click arriving after a later
+    // render still runs the handler that element was built for.
+
+    // Expand chip. Its colours come from the palette like every other surface here, so a theme
+    // retunes it rather than the chip staying blue on a parchment background.
+    private static Brush ChipBg     = Frozen(Color.FromRgb(0x12, 0x16, 0x24));
+    private static Brush ChipBorder = Frozen(Color.FromRgb(0x4F, 0x8E, 0xF7));
+    private static Brush ChipGlyph  = Frozen(Color.FromRgb(0xE8, 0xEA, 0xF2));
+
+    // Selection. Deliberately not the accent — the accent is already what every ordinary edge and
+    // border is drawn in, so picking a node out with it would pick out nothing.
+    private static Brush SelectBrush = Frozen(Color.FromRgb(0xF5, 0x9E, 0x0B));
 
     private static readonly FontFamily BodyFont = new("Segoe UI");
     private const double FontSize = 12.0;
@@ -68,14 +106,48 @@ public static class WpfGraphRenderer
         var nc      = (p.Warning as SolidColorBrush)?.Color ?? Color.FromRgb(0xF5, 0x9E, 0x0B);
         NoteBg      = Frozen(Color.FromArgb(0x33, nc.R, nc.G, nc.B));
         LinkBrush   = p.Accent;
+
+        ChipBg      = p.CodeBg;
+        ChipBorder  = p.Accent;
+        ChipGlyph   = p.Text;
+        SelectBrush = p.Warning;
     }
 
     // ── Public API ─────────────────────────────────────────────────────────
 
     public static FrameworkElement Render(LayoutedGraph lg, MarkdownPalette palette, Func<string, bool>? onNavigate = null)
+        => Render(lg, palette, new GraphRenderOptions { OnNavigate = onNavigate });
+
+    /// <summary>The canvas wrapped in the renderer's own bordered scroller — the shape every diagram
+    /// type has always returned. A host that supplies its own viewport calls <see cref="RenderCanvas"/>.</summary>
+    public static FrameworkElement Render(LayoutedGraph lg, MarkdownPalette palette, GraphRenderOptions options)
     {
+        var canvas = RenderCanvas(lg, palette, options);
+
+        // Wrap in a ScrollViewer-friendly Border
+        return new Border
+        {
+            Background      = BgBrush,
+            BorderBrush     = NodeBorder,
+            BorderThickness = new Thickness(1),
+            CornerRadius    = new CornerRadius(6),
+            Margin          = new Thickness(0, 8, 0, 12),
+            Padding         = new Thickness(0),
+            Child           = new ScrollViewer
+            {
+                Content                       = canvas,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                VerticalScrollBarVisibility   = ScrollBarVisibility.Auto,
+                MaxHeight                     = options.MaxHeight,
+            }
+        };
+    }
+
+    /// <summary>The bare drawing surface, at the layout's natural size and with no chrome.</summary>
+    public static Canvas RenderCanvas(LayoutedGraph lg, MarkdownPalette palette, GraphRenderOptions? options = null)
+    {
+        options ??= GraphRenderOptions.None;
         SetTheme(palette);
-        _onNavigate = onNavigate;
 
         var canvas = new Canvas
         {
@@ -90,13 +162,19 @@ public static class WpfGraphRenderer
         foreach (var (label, bounds) in lg.SubgraphBoxes)
             DrawSubgraphBox(canvas, label, bounds);
 
-        // Edges (below nodes)
-        foreach (var le in lg.Edges)
-            DrawEdge(canvas, le, horizontal);
+        // Edges (below nodes). The selected node's own edges go last so they lie over the rest —
+        // picking a line out of a bundle is the whole point of selecting the node.
+        string? selected = options.SelectedNodeId;
+        bool Touches(LayoutEdge e) =>
+            selected is not null &&
+            (e.From.Source?.Id == selected || e.To.Source?.Id == selected);
+
+        foreach (var le in lg.Edges.Where(e => !Touches(e))) DrawEdge(canvas, le, horizontal, false);
+        foreach (var le in lg.Edges.Where(Touches))          DrawEdge(canvas, le, horizontal, true);
 
         // Nodes
         foreach (var ln in lg.AllNodes.Where(n => !n.IsDummy))
-            DrawNode(canvas, ln);
+            DrawNode(canvas, ln, options);
 
         // Title (if any)
         if (!string.IsNullOrWhiteSpace(lg.Source.Title))
@@ -115,28 +193,12 @@ public static class WpfGraphRenderer
             canvas.Children.Add(tb);
         }
 
-        // Wrap in a ScrollViewer-friendly Border
-        return new Border
-        {
-            Background      = BgBrush,
-            BorderBrush     = NodeBorder,
-            BorderThickness = new Thickness(1),
-            CornerRadius    = new CornerRadius(6),
-            Margin          = new Thickness(0, 8, 0, 12),
-            Padding         = new Thickness(0),
-            Child           = new ScrollViewer
-            {
-                Content                       = canvas,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-                VerticalScrollBarVisibility   = ScrollBarVisibility.Auto,
-                MaxHeight                     = 600,
-            }
-        };
+        return canvas;
     }
 
     // ── Node drawing ───────────────────────────────────────────────────────
 
-    private static void DrawNode(Canvas canvas, LayoutNode ln)
+    private static void DrawNode(Canvas canvas, LayoutNode ln, GraphRenderOptions options)
     {
         UIElement shape = ln.Source?.Shape switch
         {
@@ -159,9 +221,11 @@ public static class WpfGraphRenderer
             NodeShape.StateEnd         => DrawStateEnd(ln),
             NodeShape.ForkJoin         => DrawForkJoin(ln),
             NodeShape.Note             => DrawNote(ln),
-            NodeShape.ClassBox         => DrawClassBox(ln),
+            NodeShape.ClassBox         => DrawClassBox(ln, options),
             _                          => DrawRectShape(ln),
         };
+
+        if (ln.Source?.Id is { } nodeId && nodeId == options.SelectedNodeId) Highlight(shape);
         canvas.Children.Add(shape);
 
         // A class box draws its own multi-compartment text; everything else gets the centred label.
@@ -169,9 +233,12 @@ public static class WpfGraphRenderer
         {
             string label = ln.Source.Label;
             bool   isNote = ln.Source.Shape == NodeShape.Note;
-            int lines = label.Count(c => c == '\n') + 1;
             double maxW = ln.Source.Shape == NodeShape.Diamond ? ln.Width * 0.7
                         : isNote ? ln.Width - 16 : ln.Width - 12;
+
+            // The same wrap the layout reserved room for, so a wrapped label stays centred in the
+            // box rather than hanging out of the bottom of it.
+            int lines = NodeLabelMetrics.Measure(label, maxW + NodeLabelMetrics.PadX).Lines;
 
             var lbl = new TextBlock
             {
@@ -191,12 +258,112 @@ public static class WpfGraphRenderer
 
             // The label sits over the shape, so it has to carry the gesture too — otherwise clicking
             // the node's text (the obvious target) would miss.
-            DiagramInteraction.Attach(lbl, ln.Source.Href, ln.Source.Tooltip, _onNavigate);
+            DiagramInteraction.Attach(lbl, BodyTarget(ln, options));
         }
 
-        // Capture per render, matching the class-member links: a click after a later render must
-        // still route through whichever callback is current.
-        DiagramInteraction.Attach(shape, ln.Source?.Href, ln.Source?.Tooltip, _onNavigate);
+        DiagramInteraction.Attach(shape, BodyTarget(ln, options));
+
+        // Last, so it sits above both the shape and the label — the chip is a hit region of its own.
+        DrawExpandChip(canvas, ln, options);
+    }
+
+    /// <summary>
+    /// What clicking the body of a node does. With an <see cref="GraphRenderOptions.OnNodeClick"/>
+    /// hook every node is clickable and the host decides what a click means (select it, open it, or
+    /// both); without one it falls back to following the node's <c>href</c>, which is what a diagram
+    /// rendered outside an interactive view has always done.
+    /// </summary>
+    private static DiagramTarget? BodyTarget(LayoutNode ln, GraphRenderOptions options)
+    {
+        if (ln.Source is not { } node) return null;
+
+        if (options.OnNodeClick is { } click)
+            return new DiagramTarget(() => click(node.Id), node.Tooltip ?? node.Href,
+                                     DiagramTargetKind.Activate, node.Id);
+
+        if (options.OnNavigate is not { } navigate || node.Href is not { Length: > 0 } href) return null;
+        return new DiagramTarget(() => navigate(href),
+                                 string.IsNullOrWhiteSpace(node.Tooltip) ? href : node.Tooltip,
+                                 DiagramTargetKind.Activate, node.Id);
+    }
+
+    /// <summary>Picks the selected node's outline out of the diagram.</summary>
+    private static void Highlight(UIElement shape)
+    {
+        switch (shape)
+        {
+            case Shape s:            s.Stroke = SelectBrush;      s.StrokeThickness = 3;                     break;
+            case Border b:           b.BorderBrush = SelectBrush; b.BorderThickness = new Thickness(3);      break;
+            case Panel p when p.Children.Count > 0 && p.Children[0] is Shape first:
+                                     first.Stroke = SelectBrush;  first.StrokeThickness = 3;                 break;
+        }
+    }
+
+    // ── Expand chip ────────────────────────────────────────────────────────
+
+    private const double ChipSize = 15;
+
+    /// <summary>
+    /// The <c>[+]</c> / <c>[−]</c> chip on a node that hides (or has opened) a subtree.
+    /// <para>
+    /// It straddles the node's top-right corner — the one place clear of both the incoming face
+    /// (top / left) and the outgoing one (bottom / right) whichever way the graph flows, so it never
+    /// collides with an edge. Drawn as its own element with its own action, which is the whole point:
+    /// the body of the node keeps its own click, and expansion is a second target rather than a
+    /// second meaning smuggled into the first.
+    /// </para>
+    /// </summary>
+    private static void DrawExpandChip(Canvas canvas, LayoutNode ln, GraphRenderOptions options)
+    {
+        if (options.OnToggleExpand is null) return;
+        if (ln.Source is not { } node || node.Expansion == NodeExpansion.Leaf) return;
+
+        bool   collapsed = node.Expansion == NodeExpansion.Collapsed;
+        var    toggle    = options.OnToggleExpand;   // into the closure, not read back off a static
+        string id        = node.Id;
+
+        double cx = ln.X + ln.Width / 2.0;
+        double cy = ln.Y - ln.Height / 2.0;
+
+        var chip = new Grid
+        {
+            Width      = ChipSize,
+            Height     = ChipSize,
+            Background = Brushes.Transparent,   // the whole square is grabbable, not just the glyph
+        };
+        chip.Children.Add(new Rectangle
+        {
+            Width           = ChipSize,
+            Height          = ChipSize,
+            RadiusX         = 3,
+            RadiusY         = 3,
+            Fill            = ChipBg,
+            Stroke          = ChipBorder,
+            StrokeThickness = 1.2,
+        });
+
+        var glyph = new Line
+        {
+            X1 = 4, Y1 = ChipSize / 2.0, X2 = ChipSize - 4, Y2 = ChipSize / 2.0,
+            Stroke = ChipGlyph, StrokeThickness = 1.6, SnapsToDevicePixels = true,
+        };
+        chip.Children.Add(glyph);
+        if (collapsed)
+            chip.Children.Add(new Line
+            {
+                X1 = ChipSize / 2.0, Y1 = 4, X2 = ChipSize / 2.0, Y2 = ChipSize - 4,
+                Stroke = ChipGlyph, StrokeThickness = 1.6, SnapsToDevicePixels = true,
+            });
+
+        Canvas.SetLeft(chip, cx - ChipSize / 2.0);
+        Canvas.SetTop(chip,  cy - ChipSize / 2.0);
+        canvas.Children.Add(chip);
+
+        string hidden = node.HiddenCount > 0 ? $" ({node.HiddenCount} hidden)" : string.Empty;
+        DiagramInteraction.Attach(chip, new DiagramTarget(
+            () => toggle(id),
+            collapsed ? $"Expand{hidden}" : "Collapse",
+            DiagramTargetKind.Expand, id));
     }
 
     private static Brush NodeFill(LayoutNode ln, Brush def) =>
@@ -565,7 +732,7 @@ public static class WpfGraphRenderer
 
     // ── Class-diagram box ─────────────────────────────────────────────────
 
-    private static UIElement DrawClassBox(LayoutNode ln)
+    private static UIElement DrawClassBox(LayoutNode ln, GraphRenderOptions options)
     {
         var info   = ln.Source!.Class!;
         var stroke = NodeStroke(ln, NodeBorder);
@@ -579,7 +746,7 @@ public static class WpfGraphRenderer
         double boxLeft = (ln.Width - bw) / 2.0;
         double boxTop  = hasAbove ? band : 0;
 
-        var border = BuildClassBorder(ln, info, bw, bh);
+        var border = BuildClassBorder(ln, info, bw, bh, options);
         Canvas.SetLeft(border, boxLeft);
         Canvas.SetTop(border,  boxTop);
         cell.Children.Add(border);
@@ -593,7 +760,7 @@ public static class WpfGraphRenderer
         return cell;
     }
 
-    private static Border BuildClassBorder(LayoutNode ln, ClassInfo info, double bw, double bh)
+    private static Border BuildClassBorder(LayoutNode ln, ClassInfo info, double bw, double bh, GraphRenderOptions options)
     {
         var fill   = NodeFill(ln, NodeBg);
         var stroke = NodeStroke(ln, NodeBorder);
@@ -617,11 +784,11 @@ public static class WpfGraphRenderer
         if (info.HasMembers)
         {
             panel.Children.Add(ClassDivider(stroke));
-            panel.Children.Add(ClassCompartment(info.Attributes, text, rowH, padX, padV));
+            panel.Children.Add(ClassCompartment(info.Attributes, text, rowH, padX, padV, options));
             if (!info.SingleCompartment)
             {
                 panel.Children.Add(ClassDivider(stroke));
-                panel.Children.Add(ClassCompartment(info.Methods, text, rowH, padX, padV));
+                panel.Children.Add(ClassCompartment(info.Methods, text, rowH, padX, padV, options));
             }
         }
 
@@ -680,9 +847,9 @@ public static class WpfGraphRenderer
         }
     }
 
-    private static UIElement ClassCompartment(IReadOnlyList<ClassMember> members, Brush text, double rowH, double padX, double padV)
+    private static UIElement ClassCompartment(IReadOnlyList<ClassMember> members, Brush text, double rowH, double padX, double padV, GraphRenderOptions options)
     {
-        var nav = _onNavigate;   // capture per render so a click after a later render still routes correctly
+        var nav = options.OnNavigate;
         var sp = new StackPanel { Margin = new Thickness(0, padV, 0, padV) };
         foreach (var m in members)
         {
@@ -802,7 +969,7 @@ public static class WpfGraphRenderer
         return new Point(node.X + dx / denom, node.Y + dy / denom);    // project onto the boundary
     }
 
-    private static void DrawEdge(Canvas canvas, LayoutEdge le, bool horizontal)
+    private static void DrawEdge(Canvas canvas, LayoutEdge le, bool horizontal, bool highlighted = false)
     {
         var pts = le.Waypoints;
         if (pts.Count < 2) return;
@@ -814,7 +981,7 @@ public static class WpfGraphRenderer
         pts[^1] = ClipToShape(le.To,   pts[^1]);
 
         var edge      = le.Source;
-        var brush     = edge?.Style switch
+        var brush     = highlighted ? SelectBrush : edge?.Style switch
         {
             EdgeStyle.Thick  => EdgeThickBrush,
             EdgeStyle.Dashed => EdgeDashedBrush,
@@ -822,6 +989,7 @@ public static class WpfGraphRenderer
             _                => EdgeBrush,
         };
         double thickness = edge?.Style == EdgeStyle.Thick ? 2.5 : 1.5;
+        if (highlighted) thickness += 1.0;
 
         var (path, startTan, endTan) = BuildBezierPath(pts, horizontal);
         path.Stroke               = brush;

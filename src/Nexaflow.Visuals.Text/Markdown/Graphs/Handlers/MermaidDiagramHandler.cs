@@ -58,10 +58,14 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         language.Equals("mermaid", StringComparison.OrdinalIgnoreCase);
 
     public FrameworkElement Render(string source, MarkdownPalette palette, Func<string, bool>? onNavigate = null)
+        => Render(source, DiagramRenderOptions.For(palette, onNavigate));
+
+    public FrameworkElement Render(string source, DiagramRenderOptions options)
     {
         // A leading `--- … ---` YAML front-matter block (title/config) is stripped here so every
         // sub-type sees only the diagram body; a front-matter title is applied to the parsed chart.
         var (body, title) = MermaidFrontmatter.Strip(source);
+        var palette = options.Palette;
 
         return SubtypeOf(body) switch
         {
@@ -71,20 +75,20 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             MermaidSubtype.Gantt    => RenderGantt(body, title, palette),
             MermaidSubtype.Git      => RenderGit(body, title, palette),
             MermaidSubtype.Mindmap  => RenderMindmap(body, title, palette),
-            MermaidSubtype.State       => RenderState(body, title, palette, onNavigate),
-            MermaidSubtype.Class       => RenderClass(body, title, palette, onNavigate),
-            MermaidSubtype.Requirement => RenderRequirement(body, title, palette, onNavigate),
+            MermaidSubtype.State       => RenderGraphFamily(StateParser.Parse(body), source, title, options, 900),
+            MermaidSubtype.Class       => RenderClass(source, body, title, options),
+            MermaidSubtype.Requirement => RenderGraphFamily(RequirementParser.Parse(body), source, title, options, 1100),
             MermaidSubtype.Kanban      => RenderKanban(body, title, palette),
             MermaidSubtype.XyChart     => RenderXyChart(source, body, title, palette),
             MermaidSubtype.Radar       => RenderRadar(source, body, title, palette),
             MermaidSubtype.Ishikawa    => RenderIshikawa(source, body, title, palette),
             MermaidSubtype.Sankey      => RenderSankey(source, body, title, palette),
-            MermaidSubtype.Er          => RenderEr(source, body, title, palette, onNavigate),
+            MermaidSubtype.Er          => RenderEr(source, body, title, options),
             MermaidSubtype.Venn        => RenderVenn(source, body, title, palette),
             MermaidSubtype.Cynefin      => RenderCynefin(source, body, title, palette),
             MermaidSubtype.Architecture => RenderArchitecture(source, body, title, palette),
             MermaidSubtype.Swimlane     => RenderSwimlane(body, title, palette),
-            MermaidSubtype.Graph       => RenderGraph(body, title, palette, onNavigate),
+            MermaidSubtype.Graph       => RenderGraphFamily(FlowParser.Parse(body), source, title, options, 900),
             _                       => RenderSourceText(body),
         };
     }
@@ -244,13 +248,12 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         return WpfSankeyRenderer.Render(diagram, palette);
     }
 
-    private static FrameworkElement RenderEr(string source, string body, string? title, MarkdownPalette palette, Func<string, bool>? onNavigate)
+    private static FrameworkElement RenderEr(string source, string body, string? title, DiagramRenderOptions options)
     {
         // ER entities are UML-style boxes, so they reuse the shared graph model + Sugiyama + WpfGraphRenderer
         // (like class / requirement diagrams). The er config is applied here: an inline `direction` wins, else
         // config layoutDirection; an explicit fill/stroke becomes the default for entities lacking a colour.
         var graph = ErParser.Parse(body);
-        graph.Title = Titled(graph.Title, title);
 
         var cfg = ErConfigParser.Parse(MermaidFrontmatter.RawBlock(source));
         bool inlineDir = body.Split('\n').Any(l => l.TrimStart().StartsWith("direction ", StringComparison.OrdinalIgnoreCase));
@@ -261,8 +264,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             if (cfg.Stroke is string s && node.StrokeColor is null) node.StrokeColor = s;
         }
 
-        var layout = SugiyamaLayout.Compute(graph, preferredMaxWidth: 1100);
-        return WpfGraphRenderer.Render(layout, palette, onNavigate);
+        return RenderGraphFamily(graph, source, title, options, 1100);
     }
 
     private static FrameworkElement RenderVenn(string source, string body, string? title, MarkdownPalette palette)
@@ -315,37 +317,21 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             },
         };
 
-    private static FrameworkElement RenderGraph(string source, string? title, MarkdownPalette palette, Func<string, bool>? onNavigate)
-    {
-        var graph  = FlowParser.Parse(source);
-        graph.Title = Titled(graph.Title, title);
-        var layout = SugiyamaLayout.Compute(graph, preferredMaxWidth: 900);
-        return WpfGraphRenderer.Render(layout, palette, onNavigate);
-    }
+    // Class boxes are wide; allow more width before the layout starts compacting horizontal gaps.
+    private static FrameworkElement RenderClass(string source, string body, string? title, DiagramRenderOptions options)
+        => RenderGraphFamily(ClassParser.Parse(body), source, title, options, 1100);
 
-    private static FrameworkElement RenderState(string source, string? title, MarkdownPalette palette, Func<string, bool>? onNavigate)
+    /// <summary>
+    /// Every diagram that shares the graph model, layout and renderer — flowchart, state, class, ER,
+    /// requirement — goes through one path, so expansion, the <c>config: nexaflow:</c> block and the
+    /// viewport are properties of "a graph diagram" rather than of whichever one they were built for.
+    /// </summary>
+    /// <param name="fallbackWidth">Width to lay out for until the view knows its real one.</param>
+    private static FrameworkElement RenderGraphFamily(
+        Graph graph, string source, string? title, DiagramRenderOptions options, double fallbackWidth)
     {
-        var graph  = StateParser.Parse(source);
         graph.Title = Titled(graph.Title, title);
-        var layout = SugiyamaLayout.Compute(graph, preferredMaxWidth: 900);
-        return WpfGraphRenderer.Render(layout, palette, onNavigate);
-    }
-
-    private static FrameworkElement RenderClass(string source, string? title, MarkdownPalette palette,
-        Func<string, bool>? onNavigate)
-    {
-        var graph  = ClassParser.Parse(source);
-        graph.Title = Titled(graph.Title, title);
-        // Class boxes are wide; allow more width before the layout starts compacting horizontal gaps.
-        var layout = SugiyamaLayout.Compute(graph, preferredMaxWidth: 1100);
-        return WpfGraphRenderer.Render(layout, palette, onNavigate);
-    }
-
-    private static FrameworkElement RenderRequirement(string source, string? title, MarkdownPalette palette, Func<string, bool>? onNavigate)
-    {
-        var graph  = RequirementParser.Parse(source);
-        graph.Title = Titled(graph.Title, title);
-        var layout = SugiyamaLayout.Compute(graph, preferredMaxWidth: 1100);
-        return WpfGraphRenderer.Render(layout, palette, onNavigate);
+        var cfg = NexaflowConfigParser.Parse(MermaidFrontmatter.RawBlock(source));
+        return new GraphDiagramView(graph, cfg, options.Palette, options, fallbackWidth);
     }
 }

@@ -22,4 +22,15 @@ public interface IDiagramHandler
     /// <param name="onNavigate">Optional click hook for navigable diagram elements (e.g. class-diagram member
     /// rows that carry a link). Handlers without clickable elements ignore it.</param>
     FrameworkElement Render(string source, MarkdownPalette palette, Func<string, bool>? onNavigate = null);
+
+    /// <summary>
+    /// The same render, given everything the host offers rather than just a navigation hook — an
+    /// expand/collapse handler, and whether the surface scales diagrams to its width.
+    /// <para>
+    /// Defaulted to the palette-and-navigate form so a handler with nothing to gain from the extra
+    /// hooks (a pie chart has no expandable nodes) does not have to say so.
+    /// </para>
+    /// </summary>
+    FrameworkElement Render(string source, DiagramRenderOptions options)
+        => Render(source, options.Palette, options.OnNavigate);
 }

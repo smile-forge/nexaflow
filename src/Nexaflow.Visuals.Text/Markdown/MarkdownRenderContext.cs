@@ -19,6 +19,37 @@ public sealed class MarkdownRenderContext
     public Func<string, bool>? OnNavigate { get; init; }
 
     /// <summary>
+    /// Invoked when a diagram node's expand chip is clicked. Return <c>true</c> to claim it — a host
+    /// that generated the diagram answers by re-emitting it with more of the tree walked. Return
+    /// false, or leave this null, and the diagram opens the node itself from what it already holds.
+    /// </summary>
+    public Func<DiagramExpandRequest, bool>? OnDiagramExpand { get; init; }
+
+    /// <summary>Called when a diagram's selected node changes, for a host showing detail beside it.</summary>
+    public Action<DiagramSelection>? OnDiagramSelect { get; init; }
+
+    /// <summary>In a diagram, a single click on a node selects it and a double-click opens it. For a
+    /// pane where opening a node costs something (a whole new tab). See
+    /// <see cref="DiagramRenderOptions.OpenOnDoubleClick"/>.</summary>
+    public bool DiagramOpenOnDoubleClick { get; init; }
+
+    /// <summary>A plain wheel over a diagram zooms it instead of scrolling this surface. Only for a
+    /// pane whose whole content is the diagram. See <see cref="DiagramRenderOptions.ZoomOnWheel"/>.</summary>
+    public bool DiagramZoomOnWheel { get; init; }
+
+    /// <summary>Height a diagram may take before it becomes a window onto itself. Zero uses the
+    /// default; a pane that is entirely one diagram passes its own height so the diagram fills it
+    /// rather than overflowing past the bottom of the panel.</summary>
+    public double MaxDiagramHeight { get; init; }
+
+    /// <summary>
+    /// Where each diagram's expansion, selection and pan/zoom are kept between renders. Null means
+    /// they are not kept — fine for a surface that renders once, wrong for one whose host re-emits
+    /// the markdown to answer an expand.
+    /// </summary>
+    public DiagramViewStates? DiagramStates { get; init; }
+
+    /// <summary>
     /// Optional base directory used to resolve relative <c>![](file.png)</c> image paths to a
     /// local file (e.g. a post-it's attachment folder). Absolute paths and <c>file:</c> URIs
     /// resolve without it; remote <c>http(s)</c> images are never loaded and render as text.

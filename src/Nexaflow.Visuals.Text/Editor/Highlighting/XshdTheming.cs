@@ -13,12 +13,18 @@ namespace Nexaflow.Visuals.Text.Editor.Highlighting;
 /// </summary>
 internal static class XshdTheming
 {
-    private static readonly HashSet<IHighlightingDefinition> Applied = [];
-
+    /// <summary>
+    /// Retints <paramref name="definition"/> to the theme that is active right now.
+    /// <para>
+    /// Applied on every resolve rather than once per definition. It reads as wasted work — the
+    /// definitions are shared singletons, so the colours would already be set — but a theme switch
+    /// rebuilds the window inside the <i>same process</i>, and both the definition and any
+    /// "already done" bookkeeping would outlive it. Guarding this left code coloured for whichever
+    /// theme happened to be loaded first. It is a couple of dozen property assignments.
+    /// </para>
+    /// </summary>
     public static void ApplyTheme(IHighlightingDefinition definition)
     {
-        if (!Applied.Add(definition)) return; // idempotent; the definition is a shared singleton
-
         foreach (var color in definition.NamedHighlightingColors)
         {
             var key = SyntaxTokenMap.XshdResourceKey(color.Name);

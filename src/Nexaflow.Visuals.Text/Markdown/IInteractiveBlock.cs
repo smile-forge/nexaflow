@@ -28,6 +28,21 @@ public interface IInteractiveBlock
     /// <summary>Clears this block's selection (used by the coordinator when another block or a text click
     /// takes the selection).</summary>
     void ClearSelection();
+
+    /// <summary>
+    /// A double-click landed on the block. Defaulted to no-op, so the host keeps double-click for
+    /// itself (source-edit mode) unless a block says otherwise — a diagram claims it to open the node
+    /// under the pointer.
+    /// </summary>
+    /// <returns>True when the block handled it and the host should not.</returns>
+    bool PointerDoubleClick(Point pointInElement) => false;
+
+    /// <summary>
+    /// Whether the block wants the mouse wheel at this point rather than the page scrolling past it.
+    /// The host has to ask, because it intercepts the wheel on the way down: a block that zooms with
+    /// the wheel would otherwise never see one.
+    /// </summary>
+    bool WantsPointerWheel(Point pointInElement) => false;
 }
 
 /// <summary>

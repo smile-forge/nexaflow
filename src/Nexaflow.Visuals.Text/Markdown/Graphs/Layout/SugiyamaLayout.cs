@@ -75,21 +75,29 @@ public static class SugiyamaLayout
     public const double MarginX  = 28;
     public const double MarginY  = 28;
     private const double GapXMin = 12;  // minimum allowed GapX when compacting a wide layout
+    private const double RowGap  = 20;  // between the rows a wrapped (high fan-out) layer breaks into
 
     // ── Public entry ──────────────────────────────────────────────────────
 
     /// <param name="preferredMaxWidth">
-    /// When &gt; 0 and the layout is not horizontal, GapX will be reduced
-    /// (down to <see cref="GapXMin"/>) to try to keep the diagram within this width.
+    /// When &gt; 0 and the layout is not horizontal, a layer wider than this wraps onto further rows,
+    /// and failing that GapX is reduced (down to <see cref="GapXMin"/>) to keep the diagram within it.
     /// </param>
-    public static LayoutedGraph Compute(Graph graph, double preferredMaxWidth = 0)
+    /// <param name="preferredMaxHeight">
+    /// The same for the secondary axis of a horizontal (LR/RL) graph, where a wide fan-out stacks
+    /// vertically. Zero leaves a horizontal layout unwrapped however tall it grows.
+    /// </param>
+    public static LayoutedGraph Compute(Graph graph, double preferredMaxWidth = 0, double preferredMaxHeight = 0)
     {
         if (graph.Nodes.Count == 0)
             return new LayoutedGraph { Source = graph };
 
+        bool horiz = graph.Direction is GraphDirection.LeftRight or GraphDirection.RightLeft;
+        double wrapLimit = horiz ? preferredMaxHeight : preferredMaxWidth;
+
         var result = graph.Subgraphs.Count > 0
-            ? ComputeClustered(graph, preferredMaxWidth)
-            : ComputeFlat(graph, preferredMaxWidth, null);
+            ? ComputeClustered(graph, preferredMaxWidth, wrapLimit)
+            : ComputeFlat(graph, preferredMaxWidth, wrapLimit, null);
 
         bool horizontal = result.Source.Direction is GraphDirection.LeftRight or GraphDirection.RightLeft;
         SeparateParallelEdges(result.Edges, horizontal);
@@ -204,7 +212,8 @@ public static class SugiyamaLayout
     /// <summary>The core Sugiyama pipeline with no cluster handling. <paramref name="sizes"/> overrides
     /// node dimensions by id (used to reserve space for collapsed subgraph super-nodes).</summary>
     private static LayoutedGraph ComputeFlat(
-        Graph graph, double preferredMaxWidth, IReadOnlyDictionary<string, (double w, double h)>? sizes)
+        Graph graph, double preferredMaxWidth, double wrapLimit,
+        IReadOnlyDictionary<string, (double w, double h)>? sizes)
     {
         bool horizontal = graph.Direction is GraphDirection.LeftRight or GraphDirection.RightLeft;
 
@@ -216,10 +225,10 @@ public static class SugiyamaLayout
         var components = FindComponents(graph.Nodes.Select(n => n.Id).ToList(), work);
 
         if (components.Count <= 1)
-            return LayoutComponent(graph, graph.Nodes.Select(n => n.Id).ToHashSet(), work, preferredMaxWidth, sizes);
+            return LayoutComponent(graph, graph.Nodes.Select(n => n.Id).ToHashSet(), work, preferredMaxWidth, wrapLimit, sizes);
 
         var compLayouts = components
-            .Select(ids => LayoutComponent(graph, ids, work.Where(e => ids.Contains(e.Src)).ToList(), preferredMaxWidth, sizes))
+            .Select(ids => LayoutComponent(graph, ids, work.Where(e => ids.Contains(e.Src)).ToList(), preferredMaxWidth, wrapLimit, sizes))
             .ToList();
         return PackComponents(graph, compLayouts, horizontal);
     }
@@ -236,7 +245,7 @@ public static class SugiyamaLayout
     /// state composites nest arbitrarily deep. Edges attach to whichever entity owns each endpoint
     /// at the level being laid out.
     /// </summary>
-    private static LayoutedGraph ComputeClustered(Graph graph, double preferredMaxWidth)
+    private static LayoutedGraph ComputeClustered(Graph graph, double preferredMaxWidth, double wrapLimit)
     {
         // Each node → the subgraph that directly owns it (the parser lists innermost first; first wins).
         var ownerOf = new Dictionary<string, Subgraph>(StringComparer.Ordinal);
@@ -310,7 +319,7 @@ public static class SugiyamaLayout
             }
 
             var lg = level.Nodes.Count > 0
-                ? ComputeFlat(level, levelId is null ? preferredMaxWidth : 0, sizes)
+                ? ComputeFlat(level, levelId is null ? preferredMaxWidth : 0, levelId is null ? wrapLimit : 0, sizes)
                 : new LayoutedGraph { Source = level };
 
             // Expand each child super-node back into its members + nested boxes.
@@ -423,13 +432,15 @@ public static class SugiyamaLayout
         HashSet<string> nodeIds,
         List<WorkEdge> work,
         double preferredMaxWidth,
+        double wrapLimit = 0,
         IReadOnlyDictionary<string, (double w, double h)>? sizes = null)
     {
         bool horizontal = graph.Direction is GraphDirection.LeftRight or GraphDirection.RightLeft;
         var  nodeIdList = nodeIds.ToList();
 
         var layerOf = AssignLayers(nodeIdList, work);
-        var lnMap   = BuildLayoutNodes(graph, layerOf, horizontal, nodeIds, sizes);
+        var lnMap   = BuildLayoutNodes(graph, layerOf, horizontal, nodeIds, sizes,
+                                       LabelWidthCap(layerOf, horizontal, preferredMaxWidth));
 
         var (allLNodes, routes) = InsertDummies(work, lnMap);
 
@@ -438,8 +449,11 @@ public static class SugiyamaLayout
             .Select(l => allLNodes.Where(n => n.Layer == l).ToList())
             .ToList();
 
-        CrossingMinimise(layers, routes);
-        AssignCoordinates(layers, graph.Direction, GapX);
+        var (fwd, back) = BuildAdjacency(routes);
+        CrossingMinimise(layers, fwd, back);
+
+        double gapX     = GapX;
+        var    wrapped  = AssignCoordinates(layers, graph.Direction, gapX, wrapLimit);
 
         double w = allLNodes.Count > 0 ? allLNodes.Max(n => n.X + n.Width / 2.0) + MarginX : MarginX * 2;
         if (preferredMaxWidth > 0 && !horizontal && w > preferredMaxWidth)
@@ -448,15 +462,21 @@ public static class SugiyamaLayout
             double perNode     = (preferredMaxWidth - 2 * MarginX) / Math.Max(widestCount, 1);
             double maxNodeW    = allLNodes.Where(n => !n.IsDummy).DefaultIfEmpty().Max(n => n?.Width ?? 0);
             double compact     = Math.Max(GapXMin, perNode - maxNodeW);
-            if (compact < GapX)
+            if (compact < gapX)
             {
-                AssignCoordinates(layers, graph.Direction, compact);
+                gapX    = compact;
+                wrapped = AssignCoordinates(layers, graph.Direction, gapX, wrapLimit);
                 w = allLNodes.Max(n => n.X + n.Width / 2.0) + MarginX;
             }
         }
 
         // Centre each layer on the secondary axis relative to the widest layer
         CenterLayers(layers, horizontal);
+
+        // …then pull each node toward the median of its neighbours, which is what actually makes a
+        // long edge read as one line rather than a staircase. Packing from the margin (above) only
+        // ever guarantees separation; nothing in it says a child should sit under its parent.
+        Straighten(layers, wrapped, fwd, back, horizontal, horizontal ? GapY : gapX);
 
         // Anchor to the top-left margins so reverse-direction (RL/BU) flips and wide
         // single-node components never sit left of / above the canvas and clip.
@@ -601,21 +621,50 @@ public static class SugiyamaLayout
 
     // ── 3a: Build layout nodes ────────────────────────────────────────────
 
+    /// <summary>Narrowest a label is allowed to squeeze a node before the diagram simply has to be
+    /// wider than its panel — below this the wrapping is more of an obstacle than the width was.</summary>
+    private const double LabelCapFloor = 150;
+
+    /// <summary>
+    /// How wide a node's label may make it, given the space the whole diagram has.
+    /// <para>
+    /// Without this a long label sets the width of its entire layer, and a graph of long labels comes
+    /// out several thousand pixels wide and a few hundred tall — all the reading on one axis while
+    /// the other sits empty. Deriving the cap from the space available means a diagram spends its
+    /// height rather than growing sideways forever. It only ever binds on labels long enough to be
+    /// the cause, so a diagram that already fits is untouched.
+    /// </para>
+    /// </summary>
+    private static double LabelWidthCap(Dictionary<string, int> layerOf, bool horizontal, double preferredMaxWidth)
+    {
+        if (preferredMaxWidth <= 0 || layerOf.Count == 0) return NodeLabelMetrics.MaxWidth;
+
+        // Across the width there is one slot per layer (LR), or one per node in the widest layer (TD).
+        int slots = horizontal
+            ? layerOf.Values.Distinct().Count()
+            : layerOf.GroupBy(kv => kv.Value).Max(g => g.Count());
+        if (slots <= 1) return NodeLabelMetrics.MaxWidth;
+
+        double allowance = (preferredMaxWidth - 2 * MarginX - (slots - 1) * GapX) / slots;
+        return Math.Clamp(allowance, LabelCapFloor, NodeLabelMetrics.MaxWidth);
+    }
+
     private static Dictionary<string, LayoutNode> BuildLayoutNodes(
         Graph graph, Dictionary<string, int> layerOf, bool horizontal,
         HashSet<string>? filter = null,
-        IReadOnlyDictionary<string, (double w, double h)>? sizes = null)
+        IReadOnlyDictionary<string, (double w, double h)>? sizes = null,
+        double labelCap = NodeLabelMetrics.MaxWidth)
     {
         var map = new Dictionary<string, LayoutNode>();
         foreach (var n in graph.Nodes)
         {
             if (filter is not null && !filter.Contains(n.Id)) continue;
             // Width = horizontal extent on screen, Height = vertical extent.
-            // Size shapes relative to their label length so text fits.
-            int    lineCount = n.Label.Count(c => c == '\n') + 1;
-            double labelW   = n.Label.Split('\n').Max(l => l.Length) * 7.5 + 24;
-            double w        = Math.Max(NodeW, labelW);
-            double h        = Math.Max(NodeH, lineCount * 16.0 + 8);
+            // Sized from the label, but capped: past the cap the text wraps rather than widening the
+            // whole layer (see NodeLabelMetrics).
+            var (labelW, lineCount) = NodeLabelMetrics.Measure(n.Label, labelCap);
+            double w = Math.Max(NodeW, labelW);
+            double h = Math.Max(NodeH, lineCount * NodeLabelMetrics.LineHeight + 8);
 
             if (n.Shape == NodeShape.Diamond)
             {
@@ -689,16 +738,9 @@ public static class SugiyamaLayout
 
     // ── 4: Crossing minimisation (barycenter) ─────────────────────────────
 
-    private static void CrossingMinimise(List<List<LayoutNode>> layers, List<EdgeRoute> routes)
+    private static (Dictionary<LayoutNode, List<LayoutNode>> fwd, Dictionary<LayoutNode, List<LayoutNode>> back)
+        BuildAdjacency(List<EdgeRoute> routes)
     {
-        // Initialise orders
-        for (int l = 0; l < layers.Count; l++)
-            for (int i = 0; i < layers[l].Count; i++)
-                layers[l][i].Order = i;
-
-        if (layers.Count < 2) return;
-
-        // Build adjacency from edge chains (forward and backward neighbours)
         var fwd  = new Dictionary<LayoutNode, List<LayoutNode>>();
         var back = new Dictionary<LayoutNode, List<LayoutNode>>();
 
@@ -714,38 +756,232 @@ public static class SugiyamaLayout
                 bl.Add(from);
             }
         }
+        return (fwd, back);
+    }
+
+    /// <summary>
+    /// Orders each layer to minimise edge crossings.
+    /// <para>
+    /// Barycenter alone is a heuristic that can wander: a sweep sometimes ends worse than it started,
+    /// and nothing in it notices. So each sweep is scored by actually counting crossings, the best
+    /// ordering seen is kept, and the sweeps alternate barycenter with median (they fail on different
+    /// shapes) and finish with adjacent-swap transposition, which picks up the local crossings an
+    /// averaging heuristic cannot see.
+    /// </para>
+    /// </summary>
+    private static void CrossingMinimise(
+        List<List<LayoutNode>> layers,
+        Dictionary<LayoutNode, List<LayoutNode>> fwd,
+        Dictionary<LayoutNode, List<LayoutNode>> back)
+    {
+        for (int l = 0; l < layers.Count; l++)
+            for (int i = 0; i < layers[l].Count; i++)
+                layers[l][i].Order = i;
+
+        if (layers.Count < 2) return;
 
         int maxL = layers.Count - 1;
-        for (int pass = 0; pass < 4; pass++)
+        int best = CountCrossings(layers, fwd);
+        var bestOrder = Snapshot(layers);
+
+        for (int pass = 0; pass < 8 && best > 0; pass++)
         {
-            if (pass % 2 == 0) // downward sweep
+            bool useMedian = pass % 4 is 2 or 3;
+
+            if (pass % 2 == 0)
                 for (int l = 1; l <= maxL; l++)
-                    SortByBarycenter(layers[l], layers[l - 1], fwd, back, forward: true);
-            else               // upward sweep
+                    ReorderLayer(layers[l], layers[l - 1], fwd, back, forward: true, useMedian);
+            else
                 for (int l = maxL - 1; l >= 0; l--)
-                    SortByBarycenter(layers[l], layers[l + 1], fwd, back, forward: false);
+                    ReorderLayer(layers[l], layers[l + 1], fwd, back, forward: false, useMedian);
+
+            Transpose(layers, fwd, back);
+
+            int score = CountCrossings(layers, fwd);
+            if (score < best) { best = score; bestOrder = Snapshot(layers); }
+        }
+
+        Restore(layers, bestOrder);
+    }
+
+    private static List<List<LayoutNode>> Snapshot(List<List<LayoutNode>> layers) =>
+        layers.Select(l => l.ToList()).ToList();
+
+    private static void Restore(List<List<LayoutNode>> layers, List<List<LayoutNode>> snapshot)
+    {
+        for (int l = 0; l < layers.Count; l++)
+        {
+            layers[l].Clear();
+            layers[l].AddRange(snapshot[l]);
+            for (int i = 0; i < layers[l].Count; i++) layers[l][i].Order = i;
         }
     }
 
-    private static void SortByBarycenter(
+    /// <summary>Total crossings across every adjacent layer pair, for the current orders.</summary>
+    private static int CountCrossings(List<List<LayoutNode>> layers, Dictionary<LayoutNode, List<LayoutNode>> fwd)
+    {
+        int total = 0;
+        for (int l = 0; l + 1 < layers.Count; l++)
+        {
+            var below = new Dictionary<LayoutNode, int>();
+            for (int i = 0; i < layers[l + 1].Count; i++) below[layers[l + 1][i]] = i;
+
+            var pairs = new List<(int upper, int lower)>();
+            for (int i = 0; i < layers[l].Count; i++)
+                foreach (var to in fwd.GetValueOrDefault(layers[l][i], []))
+                    if (below.TryGetValue(to, out var j)) pairs.Add((i, j));
+
+            for (int a = 0; a < pairs.Count; a++)
+                for (int b = a + 1; b < pairs.Count; b++)
+                    if ((pairs[a].upper - pairs[b].upper) * (pairs[a].lower - pairs[b].lower) < 0)
+                        total++;
+        }
+        return total;
+    }
+
+    private static void ReorderLayer(
         List<LayoutNode> layer, List<LayoutNode> refLayer,
         Dictionary<LayoutNode, List<LayoutNode>> fwd,
         Dictionary<LayoutNode, List<LayoutNode>> back,
-        bool forward)
+        bool forward, bool useMedian)
     {
         var refPos = new Dictionary<LayoutNode, int>();
         for (int i = 0; i < refLayer.Count; i++) refPos[refLayer[i]] = i;
 
-        var bary = new Dictionary<LayoutNode, double>();
+        var key = new Dictionary<LayoutNode, double>();
         foreach (var n in layer)
         {
-            var nbrs = (forward ? fwd.GetValueOrDefault(n) : back.GetValueOrDefault(n)) ?? [];
-            var valid = nbrs.Where(nb => refPos.ContainsKey(nb)).ToList();
-            bary[n] = valid.Count > 0 ? valid.Average(nb => (double)refPos[nb]) : (double)n.Order;
+            var nbrs  = (forward ? fwd.GetValueOrDefault(n) : back.GetValueOrDefault(n)) ?? [];
+            var valid = nbrs.Where(refPos.ContainsKey).Select(nb => (double)refPos[nb]).OrderBy(v => v).ToList();
+            key[n] = valid.Count == 0 ? n.Order
+                   : useMedian        ? valid[valid.Count / 2]
+                                      : valid.Average();
         }
 
-        layer.Sort((a, b) => bary[a].CompareTo(bary[b]));
+        // Stable on ties so a node with no neighbours keeps its place instead of drifting.
+        var ordered = layer.OrderBy(n => key[n]).ToList();
+        layer.Clear();
+        layer.AddRange(ordered);
         for (int i = 0; i < layer.Count; i++) layer[i].Order = i;
+    }
+
+    /// <summary>Swaps adjacent pairs wherever that reduces the crossings they contribute — the local
+    /// clean-up an averaging heuristic structurally cannot make.</summary>
+    private static void Transpose(
+        List<List<LayoutNode>> layers,
+        Dictionary<LayoutNode, List<LayoutNode>> fwd,
+        Dictionary<LayoutNode, List<LayoutNode>> back)
+    {
+        for (int round = 0; round < 3; round++)
+        {
+            bool improved = false;
+            for (int l = 0; l < layers.Count; l++)
+            {
+                var layer = layers[l];
+                var above = l > 0                ? Positions(layers[l - 1]) : null;
+                var below = l + 1 < layers.Count ? Positions(layers[l + 1]) : null;
+
+                for (int i = 0; i + 1 < layer.Count; i++)
+                {
+                    int before = PairCrossings(layer[i], layer[i + 1], fwd, back, above, below);
+                    int after  = PairCrossings(layer[i + 1], layer[i], fwd, back, above, below);
+                    if (after >= before) continue;
+                    (layer[i], layer[i + 1]) = (layer[i + 1], layer[i]);
+                    improved = true;
+                }
+                for (int i = 0; i < layer.Count; i++) layer[i].Order = i;
+            }
+            if (!improved) return;
+        }
+    }
+
+    private static Dictionary<LayoutNode, int> Positions(List<LayoutNode> layer)
+    {
+        var map = new Dictionary<LayoutNode, int>(layer.Count);
+        for (int i = 0; i < layer.Count; i++) map[layer[i]] = i;
+        return map;
+    }
+
+    /// <summary>Crossings contributed by <paramref name="left"/> sitting immediately left of
+    /// <paramref name="right"/>, counted against both neighbouring layers.</summary>
+    private static int PairCrossings(
+        LayoutNode left, LayoutNode right,
+        Dictionary<LayoutNode, List<LayoutNode>> fwd,
+        Dictionary<LayoutNode, List<LayoutNode>> back,
+        Dictionary<LayoutNode, int>? above, Dictionary<LayoutNode, int>? below)
+    {
+        int Count(Dictionary<LayoutNode, List<LayoutNode>> adj, Dictionary<LayoutNode, int>? pos)
+        {
+            if (pos is null) return 0;
+            int crossings = 0;
+            foreach (var a in adj.GetValueOrDefault(left, []))
+            {
+                if (!pos.TryGetValue(a, out var pa)) continue;
+                foreach (var b in adj.GetValueOrDefault(right, []))
+                    if (pos.TryGetValue(b, out var pb) && pa > pb) crossings++;
+            }
+            return crossings;
+        }
+        return Count(back, above) + Count(fwd, below);
+    }
+
+    // ── 4b: Secondary-axis straightening ──────────────────────────────────
+
+    /// <summary>
+    /// Moves each node toward the median of its neighbours on the secondary axis while keeping the
+    /// layer's order and separation, sweeping down then up a few times. Layers that were wrapped onto
+    /// several rows are skipped: their order is two-dimensional, and packing them back along one line
+    /// would undo the wrap.
+    /// </summary>
+    private static void Straighten(
+        List<List<LayoutNode>> layers, bool[] wrapped,
+        Dictionary<LayoutNode, List<LayoutNode>> fwd,
+        Dictionary<LayoutNode, List<LayoutNode>> back,
+        bool horizontal, double gap)
+    {
+        if (layers.Count < 2) return;
+
+        double Sec(LayoutNode n)          => horizontal ? n.Y : n.X;
+        void   SetSec(LayoutNode n, double v) { if (horizontal) n.Y = v; else n.X = v; }
+        double Half(LayoutNode n)         => (horizontal ? n.Height : n.Width) / 2.0;
+
+        for (int pass = 0; pass < 4; pass++)
+        {
+            bool down = pass % 2 == 0;
+            for (int step = 0; step < layers.Count; step++)
+            {
+                int l = down ? step : layers.Count - 1 - step;
+                if (wrapped[l]) continue;
+
+                var layer = layers[l];
+                int n = layer.Count;
+                if (n == 0) continue;
+
+                var adj = down ? back : fwd;
+                var desired = new double[n];
+                for (int i = 0; i < n; i++)
+                {
+                    var nbrs = adj.GetValueOrDefault(layer[i], []);
+                    var vals = nbrs.Select(Sec).OrderBy(v => v).ToList();
+                    desired[i] = vals.Count == 0 ? Sec(layer[i])
+                               : vals.Count % 2 == 1 ? vals[vals.Count / 2]
+                               : (vals[vals.Count / 2 - 1] + vals[vals.Count / 2]) / 2.0;
+                }
+
+                var pos = new double[n];
+                // Right-to-left first so a node that wants to move left is not blocked by a
+                // still-unmoved neighbour, then left-to-right to guarantee separation.
+                for (int i = n - 1; i >= 0; i--)
+                    pos[i] = i == n - 1
+                        ? desired[i]
+                        : Math.Min(desired[i], pos[i + 1] - Half(layer[i + 1]) - gap - Half(layer[i]));
+                for (int i = 1; i < n; i++)
+                    pos[i] = Math.Max(pos[i], pos[i - 1] + Half(layer[i - 1]) + gap + Half(layer[i]));
+
+                for (int i = 0; i < n; i++)
+                    if (!double.IsNaN(pos[i]) && !double.IsInfinity(pos[i])) SetSec(layer[i], pos[i]);
+            }
+        }
     }
 
     // ── 5a: Post-layout layer centering ──────────────────────────────────
@@ -799,52 +1035,50 @@ public static class SugiyamaLayout
 
     // ── 5b: Coordinate assignment ─────────────────────────────────────────
 
-    private static void AssignCoordinates(
-        List<List<LayoutNode>> layers, GraphDirection dir, double effectiveGapX)
+    /// <returns>Which layers were wrapped onto more than one row.</returns>
+    private static bool[] AssignCoordinates(
+        List<List<LayoutNode>> layers, GraphDirection dir, double effectiveGapX, double wrapLimit = 0)
     {
         bool horizontal = dir is GraphDirection.LeftRight or GraphDirection.RightLeft;
 
-        // Primary-axis centre per layer, accumulated from each layer's actual extent so tall
-        // nodes (e.g. collapsed-subgraph super-nodes) don't overlap the neighbouring layer.
         double primGap     = horizontal ? GapX : GapYTD;
+        double secGap      = horizontal ? GapY : effectiveGapX;
         double primDefault = horizontal ? NodeW : NodeH;
-        var primaryCenter  = new double[layers.Count];
-        double pcursor     = horizontal ? MarginX : MarginY;
-        for (int l = 0; l < layers.Count; l++)
-        {
-            double extent = layers[l].Count > 0
-                ? layers[l].Max(n => horizontal ? n.Width : n.Height)
-                : primDefault;
-            primaryCenter[l] = pcursor + extent / 2.0;
-            pcursor += extent + primGap;
-        }
+
+        var wrapped = new bool[layers.Count];
+        double pcursor = horizontal ? MarginX : MarginY;
 
         for (int l = 0; l < layers.Count; l++)
         {
             var ly = layers[l];
-            double primary = primaryCenter[l];
+            double rowExtent = ly.Count > 0
+                ? ly.Max(n => horizontal ? n.Width : n.Height)
+                : primDefault;
 
-            // Secondary axis: nodes are stacked on the perpendicular axis.
-            // For LR: stack vertically (Y), spacing = Height + GapY.
-            // For TD: stack horizontally (X), spacing = Width + effectiveGapX (compressible).
-            double cursor = horizontal ? MarginY : MarginX;
-            foreach (var n in ly)
+            int rows   = WrapRows(ly, secGap, wrapLimit, horizontal);
+            wrapped[l] = rows > 1;
+            int perRow = rows > 1 ? (int)Math.Ceiling(ly.Count / (double)rows) : ly.Count;
+
+            for (int row = 0; row < rows; row++)
             {
-                double halfSize  = horizontal ? n.Height / 2.0 : n.Width / 2.0;
-                double secondary = cursor + halfSize;
-                cursor += (horizontal ? n.Height : n.Width) + (horizontal ? GapY : effectiveGapX);
+                double primary = pcursor + row * (rowExtent + RowGap) + rowExtent / 2.0;
+                double cursor  = horizontal ? MarginY : MarginX;
 
-                if (horizontal)
+                int from = row * perRow;
+                int to   = rows > 1 ? Math.Min(ly.Count, from + perRow) : ly.Count;
+                for (int i = from; i < to; i++)
                 {
-                    n.X = primary;
-                    n.Y = secondary;
-                }
-                else
-                {
-                    n.X = secondary;
-                    n.Y = primary;
+                    var n = ly[i];
+                    double size      = horizontal ? n.Height : n.Width;
+                    double secondary = cursor + size / 2.0;
+                    cursor += size + secGap;
+
+                    if (horizontal) { n.X = primary; n.Y = secondary; }
+                    else            { n.X = secondary; n.Y = primary; }
                 }
             }
+
+            pcursor += rows * rowExtent + (rows - 1) * RowGap + primGap;
         }
 
         // Flip axis for reverse directions
@@ -858,6 +1092,33 @@ public static class SugiyamaLayout
                 else            n.Y = maxP - n.Y;
             }
         }
+        return wrapped;
+    }
+
+    /// <summary>
+    /// How many rows a layer breaks into so it stays inside <paramref name="limit"/> on the secondary
+    /// axis. This is the answer to one node with a hundred children: a single row of them is a mile
+    /// of diagram nobody can follow, whereas a block of rows is scannable and — unlike collapsing
+    /// them — still shows every one.
+    /// <para>
+    /// A layer holding a dummy node is never wrapped: dummies are the bend points of edges passing
+    /// through the layer, and moving one onto another row bends its edge into the wrap.
+    /// </para>
+    /// </summary>
+    private static int WrapRows(List<LayoutNode> layer, double gap, double limit, bool horizontal)
+    {
+        if (limit <= 0 || layer.Count < 4) return 1;
+        if (layer.Any(n => n.IsDummy)) return 1;
+
+        double usable = limit - 2 * (horizontal ? MarginY : MarginX);
+        if (usable <= 0) return 1;
+
+        double total = layer.Sum(n => horizontal ? n.Height : n.Width) + gap * (layer.Count - 1);
+        if (total <= usable) return 1;
+
+        // Never so many rows that the layer becomes a column: past a handful it reads worse than the
+        // scroll it was avoiding.
+        return Math.Min(8, (int)Math.Ceiling(total / usable));
     }
 
     // ── 6: Build routed edges ─────────────────────────────────────────────

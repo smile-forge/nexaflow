@@ -5,12 +5,17 @@ using System.Text;
 namespace Nexaflow.Features.Executable.Services;
 
 /// <summary>
-/// Renders a <see cref="DependencyGraph"/> as a mermaid flowchart whose nodes are clickable.
+/// Renders a <see cref="DependencyGraph"/> as a mermaid flowchart whose nodes are clickable and
+/// expandable.
 /// <para>
-/// Links are emitted as real mermaid <c>click</c> directives rather than being smuggled into node
-/// labels, so the generated markdown stays valid mermaid that a user can copy elsewhere and still
-/// have render. The href is the module's own file path; the host turns a click into a new inspector
-/// tab for that dependency.
+/// Both affordances are real mermaid: the link is a <c>click</c> directive, and expansion is declared
+/// in the <c>config: nexaflow:</c> front-matter block. Nothing is smuggled into a node label or into
+/// a private href scheme, so the generated markdown is the same text a user can paste elsewhere — a
+/// stock mermaid renderer ignores the config block it does not know and still draws the graph.
+/// </para>
+/// <para>
+/// The front-matter also carries each node's module name, so a click comes back naming the module
+/// rather than <c>n7</c> and this feature needs no side table mapping one to the other.
 /// </para>
 /// </summary>
 public static class DependencyMermaid
@@ -18,14 +23,13 @@ public static class DependencyMermaid
     /// <summary>Builds the markdown block, including the fence.</summary>
     public static string Build(DependencyGraph graph)
     {
-        var builder = new StringBuilder();
-        builder.AppendLine("```mermaid");
-        builder.AppendLine("graph LR");
-
-        var ids     = new Dictionary<DependencyNode, string>();
-        var clicks  = new List<string>();
-        var styled  = new List<string>();
-        int counter = 0;
+        var body      = new StringBuilder();
+        var ids       = new Dictionary<DependencyNode, string>();
+        var clicks    = new List<string>();
+        var styled    = new List<string>();
+        var collapsed = new List<(string id, string module)>();
+        var expanded  = new List<(string id, string module)>();
+        int counter   = 0;
 
         string IdOf(DependencyNode node)
         {
@@ -38,26 +42,28 @@ public static class DependencyMermaid
         void Emit(DependencyNode node)
         {
             string id = IdOf(node);
-            builder.AppendLine($"  {id}{Shape(node)}");
+            body.AppendLine($"  {id}{Shape(node)}");
 
-            // Two different actions share one gesture, distinguished by a scheme on the href: a
-            // module that has not been opened up yet expands in place, and one that has (or the
-            // root) opens as its own inspector tab. The label carries the matching marker so the
-            // node says which it will do before it is clicked.
-            if (node.CanExpand)
-                clicks.Add($"  click {id} href \"{ExpandScheme}{Escape(node.Name)}\" " +
-                           $"\"Expand {Escape(node.Name)}\"");
-            else if (node.Path is { Length: > 0 } path &&
-                     node.Kind is DependencyKind.Resolved or DependencyKind.Cycle)
-                clicks.Add($"  click {id} href \"{OpenScheme}{Escape(path)}\" " +
-                           $"\"Inspect {Escape(node.Name)}\"");
+            // The two actions are now two hit regions, so a node no longer has to choose: an opened
+            // module still opens as its own tab, and its chip closes it again.
+            //
+            // The root is the exception, and gets no chip at all: the walk always opens the binary
+            // you are inspecting, so there is no state in which it is closed. Offering to close it
+            // produced a chip that did nothing, and left the view believing the whole graph was
+            // folded away behind a node that could never be opened again.
+            if (node.CanExpand)                                    collapsed.Add((id, node.Name));
+            else if (node.IsExpanded && !ReferenceEquals(node, graph.Root)) expanded.Add((id, node.Name));
+
+            if (node.Path is { Length: > 0 } path &&
+                node.Kind is DependencyKind.Resolved or DependencyKind.Cycle)
+                clicks.Add($"  click {id} href \"{Escape(path)}\" \"Inspect {Escape(node.Name)}\"");
 
             if (StyleClass(node) is { } css) styled.Add($"  class {id} {css}");
 
             foreach (var child in node.Children)
             {
                 string childId = IdOf(child);
-                builder.AppendLine(child.IsDelayLoad
+                body.AppendLine(child.IsDelayLoad
                     ? $"  {id} -.-> {childId}"     // dashed: resolved on first call, not at load
                     : $"  {id} --> {childId}");
                 Emit(child);
@@ -65,6 +71,12 @@ public static class DependencyMermaid
         }
 
         Emit(graph.Root);
+
+        var builder = new StringBuilder();
+        builder.AppendLine("```mermaid");
+        AppendFrontMatter(builder, collapsed, expanded);
+        builder.AppendLine("graph LR");
+        builder.Append(body);
 
         // classDef lines carry no colour: the renderer themes nodes, and a hard-coded fill here
         // would survive into a light theme as an unreadable block.
@@ -77,24 +89,44 @@ public static class DependencyMermaid
         return builder.ToString();
     }
 
-    /// <summary>Href prefixes the host uses to tell the two click actions apart.</summary>
-    public const string ExpandScheme = "nexaflow-expand:";
-    public const string OpenScheme   = "nexaflow-open:";
+    /// <summary>
+    /// A native binary's import tree fans out far wider than it goes deep — a single module can name
+    /// a hundred imports — so the surplus siblings fold behind one chip rather than becoming a mile
+    /// of diagram.
+    /// </summary>
+    public const int MaxFanOut = 20;
+
+    private static void AppendFrontMatter(
+        StringBuilder builder,
+        List<(string id, string module)> collapsed,
+        List<(string id, string module)> expanded)
+    {
+        builder.AppendLine("---");
+        builder.AppendLine("config:");
+        builder.AppendLine("  nexaflow:");
+        builder.AppendLine($"    maxFanOut: {MaxFanOut}");
+        AppendSection(builder, "collapsed", collapsed);
+        AppendSection(builder, "expanded",  expanded);
+        builder.AppendLine("---");
+    }
+
+    private static void AppendSection(StringBuilder builder, string name, List<(string id, string module)> nodes)
+    {
+        if (nodes.Count == 0) return;
+        builder.AppendLine($"    {name}:");
+        foreach (var (id, module) in nodes)
+            builder.AppendLine($"      {id}: \"{Escape(module)}\"");
+    }
 
     private static string Shape(DependencyNode node)
     {
-        // A leading + is the whole affordance: it marks every node that still has a subtree behind
-        // it, so expansion is one deliberate click at a time rather than a depth setting that
-        // detonates the entire graph.
-        string prefix = node.CanExpand ? "+ " : "";
-
-        string label = prefix + Escape(node.Name) + node.Kind switch
+        string label = Escape(node.Name) + node.Kind switch
         {
             DependencyKind.ApiSet  => " (API set)",
             DependencyKind.Missing => " — not found",
             DependencyKind.Cycle   => " ↩",
             DependencyKind.Elided  => "",
-            _                      => node.ImportCount > 0 ? $"<br/>{node.ImportCount} imports" : "",
+            _                      => Detail(node),
         };
 
         return node.Kind switch
@@ -104,6 +136,24 @@ public static class DependencyMermaid
             DependencyKind.Elided  => $"[\"…\"]",
             _                      => $"[\"{label}\"]",
         };
+    }
+
+    /// <summary>
+    /// The second line of a module's label. It says <c>functions</c> deliberately: the number is how
+    /// many functions the <i>parent</i> imports from this module, and reading it as "how much is
+    /// behind this node" is wrong by an order of magnitude — three functions from <c>ole32</c> opens
+    /// up eighty-odd modules. Once the module has actually been opened, what is behind it is known,
+    /// so that gets said too.
+    /// </summary>
+    private static string Detail(DependencyNode node)
+    {
+        var parts = new List<string>(2);
+        if (node.ImportedFunctionCount > 0)
+            parts.Add($"{node.ImportedFunctionCount} function{(node.ImportedFunctionCount == 1 ? "" : "s")} used");
+        if (node.Walked && node.Children.Count > 0)
+            parts.Add($"{node.Children.Count} modules");
+
+        return parts.Count == 0 ? "" : "<br/>" + string.Join(" · ", parts);
     }
 
     private static string? StyleClass(DependencyNode node) => node.Kind switch

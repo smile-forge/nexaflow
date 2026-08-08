@@ -120,4 +120,187 @@ public class SugiyamaLayoutTests
         Assert.IsTrue(Math.Abs(toDone.Waypoints[0].X - stillX) > 5,
             "the lone Still→Done edge must start offset from the box centre, clear of the couple");
     }
+
+    // ── Wide and dense graphs ─────────────────────────────────────────────────
+
+    /// <summary>Counts crossings between the drawn edges, from their endpoints — the thing a reader
+    /// actually sees, rather than the layer orders the algorithm works in.</summary>
+    private static int Crossings(LayoutedGraph lg)
+    {
+        var segments = lg.Edges
+            .Where(e => e.Waypoints.Count >= 2)
+            .Select(e => (a: e.Waypoints[0], b: e.Waypoints[^1], from: e.From, to: e.To))
+            .ToList();
+
+        int count = 0;
+        for (int i = 0; i < segments.Count; i++)
+            for (int j = i + 1; j < segments.Count; j++)
+            {
+                var (p1, p2, f1, t1) = segments[i];
+                var (p3, p4, f2, t2) = segments[j];
+                // Edges meeting at a shared node are not a crossing, they are a fan.
+                if (ReferenceEquals(f1, f2) || ReferenceEquals(t1, t2) ||
+                    ReferenceEquals(f1, t2) || ReferenceEquals(t1, f2)) continue;
+                if (Intersects(p1, p2, p3, p4)) count++;
+            }
+        return count;
+    }
+
+    private static bool Intersects(Point a, Point b, Point c, Point d)
+    {
+        double Side(Point p, Point q, Point r) => (q.X - p.X) * (r.Y - p.Y) - (q.Y - p.Y) * (r.X - p.X);
+        double d1 = Side(a, b, c), d2 = Side(a, b, d), d3 = Side(c, d, a), d4 = Side(c, d, b);
+        return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+               ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+    }
+
+    [TestMethod]
+    public void DeliberatelyCrossedBipartiteGraph_IsUntangled()
+    {
+        // Six sources wired to six targets in reverse order: laid out in source order this is 15
+        // crossings, and every one of them is avoidable by reordering one layer.
+        var g = new Graph();
+        for (int i = 0; i < 6; i++) g.GetOrAdd($"s{i}");
+        for (int i = 0; i < 6; i++) g.AddEdge($"s{i}", $"t{5 - i}");
+
+        Assert.AreEqual(0, Crossings(SugiyamaLayout.Compute(g)),
+            "a graph whose crossings are entirely an ordering artefact must come out flat");
+    }
+
+    [TestMethod]
+    public void DenseGraph_HasFewCrossingsRelativeToItsEdges()
+    {
+        // A layered mesh where each node feeds two in the next layer, wired so the naive order
+        // interleaves them.
+        var g = new Graph();
+        for (int layer = 0; layer < 4; layer++)
+            for (int i = 0; i < 6; i++)
+            {
+                g.AddEdge($"n{layer}_{i}", $"n{layer + 1}_{(i * 2) % 6}");
+                g.AddEdge($"n{layer}_{i}", $"n{layer + 1}_{(i * 2 + 1) % 6}");
+            }
+
+        var lg = SugiyamaLayout.Compute(g);
+        int crossings = Crossings(lg);
+
+        // Not zero — this graph genuinely cannot be drawn flat — but the untangling has to bite.
+        Assert.IsTrue(crossings < lg.Edges.Count,
+            $"{crossings} crossings for {lg.Edges.Count} edges is not a layout anyone can follow");
+    }
+
+    [TestMethod]
+    public void AChildSitsUnderItsParentRatherThanPackedFromTheMargin()
+    {
+        // Two separate parents, one child each. Packing each layer from the left margin puts both
+        // children hard left; the straightening pass is what puts each under its own parent.
+        var g = new Graph();
+        g.AddEdge("p1", "c1");
+        g.AddEdge("p2", "c2");
+
+        var lg = SugiyamaLayout.Compute(g);
+        double Dx(string parent, string child) =>
+            Math.Abs(lg.AllNodes.Single(n => n.Source?.Id == parent).X -
+                     lg.AllNodes.Single(n => n.Source?.Id == child).X);
+
+        Assert.IsTrue(Dx("p1", "c1") < 1, "c1 must sit under p1");
+        Assert.IsTrue(Dx("p2", "c2") < 1, "c2 must sit under p2");
+    }
+
+    [TestMethod]
+    public void HighFanOut_WrapsIntoRowsRatherThanOneEndlessLine()
+    {
+        // One node with sixty children. In a single row that is thousands of pixels of diagram; the
+        // layer wraps instead, so the block stays inside the width it was given.
+        var g = new Graph();
+        for (int i = 0; i < 60; i++) g.AddEdge("root", $"c{i}");
+
+        var wide = SugiyamaLayout.Compute(g);                          // no limit given
+        var kept = SugiyamaLayout.Compute(g, preferredMaxWidth: 1000);
+
+        Assert.IsTrue(kept.Width < wide.Width / 2,
+            $"wrapping must actually narrow the diagram (was {wide.Width:0}, now {kept.Width:0})");
+        Assert.IsTrue(kept.Width <= 1400, $"the wrapped layout is still {kept.Width:0} wide");
+
+        var children = kept.AllNodes.Where(n => n.Source?.Id.StartsWith("c") == true).ToList();
+        Assert.AreEqual(60, children.Count, "wrapping hides nothing — every child is still drawn");
+        Assert.IsTrue(children.Select(n => Math.Round(n.Y)).Distinct().Count() > 1,
+            "the children must occupy more than one row");
+    }
+
+    [TestMethod]
+    public void HighFanOut_InAnLrGraph_WrapsAgainstTheHeightItWasGiven()
+    {
+        // The same problem turned ninety degrees: an LR fan-out stacks vertically, so the limit that
+        // matters is the height of the panel, not its width.
+        var g = new Graph { Direction = GraphDirection.LeftRight };
+        for (int i = 0; i < 40; i++) g.AddEdge("root", $"c{i}");
+
+        var tall = SugiyamaLayout.Compute(g, preferredMaxWidth: 1000);
+        var kept = SugiyamaLayout.Compute(g, preferredMaxWidth: 1000, preferredMaxHeight: 600);
+
+        Assert.IsTrue(kept.Height < tall.Height / 2,
+            $"the column must break up (was {tall.Height:0}, now {kept.Height:0})");
+        Assert.AreEqual(41, kept.AllNodes.Count(n => !n.IsDummy));
+    }
+
+    [TestMethod]
+    public void LongLabels_SpendHeightRatherThanGrowingSidewaysForever()
+    {
+        // The shape a native binary's import tree makes: left-to-right, long api-set names, several
+        // levels deep. Sized to its labels it comes out thousands of pixels wide and a few hundred
+        // tall — every bit of the reading on one axis while the other sits empty.
+        var g = new Graph { Direction = GraphDirection.LeftRight };
+        g.GetOrAdd("root", "kernel32.dll<br/>1200 imports");
+        for (int layer = 0; layer < 6; layer++)
+            for (int i = 0; i < 5; i++)
+            {
+                string from = layer == 0 ? "root" : $"n{layer - 1}_{i}";
+                g.AddEdge(from, $"n{layer}_{i}");
+                g.FindNode($"n{layer}_{i}")!.Label = $"api-ms-win-core-processthreads-l{layer * 5 + i}-1-0.dll";
+            }
+
+        var free = SugiyamaLayout.Compute(g);                                        // no width to respect
+        var kept = SugiyamaLayout.Compute(g, preferredMaxWidth: 1500, preferredMaxHeight: 600);
+
+        Assert.IsTrue(kept.Width <= 1500 + 1, $"the diagram must fit the width it was given (was {kept.Width:0})");
+        Assert.IsTrue(kept.Width < free.Width, "…by narrowing nodes, not by being the same shape");
+        Assert.IsTrue(kept.Height > free.Height,
+            "…and the height it saves sideways it spends downward, where the space actually is");
+
+        // Nothing is dropped or truncated away — the labels wrap into narrower boxes.
+        Assert.AreEqual(31, kept.AllNodes.Count(n => !n.IsDummy));
+    }
+
+    [TestMethod]
+    public void AShortLabelIsNeverSqueezedByACapItDidNotCause()
+    {
+        // The cap binds only on the labels that made the diagram too wide; an ordinary flowchart with
+        // ordinary labels must lay out exactly as it did before there was a cap at all.
+        var g = new Graph();
+        for (int i = 0; i < 6; i++) g.AddEdge("start", $"step {i}");
+
+        var free = Nodes(SugiyamaLayout.Compute(g));
+        var kept = Nodes(SugiyamaLayout.Compute(g, preferredMaxWidth: 900, preferredMaxHeight: 600));
+
+        for (int i = 0; i < free.Count; i++)
+            Assert.AreEqual(free[i].Width, kept[i].Width, 0.01);
+    }
+
+    [TestMethod]
+    public void ASmallGraphIsUnaffectedByTheWidthItIsGiven()
+    {
+        // The width hint tightens a layout that needs it; it must not reshape one that doesn't.
+        var g = new Graph();
+        g.AddEdge("a", "b");
+        g.AddEdge("b", "c");
+
+        var loose = Nodes(SugiyamaLayout.Compute(g));
+        var tight = Nodes(SugiyamaLayout.Compute(g, preferredMaxWidth: 900, preferredMaxHeight: 600));
+
+        for (int i = 0; i < loose.Count; i++)
+        {
+            Assert.AreEqual(loose[i].X, tight[i].X, 0.01);
+            Assert.AreEqual(loose[i].Y, tight[i].Y, 0.01);
+        }
+    }
 }
