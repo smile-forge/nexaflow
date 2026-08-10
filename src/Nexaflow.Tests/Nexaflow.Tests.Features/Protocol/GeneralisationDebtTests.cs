@@ -29,30 +29,25 @@ public class GeneralisationDebtTests
     /// <param name="Discharge">What would remove it.</param>
     private sealed record Debt(string Construct, string Why, string Discharge);
 
-    private static readonly Debt[] Accepted =
-    [
-        new("ConverterTable.oid / unoid",
-            "The first-arc merge (40*x + y, with a saturating inverse) is one encoding family's rule "
-          + "expressed as engine arithmetic, with one corpus witness. It was previously unmovable: the "
-          + "converter set is closed and the expression language could only CALL converters, never define "
-          + "one.",
-            "No longer blocked — the route out exists and is proven. The transform language now has local "
-          + "binding and bounded iteration, and TransformLanguageTests demonstrates both halves as "
-          + "documents: the first-arc merge with its non-injective domain declared, and a base-128 "
-          + "regrouping that agrees byte-for-byte with the engine converter. What remains is the migration "
-          + "itself, including an inverse that regroups continuation octets back into arcs. The entry "
-          + "stays until `oid` is actually gone from ConverterTable."),
-    ];
+    /// <summary>
+    /// <b>Empty, and that is the point.</b> The one entry this register ever held — a hierarchical
+    /// identifier's leading-pair merge, sitting in the engine because a closed converter set gave it
+    /// nowhere else to go — was discharged when the transform language landed. It is now a document,
+    /// built from notions the engine already had, with its non-injective domain declared.
+    /// </summary>
+    private static readonly Debt[] Accepted = [];
 
     [TestMethod]
     public void The_accepted_debt_is_exactly_what_is_recorded()
     {
-        // Deliberately a fixed count rather than a soft warning: an unbounded register is a list nobody
-        // reads, and the whole value here is that adding to it requires a decision.
-        Assert.AreEqual(1, Accepted.Length,
-            "The accepted-debt register changed. Adding an entry means the engine has taken on another "
-          + "protocol specific — justify it here and in review, or fix it. Removing one means it was "
-          + "discharged, which is good; delete the entry.\n\n"
+        // A fixed count rather than a soft warning: an unbounded register is a list nobody reads, and the
+        // whole value is that adding to it requires a decision. At zero, that decision is maximally sharp.
+        Assert.AreEqual(0, Accepted.Length,
+            "The accepted-debt register changed. Adding an entry means the engine has taken on a protocol "
+          + "specific — justify it here and in review, or fix it. Before accepting one, check the three "
+          + "usual causes: a missing parameter (the notion is real but the parameter distinguishing its "
+          + "witnesses was omitted), a protocol constant as a default, or something that genuinely belongs "
+          + "in a document as a composition of existing notions.\n\n"
           + string.Join("\n", Accepted.Select(d => $"  • {d.Construct}\n      why: {d.Why}\n      out: {d.Discharge}")));
     }
 

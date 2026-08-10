@@ -161,11 +161,11 @@ public sealed class ConverterTable
             },
             "7-bit continuation octets to a value. order: 'msbFirst' or 'lsbFirst' — required");
 
-        t.Add("oid", ValueKinds.Text, ValueKinds.Bytes, "unoid",
-            (v, _) => ProtoValue.Of(EncodeOid(v.AsText())),
-            "'1.3.6.1.2.1.1.1.0' to BER octets — first-arc merge 40x+y then base-128 per arc");
-        t.Add("unoid", ValueKinds.Bytes, ValueKinds.Text, "oid",
-            (v, _) => ProtoValue.Of(DecodeOid(v.AsBytes())), "BER OID octets to dotted text");
+        // No hierarchical-identifier converter. The leading-pair merge (40x + y with a saturating inverse)
+        // is one encoding family's rule, and a converter for it would be a protocol specific with a general
+        // name — the exact failure this table is guarded against. It composes from `split`, `undecimal`,
+        // `base128`, `flatten` and `scan`, so it lives in a document instead; see the worked transform in
+        // TransformLanguageTests. If a notion can only be described by naming a protocol, it is not a notion.
 
         // Both widths REQUIRED — a default fraction width is one protocol's layout as an engine constant.
         t.Add("fixed", ValueKinds.Numeric, ValueKinds.Int, "unfixed",
@@ -604,38 +604,6 @@ public sealed class ConverterTable
             for (int i = 0; i < groups.Count - 1; i++) groups[i] |= 0x80;
         }
         return groups.ToArray();
-    }
-
-    private static byte[] EncodeOid(string dotted)
-    {
-        var arcs = dotted.Split('.').Select(long.Parse).ToArray();
-        if (arcs.Length < 2) throw new ProtoTypeException("an OID needs at least two arcs");
-
-        List<byte> outp = [.. Base128(arcs[0] * 40 + arcs[1], msbFirst: true)];
-        for (int i = 2; i < arcs.Length; i++) outp.AddRange(Base128(arcs[i], msbFirst: true));
-        return outp.ToArray();
-    }
-
-    private static string DecodeOid(byte[] b)
-    {
-        if (b.Length == 0) return "";
-
-        List<long> arcs = [];
-        long acc = 0;
-        foreach (var octet in b)
-        {
-            acc = (acc << 7) | (byte)(octet & 0x7F);
-            if ((octet & 0x80) != 0) continue;
-            arcs.Add(acc);
-            acc = 0;
-        }
-
-        if (arcs.Count == 0) return "";
-        long first = arcs[0];
-        List<long> outp = [Math.Min(first / 40, 2)];
-        outp.Add(first - outp[0] * 40);
-        outp.AddRange(arcs.Skip(1));
-        return string.Join('.', outp);
     }
 
     private static long Crc16(byte[] data, ushort polynomial)

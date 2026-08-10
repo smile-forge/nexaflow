@@ -1,3 +1,4 @@
+using Nexaflow.IO.Protocol.Converters;
 using Nexaflow.IO.Protocol.Expressions;
 using Nexaflow.IO.Protocol.Values;
 using Nexaflow.Tests.Fixtures;
@@ -223,24 +224,27 @@ public class ExpressionCoreTests
     }
 
     [TestMethod]
-    public void Oid_encoding_merges_the_first_arc_and_base128s_the_rest()
+    public void There_is_no_hierarchical_identifier_converter_in_the_engine()
     {
-        // Straight from the SNMP capture: 1.3.6.1.4.1.2021.10.1.3.1, where arc 2021 needs two octets.
-        Assert.AreEqual("2b06010401", Run("'1.3.6.1.4.1' |> oid()").ToString(),
-            "1.3 merges to 40*1+3 = 43 = 0x2b");
-        Assert.AreEqual("2b060104018f650a010301",
-            Run("'1.3.6.1.4.1.2021.10.1.3.1' |> oid()").ToString());
-        Assert.AreEqual("8f65", Run("2021 |> base128('msbFirst')").ToString(),
-            "2021 = 15*128 + 101, so 0x8f 0x65");
-        Assert.AreEqual("1.3.6.1.4.1.2021.10.1.3.1",
-            Run("'2b060104018f650a010301' |> unhex() |> unoid()").ToString());
+        // The leading-pair merge is one encoding family's rule. A converter for it would be a protocol
+        // specific wearing a general name — the failure mode this table is guarded against — so it lives
+        // in a document instead, built from the notions below. See TransformLanguageTests.
+        foreach (var name in (string[])["oid", "unoid"])
+            Assert.IsFalse(ConverterTable.Default.TryGet(name, out _),
+                $"'{name}' encodes one family's rule and belongs in a document, not the engine");
     }
 
     [TestMethod]
-    public void Oid_round_trips_the_sysDescr_object_identifier()
+    public void The_notions_a_hierarchical_identifier_is_built_from_are_all_present()
     {
-        Assert.AreEqual("2b06010201010100", Run("'1.3.6.1.2.1.1.1.0' |> oid()").ToString());
-        Assert.AreEqual("1.3.6.1.2.1.1.1.0", Run("'2b06010201010100' |> unhex() |> unoid()").ToString());
+        // Each of these is exhibited by more than one protocol, which is what makes it a notion rather
+        // than a disguise. Composed, they are the whole encoding.
+        Assert.AreEqual("[1, 3, 6]", Run("'1.3.6' |> split('.') |> map(a -> a |> undecimal())").ToString());
+        Assert.AreEqual("8f65", Run("2021 |> base128('msbFirst')").ToString(),
+            "2021 = 15*128 + 101, so 0x8f 0x65");
+        Assert.AreEqual(2021, Int("'8f65' |> unhex() |> unbase128('msbFirst')"));
+        Assert.AreEqual("[1, 2, 3]", Run("[[1], [2, 3]] |> flatten()").ToString());
+        Assert.AreEqual("2b", Run("[1 * 40 + 3] |> octets()").ToString(), "the leading pair merges to 0x2b");
     }
 
     [TestMethod]

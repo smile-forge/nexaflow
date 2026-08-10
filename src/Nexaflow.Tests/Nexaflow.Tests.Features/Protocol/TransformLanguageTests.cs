@@ -237,6 +237,78 @@ public class TransformLanguageTests
         Assert.AreEqual("8f65", Base128MsbFirst.Apply(ProtoValue.Of(2021L)).ToString());
     }
 
+    /// <summary>
+    /// The whole hierarchical-identifier encoding, as a document — the construct that was the engine's one
+    /// accepted piece of generalisation debt.
+    ///
+    /// <para>
+    /// Forward: split into arcs, merge the leading pair, regroup every arc into continuation octets.
+    /// Inverse: fold the octets back into arcs (a running accumulator that resets after each terminal
+    /// octet), then undo the merge with the saturating rule. Nothing here is a notion the engine lacks.
+    /// </para>
+    /// </summary>
+    private static readonly Transform ObjectIdentifier = new()
+    {
+        Name = "objectIdentifier",
+        Subject = "value",
+        Summary = "dotted hierarchical identifier ↔ octets: leading-pair merge plus per-arc base-128",
+
+        Forward = Expr.Parse(
+            "let arcs = value |> split('.') |> map(a -> a |> undecimal()) in "
+          + "let head = arcs[0] * 40 + arcs[1] in "
+          + "let rest = range((arcs |> count()) - 2, 128) |> map(i -> arcs[i + 2]) in "
+          + "[[head], rest] |> flatten() "
+          + "  |> map(v -> v |> base128('msbFirst') |> unoctets()) |> flatten() |> octets()"),
+
+        Inverse = Expr.Parse(
+            // A running accumulator that resets after each terminal octet; the terminal entries are the arcs.
+            "let groups = value |> unoctets() |> scan([0, true], "
+          + "     (st, b) -> [ (st[1] ? 0 : st[0]) * 128 + (b band 0x7f), (b band 0x80) == 0 ]) in "
+          + "let arcs = groups |> filter(s -> s[1]) |> map(s -> s[0]) in "
+          + "let first = min(arcs[0] / 40, 2) in "
+          + "let rest = range((arcs |> count()) - 1, 128) |> map(i -> arcs[i + 1]) in "
+          + "[[first, arcs[0] - first * 40], rest] |> flatten() "
+          + "  |> map(a -> a |> decimal()) |> join('.')"),
+
+        // The leading-pair merge is not injective over all pairs, so the law holds only here.
+        Domain = Expr.Parse(
+            "let arcs = value |> split('.') |> map(a -> a |> undecimal()) in "
+          + "(arcs |> count()) >= 2 && arcs[0] >= 0 && arcs[0] <= 2 "
+          + "&& (arcs[0] == 2 || arcs[1] <= 39) && (arcs |> all(a -> a >= 0))"),
+    };
+
+    [TestMethod]
+    public void The_object_identifier_encoding_is_expressible_as_a_document()
+    {
+        CollectionAssert.AreEqual(Array.Empty<string>(), ObjectIdentifier.Validate().ToArray());
+
+        // Straight from the corpus: sysDescr.0, and the vendor arc that needs two octets.
+        foreach (var (dotted, hex) in (( string, string )[])
+        [
+            ("1.3.6.1.2.1.1.1.0",          "2b06010201010100"),
+            ("1.3.6.1.2.1.1.3.0",          "2b06010201010300"),
+            ("1.3.6.1.4.1.2021.10.1.3.1",  "2b060104018f650a010301"),
+            ("1.3.6.1.4.1",                "2b06010401"),
+            ("2.100.3",                    "813403"),
+        ])
+        {
+            Assert.IsTrue(ObjectIdentifier.InDomain(ProtoValue.Of(dotted)), dotted);
+            Assert.AreEqual(hex, ObjectIdentifier.Apply(ProtoValue.Of(dotted)).ToString(), $"encode {dotted}");
+            Assert.AreEqual(dotted,
+                ObjectIdentifier.Undo(ProtoValue.Of(Convert.FromHexString(hex))).ToString(), $"decode {hex}");
+        }
+    }
+
+    [TestMethod]
+    public void The_document_form_excludes_the_leading_pairs_where_the_merge_is_not_injective()
+    {
+        // Same non-injectivity as the bare arithmetic, now declared on the composed transform.
+        Assert.IsFalse(ObjectIdentifier.InDomain(ProtoValue.Of("1.40.7")), "collides with 2.0.7");
+        Assert.IsTrue(ObjectIdentifier.InDomain(ProtoValue.Of("2.0.7")));
+        Assert.IsFalse(ObjectIdentifier.InDomain(ProtoValue.Of("3.1.1")), "no such leading arc");
+        Assert.IsFalse(ObjectIdentifier.InDomain(ProtoValue.Of("1")), "an identifier needs at least two arcs");
+    }
+
     [TestMethod]
     public void A_derivation_has_no_inverse_and_says_so_when_asked_for_one()
     {

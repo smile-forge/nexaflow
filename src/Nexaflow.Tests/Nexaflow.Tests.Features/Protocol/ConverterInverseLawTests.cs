@@ -94,13 +94,9 @@ public class ConverterInverseLawTests
             ("268435455 |> base128('lsbFirst') |> unbase128('lsbFirst')", "268435455"),
         ]),
 
-        new("oid / unoid",
-            "arc0 <= 2, and arc1 <= 39 unless arc0 == 2 — the first-arc merge is NOT injective outside it",
-        [
-            ("'1.3.6.1.2.1.1.1.0' |> oid() |> unoid()", "1.3.6.1.2.1.1.1.0"),
-            ("'1.3.6.1.4.1.2021.10.1.3.1' |> oid() |> unoid()", "1.3.6.1.4.1.2021.10.1.3.1"),
-            ("'2.100.3' |> oid() |> unoid()", "2.100.3"),
-        ]),
+        // No hierarchical-identifier entry: that encoding is a document-level transform now, and its round
+        // trip is verified against its own declared domain in TransformLanguageTests. A converter here
+        // would be one family's rule with a general name.
 
         new("decimal / undecimal", "non-negative integers, no padding",
         [
@@ -215,7 +211,7 @@ public class ConverterInverseLawTests
     public void Every_encoding_pair_is_classified_as_a_bijection()
     {
         foreach (var name in (string[])["hex", "unhex", "ascii", "unascii", "mac", "unmac",
-                                        "minint", "unminint", "base128", "unbase128", "oid", "unoid",
+                                        "minint", "unminint", "base128", "unbase128",
                                         "fixed", "unfixed"])
             Assert.AreEqual(ConverterRole.Bijection, ConverterTable.Default.All.Single(x => x.Name == name).Role,
                 $"{name} is a reversible encoding and must be verified by the round-trip laws");
