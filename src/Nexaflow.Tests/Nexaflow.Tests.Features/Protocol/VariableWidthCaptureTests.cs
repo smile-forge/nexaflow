@@ -96,7 +96,7 @@ public class VariableWidthCaptureTests
     /// is room".
     /// </para>
     /// </summary>
-    private static MessageDef FilterList() => Framed("subscribe",
+    internal static MessageDef FilterList() => Framed("subscribe",
         new Field { Id = "packetIdentifier", Pattern = U16, Value = Expr.Parse("inputs.packetIdentifier") },
         new Field
         {
@@ -162,7 +162,7 @@ public class VariableWidthCaptureTests
     /// The connect packet: 143 octets of body, of which 114 exist only because of three bits in an octet
     /// read 22 positions earlier.
     /// </summary>
-    private static MessageDef Connect() => Framed("connect",
+    internal static MessageDef Connect() => Framed("connect",
         [
             .. Prefixed("protocolName"),
             new Field { Id = "protocolLevel", Pattern = U8, Value = Expr.Parse("inputs.protocolLevel") },

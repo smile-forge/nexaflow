@@ -70,7 +70,7 @@ public class FramedChoiceCaptureTests
         ],
     };
 
-    private static MessageDef Request() => Framed("readRequest",
+    internal static MessageDef Request() => Framed("readRequest",
         new Field { Id = "functionCode",    Pattern = U8,  Value = Expr.Parse("inputs.functionCode") },
         new Field { Id = "startingAddress", Pattern = U16, Value = Expr.Parse("inputs.startingAddress") },
         new Field { Id = "quantity",        Pattern = U16, Value = Expr.Parse("inputs.quantity") });
@@ -92,7 +92,7 @@ public class FramedChoiceCaptureTests
     /// if you insist both directions derive the same fact the same way.
     /// </para>
     /// </summary>
-    private static MessageDef Response() => Framed("readResponse",
+    internal static MessageDef Response() => Framed("readResponse",
         new Field { Id = "functionCode", Pattern = U8, Value = Expr.Parse("inputs.functionCode") },
         new Field
         {

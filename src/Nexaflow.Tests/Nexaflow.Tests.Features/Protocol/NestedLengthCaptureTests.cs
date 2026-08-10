@@ -173,7 +173,7 @@ public class NestedLengthCaptureTests
     /// The document. Five levels of nesting, every one of them length-prefixed, and the same text serves a
     /// request and a response four and a half times its size.
     /// </summary>
-    private static MessageDef Message() => new()
+    internal static MessageDef Message() => new()
     {
         Id = "nestedMessage",
         Fields =

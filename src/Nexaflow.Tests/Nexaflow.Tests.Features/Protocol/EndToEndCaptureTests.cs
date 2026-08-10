@@ -29,7 +29,7 @@ public class EndToEndCaptureTests
     /// The document. Note what is <i>not</i> here: no protocol name, no bespoke field kind, nothing the
     /// engine had to learn. Bit slices, scalars and opaque spans, with values supplied by expressions.
     /// </summary>
-    private static MessageDef Definition() => new()
+    internal static MessageDef Definition() => new()
     {
         Id = "timeSync",
         Fields =

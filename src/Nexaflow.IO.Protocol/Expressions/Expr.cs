@@ -58,6 +58,43 @@ public abstract record Expr
     /// <summary>Parses <paramref name="source"/>, or throws <see cref="ProtoSyntaxException"/>.</summary>
     public static Expr Parse(string source) => new Parser(source).ParseExpression();
 
+    /// <summary>
+    /// The expression written back out.
+    ///
+    /// <para>
+    /// Records synthesise a <c>ToString</c> that prints the whole tree, which is unreadable in a
+    /// diagnostic and useless in an explanation. Integer literals of 16 or more come back as hex, because
+    /// every such literal in a wire document is a tag, a mask or a threshold and was written that way.
+    /// </para>
+    /// </summary>
+    public string Render() => this switch
+    {
+        Literal { Value: ProtoValue.Int i } => i.Value is >= 16 or <= -16 ? $"0x{i.Value:x}" : $"{i.Value}",
+        Literal { Value: ProtoValue.Text t } => $"'{t.Value}'",
+        Literal l => l.Value.ToString(),
+
+        Root r => r.Name,
+        Member m => $"{m.Target.Render()}.{m.Name}",
+        Index x => $"{x.Target.Render()}[{x.Position.Render()}]",
+
+        Call c => $"{c.Name}({string.Join(", ", c.Args.Select(a => a.Render()))})",
+        Pipeline p => $"{p.Source.Render()} |> {p.Target.Render()}",
+
+        Unary u => $"{u.Op}{Bracketed(u.Operand)}",
+        Binary b => $"{Bracketed(b.Left)} {b.Op} {Bracketed(b.Right)}",
+        Conditional c => $"{Bracketed(c.Condition)} ? {c.WhenTrue.Render()} : {c.WhenFalse.Render()}",
+
+        Let l => $"let {l.Name} = {l.Value.Render()} in {l.Body.Render()}",
+        Lambda l => l.Parameters.Count == 1
+            ? $"{l.Parameters[0]} -> {l.Body.Render()}"
+            : $"({string.Join(", ", l.Parameters)}) -> {l.Body.Render()}",
+
+        _ => "?",
+    };
+
+    private static string Bracketed(Expr e)
+        => e is Binary or Conditional or Let ? $"({e.Render()})" : e.Render();
+
     /// <summary>The immediate sub-expressions, in evaluation order.</summary>
     public IReadOnlyList<Expr> Children => this switch
     {
