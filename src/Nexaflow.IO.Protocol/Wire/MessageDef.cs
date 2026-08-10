@@ -1,4 +1,5 @@
 using Nexaflow.IO.Protocol.Expressions;
+using Nexaflow.IO.Protocol.Transforms;
 
 namespace Nexaflow.IO.Protocol.Wire;
 
@@ -31,6 +32,20 @@ public sealed record Field
     /// <summary>A converter applied after reading and inverted before writing — a fixed-point scale, a
     /// text codec.</summary>
     public string? Via { get; init; }
+
+    /// <summary>
+    /// A <b>document-authored</b> transform, applied on the same slot as <see cref="Via"/> but further from
+    /// the wire.
+    ///
+    /// <para>
+    /// This is how an encoding rule that belongs to one family reaches a field without living in the
+    /// engine. The engine's converters are notions — arithmetic, bit operations, byte sequences; a
+    /// composition of them that is one family's rule is written down as a transform, in a document, with
+    /// its domain declared. If it were a converter instead, it would be a protocol specific with a general
+    /// name, which is the thing the whole model is arranged to prevent.
+    /// </para>
+    /// </summary>
+    public Transform? Through { get; init; }
 
     public string CaptureName => As ?? Id;
 }
@@ -83,7 +98,15 @@ public sealed record MessageDef
         var patterns = here.GroupBy(f => f.Id, StringComparer.Ordinal)
                            .ToDictionary(g => g.Key, g => g.First().Pattern, StringComparer.Ordinal);
 
-        foreach (var field in here) issues.AddRange(field.Pattern.Validate(field.Id, patterns));
+        foreach (var field in here)
+        {
+            issues.AddRange(field.Pattern.Validate(field.Id, patterns));
+
+            // A transform is document-authored, so it is checked here rather than trusted — containment,
+            // totality and a declared domain, the same bar a transform faces anywhere else.
+            if (field.Through is { } transform)
+                issues.AddRange(transform.Validate().Select(i => $"field '{field.Id}': {i}"));
+        }
 
         foreach (var duplicate in here.GroupBy(f => f.Id, StringComparer.Ordinal).Where(g => g.Count() > 1))
             issues.Add($"message '{Id}': duplicate field id '{duplicate.Key}' in one scope — ids are how "

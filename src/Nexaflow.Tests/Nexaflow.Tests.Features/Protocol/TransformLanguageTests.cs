@@ -247,7 +247,7 @@ public class TransformLanguageTests
     /// octet), then undo the merge with the saturating rule. Nothing here is a notion the engine lacks.
     /// </para>
     /// </summary>
-    private static readonly Transform ObjectIdentifier = new()
+    internal static readonly Transform ObjectIdentifier = new()
     {
         Name = "objectIdentifier",
         Subject = "value",

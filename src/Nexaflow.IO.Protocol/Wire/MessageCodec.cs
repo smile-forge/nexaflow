@@ -78,8 +78,24 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     {
         public readonly byte[] Bytes = bytes;
         public int Offset;
-        public readonly Dictionary<string, ProtoValue> Captures = new(StringComparer.Ordinal);
         public readonly List<WireSpan> Spans = [];
+
+        /// <summary>
+        /// What has been bound, outermost first. The outermost frame is the message's captures; a chained
+        /// structure pushes one, and that frame <i>is</i> the structure's value.
+        ///
+        /// <para>
+        /// Flat within a frame rather than mirroring the nesting, which is the same shape the message level
+        /// has always had. A tree-shaped instance value looks tidier and loses things: an arm's fields
+        /// belong to whichever arm was taken, so under a tree they hang off a node whose own value is the
+        /// arm's name, and nothing at the top can see them.
+        /// </para>
+        /// </summary>
+        private readonly List<Dictionary<string, ProtoValue>> _bindings = [new(StringComparer.Ordinal)];
+
+        public IReadOnlyDictionary<string, ProtoValue> Captures => _bindings[0];
+
+        public void Capture(string name, ProtoValue value) => _bindings[^1][name] = value;
 
         /// <summary>Field scopes, outermost first. A chain instance pushes one, so instance 2's names are
         /// its own and anything it does not declare resolves outward.</summary>
@@ -97,8 +113,22 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
         public void Note(string fieldId, ProtoValue value, int extent) => _scopes[^1][fieldId] = (value, extent);
 
-        public void EnterScope() => _scopes.Add(new Dictionary<string, (ProtoValue, int)>(StringComparer.Ordinal));
-        public void LeaveScope() => _scopes.RemoveAt(_scopes.Count - 1);
+        /// <summary>Opens a structure: its own field scope for expressions, and its own bindings for the
+        /// value it will become.</summary>
+        public void EnterStructure()
+        {
+            _scopes.Add(new Dictionary<string, (ProtoValue, int)>(StringComparer.Ordinal));
+            _bindings.Add(new Dictionary<string, ProtoValue>(StringComparer.Ordinal));
+        }
+
+        /// <summary>Closes it, handing back everything it bound.</summary>
+        public ProtoValue LeaveStructure()
+        {
+            _scopes.RemoveAt(_scopes.Count - 1);
+            var bound = _bindings[^1];
+            _bindings.RemoveAt(_bindings.Count - 1);
+            return new ProtoValue.Rec(bound);
+        }
 
         public void EnterRegion(string fieldId, int limit)
         {
@@ -202,9 +232,14 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                     // The instance's own field scope. This is what lets it carry its own length prefix:
                     // `fields.body.extent` inside instance 2 means instance 2's, not instance 1's and not
                     // an ambiguous document-global span.
-                    r.EnterScope();
-                    var instance = Read(chain.Element, r, $"{path}[{instances.Count}]", exposed: false);
-                    r.LeaveScope();
+                    r.EnterStructure();
+                    var element = Read(chain.Element, r, $"{path}[{instances.Count}]", exposed: false);
+                    var bound = r.LeaveStructure();
+
+                    // A structure built from a single wire shape IS that value; anything composite is
+                    // everything it bound. Wrapping a lone scalar in a one-member record would make the
+                    // simplest case the awkward one to read.
+                    var instance = chain.Element.Pattern.Nested.Count == 0 ? element : bound;
 
                     if (r.Offset == before)
                         throw new ProtoTypeException(
@@ -246,7 +281,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     private static ProtoValue Bind(Field field, Reading r, ProtoValue value, int extent, bool exposed)
     {
         r.Note(field.Id, value, extent);
-        if (exposed) r.Captures[field.CaptureName] = value;
+        r.Capture(field.CaptureName, value);
         return value;
     }
 
@@ -263,6 +298,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         int width = field.Pattern switch
         {
             Pattern.Varint varint => ScanContinuation(field, varint, r),
+            Pattern.EscapedInline escaped => MarkerWidth(field, escaped, r),
             Pattern.Opaque { Length: { } length } => Bounded(field, r.Eval(length).AsInt(), r),
             _ => field.Pattern.StaticWidth
                  ?? throw new ProtoTypeException($"field '{field.Id}' has no way to determine its width"),
@@ -292,7 +328,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                     slices[slice.Name] = sliced;
 
                     r.Spans.Add(new WireSpan(at, width, exposed ? slice.Name : $"{path}.{slice.Name}", sliced));
-                    if (exposed) r.Captures[slice.Name] = sliced;
+                    r.Capture(slice.Name, sliced);
                 }
 
                 value = new ProtoValue.Rec(slices);
@@ -303,14 +339,14 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             {
                 long raw = scalar.Signed ? ReadSigned(run, scalar.BigEndian)
                                          : ReadUnsigned(run, scalar.BigEndian);
-                value = Convert(ProtoValue.Of(raw), field.Via, forward: false);
+                value = Convert(ProtoValue.Of(raw), field, forward: false);
                 r.Spans.Add(new WireSpan(at, width, path, value));
                 break;
             }
 
             case Pattern.Varint varint:
             {
-                value = Convert(Unpack(run.ToArray(), varint), field.Via, forward: false);
+                value = Convert(Unpack(run.ToArray(), varint), field, forward: false);
 
                 // Minimality checked by re-encoding, which is the backward round-trip law applied at
                 // decode time. A padded chain would otherwise decode to a value that re-encodes shorter,
@@ -329,9 +365,26 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 break;
             }
 
+            case Pattern.EscapedInline escaped:
+            {
+                value = Convert(UnpackEscaped(run, escaped), field, forward: false);
+
+                if (escaped.Minimal)
+                {
+                    var shortest = PackEscaped(value.AsInt(), escaped);
+                    if (!shortest.AsSpan().SequenceEqual(run))
+                        throw new ProtoTypeException(
+                            $"field '{field.Id}': {Hex(run)} is not the shortest encoding of {value} — that "
+                          + $"is {Hex(shortest)}. Escaping when the value would have fitted inline, or "
+                          + "carrying it in more octets than it needs, is rejected rather than carried.");
+                }
+                r.Spans.Add(new WireSpan(at, width, path, value));
+                break;
+            }
+
             default:
             {
-                value = Convert(ProtoValue.Of(run.ToArray()), field.Via, forward: false);
+                value = Convert(ProtoValue.Of(run.ToArray()), field, forward: false);
                 r.Spans.Add(new WireSpan(at, width, path, value));
                 break;
             }
@@ -372,19 +425,61 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     /// </para>
     /// </summary>
     private byte[] Pack(long value, Pattern.Varint varint)
-        => Through("base128", ProtoValue.Of(value), varint).AsBytes();
+        => Apply("base128", ProtoValue.Of(value), Order(varint)).AsBytes();
 
     private ProtoValue Unpack(byte[] octets, Pattern.Varint varint)
-        => Through("unbase128", ProtoValue.Of(octets), varint);
+        => Apply("unbase128", ProtoValue.Of(octets), Order(varint));
 
-    private ProtoValue Through(string converter, ProtoValue value, Pattern.Varint varint)
+    private static ProtoValue Order(Pattern.Varint varint)
+        => ProtoValue.Of(varint.Order == GroupOrder.MostSignificantFirst ? "msbFirst" : "lsbFirst");
+
+    /// <summary>
+    /// The escaped-inline codec. Also borrowed rather than rewritten: the escaped form's payload is just
+    /// minimal-width unsigned octets, which the converter table already knows how to produce and read.
+    /// </summary>
+    private byte[] PackEscaped(long value, Pattern.EscapedInline escaped)
     {
-        if (!_converters.TryGet(converter, out var c) || c is null)
-            throw new ProtoTypeException($"the converter table has no '{converter}'");
+        if (value < 0)
+            throw new ProtoTypeException($"an escaped-inline value cannot be negative, got {value}");
 
-        return c.Apply(value, [ProtoValue.Of(varint.Order == GroupOrder.MostSignificantFirst
-            ? "msbFirst" : "lsbFirst")]);
+        if (value < escaped.InlineLimit) return [(byte)value];
+
+        var octets = Apply("minuint", ProtoValue.Of(value), ProtoValue.Of("oneByte")).AsBytes();
+
+        if (octets.Length > escaped.MaxOctets)
+            throw new ProtoTypeException(
+                $"{value} needs {octets.Length} octet(s), past the {escaped.MaxOctets} this field allows");
+
+        return [(byte)(escaped.InlineLimit + octets.Length), .. octets];
     }
+
+    private ProtoValue UnpackEscaped(ReadOnlySpan<byte> run, Pattern.EscapedInline escaped)
+        => run[0] < escaped.InlineLimit
+            ? ProtoValue.Of((long)run[0])
+            : Apply("unminuint", ProtoValue.Of(run[1..].ToArray()));
+
+    private static int MarkerWidth(Field field, Pattern.EscapedInline escaped, Reading r)
+    {
+        if (r.Offset >= r.Limit)
+            throw new ProtoTypeException($"field '{field.Id}': no octets left for its marker");
+
+        long marker = r.Bytes[r.Offset];
+        if (marker < escaped.InlineLimit) return 1;
+
+        long counted = marker - escaped.InlineLimit;
+
+        if (counted > escaped.MaxOctets)
+            throw new ProtoTypeException(
+                $"field '{field.Id}': the marker at offset {r.Offset} counts {counted} octet(s), past the "
+              + $"{escaped.MaxOctets} this field allows");
+
+        return (int)(1 + counted);
+    }
+
+    private ProtoValue Apply(string converter, ProtoValue value, params ProtoValue[] args)
+        => _converters.TryGet(converter, out var c) && c is not null
+            ? c.Apply(value, args)
+            : throw new ProtoTypeException($"the converter table has no '{converter}'");
 
     // ── Encode ────────────────────────────────────────────────────────────────
 
@@ -681,7 +776,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
               + "must be declared as such rather than left silent.");
 
         var child = frame.Scope.Child().Set("fields", FieldsRecord(frame, resolved));
-        return Convert(evaluator.Eval(field.Value, child), field.Via, forward: true);
+        return Convert(evaluator.Eval(field.Value, child), field, forward: true);
     }
 
     /// <summary>
@@ -726,6 +821,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     private int Measure(Field field, ProtoValue? value) => field.Pattern switch
     {
         Pattern.Varint varint => Pack(Settled(field, value).AsInt(), varint).Length,
+        Pattern.EscapedInline escaped => PackEscaped(Settled(field, value).AsInt(), escaped).Length,
         Pattern.Opaque { Length: not null } => Settled(field, value).AsBytes().Length,
         _ => throw new ProtoTypeException($"field '{field.Id}' has no way to determine its width"),
     };
@@ -783,15 +879,51 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             case Pattern.Varint varint:
                 output.AddRange(Pack(value.AsInt(), varint));
                 break;
+
+            case Pattern.EscapedInline escaped:
+                output.AddRange(PackEscaped(value.AsInt(), escaped));
+                break;
         }
     }
 
-    private ProtoValue Convert(ProtoValue value, string? via, bool forward)
+    /// <summary>
+    /// The field's conversion slot, both ways from one declaration.
+    ///
+    /// <para>
+    /// A transform sits <i>further from the wire</i> than a converter, so encode runs it first and decode
+    /// runs it last. That ordering is the only sensible one: the converter is the octet-level step and the
+    /// transform is the family-level rule composed on top of it.
+    /// </para>
+    /// </summary>
+    private ProtoValue Convert(ProtoValue value, Field field, bool forward)
+    {
+        if (forward)
+        {
+            if (field.Through is { } transform) value = transform.Apply(value, evaluator: new Evaluator(_converters));
+            return Through(value, field.Via, forward: true, field.Id);
+        }
+
+        value = Through(value, field.Via, forward: false, field.Id);
+
+        if (field.Through is { } inverse)
+        {
+            if (inverse.Inverse is null)
+                throw new ProtoTypeException(
+                    $"field '{field.Id}': transform '{inverse.Name}' is a derivation, so it cannot be used "
+                  + "on a field that must decode — a derived value is recomputed and compared, never inverted");
+
+            value = inverse.Undo(value, evaluator: new Evaluator(_converters));
+        }
+
+        return value;
+    }
+
+    private ProtoValue Through(ProtoValue value, string? via, bool forward, string fieldId)
     {
         if (via is null) return value;
 
         if (!_converters.TryGet(via, out var converter) || converter is null)
-            throw new ProtoTypeException($"unknown converter '{via}'");
+            throw new ProtoTypeException($"field '{fieldId}': unknown converter '{via}'");
 
         // Decode applies the inverse, encode the forward direction — one declaration, both ways.
         if (forward) return converter.Apply(value, []);

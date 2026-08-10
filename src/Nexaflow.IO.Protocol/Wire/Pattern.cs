@@ -110,6 +110,27 @@ public abstract record Pattern
     public sealed record Varint(GroupOrder Order, int MaxOctets, bool Minimal = true) : Pattern;
 
     /// <summary>
+    /// A small value carried in one octet, escaping to a counted run of octets when it will not fit.
+    ///
+    /// <para>
+    /// The other way a width comes from a value, and a genuinely different notion from
+    /// <see cref="Varint"/>: there is no continue flag and no regrouping into seven-bit digits. One marker
+    /// octet either <i>is</i> the value, or says how many octets follow that carry it.
+    /// </para>
+    ///
+    /// <para>
+    /// <paramref name="InlineLimit"/> is where the escape begins and is required — it is the whole
+    /// parameterisation, and defaulting it would put one encoding family's threshold in the engine. At 128
+    /// the marker's top bit is the escape and its low seven bits are the octet count, which is the form
+    /// most encodings of this shape use; nothing about the notion requires that particular number.
+    /// </para>
+    /// </summary>
+    /// <param name="Minimal">On decode, a value carried in more octets than it needs — or in the escaped
+    /// form when it would have fitted inline — is an error rather than a value, for the same reason as
+    /// <see cref="Varint.Minimal"/>: it is what keeps value→octets injective.</param>
+    public sealed record EscapedInline(long InlineLimit, int MaxOctets, bool Minimal = true) : Pattern;
+
+    /// <summary>
     /// A named contiguous region: its children, in order, and nothing else.
     ///
     /// <para>
@@ -254,6 +275,15 @@ public abstract record Pattern
            + "recovered from the message, not both and not neither"],
 
         Opaque o when o.Width < 0 => [$"field '{fieldId}': an opaque span cannot be negative"],
+
+        EscapedInline e when e.InlineLimit is < 1 or > 255 =>
+            [$"field '{fieldId}': the escape threshold must be 1..255, got {e.InlineLimit} — the marker is "
+           + "one octet, so a value at or above 256 could never be carried inline"],
+
+        EscapedInline e when e.MaxOctets is < 1 or > 8 || e.InlineLimit + e.MaxOctets > 255 =>
+            [$"field '{fieldId}': at a threshold of {e.InlineLimit} the marker can count at most "
+           + $"{255 - e.InlineLimit} octet(s), and no more than 8 in any case — {e.MaxOctets} is not "
+           + "expressible"],
 
         Varint v when v.MaxOctets is < 1 or > 10 =>
             [$"field '{fieldId}': a continuation-encoded integer must be bounded at 1..10 octets, got "

@@ -100,7 +100,7 @@ Each step is independently testable against a named capture, earliest-falsifying
 | 4 ✅ | Regions, `Choice` with masked keysets, `Repeat`; realisation-driven encode | **Modbus ×3, T2** |
 | 5 ✅ | Continuation-encoded integer, recovered-length span; extent as a function of value | MQTT ×4 |
 | 5b ✅ | **Chaining** replaces repetition; regions become decode boundaries; presence is an empty arm | **MQTT ×6** |
-| 6 | `lp` + `LenSpec` + `group` + nested lengths | **SNMP 73 B + 337 B from one document — go/no-go gate** |
+| 6 ✅ | Escaped-inline length, nested lengths, document transforms on fields | **SNMP 73 B + 337 B from one document — gate PASSED** |
 | 7 | `fold` on the decode side, `present` | CoAP ×3, T2 + the empty-vs-absent T1 pair |
 | 8–13 | sugar, offset tables, text path, checksums, deep nesting | DHCP, mDNS, SSDP, NTP-C, TLS, BACnet |
 | 14 | the step graph, then the state model | needs the seams closed first |
@@ -148,6 +148,43 @@ validation error. Two answers silently prefer one; none reads to the end of what
 wrong: a liveness probe has no body, its region measures zero, and that zero is exactly what the length
 must emit. Rejecting it would have forced a second framing declaration for the empty case. Caught by the
 shortest capture in the corpus.
+
+## The gate: passed
+
+**2026-08-10.** A 73-octet SNMPv2c request and a 337-octet response, from **one document**, both
+byte-exact in both directions with every length withheld from the inputs. The two have the same shape at
+five levels of nesting and resolve it to length widths of (1,1,1,1,1) and (2,3,3,3,3).
+
+**No fixed-point iteration.** The corpus predicted this would force the size-resolution pass to iterate
+until it converged, on the grounds that a length field's own width is part of the answer. It doesn't. Spans
+in a nesting grammar form a tree, so extents settle bottom-up in one demand-driven pass. The prediction's
+own alternative — *resolve sizes bottom-up over the field tree, which is legal because span dependencies
+form a tree, never a cycle* — is what happens, and it falls out of the facet ordering rather than being
+arranged. A protocol that did write a length counting its own octets would be reported as a cycle, which
+is the right answer.
+
+The feedback the corpus measured is still there and is now a test: at a payload of 127→128 the value's own
+length gains an octet, and that octet is counted by all four lengths enclosing it, so **+1 of payload is +2
+of packet**. Same again at 255→256.
+
+**Three things the corpus listed as blocking needed nothing new.** Minimal two's-complement integers were
+already in the converter table — and the same converter serves the signed request-id (`0c 8a 9b`, three
+octets) and the notionally unsigned counter (`00 94 a1 b2`, where the leading pad is mandatory), because
+that is one rule and not two. Repetition-until-region-end and per-instance length prefixes arrived with
+chaining. Tag dispatch is a choice whose keyset cannot be computed, so it declares a fallback.
+
+**One new shape, and one new wire.** The length form is `EscapedInline`: a value carried in the marker
+octet below a threshold, and above it the marker counts the octets that carry it. The threshold is a
+required parameter — at 128 the marker's top bit is the escape, which is what most encodings of this shape
+do and nothing about the notion requires. Its payload is minimal-width unsigned octets, so that codec is
+borrowed too. And a **document transform** can now sit on a field: the hierarchical identifier
+(`1.3.6.1.4.1.2021.10.1.3.1` ↔ `2b 06 01 04 01 8f 65 0a 01 03 01`) rides on the varbind name field as the
+same transform whose round-trip law is proved in the transform tests. It is not a converter, and the
+register of accepted generalisation debt is still empty.
+
+**A gap the gate found on the way.** A chained structure's value mirrored its wire tree, so a choice inside
+one lost its arm's fields — they hung off a node whose own value was the arm's name, invisible from above.
+Structures now carry their **bindings**, flat, exactly as the message level always has.
 
 ## Repetition was the wrong notion
 
