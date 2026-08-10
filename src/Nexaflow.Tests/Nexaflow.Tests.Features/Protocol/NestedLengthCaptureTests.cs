@@ -367,6 +367,50 @@ public class NestedLengthCaptureTests
     }
 
     [TestMethod]
+    public void A_tag_the_document_fixes_must_be_the_tag_that_arrived()
+    {
+        // Found by reading the description against the specification: nothing checked the nine literal
+        // tag octets on the way in. A flipped one was read, bound, and then re-encoded as the literal —
+        // so the octets out differed from the octets in, silently, in the framing everything else trusts.
+        var flipped = (byte[])[.. Capture(0)];
+        flipped[0] = 0x31;
+
+        var ex = Assert.ThrowsExactly<ProtoTypeException>(() => new MessageCodec(Message()).Decode(flipped));
+        StringAssert.Contains(ex.Message, "is fixed at");
+        StringAssert.Contains(ex.Message, "quietly change the octets");
+    }
+
+    [TestMethod]
+    public void An_integer_padded_beyond_its_minimal_form_is_refused()
+    {
+        // The same defect one level down, and the one the length fields had guarded against all along:
+        // `00 0c 8a 9b` and `0c 8a 9b` both mean 821915, and re-encoding either produces the shorter.
+        // Accepting the longer makes encode(decode(b)) != b while every check still appears to pass.
+        var message = new MessageDef
+        {
+            Id = "paddedInteger",
+            Fields =
+            [
+                new Field { Id = "size", Pattern = U8, Value = Expr.Parse("fields.number.extent") },
+                new Field
+                {
+                    Id = "number",
+                    Pattern = Pattern.Opaque.Measured(Expr.Parse("fields.size.value")),
+                    Value = Expr.Parse("inputs.number"),
+                    Via = "minint",
+                },
+            ],
+        };
+
+        var codec = new MessageCodec(message);
+        Assert.AreEqual(821915, codec.Decode([0x03, 0x0c, 0x8a, 0x9b])["number"].AsInt(), "the minimal form reads");
+
+        var ex = Assert.ThrowsExactly<ProtoTypeException>(() => codec.Decode([0x04, 0x00, 0x0c, 0x8a, 0x9b]));
+        StringAssert.Contains(ex.Message, "not what");
+        StringAssert.Contains(ex.Message, "refused rather than carried");
+    }
+
+    [TestMethod]
     public void The_hierarchical_identifier_is_a_document_transform_and_not_an_engine_converter()
     {
         // The debt that was discharged when the transform language landed, now carrying a real capture.

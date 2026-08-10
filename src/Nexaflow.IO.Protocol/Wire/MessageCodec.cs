@@ -313,6 +313,10 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         int at = r.Offset;
         ProtoValue value;
 
+        // What the octets said before any converter touched them. Kept because canonicality is a property
+        // of the octets, not of the value they were turned into.
+        ProtoValue asRead = ProtoValue.Nothing;
+
         switch (field.Pattern)
         {
             case Pattern.Bits bits:
@@ -337,16 +341,17 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
             case Pattern.Scalar scalar:
             {
-                long raw = scalar.Signed ? ReadSigned(run, scalar.BigEndian)
-                                         : ReadUnsigned(run, scalar.BigEndian);
-                value = Convert(ProtoValue.Of(raw), field, forward: false);
+                asRead = ProtoValue.Of(scalar.Signed ? ReadSigned(run, scalar.BigEndian)
+                                                     : ReadUnsigned(run, scalar.BigEndian));
+                value = Convert(asRead, field, forward: false);
                 r.Spans.Add(new WireSpan(at, width, path, value));
                 break;
             }
 
             case Pattern.Varint varint:
             {
-                value = Convert(Unpack(run.ToArray(), varint), field, forward: false);
+                asRead = Unpack(run.ToArray(), varint);
+                value = Convert(asRead, field, forward: false);
 
                 // Minimality checked by re-encoding, which is the backward round-trip law applied at
                 // decode time. A padded chain would otherwise decode to a value that re-encodes shorter,
@@ -367,7 +372,8 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
             case Pattern.EscapedInline escaped:
             {
-                value = Convert(UnpackEscaped(run, escaped), field, forward: false);
+                asRead = UnpackEscaped(run, escaped);
+                value = Convert(asRead, field, forward: false);
 
                 if (escaped.Minimal)
                 {
@@ -384,14 +390,56 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
             default:
             {
-                value = Convert(ProtoValue.Of(run.ToArray()), field, forward: false);
+                asRead = ProtoValue.Of(run.ToArray());
+                value = Convert(asRead, field, forward: false);
                 r.Spans.Add(new WireSpan(at, width, path, value));
                 break;
             }
         }
 
+        Canonical(field, r, value, asRead);
+
         r.Offset += width;
         return Bind(field, r, value, width, exposed);
+    }
+
+    /// <summary>
+    /// Two checks with one justification: <b>what arrived must be what we would have written</b>.
+    ///
+    /// <para>
+    /// Both were missing, and both fail the same way — silently. A field the document fixes to a constant
+    /// was read, bound, and then re-encoded as the constant, so a flipped tag octet came back changed with
+    /// nothing raising a word; and a value whose encoding is not canonical decoded fine and re-encoded
+    /// shorter. In each case the octets out differ from the octets in while every claim the engine makes
+    /// still appears to hold.
+    /// </para>
+    ///
+    /// <para>
+    /// Neither needs new vocabulary. The document already says what the value must be, and already says
+    /// which converter produces it; the omission was only ever failing to look.
+    /// </para>
+    /// </summary>
+    private void Canonical(Field field, Reading r, ProtoValue value, ProtoValue asRead)
+    {
+        // A value with no free names is one the document settled by itself, so the wire has no say in it.
+        if (field.Value is { } declared && declared.FreeRootNames().Count == 0)
+        {
+            var required = r.Eval(declared);
+            if (!Equals(required, value))
+                throw new ProtoTypeException(
+                    $"field '{field.Id}' is fixed at {required} by the document, but {value} arrived. "
+                  + "Binding it anyway would re-encode as the fixed value and quietly change the octets.");
+        }
+
+        // A reversible converter must have produced these octets from this value, or the value is one the
+        // encoder could never have written and the round trip is already broken.
+        if (field.Via is { } via
+            && _converters.TryGet(via.Name, out var converter) && converter is { Role: ConverterRole.Bijection }
+            && !Equals(Through(value, via, forward: true, field.Id), asRead))
+            throw new ProtoTypeException(
+                $"field '{field.Id}': {asRead} is not what '{via}' produces from {value} — it produces "
+              + $"{Through(value, via, forward: true, field.Id)}. A non-canonical encoding decodes cleanly "
+              + "and re-encodes to different octets, so it is refused rather than carried.");
     }
 
     /// <summary>
@@ -918,21 +966,22 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         return value;
     }
 
-    private ProtoValue Through(ProtoValue value, string? via, bool forward, string fieldId)
+    private ProtoValue Through(ProtoValue value, Conversion? via, bool forward, string fieldId)
     {
         if (via is null) return value;
 
-        if (!_converters.TryGet(via, out var converter) || converter is null)
-            throw new ProtoTypeException($"field '{fieldId}': unknown converter '{via}'");
+        if (!_converters.TryGet(via.Name, out var converter) || converter is null)
+            throw new ProtoTypeException($"field '{fieldId}': unknown converter '{via.Name}'");
 
-        // Decode applies the inverse, encode the forward direction — one declaration, both ways.
-        if (forward) return converter.Apply(value, []);
+        // Decode applies the inverse, encode the forward direction — one declaration, both ways, and the
+        // same arguments: a converter that needs a fraction width needs it in either direction.
+        if (forward) return converter.Apply(value, via.Args);
 
         if (converter.Inverse is null || !_converters.TryGet(converter.Inverse, out var inverse) || inverse is null)
             throw new ProtoTypeException(
-                $"converter '{via}' declares no inverse, so it cannot be used on a field that must decode");
+                $"converter '{via.Name}' declares no inverse, so it cannot be used on a field that must decode");
 
-        return inverse.Apply(value, []);
+        return inverse.Apply(value, via.Args);
     }
 
     // ── Octet plumbing ────────────────────────────────────────────────────────

@@ -47,15 +47,59 @@ public class EndToEndCaptureTests
             new Field { Id = "poll",      Pattern = new Pattern.Scalar(1, true, Signed: true), Value = Expr.Parse("inputs.poll") },
             new Field { Id = "precision", Pattern = new Pattern.Scalar(1, true, Signed: true), Value = Expr.Parse("inputs.precision") },
 
-            new Field { Id = "rootDelay",      Pattern = new Pattern.Scalar(4, true), Value = Expr.Parse("inputs.rootDelay") },
-            new Field { Id = "rootDispersion", Pattern = new Pattern.Scalar(4, true), Value = Expr.Parse("inputs.rootDispersion") },
-            new Field { Id = "referenceId",    Pattern = new Pattern.Opaque(4),       Value = Expr.Parse("inputs.referenceId") },
+            // Fixed point, not magnitudes. Declared as plain 4-octet integers these round-trip perfectly
+            // and read 65536 times too large, which is the failure the explanation exists to expose: the
+            // octets were never wrong, the description was.
+            new Field
+            {
+                Id = "rootDelay",
+                Pattern = new Pattern.Scalar(4, true),
+                Value = Expr.Parse("inputs.rootDelay"),
+                Via = Conversion.Of("fixed", 16, 16),
+            },
+            new Field
+            {
+                Id = "rootDispersion",
+                Pattern = new Pattern.Scalar(4, true),
+                Value = Expr.Parse("inputs.rootDispersion"),
+                Via = Conversion.Of("fixed", 16, 16),
+            },
 
-            new Field { Id = "referenceTimestamp", Pattern = new Pattern.Scalar(8, true), Value = Expr.Parse("inputs.referenceTimestamp") },
-            new Field { Id = "originTimestamp",    Pattern = new Pattern.Scalar(8, true), Value = Expr.Parse("inputs.originTimestamp") },
-            new Field { Id = "receiveTimestamp",   Pattern = new Pattern.Scalar(8, true), Value = Expr.Parse("inputs.receiveTimestamp") },
-            new Field { Id = "transmitTimestamp",  Pattern = new Pattern.Scalar(8, true), Value = Expr.Parse("inputs.transmitTimestamp") },
+            // What these four octets mean depends on the stratum: a reason code at 0, a source name at 1,
+            // an address above that. Carrying them opaque round-trips and tells the reader nothing.
+            new Field
+            {
+                Id = "referenceId",
+                Pattern = new Pattern.Choice(Expr.Parse("fields.stratum.value"),
+                [
+                    new Arm("reason", 0, [Four("reasonCode", "unascii")]),
+                    new Arm("sourceName", 1, [Four("sourceName", "unascii")]),
+                    new Arm("upstreamAddress", null, [Four("upstreamAddress", "ipv4")]),
+                ]),
+            },
+
+            // 32 bits of seconds against 32 bits of fraction. Not the fixed-point converter: 64 bits do
+            // not survive a double, so scaling here would lose the low bits and the round trip with them.
+            Timestamp("referenceTimestamp"),
+            Timestamp("originTimestamp"),
+            Timestamp("receiveTimestamp"),
+            Timestamp("transmitTimestamp"),
         ],
+    };
+
+    private static Field Four(string id, string via) => new()
+    {
+        Id = id,
+        Pattern = new Pattern.Opaque(4),
+        Value = Expr.Parse($"inputs.{id}"),
+        Via = via,
+    };
+
+    private static Field Timestamp(string id) => new()
+    {
+        Id = id,
+        Pattern = new Pattern.Bits([new($"{id}Seconds", 32), new($"{id}Fraction", 32)]),
+        Value = Expr.Parse($"inputs.{id}"),
     };
 
     private static byte[] Capture(int index)
@@ -96,11 +140,17 @@ public class EndToEndCaptureTests
         Assert.AreEqual(6, decoded["poll"].AsInt(), "0x06 as a signed octet is +6");
         Assert.AreEqual(-20, decoded["precision"].AsInt(), "0xec as a signed octet is -20");
 
-        Assert.AreEqual(0, decoded["rootDelay"].AsInt());
-        Assert.AreEqual(0, decoded["originTimestamp"].AsInt(), "a client has no prior server packet");
+        Assert.AreEqual(0.0, decoded["rootDelay"].AsNumber());
+        Assert.AreEqual(0, decoded["originTimestampSeconds"].AsInt(), "a client has no prior server packet");
 
-        // The one non-zero timestamp: 0xee22ea404ccccccd.
-        Assert.AreEqual(unchecked((long)0xee22ea404ccccccdUL), decoded["transmitTimestamp"].AsInt());
+        // The one non-zero timestamp: 0xee22ea40 seconds against 0x4ccccccd of fraction. Read as one
+        // 64-bit magnitude the number is meaningless; the split is what makes it a time.
+        Assert.AreEqual(0xee22ea40, decoded["transmitTimestampSeconds"].AsInt());
+        Assert.AreEqual(0x4ccccccd, decoded["transmitTimestampFraction"].AsInt());
+
+        // Stratum 0, so the four opaque octets are a reason code rather than an address — and the chosen
+        // shape is the field's value, so nothing downstream has to re-test the stratum to know that.
+        Assert.AreEqual("reason", decoded["referenceId"].AsText());
     }
 
     [TestMethod]
@@ -112,13 +162,18 @@ public class EndToEndCaptureTests
         Assert.AreEqual(2, decoded["stratum"].AsInt());
         Assert.AreEqual(-23, decoded["precision"].AsInt(), "0xe9 signed is -23");
 
-        // Root delay 0x0000028f = 655 in 16.16, which the corpus records as 0.0099945 s.
-        Assert.AreEqual(655, decoded["rootDelay"].AsInt());
-        Assert.AreEqual(0.0099945, new Evaluator().Eval("655 |> unfixed(16, 16)", new EvalScope()).AsNumber(), 1e-7);
+        // Root delay 0x0000028f is 655 in 16.16 — which is 0.0099945 seconds, not 655 of anything. The
+        // document says so now; declared as a plain integer it round-tripped perfectly and read 65536
+        // times too large, and only a description laid beside the specification could catch that.
+        Assert.AreEqual(0.0099945, decoded["rootDelay"].AsNumber(), 1e-7);
 
         // All four timestamps are populated in a response.
         foreach (var name in (string[])["referenceTimestamp", "originTimestamp", "receiveTimestamp", "transmitTimestamp"])
-            Assert.AreNotEqual(0, decoded[name].AsInt(), name);
+            Assert.AreNotEqual(0, decoded[$"{name}Seconds"].AsInt(), name);
+
+        // Stratum 2, so the same four octets are an upstream address rather than a reason code.
+        Assert.AreEqual("upstreamAddress", decoded["referenceId"].AsText());
+        StringAssert.Contains(decoded["upstreamAddress"].AsText(), ".");
     }
 
     [TestMethod]

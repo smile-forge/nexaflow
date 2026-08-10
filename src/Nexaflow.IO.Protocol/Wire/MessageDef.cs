@@ -1,7 +1,31 @@
 using Nexaflow.IO.Protocol.Expressions;
 using Nexaflow.IO.Protocol.Transforms;
+using Nexaflow.IO.Protocol.Values;
 
 namespace Nexaflow.IO.Protocol.Wire;
+
+/// <summary>
+/// A converter applied to a field, with the arguments it needs.
+///
+/// <para>
+/// The arguments are the reason this is not just a name. A converter that carries a protocol's constant as
+/// a default is a protocol specific hiding in the engine, so every converter that has a choice to make
+/// demands it be stated — a group order, a zero rule, a fraction width. A field using one therefore has to
+/// be able to state it too, and a bare name cannot.
+/// </para>
+/// </summary>
+public sealed record Conversion(string Name, IReadOnlyList<ProtoValue> Args)
+{
+    /// <summary>So the common no-argument case still reads as <c>Via = "unascii"</c>. Null in, null out:
+    /// a document that computes its converter name and gets nothing means <i>no conversion</i>, not a
+    /// conversion with no name.</summary>
+    public static implicit operator Conversion?(string? name) => name is null ? null : new(name, []);
+
+    public static Conversion Of(string name, params long[] args)
+        => new(name, [.. args.Select(a => ProtoValue.Of(a))]);
+
+    public override string ToString() => Args.Count == 0 ? Name : $"{Name}({string.Join(", ", Args)})";
+}
 
 /// <summary>
 /// One field of a message: a shape, where its value comes from on encode, and what it binds to on decode.
@@ -29,9 +53,9 @@ public sealed record Field
     /// themselves.</summary>
     public string? As { get; init; }
 
-    /// <summary>A converter applied after reading and inverted before writing — a fixed-point scale, a
+    /// <summary>A converter applied on the way out and inverted on the way in — a fixed-point scale, a
     /// text codec.</summary>
-    public string? Via { get; init; }
+    public Conversion? Via { get; init; }
 
     /// <summary>
     /// A <b>document-authored</b> transform, applied on the same slot as <see cref="Via"/> but further from
@@ -111,6 +135,17 @@ public sealed record MessageDef
         foreach (var duplicate in here.GroupBy(f => f.Id, StringComparer.Ordinal).Where(g => g.Count() > 1))
             issues.Add($"message '{Id}': duplicate field id '{duplicate.Key}' in one scope — ids are how "
                      + "fields reference each other, and they are flat across the regions and arms of a scope");
+
+        // Bit runs bind into the same flat namespace as fields, so two groups each naming a run `seconds`
+        // would overwrite one another and the second would look like the first had moved. Found by an
+        // audit against a specification, which is exactly the sort of thing a hand-built corpus misses.
+        var taken = new HashSet<string>(here.Select(f => f.Id), StringComparer.Ordinal);
+
+        foreach (var field in here)
+            foreach (var slice in (field.Pattern as Pattern.Bits)?.Slices ?? [])
+                if (!taken.Add(slice.Name))
+                    issues.Add($"message '{Id}': the bit run '{slice.Name}' in '{field.Id}' collides with "
+                             + "another name in this scope — runs bind alongside fields, not underneath them");
 
         var visible = new HashSet<string>(outer, StringComparer.Ordinal);
         visible.UnionWith(here.Select(f => f.Id));
