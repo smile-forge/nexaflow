@@ -81,6 +81,16 @@ public sealed record MessageDef
     public required string Id { get; init; }
     public required IReadOnlyList<Field> Fields { get; init; }
 
+    /// <summary>
+    /// What makes a structurally-valid message illegal anyway.
+    ///
+    /// <para>
+    /// Checked in both directions, after every field is settled — a rule that only ran on decode would let
+    /// the engine emit a message it would itself refuse to read.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<Rule> Rules { get; init; } = [];
+
     /// <summary>Every field in the message, nested ones included, in declaration order.</summary>
     public IEnumerable<Field> AllFields => Descendants(Fields);
 
@@ -149,6 +159,38 @@ public sealed record MessageDef
 
         var visible = new HashSet<string>(outer, StringComparer.Ordinal);
         visible.UnionWith(here.Select(f => f.Id));
+
+        // Rules live at message scope, so they are checked against the outermost pass only.
+        if (outer.Count == 0)
+        {
+            var everyName = AllFields.Select(f => f.Id)
+                .Concat(AllFields.SelectMany(f => (f.Pattern as Pattern.Bits)?.Slices.Select(s => s.Name) ?? []))
+                .ToHashSet(StringComparer.Ordinal);
+
+            foreach (var rule in Rules)
+            {
+                if (rule is Rule.Domain domain)
+                {
+                    if (!everyName.Contains(domain.Field))
+                        issues.Add($"message '{Id}': a value rule names '{domain.Field}', which is not a "
+                                 + "field or bit run of this message");
+
+                    if (domain.Allowed.Count == 0)
+                        issues.Add($"message '{Id}': the value rule on '{domain.Field}' allows nothing, so "
+                                 + "no message can satisfy it");
+                }
+
+                foreach (var expression in rule.Expressions)
+                    foreach (var referenced in FieldReferences(expression))
+                        if (!everyName.Contains(referenced.Field))
+                            issues.Add($"message '{Id}': a rule references '{referenced.Field}', which is "
+                                     + "not a field of this message");
+
+                if (string.IsNullOrWhiteSpace(rule.Because))
+                    issues.Add($"message '{Id}': the rule {rule} does not say why. A refusal a reader "
+                             + "cannot act on is barely better than none.");
+            }
+        }
 
         foreach (var (owner, expression, what) in Expressions(here))
             foreach (var referenced in FieldReferences(expression))

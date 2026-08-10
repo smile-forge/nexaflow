@@ -164,6 +164,7 @@ public class VariableWidthCaptureTests
     /// </summary>
     internal static MessageDef Connect() => Framed("connect",
         [
+            // ── the wire shape ──
             .. Prefixed("protocolName"),
             new Field { Id = "protocolLevel", Pattern = U8, Value = Expr.Parse("inputs.protocolLevel") },
             new Field
@@ -181,8 +182,55 @@ public class VariableWidthCaptureTests
 
             GatedBy("will", "willFlag", [.. Prefixed("willTopic"), .. Prefixed("willMessage", via: null)]),
             GatedBy("credential", "userNameFlag", Prefixed("userName")),
-            GatedBy("secret", "passwordFlag", Prefixed("password")),
-        ]);
+
+            // Binary data, not text — the specification says so, and the will message two fields above
+            // already gets it right. Found by reading the description against the standard.
+            GatedBy("secret", "passwordFlag", Prefixed("password", via: null)),
+        ]) with { Rules = ConnectRules() };
+
+    /// <summary>
+    /// What the flag octet may and may not say about itself.
+    ///
+    /// <para>
+    /// Presence is already structural — three choices, each keyed on its bit — but presence was never the
+    /// hard part. These are rules about the <i>values of sibling bits in one octet</i>, which no wire
+    /// shape can express, and they are where most of the standard's obligations live. Each one below
+    /// describes a packet that is structurally perfect and still malformed.
+    /// </para>
+    /// </summary>
+    private static IReadOnlyList<Rule> ConnectRules() =>
+    [
+        new Rule.Domain
+        {
+            Field = "reserved",
+            Allowed = [ValueRange.Exactly(0)],
+            Because = "the low bit of the flag octet is reserved; a peer setting it is not speaking this "
+                    + "protocol, and reading it as ordinary data hides that.",
+        },
+        new Rule.Domain
+        {
+            Field = "willQos",
+            Allowed = [ValueRange.Between(0, 2)],
+            Because = "the field is two bits wide and only three of its four values exist.",
+        },
+
+        // Forced, not lazy. The section's absence is already handled by the choice; what these say is that
+        // announcing no will and then describing one is a contradiction rather than a section that simply
+        // does not appear.
+        new Rule.Requires
+        {
+            When = Expr.Parse("fields.willFlag.value == 0"),
+            Then = Expr.Parse("fields.willQos.value == 0 && fields.willRetain.value == 0"),
+            Because = "with no will there is nothing for a quality of service or a retain flag to be about, "
+                    + "so a non-zero one is a claim about a message that is not there.",
+        },
+        new Rule.Requires
+        {
+            When = Expr.Parse("fields.passwordFlag.value == 1"),
+            Then = Expr.Parse("fields.userNameFlag.value == 1"),
+            Because = "a password identifies nobody on its own; the standard forbids one without a user name.",
+        },
+    ];
 
     private static byte[] Capture(int index) => ProtocolCorpus.Get("mqtt").Captures[index].Bytes;
 
@@ -283,7 +331,7 @@ public class VariableWidthCaptureTests
         Assert.AreEqual("dev/status", decoded["willTopic"].AsText());
         Assert.AreEqual(80, decoded["willMessage"].AsBytes().Length);
         Assert.AreEqual("sensoruser", decoded["userName"].AsText());
-        Assert.AreEqual("s3cr3t", decoded["password"].AsText());
+        Assert.AreEqual("733363723374", decoded["password"].ToString(), "binary, not text — the standard says so");
     }
 
     [TestMethod]
@@ -308,7 +356,46 @@ public class VariableWidthCaptureTests
         Assert.AreEqual(49, decoded["remainingLength"].AsInt());
         Assert.AreEqual("absent", decoded["will"].AsText());
         Assert.IsTrue(decoded["willTopic"].IsNull, "not there rather than empty");
-        Assert.AreEqual("s3cr3t", decoded["password"].AsText(), "the sections after it still line up");
+        Assert.AreEqual(6, decoded["password"].AsBytes().Length, "the sections after it still line up");
+    }
+
+    [TestMethod]
+    public void A_flag_octet_that_contradicts_itself_is_refused_in_both_directions()
+    {
+        // Every packet below is structurally perfect: the right sections are present, every length is
+        // right, and it re-encodes to the octets it arrived as. They are still malformed, and until now
+        // nothing could say so.
+        var codec = new MessageCodec(Connect());
+        var honest = codec.Decode(Capture(0));
+
+        // Announcing no will, then describing one.
+        var contradictory = Flags(honest, ("willFlag", 0), ("willQos", 0), ("willRetain", 1));
+        var retain = Assert.ThrowsExactly<ProtoTypeException>(() => codec.Encode(contradictory));
+        StringAssert.Contains(retain.Message, "obliges");
+        StringAssert.Contains(retain.Message, "nothing for a quality of service");
+
+        // A password with nobody to attach it to.
+        var orphaned = Flags(honest, ("userNameFlag", 0));
+        var password = Assert.ThrowsExactly<ProtoTypeException>(() => codec.Encode(orphaned));
+        StringAssert.Contains(password.Message, "forbids one without a user name");
+
+        // And the reserved bit, which a peer setting is simply not speaking this protocol.
+        var reserved = Flags(honest, ("reserved", 1));
+        StringAssert.Contains(Assert.ThrowsExactly<ProtoTypeException>(() => codec.Encode(reserved)).Message,
+            "not a value it may take");
+    }
+
+    [TestMethod]
+    public void The_same_rules_refuse_a_contradictory_packet_arriving_from_outside()
+    {
+        // A rule that only ran one way would let the engine emit what it would itself refuse to read —
+        // and, worse here, would accept a malformed packet from a peer and pass its reserved bits on as
+        // ordinary data.
+        var tampered = (byte[])[.. Capture(0)];
+        tampered[10] = 0xcf;                       // the flag octet, with the reserved low bit set
+
+        var ex = Assert.ThrowsExactly<ProtoTypeException>(() => new MessageCodec(Connect()).Decode(tampered));
+        StringAssert.Contains(ex.Message, "'reserved' is 1");
     }
 
     [TestMethod]
@@ -486,6 +573,18 @@ public class VariableWidthCaptureTests
         "userNameLength", "passwordLength",
         "subscriptions.filterLength",
     ];
+
+    /// <summary>The decoded packet with some flag bits overridden, everything else untouched.</summary>
+    private static EvalScope Flags(DecodeResult decoded, params (string Bit, long Value)[] overrides)
+    {
+        var scope = InputsFrom(decoded, except: Derived);
+
+        scope.Set("inputs", With(scope.Root("inputs"),
+            ("connectFlags", With(Member(scope.Root("inputs"), "connectFlags"),
+                [.. overrides.Select(o => (o.Bit, ProtoValue.Of(o.Value)))]))));
+
+        return scope;
+    }
 
     private static EvalScope Inputs(params (string Name, ProtoValue Value)[] members)
         => new EvalScope().Set("inputs", EvalScope.Record(members));

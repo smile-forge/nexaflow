@@ -231,6 +231,15 @@ public static class MessageProse
         refusals.Add("Any field reading past the end of its enclosing region is an error, as is a message "
                    + "with octets left over once every field has been read.");
 
+        refusals.Add("A field the document fixes to a constant must arrive carrying it, and a value whose "
+                   + "encoding is not the canonical one is refused — otherwise either would re-encode to "
+                   + "different octets than arrived, with nothing saying so.");
+
+        // Rules read differently from structural refusals: these describe messages that are shaped
+        // correctly and illegal anyway, which is exactly what a reviewer most needs pointed out.
+        foreach (var rule in message.Rules)
+            refusals.Add($"**{Kind(rule)}** — {rule}. {rule.Because}");
+
         text.AppendLine("## What is refused");
         text.AppendLine();
         text.AppendLine("These are checked, not assumed. A message that breaks one of them fails to decode");
@@ -238,6 +247,17 @@ public static class MessageProse
         text.AppendLine();
         foreach (var refusal in refusals.Distinct(StringComparer.Ordinal)) text.AppendLine($"- {refusal}");
     }
+
+    /// <summary>Which sort of illegal. Naming the kind is the whole reason the kinds are separate — a
+    /// reader deciding whether to trust a document needs to know whether a rule is about one value, about
+    /// two fields contradicting each other, or about a combination that may never occur.</summary>
+    private static string Kind(Rule rule) => rule switch
+    {
+        Rule.Domain => "a value this field may not take",
+        Rule.Requires => "one condition obliging another",
+        Rule.Excludes => "a combination that may never occur",
+        _ => "a rule",
+    };
 
     // ── Wording ───────────────────────────────────────────────────────────────
 

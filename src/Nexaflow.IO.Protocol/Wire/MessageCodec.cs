@@ -70,6 +70,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
               + "data is an error rather than something ignored, because ignoring it accepts a malformed "
               + "capture as valid");
 
+        Enforce(reading.Captures, new Evaluator(_converters));
         return new DecodeResult(reading.Captures, reading.Spans);
     }
 
@@ -547,11 +548,93 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
         var settled = resolver.Resolve();
 
+        // Checked before a single octet is produced. A rule that only ran on the way in would let the
+        // engine emit a message it would itself refuse to read.
+        Enforce(NamedValues(settled), new Evaluator(_converters));
+
         // Position is a linearisation, not a fixpoint: one ordered sweep once extents have settled, now
         // through the realised shape rather than a flat list.
         var output = new List<byte>();
         foreach (var field in _message.Fields) Emit(field, frame, encoder, settled, output);
         return [.. output];
+    }
+
+    /// <summary>
+    /// Message-scope values by the name a rule would use for them, with bit runs alongside fields rather
+    /// than underneath them — matching how decode binds them, so one rule reads the same in both directions.
+    /// </summary>
+    private static Dictionary<string, ProtoValue> NamedValues(IReadOnlyDictionary<FacetRef, object?> settled)
+    {
+        Dictionary<string, ProtoValue> named = new(StringComparer.Ordinal);
+
+        foreach (var (reference, value) in settled)
+        {
+            // A qualified id belongs to one structure of a chain, not to the message.
+            if (reference.Facet != Facet.Value || reference.NodeId.Contains('[') || value is not ProtoValue v)
+                continue;
+
+            named[reference.NodeId] = v;
+
+            if (v is ProtoValue.Rec rec)
+                foreach (var (name, member) in rec.Members) named.TryAdd(name, member);
+        }
+
+        return named;
+    }
+
+    /// <summary>
+    /// Applies the message's rules. Each kind reports in its own words, because "this is illegal" without
+    /// saying which sort of illegal is the diagnostic equivalent of a shrug.
+    /// </summary>
+    private void Enforce(IReadOnlyDictionary<string, ProtoValue> named, Evaluator evaluator)
+    {
+        if (_message.Rules.Count == 0) return;
+
+        Dictionary<string, ProtoValue> byName = new(StringComparer.Ordinal);
+        foreach (var (name, value) in named)
+            byName[name] = EvalScope.Record(("value", value));
+
+        var scope = new EvalScope().Set("fields", new ProtoValue.Rec(byName));
+
+        foreach (var rule in _message.Rules)
+            switch (rule)
+            {
+                case Rule.Domain domain:
+                {
+                    if (!named.TryGetValue(domain.Field, out var value) || domain.Admits(value)) break;
+
+                    throw new ProtoTypeException(
+                        $"'{domain.Field}' is {value}, which is not a value it may take — the legal ones are "
+                      + $"{string.Join(", ", domain.Allowed)}. {domain.Because}");
+                }
+
+                case Rule.Requires requires:
+                {
+                    if (!Holds(requires.When, scope, evaluator) || Holds(requires.Then, scope, evaluator)) break;
+
+                    throw new ProtoTypeException(
+                        $"{requires.When.Render()} holds, which obliges {requires.Then.Render()} — and it "
+                      + $"does not. {requires.Because}");
+                }
+
+                case Rule.Excludes excludes:
+                {
+                    if (!Holds(excludes.One, scope, evaluator) || !Holds(excludes.Other, scope, evaluator)) break;
+
+                    throw new ProtoTypeException(
+                        $"{excludes.One.Render()} and {excludes.Other.Render()} both hold, and they may "
+                      + $"never combine. {excludes.Because}");
+                }
+            }
+    }
+
+    private static bool Holds(Expr condition, EvalScope scope, Evaluator evaluator)
+    {
+        var answer = evaluator.Eval(condition, scope);
+
+        return answer is ProtoValue.Bool b ? b.Value
+             : throw new ProtoTypeException(
+                 $"a rule's condition `{condition.Render()}` must answer true or false, got {answer.Kind}");
     }
 
     /// <summary>

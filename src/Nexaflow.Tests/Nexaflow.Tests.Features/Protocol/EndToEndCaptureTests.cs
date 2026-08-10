@@ -65,18 +65,13 @@ public class EndToEndCaptureTests
                 Via = Conversion.Of("fixed", 16, 16),
             },
 
-            // What these four octets mean depends on the stratum: a reason code at 0, a source name at 1,
-            // an address above that. Carrying them opaque round-trips and tells the reader nothing.
-            new Field
-            {
-                Id = "referenceId",
-                Pattern = new Pattern.Choice(Expr.Parse("fields.stratum.value"),
-                [
-                    new Arm("reason", 0, [Four("reasonCode", "unascii")]),
-                    new Arm("sourceName", 1, [Four("sourceName", "unascii")]),
-                    new Arm("upstreamAddress", null, [Four("upstreamAddress", "ipv4")]),
-                ]),
-            },
+            // Four octets, and four octets under every stratum. An audit against the specification points
+            // out that what they MEAN changes — a reason code at 0, a source name at 1, an address above
+            // that — and it is right, but that is interpretation and not representation. Nothing about
+            // the layout differs, so a choice here would be three arms of identical shape distinguished
+            // only by which converter dresses them up. The meaning belongs on a node of its own, in a
+            // layer that does not exist yet; recording that is more honest than smuggling it in here.
+            new Field { Id = "referenceId", Pattern = new Pattern.Opaque(4), Value = Expr.Parse("inputs.referenceId") },
 
             // 32 bits of seconds against 32 bits of fraction. Not the fixed-point converter: 64 bits do
             // not survive a double, so scaling here would lose the low bits and the round trip with them.
@@ -85,14 +80,34 @@ public class EndToEndCaptureTests
             Timestamp("receiveTimestamp"),
             Timestamp("transmitTimestamp"),
         ],
-    };
 
-    private static Field Four(string id, string via) => new()
-    {
-        Id = id,
-        Pattern = new Pattern.Opaque(4),
-        Value = Expr.Parse($"inputs.{id}"),
-        Via = via,
+        // What the wire shape cannot say. Every one of these was found by reading the generated
+        // description against the specification, and none of them could have been found by a round trip:
+        // a message breaking all three re-encodes to exactly the octets it arrived as.
+        Rules =
+        [
+            new Rule.Domain
+            {
+                Field = "version",
+                Allowed = [ValueRange.Exactly(4)],
+                Because = "this document describes version 4, and a packet announcing another version is "
+                        + "not a packet it can claim to have understood.",
+            },
+            new Rule.Domain
+            {
+                Field = "mode",
+                Allowed = [ValueRange.Between(1, 6)],
+                Because = "0 is reserved and 7 is private use; both are three bits wide and neither is a "
+                        + "value this message may carry.",
+            },
+            new Rule.Domain
+            {
+                Field = "stratum",
+                Allowed = [ValueRange.Between(0, 16)],
+                Because = "16 means unsynchronised and everything above it is reserved, so a stratum of "
+                        + "200 decodes into something that looks exactly as valid as a real one.",
+            },
+        ],
     };
 
     private static Field Timestamp(string id) => new()
@@ -148,9 +163,7 @@ public class EndToEndCaptureTests
         Assert.AreEqual(0xee22ea40, decoded["transmitTimestampSeconds"].AsInt());
         Assert.AreEqual(0x4ccccccd, decoded["transmitTimestampFraction"].AsInt());
 
-        // Stratum 0, so the four opaque octets are a reason code rather than an address — and the chosen
-        // shape is the field's value, so nothing downstream has to re-test the stratum to know that.
-        Assert.AreEqual("reason", decoded["referenceId"].AsText());
+        Assert.AreEqual(4, decoded["referenceId"].AsBytes().Length, "four octets, whatever they turn out to mean");
     }
 
     [TestMethod]
@@ -170,10 +183,42 @@ public class EndToEndCaptureTests
         // All four timestamps are populated in a response.
         foreach (var name in (string[])["referenceTimestamp", "originTimestamp", "receiveTimestamp", "transmitTimestamp"])
             Assert.AreNotEqual(0, decoded[$"{name}Seconds"].AsInt(), name);
+    }
 
-        // Stratum 2, so the same four octets are an upstream address rather than a reason code.
-        Assert.AreEqual("upstreamAddress", decoded["referenceId"].AsText());
-        StringAssert.Contains(decoded["upstreamAddress"].AsText(), ".");
+    [TestMethod]
+    public void A_value_the_wire_shape_allows_but_the_protocol_does_not_is_refused()
+    {
+        // The gap all three audits found first, and the one a round trip can never find: each of these
+        // re-encodes to exactly the octets it arrived as. Only a rule can tell them apart from real ones.
+        var codec = new MessageCodec(Definition());
+
+        foreach (var (offset, octet, expected) in ((int, byte, string)[])
+        [
+            (0, 0x1b, "'version' is 3"),        // 00|011|011 — version 3
+            (0, 0x20, "'mode' is 0"),           // 00|100|000 — mode 0, reserved
+            (1, 0xc8, "'stratum' is 200"),      // reserved stratum
+        ])
+        {
+            var tampered = (byte[])[.. Capture(0)];
+            tampered[offset] = octet;
+
+            var ex = Assert.ThrowsExactly<ProtoTypeException>(() => codec.Decode(tampered));
+            StringAssert.Contains(ex.Message, expected);
+            StringAssert.Contains(ex.Message, "not a value it may take");
+        }
+    }
+
+    [TestMethod]
+    public void A_refusal_says_why_in_the_words_of_whoever_wrote_the_document()
+    {
+        // The reason is the point. "Value 200 is not allowed" tells a reader nothing about what to do,
+        // and tells a model drafting a document nothing about which way to correct it.
+        var tampered = (byte[])[.. Capture(0)];
+        tampered[1] = 0xc8;
+
+        var ex = Assert.ThrowsExactly<ProtoTypeException>(() => new MessageCodec(Definition()).Decode(tampered));
+        StringAssert.Contains(ex.Message, "16 means unsynchronised");
+        StringAssert.Contains(ex.Message, "looks exactly as valid as a real one");
     }
 
     [TestMethod]
@@ -238,11 +283,13 @@ public class EndToEndCaptureTests
         var codec = new MessageCodec(Definition());
         var scope = ScopeFrom(codec.Decode(Capture(0)));
 
-        // mode is 3 bits; 8 does not fit. Silently masking it would emit a valid-looking wrong message.
+        // leapIndicator is 2 bits; 4 does not fit. Silently masking it would emit a valid-looking wrong
+        // message. (Not `mode` any more: that now carries a value rule, which refuses an illegal value
+        // before the packing ever gets asked whether it fits — a better error, and a different one.)
         scope.Set("inputs", Merge(scope.Root("inputs"),
-            ("flags", EvalScope.Record(("leapIndicator", ProtoValue.Of(0L)),
+            ("flags", EvalScope.Record(("leapIndicator", ProtoValue.Of(4L)),
                                        ("version", ProtoValue.Of(4L)),
-                                       ("mode", ProtoValue.Of(8L))))));
+                                       ("mode", ProtoValue.Of(3L))))));
 
         var ex = Assert.ThrowsExactly<ProtoTypeException>(() => codec.Encode(scope));
         StringAssert.Contains(ex.Message, "does not fit");
