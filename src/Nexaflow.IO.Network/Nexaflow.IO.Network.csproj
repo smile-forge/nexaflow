@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    WPF-free network leaf: the device graph, discovery contracts, adapter enumeration, the send guard and
+    the socket transports. Features and their discovery plugins reference THIS, never each other — the
+    architecture tests forbid a Nexaflow.Features.X -> Nexaflow.Features.Y edge, so a plugin can only share
+    contracts with its host through a leaf like this one.
+
+    net10.0-windows with UseWPF explicitly off, not plain net10.0: this P/Invokes IP Helper (and later
+    wlanapi), and Nexaflow.Elevation.Contracts is itself net10.0-windows, so a net10.0 project here could
+    not reference it without duplicating the elevation DTOs. Same shape Elevation.Contracts uses.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>false</UseWPF>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Elevation\Nexaflow.Elevation.Contracts\Nexaflow.Elevation.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features" />
+    <InternalsVisibleTo Include="Nexaflow.Tests.Core" />
+  </ItemGroup>
+
+</Project>

@@ -23,6 +23,8 @@ public class CoverageGuardTests
         ["Compressed.Modern"]       = "Compressed",    // the three codec backends are covered by
         ["Compressed.SecureZip"]    = "Compressed",    // the Compressed handler/codec test suite
         ["Compressed.SharpCompress"] = "Compressed",
+        ["Network.Arp"]             = "Network",     // discovery plugins share the Network suite, the
+                                                     // same way the codec backends share Compressed's
     };
 
     [TestMethod]

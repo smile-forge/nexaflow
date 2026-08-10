@@ -1,5 +1,6 @@
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
+using Nexaflow.Plugins;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -48,6 +49,19 @@ public sealed class FeatureCatalog
         public bool Scoped { get; set; }                       // [WorkspaceScopedConfig]
         public string? ExperienceId { get; set; }              // IFileAction.StaticExperienceId
         public List<string>? ThemeUris { get; set; }           // IThemeContribution.ResourceDictionaryUris
+        public SubfeatureEntry? Subfeature { get; set; }       // [Subfeature] metadata (read without instantiating)
+    }
+
+    /// <summary>Cached <c>[Subfeature]</c> metadata. Present in the index so a host feature can list, order
+    /// and enable/disable its plugins with no assembly loaded — the whole basis of lazy subfeatures.</summary>
+    public sealed class SubfeatureEntry
+    {
+        public string Owner { get; set; } = "";
+        public string Id { get; set; } = "";
+        public string DisplayName { get; set; } = "";
+        public string Description { get; set; } = "";
+        public bool DefaultEnabled { get; set; } = true;
+        public int Order { get; set; }
     }
 
     public sealed class AssemblyEntry
@@ -204,9 +218,27 @@ public sealed class FeatureCatalog
                 .Select(i => i.FullName!)
                 .Distinct()
                 .ToList();
-            if (contracts.Count == 0) continue;
+
+            // A [Subfeature] is worth indexing even with no Nexaflow.* interface — its contract may live in a
+            // feature-owned namespace the host defines. Dropping it here is how a plugin would silently
+            // vanish, which is precisely the failure this framework exists to prevent.
+            var sf = t.GetCustomAttribute<SubfeatureAttribute>();
+            if (contracts.Count == 0 && sf is null) continue;
 
             var te = new TypeEntry { Name = t.FullName!, Contracts = contracts };
+
+            // Unlike ConfigName / ThemeUris below, this needs no instantiation — so indexing a plugin costs
+            // nothing beyond the reflection the scan is already doing.
+            if (sf is not null)
+                te.Subfeature = new SubfeatureEntry
+                {
+                    Owner          = sf.Owner,
+                    Id             = sf.Id,
+                    DisplayName    = string.IsNullOrWhiteSpace(sf.DisplayName) ? sf.Id : sf.DisplayName,
+                    Description    = sf.Description,
+                    DefaultEnabled = sf.DefaultEnabled,
+                    Order          = sf.Order,
+                };
 
             if (typeof(IPageRegistration).IsAssignableFrom(t))
             {
@@ -318,6 +350,34 @@ public sealed class FeatureCatalog
         var refs = SnapshotRefs(t => t.Contracts.Contains(key));
         return ResolveAll(refs);
     }
+
+    /// <summary>
+    /// Every indexed <c>[Subfeature]</c> implementing <paramref name="contract"/>, as
+    /// <c>(assembly file, type name, metadata)</c> — <b>index-only, loads nothing</b>. Ordered by
+    /// <see cref="SubfeatureEntry.Order"/> then <see cref="SubfeatureEntry.Id"/> so the order is total and
+    /// stable, never dependent on directory enumeration order.
+    /// </summary>
+    public IReadOnlyList<(string File, string Type, SubfeatureEntry Meta)> Subfeatures(Type contract)
+    {
+        var key = contract.FullName;
+        if (key is null) return [];
+
+        List<(string File, string Type, SubfeatureEntry Meta)> found = [];
+        lock (_lock)
+            foreach (var a in _index.Assemblies)
+                foreach (var t in a.Types)
+                    if (t.Subfeature is { } sf && t.Contracts.Contains(key))
+                        found.Add((a.File, t.Name, sf));
+
+        return found
+            .OrderBy(f => f.Meta.Order)
+            .ThenBy(f => f.Meta.Id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    /// <summary>True if the assembly <paramref name="file"/> has already been loaded — index-only.
+    /// Lets a caller (and a laziness test) tell "discovered" from "paid for".</summary>
+    public bool IsAssemblyLoaded(string file) { lock (_lock) return _loaded.ContainsKey(file); }
 
     /// <summary>Resolves the registration type for <paramref name="pageKind"/> (loading its assembly), or null.</summary>
     public bool TryGetPageRegistrationType(string pageKind, out Type? type)
