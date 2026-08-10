@@ -34,6 +34,19 @@ public sealed partial class InstalledAppItem(InstalledApp app) : ObservableObjec
         !string.IsNullOrWhiteSpace(App.InstallLocation) && Directory.Exists(App.InstallLocation);
 
     /// <summary>
+    /// A Store/MSIX package — gates "Move" and "Advanced options", both of which act on a package
+    /// identity a Win32 program doesn't have.
+    /// </summary>
+    public bool IsStore => App.Source == AppSource.Store;
+
+    /// <summary>
+    /// The program registered a maintenance-mode command and didn't set <c>NoModify</c> — gates
+    /// "Modify", exactly as Add/remove programs decides whether to offer it.
+    /// </summary>
+    public bool CanModify =>
+        App.Source == AppSource.Win32 && !App.ModifyBlocked && !string.IsNullOrWhiteSpace(App.ModifyPath);
+
+    /// <summary>
     /// Likely a stale leftover: a Win32 entry with no install folder on disk <i>and</i> no working
     /// uninstaller — so it can't be removed normally. Gates the "Remove from list" action (deletes the
     /// orphaned registry record). Store apps are never orphaned.

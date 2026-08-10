@@ -56,8 +56,8 @@ public class WindowsAppsViewModelTests
     {
         public AppSource Source => AppSource.Win32;
         public Task<IReadOnlyList<InstalledApp>> EnumerateAsync(CancellationToken ct) => Task.FromResult(apps);
-        public Task<UninstallResult> UninstallAsync(InstalledApp app, CancellationToken ct) =>
-            Task.FromResult(UninstallResult.Ok);
+        public Task<AppOperationResult> UninstallAsync(InstalledApp app, CancellationToken ct) =>
+            Task.FromResult(AppOperationResult.Ok);
     }
 
     [TestMethod]

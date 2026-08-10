@@ -17,8 +17,11 @@ namespace Nexaflow.Features.WindowsApps.ViewModels;
 
 /// <summary>
 /// The installed-apps page: an "Add or remove programs" style list of Win32 + Store apps, sortable by
-/// any column, filterable by name (footer box or the shell query handler), with a per-row Uninstall.
-/// Loading and uninstalling run off the UI thread via the shell's background-activity queue.
+/// any column, filterable by name (footer box or the shell query handler), with the same per-row actions
+/// Windows offers — Uninstall for both, Modify for a Win32 program, and Move / Advanced options for a
+/// Store package (the latter two open the right-hand
+/// <see cref="AppAdvancedOptionsViewModel"/> pane). Every operation runs off the UI thread via the
+/// shell's background-activity queue.
 /// </summary>
 public sealed partial class WindowsAppsViewModel : ObservableObject, IPageViewModel, ISearchable
 {
@@ -100,6 +103,26 @@ public sealed partial class WindowsAppsViewModel : ObservableObject, IPageViewMo
         Apps.Clear();
         foreach (var app in apps) Apps.Add(new InstalledAppItem(app));
         _view.Refresh();
+        RebindAdvancedOptions();
+    }
+
+    /// <summary>
+    /// A rescan replaces every row object, so an open Advanced-options pane would be left holding a
+    /// detached item. Re-point it at the equivalent new row — or close it if the app is gone (which is
+    /// what a successful uninstall looks like from here).
+    /// </summary>
+    private void RebindAdvancedOptions()
+    {
+        if (AdvancedOptions is not { } pane) return;
+
+        // Match on package identity, never on a null key — that would happily bind to the first Win32 row.
+        var key = pane.Item.App.PackageFullName;
+        var again = string.IsNullOrEmpty(key)
+            ? null
+            : Apps.FirstOrDefault(a => a.App.PackageFullName == key);
+
+        if (again is null) AdvancedOptions = null;
+        else pane.Rebind(again);
     }
 
     /// <summary>Pass 2 — measure the size of apps that didn't report one, then patch them in.</summary>
@@ -168,6 +191,57 @@ public sealed partial class WindowsAppsViewModel : ObservableObject, IPageViewMo
                 _shell.ShowError($"Couldn't uninstall {item.Name}: {task.Result.Error}");
         });
     }
+
+    // ── Modify (Win32) ────────────────────────────────────────────────────────
+    /// <summary>
+    /// Reopens the program's own installer in maintenance mode so the user can add or remove features.
+    /// No confirmation of ours: the vendor's UI is the confirmation, and nothing is removed until the
+    /// user says so there — the same contract as Add/remove programs' "Modify".
+    /// </summary>
+    [RelayCommand]
+    private void Modify(InstalledAppItem? item)
+    {
+        if (item is null || !item.CanModify) return;
+
+        var task = new ModifyAppTask(_service, item.App);
+        _shell.QueueBackgroundTask(task, onComplete: _ =>
+        {
+            if (task.Result.Success) Refresh();   // features may have changed → re-read the entry
+            else _shell.ShowError($"Couldn't change {item.Name}: {task.Result.Error}");
+        });
+    }
+
+    // ── Advanced options pane (Store) ─────────────────────────────────────────
+
+    /// <summary>The Store app whose Advanced-options pane is open, or null when the pane is closed.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsAdvancedOpen))]
+    private AppAdvancedOptionsViewModel? _advancedOptions;
+
+    /// <summary>Drives the right-hand pane's visibility (and its splitter).</summary>
+    public bool IsAdvancedOpen => AdvancedOptions is not null;
+
+    [RelayCommand]
+    private void ShowAdvancedOptions(InstalledAppItem? item) => OpenAdvancedOptions(item, forMove: false);
+
+    /// <summary>"Move…" opens the same pane with its Move card called out — that's where the drive picker lives.</summary>
+    [RelayCommand]
+    private void ShowMove(InstalledAppItem? item) => OpenAdvancedOptions(item, forMove: true);
+
+    private void OpenAdvancedOptions(InstalledAppItem? item, bool forMove)
+    {
+        if (item is null || !item.IsStore) return;
+
+        var pane = new AppAdvancedOptionsViewModel(_shell, _service, item, CloseAdvancedOptions)
+        {
+            MoveHighlighted = forMove,
+        };
+        AdvancedOptions = pane;
+        pane.Load();
+    }
+
+    [RelayCommand]
+    private void CloseAdvancedOptions() => AdvancedOptions = null;
 
     // ── Remove orphaned record ───────────────────────────────────────────────
     [RelayCommand]
