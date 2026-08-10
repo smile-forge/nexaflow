@@ -44,7 +44,7 @@ public sealed class RegistryAppSource : IInstalledAppSource
                 using var key = uninstall.OpenSubKey(subName);
                 if (key is null) continue;
 
-                var app = TryReadEntry(key);
+                var app = TryReadEntry(key, subName);
                 if (app is null) continue;
 
                 app = app with
@@ -64,7 +64,9 @@ public sealed class RegistryAppSource : IInstalledAppSource
         catch { /* a hive we can't read contributes nothing */ }
     }
 
-    private static InstalledApp? TryReadEntry(RegistryKey key)
+    /// <param name="subKeyName">The Uninstall subkey name — for an MSI product this is its ProductCode,
+    /// which is what lets us synthesise a maintenance-mode command when the vendor registered none.</param>
+    private static InstalledApp? TryReadEntry(RegistryKey key, string subKeyName)
     {
         var name = key.GetValue("DisplayName") as string;
         if (string.IsNullOrWhiteSpace(name)) return null;
@@ -81,6 +83,15 @@ public sealed class RegistryAppSource : IInstalledAppSource
 
         var uninstallString = (key.GetValue("UninstallString") as string)
                               ?? key.GetValue("QuietUninstallString") as string;
+
+        // "Modify" — reopen the installer in maintenance mode. Most vendors register ModifyPath; a
+        // Windows Installer product usually doesn't, because msiexec derives it from the ProductCode
+        // (which is the subkey name). Synthesise that case, exactly as Add/remove programs does.
+        var modifyPath = (key.GetValue("ModifyPath") as string)?.Trim();
+        if (string.IsNullOrEmpty(modifyPath) &&
+            GetDword(key, "WindowsInstaller") == 1 &&
+            subKeyName.StartsWith('{') && subKeyName.EndsWith('}'))
+            modifyPath = $"msiexec.exe /I{subKeyName}";
 
         var location = (key.GetValue("InstallLocation") as string)?.Trim();
         bool hasFolder = !string.IsNullOrEmpty(location) && Directory.Exists(location);
@@ -106,6 +117,8 @@ public sealed class RegistryAppSource : IInstalledAppSource
             Source          = AppSource.Win32,
             InstallLocation = location,
             UninstallString = uninstallString,
+            ModifyPath      = modifyPath,
+            ModifyBlocked   = GetDword(key, "NoModify") == 1,
         };
     }
 
@@ -122,39 +135,69 @@ public sealed class RegistryAppSource : IInstalledAppSource
             ? d : null;
     }
 
-    public Task<UninstallResult> UninstallAsync(InstalledApp app, CancellationToken ct) =>
+    public Task<AppOperationResult> UninstallAsync(InstalledApp app, CancellationToken ct) =>
         Task.Run(() =>
         {
             if (string.IsNullOrWhiteSpace(app.UninstallString))
-                return UninstallResult.Fail("No uninstall command is registered for this program.");
+                return AppOperationResult.Fail("No uninstall command is registered for this program.");
             var (file, args) = SplitCommand(app.UninstallString);
             if (string.IsNullOrEmpty(file))
-                return UninstallResult.Fail("The registered uninstall command is empty.");
+                return AppOperationResult.Fail("The registered uninstall command is empty.");
 
             // MSI install verb → uninstall verb, so the command actually removes the product.
-            if (file.EndsWith("msiexec.exe", StringComparison.OrdinalIgnoreCase) ||
-                file.Equals("msiexec", StringComparison.OrdinalIgnoreCase))
+            if (IsMsiExec(file))
                 args = args.Replace("/I", "/X", StringComparison.OrdinalIgnoreCase);
 
-            try
-            {
-                var proc = Process.Start(new ProcessStartInfo(file, args) { UseShellExecute = true });
-                if (proc is null)
-                    return UninstallResult.Fail("The uninstaller could not be started.");
-
-                // Wait for the (often interactive) uninstaller so we can report its outcome.
-                proc.WaitForExit();
-                return InterpretExitCode(proc.ExitCode);
-            }
-            catch (Exception ex) { return UninstallResult.Fail(ex.Message); }
+            return RunInstaller(file, args, "uninstaller");
         }, ct);
 
-    /// <summary>Maps an uninstaller exit code to a result. 0 / reboot-required count as success.</summary>
-    private static UninstallResult InterpretExitCode(int code) => code switch
+    /// <summary>
+    /// "Modify" — reopens the vendor's installer in maintenance mode so the user can add or remove
+    /// features. Unlike uninstall the MSI verb is left as <c>/I</c>: that <i>is</i> maintenance mode.
+    /// </summary>
+    public Task<AppOperationResult> ModifyAsync(InstalledApp app, CancellationToken ct) =>
+        Task.Run(() =>
+        {
+            if (app.ModifyBlocked)
+                return AppOperationResult.Fail(
+                    "This program doesn't support changing its installed features.");
+            if (string.IsNullOrWhiteSpace(app.ModifyPath))
+                return AppOperationResult.Fail("No change command is registered for this program.");
+
+            var (file, args) = SplitCommand(app.ModifyPath);
+            if (string.IsNullOrEmpty(file))
+                return AppOperationResult.Fail("The registered change command is empty.");
+
+            return RunInstaller(file, args, "installer");
+        }, ct);
+
+    /// <summary>
+    /// Starts a vendor command and waits for it — these are interactive and may self-elevate, so the
+    /// exit code is the only outcome we get.
+    /// </summary>
+    private static AppOperationResult RunInstaller(string file, string args, string what)
     {
-        0 or 1641 or 3010 => UninstallResult.Ok,                       // success (1641/3010 = reboot needed)
-        1602              => UninstallResult.Fail("Uninstall was cancelled."),
-        _                 => UninstallResult.Fail($"The uninstaller reported an error (exit code {code}).")
+        try
+        {
+            var proc = Process.Start(new ProcessStartInfo(file, args) { UseShellExecute = true });
+            if (proc is null) return AppOperationResult.Fail($"The {what} could not be started.");
+
+            proc.WaitForExit();
+            return InterpretExitCode(proc.ExitCode, what);
+        }
+        catch (Exception ex) { return AppOperationResult.Fail(ex.Message); }
+    }
+
+    private static bool IsMsiExec(string file) =>
+        file.EndsWith("msiexec.exe", StringComparison.OrdinalIgnoreCase) ||
+        file.Equals("msiexec", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Maps an installer exit code to a result. 0 / reboot-required count as success.</summary>
+    private static AppOperationResult InterpretExitCode(int code, string what) => code switch
+    {
+        0 or 1641 or 3010 => AppOperationResult.Ok,                    // success (1641/3010 = reboot needed)
+        1602              => AppOperationResult.Fail("The operation was cancelled."),
+        _                 => AppOperationResult.Fail($"The {what} reported an error (exit code {code}).")
     };
 
     /// <summary>

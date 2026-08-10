@@ -31,8 +31,27 @@ public sealed record InstalledApp
     /// <summary>Win32 only: the command the vendor registered to uninstall the program.</summary>
     public string? UninstallString { get; init; }
 
+    /// <summary>
+    /// Win32 only: the command that reopens the installer in maintenance mode so the user can change
+    /// which features are installed — the registry's <c>ModifyPath</c>, or the synthesised
+    /// <c>msiexec /I{ProductCode}</c> for a Windows Installer product that registered none.
+    /// </summary>
+    public string? ModifyPath { get; init; }
+
+    /// <summary>
+    /// Win32 only: the vendor set <c>NoModify</c>, so "Modify" must not be offered even if a
+    /// <see cref="ModifyPath"/> could be derived. Mirrors what Add/remove programs does.
+    /// </summary>
+    public bool ModifyBlocked { get; init; }
+
     /// <summary>Store only: the package full name passed to <c>RemovePackageAsync</c>.</summary>
     public string? PackageFullName { get; init; }
+
+    /// <summary>
+    /// Store only: the package family name (<c>Name_PublisherId</c>) — the key for the background-access
+    /// policy and for the per-user data folder under <c>%LOCALAPPDATA%\Packages</c>.
+    /// </summary>
+    public string? PackageFamilyName { get; init; }
 
     /// <summary>
     /// Win32 only: where this entry lives in the registry, so an orphaned leftover record can be
