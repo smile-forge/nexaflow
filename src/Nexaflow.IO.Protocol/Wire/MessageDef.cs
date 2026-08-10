@@ -123,12 +123,10 @@ public sealed record MessageDef
 
         Wire(graph, Root, Fields);
 
-        // Every reference an expression makes, materialised. Recovering these by scanning text at each
-        // encode is what let a reference into an unrealised arm survive until run time.
-        foreach (var (owner, expression, _) in Expressions(AllFields))
-            foreach (var (name, facet) in FieldReferences(expression))
-                if (Resolve(name, owner) is { } target)
-                    graph.Add(new Reads { From = owner, To = target, Facet = facet });
+        // Every reference an expression makes, materialised in the scope it was written in. Recovering
+        // these by scanning text at each encode is what let a reference into an unrealised arm survive
+        // until run time.
+        LinkReads(graph, ScopeFields(Fields), null);
 
         foreach (var rule in Rules)
             graph.Add(new Constrains { From = new RuleNode(rule), To = rule.Subject });
@@ -173,30 +171,62 @@ public sealed record MessageDef
         }
     }
 
-    /// <summary>The field a name means, seen from where it was written.</summary>
-    private Field? Resolve(string name, Field from)
+    /// <summary>
+    /// Resolves every expression's references once, in the scope the expression was written in.
+    ///
+    /// <para>
+    /// A chain's <i>carry</i> is the one that reads outside its own scope, and inward rather than outward:
+    /// it is written on the chain but evaluated inside the structure, so it names the structure's fields.
+    /// Nothing about the text says that; the graph has to.
+    /// </para>
+    /// </summary>
+    private void LinkReads(ProtocolGraph graph, IReadOnlyList<Field> here, IReadOnlyList<Field>? outer)
     {
-        // Innermost scope outward: a structure's own names shadow the ones around it, which is what makes
-        // a per-instance length prefix mean that instance's.
-        foreach (var scope in ScopesAround(from))
-            if (scope.FirstOrDefault(f => string.Equals(f.Id, name, StringComparison.Ordinal)) is { } found)
-                return found;
+        Field? Visible(string name)
+            => here.FirstOrDefault(f => string.Equals(f.Id, name, StringComparison.Ordinal))
+            ?? outer?.FirstOrDefault(f => string.Equals(f.Id, name, StringComparison.Ordinal));
 
-        return null;
-    }
-
-    private IEnumerable<List<Field>> ScopesAround(Field from)
-    {
-        foreach (var chain in AllFields.Select(f => f.Pattern).OfType<Pattern.Chain>())
+        foreach (var field in here)
         {
-            List<Field> inside = [];
-            Gather([chain.Element], inside);
-            if (inside.Contains(from)) yield return inside;
-        }
+            void Link(Expr expression, string role, Func<string, Field?> lookup)
+            {
+                foreach (var (name, facet) in FieldReferences(expression))
+                    if (lookup(name) is { } target)
+                        graph.Add(new Reads { From = field, To = target, Facet = facet, Role = role });
+            }
 
-        List<Field> outermost = [];
-        Gather(Fields, outermost);
-        yield return outermost;
+            if (field.Value is not null) Link(field.Value, Roles.Value, Visible);
+
+            switch (field.Pattern)
+            {
+                case Pattern.Choice choice:
+                    Link(choice.Key, Roles.Discriminator, Visible);
+                    break;
+
+                case Pattern.Opaque { Length: { } length }:
+                    Link(length, Roles.Length, Visible);
+                    break;
+
+                case Pattern.Group { Extent: { } extent }:
+                    Link(extent, Roles.Bound, Visible);
+                    break;
+
+                case Pattern.Chain chain:
+                {
+                    Link(chain.Continues, Roles.Continuation, Visible);
+                    if (chain.Seed is not null) Link(chain.Seed, Roles.Seed, Visible);
+
+                    var inside = ScopeFields([chain.Element]);
+
+                    if (chain.Carry is not null)
+                        Link(chain.Carry, Roles.Carry,
+                             n => inside.FirstOrDefault(f => string.Equals(f.Id, n, StringComparison.Ordinal)));
+
+                    LinkReads(graph, inside, [.. here, .. outer ?? []]);
+                    break;
+                }
+            }
+        }
     }
 
     /// <summary>Every field in the message, nested ones included, in declaration order.</summary>
@@ -323,11 +353,11 @@ public sealed record MessageDef
 
     /// <summary>The ids declared in one scope. Both directions resolve names against this — the validator
     /// to decide what is in scope, the encoder to decide what to qualify.</summary>
-    internal static IReadOnlySet<string> ScopeIds(IReadOnlyList<Field> fields)
+    internal static IReadOnlyList<Field> ScopeFields(IReadOnlyList<Field> fields)
     {
         List<Field> here = [];
         Gather(fields, here);
-        return here.Select(f => f.Id).ToHashSet(StringComparer.Ordinal);
+        return here;
     }
 
     /// <summary>Fields declared in this scope — descending through regions and arms, stopping at anything

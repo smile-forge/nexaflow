@@ -18,7 +18,7 @@ namespace Nexaflow.IO.Protocol.Resolution;
 /// </summary>
 public sealed class Resolver
 {
-    private readonly Dictionary<string, ResolutionNode> _nodes = new(StringComparer.Ordinal);
+    private readonly Dictionary<object, ResolutionNode> _nodes = [];
     private readonly Dictionary<FacetRef, object?> _settled = [];
     private readonly Dictionary<FacetRef, List<FacetRef>> _waiters = [];
     private readonly HashSet<FacetRef> _inProgress = [];
@@ -63,7 +63,7 @@ public sealed class Resolver
             var reference = _ready.Dequeue();
             if (_settled.ContainsKey(reference)) continue;
 
-            var node = _nodes[reference.NodeId];
+            var node = _nodes[reference.Node];
             var needs = node.DependenciesFor(reference.Facet);
 
             // Park against the FIRST unmet prerequisite. Waking on that one prerequisite is enough:
@@ -71,7 +71,7 @@ public sealed class Resolver
             var missing = needs.FirstOrDefault(d => !_settled.ContainsKey(d));
             if (missing != default && !_settled.ContainsKey(missing))
             {
-                if (!_nodes.ContainsKey(missing.NodeId) && !_settled.ContainsKey(missing))
+                if (!_nodes.ContainsKey(missing.Node) && !_settled.ContainsKey(missing))
                 {
                     // The prerequisite names a node that does not exist yet. Legitimate while something is
                     // still unrealised; a hard error once expansion has finished.
@@ -135,8 +135,8 @@ public sealed class Resolver
 
         // A prerequisite naming a node that never came into existence is under-expansion, not a cycle.
         var phantom = blocked
-            .SelectMany(r => _nodes[r.NodeId].DependenciesFor(r.Facet))
-            .Where(d => !_nodes.ContainsKey(d.NodeId))
+            .SelectMany(r => _nodes[r.Node].DependenciesFor(r.Facet))
+            .Where(d => !_nodes.ContainsKey(d.Node))
             .Distinct()
             .ToList();
 
@@ -172,12 +172,12 @@ public sealed class Resolver
         List<FacetRef>? Walk(FacetRef at, HashSet<FacetRef> path, HashSet<FacetRef> finished, List<FacetRef> stack)
         {
             if (path.Contains(at)) return [.. stack.SkipWhile(x => !x.Equals(at))];
-            if (!finished.Add(at) || !_nodes.ContainsKey(at.NodeId)) return null;
+            if (!finished.Add(at) || !_nodes.ContainsKey(at.Node)) return null;
 
             path.Add(at);
             stack.Add(at);
 
-            foreach (var next in _nodes[at.NodeId].DependenciesFor(at.Facet))
+            foreach (var next in _nodes[at.Node].DependenciesFor(at.Facet))
                 if (!_settled.ContainsKey(next))
                 {
                     var found = Walk(next, path, finished, stack);

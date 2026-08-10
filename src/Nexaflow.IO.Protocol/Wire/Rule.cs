@@ -141,12 +141,55 @@ public abstract record Rule
         public override string ToString() => $"{One.Render()} excludes {Other.Render()}";
     }
 
+    /// <summary>
+    /// Something that must hold wherever its scope is — the degenerate case of an obligation, and common
+    /// enough to be worth its own name.
+    ///
+    /// <para>
+    /// Written as <see cref="Requires"/> with a condition of <c>true</c> it reads as a riddle, and the
+    /// point of separating the kinds is that a reader should not have to decode which one they are looking
+    /// at.
+    /// </para>
+    /// </summary>
+    public sealed record Invariant : Rule
+    {
+        public required Node Within { get; init; }
+        public required Expr Must { get; init; }
+
+        public override Node Subject => Within;
+
+        public override string ToString() => $"always {Must.Render()}";
+    }
+
+    /// <summary>
+    /// How consecutive structures of a chain must sit relative to each other.
+    ///
+    /// <para>
+    /// A packing exclusion rather than a value one: it is about arrangement, and it constrains the
+    /// relationship between two structures rather than anything inside either. <c>previous</c> is the
+    /// structure before this one; the rule is not checked for the first, which has none.
+    /// </para>
+    /// </summary>
+    public sealed record Arrangement : Rule
+    {
+        /// <summary>The chain whose structures this orders.</summary>
+        public required Field Chain { get; init; }
+
+        public required Expr Must { get; init; }
+
+        public override Node Subject => Chain;
+
+        public override string ToString() => $"each structure after the first: {Must.Render()}";
+    }
+
     /// <summary>Names the rule reads, so a reference to a field that is not in scope is an authoring error
     /// rather than a silent pass.</summary>
     internal IEnumerable<Expr> Expressions => this switch
     {
         Requires r => [r.When, r.Then],
         Excludes e => [e.One, e.Other],
+        Invariant i => [i.Must],
+        Arrangement a => [a.Must],
         _ => [],
     };
 }

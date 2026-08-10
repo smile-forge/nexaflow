@@ -256,6 +256,8 @@ public static class MessageProse
         Rule.Domain => "a value this field may not take",
         Rule.Requires => "one condition obliging another",
         Rule.Excludes => "a combination that may never occur",
+        Rule.Invariant => "something that must always hold",
+        Rule.Arrangement => "how one structure may follow another",
         _ => "a rule",
     };
 

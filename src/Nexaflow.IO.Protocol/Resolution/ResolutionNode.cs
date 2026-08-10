@@ -12,7 +12,7 @@ namespace Nexaflow.IO.Protocol.Resolution;
 /// </summary>
 public sealed class ResolutionNode
 {
-    public required string Id { get; init; }
+    public required object Id { get; init; }
 
     /// <summary>
     /// Facets this node's facet needs settled first. <b>Declared per node</b>, because the order differs
@@ -31,7 +31,7 @@ public sealed class ResolutionNode
     /// emits nothing has no extent to compute.</summary>
     public IReadOnlySet<Facet> NotApplicable { get; init; } = new HashSet<Facet>();
 
-    public override string ToString() => Id;
+    public override string ToString() => Id.ToString() ?? "?";
 }
 
 /// <summary>The outcome of settling one facet.</summary>

@@ -48,6 +48,21 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     private readonly MessageDef _message = message;
     private readonly ConverterTable _converters = converters ?? ConverterTable.Default;
 
+    /// <summary>
+    /// Structure comes from here, not from the declaration.
+    ///
+    /// <para>
+    /// The declaration and the graph agreed while both were walked, and two descriptions that agree today
+    /// are two descriptions. Reading containment from the edges means anything the graph gains — a
+    /// reference that is not containment, a constraint on an ordering — is visible to the walk instead of
+    /// needing the walk to be taught about it separately.
+    /// </para>
+    /// </summary>
+    private ProtocolGraph Graph => _message.Graph;
+
+    /// <summary>What a node contains, in wire order.</summary>
+    private IEnumerable<Field> Inside(Node node) => Graph.Children(node).OfType<Field>();
+
     /// <summary>Validates the definition. Always call before use; the issues are authoring errors.</summary>
     public IReadOnlyList<string> Validate() => _message.Validate();
 
@@ -196,7 +211,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
                 Dictionary<string, ProtoValue> members = new(StringComparer.Ordinal);
 
-                foreach (var child in group.Fields)
+                foreach (var child in Inside(field))
                     members[child.CaptureName] = Read(child, r, ChildPath(path, child, exposed), exposed);
 
                 if (group.Extent is not null)
@@ -221,7 +236,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 var arm = choice.Select(key, field.Id);
                 int start = r.Offset;
 
-                foreach (var child in arm.Fields)
+                foreach (var child in Inside(arm))
                     Read(child, r, ChildPath(path, child, exposed), exposed);
 
                 // The arm NAME is the value. A later step then branches on which shape arrived, rather
@@ -254,6 +269,10 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                     r.EnterStructure(carried);
                     var element = Read(chain.Element, r, $"{path}[{instances.Count}]", exposed: false);
 
+                    // Rules written about this structure, checked here — once per structure, because the
+                    // rule points at the element and every instance is that element.
+                    Enforce(r, chain.Element);
+
                     // Computed inside the structure's own scope, before it closes, so it can be worked out
                     // from what that structure actually said.
                     var next = chain.Carry is null ? ProtoValue.Nothing : r.Eval(chain.Carry);
@@ -269,6 +288,16 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                         throw new ProtoTypeException(
                             $"field '{field.Id}': an instance consumed no octets, so the continuation "
                           + "condition would never stop being true");
+
+                    // How this structure sits against the one before it. Not a value rule and not a
+                    // containment one: it is about the arrangement, so it lives on the pair.
+                    if (instances.Count > 0)
+                        foreach (var rule in _message.Rules.OfType<Rule.Arrangement>()
+                                                     .Where(a => ReferenceEquals(a.Chain, field)))
+                            if (!Holds(rule.Must, Structured(instance, instances[^1]), new Evaluator(_converters)))
+                                throw new ProtoTypeException(
+                                    $"structure {instances.Count} of '{field.Id}' may not follow the one "
+                                  + $"before it: {rule.Must.Render()} does not hold. {rule.Because}");
 
                     instances.Add(instance);
                 }
@@ -307,6 +336,11 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         Confine(field, value);
         r.Note(field.Id, value, extent);
         r.Capture(field.CaptureName, value);
+
+        // Rules about this field, checked the moment it is bound rather than when its structure closes.
+        // An illegal value is frequently one that derails the rest of the read — a reserved nibble sends
+        // the walk off by two octets — and a diagnostic about where it ended up is no use to anyone.
+        Enforce(r, field);
         return value;
     }
 
@@ -628,11 +662,14 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
         foreach (var (reference, value) in settled)
         {
-            // A qualified id belongs to one structure of a chain, not to the message.
-            if (reference.Facet != Facet.Value || reference.NodeId.Contains('[') || value is not ProtoValue v)
+            // An appearance inside a structure belongs to that structure, not to the message. A question
+            // the occurrence answers directly, where a string id had to be inspected for a bracket.
+            if (reference.Facet != Facet.Value
+                || reference.Node is not Occurrence { Within: null } occurrence
+                || value is not ProtoValue v)
                 continue;
 
-            named[reference.NodeId] = v;
+            named[occurrence.Declared.Name] = v;
 
             if (v is ProtoValue.Rec rec)
                 foreach (var (name, member) in rec.Members) named.TryAdd(name, member);
@@ -680,6 +717,43 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             }
     }
 
+    /// <summary>Two structures side by side, for a rule about how they sit together.</summary>
+    private static EvalScope Structured(ProtoValue current, ProtoValue previous)
+        => new EvalScope().Set("item", current).Set("previous", previous);
+
+    /// <summary>
+    /// The rules written about one scope, checked while that scope is open.
+    ///
+    /// <para>
+    /// A rule about a repeated structure runs once per structure, in that structure's own scope, which is
+    /// the whole reason its subject is a reference. It reads the same names the structure's own fields do.
+    /// </para>
+    /// </summary>
+    private void Enforce(Reading r, Node scope)
+    {
+        foreach (var rule in _message.Rules)
+        {
+            if (!ReferenceEquals(rule.Subject, scope)) continue;
+
+            switch (rule)
+            {
+                case Rule.Invariant invariant when !r.Eval(invariant.Must).AsBool():
+                    throw new ProtoTypeException(
+                        $"{invariant.Must.Render()} does not hold. {invariant.Because}");
+
+                case Rule.Requires requires when r.Eval(requires.When).AsBool() && !r.Eval(requires.Then).AsBool():
+                    throw new ProtoTypeException(
+                        $"{requires.When.Render()} holds, which obliges {requires.Then.Render()} — and it "
+                      + $"does not. {requires.Because}");
+
+                case Rule.Excludes excludes when r.Eval(excludes.One).AsBool() && r.Eval(excludes.Other).AsBool():
+                    throw new ProtoTypeException(
+                        $"{excludes.One.Render()} and {excludes.Other.Render()} both hold, and they may "
+                      + $"never combine. {excludes.Because}");
+            }
+        }
+    }
+
     private static bool Holds(Expr condition, EvalScope scope, Evaluator evaluator)
     {
         var answer = evaluator.Eval(condition, scope);
@@ -693,7 +767,32 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     /// One field scope on the encode side: which ids belong to it, what to prefix them with in the
     /// resolver's flat namespace, and the evaluation scope its expressions see.
     /// </summary>
-    private sealed record NameFrame(string Prefix, IReadOnlySet<string> Local, EvalScope Scope, NameFrame? Outer)
+    /// <summary>
+    /// One appearance of a declared node.
+    ///
+    /// <para>
+    /// A chain declares one structure and realises many, so "the length prefix of the second subscription"
+    /// needs an identity the declaration does not have. It used to be a string built by concatenation —
+    /// <c>subscriptions[1].filterLength</c> — which is a dictionary key wearing a node's clothes: two
+    /// occurrences were the same thing exactly when their names happened to match. This is an object, so
+    /// they are the same thing exactly when they are.
+    /// </para>
+    /// </summary>
+    private sealed class Occurrence(Node declared, Occurrence? within, string? tag = null)
+    {
+        public Node Declared { get; } = declared;
+
+        /// <summary>The structure this appearance belongs to, or null at message level.</summary>
+        public Occurrence? Within { get; } = within;
+
+        public override string ToString()
+        {
+            var here = Declared.Name + tag;
+            return Within is null ? here : $"{Within}.{here}";
+        }
+    }
+
+    private sealed record NameFrame(IReadOnlyDictionary<Field, Occurrence> Here, EvalScope Scope, NameFrame? Outer)
     {
         /// <summary>
         /// The node holding what this structure's chain threaded to it, if any.
@@ -704,35 +803,44 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         /// fields, which is a genuine ordering the worklist can hold perfectly well once it is told.
         /// </para>
         /// </summary>
-        public string? CarriedId { get; init; }
+        public Occurrence? Carried { get; init; }
+
+        /// <summary>This frame's own occurrence, if it is one structure of a chain.</summary>
+        public Occurrence? Instance { get; init; }
 
         public static NameFrame Root(IReadOnlyList<Field> fields, EvalScope scope)
-            => new("", MessageDef.ScopeIds(fields), scope, null);
+            => new(Occurrences(MessageDef.ScopeFields(fields), null), scope, null);
 
-        /// <summary>An instance's scope: its own names prefixed, everything else still reachable outward,
-        /// and <c>item</c> bound to the structure being written.</summary>
-        public NameFrame Instance(Field element, string prefix, ProtoValue item, string? carriedId)
-            => new(prefix, MessageDef.ScopeIds([element]), Scope.Child().Set("item", item), this)
-               { CarriedId = carriedId };
+        /// <summary>An instance's scope: its own occurrences, everything else still reachable outward, and
+        /// <c>item</c> bound to the structure being written.</summary>
+        public NameFrame Structure(Field element, Occurrence instance, ProtoValue item, Occurrence? carried)
+            => new(Occurrences(MessageDef.ScopeFields([element]), instance),
+                   Scope.Child().Set("item", item), this)
+               { Carried = carried, Instance = instance };
 
-        public string NodeId(string fieldId) => Local.Contains(fieldId) ? Prefix + fieldId : Outward(fieldId);
+        private static Dictionary<Field, Occurrence> Occurrences(IEnumerable<Field> fields, Occurrence? within)
+            => fields.Distinct().ToDictionary(f => f, f => new Occurrence(f, within));
 
-        private string Outward(string fieldId) => Outer?.NodeId(fieldId) ?? fieldId;
+        /// <summary>Which appearance of a field this scope means. Innermost outward, so a structure's own
+        /// length prefix is its own.</summary>
+        public Occurrence Of(Field field)
+            => Here.TryGetValue(field, out var here) ? here
+             : Outer?.Of(field) ?? new Occurrence(field, null);
     }
 
     private void Emit(Field field, NameFrame frame, Encoder encoder,
                       IReadOnlyDictionary<FacetRef, object?> settled, List<byte> output)
     {
-        var nodeId = frame.Prefix + field.Id;
+        var nodeId = frame.Of(field);
 
         switch (field.Pattern)
         {
-            case Pattern.Group group:
-                foreach (var child in group.Fields) Emit(child, frame, encoder, settled, output);
+            case Pattern.Group:
+                foreach (var child in Inside(field)) Emit(child, frame, encoder, settled, output);
                 break;
 
             case Pattern.Choice:
-                foreach (var child in encoder.Chosen[nodeId].Fields) Emit(child, frame, encoder, settled, output);
+                foreach (var child in Inside(encoder.Chosen[nodeId])) Emit(child, frame, encoder, settled, output);
                 break;
 
             case Pattern.Chain chain:
@@ -753,10 +861,10 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     private sealed class Encoder(MessageCodec codec, Evaluator evaluator)
     {
         /// <summary>Choice node id → the arm that was selected.</summary>
-        public readonly Dictionary<string, Arm> Chosen = new(StringComparer.Ordinal);
+        public readonly Dictionary<Occurrence, Arm> Chosen = [];
 
         /// <summary>Chain node id → one frame per instance, in order.</summary>
-        public readonly Dictionary<string, List<NameFrame>> Instances = new(StringComparer.Ordinal);
+        public readonly Dictionary<Occurrence, List<NameFrame>> Instances = [];
 
         private static readonly HashSet<Facet> LeafNotApplicable =
             [Facet.Realised, Facet.Present, Facet.Emitted];
@@ -773,15 +881,15 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
         public List<ResolutionNode> Nodes(Field field, NameFrame frame)
         {
-            var nodeId = frame.Prefix + field.Id;
+            var nodeId = frame.Of(field);
             List<ResolutionNode> nodes = [];
 
             switch (field.Pattern)
             {
                 case Pattern.Group group:
                 {
-                    foreach (var child in group.Fields) nodes.AddRange(Nodes(child, frame));
-                    var extents = group.Fields.Select(c => new FacetRef(frame.NodeId(c.Id), Facet.Extent)).ToList();
+                    foreach (var child in codec.Inside(field)) nodes.AddRange(Nodes(child, frame));
+                    var extents = codec.Inside(field).Select(c => new FacetRef(frame.Of(c), Facet.Extent)).ToList();
 
                     nodes.Add(new ResolutionNode
                     {
@@ -795,7 +903,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
                 case Pattern.Choice choice:
                 {
-                    var keyNeeds = Refs(choice.Key, frame);
+                    var keyNeeds = Refs(field, Roles.Discriminator, choice.Key, frame);
                     List<FacetRef>? armExtents = null;
 
                     nodes.Add(new ResolutionNode
@@ -823,11 +931,11 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                                     var arm = choice.Select(key, field.Id);
 
                                     Chosen[nodeId] = arm;
-                                    armExtents = arm.Fields
-                                        .Select(c => new FacetRef(frame.NodeId(c.Id), Facet.Extent)).ToList();
+                                    armExtents = codec.Inside(arm)
+                                        .Select(c => new FacetRef(frame.Of(c), Facet.Extent)).ToList();
 
                                     return new FacetResult(arm.Name,
-                                        [.. arm.Fields.SelectMany(c => Nodes(c, frame))]);
+                                        [.. codec.Inside(arm).SelectMany(c => Nodes(c, frame))]);
                                 }
 
                                 case Facet.Value: return FacetResult.Of(ProtoValue.Of(Chosen[nodeId].Name));
@@ -841,7 +949,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
                 case Pattern.Chain chain:
                 {
-                    List<FacetRef> valueNeeds = field.Value is null ? [] : Refs(field.Value, frame);
+                    List<FacetRef> valueNeeds = field.Value is null ? [] : Refs(field, Roles.Value, field.Value, frame);
                     List<FacetRef>? instanceExtents = null;
                     ProtoValue? structures = null;
 
@@ -864,11 +972,11 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                         List<NameFrame> frames = [];
 
                         NameFrame? previous = null;
-                        string? previousCarried = null;
+                        Occurrence? previousCarried = null;
 
                         for (int i = 0; i < list.Items.Count; i++)
                         {
-                            string? carriedId = null;
+                            Occurrence? carriedId = null;
 
                             if (chain.Threads)
                             {
@@ -876,21 +984,22 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                                 // worklist schedules rather than something a loop assumes. The first comes
                                 // from the seed in the scope around the chain; every later one from the
                                 // previous structure's scope, once that structure has settled.
-                                carriedId = $"{nodeId}[{i}]@carried";
+                                carriedId = new Occurrence(field, nodeId, $"[{i}]~carried");
 
                                 children.Add(previous is null
-                                    ? Threaded(carriedId, frame, chain.Seed!, [])
-                                    : Threaded(carriedId, previous, chain.Carry!,
+                                    ? Threaded(carriedId, field, Roles.Seed, frame, chain.Seed!, [])
+                                    : Threaded(carriedId, field, Roles.Carry, previous, chain.Carry!,
                                                [new FacetRef(previousCarried!, Facet.Value)]));
                             }
 
                             // Each instance is a separate structure and its names are its own. `item` is
                             // where its values come from; anything it does not declare resolves outward,
                             // so it can still read the message metadata around it.
-                            var instance = frame.Instance(chain.Element, $"{nodeId}[{i}].", list.Items[i], carriedId);
+                            var instance = frame.Structure(chain.Element,
+                                new Occurrence(chain.Element, nodeId, $"[{i}]"), list.Items[i], carriedId);
 
                             children.AddRange(Nodes(chain.Element, instance));
-                            extents.Add(new FacetRef(instance.Prefix + chain.Element.Id, Facet.Extent));
+                            extents.Add(new FacetRef(instance.Of(chain.Element), Facet.Extent));
                             frames.Add(instance);
 
                             previous = instance;
@@ -930,7 +1039,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
                 default:
                 {
-                    List<FacetRef> valueNeeds = field.Value is null ? [] : Refs(field.Value, frame);
+                    List<FacetRef> valueNeeds = field.Value is null ? [] : Refs(field, Roles.Value, field.Value, frame);
 
                     // The edge a fixed width does not need. A continuation chain or a recovered octet run
                     // cannot be measured until it is known, so `Extent` declares a dependency on `Value`
@@ -966,9 +1075,10 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         }
 
         /// <summary>A zero-width node holding what one structure threads to the next.</summary>
-        private ResolutionNode Threaded(string id, NameFrame within, Expr expression, IReadOnlyList<FacetRef> also)
+        private ResolutionNode Threaded(Occurrence id, Field owner, string role, NameFrame within,
+                                        Expr expression, IReadOnlyList<FacetRef> also)
         {
-            var needs = Refs(expression, within).Concat(also).Distinct().ToList();
+            var needs = Refs(owner, role, expression, within).Concat(also).Distinct().ToList();
 
             return new ResolutionNode
             {
@@ -994,18 +1104,27 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             _ => throw new ProtoTypeException($"expected an extent, got {settled?.GetType().Name ?? "nothing"}"),
         };
 
-        /// <summary>The facets an expression reads, resolved through the scope it was written in — so
-        /// <c>fields.body</c> inside instance 2 names instance 2's region.</summary>
-        private static List<FacetRef> Refs(Expr expression, NameFrame frame)
+        /// <summary>
+        /// What one of a field's expressions depends on, taken from the graph.
+        ///
+        /// <para>
+        /// The reads were resolved once when the graph was built; this only says which appearance of each
+        /// target is meant. Re-deriving them here by scanning expression text was how a reference could
+        /// survive until run time — the text was available everywhere and meant something different
+        /// depending on where you read it from.
+        /// </para>
+        /// </summary>
+        private List<FacetRef> Refs(Field owner, string role, Expr expression, NameFrame frame)
         {
-            var needs = MessageDef.FieldReferences(expression)
-                .Select(r => new FacetRef(frame.NodeId(r.Field),
+            var needs = codec.Graph.From<Reads>(owner)
+                .Where(r => r.Role == role)
+                .Select(r => new FacetRef(frame.Of((Field)r.To),
                     r.Facet.Equals("extent", StringComparison.OrdinalIgnoreCase) ? Facet.Extent : Facet.Value))
                 .ToList();
 
             // `carried` is a root, so nothing in the expression's text makes it a dependency. It is one.
-            if (frame.CarriedId is { } id && expression.FreeRootNames().Contains("carried"))
-                needs.Add(new FacetRef(id, Facet.Value));
+            if (frame.Carried is { } carried && expression.FreeRootNames().Contains("carried"))
+                needs.Add(new FacetRef(carried, Facet.Value));
 
             return [.. needs.Distinct()];
         }
@@ -1033,7 +1152,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
         // Bound from the node rather than captured when the frame was built: it does not exist yet at
         // that point, which is the whole reason it had to become a node.
-        if (frame.CarriedId is { } id
+        if (frame.Carried is { } id
             && resolved.TryGetValue(new FacetRef(id, Facet.Value), out var carried)
             && carried is ProtoValue value)
             scope.Set("carried", value);
@@ -1053,7 +1172,10 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         {
             if (reference.Facet is not (Facet.Value or Facet.Extent)) continue;
 
-            var name = Unqualified(reference.NodeId, frame);
+            // The name the expression used. No unqualifying: an occurrence knows what it is an
+            // occurrence OF, where a composed string had to have its own prefix stripped back off.
+            if (reference.Node is not Occurrence occurrence) continue;
+            var name = occurrence.Declared.Name;
 
             var slot = byField.TryGetValue(name, out var existing) && existing is ProtoValue.Rec r
                 ? new Dictionary<string, ProtoValue>(r.Members, StringComparer.Ordinal)
@@ -1072,11 +1194,6 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
         return new ProtoValue.Rec(byField);
     }
-
-    private static string Unqualified(string nodeId, NameFrame frame)
-        => frame.Prefix.Length > 0 && nodeId.StartsWith(frame.Prefix, StringComparison.Ordinal)
-            ? nodeId[frame.Prefix.Length..]
-            : nodeId;
 
     /// <summary>How many octets a value-dependent shape will occupy. Measured by producing the octets, so
     /// the extent and the emission cannot disagree.</summary>

@@ -102,7 +102,31 @@ public sealed record Repeats : Edge
 public sealed record Reads : Edge
 {
     public required string Facet { get; init; }
+
+    /// <summary>Which of the reader's expressions this read belongs to.
+    ///
+    /// <para>
+    /// A field can hold several — a value and a discriminator, a value and a continuation — and they are
+    /// not interchangeable. A chain's continuation reads a count that is only meaningful on the way in;
+    /// treating that as a dependency of the chain's value would make the chain wait on a field that waits
+    /// on the chain, and report a cycle in a document that has none.
+    /// </para>
+    /// </summary>
+    public required string Role { get; init; }
+
     public override string Verb => $"reads {Facet} of";
+}
+
+/// <summary>The expressions a node can hold, and therefore the roles a read can have.</summary>
+public static class Roles
+{
+    public const string Value = "the value";
+    public const string Discriminator = "the discriminator";
+    public const string Continuation = "the continuation";
+    public const string Seed = "the seed";
+    public const string Carry = "the carry";
+    public const string Length = "the length";
+    public const string Bound = "the region bound";
 }
 
 /// <summary>A constraint applies to a node. Wherever that node is realised — once, or once per structure

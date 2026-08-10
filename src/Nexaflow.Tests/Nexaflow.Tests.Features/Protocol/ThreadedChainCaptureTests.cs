@@ -66,23 +66,27 @@ public class ThreadedChainCaptureTests
     /// One option. Its number is <c>carried + delta</c>; its delta on the way out is
     /// <c>item.number - carried</c>.
     /// </summary>
-    private static Field Option() => new()
+    private static Field Option(out Field optionHeader)
     {
-        Id = "option",
-        Pattern = new Pattern.Group(
+        optionHeader = new Field
+        {
+            Id = "optionHeader",
+            Pattern = U8,
+            Value = Expr.Parse(
+                "let d = item.number - carried in "
+              + "let v = fields.optionValue.extent in "
+              + $"((let n = d in {Nibble}) * 16) + (let n = v in {Nibble})"),
+        };
+
+        return new Field
+        {
+            Id = "option",
+            Pattern = new Pattern.Group(
         [
             // Both nibbles are derived, so the octet is composed rather than supplied. The delta comes
             // from where the chain has got to; the length from the extent of a value further down, which
             // has not been measured yet when this is written and does not need to have been.
-            new Field
-            {
-                Id = "optionHeader",
-                Pattern = U8,
-                Value = Expr.Parse(
-                    "let d = item.number - carried in "
-                  + "let v = fields.optionValue.extent in "
-                  + $"((let n = d in {Nibble}) * 16) + (let n = v in {Nibble})"),
-            },
+            optionHeader,
 
             // Not a choice between packings. The first attempt made these two arms and a fallback, and it
             // could not be encoded: the expression that rebuilds the value names both escape widths, so
@@ -111,8 +115,9 @@ public class ThreadedChainCaptureTests
                 Pattern = Pattern.Opaque.Measured(Expr.Parse(ReadLength)),
                 Value = Expr.Parse("item.value"),
             },
-        ]),
-    };
+            ]),
+        };
+    }
 
     /// <summary>
     /// The message. Note what ends the option chain: not a count, and not the region — a marker octet the
@@ -120,6 +125,17 @@ public class ThreadedChainCaptureTests
     /// </summary>
     private static MessageDef Definition()
     {
+        var option = Option(out var optionHeader);
+        var options = new Field
+        {
+            Id = "options",
+            Value = Expr.Parse("inputs.options"),
+            Pattern = new Pattern.Chain(option,
+                Continues: Expr.Parse("room > 0 && peek != 0xff"),
+                Seed: Expr.Parse("0"),
+                Carry: Expr.Parse($"carried + ({ReadDelta})")),
+        };
+
         var header = new Field
         {
             Id = "header",
@@ -147,15 +163,7 @@ public class ThreadedChainCaptureTests
                 Value = Expr.Parse("inputs.token"),
             },
 
-            new Field
-            {
-                Id = "options",
-                Value = Expr.Parse("inputs.options"),
-                Pattern = new Pattern.Chain(Option(),
-                    Continues: Expr.Parse("room > 0 && peek != 0xff"),
-                    Seed: Expr.Parse("0"),
-                    Carry: Expr.Parse($"carried + ({ReadDelta})")),
-            },
+            options,
 
             // At most one, and the direction-asymmetry earns its keep again: on the way out the caller
             // either supplied a payload or did not, and on the way in there either are octets left or
@@ -192,6 +200,27 @@ public class ThreadedChainCaptureTests
                     Allowed = [ValueRange.Exactly(1)],
                     Because = "only one version of this framing has ever been defined, and a datagram "
                             + "announcing another is not one this document can claim to have read.",
+                },
+
+                // The rule that started the whole refactor. Its subject is a segment inside a repeated
+                // structure, so while rules named their subject there was nowhere to attach it: the name
+                // resolved at message scope and the option header is not there.
+                new Rule.Invariant
+                {
+                    Within = optionHeader,
+                    Must = Expr.Parse($"({DeltaNibble}) != 15 && ({LengthNibble}) != 15"),
+                    Because = "15 is reserved in both nibbles — the octet that would carry it is the "
+                            + "marker that ends the list, so an option claiming it is not an option.",
+                },
+
+                // A packing exclusion: about how two structures sit relative to each other, not about
+                // anything inside either. It needs the pair, which no rule about one node can see.
+                new Rule.Arrangement
+                {
+                    Chain = options,
+                    Must = Expr.Parse("item.optionHeader >= 0"),
+                    Because = "structures are written in ascending order of the number they name, which is "
+                            + "what makes a delta from the previous one meaningful at all.",
                 },
             ],
         };
@@ -300,6 +329,28 @@ public class ThreadedChainCaptureTests
 
         CollectionAssert.AreEqual(new long[] { 12, 2049 }, Accumulated(decoded["options"].AsList()),
             "the second option keeps the number it asked for, by writing a smaller delta");
+    }
+
+    [TestMethod]
+    public void A_rule_about_a_segment_inside_the_repeated_structure_reaches_every_one_of_them()
+    {
+        // The case that could not be attached to anything, and the reason identity stopped being a name.
+        // 15 is reserved in both nibbles; the option header is a segment inside the chain element, so
+        // while a rule named its subject there was no scope in which that name meant anything.
+        var codec = new MessageCodec(Definition());
+
+        foreach (var (offset, nibble) in ((int, string)[])[(8, "delta"), (16, "length")])
+        {
+            var tampered = (byte[])[.. Capture(0)];
+            tampered[offset] = offset == 8 ? (byte)0xf7 : (byte)0x0f;
+
+            var ex = Assert.ThrowsExactly<ProtoTypeException>(() => codec.Decode(tampered));
+            StringAssert.Contains(ex.Message, "!= 15", nibble);
+            StringAssert.Contains(ex.Message, "15 is reserved in both nibbles", nibble);
+        }
+
+        // The honest captures still read, so the rule is not simply refusing everything.
+        Assert.AreEqual(6, codec.Decode(Capture(0))["options"].AsList().Count);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

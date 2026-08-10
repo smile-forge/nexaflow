@@ -40,8 +40,17 @@ public enum Facet
     Emitted,
 }
 
-/// <summary>One fact about one node — the unit the resolver schedules.</summary>
-public readonly record struct FacetRef(string NodeId, Facet Facet)
+/// <summary>
+/// One fact about one node — the unit the resolver schedules.
+///
+/// <para>
+/// <paramref name="Node"/> is deliberately untyped, and the resolver never looks inside it. That is what
+/// keeps this a general worklist, exercisable with nothing but synthetic nodes; it also means <b>identity
+/// is whatever object the caller says it is</b>. It used to be a string, and the caller ended up building
+/// them by concatenation — <c>options[0].deltaOne</c> — which is a dictionary key impersonating a node.
+/// </para>
+/// </summary>
+public readonly record struct FacetRef(object Node, Facet Facet)
 {
-    public override string ToString() => $"{NodeId}.{Facet}";
+    public override string ToString() => $"{Node}.{Facet}";
 }
