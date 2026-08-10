@@ -292,8 +292,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                     // How this structure sits against the one before it. Not a value rule and not a
                     // containment one: it is about the arrangement, so it lives on the pair.
                     if (instances.Count > 0)
-                        foreach (var rule in _message.Rules.OfType<Rule.Arrangement>()
-                                                     .Where(a => ReferenceEquals(a.Chain, field)))
+                        foreach (var rule in _message.RulesOn(field).OfType<Rule.Arrangement>())
                             if (!Holds(rule.Must, Structured(instance, instances[^1]), new Evaluator(_converters)))
                                 throw new ProtoTypeException(
                                     $"structure {instances.Count} of '{field.Id}' may not follow the one "
@@ -363,10 +362,8 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
     private void Confine(Field field, ProtoValue value)
     {
-        foreach (var rule in _message.Rules.OfType<Rule.Domain>())
+        foreach (var rule in _message.RulesOn(field).OfType<Rule.Domain>())
         {
-            if (!ReferenceEquals(rule.Field, field)) continue;
-
             var subject = rule.Run is { } run && value is ProtoValue.Rec rec
                 ? rec.Members.GetValueOrDefault(run, ProtoValue.Nothing)
                 : value;
@@ -643,7 +640,15 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
         // Checked before a single octet is produced. A rule that only ran on the way in would let the
         // engine emit a message it would itself refuse to read.
-        Enforce(NamedValues(settled), new Evaluator(_converters));
+        var evaluator = new Evaluator(_converters);
+        Enforce(NamedValues(settled), evaluator);
+
+        // And once per structure, for the rules written about one. On the way in these run as each field
+        // binds, because an illegal value derails the read and a diagnostic about where it ended up is no
+        // use; nothing derails out here, so they run on the finished picture instead.
+        foreach (var (_, frames) in encoder.Instances)
+            for (int i = 0; i < frames.Count; i++)
+                EnforceStructure(frames[i], i, settled, evaluator);
 
         // Position is a linearisation, not a fixpoint: one ordered sweep once extents have settled, now
         // through the realised shape rather than a flat list.
@@ -687,8 +692,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         if (_message.Rules.Count == 0) return;
 
         Dictionary<string, ProtoValue> byName = new(StringComparer.Ordinal);
-        foreach (var (name, value) in named)
-            byName[name] = EvalScope.Record(("value", value));
+        foreach (var (name, value) in named) byName[name] = EvalScope.Record(("value", value));
 
         var scope = new EvalScope().Set("fields", new ProtoValue.Rec(byName));
 
@@ -717,6 +721,65 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             }
     }
 
+    /// <summary>
+    /// The rules written about one structure, or about anything inside it, applied to the structure the
+    /// encoder just built.
+    /// </summary>
+    private void EnforceStructure(NameFrame frame, int ordinal,
+                                  IReadOnlyDictionary<FacetRef, object?> settled, Evaluator evaluator)
+    {
+        Dictionary<string, ProtoValue> byName = new(StringComparer.Ordinal);
+
+        foreach (var (field, occurrence) in frame.Here)
+        {
+            // Both facets, because a rule reads the same vocabulary a field expression does — and the
+            // first one written here read `.extent`, which a value-only scope answers with nothing.
+            List<(string, ProtoValue)> facets = [];
+
+            if (settled.TryGetValue(new FacetRef(occurrence, Facet.Value), out var value)
+                && value is ProtoValue v)
+            {
+                facets.Add(("value", v));
+
+                // Bit runs bind alongside their group, the same way they do on the way in.
+                if (v is ProtoValue.Rec rec && field.Pattern is Pattern.Bits)
+                    foreach (var (run, slice) in rec.Members)
+                        byName.TryAdd(run, EvalScope.Record(("value", slice)));
+            }
+
+            if (settled.TryGetValue(new FacetRef(occurrence, Facet.Extent), out var extent) && extent is int e)
+                facets.Add(("extent", ProtoValue.Of((long)e)));
+
+            if (facets.Count > 0) byName[field.CaptureName] = EvalScope.Record([.. facets]);
+        }
+
+        var scope = new EvalScope().Set("fields", new ProtoValue.Rec(byName));
+        scope.Set("ordinal", ProtoValue.Of((long)ordinal));
+
+        foreach (var subject in frame.Here.Keys.Cast<Node>().Append(frame.Instance?.Declared).OfType<Node>())
+            foreach (var rule in _message.RulesOn(subject))
+                switch (rule)
+                {
+                    case Rule.Invariant invariant when !Holds(invariant.Must, scope, evaluator):
+                        throw new ProtoTypeException(
+                            $"in structure {ordinal}: {invariant.Must.Render()} does not hold. "
+                          + invariant.Because);
+
+                    case Rule.Requires requires when Holds(requires.When, scope, evaluator)
+                                                  && !Holds(requires.Then, scope, evaluator):
+                        throw new ProtoTypeException(
+                            $"in structure {ordinal}: {requires.When.Render()} holds, which obliges "
+                          + $"{requires.Then.Render()} — and it does not. {requires.Because}");
+
+                    case Rule.Excludes excludes when Holds(excludes.One, scope, evaluator)
+                                                  && Holds(excludes.Other, scope, evaluator):
+                        throw new ProtoTypeException(
+                            $"in structure {ordinal}: {excludes.One.Render()} and "
+                          + $"{excludes.Other.Render()} both hold, and they may never combine. "
+                          + excludes.Because);
+                }
+    }
+
     /// <summary>Two structures side by side, for a rule about how they sit together.</summary>
     private static EvalScope Structured(ProtoValue current, ProtoValue previous)
         => new EvalScope().Set("item", current).Set("previous", previous);
@@ -731,10 +794,11 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     /// </summary>
     private void Enforce(Reading r, Node scope)
     {
-        foreach (var rule in _message.Rules)
+        // Through the edges, in the order they carry. The first failure is the one anyone reads, so which
+        // rule is reached first is a decision the document gets to make rather than an accident of how a
+        // list happened to be sorted.
+        foreach (var rule in _message.RulesOn(scope))
         {
-            if (!ReferenceEquals(rule.Subject, scope)) continue;
-
             switch (rule)
             {
                 case Rule.Invariant invariant when !r.Eval(invariant.Must).AsBool():

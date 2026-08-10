@@ -213,6 +213,19 @@ public class ThreadedChainCaptureTests
                             + "marker that ends the list, so an option claiming it is not an option.",
                 },
 
+                // Found by writing the test for the rule above: a number too large for the escape to
+                // express produced a nibble claiming two octets over an extension of three, and encoded
+                // without complaint. The nibble and the octets are two statements of one width, and
+                // nothing had been checking they agreed.
+                new Rule.Invariant
+                {
+                    Within = option,
+                    Must = Expr.Parse($"fields.deltaExtension.extent == ({Spilled(DeltaNibble)}) "
+                                    + $"&& fields.lengthExtension.extent == ({Spilled(LengthNibble)})"),
+                    Because = "the nibble says how many octets follow it, so an extension of a different "
+                            + "width is a header describing a structure other than the one written.",
+                },
+
                 // A packing exclusion: about how two structures sit relative to each other, not about
                 // anything inside either. It needs the pair, which no rule about one node can see.
                 new Rule.Arrangement
@@ -351,6 +364,60 @@ public class ThreadedChainCaptureTests
 
         // The honest captures still read, so the rule is not simply refusing everything.
         Assert.AreEqual(6, codec.Decode(Capture(0))["options"].AsList().Count);
+    }
+
+    [TestMethod]
+    public void A_rule_about_a_structure_is_checked_on_the_way_out_as_well()
+    {
+        // The same rule, the other direction. Asking for option number 1908 from a running total of 11
+        // needs a delta of 1897, which is 14 in the nibble — legal — but asking for a value whose length
+        // needs the reserved nibble is not, and nothing about the octets exists yet to notice it.
+        var codec = new MessageCodec(Definition());
+        var inputs = InputsFrom(codec.Decode(Capture(2)));
+
+        var options = ((ProtoValue.List)Member(inputs.Root("inputs"), "options")).Items;
+
+        // Ask for a number the escape cannot express: past 269 + 65535 the extension needs three octets
+        // while the nibble can only say two. Before the rule existed this encoded silently into a header
+        // describing a structure other than the one written — a real path found by trying to test the
+        // path I meant to test.
+        var beyond = With((ProtoValue.Rec)options[1], ("number", ProtoValue.Of(11L + 269L + 65536L)));
+
+        inputs.Set("inputs", With(inputs.Root("inputs"),
+            ("options", new ProtoValue.List([options[0], beyond]))));
+
+        var ex = Assert.ThrowsExactly<ProtoTypeException>(() => codec.Encode(inputs));
+        StringAssert.Contains(ex.Message, "in structure 1");
+        StringAssert.Contains(ex.Message, "a header describing a structure other than the one written");
+
+        // The honest captures are untouched by it.
+        foreach (int index in (int[])[0, 1, 2])
+            CollectionAssert.AreEqual(Capture(index),
+                codec.Encode(InputsFrom(codec.Decode(Capture(index)))), $"capture {index}");
+    }
+
+    [TestMethod]
+    public void Which_rule_is_reached_first_is_the_documents_decision()
+    {
+        // Two rules on one node. The first failure is the one anyone reads, and "this is not a version we
+        // know" is why a packet is wrong where "it is internally inconsistent" is merely also true. Order
+        // rides on the edge because one rule can constrain several nodes and need not come in the same
+        // place at each of them.
+        var codec = new MessageCodec(Definition());
+        var ordered = Definition().Graph.Of<Constrains>().OrderBy(e => e.Order).ToList();
+
+        Assert.AreEqual(4, ordered.Count, "four rules, four edges");
+        CollectionAssert.AreEqual(new[] { 0, 1, 2, 3 }, ordered.Select(e => e.Order).ToArray(),
+            "declaration order unless the document says otherwise");
+
+        // And the edges are what the codec reads: the version rule is written first, so a datagram that
+        // breaks both it and the reserved-nibble rule reports the version.
+        var tampered = (byte[])[.. Capture(0)];
+        tampered[0] = 0x84;      // version 2, and the token length nibble left intact
+        tampered[8] = 0xf7;      // …plus a reserved delta nibble further in
+
+        StringAssert.Contains(Assert.ThrowsExactly<ProtoTypeException>(() => codec.Decode(tampered)).Message,
+            "only one version of this framing");
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

@@ -48,23 +48,21 @@ public readonly record struct ValueRange(ProtoValue From, ProtoValue To)
 /// exist yet.
 /// </para>
 /// </summary>
-public abstract record Rule
+public abstract class Rule : Node
 {
+    public override string Name => ToString() ?? "rule";
+
     /// <summary>Why this rule exists, in the author's words. Carried into the failure, because "value 3 is
     /// not allowed" is a worse thing to read than the sentence the author would have written.</summary>
     public required string Because { get; init; }
 
-    /// <summary>
-    /// The node this rule is about.
-    ///
-    /// <para>
-    /// A reference, not a name — which is what lets a rule reach a segment inside a repeated structure.
-    /// While rules named their subject, the name had to be resolved somewhere, the somewhere was the
-    /// message, and everything inside a chain was quietly out of reach. Nobody decided that; it fell out
-    /// of using names for identity. Wherever the node is realised, once or fifty times, the rule is there.
-    /// </para>
-    /// </summary>
-    public abstract Node Subject { get; }
+    /// <summary>The nodes this rule is about. The builder turns each into an edge; nothing reads this
+    /// afterwards, exactly as nothing reads the nesting once containment edges exist.</summary>
+    internal abstract IEnumerable<Node> Applies { get; }
+
+    /// <summary>Where the author wants this among the rules on the same node. Copied onto every edge it
+    /// produces; the edge is what gets read.</summary>
+    public int Order { get; init; } = int.MaxValue;
 
     /// <summary>
     /// A field's value is confined to a set of values and runs.
@@ -76,7 +74,7 @@ public abstract record Rule
     /// makes an unexpected value harmless rather than refused.
     /// </para>
     /// </summary>
-    public sealed record Domain : Rule
+    public sealed class Domain : Rule
     {
         /// <summary>The field, or the bit run of one, whose values this confines.</summary>
         public required Field Field { get; init; }
@@ -87,7 +85,7 @@ public abstract record Rule
 
         public required IReadOnlyList<ValueRange> Allowed { get; init; }
 
-        public override Node Subject => Field;
+        internal override IEnumerable<Node> Applies => [Field];
 
         public string What => Run ?? Field.Name;
 
@@ -106,7 +104,7 @@ public abstract record Rule
     /// receiver must reject. Both readings are reasonable and the document has to be able to say which.
     /// </para>
     /// </summary>
-    public sealed record Requires : Rule
+    public sealed class Requires : Rule
     {
         /// <summary>The node whose scope the conditions are read in — the message, or one structure of a
         /// chain, in which case the rule is checked once per structure.</summary>
@@ -115,7 +113,7 @@ public abstract record Rule
         public required Expr When { get; init; }
         public required Expr Then { get; init; }
 
-        public override Node Subject => Within;
+        internal override IEnumerable<Node> Applies => [Within];
 
         public override string ToString() => $"{When.Render()} requires {Then.Render()}";
     }
@@ -129,14 +127,14 @@ public abstract record Rule
     /// should not have to invert anything to answer.
     /// </para>
     /// </summary>
-    public sealed record Excludes : Rule
+    public sealed class Excludes : Rule
     {
         public required Node Within { get; init; }
 
         public required Expr One { get; init; }
         public required Expr Other { get; init; }
 
-        public override Node Subject => Within;
+        internal override IEnumerable<Node> Applies => [Within];
 
         public override string ToString() => $"{One.Render()} excludes {Other.Render()}";
     }
@@ -151,12 +149,12 @@ public abstract record Rule
     /// at.
     /// </para>
     /// </summary>
-    public sealed record Invariant : Rule
+    public sealed class Invariant : Rule
     {
         public required Node Within { get; init; }
         public required Expr Must { get; init; }
 
-        public override Node Subject => Within;
+        internal override IEnumerable<Node> Applies => [Within];
 
         public override string ToString() => $"always {Must.Render()}";
     }
@@ -170,14 +168,14 @@ public abstract record Rule
     /// structure before this one; the rule is not checked for the first, which has none.
     /// </para>
     /// </summary>
-    public sealed record Arrangement : Rule
+    public sealed class Arrangement : Rule
     {
         /// <summary>The chain whose structures this orders.</summary>
         public required Field Chain { get; init; }
 
         public required Expr Must { get; init; }
 
-        public override Node Subject => Chain;
+        internal override IEnumerable<Node> Applies => [Chain];
 
         public override string ToString() => $"each structure after the first: {Must.Render()}";
     }

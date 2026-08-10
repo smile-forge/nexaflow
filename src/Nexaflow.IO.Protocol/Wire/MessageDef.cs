@@ -128,18 +128,18 @@ public sealed record MessageDef
         // until run time.
         LinkReads(graph, ScopeFields(Fields), null);
 
-        foreach (var rule in Rules)
-            graph.Add(new Constrains { From = new RuleNode(rule), To = rule.Subject });
+        // Order comes from where the rule was written unless it says otherwise, and lands on the EDGE:
+        // one rule can constrain several nodes and need not sit in the same place at each of them.
+        for (int i = 0; i < Rules.Count; i++)
+            foreach (var target in Rules[i].Applies)
+                graph.Add(new Constrains
+                {
+                    From = Rules[i],
+                    To = target,
+                    Order = Rules[i].Order == int.MaxValue ? i : Rules[i].Order,
+                });
 
         return graph;
-    }
-
-    /// <summary>A rule is a node too, so the thing doing the constraining is as addressable as the thing
-    /// constrained.</summary>
-    private sealed class RuleNode(Rule rule) : Node
-    {
-        public Rule Rule { get; } = rule;
-        public override string Name => Rule.ToString() ?? "rule";
     }
 
     private static void Wire(ProtocolGraph graph, Node parent, IReadOnlyList<Field> fields)
@@ -234,7 +234,8 @@ public sealed record MessageDef
 
     /// <summary>The rules that apply to one node. A reference lookup, so a rule on a segment inside a
     /// repeated structure is found every time that structure is realised.</summary>
-    public IEnumerable<Rule> RulesOn(Node node) => Rules.Where(r => ReferenceEquals(r.Subject, node));
+    public IEnumerable<Rule> RulesOn(Node node)
+        => Graph.To<Constrains>(node).OrderBy(e => e.Order).Select(e => (Rule)e.From);
 
     internal static IEnumerable<Field> Descendants(IReadOnlyList<Field> fields)
     {
@@ -324,13 +325,16 @@ public sealed record MessageDef
 
         foreach (var rule in Rules)
         {
-            if (rule.Subject is Field subject && !known.Contains(subject))
-                issues.Add($"message '{Id}': the rule {rule} is about '{subject.Name}', which is not a "
-                         + "field of this message. A reference to a field of some OTHER message is the one "
-                         + "mistake naming could not make and pointing can.");
+            foreach (var target in rule.Applies)
+            {
+                if (target is Field field && !known.Contains(field))
+                    issues.Add($"message '{Id}': the rule {rule} is about '{field.Name}', which is not a "
+                             + "field of this message. A reference to a field of some OTHER message is the "
+                             + "one mistake naming could not make and pointing can.");
 
-            if (rule.Subject is not Field && !ReferenceEquals(rule.Subject, Root))
-                issues.Add($"message '{Id}': the rule {rule} is about something that is not part of it");
+                if (target is not Field && !ReferenceEquals(target, Root))
+                    issues.Add($"message '{Id}': the rule {rule} is about something that is not part of it");
+            }
 
             if (rule is Rule.Domain domain)
             {

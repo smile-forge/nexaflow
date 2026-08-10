@@ -133,7 +133,25 @@ public static class Roles
 /// of a chain — the constraint applies there too.</summary>
 public sealed record Constrains : Edge
 {
-    public override string Verb => "constrains";
+    /// <summary>
+    /// Where this constraint sits among the others on the same node.
+    ///
+    /// <para>
+    /// On the edge rather than on the rule, and awkward on purpose. Order is a property of <i>applying</i>
+    /// this rule <i>here</i>: one rule can constrain several nodes and need not come in the same place at
+    /// each, and once rules are scoped by state the same rule will apply in several scopes with different
+    /// neighbours. A number on the rule would be one answer to a question that has several.
+    /// </para>
+    ///
+    /// <para>
+    /// It matters because the first failure is the one anyone reads. A rule that says "this is not a
+    /// version we know" should be reached before one that says the packet is internally inconsistent —
+    /// the second is true and the first is why.
+    /// </para>
+    /// </summary>
+    public required int Order { get; init; }
+
+    public override string Verb => $"constrains[{Order}]";
 }
 
 /// <summary>
