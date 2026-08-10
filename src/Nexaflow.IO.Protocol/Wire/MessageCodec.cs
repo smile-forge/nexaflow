@@ -114,18 +114,24 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
         public void Note(string fieldId, ProtoValue value, int extent) => _scopes[^1][fieldId] = (value, extent);
 
-        /// <summary>Opens a structure: its own field scope for expressions, and its own bindings for the
-        /// value it will become.</summary>
-        public void EnterStructure()
+        /// <summary>What each enclosing chain has threaded this far. A stack, because chains nest and an
+        /// inner one's running value must not leak out over the outer one's.</summary>
+        private readonly List<ProtoValue> _carried = [ProtoValue.Nothing];
+
+        /// <summary>Opens a structure: its own field scope for expressions, its own bindings for the value
+        /// it will become, and whatever its chain has threaded to it.</summary>
+        public void EnterStructure(ProtoValue carried)
         {
             _scopes.Add(new Dictionary<string, (ProtoValue, int)>(StringComparer.Ordinal));
             _bindings.Add(new Dictionary<string, ProtoValue>(StringComparer.Ordinal));
+            _carried.Add(carried);
         }
 
         /// <summary>Closes it, handing back everything it bound.</summary>
         public ProtoValue LeaveStructure()
         {
             _scopes.RemoveAt(_scopes.Count - 1);
+            _carried.RemoveAt(_carried.Count - 1);
             var bound = _bindings[^1];
             _bindings.RemoveAt(_bindings.Count - 1);
             return new ProtoValue.Rec(bound);
@@ -154,6 +160,14 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                                                    ("extent", ProtoValue.Of((long)facet.Extent)));
 
             var child = scope.Child().Set("fields", new ProtoValue.Rec(byField));
+
+            // Available to every expression, not only a chain's. "Is there anything left, and what does
+            // it start with" is how a great many optional trailing sections are decided, and neither
+            // question is answerable from the fields alone.
+            child.Set("room", ProtoValue.Of((long)Room));
+            child.Set("peek", Offset < Limit ? ProtoValue.Of((long)Bytes[Offset]) : ProtoValue.Nothing);
+            child.Set("carried", _carried[^1]);
+
             foreach (var (root, value) in extra) child.Set(root, value);
             return evaluator.Eval(expression, child);
         }
@@ -220,7 +234,11 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 int start = r.Offset;
                 List<ProtoValue> instances = [];
 
-                while (Continues(field, chain, r, instances.Count))
+                // The value threaded along, where there is one. A structure that records how far its
+                // identifier has moved since the last cannot be named without this.
+                var carried = chain.Seed is null ? ProtoValue.Nothing : r.Eval(chain.Seed);
+
+                while (Continues(field, chain, r, instances.Count, carried))
                 {
                     if (instances.Count >= ProtoLimits.MaxChainedInstances)
                         throw new ProtoTypeException(
@@ -233,9 +251,14 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                     // The instance's own field scope. This is what lets it carry its own length prefix:
                     // `fields.body.extent` inside instance 2 means instance 2's, not instance 1's and not
                     // an ambiguous document-global span.
-                    r.EnterStructure();
+                    r.EnterStructure(carried);
                     var element = Read(chain.Element, r, $"{path}[{instances.Count}]", exposed: false);
+
+                    // Computed inside the structure's own scope, before it closes, so it can be worked out
+                    // from what that structure actually said.
+                    var next = chain.Carry is null ? ProtoValue.Nothing : r.Eval(chain.Carry);
                     var bound = r.LeaveStructure();
+                    carried = next;
 
                     // A structure built from a single wire shape IS that value; anything composite is
                     // everything it bound. Wrapping a lone scalar in a one-member record would make the
@@ -262,11 +285,11 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     /// Is there another structure? Asked before each instance, with <c>ordinal</c> and <c>room</c> bound —
     /// so "as many as fit in the region" and "as many as the count says" are the same construct.
     /// </summary>
-    private static bool Continues(Field field, Pattern.Chain chain, Reading r, int ordinal)
+    private static bool Continues(Field field, Pattern.Chain chain, Reading r, int ordinal, ProtoValue carried)
     {
         var answer = r.Eval(chain.Continues,
             ("ordinal", ProtoValue.Of((long)ordinal)),
-            ("room", ProtoValue.Of((long)r.Room)));
+            ("carried", carried));
 
         if (answer is not ProtoValue.Bool)
             throw new ProtoTypeException(

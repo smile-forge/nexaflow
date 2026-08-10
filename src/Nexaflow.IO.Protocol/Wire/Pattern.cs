@@ -218,7 +218,22 @@ public abstract record Pattern
     /// still read the message metadata around it.
     /// </para>
     /// </summary>
-    public sealed record Chain(Field Element, Expr Continues) : Pattern;
+    /// <param name="Seed">
+    /// The starting value of <c>carried</c>, where the chain threads one.
+    ///
+    /// <para>
+    /// Some structures cannot be named without the ones before them: an entry that records how far its
+    /// identifier has moved since the last entry rather than what its identifier is. Nothing about a
+    /// single structure recovers that, so a value is threaded along the chain and each structure updates
+    /// it. This is the fold across siblings that a per-field walk cannot express.
+    /// </para>
+    /// </param>
+    /// <param name="Carry">The next <c>carried</c>, evaluated in the structure's own scope once it has
+    /// been read, so it can be computed from what that structure said.</param>
+    public sealed record Chain(Field Element, Expr Continues, Expr? Seed = null, Expr? Carry = null) : Pattern
+    {
+        public bool Threads => Seed is not null && Carry is not null;
+    }
 
     /// <summary>Octets this pattern occupies, where that is fixed. Null means it depends on the value —
     /// which is exactly the case the resolver's facet ordering exists to handle.</summary>
@@ -295,6 +310,10 @@ public abstract record Pattern
         // rejecting the empty case would force a second framing declaration for it.
         Choice c => ValidateChoice(c, fieldId, inScope),
 
+        Chain c when (c.Seed is null) != (c.Carry is null) =>
+            [$"field '{fieldId}': a chain that threads a value needs both where it starts and how each "
+           + "structure moves it on — one without the other says nothing"],
+
         _ => [],
     };
 
@@ -313,6 +332,13 @@ public abstract record Pattern
         // A named run of bits is the other case where the range is known, and it is how presence is
         // usually written: a section exists because one bit says so. Requiring `band 0x01` on a one-bit
         // value to tell the validator its range would be noise about something it can look up.
+        // A comparison answers one of two things, whatever it compares. That makes "is there anything
+        // left?" a discriminator whose cover can be proved, which is what lets an optional trailing
+        // section be a choice like any other.
+        if (key is Expr.Binary("==" or "!=" or "<" or "<=" or ">" or ">=" or "&&" or "||", _, _)
+                or Expr.Unary("!", _))
+            return new HashSet<long> { 0, 1 };
+
         if (SliceWidth(key, inScope) is { } width)
             return width <= 12 ? Enumerable.Range(0, 1 << width).Select(v => (long)v).ToHashSet() : null;
 
