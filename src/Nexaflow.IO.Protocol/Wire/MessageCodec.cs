@@ -666,13 +666,25 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     /// </summary>
     private sealed record NameFrame(string Prefix, IReadOnlySet<string> Local, EvalScope Scope, NameFrame? Outer)
     {
+        /// <summary>
+        /// The node holding what this structure's chain threaded to it, if any.
+        ///
+        /// <para>
+        /// <c>carried</c> is a root rather than a field reference, so nothing in an expression's text
+        /// makes it a dependency. It has to be one: instance 3's value is computed from instance 2's
+        /// fields, which is a genuine ordering the worklist can hold perfectly well once it is told.
+        /// </para>
+        /// </summary>
+        public string? CarriedId { get; init; }
+
         public static NameFrame Root(IReadOnlyList<Field> fields, EvalScope scope)
             => new("", MessageDef.ScopeIds(fields), scope, null);
 
         /// <summary>An instance's scope: its own names prefixed, everything else still reachable outward,
         /// and <c>item</c> bound to the structure being written.</summary>
-        public NameFrame Instance(Field element, string prefix, ProtoValue item)
-            => new(prefix, MessageDef.ScopeIds([element]), Scope.Child().Set("item", item), this);
+        public NameFrame Instance(Field element, string prefix, ProtoValue item, string? carriedId)
+            => new(prefix, MessageDef.ScopeIds([element]), Scope.Child().Set("item", item), this)
+               { CarriedId = carriedId };
 
         public string NodeId(string fieldId) => Local.Contains(fieldId) ? Prefix + fieldId : Outward(fieldId);
 
@@ -724,6 +736,11 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             [Facet.Realised, Facet.Present, Facet.Value, Facet.Emitted];
 
         private static readonly HashSet<Facet> ExpandingNotApplicable = [Facet.Present, Facet.Emitted];
+
+        /// <summary>A threaded value occupies no octets; it exists only so one structure can depend on
+        /// the one before it.</summary>
+        private static readonly HashSet<Facet> ThreadNotApplicable =
+            [Facet.Realised, Facet.Present, Facet.Extent, Facet.Emitted];
 
         public List<ResolutionNode> Nodes(Field field, NameFrame frame)
         {
@@ -817,16 +834,38 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                         List<FacetRef> extents = [];
                         List<NameFrame> frames = [];
 
+                        NameFrame? previous = null;
+                        string? previousCarried = null;
+
                         for (int i = 0; i < list.Items.Count; i++)
                         {
+                            string? carriedId = null;
+
+                            if (chain.Threads)
+                            {
+                                // A node of its own, so the ordering between structures is something the
+                                // worklist schedules rather than something a loop assumes. The first comes
+                                // from the seed in the scope around the chain; every later one from the
+                                // previous structure's scope, once that structure has settled.
+                                carriedId = $"{nodeId}[{i}]@carried";
+
+                                children.Add(previous is null
+                                    ? Threaded(carriedId, frame, chain.Seed!, [])
+                                    : Threaded(carriedId, previous, chain.Carry!,
+                                               [new FacetRef(previousCarried!, Facet.Value)]));
+                            }
+
                             // Each instance is a separate structure and its names are its own. `item` is
                             // where its values come from; anything it does not declare resolves outward,
                             // so it can still read the message metadata around it.
-                            var instance = frame.Instance(chain.Element, $"{nodeId}[{i}].", list.Items[i]);
+                            var instance = frame.Instance(chain.Element, $"{nodeId}[{i}].", list.Items[i], carriedId);
 
                             children.AddRange(Nodes(chain.Element, instance));
                             extents.Add(new FacetRef(instance.Prefix + chain.Element.Id, Facet.Extent));
                             frames.Add(instance);
+
+                            previous = instance;
+                            previousCarried = carriedId;
                         }
 
                         Instances[nodeId] = frames;
@@ -897,8 +936,23 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             return nodes;
         }
 
+        /// <summary>A zero-width node holding what one structure threads to the next.</summary>
+        private ResolutionNode Threaded(string id, NameFrame within, Expr expression, IReadOnlyList<FacetRef> also)
+        {
+            var needs = Refs(expression, within).Concat(also).Distinct().ToList();
+
+            return new ResolutionNode
+            {
+                Id = id,
+                NotApplicable = ThreadNotApplicable,
+                DependenciesFor = f => f == Facet.Value ? needs : [],
+                Settle = (f, inputs) => FacetResult.Of(
+                    f == Facet.Value ? evaluator.Eval(expression, Fields(within, inputs)) : null),
+            };
+        }
+
         private EvalScope Fields(NameFrame frame, IReadOnlyDictionary<FacetRef, object?> resolved)
-            => frame.Scope.Child().Set("fields", codec.FieldsRecord(frame, resolved));
+            => codec.ScopeFor(frame, resolved);
 
         private static int Sum(IReadOnlyList<FacetRef> extents, IReadOnlyDictionary<FacetRef, object?> inputs)
             => extents.Sum(r => Extent(inputs[r]));
@@ -914,11 +968,18 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         /// <summary>The facets an expression reads, resolved through the scope it was written in — so
         /// <c>fields.body</c> inside instance 2 names instance 2's region.</summary>
         private static List<FacetRef> Refs(Expr expression, NameFrame frame)
-            => MessageDef.FieldReferences(expression)
+        {
+            var needs = MessageDef.FieldReferences(expression)
                 .Select(r => new FacetRef(frame.NodeId(r.Field),
                     r.Facet.Equals("extent", StringComparison.OrdinalIgnoreCase) ? Facet.Extent : Facet.Value))
-                .Distinct()
                 .ToList();
+
+            // `carried` is a root, so nothing in the expression's text makes it a dependency. It is one.
+            if (frame.CarriedId is { } id && expression.FreeRootNames().Contains("carried"))
+                needs.Add(new FacetRef(id, Facet.Value));
+
+            return [.. needs.Distinct()];
+        }
     }
 
     private ProtoValue Evaluate(Field field, NameFrame frame, Evaluator evaluator,
@@ -929,8 +990,26 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 $"field '{field.Id}' has no value expression, so it cannot be encoded. A decode-only field "
               + "must be declared as such rather than left silent.");
 
-        var child = frame.Scope.Child().Set("fields", FieldsRecord(frame, resolved));
-        return Convert(evaluator.Eval(field.Value, child), field, forward: true);
+        return Convert(evaluator.Eval(field.Value, ScopeFor(frame, resolved)), field, forward: true);
+    }
+
+    /// <summary>
+    /// The scope an expression in this frame sees. One builder for every caller: an earlier version had
+    /// the choice keys reading a threaded value that ordinary field expressions could not, which is the
+    /// sort of difference nothing notices until one construct works and its neighbour does not.
+    /// </summary>
+    private EvalScope ScopeFor(NameFrame frame, IReadOnlyDictionary<FacetRef, object?> resolved)
+    {
+        var scope = frame.Scope.Child().Set("fields", FieldsRecord(frame, resolved));
+
+        // Bound from the node rather than captured when the frame was built: it does not exist yet at
+        // that point, which is the whole reason it had to become a node.
+        if (frame.CarriedId is { } id
+            && resolved.TryGetValue(new FacetRef(id, Facet.Value), out var carried)
+            && carried is ProtoValue value)
+            scope.Set("carried", value);
+
+        return scope;
     }
 
     /// <summary>

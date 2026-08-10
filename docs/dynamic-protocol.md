@@ -101,7 +101,7 @@ Each step is independently testable against a named capture, earliest-falsifying
 | 5 ✅ | Continuation-encoded integer, recovered-length span; extent as a function of value | MQTT ×4 |
 | 5b ✅ | **Chaining** replaces repetition; regions become decode boundaries; presence is an empty arm | **MQTT ×6** |
 | 6 ✅ | Escaped-inline length, nested lengths, document transforms on fields | **SNMP 73 B + 337 B from one document — gate PASSED** |
-| 7 | `fold` on the decode side, `present` | CoAP ×3, T2 + the empty-vs-absent T1 pair |
+| 7 ✅ | A value threaded along a chain; lookahead; `room` everywhere | **CoAP ×3, T2** |
 | 8–13 | sugar, offset tables, text path, checksums, deep nesting | DHCP, mDNS, SSDP, NTP-C, TLS, BACnet |
 | 14 | the step graph, then the state model | needs the seams closed first |
 
