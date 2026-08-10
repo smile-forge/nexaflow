@@ -98,7 +98,7 @@ Each step is independently testable against a named capture, earliest-falsifying
 | 2 ✅ | Scalars, signed scalars, bit groups, opaque spans; decode | **NTP A+B decode, T1** |
 | 3 ✅ | Encode path through the resolver; dependencies derived from expressions | **NTP A+B re-encode, byte-exact T2** |
 | 4 ✅ | Regions, `Choice` with masked keysets, `Repeat`; realisation-driven encode | **Modbus ×3, T2** |
-| 5 | varint framer + field | MQTT ×6 |
+| 5 ◐ | Continuation-encoded integer, recovered-length span; extent as a function of value | **MQTT ×4** — ×2 blocked, below |
 | 6 | `lp` + `LenSpec` + `group` + nested lengths | **SNMP 73 B + 337 B from one document — go/no-go gate** |
 | 7 | `fold` on the decode side, `present` | CoAP ×3, T2 + the empty-vs-absent T1 pair |
 | 8–13 | sugar, offset tables, text path, checksums, deep nesting | DHCP, mDNS, SSDP, NTP-C, TLS, BACnet |
@@ -112,6 +112,59 @@ pattern library → facet resolver → codec. Nothing in that path names a proto
 12-octet request, a 15-octet success carrying three registers, and a 9-octet exception — decode and
 re-encode byte-exactly, with `length` and `byteCount` **withheld from the encode inputs** so a value that
 was echoed rather than derived would fail. The two responses come from one declaration.
+
+**Extent as a function of value** (2026-08-10, step 5): MQTT's CONNACK, SUBACK, PINGREQ and PINGRESP
+round-trip byte-exactly with `remainingLength` withheld from the inputs, and one declaration emits both the
+one-octet and two-octet forms of that field — `02` at a payload of 2, `8f 01` at 143, matching the first
+three octets of the CONNECT capture that was sized specifically to force the wider form.
+
+## What building step 5 settled
+
+**The fixed-point loop is unnecessary.** The corpus's proposed fix for a variable-width length was
+encode → notice the width grew → widen → re-encode, with a termination argument based on width being
+monotone in value. None of that is needed. `Extent` simply declares a dependency on `Value` and settles
+after it — one edge, no iteration — because the measured region never contains the length field itself.
+That was the entire point of making the facets independently ordered rather than a fixed
+`Sized → Positioned → Valued` chain, and step 4 never exercised it: every extent up to here was axiomatic.
+If a protocol ever does write a length that counts its own octets, the resolver will report it as a cycle,
+which is the right answer rather than a loop that silently converges on one of two defensible values.
+
+**The codec was already in the converter table.** A continuation chain is `base128` with a group order, and
+the pattern calls the converter rather than carrying a second copy. Group order is where a duplicate
+quietly picks one family's answer — the same three octets are different numbers under each — so having one
+implementation, already covered by the inverse laws, matters more here than in most places.
+
+**Minimality is the backward round-trip law, checked at decode.** A padded chain like `8f 80 00` decodes to
+15 and re-encodes to `0f`, so accepting it makes `encode(decode(b)) ≠ b`. The check is to re-encode and
+compare; the alternative — remembering the observed width so it can be reproduced — preserves malformed
+input instead of refusing it, and was rejected for that reason.
+
+**A fixed width and a recovered length are one shape with one extent key.** Rather than two records, an
+opaque span carries exactly one of a declared width or a length expression, and having both or neither is a
+validation error. Two answers silently prefer one; none reads to the end of whatever happens to be next.
+
+**An empty region is load-bearing.** A rule rejecting a region with no fields looked obviously right and was
+wrong: a liveness probe has no body, its region measures zero, and that zero is exactly what the length
+must emit. Rejecting it would have forced a second framing declaration for the empty case. Caught by the
+shortest capture in the corpus.
+
+### Where it stopped, and why
+
+Two of the six MQTT captures are deliberately absent rather than approximated, and both are about
+repetition:
+
+* **The element count is sometimes nowhere in the message.** A subscribe payload is "as many records as fit
+  in the frame". That is not a count expression — record count is not a function of byte count once records
+  vary in length — so `Repeat` needs a second termination mode, *until the enclosing region is exhausted*.
+  Which in turn needs a region to be a **decode boundary** and not only an encode measurement: today a
+  region measures its children on the way out and is transparent on the way in, so there is nothing for
+  "exhausted" to mean. The grant list is expressible only because its elements are one octet each.
+* **A repeated composite still has no field names.** Refused at step 4 and still refused. Its fields would
+  need per-element naming, and until they have it an expression inside the element resolves against
+  whichever iteration ran last.
+
+The connect packet needs a third thing — `present`, build-order step 7 — since 78% of its octets exist only
+because of bits in a flags octet 22 positions earlier.
 
 ## What building step 4 settled
 

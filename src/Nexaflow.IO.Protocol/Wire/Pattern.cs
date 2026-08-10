@@ -3,6 +3,21 @@ using Nexaflow.IO.Protocol.Values;
 
 namespace Nexaflow.IO.Protocol.Wire;
 
+/// <summary>
+/// Which end of a multi-group encoding carries the most significant part.
+///
+/// <para>
+/// Named as a notion rather than after either family that exhibits it. Most-significant-first reads
+/// <c>8f 65</c> as 2021; least-significant-first reads <c>8f 01</c> as 143. There is no defensible
+/// default — omitting the parameter is how a general name comes to sit over one family's codec.
+/// </para>
+/// </summary>
+public enum GroupOrder
+{
+    MostSignificantFirst,
+    LeastSignificantFirst,
+}
+
 /// <summary>One named run of bits inside a <see cref="Pattern.Bits"/> group.</summary>
 /// <param name="Name">Capture name for this run.</param>
 /// <param name="Width">Bits, most-significant first within the group.</param>
@@ -46,8 +61,53 @@ public abstract record Pattern
         public int TotalBits => Slices.Sum(s => s.Width);
     }
 
-    /// <summary>A span of octets carried without interpretation.</summary>
-    public sealed record Opaque(int Octets) : Pattern;
+    /// <summary>
+    /// A span of octets carried without interpretation.
+    ///
+    /// <para>
+    /// Its extent comes from exactly one of two places: <paramref name="Width"/>, fixed by the
+    /// declaration, or <paramref name="Length"/>, recovered on decode from something already read. One
+    /// shape with one extent key rather than two shapes, because "a run of bytes" is one notion and the
+    /// only question is who knows how long it is.
+    /// </para>
+    ///
+    /// <para>
+    /// The recovered form carries the same direction-asymmetry as <see cref="Repeat"/>, for the same
+    /// reason: on encode the octets exist and their count <i>is</i> the extent, so a preceding length
+    /// field reads <c>fields.&lt;id&gt;.extent</c> while the span reads that field back on decode. The two
+    /// point at each other in opposite directions and neither derives the other twice.
+    /// </para>
+    /// </summary>
+    public sealed record Opaque(int? Width, Expr? Length) : Pattern
+    {
+        /// <summary>A span the declaration sizes.</summary>
+        public Opaque(int width) : this(width, null) { }
+
+        /// <summary>A span the message sizes.</summary>
+        public static Opaque Measured(Expr length) => new(null, length);
+    }
+
+    /// <summary>
+    /// An integer spread across octets with a continue flag, so its <b>width is a function of its value</b>.
+    ///
+    /// <para>
+    /// This is the first shape whose extent cannot be known before its value is, and it is what the facet
+    /// model was restructured for. Nothing iterates: <c>Extent</c> simply declares a dependency on
+    /// <c>Value</c> and settles after it. The proposed alternative — encode, notice the width grew, widen
+    /// and re-encode to a fixed point — is unnecessary whenever the measured region excludes the length
+    /// field itself, which is every case in the corpus.
+    /// </para>
+    ///
+    /// <para>
+    /// <paramref name="Order"/> is required and is <b>not</b> a formality: two unrelated encoding families
+    /// exhibit this notion in opposite group orders, and the same three octets mean different numbers under
+    /// each. The continue flag follows the order — it always marks "another group follows".
+    /// </para>
+    /// </summary>
+    /// <param name="Minimal">When true, a chain that is not the shortest representation of its value is a
+    /// decode error rather than a value. That is what keeps value→octets injective, and it is the reason a
+    /// padded chain is <i>rejected</i> instead of needing a remembered width to reproduce it.</param>
+    public sealed record Varint(GroupOrder Order, int MaxOctets, bool Minimal = true) : Pattern;
 
     /// <summary>
     /// A named contiguous region: its children, in order, and nothing else.
@@ -120,7 +180,7 @@ public abstract record Pattern
     {
         Scalar s => s.Octets,
         Bits b => b.TotalBits / 8,
-        Opaque o => o.Octets,
+        Opaque o => o.Width,
         Group g when g.Fields.All(f => f.Pattern.StaticWidth is not null)
             => g.Fields.Sum(f => f.Pattern.StaticWidth!.Value),
         _ => null,
@@ -154,12 +214,23 @@ public abstract record Pattern
         Bits b when b.Slices.Any(s => s.Width is < 1 or > 32) =>
             [$"field '{fieldId}': each bit slice must be 1..32 bits wide"],
 
-        Opaque o when o.Octets < 0 => [$"field '{fieldId}': an opaque span cannot be negative"],
+        // The spec's "exactly one extent key" rule, and it is worth being strict about: a span with two
+        // answers to how long it is silently prefers one of them, and a span with none reads to the end
+        // of whatever happens to be next.
+        Opaque o when (o.Width is null) == (o.Length is null) =>
+            [$"field '{fieldId}': an opaque span needs exactly one extent — a declared width or a length "
+           + "recovered from the message, not both and not neither"],
 
-        Group g when g.Fields.Count == 0 =>
-            [$"field '{fieldId}': a region with no fields measures nothing — remove it, or give it the "
-           + "fields it is meant to cover"],
+        Opaque o when o.Width < 0 => [$"field '{fieldId}': an opaque span cannot be negative"],
 
+        Varint v when v.MaxOctets is < 1 or > 10 =>
+            [$"field '{fieldId}': a continuation-encoded integer must be bounded at 1..10 octets, got "
+           + $"{v.MaxOctets}. The bound is what stops a chain of continue flags from being an allocation "
+           + "request before anything has judged the message."],
+
+        // An EMPTY region is deliberately legal. It measures zero, which is exactly what a length field
+        // over an absent body must emit — a liveness probe with no payload is a real message, and
+        // rejecting the empty case would force a second framing declaration for it.
         Choice c => ValidateChoice(c, fieldId),
 
         Repeat r when r.Element.Pattern.Nested.Count > 0 =>

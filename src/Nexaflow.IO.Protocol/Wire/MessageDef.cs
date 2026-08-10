@@ -93,6 +93,7 @@ public sealed record MessageDef
             {
                 case Pattern.Choice choice: yield return (field.Id, choice.Key, "the discriminator"); break;
                 case Pattern.Repeat repeat: yield return (field.Id, repeat.Count, "the count"); break;
+                case Pattern.Opaque { Length: { } length }: yield return (field.Id, length, "the length"); break;
             }
         }
     }

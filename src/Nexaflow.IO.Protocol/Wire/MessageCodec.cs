@@ -174,10 +174,15 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
     private ProtoValue ReadLeaf(Field field, Reading r, string path, bool exposed)
     {
-        int width = field.Pattern.StaticWidth
-            ?? throw new ProtoTypeException(
-                $"field '{field.Id}' has no static width; value-dependent extents are not yet wired "
-              + "into the decoder");
+        // The two shapes whose width is not in the declaration. A continuation chain measures itself; an
+        // octet run is measured by something already read.
+        int width = field.Pattern switch
+        {
+            Pattern.Varint varint => ScanContinuation(field, varint, r),
+            Pattern.Opaque { Length: { } length } => Recovered(field, length, r),
+            _ => field.Pattern.StaticWidth
+                 ?? throw new ProtoTypeException($"field '{field.Id}' has no way to determine its width"),
+        };
 
         if (r.Offset + width > r.Bytes.Length)
             throw new ProtoTypeException(
@@ -219,6 +224,27 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 break;
             }
 
+            case Pattern.Varint varint:
+            {
+                value = Convert(Unpack(run.ToArray(), varint), field.Via, forward: false);
+
+                // Minimality checked by re-encoding, which is the backward round-trip law applied at
+                // decode time. A padded chain would otherwise decode to a value that re-encodes shorter,
+                // making encode(decode(b)) != b for input the protocol calls malformed anyway.
+                if (varint.Minimal)
+                {
+                    var shortest = Pack(value.AsInt(), varint);
+                    if (!shortest.AsSpan().SequenceEqual(run))
+                        throw new ProtoTypeException(
+                            $"field '{field.Id}': {Hex(run)} is not the shortest encoding of {value} — that "
+                          + $"is {Hex(shortest)}. A non-shortest chain is rejected rather than carried, "
+                          + "because remembering the padding in order to reproduce it means preserving "
+                          + "malformed input instead of refusing it.");
+                }
+                r.Spans.Add(new WireSpan(at, width, path, value));
+                break;
+            }
+
             default:
             {
                 value = Convert(ProtoValue.Of(run.ToArray()), field.Via, forward: false);
@@ -229,6 +255,61 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
         r.Offset += width;
         return Bind(field, r, value, width, exposed);
+    }
+
+    /// <summary>
+    /// How many octets the continuation chain at the cursor occupies. Bounded, because the alternative is
+    /// letting the data decide how much of it there is.
+    /// </summary>
+    private static int ScanContinuation(Field field, Pattern.Varint varint, Reading r)
+    {
+        for (int n = 0; n < varint.MaxOctets; n++)
+        {
+            if (r.Offset + n >= r.Bytes.Length)
+                throw new ProtoTypeException(
+                    $"field '{field.Id}': the continuation chain at offset {r.Offset} runs off the end of "
+                  + $"a {r.Bytes.Length}-octet message");
+
+            if ((r.Bytes[r.Offset + n] & 0x80) == 0) return n + 1;
+        }
+
+        throw new ProtoTypeException(
+            $"field '{field.Id}': the continuation chain at offset {r.Offset} is still continuing after "
+          + $"{varint.MaxOctets} octet(s), which is its declared bound");
+    }
+
+    private static int Recovered(Field field, Expr declared, Reading r)
+    {
+        long length = r.Eval(declared).AsInt();
+
+        if (length < 0 || length > r.Bytes.Length)
+            throw new ProtoTypeException(
+                $"field '{field.Id}': the length resolved to {length}, which cannot be an extent inside a "
+              + $"{r.Bytes.Length}-octet message");
+
+        return (int)length;
+    }
+
+    /// <summary>
+    /// The continuation codec, borrowed from the converter table rather than written again here.
+    ///
+    /// <para>
+    /// One implementation, and it is the one the inverse laws already test — a second copy inside the
+    /// codec would be a second thing to keep true, and the group-order parameter is exactly where a
+    /// duplicate quietly picks one family's answer.
+    /// </para>
+    /// </summary>
+    private byte[] Pack(long value, Pattern.Varint varint) => Through("base128", ProtoValue.Of(value), varint).AsBytes();
+
+    private ProtoValue Unpack(byte[] octets, Pattern.Varint varint) => Through("unbase128", ProtoValue.Of(octets), varint);
+
+    private ProtoValue Through(string converter, ProtoValue value, Pattern.Varint varint)
+    {
+        if (!_converters.TryGet(converter, out var c) || c is null)
+            throw new ProtoTypeException($"the converter table has no '{converter}'");
+
+        return c.Apply(value, [ProtoValue.Of(varint.Order == GroupOrder.MostSignificantFirst
+            ? "msbFirst" : "lsbFirst")]);
     }
 
     // ── Encode ────────────────────────────────────────────────────────────────
@@ -434,22 +515,32 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
                 default:
                 {
-                    int width = field.Pattern.StaticWidth
-                        ?? throw new ProtoTypeException($"field '{field.Id}' has no static width");
-
                     List<FacetRef> valueNeeds = literal is not null || field.Value is null
                         ? [] : Refs(field.Value);
+
+                    // The one edge step 4 never drew. A fixed width is axiomatic and settles with no
+                    // prerequisites; a continuation chain or a recovered octet run cannot be measured
+                    // until it is known, so `Extent` declares a dependency on `Value` and the worklist
+                    // does the rest. No pass, no placeholder, no widen-and-retry.
+                    int? fixedWidth = field.Pattern.StaticWidth;
+                    ProtoValue? settledValue = null;
 
                     nodes.Add(new ResolutionNode
                     {
                         Id = nodeId,
                         NotApplicable = LeafNotApplicable,
-                        DependenciesFor = f => f == Facet.Value ? valueNeeds : [],
+
+                        DependenciesFor = f => f switch
+                        {
+                            Facet.Value => valueNeeds,
+                            Facet.Extent when fixedWidth is null => [new FacetRef(nodeId, Facet.Value)],
+                            _ => [],
+                        },
 
                         Settle = (f, inputs) => f switch
                         {
-                            Facet.Extent => FacetResult.Of(width),
-                            Facet.Value => FacetResult.Of(literal is not null
+                            Facet.Extent => FacetResult.Of(fixedWidth ?? codec.Measure(field, settledValue)),
+                            Facet.Value => FacetResult.Of(settledValue = literal is not null
                                 ? codec.Convert(literal, field.Via, forward: true)
                                 : codec.Evaluate(field, scope, evaluator, inputs)),
                             _ => FacetResult.Of(null),
@@ -537,6 +628,19 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         return new ProtoValue.Rec(byField);
     }
 
+    /// <summary>How many octets a value-dependent shape will occupy. Measured by producing the octets, so
+    /// the extent and the emission cannot disagree.</summary>
+    private int Measure(Field field, ProtoValue? value) => field.Pattern switch
+    {
+        Pattern.Varint varint => Pack(Settled(field, value).AsInt(), varint).Length,
+        Pattern.Opaque { Length: not null } => Settled(field, value).AsBytes().Length,
+        _ => throw new ProtoTypeException($"field '{field.Id}' has no way to determine its width"),
+    };
+
+    private static ProtoValue Settled(Field field, ProtoValue? value)
+        => value ?? throw new ProtoTypeException(
+            $"field '{field.Id}': its extent was asked for before its value settled");
+
     private void Write(List<byte> output, Field field, ProtoValue value)
     {
         switch (field.Pattern)
@@ -572,12 +676,20 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             case Pattern.Opaque opaque:
             {
                 var bytes = value.AsBytes();
-                if (bytes.Length != opaque.Octets)
+
+                // A declared width is asserted rather than trimmed or padded: a span that is the wrong
+                // size is a wrong value, and quietly fixing it produces a self-consistently wrong message.
+                if (opaque.Width is { } width && bytes.Length != width)
                     throw new ProtoTypeException(
-                        $"field '{field.Id}' is {opaque.Octets} octet(s) but the value is {bytes.Length}");
+                        $"field '{field.Id}' is {width} octet(s) but the value is {bytes.Length}");
+
                 output.AddRange(bytes);
                 break;
             }
+
+            case Pattern.Varint varint:
+                output.AddRange(Pack(value.AsInt(), varint));
+                break;
         }
     }
 
@@ -599,6 +711,10 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     }
 
     // ── Octet plumbing ────────────────────────────────────────────────────────
+
+    /// <summary>Hex for a diagnostic. Spelled out because this class has its own <c>Convert</c>, which
+    /// would otherwise shadow the framework one at every call site.</summary>
+    private static string Hex(ReadOnlySpan<byte> octets) => System.Convert.ToHexString(octets).ToLowerInvariant();
 
     private static long ReadUnsigned(ReadOnlySpan<byte> run, bool bigEndian = true)
     {
