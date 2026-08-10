@@ -55,6 +55,18 @@ public abstract record Rule
     public required string Because { get; init; }
 
     /// <summary>
+    /// The node this rule is about.
+    ///
+    /// <para>
+    /// A reference, not a name — which is what lets a rule reach a segment inside a repeated structure.
+    /// While rules named their subject, the name had to be resolved somewhere, the somewhere was the
+    /// message, and everything inside a chain was quietly out of reach. Nobody decided that; it fell out
+    /// of using names for identity. Wherever the node is realised, once or fifty times, the rule is there.
+    /// </para>
+    /// </summary>
+    public abstract Node Subject { get; }
+
+    /// <summary>
     /// A field's value is confined to a set of values and runs.
     ///
     /// <para>
@@ -66,13 +78,22 @@ public abstract record Rule
     /// </summary>
     public sealed record Domain : Rule
     {
-        public required string Field { get; init; }
+        /// <summary>The field, or the bit run of one, whose values this confines.</summary>
+        public required Field Field { get; init; }
+
+        /// <summary>A named run inside <see cref="Field"/>, when the rule is about one rather than the
+        /// whole group. Runs are not nodes of their own; they are part of the shape they sit in.</summary>
+        public string? Run { get; init; }
+
         public required IReadOnlyList<ValueRange> Allowed { get; init; }
+
+        public override Node Subject => Field;
+
+        public string What => Run ?? Field.Name;
 
         public bool Admits(ProtoValue value) => Allowed.Any(r => r.Admits(value));
 
-        public override string ToString()
-            => $"{Field} ∈ {{{string.Join(", ", Allowed)}}}";
+        public override string ToString() => $"{What} ∈ {{{string.Join(", ", Allowed)}}}";
     }
 
     /// <summary>
@@ -87,8 +108,14 @@ public abstract record Rule
     /// </summary>
     public sealed record Requires : Rule
     {
+        /// <summary>The node whose scope the conditions are read in — the message, or one structure of a
+        /// chain, in which case the rule is checked once per structure.</summary>
+        public required Node Within { get; init; }
+
         public required Expr When { get; init; }
         public required Expr Then { get; init; }
+
+        public override Node Subject => Within;
 
         public override string ToString() => $"{When.Render()} requires {Then.Render()}";
     }
@@ -104,8 +131,12 @@ public abstract record Rule
     /// </summary>
     public sealed record Excludes : Rule
     {
+        public required Node Within { get; init; }
+
         public required Expr One { get; init; }
         public required Expr Other { get; init; }
+
+        public override Node Subject => Within;
 
         public override string ToString() => $"{One.Render()} excludes {Other.Render()}";
     }

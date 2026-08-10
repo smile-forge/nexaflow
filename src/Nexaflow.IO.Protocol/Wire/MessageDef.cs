@@ -36,10 +36,13 @@ public sealed record Conversion(string Name, IReadOnlyList<ProtoValue> Args)
 /// production packet language ends up needing a hand-written second pass for the outbound path.
 /// </para>
 /// </summary>
-public sealed record Field
+public sealed class Field : Node
 {
-    /// <summary>Referenceable name — <c>fields.&lt;id&gt;.value</c> and <c>fields.&lt;id&gt;.extent</c>.</summary>
+    /// <summary>Referenceable name — <c>fields.&lt;id&gt;.value</c> and <c>fields.&lt;id&gt;.extent</c>.
+    /// A name for expressions and for reading, never how anything finds this field.</summary>
     public required string Id { get; init; }
+
+    public override string Name => Id;
 
     public required Pattern Pattern { get; init; }
 
@@ -91,8 +94,117 @@ public sealed record MessageDef
     /// </summary>
     public IReadOnlyList<Rule> Rules { get; init; } = [];
 
+    /// <summary>
+    /// The message as nodes and relationships.
+    ///
+    /// <para>
+    /// Built once from the declaration, which is a readable way to say a common shape rather than the
+    /// model itself. Nesting becomes containment; an expression naming another node becomes a read; a
+    /// length and the region it sizes become one edge instead of two expressions that had nothing to do
+    /// with each other.
+    /// </para>
+    /// </summary>
+    public ProtocolGraph Graph => _graph ??= Build();
+    private ProtocolGraph? _graph;
+
+    /// <summary>Stands for the message itself, so a rule about the whole thing has something to point at
+    /// rather than being attached by convention.</summary>
+    public Node Root { get; } = new MessageRoot();
+
+    private sealed class MessageRoot : Node
+    {
+        public override string Name => "message";
+    }
+
+    private ProtocolGraph Build()
+    {
+        var graph = new ProtocolGraph();
+        graph.Add(Root);
+
+        Wire(graph, Root, Fields);
+
+        // Every reference an expression makes, materialised. Recovering these by scanning text at each
+        // encode is what let a reference into an unrealised arm survive until run time.
+        foreach (var (owner, expression, _) in Expressions(AllFields))
+            foreach (var (name, facet) in FieldReferences(expression))
+                if (Resolve(name, owner) is { } target)
+                    graph.Add(new Reads { From = owner, To = target, Facet = facet });
+
+        foreach (var rule in Rules)
+            graph.Add(new Constrains { From = new RuleNode(rule), To = rule.Subject });
+
+        return graph;
+    }
+
+    /// <summary>A rule is a node too, so the thing doing the constraining is as addressable as the thing
+    /// constrained.</summary>
+    private sealed class RuleNode(Rule rule) : Node
+    {
+        public Rule Rule { get; } = rule;
+        public override string Name => Rule.ToString() ?? "rule";
+    }
+
+    private static void Wire(ProtocolGraph graph, Node parent, IReadOnlyList<Field> fields)
+    {
+        for (int i = 0; i < fields.Count; i++)
+        {
+            var field = fields[i];
+            graph.Add(new Contains { From = parent, To = field, Ordinal = i });
+
+            switch (field.Pattern)
+            {
+                case Pattern.Group group:
+                    Wire(graph, field, group.Fields);
+                    break;
+
+                case Pattern.Choice choice:
+                    foreach (var arm in choice.Arms)
+                    {
+                        graph.Add(new Offers { From = field, To = arm });
+                        Wire(graph, arm, arm.Fields);
+                    }
+                    break;
+
+                case Pattern.Chain chain:
+                    graph.Add(new Repeats { From = field, To = chain.Element });
+                    Wire(graph, field, [chain.Element]);
+                    break;
+            }
+        }
+    }
+
+    /// <summary>The field a name means, seen from where it was written.</summary>
+    private Field? Resolve(string name, Field from)
+    {
+        // Innermost scope outward: a structure's own names shadow the ones around it, which is what makes
+        // a per-instance length prefix mean that instance's.
+        foreach (var scope in ScopesAround(from))
+            if (scope.FirstOrDefault(f => string.Equals(f.Id, name, StringComparison.Ordinal)) is { } found)
+                return found;
+
+        return null;
+    }
+
+    private IEnumerable<List<Field>> ScopesAround(Field from)
+    {
+        foreach (var chain in AllFields.Select(f => f.Pattern).OfType<Pattern.Chain>())
+        {
+            List<Field> inside = [];
+            Gather([chain.Element], inside);
+            if (inside.Contains(from)) yield return inside;
+        }
+
+        List<Field> outermost = [];
+        Gather(Fields, outermost);
+        yield return outermost;
+    }
+
     /// <summary>Every field in the message, nested ones included, in declaration order.</summary>
     public IEnumerable<Field> AllFields => Descendants(Fields);
+
+    /// <summary>The rules that apply to one node. A reference lookup, so a rule on a segment inside a
+    /// repeated structure is found every time that structure is realised.</summary>
+    public IEnumerable<Rule> RulesOn(Node node) => Rules.Where(r => ReferenceEquals(r.Subject, node));
 
     internal static IEnumerable<Field> Descendants(IReadOnlyList<Field> fields)
     {
@@ -160,37 +272,9 @@ public sealed record MessageDef
         var visible = new HashSet<string>(outer, StringComparer.Ordinal);
         visible.UnionWith(here.Select(f => f.Id));
 
-        // Rules live at message scope, so they are checked against the outermost pass only.
-        if (outer.Count == 0)
-        {
-            var everyName = AllFields.Select(f => f.Id)
-                .Concat(AllFields.SelectMany(f => (f.Pattern as Pattern.Bits)?.Slices.Select(s => s.Name) ?? []))
-                .ToHashSet(StringComparer.Ordinal);
-
-            foreach (var rule in Rules)
-            {
-                if (rule is Rule.Domain domain)
-                {
-                    if (!everyName.Contains(domain.Field))
-                        issues.Add($"message '{Id}': a value rule names '{domain.Field}', which is not a "
-                                 + "field or bit run of this message");
-
-                    if (domain.Allowed.Count == 0)
-                        issues.Add($"message '{Id}': the value rule on '{domain.Field}' allows nothing, so "
-                                 + "no message can satisfy it");
-                }
-
-                foreach (var expression in rule.Expressions)
-                    foreach (var referenced in FieldReferences(expression))
-                        if (!everyName.Contains(referenced.Field))
-                            issues.Add($"message '{Id}': a rule references '{referenced.Field}', which is "
-                                     + "not a field of this message");
-
-                if (string.IsNullOrWhiteSpace(rule.Because))
-                    issues.Add($"message '{Id}': the rule {rule} does not say why. A refusal a reader "
-                             + "cannot act on is barely better than none.");
-            }
-        }
+        // Rules are checked once, against the graph, because a reference does not need a scope to be
+        // resolved in — which is the point of it being a reference.
+        if (outer.Count == 0) CheckRules(issues);
 
         foreach (var (owner, expression, what) in Expressions(here))
             foreach (var referenced in FieldReferences(expression))
@@ -202,6 +286,39 @@ public sealed record MessageDef
         // a structure may read the message metadata around it.
         foreach (var chain in here.Select(f => f.Pattern).OfType<Pattern.Chain>())
             Check([chain.Element], visible, issues);
+    }
+
+    private void CheckRules(List<string> issues)
+    {
+        var known = AllFields.ToHashSet();
+
+        foreach (var rule in Rules)
+        {
+            if (rule.Subject is Field subject && !known.Contains(subject))
+                issues.Add($"message '{Id}': the rule {rule} is about '{subject.Name}', which is not a "
+                         + "field of this message. A reference to a field of some OTHER message is the one "
+                         + "mistake naming could not make and pointing can.");
+
+            if (rule.Subject is not Field && !ReferenceEquals(rule.Subject, Root))
+                issues.Add($"message '{Id}': the rule {rule} is about something that is not part of it");
+
+            if (rule is Rule.Domain domain)
+            {
+                if (domain.Allowed.Count == 0)
+                    issues.Add($"message '{Id}': the value rule on '{domain.What}' allows nothing, so no "
+                             + "message can satisfy it");
+
+                if (domain.Run is { } run
+                    && (domain.Field.Pattern is not Pattern.Bits bits
+                        || !bits.Slices.Any(s => string.Equals(s.Name, run, StringComparison.Ordinal))))
+                    issues.Add($"message '{Id}': the value rule names the run '{run}', which "
+                             + $"'{domain.Field.Name}' does not have");
+            }
+
+            if (string.IsNullOrWhiteSpace(rule.Because))
+                issues.Add($"message '{Id}': the rule {rule} does not say why. A refusal a reader cannot "
+                         + "act on is barely better than none.");
+        }
     }
 
     /// <summary>The ids declared in one scope. Both directions resolve names against this — the validator
@@ -225,18 +342,18 @@ public sealed record MessageDef
     }
 
     /// <summary>Every expression the message carries, with enough context to name it in a diagnostic.</summary>
-    private static IEnumerable<(string Owner, Expr Expression, string What)> Expressions(IEnumerable<Field> all)
+    private static IEnumerable<(Field Owner, Expr Expression, string What)> Expressions(IEnumerable<Field> all)
     {
         foreach (var field in all)
         {
-            if (field.Value is not null) yield return (field.Id, field.Value, "the value");
+            if (field.Value is not null) yield return (field, field.Value, "the value");
 
             switch (field.Pattern)
             {
-                case Pattern.Choice choice: yield return (field.Id, choice.Key, "the discriminator"); break;
-                case Pattern.Chain chain: yield return (field.Id, chain.Continues, "the continuation"); break;
-                case Pattern.Opaque { Length: { } length }: yield return (field.Id, length, "the length"); break;
-                case Pattern.Group { Extent: { } extent }: yield return (field.Id, extent, "the region bound"); break;
+                case Pattern.Choice choice: yield return (field, choice.Key, "the discriminator"); break;
+                case Pattern.Chain chain: yield return (field, chain.Continues, "the continuation"); break;
+                case Pattern.Opaque { Length: { } length }: yield return (field, length, "the length"); break;
+                case Pattern.Group { Extent: { } extent }: yield return (field, extent, "the region bound"); break;
             }
         }
     }

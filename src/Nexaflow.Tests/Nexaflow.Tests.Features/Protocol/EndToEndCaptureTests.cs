@@ -29,19 +29,31 @@ public class EndToEndCaptureTests
     /// The document. Note what is <i>not</i> here: no protocol name, no bespoke field kind, nothing the
     /// engine had to learn. Bit slices, scalars and opaque spans, with values supplied by expressions.
     /// </summary>
-    internal static MessageDef Definition() => new()
+    internal static MessageDef Definition()
     {
-        Id = "timeSync",
-        Fields =
-        [
-            // Three runs inside one octet — 2 + 3 + 3.
-            new Field
-            {
-                Id = "flags",
-                Pattern = new Pattern.Bits([new("leapIndicator", 2), new("version", 3), new("mode", 3)]),
-                Value = Expr.Parse("inputs.flags"),
-            },
-            new Field { Id = "stratum",   Pattern = new Pattern.Scalar(1, true), Value = Expr.Parse("inputs.stratum") },
+        // Held rather than written inline, because the rules below point AT these. Naming a subject in a
+        // string looked tidier and was how constraints ended up unable to reach anything nested.
+        var flags = new Field
+        {
+            Id = "flags",
+            Pattern = new Pattern.Bits([new("leapIndicator", 2), new("version", 3), new("mode", 3)]),
+            Value = Expr.Parse("inputs.flags"),
+        };
+
+        var stratum = new Field
+        {
+            Id = "stratum",
+            Pattern = new Pattern.Scalar(1, true),
+            Value = Expr.Parse("inputs.stratum"),
+        };
+
+        return new MessageDef
+        {
+            Id = "timeSync",
+            Fields =
+            [
+                flags,
+                stratum,
 
             // Signed: the capture carries +6 and -20 in single octets.
             new Field { Id = "poll",      Pattern = new Pattern.Scalar(1, true, Signed: true), Value = Expr.Parse("inputs.poll") },
@@ -79,36 +91,39 @@ public class EndToEndCaptureTests
             Timestamp("originTimestamp"),
             Timestamp("receiveTimestamp"),
             Timestamp("transmitTimestamp"),
-        ],
+            ],
 
-        // What the wire shape cannot say. Every one of these was found by reading the generated
-        // description against the specification, and none of them could have been found by a round trip:
-        // a message breaking all three re-encodes to exactly the octets it arrived as.
-        Rules =
-        [
-            new Rule.Domain
-            {
-                Field = "version",
-                Allowed = [ValueRange.Exactly(4)],
-                Because = "this document describes version 4, and a packet announcing another version is "
-                        + "not a packet it can claim to have understood.",
-            },
-            new Rule.Domain
-            {
-                Field = "mode",
-                Allowed = [ValueRange.Between(1, 6)],
-                Because = "0 is reserved and 7 is private use; both are three bits wide and neither is a "
-                        + "value this message may carry.",
-            },
-            new Rule.Domain
-            {
-                Field = "stratum",
-                Allowed = [ValueRange.Between(0, 16)],
-                Because = "16 means unsynchronised and everything above it is reserved, so a stratum of "
-                        + "200 decodes into something that looks exactly as valid as a real one.",
-            },
-        ],
-    };
+            // What the wire shape cannot say. Every one of these was found by reading the generated
+            // description against the specification, and none could have been found by a round trip: a
+            // message breaking all three re-encodes to exactly the octets it arrived as.
+            Rules =
+            [
+                new Rule.Domain
+                {
+                    Field = flags,
+                    Run = "version",
+                    Allowed = [ValueRange.Exactly(4)],
+                    Because = "this document describes version 4, and a packet announcing another version "
+                            + "is not a packet it can claim to have understood.",
+                },
+                new Rule.Domain
+                {
+                    Field = flags,
+                    Run = "mode",
+                    Allowed = [ValueRange.Between(1, 6)],
+                    Because = "0 is reserved and 7 is private use; both are three bits wide and neither is "
+                            + "a value this message may carry.",
+                },
+                new Rule.Domain
+                {
+                    Field = stratum,
+                    Allowed = [ValueRange.Between(0, 16)],
+                    Because = "16 means unsynchronised and everything above it is reserved, so a stratum "
+                            + "of 200 decodes into something that looks exactly as valid as a real one.",
+                },
+            ],
+        };
+    }
 
     private static Field Timestamp(string id) => new()
     {

@@ -96,31 +96,53 @@ public class VariableWidthCaptureTests
     /// is room".
     /// </para>
     /// </summary>
-    internal static MessageDef FilterList() => Framed("subscribe",
-        new Field { Id = "packetIdentifier", Pattern = U16, Value = Expr.Parse("inputs.packetIdentifier") },
-        new Field
+    internal static MessageDef FilterList()
+    {
+        // Inside the repeated structure — which is exactly where a rule could not reach while rules named
+        // their subject instead of pointing at it. Every structure of the chain is this same node, so the
+        // rule applies to every one of them without being written once per instance or once per message.
+        var qos = new Field { Id = "requestedQos", Pattern = U8, Value = Expr.Parse("item.requestedQos") };
+
+        var message = Framed("subscribe",
+            new Field { Id = "packetIdentifier", Pattern = U16, Value = Expr.Parse("inputs.packetIdentifier") },
+            new Field
+            {
+                Id = "subscriptions",
+                Value = Expr.Parse("inputs.subscriptions"),
+                Pattern = new Pattern.Chain(
+                    new Field
+                    {
+                        Id = "subscription",
+                        Pattern = new Pattern.Group(
+                        [
+                            new Field { Id = "filterLength", Pattern = U16, Value = Expr.Parse("fields.filter.extent") },
+                            new Field
+                            {
+                                Id = "filter",
+                                Pattern = Pattern.Opaque.Measured(Expr.Parse("fields.filterLength.value")),
+                                Value = Expr.Parse("item.filter"),
+                                Via = "unutf8",
+                            },
+                            qos,
+                        ]),
+                    },
+                    Expr.Parse("room > 0")),
+            });
+
+        return message with
         {
-            Id = "subscriptions",
-            Value = Expr.Parse("inputs.subscriptions"),
-            Pattern = new Pattern.Chain(
-                new Field
+            Rules =
+            [
+                new Rule.Domain
                 {
-                    Id = "subscription",
-                    Pattern = new Pattern.Group(
-                    [
-                        new Field { Id = "filterLength", Pattern = U16, Value = Expr.Parse("fields.filter.extent") },
-                        new Field
-                        {
-                            Id = "filter",
-                            Pattern = Pattern.Opaque.Measured(Expr.Parse("fields.filterLength.value")),
-                            Value = Expr.Parse("item.filter"),
-                            Via = "unutf8",
-                        },
-                        new Field { Id = "requestedQos", Pattern = U8, Value = Expr.Parse("item.requestedQos") },
-                    ]),
+                    Field = qos,
+                    Allowed = [ValueRange.Between(0, 2)],
+                    Because = "the octet has room for 0..255 and the standard defines three values; the "
+                            + "upper six bits are reserved and 3 is malformed.",
                 },
-                Expr.Parse("room > 0")),
-        });
+            ],
+        };
+    }
 
     /// <summary>A message with no body at all. The region is empty and measures zero, which is what the
     /// length must emit.</summary>
@@ -162,21 +184,26 @@ public class VariableWidthCaptureTests
     /// The connect packet: 143 octets of body, of which 114 exist only because of three bits in an octet
     /// read 22 positions earlier.
     /// </summary>
-    internal static MessageDef Connect() => Framed("connect",
+    internal static MessageDef Connect()
+    {
+        // Held, because everything the standard actually obliges is about the values of the runs in this
+        // one octet, and the rules below have to point at it.
+        var flags = new Field
+        {
+            Id = "connectFlags",
+            Pattern = new Pattern.Bits(
+            [
+                new("userNameFlag", 1), new("passwordFlag", 1), new("willRetain", 1),
+                new("willQos", 2), new("willFlag", 1), new("cleanSession", 1), new("reserved", 1),
+            ]),
+            Value = Expr.Parse("inputs.connectFlags"),
+        };
+
+        var message = Framed("connect",
         [
-            // ── the wire shape ──
             .. Prefixed("protocolName"),
             new Field { Id = "protocolLevel", Pattern = U8, Value = Expr.Parse("inputs.protocolLevel") },
-            new Field
-            {
-                Id = "connectFlags",
-                Pattern = new Pattern.Bits(
-                [
-                    new("userNameFlag", 1), new("passwordFlag", 1), new("willRetain", 1),
-                    new("willQos", 2), new("willFlag", 1), new("cleanSession", 1), new("reserved", 1),
-                ]),
-                Value = Expr.Parse("inputs.connectFlags"),
-            },
+            flags,
             new Field { Id = "keepAlive", Pattern = U16, Value = Expr.Parse("inputs.keepAlive") },
             .. Prefixed("clientId"),
 
@@ -186,7 +213,10 @@ public class VariableWidthCaptureTests
             // Binary data, not text — the specification says so, and the will message two fields above
             // already gets it right. Found by reading the description against the standard.
             GatedBy("secret", "passwordFlag", Prefixed("password", via: null)),
-        ]) with { Rules = ConnectRules() };
+        ]);
+
+        return message with { Rules = ConnectRules(flags, message.Root) };
+    }
 
     /// <summary>
     /// What the flag octet may and may not say about itself.
@@ -198,18 +228,20 @@ public class VariableWidthCaptureTests
     /// describes a packet that is structurally perfect and still malformed.
     /// </para>
     /// </summary>
-    private static IReadOnlyList<Rule> ConnectRules() =>
+    private static IReadOnlyList<Rule> ConnectRules(Field flags, Node message) =>
     [
         new Rule.Domain
         {
-            Field = "reserved",
+            Field = flags,
+            Run = "reserved",
             Allowed = [ValueRange.Exactly(0)],
             Because = "the low bit of the flag octet is reserved; a peer setting it is not speaking this "
                     + "protocol, and reading it as ordinary data hides that.",
         },
         new Rule.Domain
         {
-            Field = "willQos",
+            Field = flags,
+            Run = "willQos",
             Allowed = [ValueRange.Between(0, 2)],
             Because = "the field is two bits wide and only three of its four values exist.",
         },
@@ -219,6 +251,7 @@ public class VariableWidthCaptureTests
         // does not appear.
         new Rule.Requires
         {
+            Within = message,
             When = Expr.Parse("fields.willFlag.value == 0"),
             Then = Expr.Parse("fields.willQos.value == 0 && fields.willRetain.value == 0"),
             Because = "with no will there is nothing for a quality of service or a retain flag to be about, "
@@ -226,6 +259,7 @@ public class VariableWidthCaptureTests
         },
         new Rule.Requires
         {
+            Within = message,
             When = Expr.Parse("fields.passwordFlag.value == 1"),
             Then = Expr.Parse("fields.userNameFlag.value == 1"),
             Because = "a password identifies nobody on its own; the standard forbids one without a user name.",
@@ -357,6 +391,40 @@ public class VariableWidthCaptureTests
         Assert.AreEqual("absent", decoded["will"].AsText());
         Assert.IsTrue(decoded["willTopic"].IsNull, "not there rather than empty");
         Assert.AreEqual(6, decoded["password"].AsBytes().Length, "the sections after it still line up");
+    }
+
+    [TestMethod]
+    public void A_rule_inside_a_repeated_structure_applies_to_every_structure()
+    {
+        // The case that could not be written at all until rules pointed at nodes. `requestedQos` is one
+        // node declared once and realised three times, and the rule reaches all three — including the one
+        // in the middle, which is where an off-by-one in any of this would show.
+        var codec = new MessageCodec(FilterList());
+        int[] QosOctets = [16, 34, 55];
+
+        foreach (int position in (int[])[0, 1, 2])
+        {
+            var tampered = (byte[])[.. Capture(2)];
+            tampered[QosOctets[position]] = 0x03;      // the QoS octet of each subscription
+
+            var ex = Assert.ThrowsExactly<ProtoTypeException>(() => codec.Decode(tampered));
+            StringAssert.Contains(ex.Message, "'requestedQos' is 3");
+            StringAssert.Contains(ex.Message, "3 is malformed");
+        }
+
+        // …and on the way out too, from the structure the caller supplied rather than from any octets.
+        var inputs = InputsFrom(codec.Decode(Capture(2)), except: Derived);
+        var subscriptions = ((ProtoValue.List)Member(inputs.Root("inputs"), "subscriptions")).Items;
+
+        inputs.Set("inputs", With(inputs.Root("inputs"), ("subscriptions", new ProtoValue.List(
+        [
+            subscriptions[0],
+            With((ProtoValue.Rec)subscriptions[1], ("requestedQos", ProtoValue.Of(7L))),
+            subscriptions[2],
+        ]))));
+
+        StringAssert.Contains(Assert.ThrowsExactly<ProtoTypeException>(() => codec.Encode(inputs)).Message,
+            "'requestedQos' is 7");
     }
 
     [TestMethod]

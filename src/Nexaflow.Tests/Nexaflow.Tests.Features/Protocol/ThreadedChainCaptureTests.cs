@@ -118,17 +118,21 @@ public class ThreadedChainCaptureTests
     /// The message. Note what ends the option chain: not a count, and not the region — a marker octet the
     /// continuation has to <b>look at without consuming</b>.
     /// </summary>
-    private static MessageDef Definition() => new()
+    private static MessageDef Definition()
     {
-        Id = "datagram",
-        Fields =
-        [
-            new Field
-            {
-                Id = "header",
-                Pattern = new Pattern.Bits([new("version", 2), new("kind", 2), new("tokenLength", 4)]),
-                Value = Expr.Parse("inputs.header"),
-            },
+        var header = new Field
+        {
+            Id = "header",
+            Pattern = new Pattern.Bits([new("version", 2), new("kind", 2), new("tokenLength", 4)]),
+            Value = Expr.Parse("inputs.header"),
+        };
+
+        return new MessageDef
+        {
+            Id = "datagram",
+            Fields =
+            [
+                header,
             new Field
             {
                 Id = "code",
@@ -177,19 +181,21 @@ public class ThreadedChainCaptureTests
                     },
                     Expr.Parse("ordinal < 1 && room > 0")),
             },
-        ],
+            ],
 
-        Rules =
-        [
-            new Rule.Domain
-            {
-                Field = "version",
-                Allowed = [ValueRange.Exactly(1)],
-                Because = "only one version of this framing has ever been defined, and a datagram "
-                        + "announcing another is not one this document can claim to have read.",
-            },
-        ],
-    };
+            Rules =
+            [
+                new Rule.Domain
+                {
+                    Field = header,
+                    Run = "version",
+                    Allowed = [ValueRange.Exactly(1)],
+                    Because = "only one version of this framing has ever been defined, and a datagram "
+                            + "announcing another is not one this document can claim to have read.",
+                },
+            ],
+        };
+    }
 
     private static byte[] Capture(int index) => ProtocolCorpus.Get("coap").Captures[index].Bytes;
 

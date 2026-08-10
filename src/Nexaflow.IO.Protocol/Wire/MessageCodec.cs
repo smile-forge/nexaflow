@@ -302,11 +302,47 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     private static string ChildPath(string path, Field child, bool exposed)
         => exposed ? child.CaptureName : $"{path}.{child.CaptureName}";
 
-    private static ProtoValue Bind(Field field, Reading r, ProtoValue value, int extent, bool exposed)
+    private ProtoValue Bind(Field field, Reading r, ProtoValue value, int extent, bool exposed)
     {
+        Confine(field, value);
         r.Note(field.Id, value, extent);
         r.Capture(field.CaptureName, value);
         return value;
+    }
+
+    /// <summary>
+    /// The value rules on one field, checked where that field is.
+    ///
+    /// <para>
+    /// Found by reference, so a rule on a segment inside a repeated structure applies to every structure —
+    /// which is the point of the rule pointing at a node rather than naming one. While rules named their
+    /// subject the name had to be resolved somewhere, the somewhere was the message, and everything inside
+    /// a chain was silently beyond reach.
+    /// </para>
+    /// </summary>
+    /// <summary>The same check on the way out, so the engine cannot emit what it would refuse to read.</summary>
+    private ProtoValue Confined(Field field, ProtoValue value)
+    {
+        Confine(field, value);
+        return value;
+    }
+
+    private void Confine(Field field, ProtoValue value)
+    {
+        foreach (var rule in _message.Rules.OfType<Rule.Domain>())
+        {
+            if (!ReferenceEquals(rule.Field, field)) continue;
+
+            var subject = rule.Run is { } run && value is ProtoValue.Rec rec
+                ? rec.Members.GetValueOrDefault(run, ProtoValue.Nothing)
+                : value;
+
+            if (rule.Admits(subject)) continue;
+
+            throw new ProtoTypeException(
+                $"'{rule.What}' is {subject}, which is not a value it may take — the legal ones are "
+              + $"{string.Join(", ", rule.Allowed)}. {rule.Because}");
+        }
     }
 
     private static int Bounded(Field field, long extent, Reading r)
@@ -622,15 +658,8 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         foreach (var rule in _message.Rules)
             switch (rule)
             {
-                case Rule.Domain domain:
-                {
-                    if (!named.TryGetValue(domain.Field, out var value) || domain.Admits(value)) break;
-
-                    throw new ProtoTypeException(
-                        $"'{domain.Field}' is {value}, which is not a value it may take — the legal ones are "
-                      + $"{string.Join(", ", domain.Allowed)}. {domain.Because}");
-                }
-
+                // Value rules are not here: they are checked at the field, which is the only place that
+                // works for a field inside a repeated structure and the only place that can name it.
                 case Rule.Requires requires:
                 {
                     if (!Holds(requires.When, scope, evaluator) || Holds(requires.Then, scope, evaluator)) break;
@@ -925,7 +954,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                         {
                             Facet.Extent => FacetResult.Of(fixedWidth ?? codec.Measure(field, settledValue)),
                             Facet.Value => FacetResult.Of(
-                                settledValue = codec.Evaluate(field, frame, evaluator, inputs)),
+                                settledValue = codec.Confined(field, codec.Evaluate(field, frame, evaluator, inputs))),
                             _ => FacetResult.Of(null),
                         },
                     });

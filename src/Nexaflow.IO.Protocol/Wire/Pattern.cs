@@ -31,8 +31,14 @@ public readonly record struct BitSlice(string Name, int Width);
 /// between a structural branch and a coincidence that happens to agree with one.</param>
 /// <param name="Key">The discriminator value selecting this arm, or null for the fallback arm.</param>
 /// <param name="Fields">The fields this packing contributes, in order.</param>
-public sealed record Arm(string Name, long? Key, IReadOnlyList<Field> Fields)
+public sealed class Arm(string label, long? key, IReadOnlyList<Field> fields) : Node
 {
+    public override string Name { get; } = label;
+
+    public long? Key { get; } = key;
+
+    public IReadOnlyList<Field> Fields { get; } = fields;
+
     public bool IsFallback => Key is null;
 }
 
