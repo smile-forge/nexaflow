@@ -19,4 +19,15 @@ public static class ProtoLimits
     /// <summary>Largest literal a <c>range</c> maximum may declare, so a document cannot buy itself an
     /// arbitrarily long loop simply by writing a very large bound.</summary>
     public const long MaxRangeBound = 65_536;
+
+    /// <summary>
+    /// Most elements one repetition may realise.
+    ///
+    /// <para>
+    /// Unlike the fuel budget this one is load-bearing, because a repetition count on decode comes from the
+    /// data: a corrupt or hostile length field is otherwise an allocation request, and it arrives before
+    /// anything has had a chance to judge the message.
+    /// </para>
+    /// </summary>
+    public const long MaxRepetitions = 65_536;
 }

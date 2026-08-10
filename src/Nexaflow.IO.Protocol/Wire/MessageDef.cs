@@ -42,28 +42,59 @@ public sealed record MessageDef
     public required string Id { get; init; }
     public required IReadOnlyList<Field> Fields { get; init; }
 
+    /// <summary>Every field in the message, nested ones included, in declaration order.</summary>
+    public IEnumerable<Field> AllFields => Descendants(Fields);
+
+    internal static IEnumerable<Field> Descendants(IReadOnlyList<Field> fields)
+    {
+        foreach (var field in fields)
+        {
+            yield return field;
+            foreach (var nested in Descendants(field.Pattern.Nested)) yield return nested;
+        }
+    }
+
     /// <summary>Document-time checks over the whole message.</summary>
     public IReadOnlyList<string> Validate()
     {
         List<string> issues = [];
+        var all = AllFields.ToList();
 
-        foreach (var f in Fields) issues.AddRange(f.Pattern.Validate(f.Id));
+        foreach (var f in all) issues.AddRange(f.Pattern.Validate(f.Id));
 
-        var duplicates = Fields.GroupBy(f => f.Id, StringComparer.Ordinal)
-            .Where(g => g.Count() > 1).Select(g => g.Key);
-        foreach (var d in duplicates)
-            issues.Add($"message '{Id}': duplicate field id '{d}' — ids are how fields reference each other");
+        // Ids are flat across the whole tree, arms and regions included. That is what lets an expression
+        // say `fields.byteCount.extent` from anywhere in the message instead of spelling out a path
+        // through the nesting — and it is only safe because this check exists.
+        foreach (var duplicate in all.GroupBy(f => f.Id, StringComparer.Ordinal).Where(g => g.Count() > 1))
+            issues.Add($"message '{Id}': duplicate field id '{duplicate.Key}' — ids are how fields "
+                     + "reference each other, and they are flat across regions and arms");
 
         // A field referencing one that does not exist is an authoring slip that would otherwise surface as
         // an unresolvable dependency much later, with a worse message.
-        var known = Fields.Select(f => f.Id).ToHashSet(StringComparer.Ordinal);
-        foreach (var f in Fields.Where(f => f.Value is not null))
-            foreach (var referenced in FieldReferences(f.Value!))
+        var known = all.Select(f => f.Id).ToHashSet(StringComparer.Ordinal);
+
+        foreach (var (owner, expression, what) in Expressions(all))
+            foreach (var referenced in FieldReferences(expression))
                 if (!known.Contains(referenced.Field))
-                    issues.Add($"message '{Id}': field '{f.Id}' references '{referenced.Field}', which is "
-                             + "not a field of this message");
+                    issues.Add($"message '{Id}': {what} of '{owner}' references '{referenced.Field}', "
+                             + "which is not a field of this message");
 
         return issues;
+    }
+
+    /// <summary>Every expression the message carries, with enough context to name it in a diagnostic.</summary>
+    private static IEnumerable<(string Owner, Expr Expression, string What)> Expressions(IEnumerable<Field> all)
+    {
+        foreach (var field in all)
+        {
+            if (field.Value is not null) yield return (field.Id, field.Value, "the value");
+
+            switch (field.Pattern)
+            {
+                case Pattern.Choice choice: yield return (field.Id, choice.Key, "the discriminator"); break;
+                case Pattern.Repeat repeat: yield return (field.Id, repeat.Count, "the count"); break;
+            }
+        }
     }
 
     /// <summary>

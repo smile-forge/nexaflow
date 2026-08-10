@@ -9,7 +9,9 @@ becomes a **button on that device's page**. Smart plugs through to HVAC, without
 
 ## Status
 
-**Prototype, under construction.** The expression core is built and validated; the field codec is next.
+**Prototype, under construction.** Expression core, transform language, facet resolver and the field codec
+are built; two of the ten corpus protocols round-trip byte-exactly. Variable-width fields (`varint`, `lp`)
+are next, and step 6 is the go/no-go gate.
 
 | Document | What it is |
 |---|---|
@@ -95,7 +97,7 @@ Each step is independently testable against a named capture, earliest-falsifying
 | — ✅ | **Facet resolver**: `Realised`/`Present`/`Extent`/`Value`/`Emitted`, demand-driven waiters, five diagnostics | synthetic hard cases incl. under-expansion |
 | 2 ✅ | Scalars, signed scalars, bit groups, opaque spans; decode | **NTP A+B decode, T1** |
 | 3 ✅ | Encode path through the resolver; dependencies derived from expressions | **NTP A+B re-encode, byte-exact T2** |
-| 4 | framers, `switch`/`Choice` with masked keysets | Modbus ×3, T2 |
+| 4 ✅ | Regions, `Choice` with masked keysets, `Repeat`; realisation-driven encode | **Modbus ×3, T2** |
 | 5 | varint framer + field | MQTT ×6 |
 | 6 | `lp` + `LenSpec` + `group` + nested lengths | **SNMP 73 B + 337 B from one document — go/no-go gate** |
 | 7 | `fold` on the decode side, `present` | CoAP ×3, T2 + the empty-vs-absent T1 pair |
@@ -105,6 +107,47 @@ Each step is independently testable against a named capture, earliest-falsifying
 **First real capture through the whole stack** (2026-08-10): both 48-octet NTP captures decode into named
 values and re-encode to the exact original octets, through document → expression core → converters →
 pattern library → facet resolver → codec. Nothing in that path names a protocol.
+
+**First branching, framed and repeating message** (2026-08-10, step 4): all three Modbus captures — a
+12-octet request, a 15-octet success carrying three registers, and a 9-octet exception — decode and
+re-encode byte-exactly, with `length` and `byteCount` **withheld from the encode inputs** so a value that
+was echoed rather than derived would fail. The two responses come from one declaration.
+
+## What building step 4 settled
+
+Four things the specification left open, or got the emphasis wrong on, became decidable once there was a
+codec to try them in.
+
+**A framer is not a declaration.** §2.3 already says the field template owns every byte and a framer is a
+decode-side boundary oracle; the implementation goes one step further and has no framer construct at all.
+A length prefix *is* an ordinary field whose value is a region's extent (`fields.body.extent`), and finding
+where a message ends in a byte stream is a transport concern that never reaches the codec. So the question
+Modbus-G1 asked — do the template and the frame object both own offsets 4–5, and does encode emit 10, 12 or
+14 octets? — cannot be asked, rather than being answered.
+
+**Exhaustiveness is decidable, not a matter of declaring a default.** Where a discriminator is a mask
+(`fields.functionCode.value band 0x80` — how a flag bit packed into a type octet is almost always written),
+the reachable keyset is computable: `{0, 0x80}`. So "you have not handled 0x80" and "this arm can never be
+selected" and "this fallback is unreachable" are all *validate-time* errors. A fallback is required only
+where the keyset cannot be computed, and is rejected as dead where it can. The paired-guard emulation could
+never do this: nothing checks complementary `when`s for overlap or coverage, which is how a message with an
+unanticipated discriminator binds no fields and reports no error.
+
+**The repetition count's direction-asymmetry is forced, not a wart.** The corpus recorded it as a defect —
+`each` taking a collection on encode and a count on decode, "same keyword, opposite meaning". It is neither.
+On encode the collection exists and its length *is* the count; on decode the count must be recovered from
+something already read. Making the count the single shared truth produces a genuine cycle: the preceding
+byte-count field reads `fields.registers.extent`, so it would depend on the repetition while the repetition
+depended on it. One declaration names the collection; each direction derives what only it has to.
+
+**Ids are flat across regions and arms, and that has a price.** It is what lets an expression say
+`fields.byteCount.extent` from anywhere in a message instead of spelling a path through the nesting. The
+cost is that a field reaching into an arm that was not selected passes the document check — the id really
+does exist — and fails at encode as `Unrealised`. That is the correct failure and it names the field, but
+it is a run-time one. A repeated **composite** element is refused outright for the same reason: its fields
+would need per-element names (the spec's `item.*` frame chain), and without them an expression inside the
+element resolves against whichever iteration ran last. Left unexpressible rather than guessed at; SNMP's
+varbind list at step 6 is what will force the naming.
 
 ## A note on the pipeline operator
 

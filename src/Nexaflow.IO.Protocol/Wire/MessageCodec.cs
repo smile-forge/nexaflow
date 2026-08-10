@@ -31,7 +31,16 @@ public sealed record DecodeResult(IReadOnlyDictionary<string, ProtoValue> Captur
 /// <para>
 /// Encode runs through the <see cref="Resolver"/>, with dependencies derived from each field's expression,
 /// so a value computed from another field's extent schedules itself — no placeholder, no back-patch pass,
-/// and a genuine cycle reported as one before any octet is produced.
+/// and a genuine cycle reported as one before any octet is produced. Regions, choices and repetitions come
+/// into existence through <see cref="Facet.Realised"/>, so a branch that never expanded is a named failure
+/// rather than a short message that looks structurally valid.
+/// </para>
+///
+/// <para>
+/// Both directions read the same <c>fields.&lt;id&gt;.value</c> vocabulary. On decode it means "what was
+/// just read"; on encode, "what is about to be written". That is what lets one discriminator expression
+/// select the arm in both directions instead of a decode guard paired with a hand-maintained encode-side
+/// variant selector.
 /// </para>
 /// </summary>
 public sealed class MessageCodec(MessageDef message, ConverterTable? converters = null)
@@ -44,71 +53,182 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
     // ── Decode ────────────────────────────────────────────────────────────────
 
-    public DecodeResult Decode(ReadOnlySpan<byte> bytes)
+    /// <summary>
+    /// Reads the message. <paramref name="scope"/> supplies anything a count or discriminator expression
+    /// reads besides <c>fields.*</c>; the field vocabulary is built up as the walk proceeds, so a
+    /// discriminator sees every field ahead of it and none behind.
+    /// </summary>
+    public DecodeResult Decode(ReadOnlySpan<byte> bytes, EvalScope? scope = null)
     {
-        Dictionary<string, ProtoValue> captures = new(StringComparer.Ordinal);
-        List<WireSpan> spans = [];
-        int offset = 0;
+        var reading = new Reading(bytes.ToArray(), new Evaluator(_converters), scope ?? new EvalScope());
 
-        foreach (var field in _message.Fields)
+        foreach (var field in _message.Fields) Read(field, reading, field.CaptureName, exposed: true);
+
+        if (reading.Offset != reading.Bytes.Length)
+            throw new ProtoTypeException(
+                $"decoded {reading.Offset} octet(s) but the message is {reading.Bytes.Length} — trailing "
+              + "data is an error rather than something ignored, because ignoring it accepts a malformed "
+              + "capture as valid");
+
+        return new DecodeResult(reading.Captures, reading.Spans);
+    }
+
+    /// <summary>The live state of one decode: where we are, what has been bound, what it cost.</summary>
+    private sealed class Reading(byte[] bytes, Evaluator evaluator, EvalScope scope)
+    {
+        public readonly byte[] Bytes = bytes;
+        public int Offset;
+        public readonly Dictionary<string, ProtoValue> Captures = new(StringComparer.Ordinal);
+        public readonly List<WireSpan> Spans = [];
+
+        /// <summary>Field id → what it read and what it cost. Deliberately keyed by <i>id</i> rather than
+        /// capture name: this is what expressions address, and a repeated element overwrites its own entry
+        /// each iteration, which is exactly loop-variable behaviour.</summary>
+        private readonly Dictionary<string, (ProtoValue Value, int Extent)> _facets = new(StringComparer.Ordinal);
+
+        public void Note(string fieldId, ProtoValue value, int extent) => _facets[fieldId] = (value, extent);
+
+        public ProtoValue Eval(Expr expression)
         {
-            int width = field.Pattern.StaticWidth
-                ?? throw new ProtoTypeException(
-                    $"field '{field.Id}' has no static width; value-dependent extents are not yet wired "
-                  + "into the decoder");
+            Dictionary<string, ProtoValue> byField = new(StringComparer.Ordinal);
 
-            if (offset + width > bytes.Length)
-                throw new ProtoTypeException(
-                    $"field '{field.Id}' needs {width} octet(s) at offset {offset}, but the message is "
-                  + $"{bytes.Length} octets — the definition and the data disagree");
+            foreach (var (id, facet) in _facets)
+                byField[id] = EvalScope.Record(("value", facet.Value),
+                                               ("extent", ProtoValue.Of((long)facet.Extent)));
 
-            var run = bytes.Slice(offset, width);
+            return evaluator.Eval(expression, scope.Child().Set("fields", new ProtoValue.Rec(byField)));
+        }
+    }
 
-            switch (field.Pattern)
+    /// <summary>
+    /// Reads one field, composites included.
+    /// </summary>
+    /// <param name="path">Name used for spans. Qualified inside a repetition, because
+    /// <c>registers[1]</c> and <c>registers[2]</c> are not the same octets and a breakdown that calls them
+    /// both <c>register</c> cannot be checked against a capture.</param>
+    /// <param name="exposed">Whether this field's binding is a message-level capture. A repeated element's
+    /// members are not: they belong to the element, and flattening them leaves only whichever iteration
+    /// happened to run last.</param>
+    private ProtoValue Read(Field field, Reading r, string path, bool exposed)
+    {
+        switch (field.Pattern)
+        {
+            case Pattern.Group group:
             {
-                case Pattern.Bits bits:
-                {
-                    long packed = ReadUnsigned(run);
-                    int remaining = bits.TotalBits;
+                int start = r.Offset;
+                Dictionary<string, ProtoValue> members = new(StringComparer.Ordinal);
 
-                    foreach (var slice in bits.Slices)
-                    {
-                        remaining -= slice.Width;
-                        long v = (packed >> remaining) & ((1L << slice.Width) - 1);
-                        captures[slice.Name] = ProtoValue.Of(v);
-                        spans.Add(new WireSpan(offset, width, slice.Name, ProtoValue.Of(v)));
-                    }
-                    break;
-                }
+                foreach (var child in group.Fields)
+                    members[child.CaptureName] = Read(child, r, ChildPath(path, child, exposed), exposed);
 
-                case Pattern.Scalar scalar:
-                {
-                    long raw = scalar.Signed ? ReadSigned(run, scalar.BigEndian)
-                                             : ReadUnsigned(run, scalar.BigEndian);
-                    var value = Convert(ProtoValue.Of(raw), field.Via, forward: false);
-                    captures[field.CaptureName] = value;
-                    spans.Add(new WireSpan(offset, width, field.CaptureName, value));
-                    break;
-                }
-
-                case Pattern.Opaque:
-                {
-                    var value = Convert(ProtoValue.Of(run.ToArray()), field.Via, forward: false);
-                    captures[field.CaptureName] = value;
-                    spans.Add(new WireSpan(offset, width, field.CaptureName, value));
-                    break;
-                }
+                return Bind(field, r, new ProtoValue.Rec(members), r.Offset - start, exposed);
             }
 
-            offset += width;
+            case Pattern.Choice choice:
+            {
+                long key = r.Eval(choice.Key).AsInt();
+                var arm = choice.Select(key, field.Id);
+                int start = r.Offset;
+
+                foreach (var child in arm.Fields)
+                    Read(child, r, ChildPath(path, child, exposed), exposed);
+
+                // The arm NAME is the value. A later step then branches on which shape arrived, rather
+                // than re-deriving it from the raw discriminator and hoping the two rules stay in step.
+                return Bind(field, r, ProtoValue.Of(arm.Name), r.Offset - start, exposed);
+            }
+
+            case Pattern.Repeat repeat:
+            {
+                long count = r.Eval(repeat.Count).AsInt();
+
+                if (count < 0 || count > ProtoLimits.MaxRepetitions)
+                    throw new ProtoTypeException(
+                        $"field '{field.Id}': the count resolved to {count}, which is outside 0.."
+                      + $"{ProtoLimits.MaxRepetitions}. A corrupt or hostile length must not be able to buy "
+                      + "an unbounded allocation.");
+
+                int start = r.Offset;
+                List<ProtoValue> items = [];
+
+                for (int i = 0; i < count; i++)
+                    items.Add(Read(repeat.Element, r, $"{path}[{i}]", exposed: false));
+
+                return Bind(field, r, new ProtoValue.List(items), r.Offset - start, exposed);
+            }
+
+            default:
+                return ReadLeaf(field, r, path, exposed);
+        }
+    }
+
+    private static string ChildPath(string path, Field child, bool exposed)
+        => exposed ? child.CaptureName : $"{path}.{child.CaptureName}";
+
+    private static ProtoValue Bind(Field field, Reading r, ProtoValue value, int extent, bool exposed)
+    {
+        r.Note(field.Id, value, extent);
+        if (exposed) r.Captures[field.CaptureName] = value;
+        return value;
+    }
+
+    private ProtoValue ReadLeaf(Field field, Reading r, string path, bool exposed)
+    {
+        int width = field.Pattern.StaticWidth
+            ?? throw new ProtoTypeException(
+                $"field '{field.Id}' has no static width; value-dependent extents are not yet wired "
+              + "into the decoder");
+
+        if (r.Offset + width > r.Bytes.Length)
+            throw new ProtoTypeException(
+                $"field '{field.Id}' needs {width} octet(s) at offset {r.Offset}, but the message is "
+              + $"{r.Bytes.Length} octets — the definition and the data disagree");
+
+        var run = r.Bytes.AsSpan(r.Offset, width);
+        int at = r.Offset;
+        ProtoValue value;
+
+        switch (field.Pattern)
+        {
+            case Pattern.Bits bits:
+            {
+                long packed = ReadUnsigned(run);
+                int remaining = bits.TotalBits;
+                Dictionary<string, ProtoValue> slices = new(StringComparer.Ordinal);
+
+                foreach (var slice in bits.Slices)
+                {
+                    remaining -= slice.Width;
+                    var sliced = ProtoValue.Of((packed >> remaining) & ((1L << slice.Width) - 1));
+                    slices[slice.Name] = sliced;
+
+                    r.Spans.Add(new WireSpan(at, width, exposed ? slice.Name : $"{path}.{slice.Name}", sliced));
+                    if (exposed) r.Captures[slice.Name] = sliced;
+                }
+
+                value = new ProtoValue.Rec(slices);
+                break;
+            }
+
+            case Pattern.Scalar scalar:
+            {
+                long raw = scalar.Signed ? ReadSigned(run, scalar.BigEndian)
+                                         : ReadUnsigned(run, scalar.BigEndian);
+                value = Convert(ProtoValue.Of(raw), field.Via, forward: false);
+                r.Spans.Add(new WireSpan(at, width, path, value));
+                break;
+            }
+
+            default:
+            {
+                value = Convert(ProtoValue.Of(run.ToArray()), field.Via, forward: false);
+                r.Spans.Add(new WireSpan(at, width, path, value));
+                break;
+            }
         }
 
-        if (offset != bytes.Length)
-            throw new ProtoTypeException(
-                $"decoded {offset} octet(s) but the message is {bytes.Length} — trailing data is an error "
-              + "rather than something ignored, because ignoring it accepts a malformed capture as valid");
-
-        return new DecodeResult(captures, spans);
+        r.Offset += width;
+        return Bind(field, r, value, width, exposed);
     }
 
     // ── Encode ────────────────────────────────────────────────────────────────
@@ -119,53 +239,260 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     /// </summary>
     public byte[] Encode(EvalScope scope)
     {
-        var evaluator = new Evaluator(_converters);
+        var encoder = new Encoder(this, scope, new Evaluator(_converters));
         var resolver = new Resolver();
 
         foreach (var field in _message.Fields)
-            resolver.Add(NodeFor(field, scope, evaluator));
+            foreach (var node in encoder.Nodes(field, field.Id, literal: null))
+                resolver.Add(node);
 
         var settled = resolver.Resolve();
 
-        // Position is a linearisation, not a fixpoint: one ordered sweep once extents have settled.
+        // Position is a linearisation, not a fixpoint: one ordered sweep once extents have settled, now
+        // through the realised shape rather than a flat list.
         var output = new List<byte>();
-        foreach (var field in _message.Fields)
-        {
-            var value = settled[new FacetRef(field.Id, Facet.Value)];
-            Write(output, field, value as ProtoValue ?? ProtoValue.Nothing);
-        }
+        foreach (var field in _message.Fields) Emit(field, field.Id, encoder, settled, output);
         return [.. output];
     }
 
-    private ResolutionNode NodeFor(Field field, EvalScope scope, Evaluator evaluator)
+    private void Emit(Field field, string nodeId, Encoder encoder,
+                      IReadOnlyDictionary<FacetRef, object?> settled, List<byte> output)
     {
-        // Derived from the expression, never hand-declared — which is what makes every reference visible
-        // to the worklist rather than only the ones someone remembered to write down.
-        var dependencies = field.Value is null
-            ? []
-            : MessageDef.FieldReferences(field.Value)
-                .Select(r => new FacetRef(r.Field, r.Facet.Equals("extent", StringComparison.OrdinalIgnoreCase)
-                                                    ? Facet.Extent : Facet.Value))
+        switch (field.Pattern)
+        {
+            case Pattern.Group group:
+                foreach (var child in group.Fields) Emit(child, child.Id, encoder, settled, output);
+                break;
+
+            case Pattern.Choice:
+                foreach (var child in encoder.Chosen[nodeId].Fields) Emit(child, child.Id, encoder, settled, output);
+                break;
+
+            case Pattern.Repeat repeat:
+                for (int i = 0; i < encoder.Counts[nodeId]; i++)
+                    Emit(repeat.Element, $"{nodeId}[{i}]", encoder, settled, output);
+                break;
+
+            default:
+                Write(output, field, settled[new FacetRef(nodeId, Facet.Value)] as ProtoValue ?? ProtoValue.Nothing);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Builds the resolution nodes for one encode, and records which shape each composite settled on so the
+    /// emission sweep walks the same tree the resolver did.
+    /// </summary>
+    private sealed class Encoder(MessageCodec codec, EvalScope scope, Evaluator evaluator)
+    {
+        /// <summary>Choice field id → the arm that was selected.</summary>
+        public readonly Dictionary<string, Arm> Chosen = new(StringComparer.Ordinal);
+
+        /// <summary>Repetition field id → how many elements were realised.</summary>
+        public readonly Dictionary<string, int> Counts = new(StringComparer.Ordinal);
+
+        private static readonly HashSet<Facet> LeafNotApplicable =
+            [Facet.Realised, Facet.Present, Facet.Emitted];
+
+        private static readonly HashSet<Facet> RegionNotApplicable =
+            [Facet.Realised, Facet.Present, Facet.Value, Facet.Emitted];
+
+        private static readonly HashSet<Facet> ExpandingNotApplicable = [Facet.Present, Facet.Emitted];
+
+        public List<ResolutionNode> Nodes(Field field, string nodeId, ProtoValue? literal)
+        {
+            List<ResolutionNode> nodes = [];
+
+            switch (field.Pattern)
+            {
+                case Pattern.Group group:
+                {
+                    Composite(field, literal);
+
+                    foreach (var child in group.Fields) nodes.AddRange(Nodes(child, child.Id, null));
+                    var extents = group.Fields.Select(c => new FacetRef(c.Id, Facet.Extent)).ToList();
+
+                    nodes.Add(new ResolutionNode
+                    {
+                        Id = nodeId,
+                        NotApplicable = RegionNotApplicable,
+                        DependenciesFor = f => f == Facet.Extent ? extents : [],
+                        Settle = (f, inputs) => FacetResult.Of(f == Facet.Extent ? Sum(extents, inputs) : null),
+                    });
+                    break;
+                }
+
+                case Pattern.Choice choice:
+                {
+                    Composite(field, literal);
+
+                    var keyNeeds = Refs(choice.Key);
+                    List<FacetRef>? armExtents = null;
+
+                    nodes.Add(new ResolutionNode
+                    {
+                        Id = nodeId,
+                        NotApplicable = ExpandingNotApplicable,
+
+                        DependenciesFor = f => f switch
+                        {
+                            Facet.Realised => keyNeeds,
+                            Facet.Value => [new FacetRef(nodeId, Facet.Realised)],
+                            Facet.Extent => armExtents is null
+                                ? [new FacetRef(nodeId, Facet.Realised)]
+                                : [new FacetRef(nodeId, Facet.Realised), .. armExtents],
+                            _ => [],
+                        },
+
+                        Settle = (f, inputs) =>
+                        {
+                            switch (f)
+                            {
+                                case Facet.Realised:
+                                {
+                                    long key = evaluator.Eval(choice.Key, FieldsScope(inputs)).AsInt();
+                                    var arm = choice.Select(key, field.Id);
+
+                                    Chosen[nodeId] = arm;
+                                    armExtents = arm.Fields.Select(c => new FacetRef(c.Id, Facet.Extent)).ToList();
+
+                                    return new FacetResult(arm.Name,
+                                        [.. arm.Fields.SelectMany(c => Nodes(c, c.Id, null))]);
+                                }
+
+                                case Facet.Value: return FacetResult.Of(ProtoValue.Of(Chosen[nodeId].Name));
+                                case Facet.Extent: return FacetResult.Of(Sum(armExtents!, inputs));
+                                default: return FacetResult.Of(null);
+                            }
+                        },
+                    });
+                    break;
+                }
+
+                case Pattern.Repeat repeat:
+                {
+                    Composite(field, literal);
+
+                    List<FacetRef> valueNeeds = field.Value is null ? [] : Refs(field.Value);
+                    List<FacetRef>? elementExtents = null;
+                    ProtoValue? sequence = null;
+
+                    // Realising the elements is what publishes their extents back to this node, which is
+                    // why the count cannot be a dependency of the extent: it is a result of it.
+                    FacetResult Expand()
+                    {
+                        if (sequence is not ProtoValue.List list)
+                            throw new ProtoTypeException(
+                                $"field '{field.Id}' repeats, so its value must be a list, got "
+                              + $"{sequence?.Kind ?? "Null"}");
+
+                        if (list.Items.Count > ProtoLimits.MaxRepetitions)
+                            throw new ProtoTypeException(
+                                $"field '{field.Id}': {list.Items.Count} elements exceeds the "
+                              + $"{ProtoLimits.MaxRepetitions} ceiling");
+
+                        Counts[nodeId] = list.Items.Count;
+                        List<ResolutionNode> children = [];
+                        List<FacetRef> extents = [];
+
+                        for (int i = 0; i < list.Items.Count; i++)
+                        {
+                            var elementId = $"{nodeId}[{i}]";
+                            children.AddRange(Nodes(repeat.Element, elementId, list.Items[i]));
+                            extents.Add(new FacetRef(elementId, Facet.Extent));
+                        }
+
+                        elementExtents = extents;
+                        return new FacetResult(list.Items.Count, children);
+                    }
+
+                    nodes.Add(new ResolutionNode
+                    {
+                        Id = nodeId,
+                        NotApplicable = ExpandingNotApplicable,
+
+                        DependenciesFor = f => f switch
+                        {
+                            Facet.Value => valueNeeds,
+                            Facet.Realised => [new FacetRef(nodeId, Facet.Value)],
+                            Facet.Extent => elementExtents is null
+                                ? [new FacetRef(nodeId, Facet.Realised)]
+                                : [new FacetRef(nodeId, Facet.Realised), .. elementExtents],
+                            _ => [],
+                        },
+
+                        Settle = (f, inputs) => f switch
+                        {
+                            Facet.Value => FacetResult.Of(sequence = codec.Evaluate(field, scope, evaluator, inputs)),
+                            Facet.Realised => Expand(),
+                            Facet.Extent => FacetResult.Of(Sum(elementExtents!, inputs)),
+                            _ => FacetResult.Of(null),
+                        },
+                    });
+                    break;
+                }
+
+                default:
+                {
+                    int width = field.Pattern.StaticWidth
+                        ?? throw new ProtoTypeException($"field '{field.Id}' has no static width");
+
+                    List<FacetRef> valueNeeds = literal is not null || field.Value is null
+                        ? [] : Refs(field.Value);
+
+                    nodes.Add(new ResolutionNode
+                    {
+                        Id = nodeId,
+                        NotApplicable = LeafNotApplicable,
+                        DependenciesFor = f => f == Facet.Value ? valueNeeds : [],
+
+                        Settle = (f, inputs) => f switch
+                        {
+                            Facet.Extent => FacetResult.Of(width),
+                            Facet.Value => FacetResult.Of(literal is not null
+                                ? codec.Convert(literal, field.Via, forward: true)
+                                : codec.Evaluate(field, scope, evaluator, inputs)),
+                            _ => FacetResult.Of(null),
+                        },
+                    });
+                    break;
+                }
+            }
+
+            return nodes;
+        }
+
+        /// <summary>A composite reached as a repeated element would need its own field namespace, which is
+        /// the piece that does not exist yet. Refused loudly rather than silently resolving against
+        /// whichever iteration ran last.</summary>
+        private static void Composite(Field field, ProtoValue? literal)
+        {
+            if (literal is not null)
+                throw new ProtoTypeException(
+                    $"field '{field.Id}' is a composite supplied with an element value — a repeated "
+                  + "composite needs per-element field naming, which is not built");
+        }
+
+        private EvalScope FieldsScope(IReadOnlyDictionary<FacetRef, object?> resolved)
+            => scope.Child().Set("fields", codec.FieldsRecord(resolved));
+
+        private static int Sum(IReadOnlyList<FacetRef> extents, IReadOnlyDictionary<FacetRef, object?> inputs)
+            => extents.Sum(r => Extent(inputs[r]));
+
+        private static int Extent(object? settled) => settled switch
+        {
+            int i => i,
+            long l => (int)l,
+            ProtoValue v => (int)v.AsInt(),
+            _ => throw new ProtoTypeException($"expected an extent, got {settled?.GetType().Name ?? "nothing"}"),
+        };
+
+        private static List<FacetRef> Refs(Expr expression)
+            => MessageDef.FieldReferences(expression)
+                .Select(r => new FacetRef(r.Field,
+                    r.Facet.Equals("extent", StringComparison.OrdinalIgnoreCase) ? Facet.Extent : Facet.Value))
                 .Distinct()
                 .ToList();
-
-        return new ResolutionNode
-        {
-            Id = field.Id,
-            NotApplicable = new HashSet<Facet> { Facet.Realised, Facet.Present, Facet.Emitted },
-
-            DependenciesFor = f => f == Facet.Value ? dependencies : [],
-
-            Settle = (f, inputs) => f switch
-            {
-                Facet.Extent => FacetResult.Of(field.Pattern.StaticWidth
-                    ?? throw new ProtoTypeException($"field '{field.Id}' has no static width")),
-
-                Facet.Value => FacetResult.Of(Evaluate(field, scope, evaluator, inputs)),
-
-                _ => FacetResult.Of(null),
-            },
-        };
     }
 
     private ProtoValue Evaluate(Field field, EvalScope scope, Evaluator evaluator,
@@ -176,30 +503,38 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 $"field '{field.Id}' has no value expression, so it cannot be encoded. A decode-only field "
               + "must be declared as such rather than left silent.");
 
-        // Settled facets are exposed as `fields.<id>.value` / `.extent`, so the expression that declared
-        // the dependency reads it back by the same name it used.
-        var child = scope.Child();
+        var child = scope.Child().Set("fields", FieldsRecord(resolved));
+        return Convert(evaluator.Eval(field.Value, child), field.Via, forward: true);
+    }
+
+    /// <summary>
+    /// Settled facets as <c>fields.&lt;id&gt;.value</c> / <c>.extent</c>, so an expression reads a
+    /// dependency back by the same name it used to declare it.
+    /// </summary>
+    private ProtoValue FieldsRecord(IReadOnlyDictionary<FacetRef, object?> resolved)
+    {
         Dictionary<string, ProtoValue> byField = new(StringComparer.Ordinal);
 
         foreach (var (reference, value) in resolved)
         {
-            var facet = reference.Facet == Facet.Extent ? "extent" : "value";
+            if (reference.Facet is not (Facet.Value or Facet.Extent)) continue;
+
             var slot = byField.TryGetValue(reference.NodeId, out var existing) && existing is ProtoValue.Rec r
                 ? new Dictionary<string, ProtoValue>(r.Members, StringComparer.Ordinal)
                 : new Dictionary<string, ProtoValue>(StringComparer.Ordinal);
 
-            slot[facet] = value switch
+            slot[reference.Facet == Facet.Extent ? "extent" : "value"] = value switch
             {
                 ProtoValue pv => pv,
                 int i => ProtoValue.Of((long)i),
                 long l => ProtoValue.Of(l),
                 _ => ProtoValue.Nothing,
             };
+
             byField[reference.NodeId] = new ProtoValue.Rec(slot);
         }
 
-        child.Set("fields", new ProtoValue.Rec(byField));
-        return Convert(evaluator.Eval(field.Value, child), field.Via, forward: true);
+        return new ProtoValue.Rec(byField);
     }
 
     private void Write(List<byte> output, Field field, ProtoValue value)
