@@ -136,7 +136,7 @@ public class NestedLengthCaptureTests
                                         Id = "text",
                                         Pattern = Pattern.Opaque.Measured(Expr.Parse("fields.carriedLen.value")),
                                         Value = Expr.Parse("item.text"),
-                                        Via = "unascii",
+                                        Via = "unlatin1",
                                     },
                                 ]),
 
@@ -180,7 +180,7 @@ public class NestedLengthCaptureTests
         [
             Constructed("envelope", Expr.Parse("0x30"),
                 Primitive("version", Expr.Parse("0x02"), Expr.Parse("inputs.version"), via: "minint"),
-                Primitive("community", Expr.Parse("0x04"), Expr.Parse("inputs.community"), via: "unascii"),
+                Primitive("community", Expr.Parse("0x04"), Expr.Parse("inputs.community"), via: "unlatin1"),
 
                 Constructed("operation", Expr.Parse("inputs.operationTag"),
                     Primitive("requestId", Expr.Parse("0x02"), Expr.Parse("inputs.requestId"), via: "minint"),

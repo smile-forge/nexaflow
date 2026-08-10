@@ -62,10 +62,17 @@ public sealed class ConverterTable
             (v, _) => ProtoValue.Of(Encoding.ASCII.GetBytes(v.AsText())),
             "ASCII text to octets");
 
+        // Strict in both directions, and that is the entire point of it. `Encoding.UTF8` replaces anything
+        // ill-formed with U+FFFD and carries on, so a truncated sequence, an overlong form or a raw
+        // surrogate decodes to a plausible string and then re-encodes to different octets — silently, and
+        // in the exact place a specification says the receiver must reject the message. Substituting a
+        // character for a fault is the failure mode, not the recovery.
         t.Add("utf8", ValueKinds.Bytes, ValueKinds.Text, "unutf8",
-            (v, _) => ProtoValue.Of(Encoding.UTF8.GetString(v.AsBytes())), "octets to UTF-8 text");
+            (v, _) => ProtoValue.Of(StrictUtf8.GetString(v.AsBytes())),
+            "octets to UTF-8 text; ill-formed input is an error, never a replacement character");
         t.Add("unutf8", ValueKinds.Text, ValueKinds.Bytes, "utf8",
-            (v, _) => ProtoValue.Of(Encoding.UTF8.GetBytes(v.AsText())), "UTF-8 text to octets");
+            (v, _) => ProtoValue.Of(StrictUtf8.GetBytes(v.AsText())),
+            "UTF-8 text to octets; an unpaired surrogate is an error");
 
         t.Add("latin1", ValueKinds.Bytes, ValueKinds.Text, "unlatin1",
             (v, _) => ProtoValue.Of(Encoding.Latin1.GetString(v.AsBytes())),
@@ -530,6 +537,10 @@ public sealed class ConverterTable
         };
 
     private static bool ZeroRule(IReadOnlyList<ProtoValue> args, int at) => ZeroIsEmpty(args, at);
+
+    /// <summary>UTF-8 that refuses rather than substitutes, in both directions.</summary>
+    private static readonly Encoding StrictUtf8 =
+        Encoding.GetEncoding("utf-8", EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
 
     private static byte[] ParseHex(string s)
     {

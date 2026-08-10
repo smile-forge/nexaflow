@@ -114,7 +114,7 @@ public class VariableWidthCaptureTests
                             Id = "filter",
                             Pattern = Pattern.Opaque.Measured(Expr.Parse("fields.filterLength.value")),
                             Value = Expr.Parse("item.filter"),
-                            Via = "unascii",
+                            Via = "unutf8",
                         },
                         new Field { Id = "requestedQos", Pattern = U8, Value = Expr.Parse("item.requestedQos") },
                     ]),
@@ -127,7 +127,7 @@ public class VariableWidthCaptureTests
     private static MessageDef Liveness(string id) => Framed(id);
 
     /// <summary>A length-prefixed string, which is every variable field in the connect packet.</summary>
-    private static Field[] Prefixed(string id, string? via = "unascii") =>
+    private static Field[] Prefixed(string id, string? via = "unutf8") =>
     [
         new Field { Id = $"{id}Length", Pattern = U16, Value = Expr.Parse($"fields.{id}.extent") },
         new Field
@@ -360,6 +360,53 @@ public class VariableWidthCaptureTests
     }
 
     [TestMethod]
+    public void Text_that_is_not_well_formed_is_refused_rather_than_papered_over()
+    {
+        // The standard says a receiver must reject ill-formed text here. The framework's default UTF-8
+        // does the opposite: it substitutes U+FFFD and carries on, so a truncated sequence decodes to a
+        // plausible string and re-encodes to different octets with nothing raising a word — the failure
+        // mode dressed up as recovery.
+        var codec = new MessageCodec(Connect());
+
+        foreach (var (label, broken) in ((string, byte[])[])
+        [
+            ("a truncated multi-octet sequence", [0xe2, 0x82]),
+            ("a continuation octet with nothing to continue", [0x80, 0x80]),
+            ("an overlong encoding of a character that needs one octet", [0xc0, 0xaf]),
+            ("a surrogate half, which is not a character", [0xed, 0xa0, 0x80]),
+        ])
+        {
+            var tampered = (byte[])[.. Capture(0)];
+            broken.CopyTo(tampered, 15);        // over the start of the client identifier
+
+            Assert.ThrowsExactly<System.Text.DecoderFallbackException>(() => codec.Decode(tampered), label);
+        }
+
+        // And well-formed text outside ASCII survives intact, which the previous converter could not do.
+        var message = new MessageDef
+        {
+            Id = "labelled",
+            Fields =
+            [
+                new Field { Id = "labelLength", Pattern = U16, Value = Expr.Parse("fields.label.extent") },
+                new Field
+                {
+                    Id = "label",
+                    Pattern = Pattern.Opaque.Measured(Expr.Parse("fields.labelLength.value")),
+                    Value = Expr.Parse("inputs.label"),
+                    Via = "unutf8",
+                },
+            ],
+        };
+
+        var text = new MessageCodec(message);
+        var encoded = text.Encode(Inputs(("label", ProtoValue.Of("temperatur/außen/°C"))));
+
+        Assert.AreEqual("temperatur/außen/°C", text.Decode(encoded)["label"].AsText());
+        Assert.AreEqual(21, encoded.Length - 2, "19 characters, two of which take two octets");
+    }
+
+    [TestMethod]
     public void A_flag_octet_that_contradicts_itself_is_refused_in_both_directions()
     {
         // Every packet below is structurally perfect: the right sections are present, every length is
@@ -485,7 +532,7 @@ public class VariableWidthCaptureTests
                     Id = "label",
                     Pattern = Pattern.Opaque.Measured(Expr.Parse("fields.labelLength.value")),
                     Value = Expr.Parse("inputs.label"),
-                    Via = "unascii",
+                    Via = "unutf8",
                 },
             ],
         };
