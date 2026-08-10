@@ -21,13 +21,13 @@ public static class ProtoLimits
     public const long MaxRangeBound = 65_536;
 
     /// <summary>
-    /// Most elements one repetition may realise.
+    /// How many structures may be chained from one declaration.
     ///
     /// <para>
-    /// Unlike the fuel budget this one is load-bearing, because a repetition count on decode comes from the
-    /// data: a corrupt or hostile length field is otherwise an allocation request, and it arrives before
-    /// anything has had a chance to judge the message.
+    /// Unlike the fuel budget this one is load-bearing, because on decode the answer to "is there another"
+    /// comes from the data: a corrupt or hostile bound is otherwise an allocation request, and it arrives
+    /// before anything has had a chance to judge the message.
     /// </para>
     /// </summary>
-    public const long MaxRepetitions = 65_536;
+    public const long MaxChainedInstances = 65_536;
 }

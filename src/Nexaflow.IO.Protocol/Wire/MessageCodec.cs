@@ -31,9 +31,9 @@ public sealed record DecodeResult(IReadOnlyDictionary<string, ProtoValue> Captur
 /// <para>
 /// Encode runs through the <see cref="Resolver"/>, with dependencies derived from each field's expression,
 /// so a value computed from another field's extent schedules itself — no placeholder, no back-patch pass,
-/// and a genuine cycle reported as one before any octet is produced. Regions, choices and repetitions come
-/// into existence through <see cref="Facet.Realised"/>, so a branch that never expanded is a named failure
-/// rather than a short message that looks structurally valid.
+/// and a genuine cycle reported as one before any octet is produced. Regions, choices and chained
+/// structures come into existence through <see cref="Facet.Realised"/>, so a branch that never expanded is
+/// a named failure rather than a short message that looks structurally valid.
 /// </para>
 ///
 /// <para>
@@ -54,9 +54,9 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     // ── Decode ────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Reads the message. <paramref name="scope"/> supplies anything a count or discriminator expression
-    /// reads besides <c>fields.*</c>; the field vocabulary is built up as the walk proceeds, so a
-    /// discriminator sees every field ahead of it and none behind.
+    /// Reads the message. <paramref name="scope"/> supplies anything a bound or continuation expression
+    /// reads besides <c>fields.*</c>; the field vocabulary is built up as the walk proceeds, so an
+    /// expression sees every field ahead of it and none behind.
     /// </summary>
     public DecodeResult Decode(ReadOnlySpan<byte> bytes, EvalScope? scope = null)
     {
@@ -73,7 +73,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         return new DecodeResult(reading.Captures, reading.Spans);
     }
 
-    /// <summary>The live state of one decode: where we are, what has been bound, what it cost.</summary>
+    /// <summary>The live state of one decode: where we are, how far we may go, and what has been bound.</summary>
     private sealed class Reading(byte[] bytes, Evaluator evaluator, EvalScope scope)
     {
         public readonly byte[] Bytes = bytes;
@@ -81,34 +81,61 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         public readonly Dictionary<string, ProtoValue> Captures = new(StringComparer.Ordinal);
         public readonly List<WireSpan> Spans = [];
 
-        /// <summary>Field id → what it read and what it cost. Deliberately keyed by <i>id</i> rather than
-        /// capture name: this is what expressions address, and a repeated element overwrites its own entry
-        /// each iteration, which is exactly loop-variable behaviour.</summary>
-        private readonly Dictionary<string, (ProtoValue Value, int Extent)> _facets = new(StringComparer.Ordinal);
+        /// <summary>Field scopes, outermost first. A chain instance pushes one, so instance 2's names are
+        /// its own and anything it does not declare resolves outward.</summary>
+        private readonly List<Dictionary<string, (ProtoValue Value, int Extent)>> _scopes =
+            [new(StringComparer.Ordinal)];
 
-        public void Note(string fieldId, ProtoValue value, int extent) => _facets[fieldId] = (value, extent);
+        /// <summary>Region bounds, outermost first. The message itself is the outermost.</summary>
+        private readonly List<int> _limits = [bytes.Length];
 
-        public ProtoValue Eval(Expr expression)
+        /// <summary>How far the innermost enclosing region runs.</summary>
+        public int Limit => _limits[^1];
+
+        /// <summary>Unread octets left in that region — what "is there another" usually asks about.</summary>
+        public int Room => Limit - Offset;
+
+        public void Note(string fieldId, ProtoValue value, int extent) => _scopes[^1][fieldId] = (value, extent);
+
+        public void EnterScope() => _scopes.Add(new Dictionary<string, (ProtoValue, int)>(StringComparer.Ordinal));
+        public void LeaveScope() => _scopes.RemoveAt(_scopes.Count - 1);
+
+        public void EnterRegion(string fieldId, int limit)
+        {
+            if (limit > Limit)
+                throw new ProtoTypeException(
+                    $"region '{fieldId}' declares that it runs to offset {limit}, which is past the "
+                  + $"{Limit} its own container allows");
+
+            _limits.Add(limit);
+        }
+
+        public void LeaveRegion() => _limits.RemoveAt(_limits.Count - 1);
+
+        public ProtoValue Eval(Expr expression, params (string Root, ProtoValue Value)[] extra)
         {
             Dictionary<string, ProtoValue> byField = new(StringComparer.Ordinal);
 
-            foreach (var (id, facet) in _facets)
-                byField[id] = EvalScope.Record(("value", facet.Value),
-                                               ("extent", ProtoValue.Of((long)facet.Extent)));
+            // Outermost first, so an instance's own names shadow the ones around it.
+            foreach (var level in _scopes)
+                foreach (var (id, facet) in level)
+                    byField[id] = EvalScope.Record(("value", facet.Value),
+                                                   ("extent", ProtoValue.Of((long)facet.Extent)));
 
-            return evaluator.Eval(expression, scope.Child().Set("fields", new ProtoValue.Rec(byField)));
+            var child = scope.Child().Set("fields", new ProtoValue.Rec(byField));
+            foreach (var (root, value) in extra) child.Set(root, value);
+            return evaluator.Eval(expression, child);
         }
     }
 
     /// <summary>
     /// Reads one field, composites included.
     /// </summary>
-    /// <param name="path">Name used for spans. Qualified inside a repetition, because
-    /// <c>registers[1]</c> and <c>registers[2]</c> are not the same octets and a breakdown that calls them
-    /// both <c>register</c> cannot be checked against a capture.</param>
-    /// <param name="exposed">Whether this field's binding is a message-level capture. A repeated element's
-    /// members are not: they belong to the element, and flattening them leaves only whichever iteration
-    /// happened to run last.</param>
+    /// <param name="path">Name used for spans. Qualified inside a chain, because instance 1 and instance 2
+    /// are not the same octets and a breakdown that calls them both by the element's name cannot be
+    /// checked against a capture.</param>
+    /// <param name="exposed">Whether this field's binding is a message-level capture. A chained
+    /// structure's members are not: they belong to the instance.</param>
     private ProtoValue Read(Field field, Reading r, string path, bool exposed)
     {
         switch (field.Pattern)
@@ -116,10 +143,29 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             case Pattern.Group group:
             {
                 int start = r.Offset;
+
+                // A declared bound turns the region into a boundary rather than a measurement, which is
+                // what gives "is there room for another" something to mean.
+                if (group.Extent is { } declared)
+                    r.EnterRegion(field.Id, start + Bounded(field, r.Eval(declared).AsInt(), r));
+
                 Dictionary<string, ProtoValue> members = new(StringComparer.Ordinal);
 
                 foreach (var child in group.Fields)
                     members[child.CaptureName] = Read(child, r, ChildPath(path, child, exposed), exposed);
+
+                if (group.Extent is not null)
+                {
+                    // Consuming less than the region declared is not a harmless remainder: it means the
+                    // declaration and the data disagree about what is in here, and whatever is left will
+                    // be read as the next field of the container.
+                    if (r.Offset != r.Limit)
+                        throw new ProtoTypeException(
+                            $"region '{field.Id}' declared {r.Limit - start} octet(s) but its fields "
+                          + $"consumed {r.Offset - start}");
+
+                    r.LeaveRegion();
+                }
 
                 return Bind(field, r, new ProtoValue.Rec(members), r.Offset - start, exposed);
             }
@@ -138,28 +184,60 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 return Bind(field, r, ProtoValue.Of(arm.Name), r.Offset - start, exposed);
             }
 
-            case Pattern.Repeat repeat:
+            case Pattern.Chain chain:
             {
-                long count = r.Eval(repeat.Count).AsInt();
-
-                if (count < 0 || count > ProtoLimits.MaxRepetitions)
-                    throw new ProtoTypeException(
-                        $"field '{field.Id}': the count resolved to {count}, which is outside 0.."
-                      + $"{ProtoLimits.MaxRepetitions}. A corrupt or hostile length must not be able to buy "
-                      + "an unbounded allocation.");
-
                 int start = r.Offset;
-                List<ProtoValue> items = [];
+                List<ProtoValue> instances = [];
 
-                for (int i = 0; i < count; i++)
-                    items.Add(Read(repeat.Element, r, $"{path}[{i}]", exposed: false));
+                while (Continues(field, chain, r, instances.Count))
+                {
+                    if (instances.Count >= ProtoLimits.MaxChainedInstances)
+                        throw new ProtoTypeException(
+                            $"field '{field.Id}': the chain reached {ProtoLimits.MaxChainedInstances} "
+                          + "instances, which is its ceiling. A corrupt or hostile bound must not be able "
+                          + "to buy an unbounded allocation.");
 
-                return Bind(field, r, new ProtoValue.List(items), r.Offset - start, exposed);
+                    int before = r.Offset;
+
+                    // The instance's own field scope. This is what lets it carry its own length prefix:
+                    // `fields.body.extent` inside instance 2 means instance 2's, not instance 1's and not
+                    // an ambiguous document-global span.
+                    r.EnterScope();
+                    var instance = Read(chain.Element, r, $"{path}[{instances.Count}]", exposed: false);
+                    r.LeaveScope();
+
+                    if (r.Offset == before)
+                        throw new ProtoTypeException(
+                            $"field '{field.Id}': an instance consumed no octets, so the continuation "
+                          + "condition would never stop being true");
+
+                    instances.Add(instance);
+                }
+
+                return Bind(field, r, new ProtoValue.List(instances), r.Offset - start, exposed);
             }
 
             default:
                 return ReadLeaf(field, r, path, exposed);
         }
+    }
+
+    /// <summary>
+    /// Is there another structure? Asked before each instance, with <c>ordinal</c> and <c>room</c> bound —
+    /// so "as many as fit in the region" and "as many as the count says" are the same construct.
+    /// </summary>
+    private static bool Continues(Field field, Pattern.Chain chain, Reading r, int ordinal)
+    {
+        var answer = r.Eval(chain.Continues,
+            ("ordinal", ProtoValue.Of((long)ordinal)),
+            ("room", ProtoValue.Of((long)r.Room)));
+
+        if (answer is not ProtoValue.Bool)
+            throw new ProtoTypeException(
+                $"field '{field.Id}': the continuation must answer whether another structure follows, "
+              + $"which is a Bool — got {answer.Kind}");
+
+        return answer.AsBool();
     }
 
     private static string ChildPath(string path, Field child, bool exposed)
@@ -172,6 +250,12 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         return value;
     }
 
+    private static int Bounded(Field field, long extent, Reading r)
+        => extent >= 0 && extent <= r.Bytes.Length
+            ? (int)extent
+            : throw new ProtoTypeException(
+                $"field '{field.Id}': {extent} cannot be an extent inside a {r.Bytes.Length}-octet message");
+
     private ProtoValue ReadLeaf(Field field, Reading r, string path, bool exposed)
     {
         // The two shapes whose width is not in the declaration. A continuation chain measures itself; an
@@ -179,15 +263,15 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         int width = field.Pattern switch
         {
             Pattern.Varint varint => ScanContinuation(field, varint, r),
-            Pattern.Opaque { Length: { } length } => Recovered(field, length, r),
+            Pattern.Opaque { Length: { } length } => Bounded(field, r.Eval(length).AsInt(), r),
             _ => field.Pattern.StaticWidth
                  ?? throw new ProtoTypeException($"field '{field.Id}' has no way to determine its width"),
         };
 
-        if (r.Offset + width > r.Bytes.Length)
+        if (r.Offset + width > r.Limit)
             throw new ProtoTypeException(
-                $"field '{field.Id}' needs {width} octet(s) at offset {r.Offset}, but the message is "
-              + $"{r.Bytes.Length} octets — the definition and the data disagree");
+                $"field '{field.Id}' needs {width} octet(s) at offset {r.Offset}, but only {r.Room} "
+              + "remain in the enclosing region — the definition and the data disagree");
 
         var run = r.Bytes.AsSpan(r.Offset, width);
         int at = r.Offset;
@@ -265,10 +349,10 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     {
         for (int n = 0; n < varint.MaxOctets; n++)
         {
-            if (r.Offset + n >= r.Bytes.Length)
+            if (r.Offset + n >= r.Limit)
                 throw new ProtoTypeException(
                     $"field '{field.Id}': the continuation chain at offset {r.Offset} runs off the end of "
-                  + $"a {r.Bytes.Length}-octet message");
+                  + "its region");
 
             if ((r.Bytes[r.Offset + n] & 0x80) == 0) return n + 1;
         }
@@ -276,18 +360,6 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         throw new ProtoTypeException(
             $"field '{field.Id}': the continuation chain at offset {r.Offset} is still continuing after "
           + $"{varint.MaxOctets} octet(s), which is its declared bound");
-    }
-
-    private static int Recovered(Field field, Expr declared, Reading r)
-    {
-        long length = r.Eval(declared).AsInt();
-
-        if (length < 0 || length > r.Bytes.Length)
-            throw new ProtoTypeException(
-                $"field '{field.Id}': the length resolved to {length}, which cannot be an extent inside a "
-              + $"{r.Bytes.Length}-octet message");
-
-        return (int)length;
     }
 
     /// <summary>
@@ -299,9 +371,11 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     /// duplicate quietly picks one family's answer.
     /// </para>
     /// </summary>
-    private byte[] Pack(long value, Pattern.Varint varint) => Through("base128", ProtoValue.Of(value), varint).AsBytes();
+    private byte[] Pack(long value, Pattern.Varint varint)
+        => Through("base128", ProtoValue.Of(value), varint).AsBytes();
 
-    private ProtoValue Unpack(byte[] octets, Pattern.Varint varint) => Through("unbase128", ProtoValue.Of(octets), varint);
+    private ProtoValue Unpack(byte[] octets, Pattern.Varint varint)
+        => Through("unbase128", ProtoValue.Of(octets), varint);
 
     private ProtoValue Through(string converter, ProtoValue value, Pattern.Varint varint)
     {
@@ -320,11 +394,12 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     /// </summary>
     public byte[] Encode(EvalScope scope)
     {
-        var encoder = new Encoder(this, scope, new Evaluator(_converters));
+        var encoder = new Encoder(this, new Evaluator(_converters));
         var resolver = new Resolver();
+        var frame = NameFrame.Root(_message.Fields, scope);
 
         foreach (var field in _message.Fields)
-            foreach (var node in encoder.Nodes(field, field.Id, literal: null))
+            foreach (var node in encoder.Nodes(field, frame))
                 resolver.Add(node);
 
         var settled = resolver.Resolve();
@@ -332,26 +407,47 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         // Position is a linearisation, not a fixpoint: one ordered sweep once extents have settled, now
         // through the realised shape rather than a flat list.
         var output = new List<byte>();
-        foreach (var field in _message.Fields) Emit(field, field.Id, encoder, settled, output);
+        foreach (var field in _message.Fields) Emit(field, frame, encoder, settled, output);
         return [.. output];
     }
 
-    private void Emit(Field field, string nodeId, Encoder encoder,
+    /// <summary>
+    /// One field scope on the encode side: which ids belong to it, what to prefix them with in the
+    /// resolver's flat namespace, and the evaluation scope its expressions see.
+    /// </summary>
+    private sealed record NameFrame(string Prefix, IReadOnlySet<string> Local, EvalScope Scope, NameFrame? Outer)
+    {
+        public static NameFrame Root(IReadOnlyList<Field> fields, EvalScope scope)
+            => new("", MessageDef.ScopeIds(fields), scope, null);
+
+        /// <summary>An instance's scope: its own names prefixed, everything else still reachable outward,
+        /// and <c>item</c> bound to the structure being written.</summary>
+        public NameFrame Instance(Field element, string prefix, ProtoValue item)
+            => new(prefix, MessageDef.ScopeIds([element]), Scope.Child().Set("item", item), this);
+
+        public string NodeId(string fieldId) => Local.Contains(fieldId) ? Prefix + fieldId : Outward(fieldId);
+
+        private string Outward(string fieldId) => Outer?.NodeId(fieldId) ?? fieldId;
+    }
+
+    private void Emit(Field field, NameFrame frame, Encoder encoder,
                       IReadOnlyDictionary<FacetRef, object?> settled, List<byte> output)
     {
+        var nodeId = frame.Prefix + field.Id;
+
         switch (field.Pattern)
         {
             case Pattern.Group group:
-                foreach (var child in group.Fields) Emit(child, child.Id, encoder, settled, output);
+                foreach (var child in group.Fields) Emit(child, frame, encoder, settled, output);
                 break;
 
             case Pattern.Choice:
-                foreach (var child in encoder.Chosen[nodeId].Fields) Emit(child, child.Id, encoder, settled, output);
+                foreach (var child in encoder.Chosen[nodeId].Fields) Emit(child, frame, encoder, settled, output);
                 break;
 
-            case Pattern.Repeat repeat:
-                for (int i = 0; i < encoder.Counts[nodeId]; i++)
-                    Emit(repeat.Element, $"{nodeId}[{i}]", encoder, settled, output);
+            case Pattern.Chain chain:
+                foreach (var instance in encoder.Instances[nodeId])
+                    Emit(chain.Element, instance, encoder, settled, output);
                 break;
 
             default:
@@ -364,13 +460,13 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     /// Builds the resolution nodes for one encode, and records which shape each composite settled on so the
     /// emission sweep walks the same tree the resolver did.
     /// </summary>
-    private sealed class Encoder(MessageCodec codec, EvalScope scope, Evaluator evaluator)
+    private sealed class Encoder(MessageCodec codec, Evaluator evaluator)
     {
-        /// <summary>Choice field id → the arm that was selected.</summary>
+        /// <summary>Choice node id → the arm that was selected.</summary>
         public readonly Dictionary<string, Arm> Chosen = new(StringComparer.Ordinal);
 
-        /// <summary>Repetition field id → how many elements were realised.</summary>
-        public readonly Dictionary<string, int> Counts = new(StringComparer.Ordinal);
+        /// <summary>Chain node id → one frame per instance, in order.</summary>
+        public readonly Dictionary<string, List<NameFrame>> Instances = new(StringComparer.Ordinal);
 
         private static readonly HashSet<Facet> LeafNotApplicable =
             [Facet.Realised, Facet.Present, Facet.Emitted];
@@ -380,18 +476,17 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
         private static readonly HashSet<Facet> ExpandingNotApplicable = [Facet.Present, Facet.Emitted];
 
-        public List<ResolutionNode> Nodes(Field field, string nodeId, ProtoValue? literal)
+        public List<ResolutionNode> Nodes(Field field, NameFrame frame)
         {
+            var nodeId = frame.Prefix + field.Id;
             List<ResolutionNode> nodes = [];
 
             switch (field.Pattern)
             {
                 case Pattern.Group group:
                 {
-                    Composite(field, literal);
-
-                    foreach (var child in group.Fields) nodes.AddRange(Nodes(child, child.Id, null));
-                    var extents = group.Fields.Select(c => new FacetRef(c.Id, Facet.Extent)).ToList();
+                    foreach (var child in group.Fields) nodes.AddRange(Nodes(child, frame));
+                    var extents = group.Fields.Select(c => new FacetRef(frame.NodeId(c.Id), Facet.Extent)).ToList();
 
                     nodes.Add(new ResolutionNode
                     {
@@ -405,9 +500,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
                 case Pattern.Choice choice:
                 {
-                    Composite(field, literal);
-
-                    var keyNeeds = Refs(choice.Key);
+                    var keyNeeds = Refs(choice.Key, frame);
                     List<FacetRef>? armExtents = null;
 
                     nodes.Add(new ResolutionNode
@@ -431,14 +524,15 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                             {
                                 case Facet.Realised:
                                 {
-                                    long key = evaluator.Eval(choice.Key, FieldsScope(inputs)).AsInt();
+                                    long key = evaluator.Eval(choice.Key, Fields(frame, inputs)).AsInt();
                                     var arm = choice.Select(key, field.Id);
 
                                     Chosen[nodeId] = arm;
-                                    armExtents = arm.Fields.Select(c => new FacetRef(c.Id, Facet.Extent)).ToList();
+                                    armExtents = arm.Fields
+                                        .Select(c => new FacetRef(frame.NodeId(c.Id), Facet.Extent)).ToList();
 
                                     return new FacetResult(arm.Name,
-                                        [.. arm.Fields.SelectMany(c => Nodes(c, c.Id, null))]);
+                                        [.. arm.Fields.SelectMany(c => Nodes(c, frame))]);
                                 }
 
                                 case Facet.Value: return FacetResult.Of(ProtoValue.Of(Chosen[nodeId].Name));
@@ -450,40 +544,44 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                     break;
                 }
 
-                case Pattern.Repeat repeat:
+                case Pattern.Chain chain:
                 {
-                    Composite(field, literal);
+                    List<FacetRef> valueNeeds = field.Value is null ? [] : Refs(field.Value, frame);
+                    List<FacetRef>? instanceExtents = null;
+                    ProtoValue? structures = null;
 
-                    List<FacetRef> valueNeeds = field.Value is null ? [] : Refs(field.Value);
-                    List<FacetRef>? elementExtents = null;
-                    ProtoValue? sequence = null;
-
-                    // Realising the elements is what publishes their extents back to this node, which is
-                    // why the count cannot be a dependency of the extent: it is a result of it.
+                    // Realising the instances is what publishes their extents back to this node, which is
+                    // why the count cannot be a prerequisite of the extent: it is a result of it.
                     FacetResult Expand()
                     {
-                        if (sequence is not ProtoValue.List list)
+                        if (structures is not ProtoValue.List list)
                             throw new ProtoTypeException(
-                                $"field '{field.Id}' repeats, so its value must be a list, got "
-                              + $"{sequence?.Kind ?? "Null"}");
+                                $"field '{field.Id}' chains, so its value must be a list of the structures "
+                              + $"to write, got {structures?.Kind ?? "Null"}");
 
-                        if (list.Items.Count > ProtoLimits.MaxRepetitions)
+                        if (list.Items.Count > ProtoLimits.MaxChainedInstances)
                             throw new ProtoTypeException(
-                                $"field '{field.Id}': {list.Items.Count} elements exceeds the "
-                              + $"{ProtoLimits.MaxRepetitions} ceiling");
+                                $"field '{field.Id}': {list.Items.Count} instances exceeds the "
+                              + $"{ProtoLimits.MaxChainedInstances} ceiling");
 
-                        Counts[nodeId] = list.Items.Count;
                         List<ResolutionNode> children = [];
                         List<FacetRef> extents = [];
+                        List<NameFrame> frames = [];
 
                         for (int i = 0; i < list.Items.Count; i++)
                         {
-                            var elementId = $"{nodeId}[{i}]";
-                            children.AddRange(Nodes(repeat.Element, elementId, list.Items[i]));
-                            extents.Add(new FacetRef(elementId, Facet.Extent));
+                            // Each instance is a separate structure and its names are its own. `item` is
+                            // where its values come from; anything it does not declare resolves outward,
+                            // so it can still read the message metadata around it.
+                            var instance = frame.Instance(chain.Element, $"{nodeId}[{i}].", list.Items[i]);
+
+                            children.AddRange(Nodes(chain.Element, instance));
+                            extents.Add(new FacetRef(instance.Prefix + chain.Element.Id, Facet.Extent));
+                            frames.Add(instance);
                         }
 
-                        elementExtents = extents;
+                        Instances[nodeId] = frames;
+                        instanceExtents = extents;
                         return new FacetResult(list.Items.Count, children);
                     }
 
@@ -496,17 +594,17 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                         {
                             Facet.Value => valueNeeds,
                             Facet.Realised => [new FacetRef(nodeId, Facet.Value)],
-                            Facet.Extent => elementExtents is null
+                            Facet.Extent => instanceExtents is null
                                 ? [new FacetRef(nodeId, Facet.Realised)]
-                                : [new FacetRef(nodeId, Facet.Realised), .. elementExtents],
+                                : [new FacetRef(nodeId, Facet.Realised), .. instanceExtents],
                             _ => [],
                         },
 
                         Settle = (f, inputs) => f switch
                         {
-                            Facet.Value => FacetResult.Of(sequence = codec.Evaluate(field, scope, evaluator, inputs)),
+                            Facet.Value => FacetResult.Of(structures = codec.Evaluate(field, frame, evaluator, inputs)),
                             Facet.Realised => Expand(),
-                            Facet.Extent => FacetResult.Of(Sum(elementExtents!, inputs)),
+                            Facet.Extent => FacetResult.Of(Sum(instanceExtents!, inputs)),
                             _ => FacetResult.Of(null),
                         },
                     });
@@ -515,13 +613,11 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
                 default:
                 {
-                    List<FacetRef> valueNeeds = literal is not null || field.Value is null
-                        ? [] : Refs(field.Value);
+                    List<FacetRef> valueNeeds = field.Value is null ? [] : Refs(field.Value, frame);
 
-                    // The one edge step 4 never drew. A fixed width is axiomatic and settles with no
-                    // prerequisites; a continuation chain or a recovered octet run cannot be measured
-                    // until it is known, so `Extent` declares a dependency on `Value` and the worklist
-                    // does the rest. No pass, no placeholder, no widen-and-retry.
+                    // The edge a fixed width does not need. A continuation chain or a recovered octet run
+                    // cannot be measured until it is known, so `Extent` declares a dependency on `Value`
+                    // and the worklist does the rest. No pass, no placeholder, no widen-and-retry.
                     int? fixedWidth = field.Pattern.StaticWidth;
                     ProtoValue? settledValue = null;
 
@@ -540,9 +636,8 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                         Settle = (f, inputs) => f switch
                         {
                             Facet.Extent => FacetResult.Of(fixedWidth ?? codec.Measure(field, settledValue)),
-                            Facet.Value => FacetResult.Of(settledValue = literal is not null
-                                ? codec.Convert(literal, field.Via, forward: true)
-                                : codec.Evaluate(field, scope, evaluator, inputs)),
+                            Facet.Value => FacetResult.Of(
+                                settledValue = codec.Evaluate(field, frame, evaluator, inputs)),
                             _ => FacetResult.Of(null),
                         },
                     });
@@ -553,19 +648,8 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             return nodes;
         }
 
-        /// <summary>A composite reached as a repeated element would need its own field namespace, which is
-        /// the piece that does not exist yet. Refused loudly rather than silently resolving against
-        /// whichever iteration ran last.</summary>
-        private static void Composite(Field field, ProtoValue? literal)
-        {
-            if (literal is not null)
-                throw new ProtoTypeException(
-                    $"field '{field.Id}' is a composite supplied with an element value — a repeated "
-                  + "composite needs per-element field naming, which is not built");
-        }
-
-        private EvalScope FieldsScope(IReadOnlyDictionary<FacetRef, object?> resolved)
-            => scope.Child().Set("fields", codec.FieldsRecord(resolved));
+        private EvalScope Fields(NameFrame frame, IReadOnlyDictionary<FacetRef, object?> resolved)
+            => frame.Scope.Child().Set("fields", codec.FieldsRecord(frame, resolved));
 
         private static int Sum(IReadOnlyList<FacetRef> extents, IReadOnlyDictionary<FacetRef, object?> inputs)
             => extents.Sum(r => Extent(inputs[r]));
@@ -578,15 +662,17 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             _ => throw new ProtoTypeException($"expected an extent, got {settled?.GetType().Name ?? "nothing"}"),
         };
 
-        private static List<FacetRef> Refs(Expr expression)
+        /// <summary>The facets an expression reads, resolved through the scope it was written in — so
+        /// <c>fields.body</c> inside instance 2 names instance 2's region.</summary>
+        private static List<FacetRef> Refs(Expr expression, NameFrame frame)
             => MessageDef.FieldReferences(expression)
-                .Select(r => new FacetRef(r.Field,
+                .Select(r => new FacetRef(frame.NodeId(r.Field),
                     r.Facet.Equals("extent", StringComparison.OrdinalIgnoreCase) ? Facet.Extent : Facet.Value))
                 .Distinct()
                 .ToList();
     }
 
-    private ProtoValue Evaluate(Field field, EvalScope scope, Evaluator evaluator,
+    private ProtoValue Evaluate(Field field, NameFrame frame, Evaluator evaluator,
                                 IReadOnlyDictionary<FacetRef, object?> resolved)
     {
         if (field.Value is null)
@@ -594,15 +680,15 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 $"field '{field.Id}' has no value expression, so it cannot be encoded. A decode-only field "
               + "must be declared as such rather than left silent.");
 
-        var child = scope.Child().Set("fields", FieldsRecord(resolved));
+        var child = frame.Scope.Child().Set("fields", FieldsRecord(frame, resolved));
         return Convert(evaluator.Eval(field.Value, child), field.Via, forward: true);
     }
 
     /// <summary>
-    /// Settled facets as <c>fields.&lt;id&gt;.value</c> / <c>.extent</c>, so an expression reads a
-    /// dependency back by the same name it used to declare it.
+    /// Settled facets as <c>fields.&lt;id&gt;.value</c> / <c>.extent</c>, keyed by the name the expression
+    /// used rather than by the resolver's qualified node id — so a dependency reads back as it was written.
     /// </summary>
-    private ProtoValue FieldsRecord(IReadOnlyDictionary<FacetRef, object?> resolved)
+    private ProtoValue FieldsRecord(NameFrame frame, IReadOnlyDictionary<FacetRef, object?> resolved)
     {
         Dictionary<string, ProtoValue> byField = new(StringComparer.Ordinal);
 
@@ -610,7 +696,9 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         {
             if (reference.Facet is not (Facet.Value or Facet.Extent)) continue;
 
-            var slot = byField.TryGetValue(reference.NodeId, out var existing) && existing is ProtoValue.Rec r
+            var name = Unqualified(reference.NodeId, frame);
+
+            var slot = byField.TryGetValue(name, out var existing) && existing is ProtoValue.Rec r
                 ? new Dictionary<string, ProtoValue>(r.Members, StringComparer.Ordinal)
                 : new Dictionary<string, ProtoValue>(StringComparer.Ordinal);
 
@@ -622,11 +710,16 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 _ => ProtoValue.Nothing,
             };
 
-            byField[reference.NodeId] = new ProtoValue.Rec(slot);
+            byField[name] = new ProtoValue.Rec(slot);
         }
 
         return new ProtoValue.Rec(byField);
     }
+
+    private static string Unqualified(string nodeId, NameFrame frame)
+        => frame.Prefix.Length > 0 && nodeId.StartsWith(frame.Prefix, StringComparison.Ordinal)
+            ? nodeId[frame.Prefix.Length..]
+            : nodeId;
 
     /// <summary>How many octets a value-dependent shape will occupy. Measured by producing the octets, so
     /// the extent and the emission cannot disagree.</summary>

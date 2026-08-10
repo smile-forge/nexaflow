@@ -98,7 +98,8 @@ Each step is independently testable against a named capture, earliest-falsifying
 | 2 ✅ | Scalars, signed scalars, bit groups, opaque spans; decode | **NTP A+B decode, T1** |
 | 3 ✅ | Encode path through the resolver; dependencies derived from expressions | **NTP A+B re-encode, byte-exact T2** |
 | 4 ✅ | Regions, `Choice` with masked keysets, `Repeat`; realisation-driven encode | **Modbus ×3, T2** |
-| 5 ◐ | Continuation-encoded integer, recovered-length span; extent as a function of value | **MQTT ×4** — ×2 blocked, below |
+| 5 ✅ | Continuation-encoded integer, recovered-length span; extent as a function of value | MQTT ×4 |
+| 5b ✅ | **Chaining** replaces repetition; regions become decode boundaries; presence is an empty arm | **MQTT ×6** |
 | 6 | `lp` + `LenSpec` + `group` + nested lengths | **SNMP 73 B + 337 B from one document — go/no-go gate** |
 | 7 | `fold` on the decode side, `present` | CoAP ×3, T2 + the empty-vs-absent T1 pair |
 | 8–13 | sugar, offset tables, text path, checksums, deep nesting | DHCP, mDNS, SSDP, NTP-C, TLS, BACnet |
@@ -148,23 +149,47 @@ wrong: a liveness probe has no body, its region measures zero, and that zero is 
 must emit. Rejecting it would have forced a second framing declaration for the empty case. Caught by the
 shortest capture in the corpus.
 
-### Where it stopped, and why
+## Repetition was the wrong notion
 
-Two of the six MQTT captures are deliberately absent rather than approximated, and both are about
-repetition:
+Step 5 stopped two captures short, and the reason turned out to be the construct rather than what was
+missing from it.
 
-* **The element count is sometimes nowhere in the message.** A subscribe payload is "as many records as fit
-  in the frame". That is not a count expression — record count is not a function of byte count once records
-  vary in length — so `Repeat` needs a second termination mode, *until the enclosing region is exhausted*.
-  Which in turn needs a region to be a **decode boundary** and not only an encode measurement: today a
-  region measures its children on the way out and is transparent on the way in, so there is nothing for
-  "exhausted" to mean. The grant list is expressible only because its elements are one octet each.
-* **A repeated composite still has no field names.** Refused at step 4 and still refused. Its fields would
-  need per-element naming, and until they have it an expression inside the element resolves against
-  whichever iteration ran last.
+A repetition says *N of the same thing, addressed by index*. No protocol on the wire means that. Space is
+scarce, so what looks like a repeat is a second structure with the same shape and different values, and
+every instance is an entry someone wants to name — this register, the grant for this topic, the value at
+this identifier. Index is packing, not identity; a list of interchangeable elements is a description
+written after the fact, and it discards the thing you actually wanted.
 
-The connect packet needs a third thing — `present`, build-order step 7 — since 78% of its octets exist only
-because of bits in a flags octet 22 positions earlier.
+So `Repeat(element, count)` became **`Chain(element, continues)`**: a structure that may be followed by
+another of the same shape, with the question asked *before each instance* rather than answered once before
+any of them. Three consequences, all mechanical:
+
+**"As many as fit" becomes statable.** It never was as a count — once structures vary in length their
+number is not a function of the byte count. As a continuation it is just `room > 0`, and a declared count
+is `ordinal < fields.count.value`. One construct, and the count is now one way of answering the question
+rather than the definition of the construct.
+
+**A region had to become a decode boundary.** `room` needs something to be the end of. Regions measured
+their children on the way out and were transparent on the way in; they now carry an optional decode-side
+extent, which is what a length field is *for* when reading. That also bought the consumption check — a
+region whose fields do not fill it is a disagreement between the declaration and the data, not a remainder
+to be passed to whatever comes next.
+
+**Each instance has its own field scope.** This is what makes a structure carrying its own length prefix
+expressible, which the corpus recorded as blocking: a document-global span name means instance 2's length
+refers to instance 1's region, or is cyclic. `fields.filter.extent` inside instance 2 now means instance
+2's, and names an instance does not declare resolve outward, so it can still read the message metadata
+around it. Ids are unique per scope rather than per message.
+
+**And presence needed no construct at all.** A section that exists only because a bit says so is a choice
+between two packings, one of which is empty — which works because an empty region measures zero, decided
+an hour earlier for the liveness probe. Exhaustiveness still holds: a discriminator reading a named bit run
+has a range the engine can look up, so a one-bit flag has exactly two answers and both must be given.
+
+All six MQTT captures now round-trip byte-exactly with every length withheld from the inputs — the outer
+one, all six inside the connect packet, and the per-structure ones in the subscribe payload. Clearing the
+will flag drops 94 octets *and* takes the outer length from its two-octet form back to one: two derivations
+moving together, neither written down anywhere.
 
 ## What building step 4 settled
 

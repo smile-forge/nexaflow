@@ -121,7 +121,18 @@ public abstract record Pattern
     /// be asked.
     /// </para>
     /// </summary>
-    public sealed record Group(IReadOnlyList<Field> Fields) : Pattern;
+    /// <param name="Extent">
+    /// The decode-side bound, where the region has one.
+    ///
+    /// <para>
+    /// A region measures its children on the way out; on the way in it is transparent unless something
+    /// already read says how far it runs. Declaring that turns the region into a <b>boundary</b>, which is
+    /// what gives "is there room for another" a meaning — and what lets a structure that runs to the end
+    /// of its container terminate at all. The same direction-asymmetry as everywhere else: one side has
+    /// the data, the other has to be told.
+    /// </para>
+    /// </param>
+    public sealed record Group(IReadOnlyList<Field> Fields, Expr? Extent = null) : Pattern;
 
     /// <summary>
     /// One of several packings, selected by a discriminator.
@@ -154,25 +165,39 @@ public abstract record Pattern
     }
 
     /// <summary>
-    /// N copies of one element.
+    /// A structure that may be followed by another of the same shape.
     ///
     /// <para>
-    /// The one place the two directions genuinely differ, and it is inherent rather than a shortcut: on
-    /// encode the collection exists and its length <i>is</i> the count, while on decode the count has to be
-    /// recovered from something already read. So <paramref name="Count"/> is the decode-side derivation
-    /// and the field's own value expression is the encode-side source; neither is a restatement of the
-    /// other, and there is no second document to keep in step.
+    /// Deliberately <b>not</b> a repetition. A repetition says "N of the same thing, addressed by index",
+    /// and no protocol on the wire means that: space is scarce, so what looks like a repeat is a second
+    /// structure with the same shape and different values, and every instance is an entry someone wants
+    /// to name — this register, the grant for this topic, the value at this identifier. Index is packing,
+    /// not identity.
     /// </para>
     ///
     /// <para>
-    /// Note which way round the dependency falls on encode: a byte-count field ahead of the repetition
-    /// reads <c>fields.&lt;repeat&gt;.extent</c>, so the count flows out of the data rather than into it.
-    /// Had the count been declared as the shared truth in both directions, that field would depend on the
-    /// repetition and the repetition on that field — a genuine cycle, and the reason the asymmetry is
-    /// correct rather than merely convenient.
+    /// The mechanical consequence is what makes the distinction worth drawing. Termination stops being a
+    /// count computed before anything is read and becomes a question asked before each instance: <i>is
+    /// there another?</i> That is the only form in which "as many as fit in the region" can be stated at
+    /// all — once instances vary in length, their number is not a function of the byte count — and a fixed
+    /// count is then just one way of answering it.
+    /// </para>
+    ///
+    /// <para>
+    /// <paramref name="Continues"/> is evaluated in the chain's own scope, with <c>ordinal</c> bound to the
+    /// number of complete instances so far and <c>room</c> to the unread octets left in the enclosing
+    /// region. So <c>room &gt; 0</c> runs to the end of the container and
+    /// <c>ordinal &lt; fields.count.value</c> honours a declared count, from one construct.
+    /// </para>
+    ///
+    /// <para>
+    /// Each instance gets its own field scope, which is what lets an instance carry its own length prefix:
+    /// <c>fields.body.extent</c> inside instance 2 means instance 2's, not instance 1's and not an
+    /// ambiguous document-global span. Names not belonging to the instance resolve outward, so a field can
+    /// still read the message metadata around it.
     /// </para>
     /// </summary>
-    public sealed record Repeat(Field Element, Expr Count) : Pattern;
+    public sealed record Chain(Field Element, Expr Continues) : Pattern;
 
     /// <summary>Octets this pattern occupies, where that is fixed. Null means it depends on the value —
     /// which is exactly the case the resolver's facet ordering exists to handle.</summary>
@@ -192,13 +217,20 @@ public abstract record Pattern
     {
         Group g => g.Fields,
         Choice c => [.. c.Arms.SelectMany(a => a.Fields)],
-        Repeat r => [r.Element],
+        Chain c => [c.Element],
         _ => [],
     };
 
+    /// <summary>Whether this pattern opens a new field scope for what it contains. Only a chain does: its
+    /// instances are separate structures, and their names have to be too.</summary>
+    public bool ScopesNames => this is Chain;
+
     /// <summary>Document-time checks. Cheap, and they catch the errors that are otherwise invisible until
     /// a capture decodes into plausible nonsense.</summary>
-    public IReadOnlyList<string> Validate(string fieldId) => this switch
+    /// <param name="inScope">The other fields visible where this one is declared, so a discriminator that
+    /// reads a bit slice can be checked against how wide that slice actually is.</param>
+    public IReadOnlyList<string> Validate(string fieldId, IReadOnlyDictionary<string, Pattern>? inScope = null)
+        => this switch
     {
         Scalar s when s.Octets is < 1 or > 8 =>
             [$"field '{fieldId}': a scalar must be 1..8 octets, got {s.Octets}"],
@@ -231,12 +263,7 @@ public abstract record Pattern
         // An EMPTY region is deliberately legal. It measures zero, which is exactly what a length field
         // over an absent body must emit — a liveness probe with no payload is a real message, and
         // rejecting the empty case would force a second framing declaration for it.
-        Choice c => ValidateChoice(c, fieldId),
-
-        Repeat r when r.Element.Pattern.Nested.Count > 0 =>
-            [$"field '{fieldId}': a repeated element must be a single wire shape. A composite element needs "
-           + "per-element naming for its fields, which does not exist yet — expressions inside it would "
-           + "resolve against whichever iteration ran last. Left unexpressible rather than guessed at."],
+        Choice c => ValidateChoice(c, fieldId, inScope),
 
         _ => [],
     };
@@ -251,8 +278,14 @@ public abstract record Pattern
     /// so and demands a fallback, rather than assuming the author thought of everything.
     /// </para>
     /// </summary>
-    public static IReadOnlySet<long>? ReachableKeys(Expr key)
+    public static IReadOnlySet<long>? ReachableKeys(Expr key, IReadOnlyDictionary<string, Pattern>? inScope = null)
     {
+        // A named run of bits is the other case where the range is known, and it is how presence is
+        // usually written: a section exists because one bit says so. Requiring `band 0x01` on a one-bit
+        // value to tell the validator its range would be noise about something it can look up.
+        if (SliceWidth(key, inScope) is { } width)
+            return width <= 12 ? Enumerable.Range(0, 1 << width).Select(v => (long)v).ToHashSet() : null;
+
         long? mask = key switch
         {
             Expr.Binary("&", _, Expr.Literal { Value: ProtoValue.Int m }) => m.Value,
@@ -280,7 +313,24 @@ public abstract record Pattern
         return values;
     }
 
-    private static IReadOnlyList<string> ValidateChoice(Choice choice, string fieldId)
+    /// <summary>The width of the bit run a discriminator reads, if that is what it reads —
+    /// <c>fields.&lt;id&gt;.value.&lt;slice&gt;</c> against a field in scope that is a bit group.</summary>
+    private static int? SliceWidth(Expr key, IReadOnlyDictionary<string, Pattern>? inScope)
+    {
+        if (inScope is null) return null;
+
+        if (key is not Expr.Member(Expr.Member(Expr.Member(Expr.Root("fields"), var fieldId), "value"), var slice))
+            return null;
+
+        return inScope.TryGetValue(fieldId, out var pattern) && pattern is Bits bits
+            ? bits.Slices.FirstOrDefault(s => string.Equals(s.Name, slice, StringComparison.Ordinal)) is { Width: > 0 } found
+                ? found.Width
+                : null
+            : null;
+    }
+
+    private static IReadOnlyList<string> ValidateChoice(Choice choice, string fieldId,
+                                                        IReadOnlyDictionary<string, Pattern>? inScope)
     {
         List<string> issues = [];
 
@@ -302,7 +352,7 @@ public abstract record Pattern
         if (choice.Arms.Count(a => a.IsFallback) > 1)
             issues.Add($"field '{fieldId}': only one arm may be the fallback");
 
-        var reachable = ReachableKeys(choice.Key);
+        var reachable = ReachableKeys(choice.Key, inScope);
 
         if (reachable is null)
         {

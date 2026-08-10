@@ -105,8 +105,9 @@ public class FramedChoiceCaptureTests
                     new Field
                     {
                         Id = "registers",
-                        Pattern = new Pattern.Repeat(new Field { Id = "register", Pattern = U16 },
-                                                     Expr.Parse("fields.byteCount.value / 2")),
+                        Pattern = new Pattern.Chain(
+                            new Field { Id = "register", Pattern = U16, Value = Expr.Parse("item") },
+                            Expr.Parse("ordinal < fields.byteCount.value / 2")),
                         Value = Expr.Parse("inputs.registers"),
                     },
                 ]),
@@ -201,10 +202,10 @@ public class FramedChoiceCaptureTests
     }
 
     [TestMethod]
-    public void A_repeated_element_is_named_per_iteration_in_the_breakdown()
+    public void Each_chained_structure_is_named_separately_in_the_breakdown()
     {
         // `register` three times would be three rows nobody can check against a capture, and worse, it
-        // would read as one field that moved.
+        // would read as one field that moved. These are three distinct entries, and the breakdown says so.
         var decoded = new MessageCodec(Response()).Decode(Capture(1));
         var names = decoded.Spans.Select(s => s.Name).ToList();
 
@@ -363,31 +364,6 @@ public class FramedChoiceCaptureTests
 
         var ex = Assert.ThrowsExactly<ProtoTypeException>(() => new MessageCodec(Response()).Decode(corrupt));
         StringAssert.Contains(ex.Message, "disagree");
-    }
-
-    [TestMethod]
-    public void A_repeated_composite_is_refused_rather_than_silently_mis_scoped()
-    {
-        // Its fields would need per-element names; without them, an expression inside the element resolves
-        // against whichever iteration ran last. Left unexpressible until the naming exists.
-        var message = new MessageDef
-        {
-            Id = "repeatedComposite",
-            Fields =
-            [
-                Leaf("count"),
-                new Field
-                {
-                    Id = "items",
-                    Pattern = new Pattern.Repeat(
-                        new Field { Id = "pair", Pattern = new Pattern.Group([Leaf("a"), Leaf("b")]) },
-                        Expr.Parse("fields.count.value")),
-                    Value = Expr.Parse("inputs.items"),
-                },
-            ],
-        };
-
-        StringAssert.Contains(string.Join("\n", new MessageCodec(message).Validate()), "per-element");
     }
 
     [TestMethod]

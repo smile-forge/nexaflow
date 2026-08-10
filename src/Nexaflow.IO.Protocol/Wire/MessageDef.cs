@@ -58,28 +58,70 @@ public sealed record MessageDef
     public IReadOnlyList<string> Validate()
     {
         List<string> issues = [];
-        var all = AllFields.ToList();
-
-        foreach (var f in all) issues.AddRange(f.Pattern.Validate(f.Id));
-
-        // Ids are flat across the whole tree, arms and regions included. That is what lets an expression
-        // say `fields.byteCount.extent` from anywhere in the message instead of spelling out a path
-        // through the nesting — and it is only safe because this check exists.
-        foreach (var duplicate in all.GroupBy(f => f.Id, StringComparer.Ordinal).Where(g => g.Count() > 1))
-            issues.Add($"message '{Id}': duplicate field id '{duplicate.Key}' — ids are how fields "
-                     + "reference each other, and they are flat across regions and arms");
-
-        // A field referencing one that does not exist is an authoring slip that would otherwise surface as
-        // an unresolvable dependency much later, with a worse message.
-        var known = all.Select(f => f.Id).ToHashSet(StringComparer.Ordinal);
-
-        foreach (var (owner, expression, what) in Expressions(all))
-            foreach (var referenced in FieldReferences(expression))
-                if (!known.Contains(referenced.Field))
-                    issues.Add($"message '{Id}': {what} of '{owner}' references '{referenced.Field}', "
-                             + "which is not a field of this message");
-
+        Check(Fields, new HashSet<string>(StringComparer.Ordinal), issues);
         return issues;
+    }
+
+    /// <summary>
+    /// One field scope: the ids declared here plus everything visible from outside it.
+    ///
+    /// <para>
+    /// Ids are flat within a scope, which is what lets an expression say <c>fields.byteCount.extent</c>
+    /// without spelling a path through the nesting. A chain opens a new one, because its instances are
+    /// separate structures — two instances each declaring a length is not a duplicate, and instance 2's
+    /// length must not resolve to instance 1's.
+    /// </para>
+    /// </summary>
+    private void Check(IReadOnlyList<Field> fields, IReadOnlySet<string> outer, List<string> issues)
+    {
+        // Everything declared at this level, nested scopes excluded — those get their own pass.
+        List<Field> here = [];
+        Gather(fields, here);
+
+        // Patterns are checked with their scope in hand, so a discriminator reading a bit run can be
+        // measured against how wide that run actually is.
+        var patterns = here.GroupBy(f => f.Id, StringComparer.Ordinal)
+                           .ToDictionary(g => g.Key, g => g.First().Pattern, StringComparer.Ordinal);
+
+        foreach (var field in here) issues.AddRange(field.Pattern.Validate(field.Id, patterns));
+
+        foreach (var duplicate in here.GroupBy(f => f.Id, StringComparer.Ordinal).Where(g => g.Count() > 1))
+            issues.Add($"message '{Id}': duplicate field id '{duplicate.Key}' in one scope — ids are how "
+                     + "fields reference each other, and they are flat across the regions and arms of a scope");
+
+        var visible = new HashSet<string>(outer, StringComparer.Ordinal);
+        visible.UnionWith(here.Select(f => f.Id));
+
+        foreach (var (owner, expression, what) in Expressions(here))
+            foreach (var referenced in FieldReferences(expression))
+                if (!visible.Contains(referenced.Field))
+                    issues.Add($"message '{Id}': {what} of '{owner}' references '{referenced.Field}', "
+                             + "which is not a field in scope there");
+
+        // Each chain's element is checked against its own scope, with everything out here still visible:
+        // a structure may read the message metadata around it.
+        foreach (var chain in here.Select(f => f.Pattern).OfType<Pattern.Chain>())
+            Check([chain.Element], visible, issues);
+    }
+
+    /// <summary>The ids declared in one scope. Both directions resolve names against this — the validator
+    /// to decide what is in scope, the encoder to decide what to qualify.</summary>
+    internal static IReadOnlySet<string> ScopeIds(IReadOnlyList<Field> fields)
+    {
+        List<Field> here = [];
+        Gather(fields, here);
+        return here.Select(f => f.Id).ToHashSet(StringComparer.Ordinal);
+    }
+
+    /// <summary>Fields declared in this scope — descending through regions and arms, stopping at anything
+    /// that opens a scope of its own.</summary>
+    private static void Gather(IReadOnlyList<Field> fields, List<Field> into)
+    {
+        foreach (var field in fields)
+        {
+            into.Add(field);
+            if (!field.Pattern.ScopesNames) Gather(field.Pattern.Nested, into);
+        }
     }
 
     /// <summary>Every expression the message carries, with enough context to name it in a diagnostic.</summary>
@@ -92,8 +134,9 @@ public sealed record MessageDef
             switch (field.Pattern)
             {
                 case Pattern.Choice choice: yield return (field.Id, choice.Key, "the discriminator"); break;
-                case Pattern.Repeat repeat: yield return (field.Id, repeat.Count, "the count"); break;
+                case Pattern.Chain chain: yield return (field.Id, chain.Continues, "the continuation"); break;
                 case Pattern.Opaque { Length: { } length }: yield return (field.Id, length, "the length"); break;
+                case Pattern.Group { Extent: { } extent }: yield return (field.Id, extent, "the region bound"); break;
             }
         }
     }

@@ -42,17 +42,25 @@ public class VariableWidthCaptureTests
     /// second copy inside the codec where a duplicate would quietly pick one family's answer.
     /// </para>
     /// </summary>
-    private static Pattern Chain => new Pattern.Varint(GroupOrder.LeastSignificantFirst, MaxOctets: 4);
+    private static Pattern Continuation => new Pattern.Varint(GroupOrder.LeastSignificantFirst, MaxOctets: 4);
 
-    /// <summary>The shared framing: a type octet, a self-measuring length, and the region it measures.</summary>
+    /// <summary>
+    /// The shared framing: a type octet, a self-measuring length, and the region it measures.
+    ///
+    /// <para>
+    /// The region carries a decode-side bound as well as measuring its children on the way out. That is
+    /// what a length field is <i>for</i> when reading, and it is what gives "is there room for another
+    /// structure" something to mean.
+    /// </para>
+    /// </summary>
     private static MessageDef Framed(string id, params Field[] body) => new()
     {
         Id = id,
         Fields =
         [
             new Field { Id = "fixedHeader", Pattern = U8, Value = Expr.Parse("inputs.fixedHeader") },
-            new Field { Id = "remainingLength", Pattern = Chain, Value = Expr.Parse("fields.body.extent") },
-            new Field { Id = "body", Pattern = new Pattern.Group(body) },
+            new Field { Id = "remainingLength", Pattern = Continuation, Value = Expr.Parse("fields.body.extent") },
+            new Field { Id = "body", Pattern = new Pattern.Group(body, Expr.Parse("fields.remainingLength.value")) },
         ],
     };
 
@@ -61,25 +69,120 @@ public class VariableWidthCaptureTests
         new Field { Id = "returnCode",       Pattern = U8, Value = Expr.Parse("inputs.returnCode") });
 
     /// <summary>
-    /// A repetition with no count field anywhere in the message: the element count is whatever fits in the
-    /// framed region. It is expressible here only because the elements are one octet each — the count is
-    /// derived from the remaining length by subtracting the extent of what precedes it.
+    /// Structures that chain with no count field anywhere in the message: there is another for as long as
+    /// the region has room. Not expressible as a count — and here the elements happen to be one octet each,
+    /// so a count could have been faked, which is exactly why the next document matters.
     /// </summary>
     private static MessageDef GrantList() => Framed("subscribeAck",
         new Field { Id = "packetIdentifier", Pattern = U16, Value = Expr.Parse("inputs.packetIdentifier") },
         new Field
         {
-            Id = "returnCodes",
-            Pattern = new Pattern.Repeat(new Field { Id = "grant", Pattern = U8 },
-                // Not `remainingLength - 2`: naming the field whose octets are being discounted is what
-                // keeps this true when the header in front of it changes.
-                Expr.Parse("fields.remainingLength.value - fields.packetIdentifier.extent")),
-            Value = Expr.Parse("inputs.returnCodes"),
+            Id = "grants",
+            Pattern = new Pattern.Chain(new Field { Id = "grant", Pattern = U8, Value = Expr.Parse("item") },
+                                        Expr.Parse("room > 0")),
+            Value = Expr.Parse("inputs.grants"),
+        });
+
+    /// <summary>
+    /// The document that could not be written before: structures that chain, each carrying <b>its own
+    /// length prefix</b>, with no count anywhere.
+    ///
+    /// <para>
+    /// This is the case the corpus recorded as blocking — a length prefix inside a repetition, where a
+    /// document-global span name would mean instance 2's length referred to instance 1's region, or was
+    /// cyclic. Each instance has its own field scope, so <c>fields.filter.extent</c> means <i>this
+    /// structure's</i> filter and nothing else. And their number genuinely is not a function of the byte
+    /// count, because they vary in length — the only statement available is "there is another while there
+    /// is room".
+    /// </para>
+    /// </summary>
+    private static MessageDef FilterList() => Framed("subscribe",
+        new Field { Id = "packetIdentifier", Pattern = U16, Value = Expr.Parse("inputs.packetIdentifier") },
+        new Field
+        {
+            Id = "subscriptions",
+            Value = Expr.Parse("inputs.subscriptions"),
+            Pattern = new Pattern.Chain(
+                new Field
+                {
+                    Id = "subscription",
+                    Pattern = new Pattern.Group(
+                    [
+                        new Field { Id = "filterLength", Pattern = U16, Value = Expr.Parse("fields.filter.extent") },
+                        new Field
+                        {
+                            Id = "filter",
+                            Pattern = Pattern.Opaque.Measured(Expr.Parse("fields.filterLength.value")),
+                            Value = Expr.Parse("item.filter"),
+                            Via = "unascii",
+                        },
+                        new Field { Id = "requestedQos", Pattern = U8, Value = Expr.Parse("item.requestedQos") },
+                    ]),
+                },
+                Expr.Parse("room > 0")),
         });
 
     /// <summary>A message with no body at all. The region is empty and measures zero, which is what the
     /// length must emit.</summary>
     private static MessageDef Liveness(string id) => Framed(id);
+
+    /// <summary>A length-prefixed string, which is every variable field in the connect packet.</summary>
+    private static Field[] Prefixed(string id, string? via = "unascii") =>
+    [
+        new Field { Id = $"{id}Length", Pattern = U16, Value = Expr.Parse($"fields.{id}.extent") },
+        new Field
+        {
+            Id = id,
+            Pattern = Pattern.Opaque.Measured(Expr.Parse($"fields.{id}Length.value")),
+            Value = Expr.Parse($"inputs.{id}"),
+            Via = via,
+        },
+    ];
+
+    /// <summary>
+    /// A section that exists only because one bit says so.
+    ///
+    /// <para>
+    /// Presence needs no construct of its own: it is a choice between two packings, one of which is empty.
+    /// And because the discriminator reads a named bit run whose width is in the declaration, the arms are
+    /// still checked for exhaustiveness — a one-bit flag has exactly two answers and both must be given.
+    /// </para>
+    /// </summary>
+    private static Field GatedBy(string id, string flag, params Field[] fields) => new()
+    {
+        Id = id,
+        Pattern = new Pattern.Choice(Expr.Parse($"fields.connectFlags.value.{flag}"),
+        [
+            new Arm("absent", 0, []),
+            new Arm("present", 1, fields),
+        ]),
+    };
+
+    /// <summary>
+    /// The connect packet: 143 octets of body, of which 114 exist only because of three bits in an octet
+    /// read 22 positions earlier.
+    /// </summary>
+    private static MessageDef Connect() => Framed("connect",
+        [
+            .. Prefixed("protocolName"),
+            new Field { Id = "protocolLevel", Pattern = U8, Value = Expr.Parse("inputs.protocolLevel") },
+            new Field
+            {
+                Id = "connectFlags",
+                Pattern = new Pattern.Bits(
+                [
+                    new("userNameFlag", 1), new("passwordFlag", 1), new("willRetain", 1),
+                    new("willQos", 2), new("willFlag", 1), new("cleanSession", 1), new("reserved", 1),
+                ]),
+                Value = Expr.Parse("inputs.connectFlags"),
+            },
+            new Field { Id = "keepAlive", Pattern = U16, Value = Expr.Parse("inputs.keepAlive") },
+            .. Prefixed("clientId"),
+
+            GatedBy("will", "willFlag", [.. Prefixed("willTopic"), .. Prefixed("willMessage", via: null)]),
+            GatedBy("credential", "userNameFlag", Prefixed("userName")),
+            GatedBy("secret", "passwordFlag", Prefixed("password")),
+        ]);
 
     private static byte[] Capture(int index) => ProtocolCorpus.Get("mqtt").Captures[index].Bytes;
 
@@ -88,7 +191,8 @@ public class VariableWidthCaptureTests
     [TestMethod]
     public void Every_document_validates()
     {
-        foreach (var message in (MessageDef[])[Acknowledgement(), GrantList(), Liveness("ping")])
+        foreach (var message in (MessageDef[])
+                 [Connect(), Acknowledgement(), GrantList(), FilterList(), Liveness("ping")])
         {
             var issues = new MessageCodec(message).Validate();
             Assert.AreEqual(0, issues.Count, $"{message.Id}:\n" + string.Join("\n", issues));
@@ -107,16 +211,40 @@ public class VariableWidthCaptureTests
     }
 
     [TestMethod]
-    public void The_grant_list_repeats_as_many_times_as_the_frame_allows()
+    public void The_grant_list_chains_for_as_long_as_the_region_has_room()
     {
         var decoded = new MessageCodec(GrantList()).Decode(Capture(3));
 
         Assert.AreEqual(10, decoded["packetIdentifier"].AsInt());
 
-        var grants = decoded["returnCodes"].AsList();
-        Assert.AreEqual(3, grants.Count, "no count field exists — the frame is the count");
+        var grants = decoded["grants"].AsList();
+        Assert.AreEqual(3, grants.Count, "no count field exists — the region is what ends it");
         CollectionAssert.AreEqual(new long[] { 0x01, 0x01, 0x80 }, grants.Select(g => g.AsInt()).ToArray(),
             "an exact grant, a downgrade, and a refusal");
+    }
+
+    [TestMethod]
+    public void Structures_carrying_their_own_length_prefix_chain_without_colliding()
+    {
+        // Three (length, filter, qos) structures of 13, 18 and 21 octets. Their number is not a function
+        // of the byte count, and each one's length prefix refers to its own filter — the two things that
+        // made this document unwritable before.
+        var decoded = new MessageCodec(FilterList()).Decode(Capture(2));
+
+        Assert.AreEqual(10, decoded["packetIdentifier"].AsInt());
+
+        var subscriptions = decoded["subscriptions"].AsList();
+        Assert.AreEqual(3, subscriptions.Count);
+
+        var topics = subscriptions.Select(s => ((ProtoValue.Rec)s).Members["filter"].AsText()).ToArray();
+        CollectionAssert.AreEqual(new[] { "dev/status", "dev/+/telemetry", "$SYS/broker/uptime" }, topics);
+
+        var qos = subscriptions.Select(s => ((ProtoValue.Rec)s).Members["requestedQos"].AsInt()).ToArray();
+        CollectionAssert.AreEqual(new long[] { 1, 2, 0 }, qos);
+
+        // Each structure's own prefix, not the first one's repeated.
+        var lengths = subscriptions.Select(s => ((ProtoValue.Rec)s).Members["filterLength"].AsInt()).ToArray();
+        CollectionAssert.AreEqual(new long[] { 10, 15, 18 }, lengths);
     }
 
     [TestMethod]
@@ -131,15 +259,71 @@ public class VariableWidthCaptureTests
     }
 
     [TestMethod]
-    public void All_four_captures_re_encode_to_the_exact_original_octets()
+    public void The_connect_packet_decodes_the_sections_its_flag_bits_admit()
     {
-        // `remainingLength` is withheld from the inputs throughout: it is measured, not carried.
+        var decoded = new MessageCodec(Connect()).Decode(Capture(0));
+
+        Assert.AreEqual(143, decoded["remainingLength"].AsInt(), "the two-octet form");
+        Assert.AreEqual("MQTT", decoded["protocolName"].AsText());
+        Assert.AreEqual(4, decoded["protocolLevel"].AsInt());
+        Assert.AreEqual(60, decoded["keepAlive"].AsInt());
+        Assert.AreEqual("nexaflow-probe-01", decoded["clientId"].AsText());
+
+        // 0xce = 1 1 0 01 1 1 0
+        Assert.AreEqual(1, decoded["userNameFlag"].AsInt());
+        Assert.AreEqual(1, decoded["willFlag"].AsInt());
+        Assert.AreEqual(1, decoded["willQos"].AsInt());
+        Assert.AreEqual(0, decoded["reserved"].AsInt());
+
+        // Each gated section reports which packing it took, so a later step branches on that rather than
+        // re-testing the flag byte and hoping the two rules agree.
+        foreach (var section in (string[])["will", "credential", "secret"])
+            Assert.AreEqual("present", decoded[section].AsText(), section);
+
+        Assert.AreEqual("dev/status", decoded["willTopic"].AsText());
+        Assert.AreEqual(80, decoded["willMessage"].AsBytes().Length);
+        Assert.AreEqual("sensoruser", decoded["userName"].AsText());
+        Assert.AreEqual("s3cr3t", decoded["password"].AsText());
+    }
+
+    [TestMethod]
+    public void Clearing_a_flag_bit_removes_its_section_and_every_length_follows()
+    {
+        // The proof that presence is structural rather than cosmetic: drop the will flag and 94 octets
+        // leave the packet, with the outer length re-measured — including back down to the one-octet form.
+        var codec = new MessageCodec(Connect());
+        var inputs = InputsFrom(codec.Decode(Capture(0)), except: Derived);
+
+        inputs.Set("inputs", With(inputs.Root("inputs"),
+            ("connectFlags", With(Member(inputs.Root("inputs"), "connectFlags"),
+                                  ("willFlag", ProtoValue.Of(0L)), ("willQos", ProtoValue.Of(0L))))));
+
+        var encoded = codec.Encode(inputs);
+        var decoded = codec.Decode(encoded);
+
+        // 146 − 94 is 52, and the answer is 51: the body drops to 49 octets, which no longer needs the
+        // two-octet form of the length, so the length field shrinks too. Two derivations moving together,
+        // neither of them written down anywhere.
+        Assert.AreEqual(51, encoded.Length, "1 header + 1 length + 49 body");
+        Assert.AreEqual(49, decoded["remainingLength"].AsInt());
+        Assert.AreEqual("absent", decoded["will"].AsText());
+        Assert.IsTrue(decoded["willTopic"].IsNull, "not there rather than empty");
+        Assert.AreEqual("s3cr3t", decoded["password"].AsText(), "the sections after it still line up");
+    }
+
+    [TestMethod]
+    public void All_six_captures_re_encode_to_the_exact_original_octets()
+    {
+        // Every length is withheld from the inputs: the outer one, all six inside the connect packet, and
+        // the per-structure ones in the subscribe payload. If any were echoed rather than measured, this
+        // is where it would show.
         foreach (var (index, message) in ((int, MessageDef)[])
-                 [(1, Acknowledgement()), (3, GrantList()), (4, Liveness("probe")), (5, Liveness("probe"))])
+                 [(0, Connect()), (1, Acknowledgement()), (2, FilterList()), (3, GrantList()),
+                  (4, Liveness("probe")), (5, Liveness("probe"))])
         {
             var original = Capture(index);
             var codec = new MessageCodec(message);
-            var reEncoded = codec.Encode(InputsFrom(codec.Decode(original), except: ["remainingLength"]));
+            var reEncoded = codec.Encode(InputsFrom(codec.Decode(original), except: Derived));
 
             CollectionAssert.AreEqual(original, reEncoded,
                 $"capture {index} did not round-trip.\nexpected {Convert.ToHexString(original).ToLowerInvariant()}"
@@ -293,16 +477,68 @@ public class VariableWidthCaptureTests
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    /// <summary>Every field these documents derive rather than accept. Withholding them is what makes a
+    /// round trip evidence instead of a restatement.</summary>
+    private static readonly string[] Derived =
+    [
+        "remainingLength",
+        "protocolNameLength", "clientIdLength", "willTopicLength", "willMessageLength",
+        "userNameLength", "passwordLength",
+        "subscriptions.filterLength",
+    ];
+
     private static EvalScope Inputs(params (string Name, ProtoValue Value)[] members)
         => new EvalScope().Set("inputs", EvalScope.Record(members));
 
+    private static ProtoValue Member(ProtoValue record, string name)
+        => record is ProtoValue.Rec r && r.Members.TryGetValue(name, out var v) ? v : ProtoValue.Nothing;
+
+    private static ProtoValue With(ProtoValue record, params (string Name, ProtoValue Value)[] overrides)
+    {
+        var members = record is ProtoValue.Rec r
+            ? new Dictionary<string, ProtoValue>(r.Members, StringComparer.Ordinal)
+            : new Dictionary<string, ProtoValue>(StringComparer.Ordinal);
+
+        foreach (var (name, value) in overrides) members[name] = value;
+        return new ProtoValue.Rec(members);
+    }
+
+    /// <summary>
+    /// Feeds decoded captures back in as <c>inputs.*</c>, minus the ones the document must derive.
+    ///
+    /// <para>
+    /// An <c>except</c> entry of the form <c>list.member</c> strips that member from every structure of a
+    /// chained field — which is how the per-structure length prefixes are withheld, not just the outer one.
+    /// Leaving them in would let an echoed value pass for a derived one.
+    /// </para>
+    /// </summary>
     private static EvalScope InputsFrom(DecodeResult decoded, params string[] except)
     {
+        var whole = except.Where(e => !e.Contains('.')).ToHashSet(StringComparer.Ordinal);
+        var members = except.Where(e => e.Contains('.'))
+                            .Select(e => e.Split('.', 2))
+                            .ToLookup(p => p[0], p => p[1], StringComparer.Ordinal);
+
         Dictionary<string, ProtoValue> inputs = new(StringComparer.Ordinal);
 
         foreach (var (name, value) in decoded.Captures)
-            if (!except.Contains(name, StringComparer.Ordinal)) inputs[name] = value;
+        {
+            if (whole.Contains(name)) continue;
+
+            inputs[name] = members.Contains(name) && value is ProtoValue.List list
+                ? new ProtoValue.List([.. list.Items.Select(i => Without(i, members[name]))])
+                : value;
+        }
 
         return new EvalScope().Set("inputs", new ProtoValue.Rec(inputs));
+    }
+
+    private static ProtoValue Without(ProtoValue structure, IEnumerable<string> members)
+    {
+        if (structure is not ProtoValue.Rec rec) return structure;
+
+        var kept = new Dictionary<string, ProtoValue>(rec.Members, StringComparer.Ordinal);
+        foreach (var member in members) kept.Remove(member);
+        return new ProtoValue.Rec(kept);
     }
 }
