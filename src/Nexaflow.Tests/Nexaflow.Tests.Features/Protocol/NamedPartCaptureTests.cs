@@ -112,8 +112,8 @@ public class NamedPartCaptureTests
                 [Label("serviceLabel", "inputs.service"), Label("protocolLabel", "inputs.protocol"), rootName]),
         };
 
-        var theRoot = new Concept { Id = "theRoot", Of = rootName, About = "the domain every name here sits under." };
-        var theService = new Concept { Id = "theService", Of = serviceName, About = "the service being advertised." };
+        var theRoot = new Concept { Id = "theRoot", Of = [rootName], About = "the domain every name here sits under." };
+        var theService = new Concept { Id = "theService", Of = [serviceName], About = "the service being advertised." };
 
         // "nexaprint._http._tcp.local" — this instance of it. Written once, inside the PTR record's data,
         // and referred to by every record that is about it.
@@ -126,7 +126,7 @@ public class NamedPartCaptureTests
         var theInstance = new Concept
         {
             Id = "theInstance",
-            Of = instanceName,
+            Of = [instanceName],
             About = "this particular instance of the service — the name the SRV and TXT records answer to.",
         };
 
@@ -138,7 +138,7 @@ public class NamedPartCaptureTests
             Pattern = new Pattern.Group([Label("hostLabel", "inputs.host"), Pointer("toRoot", theRoot)]),
         };
 
-        var theHost = new Concept { Id = "theHost", Of = hostName, About = "the machine the service runs on." };
+        var theHost = new Concept { Id = "theHost", Of = [hostName], About = "the machine the service runs on." };
 
         // ── the message ───────────────────────────────────────────────────────
 

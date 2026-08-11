@@ -58,7 +58,7 @@ public class ReferenceTests
         var theName = new Concept
         {
             Id = "queriedName",
-            Of = name,
+            Of = [name],
             About = "the name this message is about, which later parts refer back to rather than repeat.",
         };
 
@@ -153,7 +153,7 @@ public class ReferenceTests
         // whatever it holds. Because a reader meeting it has not read the target yet, and two of them
         // pointing at each other is a loop nothing escapes.
         var later = new Field { Id = "later", Pattern = U8, Value = Expr.Parse("inputs.later") };
-        var afterwards = new Concept { Id = "afterwards", Of = later };
+        var afterwards = new Concept { Id = "afterwards", Of = [later] };
 
         var message = new MessageDef
         {

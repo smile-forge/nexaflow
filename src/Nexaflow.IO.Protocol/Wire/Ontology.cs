@@ -33,17 +33,25 @@ public sealed class Concept : Node
     public override string Name => Id;
 
     /// <summary>
-    /// The node that is this thing.
+    /// The nodes that are this thing.
     ///
     /// <para>
-    /// Authoring input, which becomes a <see cref="Names"/> edge — the edge is what the engine reads, as
-    /// with a rule's order and an arm's key.
+    /// A list, because one idea can appear in more than one message. BACnet's invoke id is a single
+    /// concept realised as four different fields — one in a request, one in an acknowledgement, one in a
+    /// segment ack, one in an error — and what makes two messages part of the same exchange is that they
+    /// agree about <i>it</i>, not that they happen to use the same field name. A concept per message would
+    /// make that agreement inexpressible.
+    /// </para>
+    ///
+    /// <para>
+    /// Authoring input, which becomes one <see cref="Names"/> edge each — the edges are what the engine
+    /// reads, as with a rule's order and an arm's key.
     /// </para>
     /// </summary>
-    public required Node Of { get; init; }
+    public required IReadOnlyList<Node> Of { get; init; }
 
     /// <summary>What it means, for whoever reads the document. Prose, and deliberately without effect.</summary>
     public string About { get; init; } = "";
 
-    public override string ToString() => $"{Id} → {Of.Name}";
+    public override string ToString() => $"{Id} → {string.Join(", ", Of.Select(o => o.Name))}";
 }

@@ -200,7 +200,9 @@ public sealed record MessageDef
         // Every reference an expression makes, materialised in the scope it was written in. Recovering
         // these by scanning text at each encode is what let a reference into an unrealised arm survive
         // until run time.
-        foreach (var concept in Concepts) graph.Add(new Names { From = concept, To = concept.Of });
+        foreach (var concept in Concepts)
+            foreach (var named in concept.Of)
+                graph.Add(new Names { From = concept, To = named });
 
         LinkReads(graph, ScopeFields(Fields), null);
 
@@ -336,8 +338,28 @@ public sealed record MessageDef
     /// lives — the arm knows what shape it is, the edge knows what picks it.</summary>
     public IReadOnlyList<Offers> Offered(Node choice) => [.. Graph.From<Offers>(choice)];
 
-    /// <summary>The node a concept names. A lookup through the edge, because the edge is the record.</summary>
-    public Node? Named(Concept concept) => Graph.From<Names>(concept).FirstOrDefault()?.To;
+    /// <summary>
+    /// The node a concept names <b>in this message</b>. A concept can name a part of several messages, so
+    /// the lookup is scoped: what "the invoke id" is depends on which message you are holding.
+    /// </summary>
+    public Node? Named(Concept concept) => NamedAll(concept).FirstOrDefault();
+
+    /// <summary>
+    /// Every part of this message the concept names.
+    ///
+    /// <para>
+    /// More than one, with only one present at a time, is the ordinary case rather than an oddity:
+    /// BACnet's invoke id is called something different in each packing, and which of them arrived depends
+    /// on which arm was taken. So the concept names all four and the message answers with whichever it
+    /// actually bound.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<Node> NamedAll(Concept concept)
+    {
+        var mine = AllFields.ToHashSet();
+
+        return [.. Graph.From<Names>(concept).Select(e => e.To).Where(n => n is Field f && mine.Contains(f))];
+    }
 
     /// <summary>The set a field draws from, if it declares one.</summary>
     public Admits? DrawnFrom(Node field) => Graph.From<Admits>(field).FirstOrDefault();
