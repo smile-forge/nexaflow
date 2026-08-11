@@ -106,6 +106,24 @@ public sealed record Repeats : Edge
 }
 
 /// <summary>
+/// A field takes its values from a set.
+///
+/// <para>
+/// An edge rather than a list on the field, because the set is a thing in its own right: several fields
+/// draw from one registry, a rule needs to ask whether that registry settles meaning, and a choice needs
+/// to ask whether it is closed. A copy of the values inlined at each site answers none of those and drifts
+/// between them.
+/// </para>
+/// </summary>
+public sealed record Admits : Edge
+{
+    /// <summary>A named run inside the field, when the set governs one rather than the whole group.</summary>
+    public string? Run { get; init; }
+
+    public override string Verb => Run is null ? "admits" : $"admits, in {Run},";
+}
+
+/// <summary>
 /// One node reads a facet of another — the dependency the resolver schedules on.
 ///
 /// <para>

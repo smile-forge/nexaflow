@@ -296,9 +296,35 @@ questions about the original. Harmless while the graph only carried containment 
 silent wrong answer the moment selection keys lived on its edges. Putting facts in the graph means the
 graph has to be the one for those facts.
 
-**One rule kind the taxonomy is missing.** Duplicate TLS extension types are illegal — a uniqueness
-constraint across *all* instances of a chain. `Rule.Arrangement` compares an instance only to `previous`.
-Set-uniqueness joins stateful denial as a named, unbuilt kind.
+**One rule kind the taxonomy was missing, and it turned out to need a model rather than a rule.** Duplicate
+TLS extension types are illegal — a uniqueness constraint across *all* instances of a chain, which
+`Rule.Arrangement` cannot express because `previous` reaches one structure back and a duplicate can be any
+distance away. Adding it as a single kind would have been wrong. **A set of values is three questions:**
+
+| | |
+|---|---|
+| **Membership** | what is in it |
+| **Bounding** | `Closed` — that is the whole story, so an unlisted value is *malformed*; `Open` — more exist, so an unlisted value is *not yet known to this document* |
+| **Exclusivity** | `Definitive` — a value settles which member is meant; `Indicative` — it points without settling |
+
+The engine had only the first, spelled "the legal values are…", and that one answer stood for all three.
+IP protocol numbers are what forces the split: **open**, because the registry keeps growing and 132 is a
+newer peer rather than a corrupt packet; and **indicative**, because the number hints at what follows
+rather than defining it. The axes are independent — a TLS extension type is open *and* definitive.
+
+**They are not labels; each changes what the engine does.** Bounding decides whether an unlisted value is
+refused or read. Exclusivity decides whether a meaning may be derived from a value at all — an indicative
+set declines to answer what `6` denotes even though `tcp` is written beside it, because answering would be
+the engine inventing a guarantee the protocol does not give.
+
+And the sharpest consequence is the one that made the rule fall out instead of being bolted on:
+**distinctness is only coherent over a definitive set.** Over an indicative one the same value twice need
+not be about the same thing, so the rule is not true of the protocol and enforcing it would refuse
+well-formed messages. The engine refuses *the rule*, at document time, naming which of the three answers
+made it incoherent. `ValueSet` is a node, `Admits` is the edge, and one registry serving several fields is
+one fact rather than a copy at each site that can drift.
+
+Still unbuilt: **stateful denial**, which needs the state model.
 
 **Document defects, all expressible today.** Vector bounds nowhere stated (`session_id ≤ 32`,
 `compression_methods ≥ 1`, record `≤ 2^14`) and `contentType` unpinned in a document named

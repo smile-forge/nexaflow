@@ -74,6 +74,16 @@ public sealed class Field : Node
     /// </summary>
     public Transform? Through { get; init; }
 
+    /// <summary>
+    /// The set this field's values come from, and the run inside it when only one is governed.
+    ///
+    /// <para>
+    /// Authoring input. It becomes an <see cref="Admits"/> edge when the graph is built, and the edge is
+    /// what the engine reads — the same arrangement as a rule's order and an arm's key.
+    /// </para>
+    /// </summary>
+    public (ValueSet Set, string? Run)? Draws { get; init; }
+
     public string CaptureName => As ?? Id;
 }
 
@@ -189,6 +199,9 @@ public sealed record MessageDef
             var field = fields[i];
             graph.Add(new Contains { From = parent, To = field, Ordinal = i });
 
+            if (field.Draws is { } drawn)
+                graph.Add(new Admits { From = field, To = drawn.Set, Run = drawn.Run });
+
             switch (field.Pattern)
             {
                 case Pattern.Group group:
@@ -294,6 +307,9 @@ public sealed record MessageDef
     /// lives — the arm knows what shape it is, the edge knows what picks it.</summary>
     public IReadOnlyList<Offers> Offered(Node choice) => [.. Graph.From<Offers>(choice)];
 
+    /// <summary>The set a field draws from, if it declares one.</summary>
+    public Admits? DrawnFrom(Node field) => Graph.From<Admits>(field).FirstOrDefault();
+
     /// <summary>
     /// The packing a discriminator selects, or a refusal naming what arrived and what was declared.
     /// </summary>
@@ -380,7 +396,13 @@ public sealed record MessageDef
 
         // Rules are checked once, against the graph, because a reference does not need a scope to be
         // resolved in — which is the point of it being a reference.
-        if (outer.Count == 0) { CheckRules(issues); CheckContext(issues); CheckVocabulary(issues); }
+        if (outer.Count == 0)
+        {
+            CheckRules(issues);
+            CheckContext(issues);
+            CheckVocabulary(issues);
+            CheckDistinctness(issues);
+        }
 
         CheckChoices(here, issues);
 
@@ -614,6 +636,52 @@ public sealed record MessageDef
                              + $"other arms already cover every value this {reading} can take, so it can "
                              + "never be selected");
             }
+        }
+    }
+
+    /// <summary>
+    /// Distinctness, checked against the set it is really about.
+    ///
+    /// <para>
+    /// This is where exclusivity stops being a label. Asking for two structures to carry different values
+    /// is only coherent when a value settles which thing is meant; over an indicative set the same number
+    /// twice is not a contradiction, and a rule saying it is would refuse well-formed messages. So the
+    /// engine refuses the <i>rule</i>, at document time, and says which of the set's three answers made it
+    /// incoherent.
+    /// </para>
+    /// </summary>
+    private void CheckDistinctness(List<string> issues)
+    {
+        foreach (var rule in Rules.OfType<Rule.Distinct>())
+        {
+            if (rule.Chain.Pattern is not Pattern.Chain chain)
+            {
+                issues.Add($"message '{Id}': {rule} — but '{rule.Chain.Name}' is not a chain, so there are "
+                         + "no structures to be distinct from each other");
+                continue;
+            }
+
+            if (!ScopeFields([chain.Element]).Contains(rule.Of))
+            {
+                issues.Add($"message '{Id}': {rule} — but '{rule.Of.Name}' is not a field of the structure "
+                         + $"'{rule.Chain.Name}' repeats, so no structure has one to compare");
+                continue;
+            }
+
+            if (DrawnFrom(rule.Of) is not { } edge)
+            {
+                issues.Add($"message '{Id}': {rule} — but '{rule.Of.Name}' does not say what set its values "
+                         + "come from, and whether repeating a value means anything is a property of the "
+                         + "set rather than of the field. Declare one.");
+                continue;
+            }
+
+            if (((ValueSet)edge.To).Exclusivity == Exclusivity.Indicative)
+                issues.Add($"message '{Id}': {rule} — but '{edge.To.Name}' is indicative, so a value points "
+                         + "at a member without settling it and the same value twice need not be about the "
+                         + "same thing. Requiring distinctness over it would refuse messages that are well "
+                         + "formed. Either the set is definitive and should say so, or this rule is not "
+                         + "the one you want.");
         }
     }
 

@@ -324,6 +324,20 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                             $"field '{field.Id}': an instance consumed no octets, so the continuation "
                           + "condition would never stop being true");
 
+                    // Distinctness is over the whole run, not the pair — a duplicate can be any distance
+                    // back, which is exactly why an arrangement rule cannot say this.
+                    foreach (var rule in _message.RulesOn(field).OfType<Rule.Distinct>())
+                    {
+                        var mine = Member(instance, rule.Of.CaptureName);
+
+                        for (int seen = 0; seen < instances.Count; seen++)
+                            if (Equals(Member(instances[seen], rule.Of.CaptureName), mine))
+                                throw new ProtoTypeException(
+                                    $"structure {instances.Count} of '{field.Id}' carries "
+                                  + $"{rule.Of.Name} {mine}, which structure {seen} already carries. "
+                                  + rule.Because);
+                    }
+
                     // How this structure sits against the one before it. Not a value rule and not a
                     // containment one: it is about the arrangement, so it lives on the pair.
                     if (instances.Count > 0)
@@ -395,8 +409,38 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         return value;
     }
 
+    /// <summary>
+    /// A value checked against the set its field draws from.
+    ///
+    /// <para>
+    /// What happens to an unlisted value is the set's answer, not the engine's: a closed set is refused,
+    /// and an open one is accepted because a registry that keeps growing produces numbers this document
+    /// has not heard of, and that is a newer peer rather than a corrupt packet. Collapsing the two was
+    /// what made "the legal values are…" unable to say either.
+    /// </para>
+    /// </summary>
+    private void Belongs(Field field, ProtoValue value)
+    {
+        if (_message.DrawnFrom(field) is not { } edge) return;
+
+        var set = (ValueSet)edge.To;
+
+        var subject = edge.Run is { } run && value is ProtoValue.Rec rec
+            ? rec.Members.GetValueOrDefault(run, ProtoValue.Nothing)
+            : value;
+
+        if (set.Bounding == Bounding.Open || set.Admits(subject)) return;
+
+        throw new ProtoTypeException(
+            $"'{edge.Run ?? field.Name}' is {subject}, which is not in '{set.Id}' — a closed set, so there "
+          + $"is no value outside it to be newer than this document. Members: "
+          + $"{string.Join(", ", set.Members)}. {set.Because}");
+    }
+
     private void Confine(Field field, ProtoValue value)
     {
+        Belongs(field, value);
+
         foreach (var rule in _message.RulesOn(field).OfType<Rule.Domain>())
         {
             var subject = rule.Run is { } run && value is ProtoValue.Rec rec
@@ -829,6 +873,9 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                           + excludes.Because);
                 }
     }
+
+    private static ProtoValue Member(ProtoValue structure, string name)
+        => structure is ProtoValue.Rec rec ? rec.Members.GetValueOrDefault(name, ProtoValue.Nothing) : structure;
 
     /// <summary>Two structures side by side, for a rule about how they sit together.</summary>
     private static EvalScope Structured(ProtoValue current, ProtoValue previous)

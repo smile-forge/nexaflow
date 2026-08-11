@@ -180,6 +180,38 @@ public abstract class Rule : Node
         public override string ToString() => $"each structure after the first: {Must.Render()}";
     }
 
+    /// <summary>
+    /// No two structures of a chain may carry the same value.
+    ///
+    /// <para>
+    /// A packing exclusion over the whole run rather than over a pair, which is why
+    /// <see cref="Arrangement"/> cannot express it: <c>previous</c> reaches one structure back and a
+    /// duplicate can be any distance away.
+    /// </para>
+    ///
+    /// <para>
+    /// Its legality depends on the <see cref="ValueSet"/> the field draws from, and that is the whole
+    /// reason a set carries <see cref="Exclusivity"/>. Over a <see cref="Exclusivity.Definitive"/> set a
+    /// value denotes one thing, so two structures carrying it are two claims about that thing and the
+    /// second is a contradiction. Over an <see cref="Exclusivity.Indicative"/> one the same value need not
+    /// mean the same thing twice, so requiring distinctness would refuse messages that are perfectly
+    /// well formed — the engine says so at document time rather than enforcing a rule that is not true.
+    /// </para>
+    /// </summary>
+    public sealed class Distinct : Rule
+    {
+        /// <summary>The chain whose structures this separates.</summary>
+        public required Field Chain { get; init; }
+
+        /// <summary>The field inside the structure whose value must differ. It must draw from a set, since
+        /// the set is what says whether repeating a value means anything.</summary>
+        public required Field Of { get; init; }
+
+        internal override IEnumerable<Node> Applies => [Chain];
+
+        public override string ToString() => $"no two structures of {Chain.Name} share a {Of.Name}";
+    }
+
     /// <summary>Names the rule reads, so a reference to a field that is not in scope is an authoring error
     /// rather than a silent pass.</summary>
     internal IEnumerable<Expr> Expressions => this switch
