@@ -43,10 +43,14 @@ public sealed record DecodeResult(IReadOnlyDictionary<string, ProtoValue> Captur
 /// variant selector.
 /// </para>
 /// </summary>
-public sealed class MessageCodec(MessageDef message, ConverterTable? converters = null)
+public sealed class MessageCodec(MessageDef message, ConverterTable? converters = null,
+                                 Implementations? provided = null)
 {
     private readonly MessageDef _message = message;
     private readonly ConverterTable _converters = converters ?? ConverterTable.Default;
+
+    /// <summary>What the host is willing to stand behind under a carried layer. Empty unless it said so.</summary>
+    private readonly Implementations _provided = provided ?? Implementations.None;
 
     /// <summary>
     /// Structure comes from here, not from the declaration.
@@ -579,7 +583,14 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             default:
             {
                 asRead = ProtoValue.Of(run.ToArray());
-                value = Convert(asRead, field, forward: false);
+
+                // A span that carries another protocol reads as what that protocol makes of it, not as
+                // octets. Everything about the span itself is unchanged — something measured it, something
+                // bounded it — and this only says what is inside.
+                value = field.Carries is { } layer
+                    ? Uncarried(layer, run)
+                    : Convert(asRead, field, forward: false);
+
                 r.Spans.Add(new WireSpan(at, width, path, value));
                 break;
             }
@@ -1535,10 +1546,83 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         _ => throw new ProtoTypeException($"field '{field.Id}' has no way to determine its width"),
     };
 
+    /// <summary>
+    /// The octets a carried layer comes to, from the values meant for it.
+    ///
+    /// <para>
+    /// The inner message is <b>built whole and then embedded</b>, which is what makes a layer a layer
+    /// rather than a naming convention: everything inside it is laid out in its own coordinates, so an
+    /// offset written there means what it says without anyone having to subtract the outer header.
+    /// </para>
+    /// </summary>
+    private byte[] Carried(Subprotocol layer, ProtoValue inputs)
+    {
+        var octets = layer.Carries switch
+        {
+            Carriage.Described described => ProtoValue.Of(
+                new MessageCodec(described.Message, _converters, _provided)
+                    .Encode(new EvalScope().Set("inputs", inputs))),
+
+            Carriage.Provided host => ProtoValue.Of(_provided.Get(host.Implementation, layer.Id).Encode(inputs)),
+
+            _ => throw new ProtoTypeException($"'{layer.Id}' does not say what it carries"),
+        };
+
+        if (layer.Through is { } transform) octets = transform.Apply(octets, null, new Evaluator(_converters));
+
+        foreach (var via in layer.Via) octets = Apply(via, octets, layer.Id);
+
+        return octets.AsBytes();
+    }
+
+    /// <summary>The values a carried layer's octets came from — the same journey backwards.</summary>
+    private ProtoValue Uncarried(Subprotocol layer, ReadOnlySpan<byte> octets)
+    {
+        ProtoValue value = ProtoValue.Of(octets.ToArray());
+
+        foreach (var via in layer.Via.Reverse())
+            value = Apply(Inverse(via, layer.Id), value, layer.Id);
+
+        if (layer.Through is { } transform)
+            value = transform.Undo(value, null, new Evaluator(_converters));
+
+        return layer.Carries switch
+        {
+            Carriage.Described described => Captured(
+                new MessageCodec(described.Message, _converters, _provided).Decode(value.AsBytes())),
+
+            Carriage.Provided host => _provided.Get(host.Implementation, layer.Id).Decode(value.AsBytes()),
+
+            _ => throw new ProtoTypeException($"'{layer.Id}' does not say what it carries"),
+        };
+    }
+
+    private static ProtoValue Captured(DecodeResult decoded)
+    {
+        Dictionary<string, ProtoValue> members = new(StringComparer.Ordinal);
+        foreach (var (name, value) in decoded.Captures) members[name] = value;
+
+        return new ProtoValue.Rec(members);
+    }
+
+    private ProtoValue Apply(Conversion via, ProtoValue value, string owner)
+        => _converters.TryGet(via.Name, out var converter) && converter is not null
+            ? converter.Apply(value, via.Args)
+            : throw new ProtoTypeException($"'{owner}' names the converter '{via.Name}', which does not exist");
+
+    private Conversion Inverse(Conversion via, string owner)
+        => _converters.TryGet(via.Name, out var converter) && converter?.Inverse is { } inverse
+            ? new Conversion(inverse, via.Args)
+            : throw new ProtoTypeException(
+                  $"'{owner}' wraps its payload with '{via.Name}', which cannot be undone — so what it "
+                + "carries could be written and never read back");
+
     /// <summary>The octets a settled value becomes. One place, so measurement and emission cannot apply
     /// different transforms to the same value.</summary>
     private ProtoValue OnWire(Field field, ProtoValue? value)
-        => Convert(Settled(field, value), field, forward: true);
+        => field.Carries is { } layer
+            ? ProtoValue.Of(Carried(layer, Settled(field, value)))
+            : Convert(Settled(field, value), field, forward: true);
 
     private static ProtoValue Settled(Field field, ProtoValue? value)
         => value ?? throw new ProtoTypeException(

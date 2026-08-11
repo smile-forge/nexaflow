@@ -133,6 +133,19 @@ public sealed record Locates : Edge
     public override string Verb => "continues at";
 }
 
+/// <summary>A span carries another protocol.</summary>
+public sealed record Embeds : Edge
+{
+    public override string Verb => "carries";
+}
+
+/// <summary>A carrier resolves to a described message. Absent when it resolves to an implementation the
+/// host provides, which is the point of the carrier being a node in between.</summary>
+public sealed record Speaks : Edge
+{
+    public override string Verb => "speaks";
+}
+
 /// <summary>
 /// A field takes its values from a set.
 ///

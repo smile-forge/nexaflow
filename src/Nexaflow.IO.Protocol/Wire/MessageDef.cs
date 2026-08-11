@@ -87,6 +87,17 @@ public sealed class Field : Node
     public Locating? Points { get; init; }
 
     /// <summary>
+    /// Another protocol, carried in this field's octets.
+    ///
+    /// <para>
+    /// The field stays an ordinary span — something measures it, something bounds it, all the usual
+    /// machinery applies — and this says what the octets are. Layering needed no new shape, only somewhere
+    /// to say what is inside one.
+    /// </para>
+    /// </summary>
+    public Subprotocol? Carries { get; init; }
+
+    /// <summary>
     /// The set this field's values come from, and the run inside it when only one is governed.
     ///
     /// <para>
@@ -233,6 +244,14 @@ public sealed record MessageDef
             if (field.Points is { } points)
                 graph.Add(new Locates { From = field, To = points.Target });
 
+            if (field.Carries is { } carried)
+            {
+                graph.Add(new Embeds { From = field, To = carried });
+
+                if (carried.Carries is Carriage.Described described)
+                    graph.Add(new Speaks { From = carried, To = described.Message.Root });
+            }
+
             switch (field.Pattern)
             {
                 case Pattern.Group group:
@@ -360,6 +379,10 @@ public sealed record MessageDef
 
         return [.. Graph.From<Names>(concept).Select(e => e.To).Where(n => n is Field f && mine.Contains(f))];
     }
+
+    /// <summary>Every place this message carries another protocol. What a reviewer asks first about a
+    /// document that stacks: what else is in here, and is any of it something we already trust.</summary>
+    public IReadOnlyList<Subprotocol> Layers => [.. Graph.Of<Embeds>().Select(e => (Subprotocol)e.To)];
 
     /// <summary>The set a field draws from, if it declares one.</summary>
     public Admits? DrawnFrom(Node field) => Graph.From<Admits>(field).FirstOrDefault();
