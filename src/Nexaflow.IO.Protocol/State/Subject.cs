@@ -88,6 +88,18 @@ public sealed class Recall : Node
 public sealed record Recording(Expr From, Recall Into, Conversion? Via = null, Transform? Through = null);
 
 /// <summary>
+/// A value a move requires to be in a set before it can happen.
+/// </summary>
+/// <remarks>
+/// Not strictly necessary — the moves that exist are already the only ones allowed, so a guard adds no
+/// power. What it adds is somewhere to put a restriction the specification states, in the specification's
+/// own terms, next to the set that says why those values and not others. It also cross-checks the machine:
+/// a move guarded by values the message can never carry is a mistake about one of the two, and the engine
+/// can say so before a packet arrives.
+/// </remarks>
+public sealed record Guard(Field Reading, ValueSet Within);
+
+/// <summary>
 /// A message moving one party's view from one phase to another.
 ///
 /// <para>
@@ -123,6 +135,11 @@ public sealed class Transition : Node
     public required Bearing Way { get; init; }
 
     public Confidence Confidence { get; init; } = Confidence.Known;
+
+    /// <summary>What the message has to be carrying, beyond matching <see cref="When"/>. Each guard is a
+    /// field and the set its value must be in, so the restriction reads as the specification states it and
+    /// carries the set's own reason into any refusal.</summary>
+    public IReadOnlyList<Guard> Only { get; init; } = [];
 
     /// <summary>What this move takes out of the message and keeps. The protocol says what to put where;
     /// the engine moves it and forms no view about it.</summary>
@@ -247,6 +264,17 @@ public sealed class Subject : Node
             if (string.IsNullOrWhiteSpace(transition.Because))
                 issues.Add($"subject '{Id}': {transition} does not say why. A refusal that cannot say what "
                          + "it expected instead is barely better than none.");
+
+            foreach (var guard in transition.Only)
+            {
+                if (!transition.On.AllFields.Contains(guard.Reading))
+                    issues.Add($"subject '{Id}': {transition} is guarded on '{guard.Reading.Name}', which "
+                             + $"is not a field of '{transition.On.Id}'");
+
+                if (guard.Within.Members.Count == 0)
+                    issues.Add($"subject '{Id}': {transition} is guarded on '{guard.Within.Id}', which "
+                             + "admits nothing, so the move can never be taken");
+            }
 
             if (Distinguishes is { } key && transition.On.NamedAll(key).Count == 0)
                 issues.Add($"subject '{Id}': {transition} is on a message that has no '{key.Id}', so "

@@ -104,7 +104,18 @@ public sealed class Standing(Subject subject, ConverterTable? converters = null)
         var scope = Scope(decoded);
 
         List<Transition> possible = [.. Subject.Transitions.Where(
-            t => ReferenceEquals(t.On, message) && t.Way == way && Holds(t.When, scope))];
+            t => ReferenceEquals(t.On, message) && t.Way == way && Holds(t.When, scope) && Guarded(t, decoded))];
+
+        // Named separately from the phase refusal, because they are different complaints: one says the
+        // message came at the wrong time, the other that it carries a value this move is not for.
+        foreach (var blocked in Subject.Transitions.Where(
+                     t => ReferenceEquals(t.On, message) && t.Way == way && Holds(t.When, scope)
+                       && !Guarded(t, decoded)))
+            foreach (var guard in blocked.Only.Where(g => !g.Within.Admits(decoded[g.Reading.CaptureName])))
+                throw new ProtoTypeException(
+                    $"subject '{Subject.Id}': {blocked} needs '{guard.Reading.Name}' to be in "
+                  + $"'{guard.Within.Id}' and it is {decoded[guard.Reading.CaptureName]}. "
+                  + guard.Within.Because);
 
         if (possible.Count == 0)
             throw new ProtoTypeException(
@@ -177,7 +188,8 @@ public sealed class Standing(Subject subject, ConverterTable? converters = null)
         var scope = Scope(decoded);
 
         return Subject.Transitions.Any(
-            t => ReferenceEquals(t.On, message) && t.Way == way && Holds(t.When, scope) && Applies(t, which));
+            t => ReferenceEquals(t.On, message) && t.Way == way && Holds(t.When, scope)
+              && Guarded(t, decoded) && Applies(t, which));
     }
 
     /// <summary>
@@ -197,6 +209,9 @@ public sealed class Standing(Subject subject, ConverterTable? converters = null)
         _views.Clear();
         _kept.Clear();
     }
+
+    private static bool Guarded(Transition transition, DecodeResult decoded)
+        => transition.Only.All(g => g.Within.Admits(decoded[g.Reading.CaptureName]));
 
     private bool Applies(Transition transition, ProtoValue which)
         => transition.From is null || ReferenceEquals(PhaseOf(which, transition.Whose), transition.From);

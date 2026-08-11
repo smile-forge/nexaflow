@@ -204,6 +204,61 @@ public class StandingTests
         Assert.AreEqual(Answering, live.PhaseOf(ProtoValue.Of(2L), Us), "still mid-reply, waiting for more");
     }
 
+    // ── What a specification says a move is for ───────────────────────────────
+
+    [TestMethod]
+    public void A_move_can_be_guarded_by_the_set_of_values_it_is_for()
+    {
+        // A guard adds no power — the moves that exist are already the only ones allowed. What it adds is
+        // somewhere to put a restriction the standard states, in the standard's own terms, carrying the
+        // set's reason into the refusal. Here: a confirmed request is a service this document knows.
+        var (plain, message) = Confirmed();
+
+        var readProperty = new ValueSet
+        {
+            Id = "servicesWeSpeak",
+            Bounding = Bounding.Open,
+            Exclusivity = Exclusivity.Definitive,
+            Members = [SetMember.Of(12, "readProperty")],
+            Because = "this document describes ReadProperty and nothing else, so a request for anything "
+                    + "else is one it cannot follow.",
+        };
+
+        var request = plain.Transitions.First(t => t.Way == Bearing.Sent && t.Whose == Us);
+
+        var guarded = new Subject
+        {
+            Id = plain.Id, Start = plain.Start, Parties = plain.Parties, Distinguishes = plain.Distinguishes,
+            Transitions =
+            [
+                new Transition
+                {
+                    Whose = request.Whose, From = request.From, To = request.To, On = request.On,
+                    When = request.When, Way = request.Way, Because = request.Because,
+                    Only = [new Guard(message.AllFields.Single(f => f.Id == "serviceChoice"), readProperty)],
+                },
+                .. plain.Transitions.Skip(1),
+            ],
+        };
+
+        Assert.AreEqual(0, guarded.Validate().Count, string.Join("\n", guarded.Validate()));
+
+        // The captured request is a ReadProperty, so it goes through.
+        var live = new Standing(guarded);
+        live.Observe(message, Capture(message, 0), Bearing.Sent);
+        Assert.AreEqual(Asked, live.PhaseOf(ProtoValue.Of(1L), Us));
+
+        // A WriteProperty is a perfectly good BACnet request and not one this move is for.
+        var writing = (byte[])[.. ProtocolCorpus.Get("bacnet").Captures[0].Bytes];
+        writing[9] = 15;
+
+        var ex = Assert.ThrowsExactly<ProtoTypeException>(
+            () => new Standing(guarded).Observe(message, new MessageCodec(message).Decode(writing), Bearing.Sent));
+
+        StringAssert.Contains(ex.Message, "needs 'serviceChoice' to be in 'servicesWeSpeak'");
+        StringAssert.Contains(ex.Message, "describes ReadProperty and nothing else");
+    }
+
     // ── What a message leaves behind ──────────────────────────────────────────
 
     private static readonly Recall Proposed = new()
