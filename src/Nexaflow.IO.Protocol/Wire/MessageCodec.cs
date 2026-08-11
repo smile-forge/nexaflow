@@ -1321,7 +1321,9 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                     // A reference waits for its target to land. Not for the whole layout — only for the
                     // extents between the start and that node, which usually settle long before the rest
                     // of the message does.
-                    var target = field.Points is null ? null : (object)frame.Of(field.Points.Target);
+                    var target = field.Points is null || codec._message.Named(field.Points.Target) is not Field named
+                        ? null
+                        : (object)frame.Of(named);
                     if (target is not null) valueNeeds = [.. valueNeeds, new FacetRef(target, Facet.Position)];
 
                     // The edge a fixed width does not need. A continuation chain or a recovered octet run

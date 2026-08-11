@@ -127,6 +127,17 @@ public sealed record MessageDef
     public IReadOnlyList<Context> Context { get; init; } = [];
 
     /// <summary>
+    /// What this protocol has names for, and which part of the message each one is.
+    ///
+    /// <para>
+    /// Declared, and finite: what a message may <i>carry</i> is unbounded, what it has <i>places for</i> is
+    /// not. That is what makes a reference to one of them need no index — identity comes from having been
+    /// declared rather than from counting.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<Concept> Concepts { get; init; } = [];
+
+    /// <summary>
     /// What a person has to be asked before this message can be built, and why — computed from the graph
     /// rather than maintained beside it, so it cannot drift from what the document actually reads.
     /// </summary>
@@ -162,6 +173,7 @@ public sealed record MessageDef
         Fields = other.Fields;
         Rules = other.Rules;
         Context = other.Context;
+        Concepts = other.Concepts;
 
         // The same root, not a new one. Field initialisers run for this constructor too, so leaving it
         // out mints a fresh node and every rule pointing at the original's root stops being about
@@ -188,6 +200,8 @@ public sealed record MessageDef
         // Every reference an expression makes, materialised in the scope it was written in. Recovering
         // these by scanning text at each encode is what let a reference into an unrealised arm survive
         // until run time.
+        foreach (var concept in Concepts) graph.Add(new Names { From = concept, To = concept.Of });
+
         LinkReads(graph, ScopeFields(Fields), null);
 
         // Order comes from where the rule was written unless it says otherwise, and lands on the EDGE:
@@ -321,6 +335,9 @@ public sealed record MessageDef
     /// <summary>What a choice offers, and on what. Read from the edges, because that is where the key
     /// lives — the arm knows what shape it is, the edge knows what picks it.</summary>
     public IReadOnlyList<Offers> Offered(Node choice) => [.. Graph.From<Offers>(choice)];
+
+    /// <summary>The node a concept names. A lookup through the edge, because the edge is the record.</summary>
+    public Node? Named(Concept concept) => Graph.From<Names>(concept).FirstOrDefault()?.To;
 
     /// <summary>The set a field draws from, if it declares one.</summary>
     public Admits? DrawnFrom(Node field) => Graph.From<Admits>(field).FirstOrDefault();
@@ -732,12 +749,24 @@ public sealed record MessageDef
                          + "value of its own. A reference is written from what it refers to; a second "
                          + "answer to the same question is one of them being ignored.");
 
+            if (Named(points.Target) is not Field named)
+            {
+                issues.Add($"message '{Id}': '{field.Id}' points at '{points.Target.Name}', which names "
+                         + "nothing this message contains. A concept is a lookup; one that resolves to "
+                         + "nothing is a reference to an idea rather than to a part.");
+                continue;
+            }
+
+            if (!Concepts.Contains(points.Target))
+                issues.Add($"message '{Id}': '{field.Id}' points at '{points.Target.Name}', which this "
+                         + "document does not declare");
+
             int here = order.IndexOf(field);
-            int there = order.IndexOf(points.Target);
+            int there = order.IndexOf(named);
 
             if (there < 0)
-                issues.Add($"message '{Id}': '{field.Id}' points at '{points.Target.Name}', which is not a "
-                         + "node of this message");
+                issues.Add($"message '{Id}': '{field.Id}' points at '{points.Target.Name}', which names "
+                         + $"'{named.Name}' — not a node of this message");
 
             else if (there >= here)
                 issues.Add($"message '{Id}': '{field.Id}' points forwards at '{points.Target.Name}'. A "

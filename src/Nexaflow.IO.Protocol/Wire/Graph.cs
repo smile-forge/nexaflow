@@ -105,6 +105,13 @@ public sealed record Repeats : Edge
     public override string Verb => "repeats";
 }
 
+/// <summary>A concept names the part of the message that is it. A lookup and nothing else — the edge
+/// carries no computation, so it cannot become a second opinion about the shape.</summary>
+public sealed record Names : Edge
+{
+    public override string Verb => "names";
+}
+
 /// <summary>
 /// A field says that what it stands for continues at another node.
 ///

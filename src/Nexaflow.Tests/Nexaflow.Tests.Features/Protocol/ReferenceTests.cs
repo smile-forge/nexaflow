@@ -43,7 +43,7 @@ public class ReferenceTests
     /// marking a reference, and they are in the <i>document</i> because how a reference is spelled is a
     /// protocol's business, not a notion.
     /// </summary>
-    private static (MessageDef Message, Field Name) Document()
+    private static (MessageDef Message, Concept Name) Document()
     {
         var name = new Field
         {
@@ -52,10 +52,21 @@ public class ReferenceTests
             Value = Expr.Parse("inputs.name"),
         };
 
+        // What the protocol calls this part. Declared, so a reference to it needs no index and no search:
+        // it is one thing because the document said it was one thing, and what the message happens to
+        // carry in it does not enter into that.
+        var theName = new Concept
+        {
+            Id = "queriedName",
+            Of = name,
+            About = "the name this message is about, which later parts refer back to rather than repeat.",
+        };
+
         var message = new MessageDef
         {
             Id = "referring",
             Context = Context.Given.These("transaction", "name"),
+            Concepts = [theName],
             Fields =
             [
                 new Field { Id = "transaction", Pattern = U16, Value = Expr.Parse("inputs.transaction") },
@@ -65,12 +76,12 @@ public class ReferenceTests
                 {
                     Id = "again",
                     Pattern = U16,
-                    Points = new Locating(name, Expr.Parse("0xc000 bor position")),
+                    Points = new Locating(theName, Expr.Parse("0xc000 bor position")),
                 },
             ],
         };
 
-        return (message, name);
+        return (message, theName);
     }
 
     private static EvalScope Inputs(long transaction, string name) => new EvalScope().Set("inputs",
@@ -142,21 +153,23 @@ public class ReferenceTests
         // whatever it holds. Because a reader meeting it has not read the target yet, and two of them
         // pointing at each other is a loop nothing escapes.
         var later = new Field { Id = "later", Pattern = U8, Value = Expr.Parse("inputs.later") };
+        var afterwards = new Concept { Id = "afterwards", Of = later };
 
         var message = new MessageDef
         {
             Id = "backwards",
             Context = Context.Given.These("later"),
+            Concepts = [afterwards],
             Fields =
             [
-                new Field { Id = "early", Pattern = U16, Points = new Locating(later, Expr.Parse("position")) },
+                new Field { Id = "early", Pattern = U16, Points = new Locating(afterwards, Expr.Parse("position")) },
                 later,
             ],
         };
 
         var issues = string.Join("\n", message.Validate());
 
-        StringAssert.Contains(issues, "points forwards at 'later'");
+        StringAssert.Contains(issues, "points forwards at 'afterwards'");
         StringAssert.Contains(issues, "a loop nothing escapes");
     }
 
@@ -181,7 +194,7 @@ public class ReferenceTests
         };
 
         StringAssert.Contains(string.Join("\n", confused.Validate()),
-            "both points at 'name' and has a value of its own");
+            "both points at 'queriedName' and has a value of its own");
     }
 
     [TestMethod]

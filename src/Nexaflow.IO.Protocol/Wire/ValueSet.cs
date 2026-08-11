@@ -108,8 +108,16 @@ public sealed class ValueSet : Node
 /// <summary>
 /// A reference to another node, and how this protocol writes one down.
 /// </summary>
-/// <param name="Target">The node this field's content continues at. A node, not a name — a name cannot
-/// say which appearance it means.</param>
+/// <param name="Target">
+/// What this field's content continues at, named in the protocol's own terms.
+///
+/// <para>
+/// A concept rather than a field, because what a pointer means is "the rest of this is <i>that thing</i>"
+/// and the thing is something the protocol has a word for. Naming the shape instead works only while a
+/// shape occurs once; the moment the target sits inside a repeated structure, a shape reference cannot say
+/// which appearance and a concept still can, because it was declared to be one.
+/// </para>
+/// </param>
 /// <param name="Render">
 /// The octets that stand for the reference, with <c>position</c> bound to where the target landed.
 ///
@@ -120,4 +128,4 @@ public sealed class ValueSet : Node
 /// about how it is spelled is not.
 /// </para>
 /// </param>
-public sealed record Locating(Field Target, Expr Render);
+public sealed record Locating(Concept Target, Expr Render);
