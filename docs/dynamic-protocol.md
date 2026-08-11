@@ -102,7 +102,8 @@ Each step is independently testable against a named capture, earliest-falsifying
 | 5b ✅ | **Chaining** replaces repetition; regions become decode boundaries; presence is an empty arm | **MQTT ×6** |
 | 6 ✅ | Escaped-inline length, nested lengths, document transforms on fields | **SNMP 73 B + 337 B from one document — gate PASSED** |
 | 7 ✅ | A value threaded along a chain; lookahead; `room` everywhere | **CoAP ×3, T2** |
-| 8–13 | sugar, offset tables, text path, checksums, deep nesting | DHCP, mDNS, SSDP, NTP-C, TLS, BACnet |
+| 8 ✅ | Fixed frames, padded text, a document-fixed constant, a sentinel-terminated chain | **DHCP ×2** |
+| 9–13 | offset tables, text path, checksums, deep nesting | mDNS, SSDP, TLS, BACnet |
 | 14 | the step graph, then the state model | needs the seams closed first |
 
 **First real capture through the whole stack** (2026-08-10): both 48-octet NTP captures decode into named
