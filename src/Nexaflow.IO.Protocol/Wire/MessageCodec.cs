@@ -85,7 +85,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
               + "data is an error rather than something ignored, because ignoring it accepts a malformed "
               + "capture as valid");
 
-        Enforce(reading.Captures, new Evaluator(_converters));
+        Enforce(reading.MessageScope(), new Evaluator(_converters));
         return new DecodeResult(reading.Captures, reading.Spans);
     }
 
@@ -133,13 +133,19 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         /// inner one's running value must not leak out over the outer one's.</summary>
         private readonly List<ProtoValue> _carried = [ProtoValue.Nothing];
 
+        /// <summary>Which structure of its chain each open one is. Bound for the whole structure, not
+        /// only for the continuation that asked whether to start it — a rule inside a structure can say
+        /// "the first one is different" on the way in as well as on the way out.</summary>
+        private readonly List<int> _ordinals = [0];
+
         /// <summary>Opens a structure: its own field scope for expressions, its own bindings for the value
         /// it will become, and whatever its chain has threaded to it.</summary>
-        public void EnterStructure(ProtoValue carried)
+        public void EnterStructure(ProtoValue carried, int ordinal)
         {
             _scopes.Add(new Dictionary<string, (ProtoValue, int)>(StringComparer.Ordinal));
             _bindings.Add(new Dictionary<string, ProtoValue>(StringComparer.Ordinal));
             _carried.Add(carried);
+            _ordinals.Add(ordinal);
         }
 
         /// <summary>Closes it, handing back everything it bound.</summary>
@@ -147,6 +153,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         {
             _scopes.RemoveAt(_scopes.Count - 1);
             _carried.RemoveAt(_carried.Count - 1);
+            _ordinals.RemoveAt(_ordinals.Count - 1);
             var bound = _bindings[^1];
             _bindings.RemoveAt(_bindings.Count - 1);
             return new ProtoValue.Rec(bound);
@@ -163,6 +170,33 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         }
 
         public void LeaveRegion() => _limits.RemoveAt(_limits.Count - 1);
+
+        /// <summary>
+        /// The message-level scope a rule about the whole message is read in.
+        ///
+        /// <para>
+        /// The same shape the encode side builds, which it had to be told: the message rules were handed
+        /// raw captures here and settled facet records there, through one signature that accepted both.
+        /// So a rule reading <c>.extent</c> saw nothing on the way in and a rule naming a bit run by
+        /// itself saw nothing on the way out, and neither said so.
+        /// </para>
+        /// </summary>
+        public EvalScope MessageScope()
+        {
+            Dictionary<string, ProtoValue> byField = new(StringComparer.Ordinal);
+
+            foreach (var (id, facet) in _scopes[0])
+                byField[id] = EvalScope.Record(("value", facet.Value),
+                                               ("extent", ProtoValue.Of((long)facet.Extent)));
+
+            // Bit runs, which bind alongside fields and have no extent of their own. They arrive here as
+            // captures because that is where a run is recorded; what matters is that the name answers,
+            // and that it answers the same on the way out.
+            foreach (var (name, value) in _bindings[0])
+                if (!byField.ContainsKey(name)) byField[name] = EvalScope.Record(("value", value));
+
+            return new EvalScope().Set("fields", new ProtoValue.Rec(byField));
+        }
 
         public ProtoValue Eval(Expr expression, params (string Root, ProtoValue Value)[] extra)
         {
@@ -182,6 +216,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             child.Set("room", ProtoValue.Of((long)Room));
             child.Set("peek", Offset < Limit ? ProtoValue.Of((long)Bytes[Offset]) : ProtoValue.Nothing);
             child.Set("carried", _carried[^1]);
+            child.Set("ordinal", ProtoValue.Of((long)_ordinals[^1]));
 
             foreach (var (root, value) in extra) child.Set(root, value);
             return evaluator.Eval(expression, child);
@@ -266,7 +301,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                     // The instance's own field scope. This is what lets it carry its own length prefix:
                     // `fields.body.extent` inside instance 2 means instance 2's, not instance 1's and not
                     // an ambiguous document-global span.
-                    r.EnterStructure(carried);
+                    r.EnterStructure(carried, instances.Count);
                     var element = Read(chain.Element, r, $"{path}[{instances.Count}]", exposed: false);
 
                     // Rules written about this structure, checked here — once per structure, because the
@@ -659,7 +694,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         // Checked before a single octet is produced. A rule that only ran on the way in would let the
         // engine emit a message it would itself refuse to read.
         var evaluator = new Evaluator(_converters);
-        Enforce(NamedValues(settled), evaluator);
+        Enforce(new EvalScope().Set("fields", new ProtoValue.Rec(NamedValues(settled))), evaluator);
 
         // And once per structure, for the rules written about one. On the way in these run as each field
         // binds, because an illegal value derails the read and a diagnostic about where it ended up is no
@@ -676,27 +711,50 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     }
 
     /// <summary>
-    /// Message-scope values by the name a rule would use for them, with bit runs alongside fields rather
-    /// than underneath them — matching how decode binds them, so one rule reads the same in both directions.
+    /// Message-scope facets by the name a rule uses for them.
+    ///
+    /// <para>
+    /// Both facets, and bit runs <b>only</b> under the group they belong to. This once flattened a run
+    /// into the field namespace and said it was "matching how decode binds them" — it was not. Decode
+    /// notes the group and reaches a run as <c>fields.&lt;group&gt;.value.&lt;run&gt;</c>, so a rule
+    /// naming a run directly held on the way out and failed on the way in. One address, both directions.
+    /// </para>
     /// </summary>
     private static Dictionary<string, ProtoValue> NamedValues(IReadOnlyDictionary<FacetRef, object?> settled)
     {
-        Dictionary<string, ProtoValue> named = new(StringComparer.Ordinal);
+        Dictionary<string, List<(string, ProtoValue)>> facets = new(StringComparer.Ordinal);
 
         foreach (var (reference, value) in settled)
         {
             // An appearance inside a structure belongs to that structure, not to the message. A question
             // the occurrence answers directly, where a string id had to be inspected for a bracket.
-            if (reference.Facet != Facet.Value
-                || reference.Node is not Occurrence { Within: null } occurrence
-                || value is not ProtoValue v)
+            if (reference.Facet is not (Facet.Value or Facet.Extent)
+                || reference.Node is not Occurrence { Within: null } occurrence)
                 continue;
 
-            named[occurrence.Declared.Name] = v;
+            var settledValue = value switch
+            {
+                ProtoValue pv => pv,
+                int i => ProtoValue.Of((long)i),
+                _ => ProtoValue.Nothing,
+            };
 
-            if (v is ProtoValue.Rec rec)
-                foreach (var (name, member) in rec.Members) named.TryAdd(name, member);
+            if (settledValue.IsNull && reference.Facet == Facet.Extent) continue;
+
+            if (!facets.TryGetValue(occurrence.Declared.Name, out var slots))
+                facets[occurrence.Declared.Name] = slots = [];
+
+            slots.Add((reference.Facet == Facet.Extent ? "extent" : "value", settledValue));
         }
+
+        Dictionary<string, ProtoValue> named = new(StringComparer.Ordinal);
+        foreach (var (name, slots) in facets) named[name] = EvalScope.Record([.. slots]);
+
+        // And the runs, alongside their group as decode binds them.
+        foreach (var (_, slots) in facets)
+            if (slots.FirstOrDefault(s => s.Item1 == "value").Item2 is ProtoValue.Rec runs)
+                foreach (var (run, sliced) in runs.Members)
+                    named.TryAdd(run, EvalScope.Record(("value", sliced)));
 
         return named;
     }
@@ -705,14 +763,9 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     /// Applies the message's rules. Each kind reports in its own words, because "this is illegal" without
     /// saying which sort of illegal is the diagnostic equivalent of a shrug.
     /// </summary>
-    private void Enforce(IReadOnlyDictionary<string, ProtoValue> named, Evaluator evaluator)
+    private void Enforce(EvalScope scope, Evaluator evaluator)
     {
         if (_message.Rules.Count == 0) return;
-
-        Dictionary<string, ProtoValue> byName = new(StringComparer.Ordinal);
-        foreach (var (name, value) in named) byName[name] = EvalScope.Record(("value", value));
-
-        var scope = new EvalScope().Set("fields", new ProtoValue.Rec(byName));
 
         foreach (var rule in _message.Rules)
             switch (rule)
@@ -746,32 +799,11 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     private void EnforceStructure(NameFrame frame, int ordinal,
                                   IReadOnlyDictionary<FacetRef, object?> settled, Evaluator evaluator)
     {
-        Dictionary<string, ProtoValue> byName = new(StringComparer.Ordinal);
-
-        foreach (var (field, occurrence) in frame.Here)
-        {
-            // Both facets, because a rule reads the same vocabulary a field expression does — and the
-            // first one written here read `.extent`, which a value-only scope answers with nothing.
-            List<(string, ProtoValue)> facets = [];
-
-            if (settled.TryGetValue(new FacetRef(occurrence, Facet.Value), out var value)
-                && value is ProtoValue v)
-            {
-                facets.Add(("value", v));
-
-                // Bit runs bind alongside their group, the same way they do on the way in.
-                if (v is ProtoValue.Rec rec && field.Pattern is Pattern.Bits)
-                    foreach (var (run, slice) in rec.Members)
-                        byName.TryAdd(run, EvalScope.Record(("value", slice)));
-            }
-
-            if (settled.TryGetValue(new FacetRef(occurrence, Facet.Extent), out var extent) && extent is int e)
-                facets.Add(("extent", ProtoValue.Of((long)e)));
-
-            if (facets.Count > 0) byName[field.CaptureName] = EvalScope.Record([.. facets]);
-        }
-
-        var scope = new EvalScope().Set("fields", new ProtoValue.Rec(byName));
+        // One builder. This used to assemble its own `fields` — both facets, but also flattening bit runs
+        // into the namespace, which decode does not do — and to bind `ordinal` but not `carried`. Every
+        // difference between a hand-rolled scope and the real one is a name that answers here and not
+        // there, which is how three defects in a row happened.
+        var scope = ScopeFor(frame, settled);
         scope.Set("ordinal", ProtoValue.Of((long)ordinal));
 
         foreach (var subject in frame.Here.Keys.Cast<Node>().Append(frame.Instance?.Declared).OfType<Node>())
@@ -1252,34 +1284,50 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     /// <summary>
     /// Settled facets as <c>fields.&lt;id&gt;.value</c> / <c>.extent</c>, keyed by the name the expression
     /// used rather than by the resolver's qualified node id — so a dependency reads back as it was written.
+    ///
+    /// <para>
+    /// Resolved <b>through the frame</b>, outermost first so an instance's own names shadow the ones
+    /// around it. This used to sweep every settled facet and key it by declared name, which inside a
+    /// chain meant whichever instance happened to settle last: instance 2's expression could read
+    /// instance 1's length. Nothing caught it because the dependency edges were computed per occurrence
+    /// and were right — only the lookup that read them back was flat. It surfaced when the structure-rule
+    /// scope, which had its own frame-correct copy, was folded into this one.
+    /// </para>
     /// </summary>
     private ProtoValue FieldsRecord(NameFrame frame, IReadOnlyDictionary<FacetRef, object?> resolved)
     {
         Dictionary<string, ProtoValue> byField = new(StringComparer.Ordinal);
 
-        foreach (var (reference, value) in resolved)
-        {
-            if (reference.Facet is not (Facet.Value or Facet.Extent)) continue;
+        List<NameFrame> chain = [];
+        for (var at = frame; at is not null; at = at.Outer) chain.Add(at);
+        chain.Reverse();
 
-            // The name the expression used. No unqualifying: an occurrence knows what it is an
-            // occurrence OF, where a composed string had to have its own prefix stripped back off.
-            if (reference.Node is not Occurrence occurrence) continue;
-            var name = occurrence.Declared.Name;
-
-            var slot = byField.TryGetValue(name, out var existing) && existing is ProtoValue.Rec r
-                ? new Dictionary<string, ProtoValue>(r.Members, StringComparer.Ordinal)
-                : new Dictionary<string, ProtoValue>(StringComparer.Ordinal);
-
-            slot[reference.Facet == Facet.Extent ? "extent" : "value"] = value switch
+        foreach (var level in chain)
+            foreach (var (field, occurrence) in level.Here)
             {
-                ProtoValue pv => pv,
-                int i => ProtoValue.Of((long)i),
-                long l => ProtoValue.Of(l),
-                _ => ProtoValue.Nothing,
-            };
+                List<(string, ProtoValue)> slots = [];
 
-            byField[name] = new ProtoValue.Rec(slot);
-        }
+                foreach (var facet in (Facet[])[Facet.Value, Facet.Extent])
+                    if (resolved.TryGetValue(new FacetRef(occurrence, facet), out var settled))
+                        slots.Add((facet == Facet.Extent ? "extent" : "value", settled switch
+                        {
+                            ProtoValue pv => pv,
+                            int i => ProtoValue.Of((long)i),
+                            long l => ProtoValue.Of(l),
+                            _ => ProtoValue.Nothing,
+                        }));
+
+                if (slots.Count == 0) continue;
+
+                byField[field.CaptureName] = EvalScope.Record([.. slots]);
+
+                // Bit runs bind alongside their group, in both directions — which is why two runs sharing
+                // a name is a document error rather than something that silently shadows.
+                if (field.Pattern is Pattern.Bits
+                    && slots.FirstOrDefault(s => s.Item1 == "value").Item2 is ProtoValue.Rec runs)
+                    foreach (var (run, sliced) in runs.Members)
+                        byField.TryAdd(run, EvalScope.Record(("value", sliced)));
+            }
 
         return new ProtoValue.Rec(byField);
     }

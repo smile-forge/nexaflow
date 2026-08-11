@@ -329,25 +329,41 @@ public sealed record MessageDef
 
         // Rules are checked once, against the graph, because a reference does not need a scope to be
         // resolved in — which is the point of it being a reference.
-        if (outer.Count == 0) { CheckRules(issues); CheckContext(issues); }
+        if (outer.Count == 0) { CheckRules(issues); CheckContext(issues); CheckVocabulary(issues); }
 
-        foreach (var (owner, expression, what) in Expressions(here))
+        // A carry is written on the chain and evaluated INSIDE the structure, so it names the structure's
+        // fields rather than these. The graph has always known that; this check did not, because until
+        // the vocabulary check made the walk enumerate every expression, a carry was never scope-checked
+        // at all. Skipped here and checked below against the scope it is actually read in.
+        foreach (var (owner, expression, what, site) in Expressions(here))
             foreach (var referenced in FieldReferences(expression))
-                if (!visible.Contains(referenced.Field))
+                if (site is not ExprSite.Carry && !visible.Contains(referenced.Field))
                     issues.Add($"message '{Id}': {what} of '{owner}' references '{referenced.Field}', "
                              + "which is not a field in scope there");
 
         // Each chain's element is checked against its own scope, with everything out here still visible:
         // a structure may read the message metadata around it.
-        foreach (var chain in here.Select(f => f.Pattern).OfType<Pattern.Chain>())
+        foreach (var field in here)
+        {
+            if (field.Pattern is not Pattern.Chain chain) continue;
+
             Check([chain.Element], visible, issues);
+
+            var inside = new HashSet<string>(visible, StringComparer.Ordinal);
+            inside.UnionWith(ScopeFields([chain.Element]).Select(f => f.Id));
+
+            foreach (var referenced in chain.Carry is null ? [] : FieldReferences(chain.Carry))
+                if (!inside.Contains(referenced.Field))
+                    issues.Add($"message '{Id}': the carry of '{field.Id}' references "
+                             + $"'{referenced.Field}', which is not a field of the structure it runs in");
+        }
     }
 
     private void CheckContext(List<string> issues)
     {
         var declared = Context.Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
 
-        foreach (var (owner, expression, what) in Expressions(AllFields))
+        foreach (var (owner, expression, what, _) in Expressions(AllFields))
             foreach (var key in ContextReferences(expression).Distinct())
                 if (!declared.Contains(key))
                     issues.Add($"message '{Id}': {what} of '{owner.Name}' reads 'inputs.{key}', which the "
@@ -424,19 +440,72 @@ public sealed record MessageDef
         }
     }
 
-    /// <summary>Every expression the message carries, with enough context to name it in a diagnostic.</summary>
-    private static IEnumerable<(Field Owner, Expr Expression, string What)> Expressions(IEnumerable<Field> all)
+    /// <summary>Every expression the message carries, with enough context to name it in a diagnostic and
+    /// the site that decides which of the walk's roots can answer it.</summary>
+    private static IEnumerable<(Field Owner, Expr Expression, string What, ExprSite Site)> Expressions(
+        IEnumerable<Field> all)
     {
         foreach (var field in all)
         {
-            if (field.Value is not null) yield return (field, field.Value, "the value");
+            if (field.Value is not null) yield return (field, field.Value, "the value", ExprSite.Value);
 
             switch (field.Pattern)
             {
-                case Pattern.Choice choice: yield return (field, choice.Key, "the discriminator"); break;
-                case Pattern.Chain chain: yield return (field, chain.Continues, "the continuation"); break;
-                case Pattern.Opaque { Length: { } length }: yield return (field, length, "the length"); break;
-                case Pattern.Group { Extent: { } extent }: yield return (field, extent, "the region bound"); break;
+                case Pattern.Choice choice:
+                    yield return (field, choice.Key, "the discriminator", ExprSite.Discriminator);
+                    break;
+
+                case Pattern.Chain chain:
+                    yield return (field, chain.Continues, "the continuation", ExprSite.Continuation);
+                    if (chain.Seed is { } seed) yield return (field, seed, "the seed", ExprSite.Seeding);
+                    if (chain.Carry is { } carry) yield return (field, carry, "the carry", ExprSite.Carry);
+                    break;
+
+                case Pattern.Opaque { Length: { } length }:
+                    yield return (field, length, "the length", ExprSite.Length);
+                    break;
+
+                case Pattern.Group { Extent: { } extent }:
+                    yield return (field, extent, "the region bound", ExprSite.Bound);
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Every expression checked against what its site can answer.
+    ///
+    /// <para>
+    /// The check that would have caught three defects in a row, each of which was a name bound at one
+    /// scope-construction site and not another — evaluating to nothing and turning every comparison
+    /// against it quietly false. See <see cref="Vocabulary"/> for why availability is a property of the
+    /// site rather than of the expression.
+    /// </para>
+    /// </summary>
+    private void CheckVocabulary(List<string> issues)
+    {
+        IEnumerable<(Node Owner, Expr Expression, string What, ExprSite Site)> everywhere =
+        [
+            .. Expressions(AllFields).Select(e => ((Node)e.Owner, e.Expression, e.What, e.Site)),
+            .. Rules.SelectMany(rule => rule.Expressions.Select(
+                   e => ((Node)rule, e, "a condition",
+                         rule is Rule.Arrangement ? ExprSite.Pairing : ExprSite.Condition))),
+        ];
+
+        foreach (var (owner, expression, what, site) in everywhere)
+        {
+            var answerable = Vocabulary.Available(site);
+
+            foreach (var root in Vocabulary.RootsOf(expression))
+            {
+                if (answerable.Contains(root)) continue;
+
+                issues.Add(Vocabulary.All.Contains(root)
+                    ? $"message '{Id}': {what} of '{owner.Name}' names `{root}`, and "
+                    + $"{Vocabulary.Why(root, site)}."
+                    : $"message '{Id}': {what} of '{owner.Name}' names `{root}`, which is not part of the "
+                    + "walk's vocabulary at all. A root nothing binds reads as nothing and makes every "
+                    + $"comparison against it false. The ones that exist are: {string.Join(", ", Vocabulary.All.Order())}.");
             }
         }
     }
