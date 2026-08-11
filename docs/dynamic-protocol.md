@@ -9,9 +9,11 @@ becomes a **button on that device's page**. Smart plugs through to HVAC, without
 
 ## Status
 
-**Prototype, under construction.** Expression core, transform language, facet resolver and the field codec
-are built; two of the ten corpus protocols round-trip byte-exactly. Variable-width fields (`varint`, `lp`)
-are next, and step 6 is the go/no-go gate.
+**Grammar complete against the corpus.** Expression core, transform language, facet resolver, field codec,
+value sets, the expression-vocabulary table and references are built. **All ten corpus protocols round-trip
+byte-exactly** — NTP, Modbus, MQTT, SNMP, CoAP, DHCP, SSDP, TLS, BACnet and mDNS — from documents that
+name no protocol inside the engine. The state model (step 14) is the remaining piece and is gated on the
+spec seams below.
 
 | Document | What it is |
 |---|---|
