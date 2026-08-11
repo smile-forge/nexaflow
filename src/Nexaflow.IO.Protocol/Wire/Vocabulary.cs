@@ -47,6 +47,11 @@ public enum ExprSite
     /// <summary>A rule's condition. Both.</summary>
     Condition,
 
+    /// <summary>How a reference to another node is written down. The one place <c>position</c> means
+    /// anything — an offset is a rendering of a relationship, and everywhere else it is an invitation to
+    /// think in offsets about things that are relationships.</summary>
+    Locating,
+
     /// <summary>An arrangement rule, over one structure and the one before it. Both.</summary>
     Pairing,
 }
@@ -80,10 +85,13 @@ public static class Vocabulary
     public const string Carried = "carried";
     public const string Ordinal = "ordinal";
 
+    /// <summary>Where the pointed-at node landed. Bound at exactly one site.</summary>
+    public const string Position = "position";
+
     /// <summary>Everything the walk binds. A root outside this set is not vocabulary at all.</summary>
     public static readonly IReadOnlySet<string> All =
         new HashSet<string>(StringComparer.Ordinal)
-            { Fields, Inputs, Item, Previous, Room, Peek, Carried, Ordinal };
+            { Fields, Inputs, Item, Previous, Room, Peek, Carried, Ordinal, Position };
 
     private static readonly Dictionary<ExprSite, HashSet<string>> Answerable = new()
     {
@@ -97,6 +105,7 @@ public static class Vocabulary
         [ExprSite.Recognition] = [Fields, Room, Peek, Carried, Ordinal],
         [ExprSite.Selection] = [Fields, Inputs, Item, Carried, Ordinal],
         [ExprSite.Condition] = [Fields, Carried, Ordinal],
+        [ExprSite.Locating] = [Fields, Position, Carried, Ordinal],
         [ExprSite.Pairing] = [Item, Previous],
     };
 
@@ -115,6 +124,7 @@ public static class Vocabulary
         ExprSite.Recognition => "a discriminator's reading of the wire",
         ExprSite.Selection => "an encode-side selection",
         ExprSite.Condition => "a rule",
+        ExprSite.Locating => "a reference",
         ExprSite.Pairing => "an arrangement rule",
         _ => site.ToString(),
     };
@@ -150,6 +160,11 @@ public static class Vocabulary
 
             Previous =>
                 $"`{root}` is the structure before this one, which only an arrangement rule has",
+
+            Position =>
+                $"`{root}` is where a pointed-at node landed, and {here} points at nothing. An offset is "
+              + "how a reference gets written down, not a fact a node carries — declare what this "
+              + "continues at, and the offset follows",
 
             _ => $"`{root}` is not available in {here}",
         };

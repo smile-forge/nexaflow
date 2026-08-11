@@ -1,3 +1,4 @@
+using Nexaflow.IO.Protocol.Expressions;
 using Nexaflow.IO.Protocol.Values;
 
 namespace Nexaflow.IO.Protocol.Wire;
@@ -103,3 +104,20 @@ public sealed class ValueSet : Node
     public override string ToString()
         => $"{Id} ({Bounding.ToString().ToLowerInvariant()}, {Exclusivity.ToString().ToLowerInvariant()})";
 }
+
+/// <summary>
+/// A reference to another node, and how this protocol writes one down.
+/// </summary>
+/// <param name="Target">The node this field's content continues at. A node, not a name — a name cannot
+/// say which appearance it means.</param>
+/// <param name="Render">
+/// The octets that stand for the reference, with <c>position</c> bound to where the target landed.
+///
+/// <para>
+/// The rendering belongs to the document because it is protocol specifics: one family sets the top two
+/// bits of a sixteen-bit offset, another counts from the start of a record rather than the message,
+/// another writes an index instead of an offset. What is general is "this continues at that"; everything
+/// about how it is spelled is not.
+/// </para>
+/// </param>
+public sealed record Locating(Field Target, Expr Render);

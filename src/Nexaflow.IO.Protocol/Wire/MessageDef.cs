@@ -75,6 +75,18 @@ public sealed class Field : Node
     public Transform? Through { get; init; }
 
     /// <summary>
+    /// What this field points at, and how the protocol renders the reference into octets.
+    ///
+    /// <para>
+    /// The target is a node. The rendering is an expression evaluated with <c>position</c> bound to where
+    /// that node landed — bound <b>there and nowhere else</b>, because an offset is meaningful exactly
+    /// where a reference has to be written down and is otherwise an invitation to think in offsets about
+    /// things that are relationships.
+    /// </para>
+    /// </summary>
+    public Locating? Points { get; init; }
+
+    /// <summary>
     /// The set this field's values come from, and the run inside it when only one is governed.
     ///
     /// <para>
@@ -201,6 +213,9 @@ public sealed record MessageDef
 
             if (field.Draws is { } drawn)
                 graph.Add(new Admits { From = field, To = drawn.Set, Run = drawn.Run });
+
+            if (field.Points is { } points)
+                graph.Add(new Locates { From = field, To = points.Target });
 
             switch (field.Pattern)
             {
@@ -402,6 +417,7 @@ public sealed record MessageDef
             CheckContext(issues);
             CheckVocabulary(issues);
             CheckDistinctness(issues);
+            CheckReferences(issues);
         }
 
         CheckChoices(here, issues);
@@ -545,6 +561,13 @@ public sealed record MessageDef
                 case Pattern.Opaque { Length: { } length }:
                     yield return (field, length, "the length", ExprSite.Length);
                     break;
+            }
+
+            if (field.Points is { } points)
+                yield return (field, points.Render, "the reference", ExprSite.Locating);
+
+            switch (field.Pattern)
+            {
 
                 case Pattern.Group { Extent: { } extent }:
                     yield return (field, extent, "the region bound", ExprSite.Bound);
@@ -682,6 +705,45 @@ public sealed record MessageDef
                          + "same thing. Requiring distinctness over it would refuse messages that are well "
                          + "formed. Either the set is definitive and should say so, or this rule is not "
                          + "the one you want.");
+        }
+    }
+
+    /// <summary>
+    /// References, checked against the order they will be written in.
+    ///
+    /// <para>
+    /// Forwards is the interesting one. It is not a resolver problem — a pointer's extent is fixed by its
+    /// declaration, so the chain of positions never runs through its value and a forward reference would
+    /// settle perfectly well. It is a <i>protocol</i> problem: a reader meeting a forward pointer has not
+    /// read the target yet, and two pointing at each other is a loop no reader escapes. So the engine says
+    /// so, rather than emitting something only it can read.
+    /// </para>
+    /// </summary>
+    private void CheckReferences(List<string> issues)
+    {
+        var order = AllFields.ToList();
+
+        foreach (var field in order)
+        {
+            if (field.Points is not { } points) continue;
+
+            if (field.Value is not null)
+                issues.Add($"message '{Id}': '{field.Id}' both points at '{points.Target.Name}' and has a "
+                         + "value of its own. A reference is written from what it refers to; a second "
+                         + "answer to the same question is one of them being ignored.");
+
+            int here = order.IndexOf(field);
+            int there = order.IndexOf(points.Target);
+
+            if (there < 0)
+                issues.Add($"message '{Id}': '{field.Id}' points at '{points.Target.Name}', which is not a "
+                         + "node of this message");
+
+            else if (there >= here)
+                issues.Add($"message '{Id}': '{field.Id}' points forwards at '{points.Target.Name}'. A "
+                         + "reader meeting it has not read the target yet, and two references pointing at "
+                         + "each other are a loop nothing escapes — which is why this is refused even "
+                         + "though the offset itself would resolve.");
         }
     }
 

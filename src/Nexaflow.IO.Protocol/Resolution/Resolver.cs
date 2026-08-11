@@ -32,8 +32,10 @@ public sealed class Resolver
     /// <summary>How many facets were settled. Not a pass count — there are no passes.</summary>
     public int SettledCount => _settled.Count;
 
+    // Not an order. The worklist is demand-driven and each node declares its own edges; this is only the
+    // set of questions that may be asked, and a facet missing from it is one nothing can ever depend on.
     private static readonly Facet[] AllFacets =
-        [Facet.Realised, Facet.Present, Facet.Extent, Facet.Value, Facet.Emitted];
+        [Facet.Realised, Facet.Present, Facet.Extent, Facet.Position, Facet.Value, Facet.Emitted];
 
     public Resolver Add(params ResolutionNode[] nodes)
     {

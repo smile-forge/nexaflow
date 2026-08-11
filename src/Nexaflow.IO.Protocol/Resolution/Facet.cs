@@ -36,6 +36,25 @@ public enum Facet
     /// <summary>What it encodes to.</summary>
     Value,
 
+    /// <summary>
+    /// Where it starts, in octets from the beginning of the message.
+    ///
+    /// <para>
+    /// A facet rather than a sweep, because a value can depend on one: a pointer carries the offset of the
+    /// thing it points at, so its value cannot settle until that thing's position has. Doing it as a pass
+    /// after everything else means a pointer's value has to be back-patched, which is the shape this
+    /// resolver exists to avoid.
+    /// </para>
+    ///
+    /// <para>
+    /// It needs no fixed point for the reason an extent does not: position is the previous sibling's
+    /// position plus its extent, and a pointer's own extent is fixed by its declaration whatever value it
+    /// ends up holding. So a pointer that precedes its target still resolves — the chain of positions never
+    /// passes through the pointer's value.
+    /// </para>
+    /// </summary>
+    Position,
+
     /// <summary>Committed to the output. Terminal.</summary>
     Emitted,
 }

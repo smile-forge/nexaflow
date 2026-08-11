@@ -729,9 +729,13 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         var resolver = new Resolver();
         var frame = NameFrame.Root(_message.Fields, scope);
 
+        var after = Encoder.Follows.Start;
+
         foreach (var field in _message.Fields)
-            foreach (var node in encoder.Nodes(field, frame))
-                resolver.Add(node);
+        {
+            foreach (var node in encoder.Nodes(field, frame, after)) resolver.Add(node);
+            after = Encoder.Follows.After(frame.Of(field));
+        }
 
         var settled = resolver.Resolve();
 
@@ -1072,7 +1076,56 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         private static readonly HashSet<Facet> ThreadNotApplicable =
             [Facet.Realised, Facet.Present, Facet.Extent, Facet.Emitted];
 
-        public List<ResolutionNode> Nodes(Field field, NameFrame frame)
+        /// <summary>
+        /// Where a node starts, expressed as the one node it follows. Two references rather than a running
+        /// total: a node begins where the previous sibling ended, and the first child of a container begins
+        /// where the container does. That makes position O(1) to declare and keeps the chain of
+        /// dependencies out of any node's value.
+        /// </summary>
+        internal readonly record struct Follows(FacetRef? Position, FacetRef? Extent)
+        {
+            /// <summary>The start of the message.</summary>
+            public static Follows Start => new(null, null);
+
+            /// <summary>The first thing inside a container starts where the container starts.</summary>
+            public static Follows Inside(object container) => new(new FacetRef(container, Facet.Position), null);
+
+            /// <summary>Whatever comes after this node.</summary>
+            public static Follows After(object node)
+                => new(new FacetRef(node, Facet.Position), new FacetRef(node, Facet.Extent));
+
+            public IReadOnlyList<FacetRef> Needs
+                => Position is null ? [] : Extent is null ? [Position.Value] : [Position.Value, Extent.Value];
+
+            public int At(IReadOnlyDictionary<FacetRef, object?> inputs)
+                => (Position is null ? 0 : Offset(inputs[Position.Value]))
+                 + (Extent is null ? 0 : Offset(inputs[Extent.Value]));
+
+            private static int Offset(object? settled) => settled switch
+            {
+                int i => i,
+                long l => (int)l,
+                ProtoValue.Int v => (int)v.Value,
+                _ => 0,
+            };
+        }
+
+        /// <summary>An arm's fields, the first starting where the choice does.</summary>
+        private List<ResolutionNode> ArmNodes(Arm arm, NameFrame frame, object choice)
+        {
+            List<ResolutionNode> nodes = [];
+            var within = Follows.Inside(choice);
+
+            foreach (var child in codec.Inside(arm))
+            {
+                nodes.AddRange(Nodes(child, frame, within));
+                within = Follows.After(frame.Of(child));
+            }
+
+            return nodes;
+        }
+
+        public List<ResolutionNode> Nodes(Field field, NameFrame frame, Follows after)
         {
             var nodeId = frame.Of(field);
             List<ResolutionNode> nodes = [];
@@ -1081,15 +1134,34 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             {
                 case Pattern.Group group:
                 {
-                    foreach (var child in codec.Inside(field)) nodes.AddRange(Nodes(child, frame));
+                    var within = Follows.Inside(nodeId);
+
+                    foreach (var child in codec.Inside(field))
+                    {
+                        nodes.AddRange(Nodes(child, frame, within));
+                        within = Follows.After(frame.Of(child));
+                    }
+
                     var extents = codec.Inside(field).Select(c => new FacetRef(frame.Of(c), Facet.Extent)).ToList();
 
                     nodes.Add(new ResolutionNode
                     {
                         Id = nodeId,
                         NotApplicable = RegionNotApplicable,
-                        DependenciesFor = f => f == Facet.Extent ? extents : [],
-                        Settle = (f, inputs) => FacetResult.Of(f == Facet.Extent ? Sum(extents, inputs) : null),
+
+                        DependenciesFor = f => f switch
+                        {
+                            Facet.Extent => extents,
+                            Facet.Position => after.Needs,
+                            _ => [],
+                        },
+
+                        Settle = (f, inputs) => FacetResult.Of(f switch
+                        {
+                            Facet.Extent => Sum(extents, inputs),
+                            Facet.Position => after.At(inputs),
+                            _ => (object?)null,
+                        }),
                     });
                     break;
                 }
@@ -1117,6 +1189,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                             Facet.Extent => armExtents is null
                                 ? [new FacetRef(nodeId, Facet.Realised)]
                                 : [new FacetRef(nodeId, Facet.Realised), .. armExtents],
+                            Facet.Position => after.Needs,
                             _ => [],
                         },
 
@@ -1134,11 +1207,12 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                                         .Select(c => new FacetRef(frame.Of(c), Facet.Extent)).ToList();
 
                                     return new FacetResult(arm.Name,
-                                        [.. codec.Inside(arm).SelectMany(c => Nodes(c, frame))]);
+                                        [.. ArmNodes(arm, frame, nodeId)]);
                                 }
 
                                 case Facet.Value: return FacetResult.Of(ProtoValue.Of(Chosen[nodeId].Name));
                                 case Facet.Extent: return FacetResult.Of(Sum(armExtents!, inputs));
+                                case Facet.Position: return FacetResult.Of(after.At(inputs));
                                 default: return FacetResult.Of(null);
                             }
                         },
@@ -1197,7 +1271,9 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                             var instance = frame.Structure(chain.Element,
                                 new Occurrence(chain.Element, nodeId, $"[{i}]"), list.Items[i], carriedId);
 
-                            children.AddRange(Nodes(chain.Element, instance));
+                            children.AddRange(Nodes(chain.Element, instance,
+                                i == 0 ? Follows.Inside(nodeId)
+                                       : Follows.After(frames[i - 1].Of(chain.Element))));
                             extents.Add(new FacetRef(instance.Of(chain.Element), Facet.Extent));
                             frames.Add(instance);
 
@@ -1222,6 +1298,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                             Facet.Extent => instanceExtents is null
                                 ? [new FacetRef(nodeId, Facet.Realised)]
                                 : [new FacetRef(nodeId, Facet.Realised), .. instanceExtents],
+                            Facet.Position => after.Needs,
                             _ => [],
                         },
 
@@ -1230,6 +1307,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                             Facet.Value => FacetResult.Of(structures = codec.Evaluate(field, frame, evaluator, inputs)),
                             Facet.Realised => Expand(),
                             Facet.Extent => FacetResult.Of(Sum(instanceExtents!, inputs)),
+                            Facet.Position => FacetResult.Of(after.At(inputs)),
                             _ => FacetResult.Of(null),
                         },
                     });
@@ -1239,6 +1317,12 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 default:
                 {
                     List<FacetRef> valueNeeds = field.Value is null ? [] : Refs(field, Roles.Value, field.Value, frame);
+
+                    // A reference waits for its target to land. Not for the whole layout — only for the
+                    // extents between the start and that node, which usually settle long before the rest
+                    // of the message does.
+                    var target = field.Points is null ? null : (object)frame.Of(field.Points.Target);
+                    if (target is not null) valueNeeds = [.. valueNeeds, new FacetRef(target, Facet.Position)];
 
                     // The edge a fixed width does not need. A continuation chain or a recovered octet run
                     // cannot be measured until it is known, so `Extent` declares a dependency on `Value`
@@ -1255,14 +1339,18 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                         {
                             Facet.Value => valueNeeds,
                             Facet.Extent when fixedWidth is null => [new FacetRef(nodeId, Facet.Value)],
+                            Facet.Position => after.Needs,
                             _ => [],
                         },
 
                         Settle = (f, inputs) => f switch
                         {
                             Facet.Extent => FacetResult.Of(fixedWidth ?? codec.Measure(field, settledValue)),
-                            Facet.Value => FacetResult.Of(
-                                settledValue = codec.Confined(field, codec.Evaluate(field, frame, evaluator, inputs))),
+                            Facet.Position => FacetResult.Of(after.At(inputs)),
+                            Facet.Value => FacetResult.Of(settledValue = codec.Confined(field,
+                                target is null
+                                    ? codec.Evaluate(field, frame, evaluator, inputs)
+                                    : codec.Rendered(field, frame, evaluator, inputs, target))),
                             _ => FacetResult.Of(null),
                         },
                     });
@@ -1344,6 +1432,24 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         // decoding and a byte run when encoding, and every comparison against it silently went false.
         // Found by a length escape whose marker a sibling had to test for.
         return evaluator.Eval(field.Value, ScopeFor(frame, resolved));
+    }
+
+    /// <summary>
+    /// A reference, written down. <c>position</c> is bound here and at no other site — an offset is how a
+    /// relationship gets spelled, not a fact the pointed-at node carries.
+    /// </summary>
+    private ProtoValue Rendered(Field field, NameFrame frame, Evaluator evaluator,
+                                IReadOnlyDictionary<FacetRef, object?> resolved, object target)
+    {
+        var at = resolved.TryGetValue(new FacetRef(target, Facet.Position), out var settled) && settled is int i
+            ? i
+            : throw new ProtoTypeException(
+                  $"field '{field.Id}' points at '{field.Points!.Target.Name}', which has not been placed");
+
+        var scope = ScopeFor(frame, resolved);
+        scope.Set(Vocabulary.Position, ProtoValue.Of((long)at));
+
+        return Convert(evaluator.Eval(field.Points!.Render, scope), field, forward: true);
     }
 
     /// <summary>

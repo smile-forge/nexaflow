@@ -106,6 +106,27 @@ public sealed record Repeats : Edge
 }
 
 /// <summary>
+/// A field says that what it stands for continues at another node.
+///
+/// <para>
+/// The <b>intent</b>, and the only thing a document declares. Where that node lands in the octets is not a
+/// property of it — it falls out of walking the containment order and summing extents, and it exists only
+/// because a wire is a byte sequence. So the document points at the node and the engine renders the
+/// offset, the same division as between an object identifier's bits and what they denote.
+/// </para>
+///
+/// <para>
+/// Naming the target instead — <c>fields.thatName.position</c> — would be the defect this model has
+/// deleted twice: a name cannot say <i>which</i> appearance it means, so inside a repeated structure it is
+/// a dictionary key wearing a node's clothes.
+/// </para>
+/// </summary>
+public sealed record Locates : Edge
+{
+    public override string Verb => "continues at";
+}
+
+/// <summary>
 /// A field takes its values from a set.
 ///
 /// <para>
