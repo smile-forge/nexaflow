@@ -55,6 +55,28 @@ public class NestedVectorCaptureTests
         Pattern = new Pattern.Chain(element, Expr.Parse("room > 0")),
     };
 
+    /// <summary>
+    /// A section that may not be there at all — which is not the same as being there and empty.
+    ///
+    /// <para>
+    /// A hello from before extensions existed simply ends after its compression methods, and the RFC says
+    /// so explicitly: the block is <c>select (extensions_present)</c>, not a vector that can be short.
+    /// Nothing in the message says which; on the way in you ask the region, and on the way out you ask
+    /// whether you were given one. Two questions, one discriminator, and the arms are proved exhaustive
+    /// once because a comparison can only answer two ways.
+    /// </para>
+    /// </summary>
+    private static Field Optional(string id, string supplied, IReadOnlyList<Field> content) => new()
+    {
+        Id = id,
+        Pattern = new Pattern.Choice(Expr.Parse("room > 0"),
+        [
+            new Arm("absent", 0, []),
+            new Arm("present", 1, content),
+        ],
+        Selects: Expr.Parse(supplied)),
+    };
+
     private static Field Number(string id, string source) => new()
     {
         Id = id,
@@ -92,7 +114,7 @@ public class NestedVectorCaptureTests
     {
         Id = "handshakeRecord",
         Context = Context.Given.These(
-            "contentType", "recordVersion", "handshakeType", "extensions", "unreadBody",
+            "contentType", "recordVersion", "handshakeType", "extensions", "unreadBody", "hasExtensionBlock",
             "clientVersion", "clientRandom", "clientSessionId", "cipherSuites", "compressionMethods",
             "serverVersion", "serverRandom", "serverSessionId", "chosenSuite", "chosenCompression"),
 
@@ -132,8 +154,9 @@ public class NestedVectorCaptureTests
                                     [Filling("methods", new Field { Id = "method", Pattern = U8, Value = Expr.Parse("item") },
                                              "inputs.compressionMethods")]),
 
-                                .. Vector("offeredExtensions", U16,
-                                    [Filling("extensions", Extension(), "inputs.extensions")]),
+                                Optional("offeredExtensionBlock", "inputs.hasExtensionBlock == 1",
+                                    [.. Vector("offeredExtensions", U16,
+                                        [Filling("extensions", Extension(), "inputs.extensions")])]),
                             ]),
 
                             new Arm("accept", 2,
@@ -146,8 +169,9 @@ public class NestedVectorCaptureTests
                                 Number("chosenSuite", "inputs.chosenSuite"),
                                 new Field { Id = "chosenCompression", Pattern = U8, Value = Expr.Parse("inputs.chosenCompression") },
 
-                                .. Vector("acceptedExtensions", U16,
-                                    [Filling("acceptedList", Extension(), "inputs.extensions")]),
+                                Optional("acceptedExtensionBlock", "inputs.hasExtensionBlock == 1",
+                                    [.. Vector("acceptedExtensions", U16,
+                                        [Filling("acceptedList", Extension(), "inputs.extensions")])]),
                             ]),
 
                             // The exhaustiveness check demanded this and was right to: there are ten of
@@ -271,6 +295,43 @@ public class NestedVectorCaptureTests
     }
 
     [TestMethod]
+    public void A_hello_with_no_extension_block_is_a_different_message_from_one_with_an_empty_block()
+    {
+        // RFC 5246 defines the block as `select (extensions_present)`, so a pre-2003 hello ends after its
+        // compression methods and carries no length either. Under a document that always writes the block
+        // this was inexpressible — and the reason it was inexpressible is that `room` answers only for a
+        // reader, so the discriminator needed a second reading rather than the document needing a
+        // second shape.
+        var codec = new MessageCodec(Definition());
+        var inputs = InputsFrom(codec.Decode(Capture(0)));
+
+        inputs.Set("inputs", With(inputs.Root("inputs"), ("hasExtensionBlock", ProtoValue.Of(0L))));
+
+        var legacy = codec.Encode(inputs);
+        var decoded = codec.Decode(legacy);
+
+        // The 98-octet block and the two octets that measured it, both gone.
+        Assert.AreEqual(Capture(0).Length - 100, legacy.Length);
+        Assert.AreEqual("absent", decoded["offeredExtensionBlock"].AsText());
+        Assert.IsTrue(decoded["offeredExtensionsLength"].IsNull, "nothing measured a block that is not there");
+
+        // And everything above it followed, without the inputs mentioning any of it.
+        Assert.AreEqual(91, decoded["recordLength"].AsInt());
+        Assert.AreEqual(87, decoded["handshakeLength"].AsInt());
+        Assert.AreEqual(8, decoded["suites"].AsList().Count, "the rest of the hello is untouched");
+
+        // The empty block is a different message: two octets of zero length, and the arm says so.
+        inputs.Set("inputs", With(inputs.Root("inputs"),
+            ("hasExtensionBlock", ProtoValue.Of(1L)),
+            ("extensions", new ProtoValue.List([]))));
+
+        var empty = codec.Decode(codec.Encode(inputs));
+
+        Assert.AreEqual("present", empty["offeredExtensionBlock"].AsText());
+        Assert.AreEqual(0, empty["offeredExtensionsLength"].AsInt(), "present, and measuring nothing");
+    }
+
+    [TestMethod]
     public void A_length_that_disagrees_with_what_it_bounds_is_refused()
     {
         // The innermost region declaring more than its items fill. Under a count-driven reader this is
@@ -290,6 +351,13 @@ public class NestedVectorCaptureTests
 
         foreach (var (name, value) in decoded.Captures)
             if (!name.EndsWith("Length", StringComparison.Ordinal)) inputs[name] = value;
+
+        // Whether the block was there at all — which the wire does not say and the caller therefore must.
+        var block = decoded["offeredExtensionBlock"].IsNull
+            ? decoded["acceptedExtensionBlock"]
+            : decoded["offeredExtensionBlock"];
+
+        inputs["hasExtensionBlock"] = ProtoValue.Of(block.AsText() == "present" ? 1L : 0L);
 
         inputs["cipherSuites"] = decoded["suites"];
         inputs["compressionMethods"] = decoded["methods"];

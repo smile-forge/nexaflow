@@ -78,10 +78,25 @@ public sealed record Discriminates : Edge
     public override string Verb => "discriminates on";
 }
 
-/// <summary>A choice offers a packing.</summary>
+/// <summary>
+/// A choice offers a packing, under the discriminator value that selects it.
+///
+/// <para>
+/// On the edge rather than on the arm, for the same reason ordering is: <i>which value selects this
+/// packing</i> is a fact about this choice offering it, not about the packing. An arm knows what shape it
+/// is; it does not know what number some other field has to hold for it to be the one. Reading it off the
+/// edge also puts every question about selection in one place — and it is where a state-scoped offer will
+/// have to hang when a packing becomes legal only while the conversation is in some state.
+/// </para>
+/// </summary>
+/// <param name="Key">The value selecting this arm, or null for the fallback.</param>
 public sealed record Offers : Edge
 {
-    public override string Verb => "offers";
+    public long? Key { get; init; }
+
+    public bool IsFallback => Key is null;
+
+    public override string Verb => Key is null ? "offers, failing over to" : $"offers, on {Key}, ";
 }
 
 /// <summary>A chain repeats a structure.</summary>
@@ -122,6 +137,10 @@ public static class Roles
 {
     public const string Value = "the value";
     public const string Discriminator = "the discriminator";
+
+    /// <summary>The encode-side discriminator, where the two directions decide differently — a reader
+    /// asks the region whether a section is there, a writer asks whether it was given one.</summary>
+    public const string Selection = "the selection";
     public const string Continuation = "the continuation";
     public const string Seed = "the seed";
     public const string Carry = "the carry";

@@ -268,7 +268,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             case Pattern.Choice choice:
             {
                 long key = r.Eval(choice.Key).AsInt();
-                var arm = choice.Select(key, field.Id);
+                var arm = _message.Choose(field, key);
                 int start = r.Offset;
 
                 foreach (var child in Inside(arm))
@@ -1018,7 +1018,13 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
                 case Pattern.Choice choice:
                 {
-                    var keyNeeds = Refs(field, Roles.Discriminator, choice.Key, frame);
+                    // The writer's reading of the discriminator, where the two differ. `room` and `peek`
+                    // answer only for a reader, so a section that is present when the region still has
+                    // octets in it has to be decided some other way out here — by whether the caller
+                    // supplied one.
+                    var deciding = choice.Deciding(encoding: true);
+                    var keyNeeds = Refs(field, choice.Selects is null ? Roles.Discriminator : Roles.Selection,
+                                        deciding, frame);
                     List<FacetRef>? armExtents = null;
 
                     nodes.Add(new ResolutionNode
@@ -1042,8 +1048,8 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                             {
                                 case Facet.Realised:
                                 {
-                                    long key = evaluator.Eval(choice.Key, Fields(frame, inputs)).AsInt();
-                                    var arm = choice.Select(key, field.Id);
+                                    long key = evaluator.Eval(deciding, Fields(frame, inputs)).AsInt();
+                                    var arm = codec._message.Choose(field, key);
 
                                     Chosen[nodeId] = arm;
                                     armExtents = codec.Inside(arm)

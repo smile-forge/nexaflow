@@ -29,17 +29,23 @@ public readonly record struct BitSlice(string Name, int Width);
 /// <param name="Name">What this packing is called. It becomes the choice's decoded value, so a later step
 /// can branch on <i>which shape arrived</i> rather than re-testing the raw discriminator — the difference
 /// between a structural branch and a coincidence that happens to agree with one.</param>
-/// <param name="Key">The discriminator value selecting this arm, or null for the fallback arm.</param>
-/// <param name="Fields">The fields this packing contributes, in order.</param>
+/// <param name="key">The discriminator value selecting this arm, or null for the fallback.
+///
+/// <para>
+/// Authoring input only. It is copied onto the <see cref="Offers"/> edge when the graph is built, and the
+/// <b>edge</b> is what the engine reads — which value picks this packing is a fact about this choice
+/// offering it, not about the packing. Nothing here is consulted afterwards, exactly as nothing consults
+/// a rule's declared order once its <see cref="Constrains"/> edges exist.
+/// </para>
+/// </param>
+/// <param name="fields">The fields this packing contributes, in order.</param>
 public sealed class Arm(string label, long? key, IReadOnlyList<Field> fields) : Node
 {
     public override string Name { get; } = label;
 
-    public long? Key { get; } = key;
+    internal long? DeclaredKey { get; } = key;
 
     public IReadOnlyList<Field> Fields { get; } = fields;
-
-    public bool IsFallback => Key is null;
 }
 
 /// <summary>
@@ -199,18 +205,28 @@ public abstract record Pattern
     /// message with an unanticipated discriminator decodes to zero bound fields and no error at all.
     /// </para>
     /// </summary>
-    public sealed record Choice(Expr Key, IReadOnlyList<Arm> Arms) : Pattern
+    /// <param name="Selects">
+    /// The encode-side discriminator, where the two directions decide the same thing by asking different
+    /// questions.
+    ///
+    /// <para>
+    /// The same direction-asymmetry as <see cref="Opaque.Length"/> and <see cref="Chain.Continues"/>, and
+    /// it took two unrelated protocols to notice it was missing here: a section that is present only
+    /// sometimes is recognised on the way in by looking at the region — <c>room &gt; 0</c>, or what the
+    /// next octet's tag says — and on the way out by whether the caller supplied one. Neither question
+    /// can be asked in the other direction. With this given, <paramref name="Key"/> becomes the reader's
+    /// question alone and may use the reader's vocabulary.
+    /// </para>
+    ///
+    /// <para>
+    /// Both must land on the same arm keys, so exhaustiveness is still proved once and covers both.
+    /// This is a second <i>reading</i> of one discriminator, not a second discriminator.
+    /// </para>
+    /// </param>
+    public sealed record Choice(Expr Key, IReadOnlyList<Arm> Arms, Expr? Selects = null) : Pattern
     {
-        public Arm? Fallback => Arms.FirstOrDefault(a => a.IsFallback);
-
-        /// <summary>Selects the arm for a discriminator value, or throws naming what arrived and what was
-        /// declared.</summary>
-        public Arm Select(long key, string fieldId)
-            => Arms.FirstOrDefault(a => a.Key == key)
-            ?? Fallback
-            ?? throw new ProtoTypeException(
-                $"field '{fieldId}': discriminator {key} (0x{key:x}) matches no arm, and none is declared "
-              + $"as the fallback. Declared: {string.Join(", ", Arms.Select(a => a.IsFallback ? $"{a.Name}=*" : $"{a.Name}={a.Key}"))}");
+        /// <summary>Which expression decides, in the direction being walked.</summary>
+        public Expr Deciding(bool encoding) => encoding && Selects is not null ? Selects : Key;
     }
 
     /// <summary>
@@ -339,7 +355,11 @@ public abstract record Pattern
         // An EMPTY region is deliberately legal. It measures zero, which is exactly what a length field
         // over an absent body must emit — a liveness probe with no payload is a real message, and
         // rejecting the empty case would force a second framing declaration for it.
-        Choice c => ValidateChoice(c, fieldId, inScope),
+        //
+        // A choice is checked in MessageDef instead: its arm keys live on the Offers edges now, and a
+        // pattern cannot see the graph. That is the right way round — a shape should not be the authority
+        // on a relationship between two nodes.
+        Choice { Arms.Count: 0 } => [$"field '{fieldId}': a choice needs at least one arm"],
 
         Chain c when (c.Seed is null) != (c.Carry is null) =>
             [$"field '{fieldId}': a chain that threads a value needs both where it starts and how each "
@@ -422,60 +442,4 @@ public abstract record Pattern
             : null;
     }
 
-    private static IReadOnlyList<string> ValidateChoice(Choice choice, string fieldId,
-                                                        IReadOnlyDictionary<string, Pattern>? inScope)
-    {
-        List<string> issues = [];
-
-        if (choice.Arms.Count == 0)
-        {
-            issues.Add($"field '{fieldId}': a choice needs at least one arm");
-            return issues;
-        }
-
-        foreach (var duplicate in choice.Arms.GroupBy(a => a.Name, StringComparer.Ordinal).Where(g => g.Count() > 1))
-            issues.Add($"field '{fieldId}': two arms are both named '{duplicate.Key}' — the name is what a "
-                     + "later step branches on, so it has to identify one shape");
-
-        foreach (var duplicate in choice.Arms.Where(a => !a.IsFallback).GroupBy(a => a.Key!.Value)
-                                             .Where(g => g.Count() > 1))
-            issues.Add($"field '{fieldId}': discriminator {duplicate.Key} selects "
-                     + $"{duplicate.Count()} arms — which one applies is not decidable");
-
-        if (choice.Arms.Count(a => a.IsFallback) > 1)
-            issues.Add($"field '{fieldId}': only one arm may be the fallback");
-
-        var reachable = ReachableKeys(choice.Key, inScope);
-
-        if (reachable is null)
-        {
-            if (choice.Fallback is null)
-                issues.Add($"field '{fieldId}': the engine cannot compute which values this discriminator "
-                         + "can take, so it cannot prove the arms are exhaustive. Declare a fallback arm "
-                         + "(key null). An unanticipated discriminator otherwise binds no fields and "
-                         + "reports no error, which is worse than either outcome you would have chosen.");
-            return issues;
-        }
-
-        foreach (var arm in choice.Arms.Where(a => !a.IsFallback))
-            if (!reachable.Contains(arm.Key!.Value))
-                issues.Add($"field '{fieldId}': arm '{arm.Name}' is keyed {arm.Key} (0x{arm.Key:x}), which "
-                         + "this discriminator can never produce — a dead arm is a mistake about the mask, "
-                         + "not a harmless extra");
-
-        var covered = choice.Arms.Where(a => !a.IsFallback).Select(a => a.Key!.Value).ToHashSet();
-        var missing = reachable.Where(k => !covered.Contains(k)).OrderBy(k => k).ToList();
-
-        if (missing.Count > 0 && choice.Fallback is null)
-            issues.Add($"field '{fieldId}': the arms are not exhaustive — nothing handles "
-                     + string.Join(", ", missing.Select(k => $"0x{k:x}"))
-                     + ". Add the arms, or declare a fallback.");
-
-        if (missing.Count == 0 && choice.Fallback is not null)
-            issues.Add($"field '{fieldId}': arm '{choice.Fallback.Name}' is the fallback, but the other "
-                     + "arms already cover every value the discriminator can take, so it can never be "
-                     + "selected");
-
-        return issues;
-    }
 }

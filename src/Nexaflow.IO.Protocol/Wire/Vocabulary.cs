@@ -37,6 +37,10 @@ public enum ExprSite
     /// <summary>Which packing. Both, unless the choice also declares a <see cref="Selection"/>.</summary>
     Discriminator,
 
+    /// <summary>Which packing arrived, where the choice also declares a <see cref="Selection"/> — so this
+    /// half is the reader's alone and may ask the reader's questions.</summary>
+    Recognition,
+
     /// <summary>The encode-side discriminator, where the two directions decide differently.</summary>
     Selection,
 
@@ -90,6 +94,7 @@ public static class Vocabulary
         [ExprSite.Seeding] = [Fields, Carried, Ordinal],
         [ExprSite.Carry] = [Fields, Carried, Ordinal],
         [ExprSite.Discriminator] = [Fields, Carried, Ordinal],
+        [ExprSite.Recognition] = [Fields, Room, Peek, Carried, Ordinal],
         [ExprSite.Selection] = [Fields, Inputs, Item, Carried, Ordinal],
         [ExprSite.Condition] = [Fields, Carried, Ordinal],
         [ExprSite.Pairing] = [Item, Previous],
@@ -107,6 +112,7 @@ public static class Vocabulary
         ExprSite.Seeding => "a chain's seed",
         ExprSite.Carry => "a carry",
         ExprSite.Discriminator => "a discriminator",
+        ExprSite.Recognition => "a discriminator's reading of the wire",
         ExprSite.Selection => "an encode-side selection",
         ExprSite.Condition => "a rule",
         ExprSite.Pairing => "an arrangement rule",

@@ -124,6 +124,29 @@ public sealed record MessageDef
     public ProtocolGraph Graph => _graph ??= Build();
     private ProtocolGraph? _graph;
 
+    /// <summary>
+    /// A copy starts with no graph.
+    /// </summary>
+    /// <remarks>
+    /// A record's generated copy constructor copies every field, the memoised graph included — so
+    /// <c>document with { Fields = … }</c> produced a document describing one field list and answering
+    /// graph questions about another. Harmless while the graph only carried containment nobody
+    /// interrogated, and a silent wrong answer the moment selection keys moved onto its edges. Putting
+    /// facts in the graph means the graph has to be the one for these facts.
+    /// </remarks>
+    private MessageDef(MessageDef other)
+    {
+        Id = other.Id;
+        Fields = other.Fields;
+        Rules = other.Rules;
+        Context = other.Context;
+
+        // The same root, not a new one. Field initialisers run for this constructor too, so leaving it
+        // out mints a fresh node and every rule pointing at the original's root stops being about
+        // anything — identity is the object, which cuts both ways.
+        Root = other.Root;
+    }
+
     /// <summary>Stands for the message itself, so a rule about the whole thing has something to point at
     /// rather than being attached by convention.</summary>
     public Node Root { get; } = new MessageRoot();
@@ -175,7 +198,7 @@ public sealed record MessageDef
                 case Pattern.Choice choice:
                     foreach (var arm in choice.Arms)
                     {
-                        graph.Add(new Offers { From = field, To = arm });
+                        graph.Add(new Offers { From = field, To = arm, Key = arm.DeclaredKey });
                         Wire(graph, arm, arm.Fields);
                     }
                     break;
@@ -225,6 +248,12 @@ public sealed record MessageDef
             {
                 case Pattern.Choice choice:
                     Link(choice.Key, Roles.Discriminator, Visible);
+
+                    if (choice.Selects is { } selects)
+                    {
+                        Link(selects, Roles.Selection, Visible);
+                        Outside(selects, Roles.Selection);
+                    }
                     break;
 
                 case Pattern.Opaque { Length: { } length }:
@@ -260,6 +289,28 @@ public sealed record MessageDef
     /// repeated structure is found every time that structure is realised.</summary>
     public IEnumerable<Rule> RulesOn(Node node)
         => Graph.To<Constrains>(node).OrderBy(e => e.Order).Select(e => (Rule)e.From);
+
+    /// <summary>What a choice offers, and on what. Read from the edges, because that is where the key
+    /// lives — the arm knows what shape it is, the edge knows what picks it.</summary>
+    public IReadOnlyList<Offers> Offered(Node choice) => [.. Graph.From<Offers>(choice)];
+
+    /// <summary>
+    /// The packing a discriminator selects, or a refusal naming what arrived and what was declared.
+    /// </summary>
+    public Arm Choose(Field field, long key)
+    {
+        var offered = Offered(field);
+
+        var taken = offered.FirstOrDefault(o => o.Key == key)
+                 ?? offered.FirstOrDefault(o => o.IsFallback)
+                 ?? throw new ProtoTypeException(
+                        $"field '{field.Id}': discriminator {key} (0x{key:x}) matches no arm, and none is "
+                      + "declared as the fallback. Declared: "
+                      + string.Join(", ", offered.Select(o => o.IsFallback ? $"{o.To.Name}=*"
+                                                                           : $"{o.To.Name}={o.Key}")));
+
+        return (Arm)taken.To;
+    }
 
     internal static IEnumerable<Field> Descendants(IReadOnlyList<Field> fields)
     {
@@ -330,6 +381,8 @@ public sealed record MessageDef
         // Rules are checked once, against the graph, because a reference does not need a scope to be
         // resolved in — which is the point of it being a reference.
         if (outer.Count == 0) { CheckRules(issues); CheckContext(issues); CheckVocabulary(issues); }
+
+        CheckChoices(here, issues);
 
         // A carry is written on the chain and evaluated INSIDE the structure, so it names the structure's
         // fields rather than these. The graph has always known that; this check did not, because until
@@ -452,7 +505,13 @@ public sealed record MessageDef
             switch (field.Pattern)
             {
                 case Pattern.Choice choice:
-                    yield return (field, choice.Key, "the discriminator", ExprSite.Discriminator);
+                    // Paired with an encode-side reading, the key is the reader's question alone and may
+                    // use the reader's vocabulary. Alone, it has to answer in both directions.
+                    yield return (field, choice.Key, "the discriminator",
+                                  choice.Selects is null ? ExprSite.Discriminator : ExprSite.Recognition);
+
+                    if (choice.Selects is { } selects)
+                        yield return (field, selects, "the selection", ExprSite.Selection);
                     break;
 
                 case Pattern.Chain chain:
@@ -482,6 +541,82 @@ public sealed record MessageDef
     /// site rather than of the expression.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// Every choice, checked against the edges that carry its keys.
+    ///
+    /// <para>
+    /// Moved here from the pattern when the keys moved onto the <see cref="Offers"/> edges: a shape cannot
+    /// see the graph, and it should not be the authority on a relationship between two nodes anyway. The
+    /// substance is unchanged — the arms must be distinct, exhaustive over what the discriminator can
+    /// produce, and a fallback must be needed if one is declared.
+    /// </para>
+    /// </summary>
+    private void CheckChoices(IReadOnlyList<Field> here, List<string> issues)
+    {
+        var patterns = here.GroupBy(f => f.Id, StringComparer.Ordinal)
+                           .ToDictionary(g => g.Key, g => g.First().Pattern, StringComparer.Ordinal);
+
+        foreach (var field in here)
+        {
+            if (field.Pattern is not Pattern.Choice choice || choice.Arms.Count == 0) continue;
+
+            var offered = Offered(field);
+
+            foreach (var duplicate in offered.GroupBy(o => o.To.Name, StringComparer.Ordinal).Where(g => g.Count() > 1))
+                issues.Add($"field '{field.Id}': two arms are both named '{duplicate.Key}' — the name is "
+                         + "what a later step branches on, so it has to identify one shape");
+
+            foreach (var duplicate in offered.Where(o => !o.IsFallback).GroupBy(o => o.Key!.Value).Where(g => g.Count() > 1))
+                issues.Add($"field '{field.Id}': discriminator {duplicate.Key} selects "
+                         + $"{duplicate.Count()} arms — which one applies is not decidable");
+
+            if (offered.Count(o => o.IsFallback) > 1)
+                issues.Add($"field '{field.Id}': only one arm may be the fallback");
+
+            var fallback = offered.FirstOrDefault(o => o.IsFallback);
+
+            // Both readings must land on the same arms, so both are proved. A pair that disagreed about
+            // its own keyset would be two discriminators wearing one name.
+            List<(string Reading, Expr Deciding)> readings = [("discriminator", choice.Key)];
+            if (choice.Selects is { } selects) readings.Add(("selection", selects));
+
+            foreach (var (reading, deciding) in readings)
+            {
+                var reachable = Pattern.ReachableKeys(deciding, patterns);
+
+                if (reachable is null)
+                {
+                    if (fallback is null)
+                        issues.Add($"field '{field.Id}': the engine cannot compute which values this "
+                                 + $"{reading} can take, so it cannot prove the arms are exhaustive. "
+                                 + "Declare a fallback arm (key null). An unanticipated discriminator "
+                                 + "otherwise binds no fields and reports no error, which is worse than "
+                                 + "either outcome you would have chosen.");
+                    continue;
+                }
+
+                foreach (var arm in offered.Where(o => !o.IsFallback))
+                    if (!reachable.Contains(arm.Key!.Value))
+                        issues.Add($"field '{field.Id}': arm '{arm.To.Name}' is keyed {arm.Key} "
+                                 + $"(0x{arm.Key:x}), which this {reading} can never produce — a dead arm "
+                                 + "is a mistake about the mask, not a harmless extra");
+
+                var covered = offered.Where(o => !o.IsFallback).Select(o => o.Key!.Value).ToHashSet();
+                var missing = reachable.Where(k => !covered.Contains(k)).OrderBy(k => k).ToList();
+
+                if (missing.Count > 0 && fallback is null)
+                    issues.Add($"field '{field.Id}': the arms are not exhaustive — nothing handles "
+                             + string.Join(", ", missing.Select(k => $"0x{k:x}"))
+                             + ". Add the arms, or declare a fallback.");
+
+                if (missing.Count == 0 && fallback is not null)
+                    issues.Add($"field '{field.Id}': arm '{fallback.To.Name}' is the fallback, but the "
+                             + $"other arms already cover every value this {reading} can take, so it can "
+                             + "never be selected");
+            }
+        }
+    }
+
     private void CheckVocabulary(List<string> issues)
     {
         IEnumerable<(Node Owner, Expr Expression, string What, ExprSite Site)> everywhere =

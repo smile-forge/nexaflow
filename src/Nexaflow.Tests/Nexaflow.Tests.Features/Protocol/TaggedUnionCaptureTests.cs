@@ -126,6 +126,21 @@ public class TaggedUnionCaptureTests
         },
 
         .. Tagged($"{prefix}PropertyId", 1, propertyId),
+
+        // Context tag 2, and only when one element of an array is being read rather than the whole
+        // property. Nothing already read says whether it is there: on the way in the next octet's tag
+        // number does, and on the way out only the caller knows. The reading of the wire may therefore
+        // ask the wire's questions, and the selection may ask the caller's.
+        new Field
+        {
+            Id = $"{prefix}Element",
+            Pattern = new Pattern.Choice(Expr.Parse("room > 0 && (peek >> 4) == 2"),
+            [
+                new Arm("wholeProperty", 0, []),
+                new Arm("oneElement", 1, [.. Tagged($"{prefix}ArrayIndex", 2, $"inputs.{prefix}ArrayIndex")]),
+            ],
+            Selects: Expr.Parse($"inputs.{prefix}HasArrayIndex == 1")),
+        },
     ];
 
     /// <summary>
@@ -528,6 +543,7 @@ public class TaggedUnionCaptureTests
             Context = Context.Given.These(
                 "bvlcFunction", "npduControl", "apduType", "limits", "invokeId", "serviceChoice",
                 "requestObjectId", "requestPropertyId", "requestSequence", "requestWindow",
+                "requestArrayIndex", "requestHasArrayIndex", "ackArrayIndex", "ackHasArrayIndex",
                 "serviceParameters", "ackInvokeId", "ackServiceChoice", "ackObjectId", "ackPropertyId",
                 "propertyValues", "ackParameters", "ackSequence", "ackWindow", "segmentServiceChoice",
                 "segmentPayload", "requestSegmentService", "requestSegmentPayload",
@@ -820,6 +836,35 @@ public class TaggedUnionCaptureTests
         // Declared anyway, because what makes it unreachable is the framing rather than the tag.
     }
 
+    [TestMethod]
+    public void Reading_one_array_element_adds_a_parameter_the_wire_never_announces()
+    {
+        // ReadProperty's third parameter is optional and no capture in the corpus carries it. Its presence
+        // is readable on the way in — the next tag number is 2 — and unreadable on the way out, where
+        // there is no next octet yet. One discriminator, two readings.
+        var codec = new MessageCodec(Definition());
+        var inputs = InputsFrom(codec.Decode(Capture(0)));
+
+        Assert.AreEqual("wholeProperty", codec.Decode(Capture(0))["requestElement"].AsText());
+
+        inputs.Set("inputs", With(inputs.Root("inputs"),
+            ("requestHasArrayIndex", ProtoValue.Of(1L)),
+            ("requestArrayIndex", ProtoValue.Of(3L))));
+
+        var element = codec.Encode(inputs);
+        var decoded = codec.Decode(element);
+
+        Assert.AreEqual(Capture(0).Length + 2, element.Length);
+        Assert.AreEqual(19, decoded["bvlcLength"].AsInt(), "and the frame followed it");
+
+        Assert.AreEqual("oneElement", decoded["requestElement"].AsText());
+        Assert.AreEqual(0x29, element[^2], "context tag 2, one value octet");
+        Assert.AreEqual(3, decoded["requestArrayIndex"].AsInt());
+
+        // And the acknowledgement is unaffected: its next tag is the opening 0x3e, which is not a 2.
+        Assert.AreEqual("wholeProperty", codec.Decode(Capture(1))["ackElement"].AsText());
+    }
+
     // ── What it refuses ───────────────────────────────────────────────────────
 
     [TestMethod]
@@ -859,6 +904,16 @@ public class TaggedUnionCaptureTests
                 && !name.EndsWith("Tag", StringComparison.Ordinal)
                 && !name.EndsWith("Length", StringComparison.Ordinal))
                 inputs[name] = value;
+
+        // Whether an array index was there. The wire says so with a tag number; the caller has to say so
+        // with a value, because a writer has no wire to look at yet.
+        foreach (var prefix in (string[])["request", "ack"])
+        {
+            var element = decoded[$"{prefix}Element"];
+
+            inputs[$"{prefix}HasArrayIndex"] = ProtoValue.Of(
+                !element.IsNull && element.AsText() == "oneElement" ? 1L : 0L);
+        }
 
         if (decoded["propertyValues"].IsNull) return new EvalScope().Set("inputs", new ProtoValue.Rec(inputs));
 

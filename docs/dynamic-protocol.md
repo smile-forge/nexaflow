@@ -276,6 +276,26 @@ way out.**
    defect one construct over. Three instances now; the seam is *scope construction happening in more than
    one place*.
 
+**The fix, and where it went.** A choice now has an optional second *reading* of its discriminator: `Key`
+is what the wire says and `Selects` is what the caller says. Both land on the same arm keys, so
+exhaustiveness is still proved once and covers both — this is one discriminator asked two ways, not two
+discriminators. With a `Selects` given, `Key` becomes the reader's question alone and may use `room` and
+`peek`; the vocabulary table enforces the split rather than trusting it. A TLS hello with no extension
+block now encodes 100 octets shorter than one with an empty block, and BACnet's `propertyArrayIndex`
+appears when the caller asks for one element and not otherwise. Neither is in any capture.
+
+**And the keys moved onto the edges.** Which value selects a packing is a fact about *this choice offering
+it*, not about the packing — the same argument that put `Ordinal` on `Contains` and `Order` on
+`Constrains`. `Arm`'s key is now authoring input copied onto the `Offers` edge, and the edge is what the
+engine reads; choice validation moved out of the pattern to where the graph is, because a shape should not
+be the authority on a relationship between two nodes. It is also where a state-scoped offer will hang.
+
+That promotion immediately found a latent defect it had every right to find: `MessageDef` is a record, and
+`document with { Fields = … }` copied the **memoised graph**, so a modified document answered graph
+questions about the original. Harmless while the graph only carried containment nobody interrogated; a
+silent wrong answer the moment selection keys lived on its edges. Putting facts in the graph means the
+graph has to be the one for those facts.
+
 **One rule kind the taxonomy is missing.** Duplicate TLS extension types are illegal — a uniqueness
 constraint across *all* instances of a chain. `Rule.Arrangement` compares an instance only to `previous`.
 Set-uniqueness joins stateful denial as a named, unbuilt kind.

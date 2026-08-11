@@ -42,7 +42,7 @@ public static class MessageProse
         text.AppendLine("region contributes no octets of its own, only those of what it contains.");
         text.AppendLine();
 
-        foreach (var field in message.Fields) Walk(field, 0, text);
+        foreach (var field in message.Fields) Walk(field, 0, text, message);
 
         Refusals(message, text);
         return text.ToString();
@@ -92,7 +92,7 @@ public static class MessageProse
 
     // ── The walk ──────────────────────────────────────────────────────────────
 
-    private static void Walk(Field field, int depth, StringBuilder text)
+    private static void Walk(Field field, int depth, StringBuilder text, MessageDef message)
     {
         var pad = new string(' ', depth * 2);
         text.AppendLine($"{pad}- **{field.Id}** — {Shape(field)}{Source(field)}");
@@ -100,28 +100,33 @@ public static class MessageProse
         switch (field.Pattern)
         {
             case Pattern.Group group:
-                foreach (var child in group.Fields) Walk(child, depth + 1, text);
+                foreach (var child in group.Fields) Walk(child, depth + 1, text, message);
                 break;
 
-            case Pattern.Choice choice:
-                foreach (var arm in choice.Arms)
+            case Pattern.Choice:
+                // Through the edges: the key that selects a packing is carried by the offer, not by the
+                // packing, so this is where it has to be read from.
+                foreach (var offer in message.Offered(field))
                 {
-                    text.AppendLine($"{pad}  - *{arm.Name}* — {Selected(arm)}, "
+                    var arm = (Arm)offer.To;
+
+                    text.AppendLine($"{pad}  - *{arm.Name}* — {Selected(offer)}, "
                                   + $"{(arm.Fields.Count == 0 ? "contributing nothing" : Count(arm.Fields.Count, "field"))}.");
-                    foreach (var child in arm.Fields) Walk(child, depth + 2, text);
+                    foreach (var child in arm.Fields) Walk(child, depth + 2, text, message);
                 }
                 break;
 
             case Pattern.Chain chain:
-                Walk(chain.Element, depth + 1, text);
+                Walk(chain.Element, depth + 1, text, message);
                 break;
         }
 
         if (depth == 0) text.AppendLine();
     }
 
-    private static string Selected(Arm arm)
-        => arm.IsFallback ? "taken when nothing else matches" : $"taken when the discriminator is {arm.Key} (0x{arm.Key:x})";
+    private static string Selected(Offers offer)
+        => offer.IsFallback ? "taken when nothing else matches"
+                            : $"taken when the discriminator is {offer.Key} (0x{offer.Key:x})";
 
     private static string Shape(Field field) => field.Pattern switch
     {
@@ -152,6 +157,13 @@ public static class MessageProse
           + "**Its width is a function of its value**"
           + (e.Minimal ? ". Escaping when the value would have fitted inline, or using more octets than it "
                        + "needs, is refused" : ""),
+
+        Pattern.Choice { Selects: { } selects } c =>
+            $"one of {Count(c.Arms.Count, "packing")}. On the way in `{c.Key.Render()}` says which arrived; "
+          + $"on the way out `{selects.Render()}` says which to write. Two readings of one discriminator, "
+          + "because the question is not answerable the same way in both directions — a reader asks the "
+          + "region, a writer asks what it was given. Both land on the same arms, so the cover is proved "
+          + "once and holds for both",
 
         Pattern.Choice c =>
             $"one of {Count(c.Arms.Count, "packing")}, chosen by `{c.Key.Render()}`. The same expression "
@@ -207,12 +219,14 @@ public static class MessageProse
                 case Pattern.Choice choice:
                 {
                     var reachable = Pattern.ReachableKeys(choice.Key);
+                    var fallback = message.Offered(field).FirstOrDefault(o => o.IsFallback);
+
                     refusals.Add(reachable is not null
                         ? $"`{field.Id}` dispatches on `{choice.Key.Render()}`, which can only take "
                         + $"{reachable.Count} values, and the arms cover all of them — an unhandled value is "
                         + "impossible rather than merely unexpected."
                         : $"`{field.Id}` dispatches on `{choice.Key.Render()}`, whose range cannot be computed, "
-                        + $"so the arm *{choice.Fallback?.Name}* is declared to catch anything unlisted. "
+                        + $"so the arm *{fallback?.To.Name}* is declared to catch anything unlisted. "
                         + "A message that matches no arm is an error, never a silent skip.");
                     break;
                 }
