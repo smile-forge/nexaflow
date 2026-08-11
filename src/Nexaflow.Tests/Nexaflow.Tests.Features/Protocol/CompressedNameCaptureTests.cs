@@ -25,6 +25,14 @@ namespace Nexaflow.Tests.Features.Protocol;
 /// </para>
 ///
 /// <para>
+/// <b>Superseded for the response by <see cref="NamedPartCaptureTests"/>.</b> This document models a name
+/// as a chain of labels, which is right for reading one and leaves a pointer nothing to point at: a chain
+/// instance has no declared identity, so a target can only be an offset. Declaring the parts the protocol
+/// has names for is what made the response writable, and the note below is kept because it states the
+/// problem accurately even though the answer turned out to be elsewhere.
+/// </para>
+///
+/// <para>
 /// <b>The query round-trips; the response is read only.</b> Writing a compressed name means choosing what
 /// to compress against and knowing where that landed, which needs a position the resolver does not
 /// currently compute. A query carries no pointers, so it needs none of that — and asking and understanding
