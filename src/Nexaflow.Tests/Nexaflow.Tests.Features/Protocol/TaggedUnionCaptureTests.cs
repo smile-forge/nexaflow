@@ -152,6 +152,27 @@ public class TaggedUnionCaptureTests
                   + ": (fields.valueContent.extent < 5 ? fields.valueContent.extent : 5))"),
             },
 
+            // A tag number of 15 is not a tag number — it says the real one is in the octet after. The
+            // same presence-by-comparison as the two length escapes below it, and the reason the tag
+            // octet's top nibble is carried through rather than derived.
+            new Field
+            {
+                Id = "extendedTag",
+                Pattern = new Pattern.Choice(Expr.Parse("(fields.valueTag.value >> 4) == 15"),
+                [
+                    new Arm("inline", 0, []),
+                    new Arm("extended", 1,
+                    [
+                        new Field
+                        {
+                            Id = "extendedTagNumber",
+                            Pattern = U8,
+                            Value = Expr.Parse("item.extendedTagNumber"),
+                        },
+                    ]),
+                ]),
+            },
+
             // Present exactly when the tag said the width would not fit in it. Zero octets otherwise —
             // which is the same "width follows the octets" the corpus has now wanted five times, and the
             // reason there is no separate optional-field notion.
@@ -161,7 +182,53 @@ public class TaggedUnionCaptureTests
                 Pattern = Pattern.Opaque.Measured(
                     Expr.Parse("(fields.valueTag.value band 0x07) == 5 ? 1 : 0")),
                 Via = Minimal,
-                Value = Expr.Parse("fields.valueContent.extent >= 5 ? fields.valueContent.extent : 0"),
+                Value = Expr.Parse(
+                    "let n = fields.valueContent.extent in "
+                  + "n < 5 ? 0 : (n < 254 ? n : (n < 65536 ? 254 : 255))"),
+            },
+
+            // And that octet has its own two escapes: 254 says a 16-bit length follows, 255 a 32-bit one.
+            // Two presence choices rather than one three-way, because a comparison's cover is provable and
+            // a three-way would have needed a fallback arm standing for a case that is not "anything
+            // else" but exactly one thing.
+            //
+            // Recorded as needing a new shape — a fixed-width unsigned span whose width is an expression
+            // — and it does not. A fixed-width scalar inside a choice is that, and the choice is a shape
+            // the engine has had since step 4.
+            new Field
+            {
+                Id = "wideLength",
+                Pattern = new Pattern.Choice(Expr.Parse("fields.valueLength.value == 254"),
+                [
+                    new Arm("inline", 0, []),
+                    new Arm("sixteenBit", 1,
+                    [
+                        new Field
+                        {
+                            Id = "valueLength16",
+                            Pattern = new Pattern.Scalar(2, BigEndian: true),
+                            Value = Expr.Parse("fields.valueContent.extent"),
+                        },
+                    ]),
+                ]),
+            },
+
+            new Field
+            {
+                Id = "hugeLength",
+                Pattern = new Pattern.Choice(Expr.Parse("fields.valueLength.value == 255"),
+                [
+                    new Arm("inline", 0, []),
+                    new Arm("thirtyTwoBit", 1,
+                    [
+                        new Field
+                        {
+                            Id = "valueLength32",
+                            Pattern = new Pattern.Scalar(4, BigEndian: true),
+                            Value = Expr.Parse("fields.valueContent.extent"),
+                        },
+                    ]),
+                ]),
             },
 
             new Field
@@ -169,7 +236,11 @@ public class TaggedUnionCaptureTests
                 Id = "valueContent",
                 Pattern = Pattern.Opaque.Measured(Expr.Parse(
                     "let lvt = fields.valueTag.value band 0x07 in "
-                  + "lvt < 5 ? lvt : (lvt == 5 ? fields.valueLength.value : 0)")),
+                  + "let declared = fields.valueLength.value in "
+                  + "lvt < 5 ? lvt "
+                  + ": (lvt > 5 ? 0 "
+                  + ": (declared == 254 ? fields.valueLength16.value "
+                  + ": (declared == 255 ? fields.valueLength32.value : declared)))")),
                 Value = Expr.Parse("item.valueContent"),
             },
         ]),
@@ -303,38 +374,52 @@ public class TaggedUnionCaptureTests
                         },
                         new Field { Id = "invokeId", Pattern = U8, Value = Expr.Parse("inputs.invokeId") },
 
-                        // Two octets that exist because one bit of an octet already read is set.
+                        // Two octets that exist because one bit of an octet already read is set — and
+                        // everything after them changes meaning with it. A segment's parameters are a
+                        // slice of a buffer that appears on no wire, so they are octets here for the same
+                        // reason the acknowledgement's are. Reading tags out of one and reading them out
+                        // of a whole request were two different treatments of the same situation, which
+                        // is the sort of thing only a reader working from the standard notices.
                         new Field
                         {
                             Id = "requestSegmenting",
                             Pattern = new Pattern.Choice(Expr.Parse("fields.apduType.value.pduFlags band 0x08"),
                             [
-                                new Arm("whole", 0, []),
+                                new Arm("whole", 0,
+                                [
+                                    new Field { Id = "serviceChoice", Pattern = U8, Value = Expr.Parse("inputs.serviceChoice") },
+
+                                    new Field
+                                    {
+                                        Id = "serviceRequest",
+                                        Pattern = new Pattern.Choice(Expr.Parse("fields.serviceChoice.value"),
+                                        [
+                                            new Arm("readProperty", 12,
+                                                [.. ObjectAndProperty("request", "inputs.requestObjectId", "inputs.requestPropertyId")]),
+
+                                            new Arm("otherService", null,
+                                            [
+                                                new Field
+                                                {
+                                                    Id = "serviceParameters",
+                                                    Pattern = Pattern.Opaque.Measured(Expr.Parse("room")),
+                                                    Value = Expr.Parse("inputs.serviceParameters"),
+                                                },
+                                            ]),
+                                        ]),
+                                    },
+                                ]),
+
                                 new Arm("partial", 8,
                                 [
                                     new Field { Id = "requestSequence", Pattern = U8, Value = Expr.Parse("inputs.requestSequence") },
                                     new Field { Id = "requestWindow", Pattern = U8, Value = Expr.Parse("inputs.requestWindow") },
-                                ]),
-                            ]),
-                        },
-
-                        new Field { Id = "serviceChoice", Pattern = U8, Value = Expr.Parse("inputs.serviceChoice") },
-
-                        new Field
-                        {
-                            Id = "serviceRequest",
-                            Pattern = new Pattern.Choice(Expr.Parse("fields.serviceChoice.value"),
-                            [
-                                new Arm("readProperty", 12,
-                                    [.. ObjectAndProperty("request", "inputs.requestObjectId", "inputs.requestPropertyId")]),
-
-                                new Arm("otherService", null,
-                                [
+                                    new Field { Id = "requestSegmentService", Pattern = U8, Value = Expr.Parse("inputs.requestSegmentService") },
                                     new Field
                                     {
-                                        Id = "serviceParameters",
+                                        Id = "requestSegmentPayload",
                                         Pattern = Pattern.Opaque.Measured(Expr.Parse("room")),
-                                        Value = Expr.Parse("inputs.serviceParameters"),
+                                        Value = Expr.Parse("inputs.requestSegmentPayload"),
                                     },
                                 ]),
                             ]),
@@ -445,7 +530,8 @@ public class TaggedUnionCaptureTests
                 "requestObjectId", "requestPropertyId", "requestSequence", "requestWindow",
                 "serviceParameters", "ackInvokeId", "ackServiceChoice", "ackObjectId", "ackPropertyId",
                 "propertyValues", "ackParameters", "ackSequence", "ackWindow", "segmentServiceChoice",
-                "segmentPayload", "ackedInvokeId", "ackedSequence", "grantedWindow", "errorInvokeId",
+                "segmentPayload", "requestSegmentService", "requestSegmentPayload",
+                "ackedInvokeId", "ackedSequence", "grantedWindow", "errorInvokeId",
                 "errorServiceChoice", "errorClass", "errorCode", "apduPayload", "bvlcPayload",
                 "destinationNet", "destinationAddress", "sourceNet", "sourceAddress", "hopCount"),
 
@@ -487,11 +573,15 @@ public class TaggedUnionCaptureTests
                                         new Arm("originalUnicast", 0x0a, [npdu]),
 
                                         // The other nine BVLC functions are more arms of this choice, and
-                                        // three of them carry an NPDU after a prefix of their own. Writing
-                                        // them means writing this subtree again under different ids —
-                                        // which is the one place the corpus asked for something the
-                                        // vocabulary does not have: a shape that can be named and reused
-                                        // with its field ids supplied at the point of use.
+                                        // three of them carry an NPDU after a prefix of their own —
+                                        // written out again under their own ids, deliberately. A shared,
+                                        // reusable subtree would save typing and lose the distinction:
+                                        // an NPDU that arrived Forwarded carries the originating BBMD's
+                                        // address, must not be re-forwarded, and handles SNET/SADR and
+                                        // hop count differently from a direct one. A rule about that case
+                                        // has to be able to point at that case. Keeping them apart under
+                                        // one shape means qualifying every id by the arm it sits in,
+                                        // which is the concatenated id `Occurrence` exists to delete.
                                         new Arm("otherFunction", null,
                                         [
                                             new Field
@@ -692,6 +782,42 @@ public class TaggedUnionCaptureTests
             values.Select(v => v.Members["valueTag"].AsInt()).ToArray());
 
         Assert.AreEqual(0x3f, nested[^1], "and the outer closing tag is still the last octet");
+    }
+
+    [TestMethod]
+    public void A_value_too_long_for_the_length_octet_escapes_to_a_wider_one()
+    {
+        // No capture in the corpus carries 254 octets or more, so the escape was modelled from the
+        // standard and had to be shown rather than assumed — the same reason the nesting case exists.
+        // Under the first version of this document the 0xfe marker was read as a literal length of 254
+        // and everything after it desynchronised, which round-tripped all five captures perfectly.
+        var codec = new MessageCodec(Definition());
+        var inputs = InputsFrom(codec.Decode(Capture(1)));
+
+        var long300 = new byte[300];
+        for (int i = 0; i < long300.Length; i++) long300[i] = (byte)i;
+
+        inputs.Set("inputs", With(inputs.Root("inputs"),
+            ("propertyValues", new ProtoValue.List([Value(0x75, long300)]))));
+
+        var encoded = codec.Encode(inputs);
+
+        // 32 octets, less the 14 the short string occupied, plus 1 tag + 1 marker + 2 length + 300.
+        Assert.AreEqual(322, encoded.Length);
+        Assert.AreEqual(322, codec.Decode(encoded)["bvlcLength"].AsInt());
+
+        int tag = encoded.Length - 1 - 304;
+        Assert.AreEqual(0x75, encoded[tag], "character string, and the width did not fit in the tag");
+        Assert.AreEqual(0xfe, encoded[tag + 1], "so the length octet is the marker for a wider one");
+        Assert.AreEqual(300, (encoded[tag + 2] << 8) | encoded[tag + 3]);
+
+        var decoded = codec.Decode(encoded);
+        var values = decoded["propertyValues"].AsList().Cast<ProtoValue.Rec>().ToList();
+        CollectionAssert.AreEqual(long300, values[0].Members["valueContent"].AsBytes());
+
+        // The third tier — marker 255 and a 32-bit length — is modelled and unreachable over this
+        // transport: the BVLC length is two octets, so a datagram can never hold 65536 octets of value.
+        // Declared anyway, because what makes it unreachable is the framing rather than the tag.
     }
 
     // ── What it refuses ───────────────────────────────────────────────────────

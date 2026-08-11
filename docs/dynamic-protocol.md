@@ -222,14 +222,76 @@ and would have flattened every nested construct to depth zero. Writing the nesti
 run. A corpus written by the same hand as the engine agrees with the engine; only the path nothing sampled
 disagrees.
 
-**Two real gaps, both narrow.** The tag length has a second escape tier — 254 means a `u16` follows, 255 a
-`u32` — and `minuint` trims, so a value of 200 written through the 254 escape re-encodes shorter. What is
-missing is *a fixed-width unsigned span whose width is an expression*; `Opaque.Measured` plus a
-left-padding converter would close it. And the BVLC function selects among bodies that mostly share the
-NPDU subtree, which today means writing that subtree again under different field ids — the one place in
-twelve steps the vocabulary has actually wanted **a shape that can be named and reused with its ids
-supplied at the point of use**. Both are recorded rather than worked around; the document declares one
-BVLC function and refuses the rest by name.
+**No new notions at all — and the two claimed here were both wrong.** The first was the tag length's
+second escape tier (254 means a `u16` follows, 255 a `u32`), recorded as needing *a fixed-width unsigned
+span whose width is an expression*. It needs no such thing: a fixed-width scalar inside a choice **is**
+that, and two presence choices keyed on comparisons cover the three tiers with provable exhaustiveness and
+no fallback. It was also recorded as a narrow round-trip fidelity issue and is not — a property value of
+254 octets or more had its marker read as a literal length and desynchronised everything after it, which
+is silent corruption on routine traffic. Both errors were the audit's, not the corpus's: the corpus has no
+value long enough to reach the escape.
+
+**A second gap was claimed here and withdrawn, and the reason generalises.** The BVLC function selects
+among bodies that mostly share the NPDU subtree, so writing them all means writing that subtree again
+under different field ids — which looked like a call for a shape that can be named and reused with its
+ids supplied at the point of use. It is not. BACnet cares *which* NPDU it has: one that arrived Forwarded
+carries the originating BBMD's address and must not be re-forwarded, and its SNET/SADR and hop-count
+handling differ from a direct one. A rule about the forwarded case must not apply to the direct case, and
+a shared shape makes that rule unwritable — so to keep them apart you would qualify every id by the arm
+it appeared in, which is the string-concatenated id that [`Occurrence`](../src/Nexaflow.IO.Protocol/Wire/MessageCodec.cs)
+was introduced to delete.
+
+The general form: **reuse in a description is a space optimisation, and a description has no space
+constraint.** It buys authoring keystrokes and costs a reviewer the substitution of working out what each
+reference expands to — a bad trade when the author is a model and the reader is the person deciding
+whether to trust the document. This is the same argument that
+[replaced repetition with chaining](#repetition-was-the-wrong-notion): what looks like the same thing
+appearing twice is two things with the same shape, and the specifics are what anyone actually wants.
+
+So: the document declares one BVLC function and refuses the rest by name, and the structural vocabulary
+has not needed a new notion since step 8.
+
+## What reading the prose against the specifications found
+
+Both documents were rendered to English and read against ASHRAE 135 and RFC 5246 by a model that had not
+seen the engine. It found things the corpus structurally could not, because the corpus was written by the
+same hand as the engine and only contains the gaps that hand thought of.
+
+**Three engine defects, all the same shape: a name that means one thing on the way in and another on the
+way out.**
+
+1. `fields.<id>.value` was the document's value on decode and the **wire's** value on encode, for any
+   field with a `Via`. So an expression comparing against a converted field got a number one way and a
+   byte run the other, and every such comparison silently went false. The settled value is now what the
+   document means; the transform runs at measurement and emission, which is where octets are wanted.
+   Nothing exercised it for eleven steps because no document had a sibling that tested a converted
+   field's value.
+2. `room` is bound on decode and not on encode, so a choice keyed on "is there anything left?" cannot be
+   written — despite `ReachableKeys` documenting that exact use. An optional trailing section is a genuine
+   direction-asymmetry, like `Chain.Continues` and `Opaque.Length`: on decode you ask the region, on
+   encode you have the value or you do not. **Two unrelated protocols found this independently** — a TLS
+   hello with no extension block at all, and BACnet's optional `propertyArrayIndex` — which is the
+   strongest signal in the exercise that a choice needs an encode-side selector.
+3. `carried` was bound for choice keys and not for field expressions (fixed at step 7), which is the same
+   defect one construct over. Three instances now; the seam is *scope construction happening in more than
+   one place*.
+
+**One rule kind the taxonomy is missing.** Duplicate TLS extension types are illegal — a uniqueness
+constraint across *all* instances of a chain. `Rule.Arrangement` compares an instance only to `previous`.
+Set-uniqueness joins stateful denial as a named, unbuilt kind.
+
+**Document defects, all expressible today.** Vector bounds nowhere stated (`session_id ≤ 32`,
+`compression_methods ≥ 1`, record `≤ 2^14`) and `contentType` unpinned in a document named
+`handshakeRecord` — four `Rule.Domain`s. A segmented BACnet Confirmed-Request still attempted a full
+semantic decode where the ComplexACK correctly took its payload opaque: two treatments of one situation,
+fixed. Tag number 15's extended-tag escape, modelled and now present. A TLS record may carry more than one
+handshake message, which is a chain in the record region.
+
+**And what it verified.** The NPDU control bit layout including that hop count is gated by the
+*destination* specifier rather than the source; the BVLC length counting its own header; the `limits`
+octet's reserved-then-segments-then-size packing; and ServerHello carrying single values where ClientHello
+carries vectors. Those were worth confirming precisely because nothing in the corpus would have caught
+them being wrong.
 
 ## Repetition was the wrong notion
 

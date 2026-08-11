@@ -363,9 +363,15 @@ public abstract record Pattern
         // A named run of bits is the other case where the range is known, and it is how presence is
         // usually written: a section exists because one bit says so. Requiring `band 0x01` on a one-bit
         // value to tell the validator its range would be noise about something it can look up.
-        // A comparison answers one of two things, whatever it compares. That makes "is there anything
-        // left?" a discriminator whose cover can be proved, which is what lets an optional trailing
-        // section be a choice like any other.
+        //
+        // A comparison answers one of two things, whatever it compares, so its cover can be proved.
+        // NOTE: this once claimed that made "is there anything left?" a usable discriminator, and it does
+        // not — `room` is bound on the way in and has no meaning on the way out, where extents are still
+        // being computed. An optional trailing section is a genuine direction-asymmetry, the same one
+        // `Chain.Continues` and `Opaque.Length` have: on decode you ask the region, on encode you have
+        // the value or you do not. A choice key is the one place that asymmetry was asserted not to
+        // apply, and the assertion was wrong. Found by reading the generated prose against RFC 5246 §7.4,
+        // where a hello with no extension block at all is the ordinary pre-2003 case.
         if (key is Expr.Binary("==" or "!=" or "<" or "<=" or ">" or ">=" or "&&" or "||", _, _)
                 or Expr.Unary("!", _))
             return new HashSet<long> { 0, 1 };

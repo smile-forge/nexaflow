@@ -931,7 +931,8 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 break;
 
             default:
-                Write(output, field, settled[new FacetRef(nodeId, Facet.Value)] as ProtoValue ?? ProtoValue.Nothing);
+                Write(output, field,
+                      OnWire(field, settled[new FacetRef(nodeId, Facet.Value)] as ProtoValue ?? ProtoValue.Nothing));
                 break;
         }
     }
@@ -1220,7 +1221,13 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 $"field '{field.Id}' has no value expression, so it cannot be encoded. A decode-only field "
               + "must be declared as such rather than left silent.");
 
-        return Convert(evaluator.Eval(field.Value, ScopeFor(frame, resolved)), field, forward: true);
+        // NOT converted here. What settles is the value the DOCUMENT means; the transform to octets
+        // happens where octets are wanted, which is measurement and emission. Converting at this point
+        // made `fields.<id>.value` mean the document's value on the way in and the wire's on the way out
+        // for any field with a `Via` — so an expression reading a converted field got a number when
+        // decoding and a byte run when encoding, and every comparison against it silently went false.
+        // Found by a length escape whose marker a sibling had to test for.
+        return evaluator.Eval(field.Value, ScopeFor(frame, resolved));
     }
 
     /// <summary>
@@ -1278,14 +1285,20 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     }
 
     /// <summary>How many octets a value-dependent shape will occupy. Measured by producing the octets, so
-    /// the extent and the emission cannot disagree.</summary>
+    /// the extent and the emission cannot disagree — which is also why the transform runs here rather than
+    /// where the value settled: what is being asked is how wide the <i>octets</i> are.</summary>
     private int Measure(Field field, ProtoValue? value) => field.Pattern switch
     {
-        Pattern.Varint varint => Pack(Settled(field, value).AsInt(), varint).Length,
-        Pattern.EscapedInline escaped => PackEscaped(Settled(field, value).AsInt(), escaped).Length,
-        Pattern.Opaque { Width: null } => Settled(field, value).AsBytes().Length,
+        Pattern.Varint varint => Pack(OnWire(field, value).AsInt(), varint).Length,
+        Pattern.EscapedInline escaped => PackEscaped(OnWire(field, value).AsInt(), escaped).Length,
+        Pattern.Opaque { Width: null } => OnWire(field, value).AsBytes().Length,
         _ => throw new ProtoTypeException($"field '{field.Id}' has no way to determine its width"),
     };
+
+    /// <summary>The octets a settled value becomes. One place, so measurement and emission cannot apply
+    /// different transforms to the same value.</summary>
+    private ProtoValue OnWire(Field field, ProtoValue? value)
+        => Convert(Settled(field, value), field, forward: true);
 
     private static ProtoValue Settled(Field field, ProtoValue? value)
         => value ?? throw new ProtoTypeException(
