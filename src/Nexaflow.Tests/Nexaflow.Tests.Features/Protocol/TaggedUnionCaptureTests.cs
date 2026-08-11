@@ -279,6 +279,25 @@ public class TaggedUnionCaptureTests
 
     // ── The document ──────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Closed and definitive: the field is two bits wide, the standard names all four values, and each
+    /// names one thing. So a fifth value cannot exist to be newer than this document, and the run's
+    /// meaning follows from its value — which is the combination that lets the engine both refuse an
+    /// impossible value and say what a legal one means.
+    /// </summary>
+    private static ValueSet Priorities() => new()
+    {
+        Id = "npduPriorities",
+        Bounding = Bounding.Closed,
+        Exclusivity = Exclusivity.Definitive,
+        Members =
+        [
+            SetMember.Of(0, "normal"), SetMember.Of(1, "urgent"),
+            SetMember.Of(2, "criticalEquipment"), SetMember.Of(3, "lifeSafety"),
+        ],
+        Because = "Clause 6.2.2 names all four, and two bits cannot hold a fifth.",
+    };
+
     private static Field Npdu() => new()
     {
         Id = "npdu",
@@ -296,6 +315,10 @@ public class TaggedUnionCaptureTests
                     new("priority", 2),
                 ]),
                 Value = Expr.Parse("inputs.npduControl"),
+
+                // The set governs one run of the octet rather than the whole group — the other seven bits
+                // are flags and a reserved pair, which are not members of anything.
+                Draws = (Priorities(), "priority"),
             },
 
             // Three sections whose presence is one bit each. An arm with no fields is the honest spelling
@@ -880,6 +903,39 @@ public class TaggedUnionCaptureTests
     }
 
     [TestMethod]
+    public void A_priority_the_standard_does_not_name_cannot_arise_and_is_refused_when_it_does()
+    {
+        // Two bits and four names, so this set is genuinely closed — unlike a registry, there is no fifth
+        // value that could be newer than this document. All five captures carry priority 0.
+        Assert.AreEqual(0, ((ProtoValue.Rec)new MessageCodec(Definition()).Decode(Capture(0))["npduControl"])
+                              .Members["priority"].AsInt());
+
+        // Encoding one that cannot exist is caught by the same declaration that reads the wire, so the
+        // engine will not emit what it would refuse.
+        var codec = new MessageCodec(Definition());
+        var inputs = InputsFrom(codec.Decode(Capture(0)));
+
+        var control = (ProtoValue.Rec)Member(inputs.Root("inputs"), "npduControl");
+        var members = new Dictionary<string, ProtoValue>(control.Members, StringComparer.Ordinal)
+        {
+            ["priority"] = ProtoValue.Of(3L),
+        };
+
+        inputs.Set("inputs", With(inputs.Root("inputs"), ("npduControl", new ProtoValue.Rec(members))));
+
+        Assert.AreEqual(0x07, codec.Encode(inputs)[5], "life-safety is a member, so it writes");
+
+        members["priority"] = ProtoValue.Of(4L);
+        inputs.Set("inputs", With(inputs.Root("inputs"), ("npduControl", new ProtoValue.Rec(members))));
+
+        // The set refuses it before the bit width does, and says the more useful of the two things: not
+        // "that will not fit" but "there is no such priority, and here are the four there are".
+        var ex = Assert.ThrowsExactly<ProtoTypeException>(() => codec.Encode(inputs));
+        StringAssert.Contains(ex.Message, "not in 'npduPriorities'");
+        StringAssert.Contains(ex.Message, "no value outside it to be newer than this document");
+    }
+
+    [TestMethod]
     public void A_network_layer_message_is_refused_by_name_rather_than_read_as_an_apdu()
     {
         // Bit 7 of the control octet says the body is not an APDU. Without the rule the walk reads a
@@ -926,6 +982,9 @@ public class TaggedUnionCaptureTests
 
         return new EvalScope().Set("inputs", new ProtoValue.Rec(inputs));
     }
+
+    private static ProtoValue Member(ProtoValue record, string name)
+        => record is ProtoValue.Rec r && r.Members.TryGetValue(name, out var v) ? v : ProtoValue.Nothing;
 
     private static ProtoValue Value(long tag, byte[] content) => EvalScope.Record(
         ("valueTag", ProtoValue.Of(tag)),

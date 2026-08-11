@@ -747,6 +747,11 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             for (int i = 0; i < frames.Count; i++)
                 EnforceStructure(frames[i], i, settled, evaluator);
 
+        // Distinctness is about the run rather than any one structure, so it cannot ride along with the
+        // per-structure pass. It has to be here at all for the reason every rule runs in both directions:
+        // a check that only read would let the engine write what it would then refuse.
+        foreach (var (chain, frames) in encoder.Instances) EnforceDistinct(chain, frames, settled);
+
         // Position is a linearisation, not a fixpoint: one ordered sweep once extents have settled, now
         // through the realised shape rather than a flat list.
         var output = new List<byte>();
@@ -876,6 +881,32 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
     private static ProtoValue Member(ProtoValue structure, string name)
         => structure is ProtoValue.Rec rec ? rec.Members.GetValueOrDefault(name, ProtoValue.Nothing) : structure;
+
+    /// <summary>No two structures of one chain carrying the same value, checked on the way out.</summary>
+    private void EnforceDistinct(Occurrence chain, List<NameFrame> frames,
+                                 IReadOnlyDictionary<FacetRef, object?> settled)
+    {
+        foreach (var rule in _message.RulesOn(chain.Declared).OfType<Rule.Distinct>())
+        {
+            List<ProtoValue> seen = [];
+
+            for (int i = 0; i < frames.Count; i++)
+            {
+                if (!settled.TryGetValue(new FacetRef(frames[i].Of(rule.Of), Facet.Value), out var settledValue)
+                    || settledValue is not ProtoValue value)
+                    continue;
+
+                int first = seen.FindIndex(v => Equals(v, value));
+
+                if (first >= 0)
+                    throw new ProtoTypeException(
+                        $"structure {i} of '{chain.Declared.Name}' carries {rule.Of.Name} {value}, which "
+                      + $"structure {first} already carries. {rule.Because}");
+
+                seen.Add(value);
+            }
+        }
+    }
 
     /// <summary>Two structures side by side, for a rule about how they sit together.</summary>
     private static EvalScope Structured(ProtoValue current, ProtoValue previous)

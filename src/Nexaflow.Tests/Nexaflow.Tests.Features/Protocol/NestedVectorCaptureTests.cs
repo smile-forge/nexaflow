@@ -94,12 +94,18 @@ public class NestedVectorCaptureTests
     /// <summary>One extension: a type, a length, and that many octets. What is inside them depends on the
     /// type, which is interpretation — at this level an extension body is a run of octets, and the two
     /// captures between them carry bodies of 0, 1, 2, 5, 10, 16 and 22 octets.</summary>
-    private static Field Extension() => new()
+    private static Field Extension(ValueSet types) => new()
     {
         Id = "extension",
         Pattern = new Pattern.Group(
         [
-            Number("extensionType", "item.extensionType"),
+            new Field
+            {
+                Id = "extensionType",
+                Pattern = U16,
+                Value = Expr.Parse("item.extensionType"),
+                Draws = (types, null),
+            },
             new Field { Id = "extensionBodyLength", Pattern = U16, Value = Expr.Parse("fields.extensionBody.extent") },
             new Field
             {
@@ -110,9 +116,40 @@ public class NestedVectorCaptureTests
         ]),
     };
 
-    internal static MessageDef Definition() => new()
+    /// <summary>
+    /// Open <b>and</b> definitive, which is the combination that shows the two axes are independent. Open,
+    /// because IANA keeps assigning types and a hello carrying one this document has never heard of is a
+    /// newer client, not a malformed record — the two captures between them use twelve, of which three are
+    /// listed here. Definitive, because an assigned number means one extension and only that one, which is
+    /// what makes sending it twice a contradiction rather than a coincidence.
+    /// </summary>
+    private static ValueSet ExtensionTypes() => new()
     {
-        Id = "handshakeRecord",
+        Id = "tlsExtensionTypes",
+        Bounding = Bounding.Open,
+        Exclusivity = Exclusivity.Definitive,
+        Members =
+        [
+            SetMember.Of(0, "serverName"), SetMember.Of(10, "supportedGroups"),
+            SetMember.Of(13, "signatureAlgorithms"),
+        ],
+        Because = "the registry keeps growing, but an assigned number denotes one extension.",
+    };
+
+    internal static MessageDef Definition()
+    {
+        var types = ExtensionTypes();
+
+        // Two instances, because the two handshake bodies are two places and a node is where it is.
+        var offeredExtension = Extension(types);
+        var acceptedExtension = Extension(types);
+
+        var offeredList = Filling("extensions", offeredExtension, "inputs.extensions");
+        var acceptedList = Filling("acceptedList", acceptedExtension, "inputs.extensions");
+
+        return new MessageDef
+        {
+            Id = "handshakeRecord",
         Context = Context.Given.These(
             "contentType", "recordVersion", "handshakeType", "extensions", "unreadBody", "hasExtensionBlock",
             "clientVersion", "clientRandom", "clientSessionId", "cipherSuites", "compressionMethods",
@@ -155,8 +192,7 @@ public class NestedVectorCaptureTests
                                              "inputs.compressionMethods")]),
 
                                 Optional("offeredExtensionBlock", "inputs.hasExtensionBlock == 1",
-                                    [.. Vector("offeredExtensions", U16,
-                                        [Filling("extensions", Extension(), "inputs.extensions")])]),
+                                    [.. Vector("offeredExtensions", U16, [offeredList])]),
                             ]),
 
                             new Arm("accept", 2,
@@ -170,8 +206,7 @@ public class NestedVectorCaptureTests
                                 new Field { Id = "chosenCompression", Pattern = U8, Value = Expr.Parse("inputs.chosenCompression") },
 
                                 Optional("acceptedExtensionBlock", "inputs.hasExtensionBlock == 1",
-                                    [.. Vector("acceptedExtensions", U16,
-                                        [Filling("acceptedList", Extension(), "inputs.extensions")])]),
+                                    [.. Vector("acceptedExtensions", U16, [acceptedList])]),
                             ]),
 
                             // The exhaustiveness check demanded this and was right to: there are ten of
@@ -195,7 +230,29 @@ public class NestedVectorCaptureTests
                 ]),
             ]),
         ],
-    };
+
+            // Legal because the set is definitive, not because it is closed — the two are independent and
+            // this one is open. RFC 5246 §7.4.1.4: "There MUST NOT be more than one extension of the same
+            // type." A repeat can be any distance back, so this is not something `previous` could see.
+            Rules =
+            [
+                new Rule.Distinct
+                {
+                    Chain = offeredList,
+                    Of = (Field)offeredExtension.Pattern.Nested[0],
+                    Because = "an extension type denotes one extension, so offering it twice is two "
+                            + "answers where the peer can only act on one.",
+                },
+                new Rule.Distinct
+                {
+                    Chain = acceptedList,
+                    Of = (Field)acceptedExtension.Pattern.Nested[0],
+                    Because = "the same, in the direction that decides: a server naming one extension "
+                            + "twice has not said which of its two answers holds.",
+                },
+            ],
+        };
+    }
 
     private static byte[] Capture(int index) => ProtocolCorpus.Get("tls").Captures[index].Bytes;
 
@@ -329,6 +386,42 @@ public class NestedVectorCaptureTests
 
         Assert.AreEqual("present", empty["offeredExtensionBlock"].AsText());
         Assert.AreEqual(0, empty["offeredExtensionsLength"].AsInt(), "present, and measuring nothing");
+    }
+
+    [TestMethod]
+    public void Offering_one_extension_type_twice_is_refused_across_the_whole_list()
+    {
+        // RFC 5246 §7.4.1.4. The capture offers ten extensions; duplicating the first one puts the repeat
+        // ten structures away from its original, which is why `previous` could never have caught it.
+        //
+        // Legal to ask for because the type set is *definitive*, not because it is closed — it is open,
+        // and the capture uses seven types this document has never listed. The two axes doing different
+        // work on one field.
+        var codec = new MessageCodec(Definition());
+        var inputs = InputsFrom(codec.Decode(Capture(0)));
+
+        var extensions = ((ProtoValue.List)Member(inputs.Root("inputs"), "extensions")).Items;
+        inputs.Set("inputs", With(inputs.Root("inputs"),
+            ("extensions", new ProtoValue.List([.. extensions, extensions[0]]))));
+
+        var ex = Assert.ThrowsExactly<ProtoTypeException>(() => codec.Encode(inputs));
+
+        StringAssert.Contains(ex.Message, "structure 0 already carries");
+        StringAssert.Contains(ex.Message, "two answers where the peer can only act on one");
+    }
+
+    [TestMethod]
+    public void An_extension_type_this_document_has_never_heard_of_is_read_rather_than_refused()
+    {
+        // The reason the set is open. Between them the captures carry twelve types and the set lists three;
+        // under a closed set — the only kind the engine used to have — every real hello would be refused.
+        var decoded = new MessageCodec(Definition()).Decode(Capture(0));
+
+        var types = decoded["extensions"].AsList().Cast<ProtoValue.Rec>()
+                                         .Select(e => e.Members["extensionType"].AsInt()).ToList();
+
+        Assert.AreEqual(9, types.Count);
+        Assert.IsTrue(types.Any(t => t is not (0 or 10 or 13)), "and most of them are unlisted");
     }
 
     [TestMethod]
