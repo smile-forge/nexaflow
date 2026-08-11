@@ -106,7 +106,8 @@ Each step is independently testable against a named capture, earliest-falsifying
 | 9 ◐ | Names that point at other names, read without following them | **mDNS query both ways, response decoded** |
 | 10 ✅ | A span that ends at a separator — no widths, no lengths, nothing fixed | **SSDP ×2** |
 | 11 ✅ | Length-prefixed vectors four levels deep — needed nothing new | **TLS ×2 from one document** |
-| 12–13 | tag decomposition, and the offset table a compressed name needs to be *written* | BACnet, mDNS response |
+| 12 ✅ | A length that measures the span it sits in; a width written into bits not yet emitted; depth as data | **BACnet ×5 from one document** |
+| 13 | the offset table a compressed name needs to be *written* | mDNS response |
 | 14 | the step graph, then the state model | needs the seams closed first |
 
 **First real capture through the whole stack** (2026-08-10): both 48-octet NTP captures decode into named
@@ -133,6 +134,13 @@ That was the entire point of making the facets independently ordered rather than
 `Sized → Positioned → Valued` chain, and step 4 never exercised it: every extent up to here was axiomatic.
 If a protocol ever does write a length that counts its own octets, the resolver will report it as a cycle,
 which is the right answer rather than a loop that silently converges on one of two defensible values.
+
+> **Corrected at step 12.** BACnet writes exactly such a length and it is *not* a cycle. A length field's
+> own extent does not depend on its value — two octets are two octets whatever number is in them — so the
+> enclosing region settles from static extents and the value settles from the region, in that order, with
+> no iteration. The prediction was right that a fixed point would be wrong here and wrong about what the
+> resolver would say. Separating `Extent` from `Value` is what makes the difference, and it was doing more
+> work than the step that introduced it could show.
 
 **The codec was already in the converter table.** A continuation chain is `base128` with a group order, and
 the pattern calls the converter rather than carrying a second copy. Group order is where a duplicate
@@ -189,6 +197,39 @@ register of accepted generalisation debt is still empty.
 **A gap the gate found on the way.** A chained structure's value mirrored its wire tree, so a choice inside
 one lost its arm's fields — they hung off a node whose own value was the arm's name, invisible from above.
 Structures now carry their **bindings**, flat, exactly as the message level always has.
+
+## What building step 12 settled
+
+BACnet's five captures — a Confirmed-Request, its ComplexACK, a segment of a longer one, a SegmentACK and
+an Error — round-trip byte-exactly from **one document**. The corpus listed five blockers and sixteen gaps.
+
+**A width can be written into an octet that has not been emitted.** A BACnet tag carries the width of its
+value in its own low three bits, so the corpus called for back-patching a bit-field. It is the same
+two-way pointer every length in the corpus has been: on the way out the tag reads
+`fields.<value>.extent`, on the way in the value reads the tag's low bits back. Asking for a property
+identifier of 512 instead of 77 moves the tag from `0x19` to `0x1a`, the value from one octet to two and
+the frame from 17 octets to 18, with nothing in the inputs mentioning a width.
+
+**Arbitrary nesting needs no recursion, because the nesting is not structural.** Constructed data is
+opening tags inside opening tags to any depth, which no finite field graph can describe. Depth is *data*:
+the chain threads it, each tag moves it, and the run ends at the closing tag that returns it to zero. A
+parameterless, non-recursive shape expresses unbounded nesting — the corpus's "genuinely recursive, and an
+unparameterised `ref` cannot express it at all" was a claim about the wrong thing.
+
+**What the corpus could not catch, and what did.** Capture 2 has no marker tag inside its constructed run,
+so a value-tag rule that derived the low bits *unconditionally* round-tripped all five captures perfectly
+and would have flattened every nested construct to depth zero. Writing the nesting case found it in one
+run. A corpus written by the same hand as the engine agrees with the engine; only the path nothing sampled
+disagrees.
+
+**Two real gaps, both narrow.** The tag length has a second escape tier — 254 means a `u16` follows, 255 a
+`u32` — and `minuint` trims, so a value of 200 written through the 254 escape re-encodes shorter. What is
+missing is *a fixed-width unsigned span whose width is an expression*; `Opaque.Measured` plus a
+left-padding converter would close it. And the BVLC function selects among bodies that mostly share the
+NPDU subtree, which today means writing that subtree again under different field ids — the one place in
+twelve steps the vocabulary has actually wanted **a shape that can be named and reused with its ids
+supplied at the point of use**. Both are recorded rather than worked around; the document declares one
+BVLC function and refuses the rest by name.
 
 ## Repetition was the wrong notion
 

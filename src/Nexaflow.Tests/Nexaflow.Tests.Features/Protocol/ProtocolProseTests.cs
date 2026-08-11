@@ -31,6 +31,8 @@ public class ProtocolProseTests
         ("mqtt-connect.md",      "MQTT 3.1.1 CONNECT",         VariableWidthCaptureTests.Connect()),
         ("mqtt-subscribe.md",    "MQTT 3.1.1 SUBSCRIBE",       VariableWidthCaptureTests.FilterList()),
         ("snmp-message.md",      "SNMPv2c (RFC 3416/3417)",    NestedLengthCaptureTests.Message()),
+        ("tls-handshake.md",     "TLS 1.2 (RFC 5246 §7.4)",    NestedVectorCaptureTests.Definition()),
+        ("bacnet-ip.md",         "BACnet/IP (ASHRAE 135 J)",   TaggedUnionCaptureTests.Definition()),
     ];
 
     [TestMethod]

@@ -88,7 +88,7 @@ public class NestedVectorCaptureTests
         ]),
     };
 
-    private static MessageDef Definition() => new()
+    internal static MessageDef Definition() => new()
     {
         Id = "handshakeRecord",
         Context = Context.Given.These(
