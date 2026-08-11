@@ -95,6 +95,23 @@ public sealed record MessageDef
     public IReadOnlyList<Rule> Rules { get; init; } = [];
 
     /// <summary>
+    /// The values this message needs from outside itself.
+    ///
+    /// <para>
+    /// Declared, so that what a document requires in order to run is something the graph can be asked
+    /// rather than something a reader has to infer by grepping its expressions.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<Context> Context { get; init; } = [];
+
+    /// <summary>
+    /// What a person has to be asked before this message can be built, and why — computed from the graph
+    /// rather than maintained beside it, so it cannot drift from what the document actually reads.
+    /// </summary>
+    public IEnumerable<Context> Asked
+        => Graph.Of<Draws>().Select(e => (Context)e.To).Where(c => c.Asked).Distinct();
+
+    /// <summary>
     /// The message as nodes and relationships.
     ///
     /// <para>
@@ -195,7 +212,14 @@ public sealed record MessageDef
                         graph.Add(new Reads { From = field, To = target, Facet = facet, Role = role });
             }
 
-            if (field.Value is not null) Link(field.Value, Roles.Value, Visible);
+            void Outside(Expr expression, string role)
+            {
+                foreach (var key in ContextReferences(expression))
+                    if (Context.FirstOrDefault(c => string.Equals(c.Key, key, StringComparison.Ordinal)) is { } source)
+                        graph.Add(new Draws { From = field, To = source, Role = role });
+            }
+
+            if (field.Value is not null) { Link(field.Value, Roles.Value, Visible); Outside(field.Value, Roles.Value); }
 
             switch (field.Pattern)
             {
@@ -305,7 +329,7 @@ public sealed record MessageDef
 
         // Rules are checked once, against the graph, because a reference does not need a scope to be
         // resolved in — which is the point of it being a reference.
-        if (outer.Count == 0) CheckRules(issues);
+        if (outer.Count == 0) { CheckRules(issues); CheckContext(issues); }
 
         foreach (var (owner, expression, what) in Expressions(here))
             foreach (var referenced in FieldReferences(expression))
@@ -317,6 +341,31 @@ public sealed record MessageDef
         // a structure may read the message metadata around it.
         foreach (var chain in here.Select(f => f.Pattern).OfType<Pattern.Chain>())
             Check([chain.Element], visible, issues);
+    }
+
+    private void CheckContext(List<string> issues)
+    {
+        var declared = Context.Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
+
+        foreach (var (owner, expression, what) in Expressions(AllFields))
+            foreach (var key in ContextReferences(expression).Distinct())
+                if (!declared.Contains(key))
+                    issues.Add($"message '{Id}': {what} of '{owner.Name}' reads 'inputs.{key}', which the "
+                             + "document never says it needs. An undeclared outside value resolves to "
+                             + "nothing and surfaces much later as a type error somewhere unrelated.");
+
+        foreach (var duplicate in Context.GroupBy(c => c.Key, StringComparer.Ordinal).Where(g => g.Count() > 1))
+            issues.Add($"message '{Id}': 'inputs.{duplicate.Key}' is declared {duplicate.Count()} times");
+
+        foreach (var source in Context.Where(c => c.Asked && string.IsNullOrWhiteSpace(c.Purpose)))
+            issues.Add($"message '{Id}': '{source.Key}' is asked of a person and does not say what for. "
+                     + "That sentence is the question they get shown.");
+
+        // Declaring a need nothing reads is how a prompt list grows things nobody wants any more.
+        var read = Expressions(AllFields).SelectMany(e => ContextReferences(e.Expression)).ToHashSet(StringComparer.Ordinal);
+
+        foreach (var source in Context.Where(c => !read.Contains(c.Key)))
+            issues.Add($"message '{Id}': '{source.Key}' is declared and never read");
     }
 
     private void CheckRules(List<string> issues)
@@ -402,5 +451,14 @@ public sealed record MessageDef
         foreach (var node in e.Descendants())
             if (node is Expr.Member { Target: Expr.Member { Target: Expr.Root { Name: "fields" } } inner } outer)
                 yield return (inner.Name, outer.Name);
+    }
+
+    /// <summary>The outside values an expression reads. <c>item</c>, <c>carried</c>, <c>room</c> and the
+    /// rest are the walk's own vocabulary and are not context; they come from the message.</summary>
+    internal static IEnumerable<string> ContextReferences(Expr e)
+    {
+        foreach (var node in e.Descendants())
+            if (node is Expr.Member { Target: Expr.Root { Name: "inputs" } } member)
+                yield return member.Name;
     }
 }

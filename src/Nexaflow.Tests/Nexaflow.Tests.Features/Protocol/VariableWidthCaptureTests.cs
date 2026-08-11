@@ -53,9 +53,10 @@ public class VariableWidthCaptureTests
     /// structure" something to mean.
     /// </para>
     /// </summary>
-    private static MessageDef Framed(string id, params Field[] body) => new()
+    private static MessageDef Framed(string id, IReadOnlyList<Context> context, params Field[] body) => new()
     {
         Id = id,
+        Context = [.. Context.Given.These("fixedHeader"), .. context],
         Fields =
         [
             new Field { Id = "fixedHeader", Pattern = U8, Value = Expr.Parse("inputs.fixedHeader") },
@@ -65,6 +66,7 @@ public class VariableWidthCaptureTests
     };
 
     private static MessageDef Acknowledgement() => Framed("connectAck",
+        Context.Given.These("acknowledgeFlags", "returnCode"),
         new Field { Id = "acknowledgeFlags", Pattern = U8, Value = Expr.Parse("inputs.acknowledgeFlags") },
         new Field { Id = "returnCode",       Pattern = U8, Value = Expr.Parse("inputs.returnCode") });
 
@@ -74,6 +76,7 @@ public class VariableWidthCaptureTests
     /// so a count could have been faked, which is exactly why the next document matters.
     /// </summary>
     private static MessageDef GrantList() => Framed("subscribeAck",
+        Context.Given.These("packetIdentifier", "grants"),
         new Field { Id = "packetIdentifier", Pattern = U16, Value = Expr.Parse("inputs.packetIdentifier") },
         new Field
         {
@@ -104,6 +107,7 @@ public class VariableWidthCaptureTests
         var qos = new Field { Id = "requestedQos", Pattern = U8, Value = Expr.Parse("item.requestedQos") };
 
         var message = Framed("subscribe",
+            Context.Given.These("packetIdentifier", "subscriptions"),
             new Field { Id = "packetIdentifier", Pattern = U16, Value = Expr.Parse("inputs.packetIdentifier") },
             new Field
             {
@@ -146,7 +150,7 @@ public class VariableWidthCaptureTests
 
     /// <summary>A message with no body at all. The region is empty and measures zero, which is what the
     /// length must emit.</summary>
-    private static MessageDef Liveness(string id) => Framed(id);
+    private static MessageDef Liveness(string id) => Framed(id, []);
 
     /// <summary>A length-prefixed string, which is every variable field in the connect packet.</summary>
     private static Field[] Prefixed(string id, string? via = "unutf8") =>
@@ -200,6 +204,14 @@ public class VariableWidthCaptureTests
         };
 
         var message = Framed("connect",
+        [
+            .. Context.Given.These("protocolLevel", "connectFlags", "keepAlive", "willMessage"),
+            new Context.Prompted { Key = "clientId", Purpose = "A name for this client, unique on the broker." },
+            new Context.Prompted { Key = "willTopic", Purpose = "Where to publish if this connection drops." },
+            new Context.Prompted { Key = "userName", Purpose = "The account to connect as." },
+            new Context.Secret { Key = "password", Purpose = "The password for that account." },
+            new Context.Fixed { Key = "protocolName", Purpose = "The name this version of the protocol goes by.", Value = ProtoValue.Of("MQTT") },
+        ],
         [
             .. Prefixed("protocolName"),
             new Field { Id = "protocolLevel", Pattern = U8, Value = Expr.Parse("inputs.protocolLevel") },
@@ -454,6 +466,7 @@ public class VariableWidthCaptureTests
         var message = new MessageDef
         {
             Id = "labelled",
+            Context = Context.Given.These("label"),
             Fields =
             [
                 new Field { Id = "labelLength", Pattern = U16, Value = Expr.Parse("fields.label.extent") },
@@ -538,6 +551,7 @@ public class VariableWidthCaptureTests
     /// <summary>A payload that runs to the end of the frame — the span whose extent is recovered from a
     /// field already read.</summary>
     private static MessageDef Carrying() => Framed("carrying",
+        Context.Given.These("payload"),
         new Field
         {
             Id = "payload",
@@ -592,6 +606,7 @@ public class VariableWidthCaptureTests
         var message = new MessageDef
         {
             Id = "labelled",
+            Context = Context.Given.These("label"),
             Fields =
             [
                 new Field { Id = "labelLength", Pattern = U16, Value = Expr.Parse("fields.label.extent") },

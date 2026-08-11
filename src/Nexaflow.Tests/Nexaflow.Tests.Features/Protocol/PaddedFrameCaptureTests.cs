@@ -62,7 +62,7 @@ public class PaddedFrameCaptureTests
         ]),
     };
 
-    private static MessageDef Definition()
+    internal static MessageDef Definition()
     {
         var operation = new Field { Id = "operation", Pattern = U8, Value = Expr.Parse("inputs.operation") };
         var hardwareType = new Field { Id = "hardwareType", Pattern = U8, Value = Expr.Parse("inputs.hardwareType") };
@@ -72,6 +72,19 @@ public class PaddedFrameCaptureTests
         var message = new MessageDef
         {
             Id = "lease",
+
+            // A real mix, and the reason the kinds exist. The hardware address comes off the adapter and is
+            // never asked for; the host name is a question; the transaction id advances on its own.
+            Context =
+            [
+                .. Context.Given.These("operation", "hardwareType", "hardwareLength", "hops", "elapsed",
+                    "flags", "clientAddress", "offeredAddress", "nextServer", "relay", "bootFile",
+                    "options", "fill"),
+                new Context.Ambient { Key = "hardwareAddress", Purpose = "This adapter's own address." },
+                new Context.Counter { Key = "transactionId", Purpose = "Ties an offer back to the request that asked for it." },
+                new Context.Prompted { Key = "serverName", Purpose = "The name this server answers to, if it says one." },
+            ],
+
             Fields =
             [
                 operation,

@@ -169,6 +169,7 @@ public class CompressedNameCaptureTests
     private static MessageDef Definition() => new()
     {
         Id = "discovery",
+        Context = Context.Given.These("identifier", "flags", "questions", "answers", "authority", "additional"),
         Fields =
         [
             new Field { Id = "identifier", Pattern = U16, Value = Expr.Parse("inputs.identifier") },

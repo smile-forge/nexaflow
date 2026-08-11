@@ -49,9 +49,13 @@ public class FramedChoiceCaptureTests
     /// with nothing to say which one owns them.
     /// </para>
     /// </summary>
-    private static MessageDef Framed(string id, params Field[] body) => new()
+    private static MessageDef Framed(string id, IReadOnlyList<Context> context, params Field[] body) => new()
     {
         Id = id,
+
+        // Per document rather than shared: the request and the response want different things, and a
+        // declaration listing both would say each needs values it never reads.
+        Context = [.. Context.Given.These("transactionId", "protocolId", "unitId", "functionCode"), .. context],
         Fields =
         [
             new Field { Id = "transactionId", Pattern = U16, Value = Expr.Parse("inputs.transactionId") },
@@ -71,6 +75,7 @@ public class FramedChoiceCaptureTests
     };
 
     internal static MessageDef Request() => Framed("readRequest",
+        Context.Given.These("startingAddress", "quantity"),
         new Field { Id = "functionCode",    Pattern = U8,  Value = Expr.Parse("inputs.functionCode") },
         new Field { Id = "startingAddress", Pattern = U16, Value = Expr.Parse("inputs.startingAddress") },
         new Field { Id = "quantity",        Pattern = U16, Value = Expr.Parse("inputs.quantity") });
@@ -93,6 +98,7 @@ public class FramedChoiceCaptureTests
     /// </para>
     /// </summary>
     internal static MessageDef Response() => Framed("readResponse",
+        Context.Given.These("registers", "exceptionCode"),
         new Field { Id = "functionCode", Pattern = U8, Value = Expr.Parse("inputs.functionCode") },
         new Field
         {
@@ -317,6 +323,7 @@ public class FramedChoiceCaptureTests
         var open = new MessageDef
         {
             Id = "open",
+            Context = Context.Given.These("tag", "payload"),
             Fields =
             [
                 Leaf("tag"),
@@ -334,6 +341,7 @@ public class FramedChoiceCaptureTests
         // …and with a fallback it validates, decoding an unknown tag into the fallback shape.
         var closed = open with
         {
+            Context = Context.Given.These("tag", "payload", "payload2"),
             Fields =
             [
                 Leaf("tag"),
@@ -377,6 +385,7 @@ public class FramedChoiceCaptureTests
         var message = new MessageDef
         {
             Id = "crossArm",
+            Context = Context.Given.These("discriminator", "onlyInTheOtherArm"),
             Fields =
             [
                 Leaf("discriminator"),
@@ -437,6 +446,7 @@ public class FramedChoiceCaptureTests
     private static MessageDef Choosing(params Arm[] arms) => new()
     {
         Id = "choosing",
+        Context = Context.Given.These(["discriminator", .. arms.SelectMany(a => a.Fields).Select(f => f.Id)]),
         Fields =
         [
             Leaf("discriminator"),

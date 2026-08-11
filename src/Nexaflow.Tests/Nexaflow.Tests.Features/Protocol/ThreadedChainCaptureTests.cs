@@ -146,6 +146,7 @@ public class ThreadedChainCaptureTests
         return new MessageDef
         {
             Id = "datagram",
+            Context = Context.Given.These("header", "code", "messageId", "token", "options", "payload"),
             Fields =
             [
                 header,

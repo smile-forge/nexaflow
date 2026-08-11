@@ -129,6 +129,23 @@ public static class Roles
     public const string Bound = "the region bound";
 }
 
+/// <summary>
+/// A node needs a value from outside the message.
+///
+/// <para>
+/// The same shape as a read, and separate from it on purpose: what a document requires <i>in order to
+/// run</i> is a different question from what one of its fields is computed from, and the first is the one
+/// somebody has to answer before anything can happen.
+/// </para>
+/// </summary>
+public sealed record Draws : Edge
+{
+    /// <summary>Which of the reader's expressions wants it.</summary>
+    public required string Role { get; init; }
+
+    public override string Verb => "draws";
+}
+
 /// <summary>A constraint applies to a node. Wherever that node is realised — once, or once per structure
 /// of a chain — the constraint applies there too.</summary>
 public sealed record Constrains : Edge

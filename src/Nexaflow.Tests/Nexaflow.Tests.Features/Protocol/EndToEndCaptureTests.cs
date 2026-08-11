@@ -50,6 +50,13 @@ public class EndToEndCaptureTests
         return new MessageDef
         {
             Id = "timeSync",
+
+            // What this message needs that is not in it. Declared rather than assumed, so the graph can
+            // be asked what a caller has to supply instead of a reader inferring it from expressions.
+            Context = Context.Given.These("flags", "stratum", "poll", "precision", "rootDelay",
+                "rootDispersion", "referenceId", "referenceTimestamp", "originTimestamp",
+                "receiveTimestamp", "transmitTimestamp"),
+
             Fields =
             [
                 flags,

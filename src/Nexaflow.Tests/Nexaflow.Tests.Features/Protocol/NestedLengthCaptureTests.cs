@@ -176,6 +176,16 @@ public class NestedLengthCaptureTests
     internal static MessageDef Message() => new()
     {
         Id = "nestedMessage",
+
+        // The kinds differ, and the differences are the point: a community string is a credential and must
+        // never appear in an explanation, and a request id advances on its own rather than being asked for.
+        Context =
+        [
+            .. Context.Given.These("version", "operationTag", "errorStatus", "errorIndex", "boundList"),
+            new Context.Secret { Key = "community", Purpose = "The community string this agent accepts." },
+            new Context.Counter { Key = "requestId", Purpose = "Correlates a reply with its request.", Low = 0, High = 2147483647 },
+        ],
+
         Fields =
         [
             Constructed("envelope", Expr.Parse("0x30"),
@@ -342,6 +352,7 @@ public class NestedLengthCaptureTests
         var message = new MessageDef
         {
             Id = "underfilled",
+            Context = Context.Given.These("a", "b"),
             Fields =
             [
                 new Field { Id = "len", Pattern = U8, Value = Expr.Parse("fields.body.extent") },
@@ -389,6 +400,7 @@ public class NestedLengthCaptureTests
         var message = new MessageDef
         {
             Id = "paddedInteger",
+            Context = Context.Given.These("number"),
             Fields =
             [
                 new Field { Id = "size", Pattern = U8, Value = Expr.Parse("fields.number.extent") },
