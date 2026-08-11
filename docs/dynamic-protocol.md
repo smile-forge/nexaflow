@@ -104,7 +104,8 @@ Each step is independently testable against a named capture, earliest-falsifying
 | 7 ✅ | A value threaded along a chain; lookahead; `room` everywhere | **CoAP ×3, T2** |
 | 8 ✅ | Fixed frames, padded text, a document-fixed constant, a sentinel-terminated chain | **DHCP ×2** |
 | 9 ◐ | Names that point at other names, read without following them | **mDNS query both ways, response decoded** |
-| 10–13 | text path, checksums, deep nesting, and the offset table a compressed name needs to be *written* | SSDP, TLS, BACnet, mDNS response |
+| 10 ✅ | A span that ends at a separator — no widths, no lengths, nothing fixed | **SSDP ×2** |
+| 11–13 | checksums, deep nesting, and the offset table a compressed name needs to be *written* | TLS, BACnet, mDNS response |
 | 14 | the step graph, then the state model | needs the seams closed first |
 
 **First real capture through the whole stack** (2026-08-10): both 48-octet NTP captures decode into named

@@ -84,13 +84,35 @@ public abstract record Pattern
     /// point at each other in opposite directions and neither derives the other twice.
     /// </para>
     /// </summary>
-    public sealed record Opaque(int? Width, Expr? Length) : Pattern
+    /// <param name="Until">
+    /// The octets that end the span, where nothing says how long it is.
+    ///
+    /// <para>
+    /// A whole family of protocols has no widths and no length prefixes at all: every extent is set by a
+    /// separator, and a field is however many octets there are before the next one. The delimiter itself
+    /// is <b>not consumed</b> — it stays a field, so there is something to write it back out with, and so
+    /// a document can fix its value and have that checked.
+    /// </para>
+    /// </summary>
+    /// <param name="Ceiling">How far to look. A scan with no bound is a promise about data nobody has
+    /// read yet.</param>
+    public sealed record Opaque(int? Width, Expr? Length, byte[]? Until = null, int Ceiling = 8192) : Pattern
     {
         /// <summary>A span the declaration sizes.</summary>
         public Opaque(int width) : this(width, null) { }
 
         /// <summary>A span the message sizes.</summary>
         public static Opaque Measured(Expr length) => new(null, length);
+
+        /// <summary>A span the next separator sizes.</summary>
+        public static Opaque Before(params byte[] delimiter) => new(null, null, delimiter);
+
+        public static Opaque Before(string delimiter)
+            => new(null, null, [.. delimiter.Select(c => (byte)c)]);
+
+        /// <summary>How many of the three ways of saying how long it is were given. Exactly one is the
+        /// rule; the count is what says so.</summary>
+        internal int Extents => (Width is null ? 0 : 1) + (Length is null ? 0 : 1) + (Until is null ? 0 : 1);
     }
 
     /// <summary>
@@ -291,9 +313,12 @@ public abstract record Pattern
         // The spec's "exactly one extent key" rule, and it is worth being strict about: a span with two
         // answers to how long it is silently prefers one of them, and a span with none reads to the end
         // of whatever happens to be next.
-        Opaque o when (o.Width is null) == (o.Length is null) =>
-            [$"field '{fieldId}': an opaque span needs exactly one extent — a declared width or a length "
-           + "recovered from the message, not both and not neither"],
+        Opaque o when o.Extents != 1 =>
+            [$"field '{fieldId}': an opaque span needs exactly one extent — a declared width, a length "
+           + "recovered from the message, or the separator it runs up to. It has {o.Extents}."],
+
+        Opaque { Until.Length: 0 } =>
+            [$"field '{fieldId}': an empty separator ends every span at once"],
 
         Opaque o when o.Width < 0 => [$"field '{fieldId}': an opaque span cannot be negative"],
 

@@ -376,6 +376,23 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         }
     }
 
+    /// <summary>
+    /// How far it is to the next separator. The separator is left where it is: it stays a field of its
+    /// own, which is what leaves something to write it back out with and somewhere to fix its value.
+    /// </summary>
+    private static int Upto(Field field, byte[] separator, int ceiling, Reading r)
+    {
+        int last = Math.Min(r.Limit, r.Offset + ceiling) - separator.Length;
+
+        for (int at = r.Offset; at <= last; at++)
+            if (r.Bytes.AsSpan(at, separator.Length).SequenceEqual(separator))
+                return at - r.Offset;
+
+        throw new ProtoTypeException(
+            $"field '{field.Id}': no {Hex(separator)} within {ceiling} octet(s) of offset {r.Offset}, and "
+          + "nothing else says where this span ends");
+    }
+
     private static int Bounded(Field field, long extent, Reading r)
         => extent >= 0 && extent <= r.Bytes.Length
             ? (int)extent
@@ -391,6 +408,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             Pattern.Varint varint => ScanContinuation(field, varint, r),
             Pattern.EscapedInline escaped => MarkerWidth(field, escaped, r),
             Pattern.Opaque { Length: { } length } => Bounded(field, r.Eval(length).AsInt(), r),
+            Pattern.Opaque { Until: { } separator } opaque => Upto(field, separator, opaque.Ceiling, r),
             _ => field.Pattern.StaticWidth
                  ?? throw new ProtoTypeException($"field '{field.Id}' has no way to determine its width"),
         };
@@ -1265,7 +1283,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     {
         Pattern.Varint varint => Pack(Settled(field, value).AsInt(), varint).Length,
         Pattern.EscapedInline escaped => PackEscaped(Settled(field, value).AsInt(), escaped).Length,
-        Pattern.Opaque { Length: not null } => Settled(field, value).AsBytes().Length,
+        Pattern.Opaque { Width: null } => Settled(field, value).AsBytes().Length,
         _ => throw new ProtoTypeException($"field '{field.Id}' has no way to determine its width"),
     };
 
@@ -1314,6 +1332,13 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 if (opaque.Width is { } width && bytes.Length != width)
                     throw new ProtoTypeException(
                         $"field '{field.Id}' is {width} octet(s) but the value is {bytes.Length}");
+
+                // A span that ends at a separator may not contain one, or reading it back would stop
+                // somewhere else and every field after it would be a different field.
+                if (opaque.Until is { } separator && Contains(bytes, separator))
+                    throw new ProtoTypeException(
+                        $"field '{field.Id}' runs up to {Hex(separator)} and the value contains it, so what "
+                      + "was written would not read back as what was meant");
 
                 output.AddRange(bytes);
                 break;
@@ -1383,6 +1408,14 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
     /// <summary>Hex for a diagnostic. Spelled out because this class has its own <c>Convert</c>, which
     /// would otherwise shadow the framework one at every call site.</summary>
+    private static bool Contains(byte[] haystack, byte[] needle)
+    {
+        for (int at = 0; at + needle.Length <= haystack.Length; at++)
+            if (haystack.AsSpan(at, needle.Length).SequenceEqual(needle)) return true;
+
+        return false;
+    }
+
     private static string Hex(ReadOnlySpan<byte> octets) => System.Convert.ToHexString(octets).ToLowerInvariant();
 
     private static long ReadUnsigned(ReadOnlySpan<byte> run, bool bigEndian = true)
