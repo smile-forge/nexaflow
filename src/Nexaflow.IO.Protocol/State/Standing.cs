@@ -10,7 +10,9 @@ namespace Nexaflow.IO.Protocol.State;
 /// <param name="Moves">Each view that changed, what it changed to, and how sure that is.</param>
 public readonly record struct Progress(
     ProtoValue Which,
-    IReadOnlyList<(Party Whose, Phase To, Confidence How)> Moves);
+    IReadOnlyList<(Party Whose, Phase To, Confidence How)> Moves,
+    IReadOnlyList<(Recall Where, ProtoValue What)> Kept,
+    bool Ended);
 
 /// <summary>
 /// How things currently stand: what each party believes about each of a subject's instances.
@@ -31,9 +33,15 @@ public readonly record struct Progress(
 /// </summary>
 public sealed class Standing(Subject subject, ConverterTable? converters = null)
 {
+    private readonly ConverterTable _converters = converters ?? ConverterTable.Default;
+
     private readonly Evaluator _evaluator = new(converters ?? ConverterTable.Default);
 
     private readonly Dictionary<ProtoValue, Dictionary<Party, Phase>> _views = [];
+
+    /// <summary>What has been learned, per instance. Opaque to the engine on purpose — it moves these
+    /// where the protocol said to and forms no view about what any of them mean.</summary>
+    private readonly Dictionary<ProtoValue, Dictionary<Recall, ProtoValue>> _kept = [];
 
     public Subject Subject { get; } = subject;
 
@@ -52,6 +60,35 @@ public sealed class Standing(Subject subject, ConverterTable? converters = null)
 
     /// <summary>What one party believes, where the subject has only one instance.</summary>
     public Phase PhaseOf(Party party) => PhaseOf(Only, party);
+
+    /// <summary>What is in a slot, or nothing if no message has put anything there.</summary>
+    public ProtoValue Recalled(ProtoValue which, Recall slot)
+        => _kept.TryGetValue(which, out var kept) && kept.TryGetValue(slot, out var value)
+            ? value
+            : ProtoValue.Nothing;
+
+    public ProtoValue Recalled(Recall slot) => Recalled(Only, slot);
+
+    /// <summary>
+    /// Everything learned about one instance, as outside values a message can be built from.
+    ///
+    /// <para>
+    /// The same shape a caller's inputs have, because that is what they are: a value this message does not
+    /// carry. A document declaring <see cref="Context.Remembered"/> reads one exactly as it reads a value
+    /// someone typed, and nothing in the codec had to learn that state exists.
+    /// </para>
+    /// </summary>
+    public ProtoValue Learned(ProtoValue which)
+    {
+        Dictionary<string, ProtoValue> known = new(StringComparer.Ordinal);
+
+        if (_kept.TryGetValue(which, out var kept))
+            foreach (var (slot, value) in kept) known[slot.Id] = value;
+
+        return new ProtoValue.Rec(known);
+    }
+
+    public ProtoValue Learned() => Learned(Only);
 
     /// <summary>
     /// Takes a message and moves whatever it moves.
@@ -93,6 +130,8 @@ public sealed class Standing(Subject subject, ConverterTable? converters = null)
               + string.Join("; ", contested.Select(t => $"→ '{t.To.Id}' ({t.Because})")));
 
         List<(Party, Phase, Confidence)> moves = [];
+        List<(Recall, ProtoValue)> kept = [];
+        bool ended = false;
 
         foreach (var transition in taken)
         {
@@ -100,9 +139,34 @@ public sealed class Standing(Subject subject, ConverterTable? converters = null)
 
             views[transition.Whose] = transition.To;
             moves.Add((transition.Whose, transition.To, transition.Confidence));
+
+            // What the protocol said to keep out of this message, converted the way it said to convert it.
+            foreach (var recording in transition.Records)
+            {
+                var value = _evaluator.Eval(recording.From, scope);
+
+                if (recording.Through is { } transform) value = transform.Apply(value, null, _evaluator);
+
+                if (recording.Via is { } via)
+                    value = _converters.TryGet(via.Name, out var converter) && converter is not null
+                        ? converter.Apply(value, via.Args)
+                        : throw new ProtoTypeException(
+                              $"subject '{Subject.Id}': '{via.Name}' is not a converter");
+
+                if (!_kept.TryGetValue(which, out var slots)) _kept[which] = slots = [];
+
+                slots[recording.Into] = value;
+                kept.Add((recording.Into, value));
+            }
+
+            ended |= transition.Ends;
         }
 
-        return new Progress(which, moves);
+        // The protocol says when an instance is over, not the engine and not the caller. An invoke id is
+        // free again the moment the transaction has an outcome; a device mode is never over at all.
+        if (ended) Forget(which);
+
+        return new Progress(which, moves, kept, ended);
     }
 
     /// <summary>Whether a message would be accepted, without accepting it. What a caller needs before
@@ -116,9 +180,23 @@ public sealed class Standing(Subject subject, ConverterTable? converters = null)
             t => ReferenceEquals(t.On, message) && t.Way == way && Holds(t.When, scope) && Applies(t, which));
     }
 
-    /// <summary>Forgets an instance. A transaction that has finished is not a transaction at rest — an
-    /// invoke id gets reused, and a view left behind is a wrong answer to the next question about it.</summary>
-    public bool Release(ProtoValue which) => _views.Remove(which);
+    /// <summary>
+    /// Forgets an instance.
+    ///
+    /// <para>
+    /// Called by the engine when a move says it ends, and available to the host for the lifetime it owns
+    /// and the engine cannot see — a socket closing, a device going away. Which values outlive which event
+    /// is a protocol's business, and the two ends of that are declared and external respectively.
+    /// </para>
+    /// </summary>
+    public bool Forget(ProtoValue which) => _views.Remove(which) | _kept.Remove(which);
+
+    /// <summary>Forgets everything. What a host calls when the lifetime it owns has ended.</summary>
+    public void Forget()
+    {
+        _views.Clear();
+        _kept.Clear();
+    }
 
     private bool Applies(Transition transition, ProtoValue which)
         => transition.From is null || ReferenceEquals(PhaseOf(which, transition.Whose), transition.From);

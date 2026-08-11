@@ -178,6 +178,44 @@ public sealed record Reads : Edge
     public override string Verb => $"reads {Facet} of";
 }
 
+/// <summary>
+/// A message can cause a move, going this way.
+///
+/// <para>
+/// The edge the whole state layer hangs off. It is what makes "what does sending this do?" a question the
+/// graph answers, and it is where the direction belongs: the same message sent and received are two
+/// different events, and a protocol that treats them alike is describing a broadcast.
+/// </para>
+/// </summary>
+public sealed record Triggers : Edge
+{
+    /// <summary>Sent or received. On the edge, because it is a property of this message causing this
+    /// move rather than of either end.</summary>
+    public required object Way { get; init; }
+
+    public override string Verb => $"on being {Way.ToString()!.ToLowerInvariant()}, causes";
+}
+
+/// <summary>A move's ends. <c>Entering</c> tells the destination from the origin.</summary>
+public sealed record Moves : Edge
+{
+    public bool Entering { get; init; }
+
+    public override string Verb => Entering ? "enters" : "leaves";
+}
+
+/// <summary>Whose view a move changes.</summary>
+public sealed record Viewed : Edge
+{
+    public override string Verb => "is the view of";
+}
+
+/// <summary>A move keeps something in a slot. What it means is the protocol's business.</summary>
+public sealed record Remembers : Edge
+{
+    public override string Verb => "keeps something in";
+}
+
 /// <summary>The expressions a node can hold, and therefore the roles a read can have.</summary>
 public static class Roles
 {

@@ -1,4 +1,5 @@
 using Nexaflow.IO.Protocol.Expressions;
+using Nexaflow.IO.Protocol.Transforms;
 using Nexaflow.IO.Protocol.Values;
 using Nexaflow.IO.Protocol.Wire;
 
@@ -51,6 +52,42 @@ public sealed class Phase : Node
 }
 
 /// <summary>
+/// A named place on a subject where something learned is kept.
+///
+/// <para>
+/// What goes in it is the protocol's business and <b>not the engine's</b>. The engine does not know that
+/// a window size bounds anything or that a session key is secret; it knows that a message said to put this
+/// there. Anything else would be the engine having opinions about a protocol it is supposed to have no
+/// knowledge of.
+/// </para>
+/// </summary>
+public sealed class Recall : Node
+{
+    public required string Id { get; init; }
+
+    public override string Name => Id;
+
+    public string About { get; init; } = "";
+}
+
+/// <summary>
+/// One value a transition takes out of the message that caused it and keeps.
+/// </summary>
+/// <param name="From">Where in the message it comes from — an expression, so a value can be picked out of
+/// a bit run or computed from several.</param>
+/// <param name="Into">Where it is kept.</param>
+/// <param name="Via">A converter on the way, where the wire form is not the useful form.</param>
+/// <param name="Through">A document-authored transform, for the same reason a field has one: an encoding
+/// rule belonging to one protocol reaches its state without the engine learning it.</param>
+/// <remarks>
+/// There is deliberately no confidence here. A phase can be presumed, because believing the peer received
+/// something is a guess; a recording is attached to a message that actually happened and says what the
+/// specification says to keep, so it is simply a fact. Putting a confidence on it would invite recording
+/// what we hope rather than what we saw.
+/// </remarks>
+public sealed record Recording(Expr From, Recall Into, Conversion? Via = null, Transform? Through = null);
+
+/// <summary>
 /// A message moving one party's view from one phase to another.
 ///
 /// <para>
@@ -86,6 +123,22 @@ public sealed class Transition : Node
     public required Bearing Way { get; init; }
 
     public Confidence Confidence { get; init; } = Confidence.Known;
+
+    /// <summary>What this move takes out of the message and keeps. The protocol says what to put where;
+    /// the engine moves it and forms no view about it.</summary>
+    public IReadOnlyList<Recording> Records { get; init; } = [];
+
+    /// <summary>
+    /// Whether this move is the end of the instance.
+    ///
+    /// <para>
+    /// Declared, because lifetime is the protocol's and not the engine's. A BACnet invoke id is free again
+    /// once the transaction has an outcome and gets reused immediately; a session key lasts until the
+    /// connection does; a device mode outlives everything and is only ever overwritten. Nothing general is
+    /// true of all three, so nothing general is assumed.
+    /// </para>
+    /// </summary>
+    public bool Ends { get; init; }
 
     /// <summary>Why this is a legal move, carried into the refusal when something else is attempted.</summary>
     public required string Because { get; init; }
@@ -136,6 +189,46 @@ public sealed class Subject : Node
     public Concept? Distinguishes { get; init; }
 
     public string About { get; init; } = "";
+
+    /// <summary>
+    /// The state model as nodes and relationships: which message triggers what, which way it has to be
+    /// going, and what each move keeps.
+    ///
+    /// <para>
+    /// The state layer was the one part of the model built as properties rather than edges, which made it
+    /// the one part nothing could be asked about. "What does receiving this message do?" is now a query
+    /// rather than a scan.
+    /// </para>
+    /// </summary>
+    public ProtocolGraph Graph => _graph ??= Build();
+    private ProtocolGraph? _graph;
+
+    private ProtocolGraph Build()
+    {
+        var graph = new ProtocolGraph();
+
+        graph.Add(this);
+        foreach (var party in Parties) graph.Add(party);
+
+        foreach (var transition in Transitions)
+        {
+            graph.Add(new Triggers { From = transition.On.Root, To = transition, Way = transition.Way });
+            graph.Add(new Moves { From = transition, To = transition.To, Entering = true });
+
+            if (transition.From is { } from) graph.Add(new Moves { From = transition, To = from });
+
+            graph.Add(new Viewed { From = transition, To = transition.Whose });
+
+            foreach (var recording in transition.Records)
+                graph.Add(new Remembers { From = transition, To = recording.Into });
+        }
+
+        return graph;
+    }
+
+    /// <summary>What a message does, asked of the graph. Every slot it can write, for a reviewer who wants
+    /// to know what talking to this device leaves behind.</summary>
+    public IReadOnlyList<Recall> Keeps => [.. Graph.Of<Remembers>().Select(e => (Recall)e.To).Distinct()];
 
     /// <summary>Document-time checks. Cheap, and they catch a state machine that cannot be entered or one
     /// with a state nothing reaches.</summary>

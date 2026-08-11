@@ -204,6 +204,149 @@ public class StandingTests
         Assert.AreEqual(Answering, live.PhaseOf(ProtoValue.Of(2L), Us), "still mid-reply, waiting for more");
     }
 
+    // ── What a message leaves behind ──────────────────────────────────────────
+
+    private static readonly Recall Proposed = new()
+    {
+        Id = "proposedWindow",
+        About = "how many segments the device offered to send before waiting.",
+    };
+
+    private static readonly Recall Agreed = new()
+    {
+        Id = "agreedWindow",
+        About = "how many we granted, which is never more than it offered.",
+    };
+
+    private static readonly Recall MaxApdu = new()
+    {
+        Id = "maxApduOctets",
+        About = "the largest reply we said we could take, in octets rather than as the code for it.",
+    };
+
+    /// <summary>
+    /// The same subject, with the negotiation written down. BACnet settles the window size in two moves
+    /// going opposite ways — the device offers, we grant no more than that — and the granted value binds
+    /// every later message of the transaction. Without somewhere to keep it, the second half of a
+    /// negotiation has nowhere to go.
+    /// </summary>
+    private static (Subject Subject, MessageDef Message) Negotiating()
+    {
+        var (plain, message) = Confirmed();
+
+        Transition Also(Transition original, IReadOnlyList<Recording> records, bool ends = false) => new()
+        {
+            Whose = original.Whose, From = original.From, To = original.To, On = original.On,
+            When = original.When, Way = original.Way, Confidence = original.Confidence,
+            Because = original.Because, Records = records, Ends = ends,
+        };
+
+        var revised = plain.Transitions.Select(t => t switch
+        {
+            // What we told the device we could take. The wire carries a code, not a size, and turning one
+            // into the other is this protocol's business — so it rides the recording rather than the
+            // engine learning what a max-APDU code means.
+            { Way: Bearing.Sent, To.Id: "asked", Whose.Id: "us" } => Also(t,
+                [new Recording(Expr.Parse(
+                    "let code = fields.maxApduAccepted.value in "
+                  + "code == 0 ? 50 : (code == 1 ? 128 : (code == 2 ? 206 : "
+                  + "(code == 3 ? 480 : (code == 4 ? 1024 : 1476))))"), MaxApdu)]),
+
+            // The device's offer, kept when its segment arrives.
+            { Way: Bearing.Received, To.Id: "answering" } => Also(t,
+                [new Recording(Expr.Parse("fields.ackWindow.value"), Proposed)]),
+
+            // What we granted, kept when we acknowledge.
+            { Way: Bearing.Sent, To.Id: "answering" } => Also(t,
+                [new Recording(Expr.Parse("fields.grantedWindow.value"), Agreed)]),
+
+            // An outcome ends the transaction, and the invoke id is free again immediately.
+            { To.Id: "done" } => Also(t, [], ends: true),
+
+            _ => t,
+        }).ToList();
+
+        return (new Subject
+        {
+            Id = plain.Id, About = plain.About, Start = plain.Start,
+            Parties = plain.Parties, Distinguishes = plain.Distinguishes, Transitions = revised,
+        }, message);
+    }
+
+    [TestMethod]
+    public void A_message_leaves_behind_what_the_protocol_said_to_keep()
+    {
+        var (subject, message) = Negotiating();
+        Assert.AreEqual(0, subject.Validate().Count, string.Join("\n", subject.Validate()));
+
+        var live = new Standing(subject);
+        var two = ProtoValue.Of(2L);
+
+        live.Observe(message, Asking(message, 2), Bearing.Sent);
+
+        // The code on the wire is 5; what it means is 1476 octets, and the conversion is the document's.
+        Assert.AreEqual(1476, live.Recalled(two, MaxApdu).AsInt());
+
+        live.Observe(message, Capture(message, 2), Bearing.Received);
+        Assert.AreEqual(1, live.Recalled(two, Proposed).AsInt(), "the device offered one segment at a time");
+
+        live.Observe(message, Capture(message, 3), Bearing.Sent);
+        Assert.AreEqual(1, live.Recalled(two, Agreed).AsInt(), "and we granted exactly that");
+    }
+
+    [TestMethod]
+    public void What_was_learned_reads_back_as_outside_values_a_message_can_be_built_from()
+    {
+        // The reason a remembered value is context rather than a new kind of thing: a document names it
+        // the way it names anything else the message does not carry, and the codec never learned that
+        // state exists.
+        var (subject, message) = Negotiating();
+        var live = new Standing(subject);
+
+        live.Observe(message, Asking(message, 2), Bearing.Sent);
+        live.Observe(message, Capture(message, 2), Bearing.Received);
+
+        var learned = (ProtoValue.Rec)live.Learned(ProtoValue.Of(2L));
+
+        CollectionAssert.AreEquivalent(new[] { "maxApduOctets", "proposedWindow" }, learned.Members.Keys.ToArray());
+        Assert.AreEqual(1476, learned.Members["maxApduOctets"].AsInt());
+    }
+
+    [TestMethod]
+    public void The_protocol_says_when_an_instance_is_over_and_the_engine_forgets_it_then()
+    {
+        // Lifetime is declared, not managed. An invoke id is free the moment the transaction has an
+        // outcome; nothing general is true of every protocol, so nothing general is assumed.
+        var (subject, message) = Negotiating();
+        var live = new Standing(subject);
+        var one = ProtoValue.Of(1L);
+
+        live.Observe(message, Capture(message, 0), Bearing.Sent);
+        Assert.AreEqual(1476, live.Recalled(one, MaxApdu).AsInt());
+
+        var progress = live.Observe(message, Capture(message, 1), Bearing.Received);
+
+        Assert.IsTrue(progress.Ended);
+        Assert.AreEqual(0, live.Tracked.Count, "the id is free again, and nothing about it is left over");
+        Assert.IsTrue(live.Recalled(one, MaxApdu).IsNull);
+    }
+
+    [TestMethod]
+    public void The_graph_says_what_a_message_does_and_what_it_leaves_behind()
+    {
+        // The state layer was the one part built as properties rather than edges, which made it the one
+        // part nothing could be asked about.
+        var (subject, message) = Negotiating();
+
+        var triggered = subject.Graph.From<Triggers>(message.Root).ToList();
+        Assert.AreEqual(6, triggered.Count, "every move this document can cause");
+
+        Assert.AreEqual(3, triggered.Count(e => (Bearing)e.Way == Bearing.Sent));
+
+        CollectionAssert.AreEquivalent(new[] { "proposedWindow", "agreedWindow", "maxApduOctets" },
+            subject.Keeps.Select(r => r.Id).ToArray());
+    }
+
     // ── A subject with one instance, and no exchange at all ───────────────────
 
     private static readonly Phase Unknown = new() { Id = "unknown", About = "nobody has said." };
@@ -332,7 +475,7 @@ public class StandingTests
         StringAssert.Contains(ex.Message, "is at 'done'");
 
         // Until the id is released, at which point it is a new conversation and not a resumed one.
-        Assert.IsTrue(live.Release(ProtoValue.Of(1L)));
+        Assert.IsTrue(live.Forget(ProtoValue.Of(1L)));
         Assert.AreEqual(Idle, live.PhaseOf(ProtoValue.Of(1L), Us));
     }
 

@@ -80,6 +80,19 @@ public abstract class Context : Node
 
     /// <summary>Taken from the machine this is running on: an adapter's address, the clock, a local
     /// prefix. Discovered rather than asked.</summary>
+    /// <summary>
+    /// A value learned from an earlier message.
+    ///
+    /// <para>
+    /// Reading it needs nothing new, which is the point of it being context: a field names it the way it
+    /// names any other outside value, the graph records the dependency, and a document that reads one it
+    /// never declared is refused as usual. Only the <i>writing</i> side is new — a transition puts it
+    /// there. What a caller supplies and what an earlier message left behind are both things this message
+    /// did not carry, and the difference between them is where they came from, not what they are.
+    /// </para>
+    /// </summary>
+    public sealed class Remembered : Context;
+
     public sealed class Ambient : Context;
 
     /// <summary>Already known about the device being spoken to — something a previous exchange taught.
