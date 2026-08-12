@@ -43,9 +43,41 @@ public sealed class Arm(string label, long? key, IReadOnlyList<Field> fields) : 
 {
     public override string Name { get; } = label;
 
-    internal long? DeclaredKey { get; } = key;
+    /// <summary>
+    /// The value that selects this packing — <b>any</b> value, not a number.
+    ///
+    /// <para>
+    /// It was a <c>long</c>, which quietly said that a protocol identifies its parts with integers. Half of
+    /// them do — a descriptor type, an option code, an extension number — and the other half write the name
+    /// out: <c>Content-Length</c>, <c>INVITE</c>. Those are the same notion wearing a different alphabet,
+    /// and keying on the narrower type would have forced a second, parallel mechanism for the text half.
+    /// </para>
+    /// </summary>
+    internal ProtoValue? DeclaredKey { get; private init; } = key is { } k ? ProtoValue.Of(k) : null;
 
     public IReadOnlyList<Field> Fields { get; } = fields;
+
+    /// <summary>
+    /// Whether this packing may turn up more than once in the run it belongs to.
+    ///
+    /// <para>
+    /// Authoring input, copied onto the <see cref="Offers"/> edge like the key. It decides two things at
+    /// once, and they are the same thing: what a second appearance <i>means</i> — a list rather than a
+    /// contradiction — and whether anything outside can name this packing's fields. One of something is
+    /// addressable because there is exactly one of it; several are not, and the engine says so at document
+    /// time rather than letting an edge point at whichever appearance settled last.
+    /// </para>
+    /// </summary>
+    internal bool Repeats { get; private init; }
+
+    /// <summary>A packing selected by a token it carries rather than by a number a sibling holds.</summary>
+    public static Arm On(string label, ProtoValue token, IReadOnlyList<Field> fields, bool repeats = false)
+        => new(label, null, fields) { DeclaredKey = token, Repeats = repeats };
+
+    /// <summary>The packing for a component this document does not know. Never optional where the tokens
+    /// are text: nothing can enumerate every string, so the cover can only be closed by a fallback.</summary>
+    public static Arm Otherwise(string label, IReadOnlyList<Field> fields, bool repeats = false)
+        => new(label, null, fields) { Repeats = repeats };
 }
 
 /// <summary>
@@ -279,6 +311,59 @@ public abstract record Pattern
         public bool Threads => Seed is not null && Carry is not null;
     }
 
+    /// <summary>
+    /// A run of components, each of which says which of several declared kinds it is.
+    ///
+    /// <para>
+    /// <b>Not a chain of choices, though it is spelled almost the same.</b> A chain repeats one structure,
+    /// so its instances are told apart by counting and its names have to be scoped per instance. A choice
+    /// picks one packing, once. This is the product of the two, and the product has a property neither
+    /// factor has: because each kind is <i>separately declared</i>, one of them is a node something else
+    /// can point at. That is the whole reason it exists. A body sized by the component called
+    /// <c>Content-Length</c> has nothing to reference under a chain — the length lives in the third
+    /// instance of one declared element here and the first instance there, and which is a fact about the
+    /// data. Under this it lives in a node, and the edge is ordinary.
+    /// </para>
+    ///
+    /// <para>
+    /// So the components do <b>not</b> open a name scope, unlike a chain's instances — with the exception
+    /// of the ones declared to repeat, which reopen exactly the problem scoping solves and are therefore
+    /// scoped and unaddressable. Cardinality decides addressability, and it is declared.
+    /// </para>
+    ///
+    /// <para>
+    /// Order is preserved and is not significant. The engine writes the components in the order the value
+    /// lists them, which is what lets a message decode and re-encode to the same octets even though the
+    /// protocol would have accepted any arrangement.
+    /// </para>
+    /// </summary>
+    /// <param name="Token">What each component leads with, and what says which kind it is. Read before
+    /// anything else, because nothing after it is decodable until the kind is known. It carries no value
+    /// expression of its own — what gets written is the selected kind's key.</param>
+    /// <param name="Sorts">The kinds this document knows, each with the token that identifies it, plus a
+    /// fallback for the ones it does not.</param>
+    /// <param name="Continues">Is there another component? The reader's question, exactly as a chain's is —
+    /// on the way out the value says how many there are and in what order.</param>
+    public sealed record Assorted(
+        Field Token,
+        IReadOnlyList<Arm> Sorts,
+        Expr Continues) : Pattern
+    {
+        /// <summary>
+        /// The member of a component's record that says which kind it is. Present in what a decode produces
+        /// and in what an encode consumes, so a decoded run re-encodes as it arrived.
+        /// </summary>
+        public const string Which = "sort";
+
+        // There is deliberately nothing here for the punctuation that brackets a component — the separator
+        // after the token, the newline that ends the line. Both were parameters for a while, and both were
+        // the engine asserting that every kind of component is wrapped the same way. That is true of one
+        // protocol at a time and not of the notion: a header can fold onto the next line, a body can be
+        // chunked, and a length can stand in for a terminator. So the punctuation is declared where it
+        // applies, as ordinary constant fields of the kind it belongs to, and a kind that ends differently
+        // simply says so. A few more nodes; no assumption.
+    }
+
     /// <summary>Octets this pattern occupies, where that is fixed. Null means it depends on the value —
     /// which is exactly the case the resolver's facet ordering exists to handle.</summary>
     public int? StaticWidth => this switch
@@ -298,12 +383,35 @@ public abstract record Pattern
         Group g => g.Fields,
         Choice c => [.. c.Arms.SelectMany(a => a.Fields)],
         Chain c => [c.Element],
+        Assorted a => [a.Token, .. a.Sorts.SelectMany(s => s.Fields)],
         _ => [],
     };
 
-    /// <summary>Whether this pattern opens a new field scope for what it contains. Only a chain does: its
-    /// instances are separate structures, and their names have to be too.</summary>
-    public bool ScopesNames => this is Chain;
+    /// <summary>
+    /// The nested fields that belong to the <b>enclosing</b> name scope, rather than to one of this
+    /// pattern's own.
+    ///
+    /// <para>
+    /// A chain contributes nothing: its instances are separate structures and their names have to be too.
+    /// An assortment contributes everything except the kinds declared to repeat — one of something is
+    /// nameable because there is exactly one of it, and several are not. Everything else contributes all of
+    /// it, because a region and an arm are places in one structure rather than structures of their own.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<Field> InScope => this switch
+    {
+        Chain => [],
+        Assorted a => [a.Token, .. a.Sorts.Where(s => !s.Repeats).SelectMany(s => s.Fields)],
+        _ => Nested,
+    };
+
+    /// <summary>The nested fields that get a scope of their own, and the node each scope belongs to.</summary>
+    public IEnumerable<(Node Owner, IReadOnlyList<Field> Fields)> Scoped => this switch
+    {
+        Chain c => [(c.Element, [c.Element])],
+        Assorted a => a.Sorts.Where(s => s.Repeats).Select(s => ((Node)s, s.Fields)),
+        _ => [],
+    };
 
     /// <summary>Document-time checks. Cheap, and they catch the errors that are otherwise invisible until
     /// a capture decodes into plausible nonsense.</summary>
@@ -361,6 +469,29 @@ public abstract record Pattern
         // on a relationship between two nodes.
         Choice { Arms.Count: 0 } => [$"field '{fieldId}': a choice needs at least one arm"],
 
+        Assorted { Sorts.Count: 0 } =>
+            [$"field '{fieldId}': an assortment needs at least one kind of component"],
+
+        // The token decides which kind arrived, so a document that also writes it by hand has said the same
+        // thing twice and the two can disagree — which would emit a component announcing one kind and
+        // packed as another.
+        Assorted a when a.Token.Value is not null =>
+            [$"field '{fieldId}': its token '{a.Token.Id}' has a value of its own. What gets written there "
+           + "is the selected kind's key; a second answer to the same question is one of them being ignored."],
+
+        Assorted a when a.Token.Pattern is Group or Choice or Chain or Assorted =>
+            [$"field '{fieldId}': its token '{a.Token.Id}' is a composite. A token has to be one value, "
+           + "because it is compared against the key that picks a kind."],
+
+        // The quiet one. A token with nothing to turn octets into text reads as octets, no text key ever
+        // equals it, and every component takes the fallback — a message that decodes without complaint and
+        // has understood none of itself.
+        Assorted a when a.Sorts.Any(s => s.DeclaredKey is ProtoValue.Text)
+                     && a.Token is { Via: null, Through: null } =>
+            [$"field '{fieldId}': its kinds are named by text and its token '{a.Token.Id}' has no converter, "
+           + "so what it reads is octets and no key can ever match one. Every component would take the "
+           + "fallback and nothing would say so."],
+
         Chain c when (c.Seed is null) != (c.Carry is null) =>
             [$"field '{fieldId}': a chain that threads a value needs both where it starts and how each "
            + "structure moves it on — one without the other says nothing"],
@@ -378,7 +509,20 @@ public abstract record Pattern
     /// so and demands a fallback, rather than assuming the author thought of everything.
     /// </para>
     /// </summary>
-    public static IReadOnlySet<long>? ReachableKeys(Expr key, IReadOnlyDictionary<string, Pattern>? inScope = null)
+    public static IReadOnlySet<ProtoValue>? ReachableKeys(Expr key, IReadOnlyDictionary<string, Pattern>? inScope = null)
+        => Numbers(key, inScope)?.Select(ProtoValue.Of).ToHashSet();
+
+    /// <summary>
+    /// The numbers a discriminator can take, when that is knowable.
+    ///
+    /// <para>
+    /// Only ever numbers. A token drawn from text has no computable range — nothing enumerates every
+    /// string — so an assortment keyed on names is exactly the case that <i>must</i> declare a fallback,
+    /// which is also what its protocol requires: a component nobody has heard of has to be carried through,
+    /// not dropped.
+    /// </para>
+    /// </summary>
+    private static IReadOnlySet<long>? Numbers(Expr key, IReadOnlyDictionary<string, Pattern>? inScope)
     {
         // A named run of bits is the other case where the range is known, and it is how presence is
         // usually written: a section exists because one bit says so. Requiring `band 0x01` on a one-bit

@@ -270,6 +270,23 @@ public sealed record MessageDef
                     graph.Add(new Repeats { From = field, To = chain.Element });
                     Wire(graph, field, [chain.Element]);
                     break;
+
+                // The token and whatever always follows it are the assortment's own children; each kind
+                // hangs off its offer, so "which token picks this kind" and "may it come twice" are facts
+                // about the offering rather than about the packing.
+                case Pattern.Assorted assorted:
+                    Wire(graph, field, [assorted.Token]);
+
+                    foreach (var sort in assorted.Sorts)
+                    {
+                        graph.Add(new Offers
+                        {
+                            From = field, To = sort, Key = sort.DeclaredKey, Repeats = sort.Repeats,
+                        });
+
+                        Wire(graph, sort, sort.Fields);
+                    }
+                    break;
             }
         }
     }
@@ -341,6 +358,15 @@ public sealed record MessageDef
                     LinkReads(graph, inside, [.. here, .. outer ?? []]);
                     break;
                 }
+
+                case Pattern.Assorted assorted:
+                    Link(assorted.Continues, Roles.Continuation, Visible);
+
+                    // A kind that repeats gets its own scope, so its expressions resolve there first and
+                    // outward after — the same arrangement a chain's instance has, for the same reason.
+                    foreach (var (_, fields) in assorted.Scoped)
+                        LinkReads(graph, ScopeFields(fields), [.. here, .. outer ?? []]);
+                    break;
             }
         }
     }
@@ -390,20 +416,30 @@ public sealed record MessageDef
     /// <summary>
     /// The packing a discriminator selects, or a refusal naming what arrived and what was declared.
     /// </summary>
-    public Arm Choose(Field field, long key)
+    public Arm Choose(Field field, ProtoValue key)
     {
         var offered = Offered(field);
 
-        var taken = offered.FirstOrDefault(o => o.Key == key)
+        var taken = offered.FirstOrDefault(o => !o.IsFallback && Equals(o.Key, key))
                  ?? offered.FirstOrDefault(o => o.IsFallback)
                  ?? throw new ProtoTypeException(
-                        $"field '{field.Id}': discriminator {key} (0x{key:x}) matches no arm, and none is "
-                      + "declared as the fallback. Declared: "
+                        $"field '{field.Id}': {Shown(key)} matches no arm, and none is declared as the "
+                      + "fallback. Declared: "
                       + string.Join(", ", offered.Select(o => o.IsFallback ? $"{o.To.Name}=*"
                                                                            : $"{o.To.Name}={o.Key}")));
 
         return (Arm)taken.To;
     }
+
+    /// <summary>A key as a diagnostic names it. Hex alongside a number because a discriminator is almost
+    /// always written that way in a specification, and not for a token that was never a number.</summary>
+    private static string Shown(ProtoValue key)
+        => key is ProtoValue.Int i ? $"discriminator {i.Value} (0x{i.Value:x})" : $"the token '{key}'";
+
+    /// <summary>The same key inside a list of them, where the sentence around it has already said what
+    /// they are.</summary>
+    private static string Listed(ProtoValue key)
+        => key is ProtoValue.Int i ? $"0x{i.Value:x}" : $"'{key}'";
 
     internal static IEnumerable<Field> Descendants(IReadOnlyList<Field> fields)
     {
@@ -480,6 +516,7 @@ public sealed record MessageDef
             CheckVocabulary(issues);
             CheckDistinctness(issues);
             CheckReferences(issues);
+            CheckAddressability(issues);
         }
 
         CheckChoices(here, issues);
@@ -494,13 +531,13 @@ public sealed record MessageDef
                     issues.Add($"message '{Id}': {what} of '{owner}' references '{referenced.Field}', "
                              + "which is not a field in scope there");
 
-        // Each chain's element is checked against its own scope, with everything out here still visible:
-        // a structure may read the message metadata around it.
+        // Each scope of its own is checked against itself, with everything out here still visible: a
+        // structure may read the message metadata around it.
         foreach (var field in here)
         {
-            if (field.Pattern is not Pattern.Chain chain) continue;
+            foreach (var (_, scoped) in field.Pattern.Scoped) Check(scoped, visible, issues);
 
-            Check([chain.Element], visible, issues);
+            if (field.Pattern is not Pattern.Chain chain) continue;
 
             var inside = new HashSet<string>(visible, StringComparer.Ordinal);
             inside.UnionWith(ScopeFields([chain.Element]).Select(f => f.Id));
@@ -510,6 +547,57 @@ public sealed record MessageDef
                     issues.Add($"message '{Id}': the carry of '{field.Id}' references "
                              + $"'{referenced.Field}', which is not a field of the structure it runs in");
         }
+    }
+
+    /// <summary>
+    /// What may be named from outside an assortment, and what may not.
+    ///
+    /// <para>
+    /// This is the rule that makes a component addressable at all, and it is worth being strict about
+    /// because the failure is silent. A kind declared once has exactly one appearance, so an edge to its
+    /// field means something. A kind that repeats has several, and an edge would resolve to whichever one
+    /// settled last — the same defect that made a chain's instances need their own scope, arriving by a
+    /// different door. The token is the same: it is read once per component, so from out here it names the
+    /// last one, which is nobody's intent.
+    /// </para>
+    /// </summary>
+    private void CheckAddressability(List<string> issues)
+    {
+        Dictionary<Field, (Field Assortment, string Why)> unreachable = [];
+
+        foreach (var field in AllFields)
+        {
+            if (field.Pattern is not Pattern.Assorted assorted) continue;
+
+            foreach (var part in Descendants([assorted.Token]))
+                unreachable[part] = (field, $"'{part.Id}' is read once per component of '{field.Id}', so "
+                                          + "from out here it names the last one that happened to arrive");
+
+            foreach (var sort in assorted.Sorts.Where(s => s.Repeats))
+                foreach (var part in Descendants(sort.Fields))
+                    unreachable[part] = (field, $"'{sort.Name}' may appear more than once in '{field.Id}', "
+                                              + $"so '{part.Id}' is not one field but several. Something "
+                                              + "with several appearances cannot be pointed at; if this one "
+                                              + "really comes at most once, say so and it becomes nameable");
+        }
+
+        if (unreachable.Count == 0) return;
+
+        foreach (var reader in AllFields)
+            foreach (var read in Graph.From<Reads>(reader))
+                if (read.To is Field target && unreachable.TryGetValue(target, out var why)
+                    && !Within(reader, why.Assortment))
+                    issues.Add($"message '{Id}': '{reader.Id}' reads '{target.Id}' — {why.Why}.");
+    }
+
+    /// <summary>Whether one field sits inside another. Through the graph, because containment is an edge
+    /// and walking it is the only answer that stays right when the declaration is restructured.</summary>
+    private bool Within(Node node, Node container)
+    {
+        for (var at = Graph.Parent(node); at is not null; at = Graph.Parent(at))
+            if (ReferenceEquals(at, container)) return true;
+
+        return false;
     }
 
     private void CheckContext(List<string> issues)
@@ -589,7 +677,7 @@ public sealed record MessageDef
         foreach (var field in fields)
         {
             into.Add(field);
-            if (!field.Pattern.ScopesNames) Gather(field.Pattern.Nested, into);
+            Gather(field.Pattern.InScope, into);
         }
     }
 
@@ -618,6 +706,10 @@ public sealed record MessageDef
                     yield return (field, chain.Continues, "the continuation", ExprSite.Continuation);
                     if (chain.Seed is { } seed) yield return (field, seed, "the seed", ExprSite.Seeding);
                     if (chain.Carry is { } carry) yield return (field, carry, "the carry", ExprSite.Carry);
+                    break;
+
+                case Pattern.Assorted assorted:
+                    yield return (field, assorted.Continues, "the continuation", ExprSite.Continuation);
                     break;
 
                 case Pattern.Opaque { Length: { } length }:
@@ -665,61 +757,75 @@ public sealed record MessageDef
 
         foreach (var field in here)
         {
-            if (field.Pattern is not Pattern.Choice choice || choice.Arms.Count == 0) continue;
+            // An assortment offers packings on the same edge and under the same rules; what differs is only
+            // where the deciding value comes from — a token the component carries rather than an
+            // expression over its siblings — and there is no second, encode-side reading, because the
+            // value says which kinds to write and in what order.
+            List<(string Reading, Expr? Deciding)> readings = field.Pattern switch
+            {
+                Pattern.Choice { Arms.Count: > 0 } c => c.Selects is { } s
+                    ? [("discriminator", c.Key), ("selection", s)]
+                    : [("discriminator", c.Key)],
+
+                Pattern.Assorted { Sorts.Count: > 0 } => [("token", null)],
+
+                _ => [],
+            };
+
+            if (readings.Count == 0) continue;
 
             var offered = Offered(field);
+            string packing = field.Pattern is Pattern.Assorted ? "kind" : "arm";
 
             foreach (var duplicate in offered.GroupBy(o => o.To.Name, StringComparer.Ordinal).Where(g => g.Count() > 1))
-                issues.Add($"field '{field.Id}': two arms are both named '{duplicate.Key}' — the name is "
-                         + "what a later step branches on, so it has to identify one shape");
+                issues.Add($"field '{field.Id}': two {packing}s are both named '{duplicate.Key}' — the name "
+                         + "is what a later step branches on, so it has to identify one shape");
 
-            foreach (var duplicate in offered.Where(o => !o.IsFallback).GroupBy(o => o.Key!.Value).Where(g => g.Count() > 1))
-                issues.Add($"field '{field.Id}': discriminator {duplicate.Key} selects "
-                         + $"{duplicate.Count()} arms — which one applies is not decidable");
+            foreach (var duplicate in offered.Where(o => !o.IsFallback).GroupBy(o => o.Key!).Where(g => g.Count() > 1))
+                issues.Add($"field '{field.Id}': {duplicate.Key} selects {duplicate.Count()} {packing}s — "
+                         + "which one applies is not decidable");
 
             if (offered.Count(o => o.IsFallback) > 1)
-                issues.Add($"field '{field.Id}': only one arm may be the fallback");
+                issues.Add($"field '{field.Id}': only one {packing} may be the fallback");
 
             var fallback = offered.FirstOrDefault(o => o.IsFallback);
 
             // Both readings must land on the same arms, so both are proved. A pair that disagreed about
             // its own keyset would be two discriminators wearing one name.
-            List<(string Reading, Expr Deciding)> readings = [("discriminator", choice.Key)];
-            if (choice.Selects is { } selects) readings.Add(("selection", selects));
-
             foreach (var (reading, deciding) in readings)
             {
-                var reachable = Pattern.ReachableKeys(deciding, patterns);
+                var reachable = deciding is null ? null : Pattern.ReachableKeys(deciding, patterns);
 
                 if (reachable is null)
                 {
                     if (fallback is null)
                         issues.Add($"field '{field.Id}': the engine cannot compute which values this "
-                                 + $"{reading} can take, so it cannot prove the arms are exhaustive. "
-                                 + "Declare a fallback arm (key null). An unanticipated discriminator "
+                                 + $"{reading} can take, so it cannot prove the {packing}s are exhaustive. "
+                                 + $"Declare a fallback {packing} (key null). An unanticipated {reading} "
                                  + "otherwise binds no fields and reports no error, which is worse than "
                                  + "either outcome you would have chosen.");
                     continue;
                 }
 
                 foreach (var arm in offered.Where(o => !o.IsFallback))
-                    if (!reachable.Contains(arm.Key!.Value))
-                        issues.Add($"field '{field.Id}': arm '{arm.To.Name}' is keyed {arm.Key} "
-                                 + $"(0x{arm.Key:x}), which this {reading} can never produce — a dead arm "
-                                 + "is a mistake about the mask, not a harmless extra");
+                    if (!reachable.Contains(arm.Key!))
+                        issues.Add($"field '{field.Id}': {packing} '{arm.To.Name}' is keyed {arm.Key}, "
+                                 + $"which this {reading} can never produce — a dead {packing} is a mistake "
+                                 + "about the mask, not a harmless extra");
 
-                var covered = offered.Where(o => !o.IsFallback).Select(o => o.Key!.Value).ToHashSet();
-                var missing = reachable.Where(k => !covered.Contains(k)).OrderBy(k => k).ToList();
+                var covered = offered.Where(o => !o.IsFallback).Select(o => o.Key!).ToHashSet();
+                var missing = reachable.Where(k => !covered.Contains(k)).OrderBy(k => k.ToString(),
+                                                                                 StringComparer.Ordinal).ToList();
 
                 if (missing.Count > 0 && fallback is null)
-                    issues.Add($"field '{field.Id}': the arms are not exhaustive — nothing handles "
-                             + string.Join(", ", missing.Select(k => $"0x{k:x}"))
-                             + ". Add the arms, or declare a fallback.");
+                    issues.Add($"field '{field.Id}': the {packing}s are not exhaustive — nothing handles "
+                             + string.Join(", ", missing.Select(Listed))
+                             + $". Add the {packing}s, or declare a fallback.");
 
                 if (missing.Count == 0 && fallback is not null)
-                    issues.Add($"field '{field.Id}': arm '{fallback.To.Name}' is the fallback, but the "
-                             + $"other arms already cover every value this {reading} can take, so it can "
-                             + "never be selected");
+                    issues.Add($"field '{field.Id}': {packing} '{fallback.To.Name}' is the fallback, but the "
+                             + $"other {packing}s already cover every value this {reading} can take, so it "
+                             + "can never be selected");
             }
         }
     }

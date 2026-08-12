@@ -92,11 +92,17 @@ public sealed record Discriminates : Edge
 /// <param name="Key">The value selecting this arm, or null for the fallback.</param>
 public sealed record Offers : Edge
 {
-    public long? Key { get; init; }
+    public Values.ProtoValue? Key { get; init; }
+
+    /// <summary>Whether this packing may appear more than once where it is offered — and therefore whether
+    /// anything may name its fields from outside. One of something is addressable; several are not.</summary>
+    public bool Repeats { get; init; }
 
     public bool IsFallback => Key is null;
 
-    public override string Verb => Key is null ? "offers, failing over to" : $"offers, on {Key}, ";
+    public override string Verb => Key is null ? "offers, failing over to"
+                                 : Repeats ? $"offers, on {Key}, any number of "
+                                 : $"offers, on {Key}, ";
 }
 
 /// <summary>A chain repeats a structure.</summary>

@@ -269,10 +269,72 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 return Bind(field, r, new ProtoValue.Rec(members), r.Offset - start, exposed);
             }
 
+            case Pattern.Assorted assorted:
+            {
+                int start = r.Offset;
+                List<ProtoValue> components = [];
+                HashSet<Arm> once = [];
+
+                while (Continues(field, assorted.Continues, r, components.Count, ProtoValue.Nothing))
+                {
+                    if (components.Count >= ProtoLimits.MaxChainedInstances)
+                        throw new ProtoTypeException(
+                            $"field '{field.Id}': the run reached {ProtoLimits.MaxChainedInstances} "
+                          + "components, which is its ceiling.");
+
+                    int before = r.Offset;
+
+                    // The token first, because nothing after it is decodable until the kind is known.
+                    var token = Read(assorted.Token, r, ChildPath(path, assorted.Token, exposed), exposed);
+
+                    var sort = _message.Choose(field, Keyed(token));
+
+                    // A kind declared once has one appearance, and that is what makes its fields nameable
+                    // from outside. Two of them is not a list — it is the document and the data disagreeing
+                    // about which, and a second `Content-Length` is the textbook way to smuggle one body
+                    // past a reader and a different one past the next.
+                    if (!sort.Repeats && !once.Add(sort))
+                        throw new ProtoTypeException(
+                            $"field '{field.Id}': '{sort.Name}' arrived twice, and it is not declared to "
+                          + "repeat. Something else is now pointing at whichever of them came last.");
+
+                    // The token goes in the record too, and it earns its place on the unknown kind: that is
+                    // the only one whose token is not recoverable from the declaration, and a component
+                    // this document has never heard of still has to be written back exactly as it came.
+                    Dictionary<string, ProtoValue> what = new(StringComparer.Ordinal)
+                    {
+                        [Pattern.Assorted.Which] = ProtoValue.Of(sort.Name),
+                        [assorted.Token.CaptureName] = token,
+                    };
+
+                    // A kind that repeats gets its own scope, exactly as a chain's instance does and for
+                    // the same reason: there is more than one of it, so its names cannot be the enclosing
+                    // scope's. One that does not, binds outward — which is the entire point.
+                    if (sort.Repeats) r.EnterStructure(ProtoValue.Nothing, components.Count);
+
+                    foreach (var child in Inside(sort))
+                        what[child.CaptureName] =
+                            Read(child, r, ChildPath(path, child, exposed && !sort.Repeats),
+                                 exposed && !sort.Repeats);
+
+                    if (sort.Repeats) r.LeaveStructure();
+
+                    if (r.Offset == before)
+                        throw new ProtoTypeException(
+                            $"field '{field.Id}': a component consumed no octets, so the continuation "
+                          + "condition would never stop being true");
+
+                    components.Add(new ProtoValue.Rec(what));
+                }
+
+                // The order, so a run that arrived in one arrangement is written back in the same one —
+                // even though the protocol would have accepted any other.
+                return Bind(field, r, new ProtoValue.List(components), r.Offset - start, exposed);
+            }
+
             case Pattern.Choice choice:
             {
-                long key = r.Eval(choice.Key).AsInt();
-                var arm = _message.Choose(field, key);
+                var arm = _message.Choose(field, Keyed(r.Eval(choice.Key)));
                 int start = r.Offset;
 
                 foreach (var child in Inside(arm))
@@ -292,7 +354,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 // identifier has moved since the last cannot be named without this.
                 var carried = chain.Seed is null ? ProtoValue.Nothing : r.Eval(chain.Seed);
 
-                while (Continues(field, chain, r, instances.Count, carried))
+                while (Continues(field, chain.Continues, r, instances.Count, carried))
                 {
                     if (instances.Count >= ProtoLimits.MaxChainedInstances)
                         throw new ProtoTypeException(
@@ -366,9 +428,9 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     /// Is there another structure? Asked before each instance, with <c>ordinal</c> and <c>room</c> bound —
     /// so "as many as fit in the region" and "as many as the count says" are the same construct.
     /// </summary>
-    private static bool Continues(Field field, Pattern.Chain chain, Reading r, int ordinal, ProtoValue carried)
+    private static bool Continues(Field field, Expr continues, Reading r, int ordinal, ProtoValue carried)
     {
-        var answer = r.Eval(chain.Continues,
+        var answer = r.Eval(continues,
             ("ordinal", ProtoValue.Of((long)ordinal)),
             ("carried", carried));
 
@@ -379,6 +441,23 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
         return answer.AsBool();
     }
+
+    /// <summary>
+    /// A discriminator's value as a key.
+    ///
+    /// <para>
+    /// The one coercion the key site has always applied, now that it has to be applied on purpose. A
+    /// comparison answers <c>Bool</c> and the arms it selects are keyed 0 and 1 — which was implicit while
+    /// the key went through <c>AsInt</c> and would have silently stopped matching the moment keys became
+    /// values.
+    /// </para>
+    /// </summary>
+    private static ProtoValue Keyed(ProtoValue value) => value switch
+    {
+        ProtoValue.Bool b => ProtoValue.Of(b.Value ? 1L : 0L),
+        ProtoValue.Num n when n.Value == Math.Floor(n.Value) => ProtoValue.Of((long)n.Value),
+        _ => value,
+    };
 
     private static string ChildPath(string path, Field child, bool exposed)
         => exposed ? child.CaptureName : $"{path}.{child.CaptureName}";
@@ -1025,6 +1104,21 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                    Scope.Child().Set("item", item), this)
                { Carried = carried, Instance = instance };
 
+        /// <summary>
+        /// One component of an assortment.
+        ///
+        /// <para>
+        /// Its own occurrences for the parts there are several of — the token, whatever always follows it,
+        /// and the fields of a kind declared to repeat. Everything else is deliberately <b>absent</b> from
+        /// this frame, so a lookup falls through to the scope outside and finds the one occurrence there
+        /// is. That is what makes a kind declared once addressable from anywhere in the message, and it is
+        /// the whole reason an assortment is not a chain.
+        /// </para>
+        /// </summary>
+        public NameFrame Component(IReadOnlyList<Field> own, Occurrence instance, ProtoValue item)
+            => new(Occurrences(MessageDef.ScopeFields(own), instance), Scope.Child().Set("item", item), this)
+               { Instance = instance };
+
         private static Dictionary<Field, Occurrence> Occurrences(IEnumerable<Field> fields, Occurrence? within)
             => fields.Distinct().ToDictionary(f => f, f => new Occurrence(f, within));
 
@@ -1055,6 +1149,14 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                     Emit(chain.Element, instance, encoder, settled, output);
                 break;
 
+            case Pattern.Assorted assorted:
+                foreach (var (sort, component) in encoder.Components[nodeId])
+                {
+                    Emit(assorted.Token, component, encoder, settled, output);
+                    foreach (var child in Inside(sort)) Emit(child, component, encoder, settled, output);
+                }
+                break;
+
             default:
                 Write(output, field,
                       OnWire(field, settled[new FacetRef(nodeId, Facet.Value)] as ProtoValue ?? ProtoValue.Nothing));
@@ -1073,6 +1175,10 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
         /// <summary>Chain node id → one frame per instance, in order.</summary>
         public readonly Dictionary<Occurrence, List<NameFrame>> Instances = [];
+
+        /// <summary>Assortment node id → the kind each component is and the frame it was built in, in the
+        /// order the value asked for.</summary>
+        public readonly Dictionary<Occurrence, List<(Arm Sort, NameFrame Frame)>> Components = [];
 
         private static readonly HashSet<Facet> LeafNotApplicable =
             [Facet.Realised, Facet.Present, Facet.Emitted];
@@ -1210,8 +1316,8 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                             {
                                 case Facet.Realised:
                                 {
-                                    long key = evaluator.Eval(deciding, Fields(frame, inputs)).AsInt();
-                                    var arm = codec._message.Choose(field, key);
+                                    var arm = codec._message.Choose(
+                                        field, Keyed(evaluator.Eval(deciding, Fields(frame, inputs))));
 
                                     Chosen[nodeId] = arm;
                                     armExtents = codec.Inside(arm)
@@ -1325,6 +1431,105 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                     break;
                 }
 
+                case Pattern.Assorted assorted:
+                {
+                    List<FacetRef> valueNeeds = field.Value is null ? [] : Refs(field, Roles.Value, field.Value, frame);
+                    List<FacetRef>? componentExtents = null;
+                    ProtoValue? listed = null;
+
+                    // One component per entry in the value, in the order it lists them — the same shape a
+                    // chain has, and for the same reason: on the way out nothing is being recognised, so
+                    // the count and the arrangement can only come from what is being written.
+                    FacetResult Expand()
+                    {
+                        if (listed is not ProtoValue.List list)
+                            throw new ProtoTypeException(
+                                $"field '{field.Id}' is an assortment, so its value must be the list of "
+                              + $"components to write, got {listed?.Kind ?? "Null"}");
+
+                        if (list.Items.Count > ProtoLimits.MaxChainedInstances)
+                            throw new ProtoTypeException(
+                                $"field '{field.Id}': {list.Items.Count} components exceeds the "
+                              + $"{ProtoLimits.MaxChainedInstances} ceiling");
+
+                        List<ResolutionNode> children = [];
+                        List<FacetRef> extents = [];
+                        List<(Arm, NameFrame)> built = [];
+                        HashSet<Arm> once = [];
+
+                        var within = Follows.Inside(nodeId);
+
+                        for (int i = 0; i < list.Items.Count; i++)
+                        {
+                            var sort = SortOf(field, assorted, list.Items[i], i);
+
+                            if (!sort.Repeats && !once.Add(sort))
+                                throw new ProtoTypeException(
+                                    $"field '{field.Id}': the value asks for '{sort.Name}' twice and it is "
+                                  + "not declared to repeat. Whatever names its fields would be pointing at "
+                                  + "one of them and there would be two.");
+
+                            // Only the parts there are several of get their own occurrences here; a kind
+                            // declared once falls through to the scope outside, which is what lets
+                            // something out there name it.
+                            var instance = new Occurrence(field, nodeId, $"[{i}]");
+
+                            var component = frame.Component(
+                                [assorted.Token, .. sort.Repeats ? sort.Fields : []],
+                                instance, list.Items[i]);
+
+                            // The token carries no value of its own — what goes there is the key that
+                            // picks this kind, which is why writing one by hand is refused. The unknown
+                            // kind has no key, so its token comes back from what was read.
+                            children.Add(Fixed(component.Of(assorted.Token), assorted.Token,
+                                               codec.Offer(field, sort).Key
+                                               ?? Tokened(field, assorted, list.Items[i], i), within));
+                            extents.Add(new FacetRef(component.Of(assorted.Token), Facet.Extent));
+                            within = Follows.After(component.Of(assorted.Token));
+
+                            foreach (var part in codec.Inside(sort))
+                            {
+                                children.AddRange(Nodes(part, component, within));
+                                extents.Add(new FacetRef(component.Of(part), Facet.Extent));
+                                within = Follows.After(component.Of(part));
+                            }
+
+                            built.Add((sort, component));
+                        }
+
+                        Components[nodeId] = built;
+                        componentExtents = extents;
+                        return new FacetResult(list.Items.Count, children);
+                    }
+
+                    nodes.Add(new ResolutionNode
+                    {
+                        Id = nodeId,
+                        NotApplicable = ExpandingNotApplicable,
+
+                        DependenciesFor = f => f switch
+                        {
+                            Facet.Value => valueNeeds,
+                            Facet.Realised => [new FacetRef(nodeId, Facet.Value)],
+                            Facet.Extent => componentExtents is null
+                                ? [new FacetRef(nodeId, Facet.Realised)]
+                                : [new FacetRef(nodeId, Facet.Realised), .. componentExtents],
+                            Facet.Position => after.Needs,
+                            _ => [],
+                        },
+
+                        Settle = (f, inputs) => f switch
+                        {
+                            Facet.Value => FacetResult.Of(listed = codec.Evaluate(field, frame, evaluator, inputs)),
+                            Facet.Realised => Expand(),
+                            Facet.Extent => FacetResult.Of(Sum(componentExtents!, inputs)),
+                            Facet.Position => FacetResult.Of(after.At(inputs)),
+                            _ => FacetResult.Of(null),
+                        },
+                    });
+                    break;
+                }
+
                 default:
                 {
                     List<FacetRef> valueNeeds = field.Value is null ? [] : Refs(field, Roles.Value, field.Value, frame);
@@ -1372,6 +1577,36 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             }
 
             return nodes;
+        }
+
+        /// <summary>
+        /// A leaf whose value the document does not compute — a token, whose content is the key that
+        /// picked the kind it announces.
+        /// </summary>
+        private ResolutionNode Fixed(Occurrence id, Field field, ProtoValue value, Follows after)
+        {
+            int? fixedWidth = field.Pattern.StaticWidth;
+
+            return new ResolutionNode
+            {
+                Id = id,
+                NotApplicable = LeafNotApplicable,
+
+                DependenciesFor = f => f switch
+                {
+                    Facet.Extent when fixedWidth is null => [new FacetRef(id, Facet.Value)],
+                    Facet.Position => after.Needs,
+                    _ => [],
+                },
+
+                Settle = (f, inputs) => FacetResult.Of(f switch
+                {
+                    Facet.Value => codec.Confined(field, value),
+                    Facet.Extent => fixedWidth ?? codec.Measure(field, value),
+                    Facet.Position => after.At(inputs),
+                    _ => (object?)null,
+                }),
+            };
         }
 
         /// <summary>A zero-width node holding what one structure threads to the next.</summary>
@@ -1429,6 +1664,37 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             return [.. needs.Distinct()];
         }
     }
+
+    /// <summary>Which kind one component of an assortment is, said by the component itself.</summary>
+    private static Arm SortOf(Field field, Pattern.Assorted assorted, ProtoValue item, int at)
+    {
+        if (item is not ProtoValue.Rec rec
+            || !rec.Members.TryGetValue(Pattern.Assorted.Which, out var which) || which.IsNull)
+            throw new ProtoTypeException(
+                $"field '{field.Id}': component {at} does not say which kind it is. Each one is a record "
+              + $"with a '{Pattern.Assorted.Which}' member naming the kind — which is exactly what a decode "
+              + "produces, so a run that arrived can be handed straight back to be written.");
+
+        return assorted.Sorts.FirstOrDefault(s => string.Equals(s.Name, which.AsText(), StringComparison.Ordinal))
+            ?? throw new ProtoTypeException(
+                   $"field '{field.Id}': component {at} says it is '{which}', which is not a kind this "
+                 + $"assortment offers. Declared: {string.Join(", ", assorted.Sorts.Select(s => s.Name))}");
+    }
+
+    /// <summary>The token an unknown component announced itself with, which nothing but the component
+    /// itself can supply — the declaration has no key for the kind it never heard of.</summary>
+    private static ProtoValue Tokened(Field field, Pattern.Assorted assorted, ProtoValue item, int at)
+        => item is ProtoValue.Rec rec
+           && rec.Members.TryGetValue(assorted.Token.CaptureName, out var token) && !token.IsNull
+            ? token
+            : throw new ProtoTypeException(
+                  $"field '{field.Id}': component {at} is of the kind this document does not know, so "
+                + $"nothing says what its '{assorted.Token.Id}' should be. It has to carry the one it "
+                + "arrived with, or a component that was merely unrecognised comes back as a different one.");
+
+    /// <summary>The offer that selects one kind. Read from the edge, because that is where the key is.</summary>
+    private Offers Offer(Field field, Arm sort)
+        => _message.Offered(field).First(o => ReferenceEquals(o.To, sort));
 
     private ProtoValue Evaluate(Field field, NameFrame frame, Evaluator evaluator,
                                 IReadOnlyDictionary<FacetRef, object?> resolved)

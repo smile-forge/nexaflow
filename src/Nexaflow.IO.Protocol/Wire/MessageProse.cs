@@ -119,14 +119,32 @@ public static class MessageProse
             case Pattern.Chain chain:
                 Walk(chain.Element, depth + 1, text, message);
                 break;
+
+            case Pattern.Assorted assorted:
+                Walk(assorted.Token, depth + 1, text, message);
+
+                foreach (var offer in message.Offered(field))
+                {
+                    var sort = (Arm)offer.To;
+
+                    text.AppendLine($"{pad}  - *{sort.Name}* — {Selected(offer)}, "
+                                  + $"{(sort.Fields.Count == 0 ? "contributing nothing" : Count(sort.Fields.Count, "field"))}.");
+                    foreach (var child in sort.Fields) Walk(child, depth + 2, text, message);
+                }
+                break;
         }
 
         if (depth == 0) text.AppendLine();
     }
 
-    private static string Selected(Offers offer)
-        => offer.IsFallback ? "taken when nothing else matches"
-                            : $"taken when the discriminator is {offer.Key} (0x{offer.Key:x})";
+    private static string Selected(Offers offer) => (offer.Key, offer.Repeats) switch
+    {
+        (null, _) => "taken when nothing else matches",
+        (Values.ProtoValue.Int i, false) => $"taken when the discriminator is {i.Value} (0x{i.Value:x})",
+        (Values.ProtoValue.Int i, true) => $"announced by {i.Value} (0x{i.Value:x}), any number of times",
+        (var k, false) => $"announced by '{k}'",
+        (var k, true) => $"announced by '{k}', any number of times",
+    };
 
     private static string Shape(Field field) => field.Pattern switch
     {
@@ -175,6 +193,16 @@ public static class MessageProse
             $"a region, running {Count(extent)} on the way in. Its contents must fill it exactly",
 
         Pattern.Group => "a region; its extent is whatever its contents come to",
+
+        Pattern.Assorted a =>
+            $"a run of components, each announcing which of {Count(a.Sorts.Count, "kind")} it is with its "
+          + $"`{a.Token.Id}`. Another follows while `{a.Continues.Render()}`. The order is preserved and is "
+          + "not significant. **Each kind is separately declared**, so a kind that comes at most once is a "
+          + "node something elsewhere can point at — which is what a run of one repeated shape could never "
+          + "offer, because there the answer would depend on which component happened to arrive first"
+          + (a.Sorts.Any(s => s.Repeats)
+                ? $". {Sentence([.. a.Sorts.Where(s => s.Repeats).Select(s => $"`{s.Name}`")])} may come more "
+                + "than once, and so cannot be named from outside" : ""),
 
         Pattern.Chain c =>
             $"zero or more structures of the same shape, one after another. Another follows while "
