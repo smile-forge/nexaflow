@@ -236,10 +236,15 @@ public sealed record MessageDef
         Context = other.Context;
         Concepts = other.Concepts;
 
-        // The same root, not a new one. Field initialisers run for this constructor too, so leaving it
+        // The same roots, not new ones. Field initialisers run for this constructor too, so leaving one
         // out mints a fresh node and every rule pointing at the original's root stops being about
         // anything — identity is the object, which cuts both ways.
+        //
+        // `Beside` was left out when it was added and nothing noticed, because a document with parts
+        // declared beside it only built its graph when something asked a question that reached them. The
+        // fix for one of these is the fix for all of them: every node this record owns belongs here.
         Root = other.Root;
+        Beside = other.Beside;
     }
 
     /// <summary>Stands for the message itself, so a rule about the whole thing has something to point at
@@ -620,11 +625,37 @@ public sealed record MessageDef
     }
 
     /// <summary>Document-time checks over the whole message.</summary>
-    public IReadOnlyList<string> Validate()
+    public IReadOnlyList<string> Validate() => Validate([]);
+
+    /// <summary>
+    /// The same check, following what this message carries.
+    /// </summary>
+    /// <remarks>
+    /// A carried document was validated by nothing until something tried to encode through it, so a
+    /// document that stacks on a broken one passed and failed at run time. Checking the graph's own
+    /// structure is this engine's job wherever the graph reaches, and an <see cref="Embeds"/> edge is
+    /// somewhere it reaches — the same reasoning that puts a rule's targets and an arm's cover under the
+    /// same pass.
+    ///
+    /// <para>
+    /// The seen set is not paranoia: a document may legitimately carry one that carries it back, and a
+    /// tunnelling protocol describing its own encapsulation is a real shape rather than an error.
+    /// </para>
+    /// </remarks>
+    private IReadOnlyList<string> Validate(HashSet<Node> seen)
     {
         List<string> issues = [];
+
+        if (!seen.Add(Root)) return issues;
+
         Check(Declared, new HashSet<string>(StringComparer.Ordinal), issues);
         CheckApart(issues);
+
+        foreach (var layer in Layers)
+            if (layer.Carries is Carriage.Described described)
+                foreach (var inside in described.Message.Validate(seen))
+                    issues.Add($"in '{layer.Id}', which '{Id}' carries: {inside}");
+
         return issues;
     }
 

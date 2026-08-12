@@ -1165,6 +1165,11 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         // a check that only read would let the engine write what it would then refuse.
         foreach (var (chain, frames) in encoder.Instances) EnforceDistinct(chain, frames, settled);
 
+        // And how each structure sits against the one before it. Missed when the others were done, which
+        // is worth saying plainly: this engine's rule is that a check running only on the way in lets it
+        // emit what it would then refuse to read, and one of the rule kinds was doing exactly that.
+        foreach (var (chain, frames) in encoder.Instances) EnforceArrangement(chain, frames, settled);
+
         // Position is a linearisation, not a fixpoint: one ordered sweep once extents have settled, now
         // through the realised shape rather than a flat list.
         var output = new List<byte>();
@@ -1319,6 +1324,42 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 seen.Add(value);
             }
         }
+    }
+
+    /// <summary>
+    /// How each structure of a chain sits against the one before it, checked on the way out.
+    /// </summary>
+    private void EnforceArrangement(Occurrence chain, List<NameFrame> frames,
+                                    IReadOnlyDictionary<FacetRef, object?> settled)
+    {
+        var rules = _message.RulesOn(chain.Declared).OfType<Rule.Arrangement>().ToList();
+        if (rules.Count == 0) return;
+
+        var evaluator = new Evaluator(_converters);
+
+        for (int i = 1; i < frames.Count; i++)
+            foreach (var rule in rules)
+                if (!Holds(rule.Must, Structured(Structure(frames[i], settled),
+                                                 Structure(frames[i - 1], settled)), evaluator))
+                    throw new ProtoTypeException(
+                        $"structure {i} of '{chain.Declared.Name}' may not follow the one before it: "
+                      + $"{rule.Must.Render()} does not hold. {rule.Because}");
+    }
+
+    /// <summary>
+    /// One settled structure as its own record — the same shape a decode hands back when it closes one, so
+    /// a rule written about a pair reads the same names in both directions.
+    /// </summary>
+    private static ProtoValue Structure(NameFrame frame, IReadOnlyDictionary<FacetRef, object?> settled)
+    {
+        Dictionary<string, ProtoValue> members = new(StringComparer.Ordinal);
+
+        foreach (var (field, occurrence) in frame.Here)
+            if (settled.TryGetValue(new FacetRef(occurrence, Facet.Value), out var value)
+                && value is ProtoValue bound)
+                members[field.CaptureName] = bound;
+
+        return new ProtoValue.Rec(members);
     }
 
     /// <summary>Two structures side by side, for a rule about how they sit together.</summary>
