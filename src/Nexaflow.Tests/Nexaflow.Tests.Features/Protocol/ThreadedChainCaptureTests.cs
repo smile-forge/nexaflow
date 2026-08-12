@@ -53,14 +53,31 @@ public class ThreadedChainCaptureTests
     private static string Spilling(string whole)
         => $"let d = {whole} in d < 13 ? 0 : (d < 269 ? d - 13 : d - 269)";
 
-    private static readonly string ReadDelta = Widened(DeltaNibble, "fields.deltaExtension.value");
-    private static readonly string ReadLength = Widened(LengthNibble, "fields.lengthExtension.value");
+    // Read back with a width-blind conversion: leading zeros are octets the specification asked for, and
+    // recovering the value must not care how many of them there are.
+    private static readonly string ReadDelta =
+        Widened(DeltaNibble, "(fields.deltaExtension.value |> unminuint())");
+
+    private static readonly string ReadLength =
+        Widened(LengthNibble, "(fields.lengthExtension.value |> unminuint())");
 
     /// <summary>
-    /// Minimal-width unsigned octets where zero takes none at all — which is what makes the escape and its
-    /// absence the same field rather than two.
+    /// The escape written into exactly the octets the nibble said, and read back width-blind.
+    ///
+    /// <para>
+    /// It was a minimal-width conversion, and that was wrong in a way the capture could not show. The
+    /// specification says 13 means <b>one</b> octet follows and 14 means <b>two</b>; a minimal encoding
+    /// drops leading zeros, so a delta of exactly 13 wanted one octet and produced none, and 269 wanted
+    /// two and produced none. Every legal delta from 13 to 524 was refused or mis-written. The corpus
+    /// capture uses small deltas, which need no escape at all, so nothing ever said so.
+    /// </para>
+    ///
+    /// <para>
+    /// The width comes from the nibble rather than from the value, so it is an argument — and an argument
+    /// that is an expression, which is why this sits in the value rather than in a conversion slot.
+    /// </para>
     /// </summary>
-    private static Conversion Spill => new("minuint", [ProtoValue.Of("empty")]);
+    private static string Padded(string value, string nibble) => $"({value}) |> uintIn({Spilled(nibble)})";
 
     /// <summary>
     /// One option. Its number is <c>carried + delta</c>; its delta on the way out is
@@ -97,16 +114,14 @@ public class ThreadedChainCaptureTests
             {
                 Id = "deltaExtension",
                 Pattern = Pattern.Opaque.Measured(Expr.Parse(Spilled(DeltaNibble))),
-                Value = Expr.Parse(Spilling("item.number - carried")),
-                Via = Spill,
+                Value = Expr.Parse(Padded(Spilling("item.number - carried"), DeltaNibble)),
             },
 
             new Field
             {
                 Id = "lengthExtension",
                 Pattern = Pattern.Opaque.Measured(Expr.Parse(Spilled(LengthNibble))),
-                Value = Expr.Parse(Spilling("fields.optionValue.extent")),
-                Via = Spill,
+                Value = Expr.Parse(Padded(Spilling("fields.optionValue.extent"), LengthNibble)),
             },
 
             new Field
@@ -218,6 +233,10 @@ public class ThreadedChainCaptureTests
                 // express produced a nibble claiming two octets over an extension of three, and encoded
                 // without complaint. The nibble and the octets are two statements of one width, and
                 // nothing had been checking they agreed.
+                //
+                // It can no longer disagree. The extension is now written into the width the nibble states
+                // rather than written minimally and compared, so this cannot fail — kept because the
+                // sentence is a true thing the specification says and a document is where those live.
                 new Rule.Invariant
                 {
                     Within = option,
@@ -368,7 +387,7 @@ public class ThreadedChainCaptureTests
     }
 
     [TestMethod]
-    public void A_rule_about_a_structure_is_checked_on_the_way_out_as_well()
+    public void A_number_the_escape_cannot_express_is_refused_on_the_way_out()
     {
         // The same rule, the other direction. Asking for option number 1908 from a running total of 11
         // needs a delta of 1897, which is 14 in the nibble — legal — but asking for a value whose length
@@ -387,9 +406,14 @@ public class ThreadedChainCaptureTests
         inputs.Set("inputs", With(inputs.Root("inputs"),
             ("options", new ProtoValue.List([options[0], beyond]))));
 
+        // Refused, and by the field rather than by the rule. Writing the escape into the width the nibble
+        // states — instead of writing it minimally and checking the two agreed afterwards — moved this
+        // from "the header disagrees with the octets under it" to "this value does not fit where you asked
+        // to put it", which names the thing that is actually wrong. The invariant below is now
+        // unfalsifiable, and is kept because the sentence is still true and a reader looking for the rule
+        // should find it.
         var ex = Assert.ThrowsExactly<ProtoTypeException>(() => codec.Encode(inputs));
-        StringAssert.Contains(ex.Message, "in structure 1");
-        StringAssert.Contains(ex.Message, "a header describing a structure other than the one written");
+        StringAssert.Contains(ex.Message, "does not fit in 2 octet(s)");
 
         // The honest captures are untouched by it.
         foreach (int index in (int[])[0, 1, 2])
@@ -434,7 +458,10 @@ public class ThreadedChainCaptureTests
             long header = option.Members["optionHeader"].AsInt();
             long nibble = header >> 4;
 
-            long spilt = option.Members["deltaExtension"].AsInt();
+            // Width-blind, the way a reader has to be: the escape is however many octets the nibble
+            // asked for, leading zeros included, and none of them change what it says.
+            long spilt = 0;
+            foreach (var b in option.Members["deltaExtension"].AsBytes()) spilt = (spilt << 8) | b;
 
             running += nibble < 13 ? nibble : nibble == 13 ? spilt + 13 : spilt + 269;
 

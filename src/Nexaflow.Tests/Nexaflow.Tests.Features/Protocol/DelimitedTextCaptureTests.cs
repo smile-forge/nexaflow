@@ -53,54 +53,74 @@ public class DelimitedTextCaptureTests
     };
 
     /// <summary>
-    /// One header line. The value runs from the colon to the end of the line, leading space included —
-    /// which is why a header with no value and no space is a zero-length span rather than a shape of its own.
+    /// One kind of header line: the colon, the value, the line end.
+    ///
+    /// <para>
+    /// The value runs from the colon to the end of the line, leading space included — which is why a
+    /// header with no value and no space is a zero-length span rather than a shape of its own.
+    /// </para>
     /// </summary>
-    private static Field HeaderLine() => new()
-    {
-        Id = "line",
-        Pattern = new Pattern.Group(
-        [
-            Upto("headerName", ":", "item.headerName"),
-            Literal("headerColon", ":"),
-            new Field
-            {
-                Id = "headerValue",
-                Pattern = Pattern.Opaque.Before(LineEnd),
-                Value = Expr.Parse("item.headerValue"),
-                Via = "unascii",
-            },
-            new Field
-            {
-                Id = "headerEnd",
-                Pattern = new Pattern.Opaque(2),
-                Value = Expr.Parse("'0d0a' |> unhex()"),
-            },
-        ]),
-    };
+    private static Field[] Line(string sort, string source) =>
+    [
+        Literal($"{sort}Colon", ":"),
+        new Field
+        {
+            Id = $"{sort}Value",
+            Pattern = Pattern.Opaque.Before(LineEnd),
+            Value = Expr.Parse(source),
+            Via = "unascii",
+        },
+        new Field { Id = $"{sort}End", Pattern = new Pattern.Opaque(2), Value = Expr.Parse("'0d0a' |> unhex()") },
+    ];
 
-    /// <summary>The header block and the blank line that ends it. There is no count anywhere: another line
-    /// follows while the next octet is not the one that starts the blank line.</summary>
+    /// <summary>
+    /// The header block, as components that say which they are.
+    ///
+    /// <para>
+    /// This was a chain over one generic line, and the entry said at the time that header order and
+    /// addressing were questions about what the octets mean — the wire has an ordered list of lines either
+    /// way. That was true of SSDP and it is not true generally: the moment something has to be sized or
+    /// constrained by a <i>particular</i> header, which line that is stops being interpretation. The shape
+    /// is corrected here rather than left as a thing to copy.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>MAN</c> is declared because the specification says what it must contain, and a kind declared
+    /// once is a node a rule can reach. Everything else falls to the kind for headers this document has
+    /// not been taught, which has to exist: nothing enumerates every header name, so the cover can only be
+    /// closed by a fallback — and an unrecognised header is a newer peer rather than a bad message.
+    /// </para>
+    /// </summary>
     private static Field[] Headers() =>
     [
         new Field
         {
             Id = "headers",
             Value = Expr.Parse("inputs.headers"),
-            Pattern = new Pattern.Chain(HeaderLine(), Expr.Parse("room > 0 && peek != 0x0d")),
+            Pattern = new Pattern.Assorted(
+                new Field
+                {
+                    Id = "headerName",
+                    Pattern = Pattern.Opaque.Before(":"),
+                    Via = "unascii",
+
+                    // A header name is a case-insensitive string. Said once about the part, so the arm
+                    // keys match folded and the spelling that arrived is the spelling written back.
+                    Holds = Held.Folding,
+                },
+                [
+                    Arm.On("man", ProtoValue.Of("MAN"), Line("man", "inputs.man")),
+                    Arm.Otherwise("other", Line("other", "item.otherValue"), repeats: true),
+                ],
+                Expr.Parse("room > 0 && peek != 0x0d")),
         },
-        new Field
-        {
-            Id = "blankLine",
-            Pattern = new Pattern.Opaque(2),
-            Value = Expr.Parse("'0d0a' |> unhex()"),
-        },
+        new Field { Id = "blankLine", Pattern = new Pattern.Opaque(2), Value = Expr.Parse("'0d0a' |> unhex()") },
     ];
 
     private static MessageDef Ask() => new()
     {
         Id = "ask",
-        Context = Context.Given.These("method", "target", "version", "headers"),
+        Context = Context.Given.These("method", "target", "version", "headers", "man"),
         Fields =
         [
             Upto("method", " ", "inputs.method"),
@@ -122,7 +142,7 @@ public class DelimitedTextCaptureTests
     private static MessageDef Answer() => new()
     {
         Id = "answer",
-        Context = Context.Given.These("version", "code", "reason", "headers"),
+        Context = Context.Given.These("version", "code", "reason", "headers", "man"),
         Fields =
         [
             Upto("version", " ", "inputs.version"),
@@ -171,9 +191,11 @@ public class DelimitedTextCaptureTests
             headers.Select(h => h.Members["headerName"].AsText()).ToArray());
 
         // The space after the colon is part of the value, not structure.
-        Assert.AreEqual(" 239.255.255.250:1900", headers[0].Members["headerValue"].AsText());
-        Assert.AreEqual(" \"ssdp:discover\"", headers[1].Members["headerValue"].AsText(),
-            "the quotes are on the wire");
+        Assert.AreEqual(" 239.255.255.250:1900", headers[0].Members["otherValue"].AsText());
+
+        // MAN is a declared kind, so it is a field of the message — not the second entry of a list, which
+        // is what it was when every header was one shape and only its position told them apart.
+        Assert.AreEqual(" \"ssdp:discover\"", decoded["manValue"].AsText(), "the quotes are on the wire");
     }
 
     [TestMethod]
@@ -187,7 +209,7 @@ public class DelimitedTextCaptureTests
         var headers = decoded["headers"].AsList().Cast<ProtoValue.Rec>().ToList();
         var ext = headers.Single(h => h.Members["headerName"].AsText() == "EXT");
 
-        Assert.AreEqual("", ext.Members["headerValue"].AsText());
+        Assert.AreEqual("", ext.Members["otherValue"].AsText());
 
         Assert.AreEqual("200", decoded["code"].AsText());
         Assert.AreEqual("OK", decoded["reason"].AsText());
@@ -293,12 +315,10 @@ public class DelimitedTextCaptureTests
             if (!name.StartsWith("after", StringComparison.Ordinal) && name is not "blankLine")
                 inputs[name] = value;
 
-        inputs["headers"] = new ProtoValue.List(
-        [
-            .. decoded["headers"].AsList().Cast<ProtoValue.Rec>().Select(h => EvalScope.Record(
-                ("headerName", h.Members["headerName"]),
-                ("headerValue", h.Members["headerValue"]))),
-        ]);
+        // Handed straight back: what a decode produces is what an encode consumes. Rebuilding it by hand
+        // was picking out a name and a value, which is the wrong shape for a component that may be neither.
+        inputs["headers"] = decoded["headers"];
+        inputs["man"] = decoded["manValue"];
 
         return new EvalScope().Set("inputs", new ProtoValue.Rec(inputs));
     }

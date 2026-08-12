@@ -136,6 +136,33 @@ public sealed class ConverterTable
             (v, a) => ProtoValue.Of(MinimalUnsigned(v.AsInt(), ZeroRule(a, 0))),
             "minimal-width unsigned octets. zero: 'oneByte' (a single 00) or 'empty' (no octets) — "
           + "required, because which one is correct is a property of the protocol, not of the notion");
+        // The counterpart to `minuint`, and a different notion rather than a variant of it: some fields
+        // spend the fewest octets a value needs, and some spend the number something else already said.
+        // A specification that says "13 means one octet follows" means one, and a minimal encoding of a
+        // small value there is short by however many leading zeros it dropped.
+        //
+        // The width is an argument rather than a property of the value, so it can be an expression — which
+        // is the point, because the field that states it is usually the one right before.
+        t.Add("uintIn", ValueKinds.Numeric, ValueKinds.Bytes, null,
+            (v, a) =>
+            {
+                int width = (int)Required(a, 0, "uintIn", "how many octets").AsInt();
+                long value = v.AsInt();
+
+                if (width is < 0 or > 8)
+                    throw new ProtoTypeException($"an unsigned value fits 0..8 octets, not {width}");
+
+                if (width < 8 && (value < 0 || value >= 1L << (width * 8)))
+                    throw new ProtoTypeException($"{value} does not fit in {width} octet(s)");
+
+                var octets = new byte[width];
+                for (int i = width - 1; i >= 0; i--) { octets[i] = (byte)(value & 0xFF); value >>= 8; }
+                return ProtoValue.Of(octets);
+            },
+            "an unsigned value in a stated number of octets, most significant first — the width is "
+          + "required, because a field that pads to a width somebody else declared is not the same notion "
+          + "as one that spends as little as it can. Read back with `unminuint`, which is width-blind");
+
         t.Add("unminuint", ValueKinds.Bytes, ValueKinds.Int, "minuint",
             (v, _) =>
             {
