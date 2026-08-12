@@ -764,22 +764,23 @@ public sealed record MessageDef
     /// </summary>
     private void CheckAddressability(List<string> issues)
     {
-        Dictionary<Field, (Field Assortment, string Why)> unreachable = [];
+        Dictionary<Field, (Field Assortment, Arm? Sort, string Why)> unreachable = [];
 
         foreach (var field in AllFields)
         {
             if (field.Pattern is not Pattern.Assorted assorted) continue;
 
             foreach (var part in Descendants([assorted.Token]))
-                unreachable[part] = (field, $"'{part.Id}' is read once per component of '{field.Id}', so "
-                                          + "from out here it names the last one that happened to arrive");
+                unreachable[part] = (field, null,
+                    $"'{part.Id}' is read once per component of '{field.Id}', so from out here it names "
+                  + "the last one that happened to arrive");
 
             foreach (var sort in assorted.Sorts.Where(s => s.Repeats))
                 foreach (var part in Descendants(sort.Fields))
-                    unreachable[part] = (field, $"'{sort.Name}' may appear more than once in '{field.Id}', "
-                                              + $"so '{part.Id}' is not one field but several. Something "
-                                              + "with several appearances cannot be pointed at; if this one "
-                                              + "really comes at most once, say so and it becomes nameable");
+                    unreachable[part] = (field, sort,
+                        $"'{sort.Name}' may appear more than once in '{field.Id}', so '{part.Id}' is not "
+                      + "one field but several. Something with several appearances cannot be pointed at; "
+                      + "if this one really comes at most once, say so and it becomes nameable");
         }
 
         if (unreachable.Count == 0) return;
@@ -787,19 +788,32 @@ public sealed record MessageDef
         foreach (var reader in AllFields)
             foreach (var read in Graph.From<Reads>(reader))
                 if (read.To is Field target && unreachable.TryGetValue(target, out var why)
-                    && !Within(reader, why.Assortment))
+                    && !Alongside(reader, why.Assortment, why.Sort))
                     issues.Add($"message '{Id}': '{reader.Id}' reads '{target.Id}' — {why.Why}.");
     }
 
-    /// <summary>Whether one field sits inside another. Through the graph, because containment is an edge
-    /// and walking it is the only answer that stays right when the declaration is restructured.</summary>
-    private bool Within(Node node, Node container)
-    {
-        for (var at = Graph.Parent(node); at is not null; at = Graph.Parent(at))
-            if (ReferenceEquals(at, container)) return true;
-
-        return false;
-    }
+    /// <summary>
+    /// Whether a reader is close enough to a part for the read to mean one thing.
+    ///
+    /// <para>
+    /// Close enough means <i>in the same component</i>, and that is not containment: an arm hangs off its
+    /// assortment by an <see cref="Offers"/> edge, so walking parents up from a field inside one arrives
+    /// nowhere. The first real use of this check refused a length reading the span it measures — two
+    /// fields of one option, the pairing this engine is built around, called unaddressable because the
+    /// walk could not see they were siblings.
+    /// </para>
+    ///
+    /// <para>
+    /// A part of a repeating kind is nameable from that same kind and nowhere else, because within one
+    /// component there is exactly one of it. The token is nameable from any kind of its assortment, since
+    /// every component has one and it is that component's own.
+    /// </para>
+    /// </summary>
+    private bool Alongside(Node reader, Field assortment, Arm? sort)
+        => reader is Field part
+           && Optional(part) is { } from
+           && ReferenceEquals(from.Assortment, assortment)
+           && (sort is null || ReferenceEquals(from.Sort, sort));
 
     /// <summary>
     /// What a part declared beside the message may read.

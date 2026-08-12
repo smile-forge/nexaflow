@@ -45,22 +45,58 @@ public class PaddedFrameCaptureTests
         Via = Conversion.Of("fit", width),
     };
 
-    /// <summary>One tagged option: a code, a length, and that many octets.</summary>
-    private static Field Option() => new()
+    /// <summary>The one-octet value a message type carries, which is what makes it worth naming.</summary>
+    private static readonly Field MessageTypeValue = new()
     {
-        Id = "option",
-        Pattern = new Pattern.Group(
-        [
-            new Field { Id = "optionCode", Pattern = U8, Value = Expr.Parse("item.optionCode") },
-            new Field { Id = "optionLength", Pattern = U8, Value = Expr.Parse("fields.optionValue.extent") },
-            new Field
-            {
-                Id = "optionValue",
-                Pattern = Pattern.Opaque.Measured(Expr.Parse("fields.optionLength.value")),
-                Value = Expr.Parse("item.optionValue"),
-            },
-        ]),
+        Id = "messageTypeValue", Pattern = U8, Value = Expr.Parse("item.messageTypeValue"),
     };
+
+    /// <summary>
+    /// The options, as what they are: components that say which kind they are.
+    ///
+    /// <para>
+    /// This was a chain over one uniform code/length/value element, and the shape was wrong rather than
+    /// merely coarse. <b>Pad is a single octet</b> — code 0, no length, no value — so a uniform element
+    /// read the octet after it as a length and everything downstream moved. The capture in the corpus has
+    /// no padding in it, which is why nothing ever said so.
+    /// </para>
+    ///
+    /// <para>
+    /// Declaring the kinds separately fixes that by construction, because a kind that carries nothing is
+    /// simply a kind with no fields. It also buys the thing the uniform element could never offer: the
+    /// message type is a <i>node</i>, so a rule can constrain it and a reader can name it, rather than it
+    /// being whichever component happened to have code 53.
+    /// </para>
+    /// </summary>
+    private static Pattern Options() => new Pattern.Assorted(
+        new Field { Id = "optionCode", Pattern = U8 },
+        [
+            // No fields at all. One octet of padding is a whole component, and it may come as often as
+            // an implementation likes.
+            Arm.On("pad", ProtoValue.Of(0L), [], repeats: true),
+
+            Arm.On("messageType", ProtoValue.Of(53L),
+            [
+                // Fixed at one by the specification rather than measured off the value: this option's
+                // length is not a fact about what it carries, it is a constant the standard states.
+                new Field { Id = "messageTypeLength", Pattern = U8, Value = Expr.Parse("1") },
+                MessageTypeValue,
+            ]),
+
+            // Everything this document has not been taught. It has to be carried through unchanged — an
+            // option nobody recognises is a newer peer, not a corrupt datagram.
+            Arm.Otherwise("other",
+            [
+                new Field { Id = "optionLength", Pattern = U8, Value = Expr.Parse("fields.optionValue.extent") },
+                new Field
+                {
+                    Id = "optionValue",
+                    Pattern = Pattern.Opaque.Measured(Expr.Parse("fields.optionLength.value")),
+                    Value = Expr.Parse("item.optionValue"),
+                },
+            ], repeats: true),
+        ],
+        Expr.Parse("room > 0 && peek != 0xff"));
 
     internal static MessageDef Definition()
     {
@@ -122,12 +158,12 @@ public class PaddedFrameCaptureTests
                 },
 
                 // Stops at a sentinel it does not consume — the terminator is a field of its own, because
-                // it is one, and swallowing it into the chain would leave nothing to write it back out.
+                // it is one, and swallowing it into the run would leave nothing to write it back out.
                 new Field
                 {
                     Id = "options",
                     Value = Expr.Parse("inputs.options"),
-                    Pattern = new Pattern.Chain(Option(), Expr.Parse("room > 0 && peek != 0xff")),
+                    Pattern = Options(),
                 },
 
                 new Field { Id = "terminator", Pattern = U8, Value = Expr.Parse("0xff") },
@@ -160,6 +196,15 @@ public class PaddedFrameCaptureTests
                     Because = "one bit is defined and the other fifteen must be zero, so most of the "
                             + "65536 values this field can hold are malformed rather than unusual.",
                 },
+                // Reaching into the options from outside them, which is the whole point of the kinds being
+                // separately declared: this names a node, not "whichever component had code 53".
+                new Rule.Domain
+                {
+                    Field = MessageTypeValue,
+                    Allowed = [ValueRange.Between(1, 8)],
+                    Because = "the standard defines eight message types and the octet has room for 256, so "
+                            + "the rest are malformed rather than merely unfamiliar.",
+                },
                 new Rule.Requires
                 {
                     Within = message.Root,
@@ -174,7 +219,85 @@ public class PaddedFrameCaptureTests
 
     private static byte[] Capture(int index) => ProtocolCorpus.Get("dhcp").Captures[index].Bytes;
 
+    /// <summary>
+    /// The capture with one octet of padding spliced into the options, and one octet of trailing fill
+    /// dropped to keep the datagram the length it was.
+    /// </summary>
+    /// <remarks>
+    /// Synthetic, and it has to be: the corpus capture contains no padding, which is exactly why the
+    /// shape could be wrong for as long as it was. Padding is legal anywhere between options and real
+    /// implementations emit it to align what follows.
+    /// </remarks>
+    private static byte[] Padded()
+    {
+        var original = Capture(0);
+        int terminator = Array.IndexOf(original, (byte)0xff, 240);
+
+        return [.. original[..terminator], 0x00, .. original[terminator..^1]];
+    }
+
     // ── The captures ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A component that carries nothing but the fact that it is there.
+    ///
+    /// <para>
+    /// Pad is one octet: code zero, no length, no value. Under a uniform code/length/value element it was
+    /// not merely unmodelled, it was actively mis-read — the octet after it became a length and every
+    /// option after that moved. Declaring the kinds separately makes it a kind with no fields, which is
+    /// not a special case of anything.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    public void Padding_between_options_is_a_component_with_no_fields()
+    {
+        var decoded = new MessageCodec(Definition()).Decode(Padded());
+
+        var components = decoded["options"].AsList().Cast<ProtoValue.Rec>().ToList();
+
+        Assert.AreEqual(1, components.Count(o => o.Members["sort"].AsText() == "pad"),
+            "the padding octet is a component of its own");
+
+        // And every real option still reads as itself. That is the part the old shape got wrong: a pad
+        // anywhere in the run made the octet after it a length, and everything from there was a different
+        // option — a datagram that decoded without complaint and said something else.
+        CollectionAssert.AreEqual(new long[] { 53, 61, 12, 55 },
+            components.Where(o => o.Members["sort"].AsText() != "pad")
+                      .Select(o => o.Members["optionCode"].AsInt()).ToArray());
+    }
+
+    [TestMethod]
+    public void And_padding_goes_back_out_where_it_came_from()
+    {
+        var codec = new MessageCodec(Definition());
+        var octets = Padded();
+
+        CollectionAssert.AreEqual(octets, codec.Encode(InputsFrom(codec.Decode(octets))));
+    }
+
+    /// <summary>
+    /// The message type is a node, so something outside the options can name it.
+    ///
+    /// <para>
+    /// Under the old shape this was "whichever component happened to carry code 53", which nothing could
+    /// point at and no rule could constrain. It is the same gain that made a body sizeable by a
+    /// <c>Content-Length</c>, arriving in a protocol whose components are numbered rather than named.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    public void The_message_type_can_be_named_and_therefore_constrained()
+    {
+        Assert.AreEqual(1, new MessageCodec(Definition()).Decode(Capture(0))["messageTypeValue"].AsInt(),
+            "a discover, named directly rather than found by looking for code 53");
+
+        // Code 53 carrying 99 is structurally perfect and means nothing. The rule reaches a field inside a
+        // component from outside it, which is only possible because that kind comes at most once.
+        var wrong = (byte[])Capture(0).Clone();
+        wrong[Array.IndexOf(wrong, (byte)53, 240) + 2] = 99;
+
+        var ex = Assert.ThrowsExactly<ProtoTypeException>(() => new MessageCodec(Definition()).Decode(wrong));
+        StringAssert.Contains(ex.Message, "eight message types");
+    }
 
     [TestMethod]
     public void The_document_validates()
@@ -280,13 +403,10 @@ public class PaddedFrameCaptureTests
         foreach (var (name, value) in decoded.Captures)
             if (name is not ("marker" or "terminator")) inputs[name] = value;
 
-        // Each option keeps its code and its octets; the length comes back from the octets.
-        inputs["options"] = new ProtoValue.List(
-        [
-            .. decoded["options"].AsList().Cast<ProtoValue.Rec>().Select(o => EvalScope.Record(
-                ("optionCode", o.Members["optionCode"]),
-                ("optionValue", o.Members["optionValue"]))),
-        ]);
+        // Handed straight back. What a decode produces is what an encode consumes, so there is nothing to
+        // rebuild — and nothing to get wrong by rebuilding it, which is what this used to do: it picked out
+        // a code and a value, which is the wrong shape for a component that carries neither.
+        inputs["options"] = decoded["options"];
 
         return new EvalScope().Set("inputs", new ProtoValue.Rec(inputs));
     }
