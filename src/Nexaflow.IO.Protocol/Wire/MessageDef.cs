@@ -175,6 +175,29 @@ public sealed record MessageDef
     public IReadOnlyList<Concept> Concepts { get; init; } = [];
 
     /// <summary>
+    /// Parts that are in the graph and not on the wire.
+    ///
+    /// <para>
+    /// The message's own field list is the path a walk takes, and everything on it gets written. These are
+    /// declared beside it: real nodes with real ids, resolved like any other, and never emitted. Something
+    /// points at them.
+    /// </para>
+    ///
+    /// <para>
+    /// It is what a digest needs and it needed no new kind of thing. A checksum covering a shape that
+    /// appears on no wire — an address pair and a protocol number, assembled only to be summed — is that
+    /// shape declared here, with the checksum's requirement reaching it by an ordinary edge. So is the
+    /// awkward half of the same problem: a checksum whose span includes the checksum field, computed with
+    /// it zeroed, is a zero declared here and covered instead of the field. The document says what goes in
+    /// the sum rather than the engine knowing a convention about it.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<Field> Apart { get; init; } = [];
+
+    /// <summary>Everything declared at message level, on the wire or beside it.</summary>
+    internal IReadOnlyList<Field> Declared => [.. Fields, .. Apart];
+
+    /// <summary>
     /// What a person has to be asked before this message can be built, and why — computed from the graph
     /// rather than maintained beside it, so it cannot drift from what the document actually reads.
     /// </summary>
@@ -208,6 +231,7 @@ public sealed record MessageDef
     {
         Id = other.Id;
         Fields = other.Fields;
+        Apart = other.Apart;
         Rules = other.Rules;
         Context = other.Context;
         Concepts = other.Concepts;
@@ -227,12 +251,24 @@ public sealed record MessageDef
         public override string Name => "message";
     }
 
+    /// <summary>Stands for what is declared beside the message rather than in it.</summary>
+    public Node Beside { get; } = new AsideRoot();
+
+    private sealed class AsideRoot : Node
+    {
+        public override string Name => "beside";
+    }
+
     private ProtocolGraph Build()
     {
         var graph = new ProtocolGraph();
         graph.Add(Root);
 
         Wire(graph, Root, Fields);
+
+        // Under a root of their own, so asking what the message contains still answers with what it
+        // writes. They are reachable by reference and by nothing else, which is the whole point.
+        Wire(graph, Beside, Apart);
 
         // Every reference an expression makes, materialised in the scope it was written in. Recovering
         // these by scanning text at each encode is what let a reference into an unrealised arm survive
@@ -241,7 +277,7 @@ public sealed record MessageDef
             foreach (var named in concept.Of)
                 graph.Add(new Names { From = concept, To = named });
 
-        LinkReads(graph, ScopeFields(Fields), null);
+        LinkReads(graph, ScopeFields(Declared), null);
 
         // Order comes from where the rule was written unless it says otherwise, and lands on the EDGE:
         // one rule can constrain several nodes and need not sit in the same place at each of them.
@@ -436,7 +472,7 @@ public sealed record MessageDef
     }
 
     /// <summary>Every field in the message, nested ones included, in declaration order.</summary>
-    public IEnumerable<Field> AllFields => Descendants(Fields);
+    public IEnumerable<Field> AllFields => Descendants(Declared);
 
     /// <summary>The rules that apply to one node. A reference lookup, so a rule on a segment inside a
     /// repeated structure is found every time that structure is realised.</summary>
@@ -587,7 +623,8 @@ public sealed record MessageDef
     public IReadOnlyList<string> Validate()
     {
         List<string> issues = [];
-        Check(Fields, new HashSet<string>(StringComparer.Ordinal), issues);
+        Check(Declared, new HashSet<string>(StringComparer.Ordinal), issues);
+        CheckApart(issues);
         return issues;
     }
 
@@ -731,6 +768,37 @@ public sealed record MessageDef
             if (ReferenceEquals(at, container)) return true;
 
         return false;
+    }
+
+    /// <summary>
+    /// What a part declared beside the message may read.
+    ///
+    /// <para>
+    /// Order matters here and nowhere else on this side. Everything on the wire is settled by the time
+    /// these are worked out, so they may read any of it; but they are worked out among themselves in the
+    /// order they were written, so one reading a later one would read nothing and every comparison against
+    /// it would go quietly false. Checked rather than ordered for the author, because the fix is to move a
+    /// line and the diagnostic can say which.
+    /// </para>
+    /// </summary>
+    private void CheckApart(List<string> issues)
+    {
+        HashSet<string> settled = new(Descendants(Fields).Select(f => f.Id), StringComparer.Ordinal);
+
+        foreach (var field in Apart)
+        {
+            foreach (var part in Descendants([field])) settled.Add(part.Id);
+
+            if (field.Value is null && field.Pattern.Nested.Count == 0)
+                issues.Add($"message '{Id}': '{field.Id}' is declared beside the message and says nothing "
+                         + "about what it holds. Nothing on the wire will fill it in.");
+
+            foreach (var (referenced, _) in Descendants([field]).Where(f => f.Value is not null)
+                                                                .SelectMany(f => FieldReferences(f.Value!)))
+                if (!settled.Contains(referenced))
+                    issues.Add($"message '{Id}': '{field.Id}' is declared beside the message and reads "
+                             + $"'{referenced}', which is worked out after it. Move it earlier.");
+        }
     }
 
     private void CheckContext(List<string> issues)

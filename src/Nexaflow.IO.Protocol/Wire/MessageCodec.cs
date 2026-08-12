@@ -89,8 +89,54 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
               + "data is an error rather than something ignored, because ignoring it accepts a malformed "
               + "capture as valid");
 
+        Aside(reading);
+
         Enforce(reading.MessageScope(), new Evaluator(_converters));
         return new DecodeResult(reading.Captures, reading.Spans);
+    }
+
+    /// <summary>
+    /// Works out the parts declared beside the message, once everything on the wire has been read.
+    ///
+    /// <para>
+    /// Here rather than as the walk passes, because they are nowhere on the wire to be passed: what they
+    /// hold is computed from what arrived. Which is also why they come last — a shape assembled only to be
+    /// summed generally needs the length of the thing it is summed with.
+    /// </para>
+    /// </summary>
+    private void Aside(Reading r)
+    {
+        foreach (var field in _message.Apart) Beside(field, r);
+    }
+
+    private ProtoValue Beside(Field field, Reading r)
+    {
+        if (field.Pattern.Nested.Count > 0)
+        {
+            List<byte> octets = [];
+            Dictionary<string, ProtoValue> members = new(StringComparer.Ordinal);
+
+            foreach (var child in Inside(field))
+            {
+                members[child.CaptureName] = Beside(child, r);
+                octets.AddRange(r.Octets(child.Id));
+            }
+
+            var region = new ProtoValue.Rec(members);
+            r.Note(field.Id, region, octets.Count, [.. octets]);
+            return region;
+        }
+
+        var value = r.Eval(field.Value
+            ?? throw new ProtoTypeException(
+                   $"field '{field.Id}' is declared beside the message and has no value, so nothing says "
+                 + "what it holds"));
+
+        var wire = Octets(field, Convert(value, field, forward: true));
+        r.Note(field.Id, value, wire.Length, wire);
+        r.Capture(field.CaptureName, value);
+
+        return value;
     }
 
     /// <summary>The live state of one decode: where we are, how far we may go, and what has been bound.</summary>
@@ -119,7 +165,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
         /// <summary>Field scopes, outermost first. A chain instance pushes one, so instance 2's names are
         /// its own and anything it does not declare resolves outward.</summary>
-        private readonly List<Dictionary<string, (ProtoValue Value, int Extent)>> _scopes =
+        private readonly List<Dictionary<string, (ProtoValue Value, int Extent, byte[] Octets)>> _scopes =
             [new(StringComparer.Ordinal)];
 
         /// <summary>Region bounds, outermost first. The message itself is the outermost.</summary>
@@ -131,10 +177,22 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         /// <summary>Unread octets left in that region — what "is there another" usually asks about.</summary>
         public int Room => Limit - Offset;
 
-        public void Note(string fieldId, ProtoValue value, int extent) => _scopes[^1][fieldId] = (value, extent);
+        /// <summary>What a part said, how wide it was, and the octets it was. The third is what a digest
+        /// covering it reads — the same edge a length uses, asking a different facet.</summary>
+        public void Note(string fieldId, ProtoValue value, int extent, byte[]? octets = null)
+            => _scopes[^1][fieldId] = (value, extent, octets ?? []);
 
         /// <summary>Whether anything has bound this name yet, anywhere the walk can still see.</summary>
         public bool Bound(string fieldId) => _scopes.Any(level => level.ContainsKey(fieldId));
+
+        /// <summary>The octets a part came to, for something assembling a span out of several.</summary>
+        public byte[] Octets(string fieldId)
+        {
+            foreach (var level in _scopes)
+                if (level.TryGetValue(fieldId, out var facet)) return facet.Octets;
+
+            return [];
+        }
 
         /// <summary>
         /// Which components turned up, as the reader knows it: one arrived if a part of it bound.
@@ -170,7 +228,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         /// it will become, and whatever its chain has threaded to it.</summary>
         public void EnterStructure(ProtoValue carried, int ordinal)
         {
-            _scopes.Add(new Dictionary<string, (ProtoValue, int)>(StringComparer.Ordinal));
+            _scopes.Add(new Dictionary<string, (ProtoValue, int, byte[])>(StringComparer.Ordinal));
             _bindings.Add(new Dictionary<string, ProtoValue>(StringComparer.Ordinal));
             _carried.Add(carried);
             _ordinals.Add(ordinal);
@@ -215,7 +273,8 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
             foreach (var (id, facet) in _scopes[0])
                 byField[id] = EvalScope.Record(("value", facet.Value),
-                                               ("extent", ProtoValue.Of((long)facet.Extent)));
+                                               ("extent", ProtoValue.Of((long)facet.Extent)),
+                                               ("octets", ProtoValue.Of(facet.Octets)));
 
             // Bit runs, which bind alongside fields and have no extent of their own. They arrive here as
             // captures because that is where a run is recorded; what matters is that the name answers,
@@ -235,7 +294,8 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             foreach (var level in _scopes)
                 foreach (var (id, facet) in level)
                     byField[id] = EvalScope.Record(("value", facet.Value),
-                                                   ("extent", ProtoValue.Of((long)facet.Extent)));
+                                                   ("extent", ProtoValue.Of((long)facet.Extent)),
+                                                   ("octets", ProtoValue.Of(facet.Octets)));
 
             var child = scope.Child().Set("fields", new ProtoValue.Rec(byField));
 
@@ -557,10 +617,11 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     private static string ChildPath(string path, Field child, bool exposed)
         => exposed ? child.CaptureName : $"{path}.{child.CaptureName}";
 
-    private ProtoValue Bind(Field field, Reading r, ProtoValue value, int extent, bool exposed)
+    private ProtoValue Bind(Field field, Reading r, ProtoValue value, int extent, bool exposed,
+                            int? from = null)
     {
         Confine(field, value);
-        r.Note(field.Id, value, extent);
+        r.Note(field.Id, value, extent, r.Bytes.AsSpan((from ?? r.Offset - extent), extent).ToArray());
         r.Capture(field.CaptureName, value);
 
         // Rules about this field, checked the moment it is bound rather than when its structure closes.
@@ -1015,7 +1076,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     {
         var encoder = new Encoder(this, new Evaluator(_converters));
         var resolver = new Resolver();
-        var frame = NameFrame.Root(_message.Fields, scope);
+        var frame = NameFrame.Root(_message.Declared, scope);
 
         var after = Encoder.Follows.Start;
 
@@ -1024,6 +1085,11 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             foreach (var node in encoder.Nodes(field, frame, after)) resolver.Add(node);
             after = Encoder.Follows.After(frame.Of(field));
         }
+
+        // Beside the message rather than in it. They resolve like anything else and follow nothing,
+        // because they are nowhere — position is a fact about being on a wire.
+        foreach (var field in _message.Apart)
+            foreach (var node in encoder.Nodes(field, frame, Encoder.Follows.Start)) resolver.Add(node);
 
         var settled = resolver.Resolve();
 
@@ -1048,7 +1114,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         // Position is a linearisation, not a fixpoint: one ordered sweep once extents have settled, now
         // through the realised shape rather than a flat list.
         var output = new List<byte>();
-        foreach (var field in _message.Fields) Emit(field, frame, encoder, settled, output);
+        foreach (var field in _message.Fields) Emit(frame.Of(field), settled, output);
         return [.. output];
     }
 
@@ -1070,7 +1136,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         {
             // An appearance inside a structure belongs to that structure, not to the message. A question
             // the occurrence answers directly, where a string id had to be inspected for a bracket.
-            if (reference.Facet is not (Facet.Value or Facet.Extent)
+            if (reference.Facet is not (Facet.Value or Facet.Extent or Facet.Emitted)
                 || reference.Node is not Occurrence { Within: null } occurrence)
                 continue;
 
@@ -1086,7 +1152,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             if (!facets.TryGetValue(occurrence.Declared.Name, out var slots))
                 facets[occurrence.Declared.Name] = slots = [];
 
-            slots.Add((reference.Facet == Facet.Extent ? "extent" : "value", settledValue));
+            slots.Add((Named(reference.Facet), settledValue));
         }
 
         Dictionary<string, ProtoValue> named = new(StringComparer.Ordinal);
@@ -1328,39 +1394,20 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
              : Outer?.Of(field) ?? new Occurrence(field, null);
     }
 
-    private void Emit(Field field, NameFrame frame, Encoder encoder,
-                      IReadOnlyDictionary<FacetRef, object?> settled, List<byte> output)
+    /// <summary>
+    /// Writing out is now a read.
+    ///
+    /// <para>
+    /// It used to walk the realised shape a second time and rebuild every octet, which meant two
+    /// producers for the same bytes and nothing making them agree. The octets are a settled facet, so
+    /// emission is a lookup and the walk that built them is the only one there is.
+    /// </para>
+    /// </summary>
+    private static void Emit(Occurrence node, IReadOnlyDictionary<FacetRef, object?> settled, List<byte> output)
     {
-        var nodeId = frame.Of(field);
-
-        switch (field.Pattern)
-        {
-            case Pattern.Group:
-                foreach (var child in Inside(field)) Emit(child, frame, encoder, settled, output);
-                break;
-
-            case Pattern.Choice:
-                foreach (var child in Inside(encoder.Chosen[nodeId])) Emit(child, frame, encoder, settled, output);
-                break;
-
-            case Pattern.Chain chain:
-                foreach (var instance in encoder.Instances[nodeId])
-                    Emit(chain.Element, instance, encoder, settled, output);
-                break;
-
-            case Pattern.Assorted assorted:
-                foreach (var (sort, component) in encoder.Components[nodeId])
-                {
-                    Emit(assorted.Token, component, encoder, settled, output);
-                    foreach (var child in Inside(sort)) Emit(child, component, encoder, settled, output);
-                }
-                break;
-
-            default:
-                Write(output, field,
-                      OnWire(field, settled[new FacetRef(nodeId, Facet.Value)] as ProtoValue ?? ProtoValue.Nothing));
-                break;
-        }
+        if (settled.TryGetValue(new FacetRef(node, Facet.Emitted), out var octets)
+            && octets is ProtoValue.Bytes bytes)
+            output.AddRange(bytes.Value);
     }
 
     /// <summary>
@@ -1428,13 +1475,16 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             return new ProtoValue.Rec(which);
         }
 
-        private static readonly HashSet<Facet> LeafNotApplicable =
-            [Facet.Realised, Facet.Present, Facet.Emitted];
+        // `Emitted` is applicable everywhere that occupies octets, and settling it for every node is what
+        // makes it dependable — a checksum reads the octets of the region it covers exactly as a length
+        // reads that region's extent, through an ordinary edge to an ordinary node. It was declared and
+        // produced nowhere, which is why a digest over a span could not be written down at all.
+        private static readonly HashSet<Facet> LeafNotApplicable = [Facet.Realised, Facet.Present];
 
         private static readonly HashSet<Facet> RegionNotApplicable =
-            [Facet.Realised, Facet.Present, Facet.Value, Facet.Emitted];
+            [Facet.Realised, Facet.Present, Facet.Value];
 
-        private static readonly HashSet<Facet> ExpandingNotApplicable = [Facet.Present, Facet.Emitted];
+        private static readonly HashSet<Facet> ExpandingNotApplicable = [Facet.Present];
 
         /// <summary>A threaded value occupies no octets; it exists only so one structure can depend on
         /// the one before it.</summary>
@@ -1508,6 +1558,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                     }
 
                     var extents = codec.Inside(field).Select(c => new FacetRef(frame.Of(c), Facet.Extent)).ToList();
+                    var emits = codec.Inside(field).Select(c => new FacetRef(frame.Of(c), Facet.Emitted)).ToList();
 
                     nodes.Add(new ResolutionNode
                     {
@@ -1517,6 +1568,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                         DependenciesFor = f => f switch
                         {
                             Facet.Extent => extents,
+                            Facet.Emitted => emits,
                             Facet.Position => after.Needs,
                             _ => [],
                         },
@@ -1524,6 +1576,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                         Settle = (f, inputs) => FacetResult.Of(f switch
                         {
                             Facet.Extent => Sum(extents, inputs),
+                            Facet.Emitted => Joined(emits, inputs),
                             Facet.Position => after.At(inputs),
                             _ => (object?)null,
                         }),
@@ -1541,6 +1594,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                     var keyNeeds = Refs(field, choice.Selects is null ? Roles.Discriminator : Roles.Selection,
                                         deciding, frame);
                     List<FacetRef>? armExtents = null;
+                    List<FacetRef>? armEmits = null;
 
                     nodes.Add(new ResolutionNode
                     {
@@ -1554,6 +1608,9 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                             Facet.Extent => armExtents is null
                                 ? [new FacetRef(nodeId, Facet.Realised)]
                                 : [new FacetRef(nodeId, Facet.Realised), .. armExtents],
+                            Facet.Emitted => armEmits is null
+                                ? [new FacetRef(nodeId, Facet.Realised)]
+                                : [new FacetRef(nodeId, Facet.Realised), .. armEmits],
                             Facet.Position => after.Needs,
                             _ => [],
                         },
@@ -1577,6 +1634,8 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                                     Chosen[nodeId] = arm;
                                     armExtents = codec.Inside(arm)
                                         .Select(c => new FacetRef(frame.Of(c), Facet.Extent)).ToList();
+                                    armEmits = codec.Inside(arm)
+                                        .Select(c => new FacetRef(frame.Of(c), Facet.Emitted)).ToList();
 
                                     return new FacetResult(arm.Name,
                                         [.. ArmNodes(arm, frame, nodeId)]);
@@ -1584,6 +1643,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
                                 case Facet.Value: return FacetResult.Of(ProtoValue.Of(Chosen[nodeId].Name));
                                 case Facet.Extent: return FacetResult.Of(Sum(armExtents!, inputs));
+                                case Facet.Emitted: return FacetResult.Of(Joined(armEmits!, inputs));
                                 case Facet.Position: return FacetResult.Of(after.At(inputs));
                                 default: return FacetResult.Of(null);
                             }
@@ -1596,6 +1656,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 {
                     List<FacetRef> valueNeeds = field.Value is null ? [] : Refs(field, Roles.Value, field.Value, frame);
                     List<FacetRef>? instanceExtents = null;
+                    List<FacetRef>? instanceEmits = null;
                     ProtoValue? structures = null;
 
                     // Realising the instances is what publishes their extents back to this node, which is
@@ -1614,6 +1675,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
                         List<ResolutionNode> children = [];
                         List<FacetRef> extents = [];
+                        List<FacetRef> emits = [];
                         List<NameFrame> frames = [];
 
                         NameFrame? previous = null;
@@ -1647,6 +1709,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                                 i == 0 ? Follows.Inside(nodeId)
                                        : Follows.After(frames[i - 1].Of(chain.Element))));
                             extents.Add(new FacetRef(instance.Of(chain.Element), Facet.Extent));
+                            emits.Add(new FacetRef(instance.Of(chain.Element), Facet.Emitted));
                             frames.Add(instance);
 
                             previous = instance;
@@ -1655,6 +1718,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
                         Instances[nodeId] = frames;
                         instanceExtents = extents;
+                        instanceEmits = emits;
                         return new FacetResult(list.Items.Count, children);
                     }
 
@@ -1670,6 +1734,9 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                             Facet.Extent => instanceExtents is null
                                 ? [new FacetRef(nodeId, Facet.Realised)]
                                 : [new FacetRef(nodeId, Facet.Realised), .. instanceExtents],
+                            Facet.Emitted => instanceEmits is null
+                                ? [new FacetRef(nodeId, Facet.Realised)]
+                                : [new FacetRef(nodeId, Facet.Realised), .. instanceEmits],
                             Facet.Position => after.Needs,
                             _ => [],
                         },
@@ -1679,6 +1746,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                             Facet.Value => FacetResult.Of(structures = codec.Evaluate(field, frame, evaluator, inputs, Presence(codec._message))),
                             Facet.Realised => Expand(),
                             Facet.Extent => FacetResult.Of(Sum(instanceExtents!, inputs)),
+                            Facet.Emitted => FacetResult.Of(Joined(instanceEmits!, inputs)),
                             Facet.Position => FacetResult.Of(after.At(inputs)),
                             _ => FacetResult.Of(null),
                         },
@@ -1690,6 +1758,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 {
                     List<FacetRef> valueNeeds = field.Value is null ? [] : Refs(field, Roles.Value, field.Value, frame);
                     List<FacetRef>? componentExtents = null;
+                    List<FacetRef>? componentEmits = null;
                     ProtoValue? listed = null;
 
                     // One component per entry in the value, in the order it lists them — the same shape a
@@ -1709,6 +1778,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
                         List<ResolutionNode> children = [];
                         List<FacetRef> extents = [];
+                        List<FacetRef> emits = [];
                         List<(Arm, NameFrame)> built = [];
                         HashSet<Arm> once = [];
 
@@ -1740,12 +1810,14 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                                                Announced(field, assorted, codec.Offer(field, sort).Key,
                                                          list.Items[i], i), within));
                             extents.Add(new FacetRef(component.Of(assorted.Token), Facet.Extent));
+                            emits.Add(new FacetRef(component.Of(assorted.Token), Facet.Emitted));
                             within = Follows.After(component.Of(assorted.Token));
 
                             foreach (var part in codec.Inside(sort))
                             {
                                 children.AddRange(Nodes(part, component, within));
                                 extents.Add(new FacetRef(component.Of(part), Facet.Extent));
+                                emits.Add(new FacetRef(component.Of(part), Facet.Emitted));
                                 within = Follows.After(component.Of(part));
                             }
 
@@ -1764,6 +1836,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
                         Components[nodeId] = built;
                         componentExtents = extents;
+                        componentEmits = emits;
                         return new FacetResult(list.Items.Count, children);
                     }
 
@@ -1779,6 +1852,9 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                             Facet.Extent => componentExtents is null
                                 ? [new FacetRef(nodeId, Facet.Realised)]
                                 : [new FacetRef(nodeId, Facet.Realised), .. componentExtents],
+                            Facet.Emitted => componentEmits is null
+                                ? [new FacetRef(nodeId, Facet.Realised)]
+                                : [new FacetRef(nodeId, Facet.Realised), .. componentEmits],
                             Facet.Position => after.Needs,
                             _ => [],
                         },
@@ -1789,6 +1865,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                                 codec.Evaluate(field, frame, evaluator, inputs, Presence(codec._message)))),
                             Facet.Realised => Expand(),
                             Facet.Extent => FacetResult.Of(Sum(componentExtents!, inputs)),
+                            Facet.Emitted => FacetResult.Of(Joined(componentEmits!, inputs)),
                             Facet.Position => FacetResult.Of(after.At(inputs)),
                             _ => FacetResult.Of(null),
                         },
@@ -1823,6 +1900,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                         {
                             Facet.Value => valueNeeds,
                             Facet.Extent when fixedWidth is null => [new FacetRef(nodeId, Facet.Value)],
+                            Facet.Emitted => [new FacetRef(nodeId, Facet.Value)],
                             Facet.Position => after.Needs,
                             _ => [],
                         },
@@ -1830,6 +1908,8 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                         Settle = (f, inputs) => f switch
                         {
                             Facet.Extent => FacetResult.Of(fixedWidth ?? codec.Measure(field, settledValue)),
+                            Facet.Emitted => FacetResult.Of(
+                                ProtoValue.Of(codec.Octets(field, codec.OnWire(field, settledValue)))),
                             Facet.Position => FacetResult.Of(after.At(inputs)),
                             Facet.Value => FacetResult.Of(settledValue = codec.Confined(field,
                                 target is null
@@ -1873,6 +1953,10 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 {
                     Facet.Value => width is null ? codec.Confined(field, value) : value,
                     Facet.Extent => fixedWidth ?? codec.Measure(field, value),
+
+                    // A part that is not on the wire still has octets, and they are the point of it: a
+                    // stand-in for a field a digest covers but must not see the value of.
+                    Facet.Emitted => ProtoValue.Of(codec.Octets(field, codec.OnWire(field, value))),
                     Facet.Position => after.At(inputs),
                     _ => (object?)null,
                 }),
@@ -1914,6 +1998,18 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         private static int Sum(IReadOnlyList<FacetRef> extents, IReadOnlyDictionary<FacetRef, object?> inputs)
             => extents.Sum(r => Extent(inputs[r]));
 
+        /// <summary>What a composite comes to: its parts' octets, in order.</summary>
+        private static ProtoValue Joined(IReadOnlyList<FacetRef> parts,
+                                         IReadOnlyDictionary<FacetRef, object?> inputs)
+        {
+            List<byte> all = [];
+
+            foreach (var part in parts)
+                if (inputs[part] is ProtoValue.Bytes octets) all.AddRange(octets.Value);
+
+            return ProtoValue.Of(all.ToArray());
+        }
+
         private static int Extent(object? settled) => settled switch
         {
             int i => i,
@@ -1936,8 +2032,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         {
             var needs = codec.Graph.From<Reads>(owner)
                 .Where(r => r.Role == role)
-                .Select(r => new FacetRef(frame.Of((Field)r.To),
-                    r.Facet.Equals("extent", StringComparison.OrdinalIgnoreCase) ? Facet.Extent : Facet.Value))
+                .Select(r => new FacetRef(frame.Of((Field)r.To), FacetNamed(r.Facet)))
                 .ToList();
 
             // `carried` is a root, so nothing in the expression's text makes it a dependency. It is one.
@@ -2077,6 +2172,31 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     /// scope, which had its own frame-correct copy, was folded into this one.
     /// </para>
     /// </summary>
+    /// <summary>How an expression spells a facet. One place, so both directions agree what to call it.</summary>
+    private static string Named(Facet facet) => facet switch
+    {
+        Facet.Extent => "extent",
+        Facet.Emitted => "octets",
+        _ => "value",
+    };
+
+    /// <summary>
+    /// And which facet a spelling asks for — the same table read the other way.
+    ///
+    /// <para>
+    /// These were two independent lists for a while and adding <c>octets</c> to one of them was enough to
+    /// show why that is a bad idea: an expression could read the octets of a node while the dependency it
+    /// declared was on that node's value, so the read happened before the octets existed. Nothing said so;
+    /// it surfaced as a converter being handed nothing.
+    /// </para>
+    /// </summary>
+    private static Facet FacetNamed(string spelling) => spelling switch
+    {
+        var s when s.Equals("extent", StringComparison.OrdinalIgnoreCase) => Facet.Extent,
+        var s when s.Equals("octets", StringComparison.OrdinalIgnoreCase) => Facet.Emitted,
+        _ => Facet.Value,
+    };
+
     private ProtoValue FieldsRecord(NameFrame frame, IReadOnlyDictionary<FacetRef, object?> resolved)
     {
         Dictionary<string, ProtoValue> byField = new(StringComparer.Ordinal);
@@ -2090,9 +2210,9 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             {
                 List<(string, ProtoValue)> slots = [];
 
-                foreach (var facet in (Facet[])[Facet.Value, Facet.Extent])
+                foreach (var facet in (Facet[])[Facet.Value, Facet.Extent, Facet.Emitted])
                     if (resolved.TryGetValue(new FacetRef(occurrence, facet), out var settled))
-                        slots.Add((facet == Facet.Extent ? "extent" : "value", settled switch
+                        slots.Add((Named(facet), settled switch
                         {
                             ProtoValue pv => pv,
                             int i => ProtoValue.Of((long)i),
@@ -2107,7 +2227,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 // Bit runs bind alongside their group, in both directions — which is why two runs sharing
                 // a name is a document error rather than something that silently shadows.
                 if (field.Pattern is Pattern.Bits
-                    && slots.FirstOrDefault(s => s.Item1 == "value").Item2 is ProtoValue.Rec runs)
+                    && slots.FirstOrDefault(x => x.Item1 == "value").Item2 is ProtoValue.Rec runs)
                     foreach (var (run, sliced) in runs.Members)
                         byField.TryAdd(run, EvalScope.Record(("value", sliced)));
             }
@@ -2120,10 +2240,9 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     /// where the value settled: what is being asked is how wide the <i>octets</i> are.</summary>
     private int Measure(Field field, ProtoValue? value) => field.Pattern switch
     {
-        Pattern.Varint varint => Pack(OnWire(field, value).AsInt(), varint).Length,
-        Pattern.EscapedInline escaped => PackEscaped(OnWire(field, value).AsInt(), escaped).Length,
-        Pattern.Prefixed prefixed => PackPrefixed(field, OnWire(field, value).AsInt(), prefixed).Length,
-        Pattern.Opaque { Width: null } => OnWire(field, value).AsBytes().Length,
+        Pattern.Varint or Pattern.EscapedInline or Pattern.Prefixed or Pattern.Opaque { Width: null }
+            => Octets(field, OnWire(field, value)).Length,
+
         _ => throw new ProtoTypeException($"field '{field.Id}' has no way to determine its width"),
     };
 
@@ -2208,6 +2327,22 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     private static ProtoValue Settled(Field field, ProtoValue? value)
         => value ?? throw new ProtoTypeException(
             $"field '{field.Id}': its extent was asked for before its value settled");
+
+    /// <summary>
+    /// The octets a settled, wire-form value becomes.
+    ///
+    /// <para>
+    /// One producer. Measurement asks it how wide, the <see cref="Facet.Emitted"/> facet asks it what they
+    /// are, and emission writes what that facet settled — so the three cannot disagree about the same
+    /// field, which they could while each built its own.
+    /// </para>
+    /// </summary>
+    private byte[] Octets(Field field, ProtoValue value)
+    {
+        List<byte> output = [];
+        Write(output, field, value);
+        return [.. output];
+    }
 
     private void Write(List<byte> output, Field field, ProtoValue value)
     {
