@@ -200,6 +200,37 @@ public class SpanDigestCaptureTests
         Assert.AreNotEqual(0, (octets[16] << 8) | octets[17], "and it is not simply absent");
     }
 
+    /// <summary>
+    /// A segment whose sum does not add up is refused, and the engine knows nothing about checksums.
+    ///
+    /// <para>
+    /// The check is not about digests. A field whose value names nothing outside the message is
+    /// <b>determined</b> by it, so the octets cannot have a say — the same law that refuses a non-minimal
+    /// chain and a non-canonical conversion. What a protocol does about a bad checksum is a sentence in its
+    /// specification and belongs in its document; that a document cannot be handed back a message it could
+    /// not have written is a property of this engine, and applies to every derived field there is.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    public void A_value_the_document_works_out_for_itself_must_be_what_arrived()
+    {
+        var codec = new MessageCodec(Segment());
+        var octets = codec.Encode(Inputs());
+
+        // Unmolested, it reads back.
+        Assert.AreEqual("hi", codec.Decode(octets, Inputs())["payload"].AsText());
+
+        // One bit of the payload, which the sum covers and nothing else would notice — the header is
+        // untouched, every length still agrees, and the segment is structurally perfect.
+        var tampered = (byte[])octets.Clone();
+        tampered[^1] ^= 0x01;
+
+        var ex = Assert.ThrowsExactly<ProtoTypeException>(() => codec.Decode(tampered, Inputs()));
+
+        StringAssert.Contains(ex.Message, "'checksum' is worked out by this document");
+        StringAssert.Contains(ex.Message, "Nothing here could have written what turned up");
+    }
+
     [TestMethod]
     public void What_it_covers_is_visible_in_the_graph_rather_than_kept_beside_it()
     {

@@ -90,9 +90,63 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
               + "capture as valid");
 
         Aside(reading);
+        Derived(reading);
 
         Enforce(reading.MessageScope(), new Evaluator(_converters));
         return new DecodeResult(reading.Captures, reading.Spans);
+    }
+
+    /// <summary>
+    /// Everything the document works out for itself, recomputed and compared against what arrived.
+    ///
+    /// <para>
+    /// A field whose value names nothing outside the message is <b>determined</b> by it: the octets cannot
+    /// have a say. That is the same law as a non-minimal chain and a non-canonical conversion, which are
+    /// both already refused — one legal encoding of a message, and anything else decodes cleanly and
+    /// re-encodes different. The engine owes that check to every such field and knows nothing about which
+    /// of them happen to be checksums.
+    /// </para>
+    ///
+    /// <para>
+    /// At the end rather than as the field binds, unlike the constant a document fixes outright. A value
+    /// derived from the message generally reads parts of it that come later — a sum over a payload cannot
+    /// be judged before the payload — so there is nothing to compare against until the walk is done. The
+    /// inline check stays where it is, because a wrong constant derails everything after it and a
+    /// diagnostic about where the walk ended up is no use to anyone.
+    /// </para>
+    ///
+    /// <para>
+    /// What a protocol <i>does</i> about a mismatch is the protocol's business and not this — but refusing
+    /// is the only answer this engine can give, because it will not hand back a message it could not have
+    /// written. A protocol where the derivation is sometimes absent says so in the derivation.
+    /// </para>
+    /// </summary>
+    private void Derived(Reading r)
+    {
+        var scope = r.MessageScope();
+        var evaluator = new Evaluator(_converters);
+        var captures = r.Captures;
+
+        foreach (var field in _message.Fields.SelectMany(f => MessageDef.Descendants([f])))
+        {
+            if (field.Value is not { } declared) continue;
+
+            var free = Vocabulary.RootsOf(declared).ToList();
+            if (free.Count == 0 || free.Any(root => root != Vocabulary.Fields)) continue;
+
+            // What never arrived cannot disagree. A part of a component that did not turn up has a value
+            // in scope — whatever the document assumes for it — and nothing on the wire to compare with.
+            if (!captures.TryGetValue(field.CaptureName, out var arrived)) continue;
+
+            if (Equals(evaluator.Eval(declared, scope), arrived)) continue;
+
+            var expected = evaluator.Eval(declared, scope);
+
+            throw new ProtoTypeException(
+                $"field '{field.Id}' is worked out by this document from the rest of the message, which "
+              + $"comes to {expected}, and {arrived} arrived. Nothing here could have written what turned "
+              + "up, so it is refused rather than carried.");
+        }
     }
 
     /// <summary>
