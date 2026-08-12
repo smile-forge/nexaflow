@@ -833,16 +833,29 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                   + "Binding it anyway would re-encode as the fixed value and quietly change the octets.");
         }
 
-        // A reversible converter must have produced these octets from this value, or the value is one the
+        // A reversible conversion must have produced these octets from this value, or the value is one the
         // encoder could never have written and the round trip is already broken.
+        //
+        // The WHOLE conversion, not the converter half of it. The slot has two steps in a fixed order — a
+        // document transform further from the wire, a converter nearer it — and re-deriving the wire form
+        // from only the second compared the wrong thing for any field carrying both. It did not report a
+        // mismatch, either: it handed the post-transform value to a converter that could not accept it and
+        // died inside the converter, naming neither the field nor the transform.
         if (field.Via is { } via
             && _converters.TryGet(via.Name, out var converter) && converter is { Role: ConverterRole.Bijection }
-            && !Equals(Through(value, via, forward: true, field.Id), asRead))
+            && !Equals(Convert(value, field, forward: true), asRead))
             throw new ProtoTypeException(
-                $"field '{field.Id}': {asRead} is not what '{via}' produces from {value} — it produces "
-              + $"{Through(value, via, forward: true, field.Id)}. A non-canonical encoding decodes cleanly "
+                $"field '{field.Id}': {asRead} is not what {Applied(field)} produces from {value} — it "
+              + $"produces {Convert(value, field, forward: true)}. A non-canonical encoding decodes cleanly "
               + "and re-encodes to different octets, so it is refused rather than carried.");
     }
+
+    /// <summary>What a field's conversion slot is, in the order it runs — for a diagnostic that names
+    /// everything the value went through rather than the last step of it.</summary>
+    private static string Applied(Field field)
+        => field.Through is { } transform && field.Via is { } via ? $"'{transform.Name}' then '{via}'"
+         : field.Through is { } only ? $"'{only.Name}'"
+         : $"'{field.Via}'";
 
     /// <summary>
     /// How many octets the continuation chain at the cursor occupies. Bounded, because the alternative is

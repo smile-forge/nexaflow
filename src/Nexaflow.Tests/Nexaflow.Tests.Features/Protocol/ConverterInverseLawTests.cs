@@ -57,6 +57,16 @@ public class ConverterInverseLawTests
             ("'M-SEARCH * HTTP/1.1' |> unascii() |> ascii()", "M-SEARCH * HTTP/1.1"),
         ]),
 
+        // The domain is the safe set as much as it is the text: the same string escaped for one component
+        // and read back is itself, and the law says nothing about escaping for one and reading as another.
+        new("percent / unpercent", "any text, with the component's safe set the same in both directions",
+        [
+            ("'/a b' |> percent('/') |> unpercent()", "/a b"),
+            ("'/a b' |> percent('') |> unpercent()", "/a b"),
+            ("'café' |> percent('') |> unpercent()", "café"),
+            ("'' |> percent('') |> unpercent()", ""),
+        ]),
+
         new("mac / unmac", "six octets",
         [
             ("'aa:bb:cc:dd:ee:ff' |> mac() |> unmac()", "aa:bb:cc:dd:ee:ff"),
