@@ -265,6 +265,274 @@ public class IdentifiedComponentCaptureTests
         CollectionAssert.AreEqual(Octets, again);
     }
 
+    // ── Framing decided by what turned up ─────────────────────────────────────
+
+    /// <summary>
+    /// The same message, with the body framed the way the protocol really frames it.
+    ///
+    /// <para>
+    /// Three ways to know where a body ends and <b>no discriminator anywhere on the wire</b>: it is counted
+    /// if a length arrived, chunked if a transfer coding arrived, and otherwise runs to the end. Writing a
+    /// key expression for that would be inventing a field that does not exist, so the packings say when
+    /// each is an option instead.
+    /// </para>
+    ///
+    /// <para>
+    /// Guards were refused everywhere else in this engine, on the grounds that sibling conditions cannot be
+    /// checked for cover or overlap. Conditions over <c>present.*</c> can: the parts are declared and
+    /// finite, so every combination is tried at document time and exactly one packing must apply in each.
+    /// Both here being present is malformed under RFC 9112 §6.1, and it falls out — neither packing is an
+    /// option in that world, and the engine says so rather than picking whichever was written first.
+    /// </para>
+    /// </summary>
+    private static MessageDef Framed() => Answer() with
+    {
+        Id = "framed",
+        Fields = [.. Answer().Fields.Select(f => f.Id != "body" ? f : new Field
+        {
+            Id = "body",
+            Value = Expr.Parse("inputs.body"),
+            Pattern = new Pattern.Choice(null,
+            [
+                Arm.While("counted", Expr.Parse("present.contentLengthValue"),
+                    [new Field
+                    {
+                        Id = "countedBody",
+                        Pattern = Pattern.Opaque.Measured(
+                            Expr.Parse("fields.contentLengthValue.value |> undecimal()")),
+                        Value = Expr.Parse("inputs.body"),
+                        Via = "unascii",
+                    }]),
+
+                Arm.While("toClose", Expr.Parse("!present.contentLengthValue"),
+                    [new Field
+                    {
+                        Id = "restOfIt",
+                        Pattern = Pattern.Opaque.Measured(Expr.Parse("room")),
+                        Value = Expr.Parse("inputs.body"),
+                        Via = "unascii",
+                    }]),
+            ]),
+        })],
+    };
+
+    [TestMethod]
+    public void Framing_turns_on_which_headers_arrived_and_the_cover_is_proved()
+    {
+        var issues = new MessageCodec(Framed()).Validate();
+        Assert.AreEqual(0, issues.Count, string.Join("\n", issues));
+    }
+
+    [TestMethod]
+    public void A_length_that_arrived_counts_the_body()
+    {
+        var decoded = new MessageCodec(Framed()).Decode(Octets);
+
+        Assert.AreEqual("counted", decoded["body"].AsText(), "the packing that applied");
+        Assert.AreEqual("hello world!", decoded["countedBody"].AsText());
+    }
+
+    [TestMethod]
+    public void No_length_and_no_coding_runs_to_the_end()
+    {
+        var without = Capture.Replace("Content-Length: 12\r\n", "");
+
+        var decoded = new MessageCodec(Framed()).Decode([.. without.Select(c => (byte)c)]);
+
+        Assert.AreEqual("toClose", decoded["body"].AsText());
+        Assert.AreEqual("hello world!", decoded["restOfIt"].AsText());
+    }
+
+    [TestMethod]
+    public void It_still_encodes_to_the_capture_when_the_framing_is_decided_this_way()
+    {
+        // The other direction asks the same question of the same declaration: a reader knows the length
+        // arrived because it bound, a writer knows because the value listed it. That symmetry is the whole
+        // reason presence is vocabulary rather than a state a header sets when it is seen.
+        CollectionAssert.AreEqual(Octets, new MessageCodec(Framed()).Encode(Inputs()));
+    }
+
+    /// <summary>
+    /// The framing rule written the way RFC 9112 §6.1 states it — a transfer coding overrides a length —
+    /// and then only half implemented.
+    /// </summary>
+    private static MessageDef Uncovered()
+    {
+        var headers = (Pattern.Assorted)Headers().Pattern;
+
+        return Framed() with
+        {
+            Id = "uncovered",
+            Fields = [.. Framed().Fields.Select(f => f.Id switch
+            {
+                "headers" => new Field
+                {
+                    Id = "headers",
+                    Value = Expr.Parse("inputs.headers"),
+                    Pattern = headers with
+                    {
+                        Sorts = [.. headers.Sorts, Arm.On("chunked", ProtoValue.Of("Transfer-Encoding"),
+                            HeaderLine("chunked", "'chunked'"))],
+                    },
+                },
+
+                "body" => new Field
+                {
+                    Id = "body",
+                    Value = Expr.Parse("inputs.body"),
+                    Pattern = new Pattern.Choice(null,
+                    [
+                        Arm.While("counted",
+                            Expr.Parse("present.contentLengthValue && !present.chunkedValue"),
+                            [Line("countedBody", "inputs.body")]),
+
+                        Arm.While("toClose",
+                            Expr.Parse("!present.contentLengthValue && !present.chunkedValue"),
+                            [Line("restOfIt", "inputs.body")]),
+                    ]),
+                },
+
+                _ => f,
+            })],
+        };
+    }
+
+    [TestMethod]
+    public void A_world_no_packing_covers_is_named_at_document_time()
+    {
+        // Saying the coding overrides the length and then not writing the packing for it is the ordinary
+        // way this goes wrong, and it stays invisible until a peer sends one. Here it is a refusal naming
+        // the combination — possible only because presence has a finite, declared domain, and exactly what
+        // could never be said about a guard over an arbitrary expression.
+        //
+        // Note the limit, which is the right one: the engine enumerates the parts the conditions NAME. A
+        // header nothing branches on is not a world, and could not be — HTTP has dozens, and demanding a
+        // packing per combination of them would be absurd. A document says a part matters by mentioning it.
+        var issues = new MessageCodec(Uncovered()).Validate();
+
+        Assert.IsTrue(issues.Any(i => i.Contains("with chunkedValue and no contentLengthValue")
+                                   && i.Contains("no packing is an option")),
+            string.Join("\n", issues));
+
+        Assert.IsTrue(issues.Any(i => i.Contains("with chunkedValue and contentLengthValue")),
+            string.Join("\n", issues));
+    }
+
+    [TestMethod]
+    public void A_packing_that_could_apply_twice_over_is_caught_at_document_time()
+    {
+        // The other half of the same proof, and the one that makes conditions admissible where guards were
+        // not. These two overlap where neither part arrived, and nothing at run time would ever have said
+        // so — whichever was written first would simply always have won.
+        var overlapping = Framed() with
+        {
+            Id = "overlapping",
+            Fields = [.. Framed().Fields.Select(f => f.Id != "body" ? f : new Field
+            {
+                Id = "body",
+                Value = Expr.Parse("inputs.body"),
+                Pattern = new Pattern.Choice(null,
+                [
+                    Arm.While("a", Expr.Parse("!present.serverValue"), [Line("aBody", "inputs.body")]),
+                    Arm.While("b", Expr.Parse("!present.contentLengthValue"), [Line("bBody", "inputs.body")]),
+                ]),
+            })],
+        };
+
+        var issues = new MessageCodec(overlapping).Validate();
+
+        Assert.IsTrue(issues.Any(i => i.Contains("2 packings are options at once")), string.Join("\n", issues));
+        Assert.IsTrue(issues.Any(i => i.Contains("no contentLengthValue and no serverValue")),
+            string.Join("\n", issues));
+    }
+
+    // ── What an absent part means ─────────────────────────────────────────────
+
+    /// <summary>
+    /// The same document, saying what an absent length means instead of leaving it a hole.
+    ///
+    /// <para>
+    /// This is a sentence from a standard, not a convenience: a response with no length and no coding has
+    /// no body. Once the document says so, everything downstream simply works — nothing needs to learn
+    /// that a part is optional, because the value is there either way.
+    /// </para>
+    /// </summary>
+    private static MessageDef Assuming()
+    {
+        var headers = (Pattern.Assorted)Answer().Fields.Single(f => f.Id == "headers").Pattern;
+
+        var sorts = headers.Sorts.Select(s => s.Name != "contentLength" ? s
+            : Arm.On("contentLength", ProtoValue.Of("Content-Length"),
+            [
+                Literal("contentLengthColon", ": "),
+                new Field
+                {
+                    Id = "contentLengthValue",
+                    Pattern = Pattern.Opaque.Before(LineEnd),
+                    Value = Expr.Parse("fields.body.extent |> decimal()"),
+                    Via = "unascii",
+                    Assumed = new Default
+                    {
+                        Id = "noBody",
+                        Value = ProtoValue.Of("0"),
+                        Because = "A response that states no length and no transfer coding has no body.",
+                    },
+                },
+                Literal("contentLengthEnd", "\r\n"),
+            ])).ToList();
+
+        return Answer() with
+        {
+            Id = "assuming",
+            Fields = [.. Answer().Fields.Select(f => f.Id != "headers" ? f : new Field
+            {
+                Id = "headers",
+                Value = Expr.Parse("inputs.headers"),
+                Pattern = headers with { Sorts = sorts },
+            })],
+        };
+    }
+
+    [TestMethod]
+    public void An_absent_part_means_what_the_document_says_it_means()
+    {
+        var without = Capture.Replace("Content-Length: 12\r\n", "").Replace("hello world!", "");
+
+        // No error and no special case: the length is 0 because the document says an absent one is, and
+        // the span that reads it never learns that anything was missing.
+        var decoded = new MessageCodec(Assuming()).Decode([.. without.Select(c => (byte)c)]);
+
+        Assert.AreEqual("", decoded["body"].AsText());
+    }
+
+    [TestMethod]
+    public void An_assumed_value_is_never_written()
+    {
+        // The only pair of behaviours that is self-consistent: assumed on the way in, and written on the
+        // way out by not writing it. A wire carrying the default explicitly would be a second encoding of
+        // the same message.
+        var octets = new MessageCodec(Assuming()).Encode(new EvalScope().Set("inputs", EvalScope.Record(
+            ("version", ProtoValue.Of("HTTP/1.1")), ("code", ProtoValue.Of("204")),
+            ("reason", ProtoValue.Of("No Content")), ("server", ProtoValue.Of("nginx")),
+            ("body", ProtoValue.Of("")),
+            ("headers", new ProtoValue.List([Component("server")])))));
+
+        Assert.AreEqual("HTTP/1.1 204 No Content\r\nServer: nginx\r\n\r\n",
+            new string([.. octets.Select(b => (char)b)]));
+    }
+
+    [TestMethod]
+    public void The_default_is_in_the_graph_with_the_reason_for_it()
+    {
+        // A node, so something reviewing a document can ask what it assumes rather than reading every
+        // field to find out — and can be told where the assumption comes from.
+        var assumed = Assuming().Graph.Of<Assumes>().Single();
+
+        Assert.AreEqual("contentLengthValue", assumed.From.Name);
+        Assert.AreEqual("0", ((Default)assumed.To).Value.AsText());
+        StringAssert.Contains(((Default)assumed.To).Because, "has no body");
+    }
+
     // ── What it refuses ───────────────────────────────────────────────────────
 
     [TestMethod]

@@ -176,6 +176,16 @@ public static class MessageProse
           + (e.Minimal ? ". Escaping when the value would have fitted inline, or using more octets than it "
                        + "needs, is refused" : ""),
 
+        Pattern.Choice { Conditioned: true } c =>
+            $"one of {Count(c.Arms.Count, "packing")}, and nothing on the wire says which. Each says when it "
+          + "is an option: "
+          + string.Join("; ", c.Arms.Select(a => a.Condition is null
+                ? $"*{a.Name}* otherwise"
+                : $"*{a.Name}* while `{a.Condition.Render()}`"))
+          + ". Both directions ask the same question — a reader knows which parts arrived, a writer knows "
+          + "which it was asked for — and exactly one packing is an option in every combination of them, "
+          + "which is proved rather than trusted",
+
         Pattern.Choice { Selects: { } selects } c =>
             $"one of {Count(c.Arms.Count, "packing")}. On the way in `{c.Key.Render()}` says which arrived; "
           + $"on the way out `{selects.Render()}` says which to write. Two readings of one discriminator, "
@@ -244,9 +254,16 @@ public static class MessageProse
         foreach (var field in all)
             switch (field.Pattern)
             {
+                case Pattern.Choice { Key: null } conditioned:
+                    refusals.Add($"`{field.Id}` has no discriminator; its packings say when each is an "
+                               + "option. Every combination of the parts they turn on was tried, and "
+                               + "exactly one packing applies in each — so a message where none would fit, "
+                               + "or two would, is impossible rather than merely unexpected.");
+                    break;
+
                 case Pattern.Choice choice:
                 {
-                    var reachable = Pattern.ReachableKeys(choice.Key);
+                    var reachable = Pattern.ReachableKeys(choice.Key!);
                     var fallback = message.Offered(field).FirstOrDefault(o => o.IsFallback);
 
                     refusals.Add(reachable is not null

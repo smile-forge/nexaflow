@@ -107,6 +107,16 @@ public sealed class Field : Node
     /// </summary>
     public (ValueSet Set, string? Run)? Draws { get; init; }
 
+    /// <summary>
+    /// What this part is taken to mean when it is not there.
+    ///
+    /// <para>
+    /// Only meaningful on a part that can be absent, which is one belonging to a kind of an assortment.
+    /// Authoring input; it becomes an <see cref="Assumes"/> edge when the graph is built.
+    /// </para>
+    /// </summary>
+    public Default? Assumed { get; init; }
+
     public string CaptureName => As ?? Id;
 }
 
@@ -241,6 +251,9 @@ public sealed record MessageDef
             if (field.Draws is { } drawn)
                 graph.Add(new Admits { From = field, To = drawn.Set, Run = drawn.Run });
 
+            if (field.Assumed is { } assumed)
+                graph.Add(new Assumes { From = field, To = assumed });
+
             if (field.Points is { } points)
                 graph.Add(new Locates { From = field, To = points.Target });
 
@@ -262,6 +275,11 @@ public sealed record MessageDef
                     foreach (var arm in choice.Arms)
                     {
                         graph.Add(new Offers { From = field, To = arm, Key = arm.DeclaredKey });
+
+                        // Two different relationships and two edges. What value picks this packing is not
+                        // the same fact as whether picking it is available.
+                        if (arm.Condition is not null) graph.Add(new Enables { From = arm, To = field });
+
                         Wire(graph, arm, arm.Fields);
                     }
                     break;
@@ -322,17 +340,47 @@ public sealed record MessageDef
                         graph.Add(new Draws { From = field, To = source, Role = role });
             }
 
-            if (field.Value is not null) { Link(field.Value, Roles.Value, Visible); Outside(field.Value, Roles.Value); }
+            // Asking whether a part turned up depends on the run that would have carried it, and nothing
+            // in the expression's text says so — `present.x` names the part, and what has to settle first
+            // is the assortment. Undeclared, the worklist would read it before the run existed.
+            void Presences(Expr expression, string role)
+            {
+                foreach (var part in PresenceReferences(expression))
+                    if (Optionals.FirstOrDefault(o => string.Equals(o.Key.CaptureName, part, StringComparison.Ordinal))
+                        is { Key: not null } known)
+                        graph.Add(new Reads
+                        {
+                            From = field, To = known.Value.Assortment, Facet = "value", Role = role,
+                        });
+            }
+
+            if (field.Value is not null)
+            {
+                Link(field.Value, Roles.Value, Visible);
+                Outside(field.Value, Roles.Value);
+                Presences(field.Value, Roles.Value);
+            }
 
             switch (field.Pattern)
             {
                 case Pattern.Choice choice:
-                    Link(choice.Key, Roles.Discriminator, Visible);
+                    if (choice.Key is { } key)
+                    {
+                        Link(key, Roles.Discriminator, Visible);
+                        Presences(key, Roles.Discriminator);
+                    }
+
+                    foreach (var arm in choice.Arms.Where(a => a.Condition is not null))
+                    {
+                        Link(arm.Condition!, Roles.Discriminator, Visible);
+                        Presences(arm.Condition!, Roles.Discriminator);
+                    }
 
                     if (choice.Selects is { } selects)
                     {
                         Link(selects, Roles.Selection, Visible);
                         Outside(selects, Roles.Selection);
+                        Presences(selects, Roles.Selection);
                     }
                     break;
 
@@ -421,13 +469,34 @@ public sealed record MessageDef
     /// </para>
     /// </summary>
     public (Field Assortment, Arm Sort)? Optional(Field field)
-    {
-        for (Node? at = field; at is not null; at = Graph.Parent(at))
-            if (at is Arm sort
-                && Graph.To<Offers>(sort).FirstOrDefault()?.From is Field { Pattern: Pattern.Assorted } owner)
-                return (owner, sort);
+        => Optionals.TryGetValue(field, out var owner) ? owner : null;
 
-        return null;
+    /// <summary>
+    /// Every part that might not be there, and the component it belongs to.
+    ///
+    /// <para>
+    /// Computed from the declaration rather than the graph, because the graph is built from it and needs
+    /// the answer while it is being built — the read a presence condition makes is an edge, and it cannot
+    /// be drawn without knowing which assortment settles it.
+    /// </para>
+    /// </summary>
+    internal IReadOnlyDictionary<Field, (Field Assortment, Arm Sort)> Optionals => _optionals ??= Optionality();
+    private IReadOnlyDictionary<Field, (Field, Arm)>? _optionals;
+
+    private Dictionary<Field, (Field, Arm)> Optionality()
+    {
+        Dictionary<Field, (Field, Arm)> found = [];
+
+        foreach (var field in Descendants(Fields))
+        {
+            if (field.Pattern is not Pattern.Assorted assorted) continue;
+
+            foreach (var sort in assorted.Sorts)
+                foreach (var part in Descendants(sort.Fields))
+                    found[part] = (field, sort);
+        }
+
+        return found;
     }
 
     /// <summary>The set a field draws from, if it declares one.</summary>
@@ -449,6 +518,34 @@ public sealed record MessageDef
                                                                            : $"{o.To.Name}={o.Key}")));
 
         return (Arm)taken.To;
+    }
+
+    /// <summary>
+    /// The packing whose condition holds, or a refusal saying what was true when none did.
+    /// </summary>
+    /// <remarks>
+    /// Two holding is refused rather than resolved by declaration order, the same as two transitions
+    /// matching one message. Which one applies would otherwise depend on how a list happened to be sorted,
+    /// and it is checked at document time anyway — this is the runtime half of the same rule.
+    /// </remarks>
+    public Arm Choose(Field field, Func<Expr, bool> holds, string what)
+    {
+        var offered = Offered(field);
+
+        List<Offers> taken = [.. offered.Where(o => ((Arm)o.To).Condition is { } c && holds(c))];
+
+        if (taken.Count > 1)
+            throw new ProtoTypeException(
+                $"field '{field.Id}': {taken.Count} packings are options at once — "
+              + string.Join(", ", taken.Select(o => $"'{o.To.Name}'"))
+              + $". Which applies is not decided. {what}");
+
+        var one = taken.FirstOrDefault()
+               ?? offered.FirstOrDefault(o => ((Arm)o.To).Condition is null)
+               ?? throw new ProtoTypeException(
+                      $"field '{field.Id}': no packing is an option. {what}");
+
+        return (Arm)one.To;
     }
 
     /// <summary>A key as a diagnostic names it. Hex alongside a number because a discriminator is almost
@@ -715,8 +812,13 @@ public sealed record MessageDef
                 case Pattern.Choice choice:
                     // Paired with an encode-side reading, the key is the reader's question alone and may
                     // use the reader's vocabulary. Alone, it has to answer in both directions.
-                    yield return (field, choice.Key, "the discriminator",
-                                  choice.Selects is null ? ExprSite.Discriminator : ExprSite.Recognition);
+                    if (choice.Key is { } key)
+                        yield return (field, key, "the discriminator",
+                                      choice.Selects is null ? ExprSite.Discriminator : ExprSite.Recognition);
+
+                    foreach (var arm in choice.Arms.Where(a => a.Condition is not null))
+                        yield return (field, arm.Condition!, $"the condition on '{arm.Name}'",
+                                      ExprSite.Discriminator);
 
                     if (choice.Selects is { } selects)
                         yield return (field, selects, "the selection", ExprSite.Selection);
@@ -781,11 +883,17 @@ public sealed record MessageDef
             // where the deciding value comes from — a token the component carries rather than an
             // expression over its siblings — and there is no second, encode-side reading, because the
             // value says which kinds to write and in what order.
+            if (field.Pattern is Pattern.Choice { Conditioned: true } conditioned)
+            {
+                CheckConditions(field, conditioned, issues);
+                continue;
+            }
+
             List<(string Reading, Expr? Deciding)> readings = field.Pattern switch
             {
-                Pattern.Choice { Arms.Count: > 0 } c => c.Selects is { } s
-                    ? [("discriminator", c.Key), ("selection", s)]
-                    : [("discriminator", c.Key)],
+                Pattern.Choice { Arms.Count: > 0, Key: { } k } c => c.Selects is { } s
+                    ? [("discriminator", k), ("selection", s)]
+                    : [("discriminator", k)],
 
                 Pattern.Assorted { Sorts.Count: > 0 } => [("token", null)],
 
@@ -847,6 +955,85 @@ public sealed record MessageDef
                              + $"other {packing}s already cover every value this {reading} can take, so it "
                              + "can never be selected");
             }
+        }
+    }
+
+    /// <summary>
+    /// Conditioned packings, proved rather than trusted.
+    ///
+    /// <para>
+    /// This is what makes guards admissible here when they were refused everywhere else. Sibling guards
+    /// over arbitrary expressions cannot be checked for cover or overlap by anything — which is how an
+    /// unanticipated message binds no fields and reports nothing. A condition over <c>present.*</c> is
+    /// different in kind: the parts are declared and finite, so every combination of them can be tried and
+    /// the two questions actually answered. Exactly one packing must be an option in every world, or the
+    /// engine says which world breaks it and how.
+    /// </para>
+    ///
+    /// <para>
+    /// The same enumeration a mask gets, and the same ceiling: past a handful of parts the worlds outrun
+    /// any real arm list, and demanding an unconditioned packing to fall back on is both cheaper and more
+    /// honest than trying 2^20 of them.
+    /// </para>
+    /// </summary>
+    private void CheckConditions(Field field, Pattern.Choice choice, List<string> issues)
+    {
+        var conditions = choice.Arms.Where(a => a.Condition is not null).ToList();
+        var fallbacks = choice.Arms.Where(a => a.Condition is null).ToList();
+
+        if (conditions.Count == 0)
+        {
+            issues.Add($"field '{field.Id}': it has no discriminator, so its packings have to say when each "
+                     + "of them is an option. None of them does.");
+            return;
+        }
+
+        if (fallbacks.Count > 1)
+            issues.Add($"field '{field.Id}': {fallbacks.Count} packings are options whatever happens, so "
+                     + "which one applies is never decided");
+
+        var parts = conditions.SelectMany(a => PresenceReferences(a.Condition!))
+                              .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
+
+        foreach (var part in parts)
+            if (!Optionals.Any(o => string.Equals(o.Key.CaptureName, part, StringComparison.Ordinal)))
+                issues.Add($"field '{field.Id}': a packing asks whether '{part}' is present, and no "
+                         + "component of this message has a part by that name. Something that is always "
+                         + "there or never declared has no presence to ask about.");
+
+        if (parts.Count > 12)
+        {
+            if (fallbacks.Count == 0)
+                issues.Add($"field '{field.Id}': its packings turn on {parts.Count} parts, which is too "
+                         + "many combinations to prove one always applies. Declare a packing with no "
+                         + "condition to fall back on.");
+            return;
+        }
+
+        var evaluator = new Evaluator();
+
+        for (int world = 0; world < 1 << parts.Count; world++)
+        {
+            Dictionary<string, ProtoValue> which = new(StringComparer.Ordinal);
+            for (int p = 0; p < parts.Count; p++) which[parts[p]] = ProtoValue.Of((world & (1 << p)) != 0);
+
+            var scope = new EvalScope().Set(Vocabulary.Present, new ProtoValue.Rec(which));
+
+            List<string> options = [.. conditions
+                .Where(a => evaluator.Eval(a.Condition!, scope) is ProtoValue.Bool { Value: true })
+                .Select(a => a.Name)];
+
+            string when = which.Count == 0 ? "always"
+                : string.Join(" and ", which.Select(kv => kv.Value.AsBool() ? kv.Key : $"no {kv.Key}"));
+
+            if (options.Count > 1)
+                issues.Add($"field '{field.Id}': with {when}, {options.Count} packings are options at once "
+                         + $"({string.Join(", ", options)}) — which applies would come down to the order "
+                         + "they were written in");
+
+            if (options.Count == 0 && fallbacks.Count == 0)
+                issues.Add($"field '{field.Id}': with {when}, no packing is an option. Add one, or declare "
+                         + "a packing with no condition to fall back on.");
         }
     }
 
@@ -993,6 +1180,14 @@ public sealed record MessageDef
     {
         foreach (var node in e.Descendants())
             if (node is Expr.Member { Target: Expr.Root { Name: "inputs" } } member)
+                yield return member.Name;
+    }
+
+    /// <summary>The parts an expression asks about the presence of.</summary>
+    internal static IEnumerable<string> PresenceReferences(Expr e)
+    {
+        foreach (var node in e.Descendants())
+            if (node is Expr.Member { Target: Expr.Root { Name: Vocabulary.Present } } member)
                 yield return member.Name;
     }
 }

@@ -136,6 +136,27 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         /// <summary>Whether anything has bound this name yet, anywhere the walk can still see.</summary>
         public bool Bound(string fieldId) => _scopes.Any(level => level.ContainsKey(fieldId));
 
+        /// <summary>
+        /// Which components turned up, as the reader knows it: one arrived if a part of it bound.
+        ///
+        /// <para>
+        /// Every optional part is in here whether or not it came, so an unanswered one reads false rather
+        /// than nothing — a name that resolves to nothing makes every test against it quietly false in
+        /// both directions at once, which is the failure the vocabulary table exists to stop.
+        /// </para>
+        /// </summary>
+        public ProtoValue Presence { get; private set; } = new ProtoValue.Rec(new Dictionary<string, ProtoValue>());
+
+        public void Arrived(IEnumerable<string> parts)
+        {
+            Dictionary<string, ProtoValue> which =
+                new(((ProtoValue.Rec)Presence).Members, StringComparer.Ordinal);
+
+            foreach (var part in parts) which[part] = ProtoValue.Of(Bound(part));
+
+            Presence = new ProtoValue.Rec(which);
+        }
+
         /// <summary>What each enclosing chain has threaded this far. A stack, because chains nest and an
         /// inner one's running value must not leak out over the outer one's.</summary>
         private readonly List<ProtoValue> _carried = [ProtoValue.Nothing];
@@ -224,6 +245,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             child.Set("peek", Offset < Limit ? ProtoValue.Of((long)Bytes[Offset]) : ProtoValue.Nothing);
             child.Set("carried", _carried[^1]);
             child.Set("ordinal", ProtoValue.Of((long)_ordinals[^1]));
+            child.Set(Vocabulary.Present, Presence);
 
             foreach (var (root, value) in extra) child.Set(root, value);
             return evaluator.Eval(expression, child);
@@ -333,6 +355,17 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                     components.Add(new ProtoValue.Rec(what));
                 }
 
+                // What a kind that never came is taken to have said. Bound here rather than left missing,
+                // because "absent" and "absent and therefore this" are different facts and only the
+                // document can tell them apart.
+                foreach (var missing in assorted.Sorts.Where(s => !s.Repeats && !once.Contains(s)))
+                    foreach (var part in Inside(missing))
+                        if (part.Assumed is { } assumed) r.Note(part.Id, assumed.Value, 0);
+
+                // And which of them turned up, for anything that branches on it. Every optional part, so
+                // one that did not arrive reads false rather than nothing.
+                r.Arrived(assorted.Sorts.SelectMany(Inside).Select(p => p.Id));
+
                 // The order, so a run that arrived in one arrangement is written back in the same one —
                 // even though the protocol would have accepted any other.
                 return Bind(field, r, new ProtoValue.List(components), r.Offset - start, exposed);
@@ -342,7 +375,10 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             {
                 Present(field, Roles.Discriminator, r);
 
-                var arm = _message.Choose(field, Keyed(r.Eval(choice.Key)));
+                var arm = choice.Key is { } deciding
+                    ? _message.Choose(field, Keyed(r.Eval(deciding)))
+                    : _message.Choose(field, condition => r.Eval(condition).AsBool(), Arrived(r));
+
                 int start = r.Offset;
 
                 foreach (var child in Inside(arm))
@@ -494,6 +530,20 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
               + "part that may be absent has to be read as one — nothing here says what to do when nobody "
               + "sent it.");
         }
+    }
+
+    /// <summary>What did and did not turn up, in words, so a refusal about a conditioned packing says what
+    /// the world was rather than only that nothing fitted it.</summary>
+    private static string Arrived(Reading r)
+    {
+        var which = ((ProtoValue.Rec)r.Presence).Members;
+
+        return which.Count == 0
+            ? "Nothing in this message is optional."
+            : "What arrived: "
+            + string.Join(", ", which.OrderBy(kv => kv.Key, StringComparer.Ordinal)
+                                     .Select(kv => kv.Value.AsBool() ? kv.Key : $"no {kv.Key}"))
+            + ".";
     }
 
     /// <summary>A recovered span's length, with the read that produces it checked for having arrived.</summary>
@@ -1224,6 +1274,29 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         /// order the value asked for.</summary>
         public readonly Dictionary<Occurrence, List<(Arm Sort, NameFrame Frame)>> Components = [];
 
+        /// <summary>
+        /// Which optional parts the value asked for, per assortment.
+        ///
+        /// <para>
+        /// The writer's half of <c>present</c>, and the reason presence is vocabulary rather than state: a
+        /// reader knows a component came because it bound, a writer knows because the value listed it, and
+        /// one declaration reads correctly either way. "A header sets a state when it is seen" has no
+        /// second half — nothing is seen while writing.
+        /// </para>
+        /// </summary>
+        public readonly Dictionary<Occurrence, HashSet<string>> Arrived = [];
+
+        /// <summary>Every optional part known to be present, across every assortment settled so far.</summary>
+        public ProtoValue Presence(MessageDef message)
+        {
+            var came = Arrived.Values.SelectMany(a => a).ToHashSet(StringComparer.Ordinal);
+
+            Dictionary<string, ProtoValue> which = new(StringComparer.Ordinal);
+            foreach (var part in message.Optionals.Keys) which[part.Id] = ProtoValue.Of(came.Contains(part.Id));
+
+            return new ProtoValue.Rec(which);
+        }
+
         private static readonly HashSet<Facet> LeafNotApplicable =
             [Facet.Realised, Facet.Present, Facet.Emitted];
 
@@ -1360,8 +1433,15 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                             {
                                 case Facet.Realised:
                                 {
-                                    var arm = codec._message.Choose(
-                                        field, Keyed(evaluator.Eval(deciding, Fields(frame, inputs))));
+                                    // Both directions ask the same question of a conditioned packing, and
+                                    // that is the whole reason a condition may exist where a guard may
+                                    // not: a reader knows a component came because it bound, a writer
+                                    // because the value listed it.
+                                    var arm = deciding is null
+                                        ? codec._message.Choose(field,
+                                              c => evaluator.Eval(c, Fields(frame, inputs)).AsBool(), Asked())
+                                        : codec._message.Choose(
+                                              field, Keyed(evaluator.Eval(deciding, Fields(frame, inputs))));
 
                                     Chosen[nodeId] = arm;
                                     armExtents = codec.Inside(arm)
@@ -1465,7 +1545,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
                         Settle = (f, inputs) => f switch
                         {
-                            Facet.Value => FacetResult.Of(structures = codec.Evaluate(field, frame, evaluator, inputs)),
+                            Facet.Value => FacetResult.Of(structures = codec.Evaluate(field, frame, evaluator, inputs, Presence(codec._message))),
                             Facet.Realised => Expand(),
                             Facet.Extent => FacetResult.Of(Sum(instanceExtents!, inputs)),
                             Facet.Position => FacetResult.Of(after.At(inputs)),
@@ -1541,6 +1621,19 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                             built.Add((sort, component));
                         }
 
+                        // A kind nobody asked for still has to answer, because something may read it or
+                        // ask whether it came. A node of no width carrying what the document says an
+                        // absent one means — and it is never emitted, because the way to write an absent
+                        // part is not to write it.
+                        foreach (var missing in assorted.Sorts.Where(s => !s.Repeats && !once.Contains(s)))
+                            foreach (var part in codec.Inside(missing))
+                                if (part.Assumed is { } assumed)
+                                    children.Add(Fixed(frame.Of(part), part, assumed.Value,
+                                                       Follows.Start, width: 0));
+
+                        Arrived[nodeId] = [.. assorted.Sorts.Where(s => once.Contains(s)).SelectMany(codec.Inside)
+                                                            .Select(p => p.Id)];
+
                         Components[nodeId] = built;
                         componentExtents = extents;
                         return new FacetResult(list.Items.Count, children);
@@ -1564,7 +1657,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
                         Settle = (f, inputs) => f switch
                         {
-                            Facet.Value => FacetResult.Of(listed = codec.Evaluate(field, frame, evaluator, inputs)),
+                            Facet.Value => FacetResult.Of(listed = codec.Evaluate(field, frame, evaluator, inputs, Presence(codec._message))),
                             Facet.Realised => Expand(),
                             Facet.Extent => FacetResult.Of(Sum(componentExtents!, inputs)),
                             Facet.Position => FacetResult.Of(after.At(inputs)),
@@ -1611,8 +1704,9 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                             Facet.Position => FacetResult.Of(after.At(inputs)),
                             Facet.Value => FacetResult.Of(settledValue = codec.Confined(field,
                                 target is null
-                                    ? codec.Evaluate(field, frame, evaluator, inputs)
-                                    : codec.Rendered(field, frame, evaluator, inputs, target))),
+                                    ? codec.Evaluate(field, frame, evaluator, inputs, Presence(codec._message))
+                                    : codec.Rendered(field, frame, evaluator, inputs, target,
+                                                     Presence(codec._message)))),
                             _ => FacetResult.Of(null),
                         },
                     });
@@ -1627,9 +1721,12 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         /// A leaf whose value the document does not compute — a token, whose content is the key that
         /// picked the kind it announces.
         /// </summary>
-        private ResolutionNode Fixed(Occurrence id, Field field, ProtoValue value, Follows after)
+        /// <param name="width">Forced, for a part that is not on the wire at all: an assumed value occupies
+        /// nothing, whatever its shape would have measured had anyone written it.</param>
+        private ResolutionNode Fixed(Occurrence id, Field field, ProtoValue value, Follows after,
+                                     int? width = null)
         {
-            int? fixedWidth = field.Pattern.StaticWidth;
+            int? fixedWidth = width ?? field.Pattern.StaticWidth;
 
             return new ResolutionNode
             {
@@ -1645,7 +1742,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
                 Settle = (f, inputs) => FacetResult.Of(f switch
                 {
-                    Facet.Value => codec.Confined(field, value),
+                    Facet.Value => width is null ? codec.Confined(field, value) : value,
                     Facet.Extent => fixedWidth ?? codec.Measure(field, value),
                     Facet.Position => after.At(inputs),
                     _ => (object?)null,
@@ -1670,7 +1767,20 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         }
 
         private EvalScope Fields(NameFrame frame, IReadOnlyDictionary<FacetRef, object?> resolved)
-            => codec.ScopeFor(frame, resolved);
+            => codec.ScopeFor(frame, resolved, Presence(codec._message));
+
+        /// <summary>What did and did not turn up, in words, for a refusal about a conditioned packing.</summary>
+        private string Asked()
+        {
+            var which = ((ProtoValue.Rec)Presence(codec._message)).Members;
+
+            return which.Count == 0
+                ? "Nothing in this message is optional."
+                : "What was asked for: "
+                + string.Join(", ", which.OrderBy(kv => kv.Key, StringComparer.Ordinal)
+                                         .Select(kv => kv.Value.AsBool() ? kv.Key : $"no {kv.Key}"))
+                + ".";
+        }
 
         private static int Sum(IReadOnlyList<FacetRef> extents, IReadOnlyDictionary<FacetRef, object?> inputs)
             => extents.Sum(r => Extent(inputs[r]));
@@ -1693,7 +1803,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         /// depending on where you read it from.
         /// </para>
         /// </summary>
-        private List<FacetRef> Refs(Field owner, string role, Expr expression, NameFrame frame)
+        private List<FacetRef> Refs(Field owner, string role, Expr? expression, NameFrame frame)
         {
             var needs = codec.Graph.From<Reads>(owner)
                 .Where(r => r.Role == role)
@@ -1702,7 +1812,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 .ToList();
 
             // `carried` is a root, so nothing in the expression's text makes it a dependency. It is one.
-            if (frame.Carried is { } carried && expression.FreeRootNames().Contains("carried"))
+            if (frame.Carried is { } carried && expression?.FreeRootNames().Contains("carried") == true)
                 needs.Add(new FacetRef(carried, Facet.Value));
 
             return [.. needs.Distinct()];
@@ -1741,7 +1851,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         => _message.Offered(field).First(o => ReferenceEquals(o.To, sort));
 
     private ProtoValue Evaluate(Field field, NameFrame frame, Evaluator evaluator,
-                                IReadOnlyDictionary<FacetRef, object?> resolved)
+                                IReadOnlyDictionary<FacetRef, object?> resolved, ProtoValue presence)
     {
         if (field.Value is null)
             throw new ProtoTypeException(
@@ -1754,7 +1864,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         // for any field with a `Via` — so an expression reading a converted field got a number when
         // decoding and a byte run when encoding, and every comparison against it silently went false.
         // Found by a length escape whose marker a sibling had to test for.
-        return evaluator.Eval(field.Value, ScopeFor(frame, resolved));
+        return evaluator.Eval(field.Value, ScopeFor(frame, resolved, presence));
     }
 
     /// <summary>
@@ -1762,14 +1872,15 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     /// relationship gets spelled, not a fact the pointed-at node carries.
     /// </summary>
     private ProtoValue Rendered(Field field, NameFrame frame, Evaluator evaluator,
-                                IReadOnlyDictionary<FacetRef, object?> resolved, object target)
+                                IReadOnlyDictionary<FacetRef, object?> resolved, object target,
+                                ProtoValue presence)
     {
         var at = resolved.TryGetValue(new FacetRef(target, Facet.Position), out var settled) && settled is int i
             ? i
             : throw new ProtoTypeException(
                   $"field '{field.Id}' points at '{field.Points!.Target.Name}', which has not been placed");
 
-        var scope = ScopeFor(frame, resolved);
+        var scope = ScopeFor(frame, resolved, presence);
         scope.Set(Vocabulary.Position, ProtoValue.Of((long)at));
 
         return Convert(evaluator.Eval(field.Points!.Render, scope), field, forward: true);
@@ -1780,9 +1891,12 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     /// the choice keys reading a threaded value that ordinary field expressions could not, which is the
     /// sort of difference nothing notices until one construct works and its neighbour does not.
     /// </summary>
-    private EvalScope ScopeFor(NameFrame frame, IReadOnlyDictionary<FacetRef, object?> resolved)
+    private EvalScope ScopeFor(NameFrame frame, IReadOnlyDictionary<FacetRef, object?> resolved,
+                               ProtoValue? presence = null)
     {
         var scope = frame.Scope.Child().Set("fields", FieldsRecord(frame, resolved));
+
+        if (presence is not null) scope.Set(Vocabulary.Present, presence);
 
         // Bound from the node rather than captured when the frame was built: it does not exist yet at
         // that point, which is the whole reason it had to become a node.

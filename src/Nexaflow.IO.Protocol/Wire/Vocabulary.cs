@@ -88,23 +88,41 @@ public static class Vocabulary
     /// <summary>Where the pointed-at node landed. Bound at exactly one site.</summary>
     public const string Position = "position";
 
+    /// <summary>
+    /// Whether a component that might not be there, is — <c>present.&lt;part&gt;</c>.
+    ///
+    /// <para>
+    /// The one question about optionality that <b>both</b> directions can answer, which is why it is
+    /// vocabulary rather than state. A reader knows because the component bound; a writer knows because
+    /// the value listed it. The tempting alternative — a state a header sets when it is <i>seen</i> — is a
+    /// reader's verb with no writer's counterpart, and would have needed a state written half way through
+    /// a decode to answer a question the message already knows about itself.
+    /// </para>
+    ///
+    /// <para>
+    /// Bound to every optional part in the message, not only the ones in scope, so it reads false rather
+    /// than nothing for one that did not arrive. A misspelling is caught at document time instead.
+    /// </para>
+    /// </summary>
+    public const string Present = "present";
+
     /// <summary>Everything the walk binds. A root outside this set is not vocabulary at all.</summary>
     public static readonly IReadOnlySet<string> All =
         new HashSet<string>(StringComparer.Ordinal)
-            { Fields, Inputs, Item, Previous, Room, Peek, Carried, Ordinal, Position };
+            { Fields, Inputs, Item, Previous, Room, Peek, Carried, Ordinal, Position, Present };
 
     private static readonly Dictionary<ExprSite, HashSet<string>> Answerable = new()
     {
-        [ExprSite.Value] = [Fields, Inputs, Item, Carried, Ordinal],
-        [ExprSite.Length] = [Fields, Room, Peek, Carried, Ordinal],
-        [ExprSite.Bound] = [Fields, Room, Peek, Carried, Ordinal],
-        [ExprSite.Continuation] = [Fields, Room, Peek, Carried, Ordinal],
-        [ExprSite.Seeding] = [Fields, Carried, Ordinal],
-        [ExprSite.Carry] = [Fields, Carried, Ordinal],
-        [ExprSite.Discriminator] = [Fields, Carried, Ordinal],
-        [ExprSite.Recognition] = [Fields, Room, Peek, Carried, Ordinal],
-        [ExprSite.Selection] = [Fields, Inputs, Item, Carried, Ordinal],
-        [ExprSite.Condition] = [Fields, Carried, Ordinal],
+        [ExprSite.Value] = [Fields, Inputs, Item, Carried, Ordinal, Present],
+        [ExprSite.Length] = [Fields, Room, Peek, Carried, Ordinal, Present],
+        [ExprSite.Bound] = [Fields, Room, Peek, Carried, Ordinal, Present],
+        [ExprSite.Continuation] = [Fields, Room, Peek, Carried, Ordinal, Present],
+        [ExprSite.Seeding] = [Fields, Carried, Ordinal, Present],
+        [ExprSite.Carry] = [Fields, Carried, Ordinal, Present],
+        [ExprSite.Discriminator] = [Fields, Carried, Ordinal, Present],
+        [ExprSite.Recognition] = [Fields, Room, Peek, Carried, Ordinal, Present],
+        [ExprSite.Selection] = [Fields, Inputs, Item, Carried, Ordinal, Present],
+        [ExprSite.Condition] = [Fields, Carried, Ordinal, Present],
         [ExprSite.Locating] = [Fields, Position, Carried, Ordinal],
         [ExprSite.Pairing] = [Item, Previous],
     };

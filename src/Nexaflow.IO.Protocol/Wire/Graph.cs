@@ -229,6 +229,27 @@ public sealed record Viewed : Edge
     public override string Verb => "is the view of";
 }
 
+/// <summary>A part takes a value when it is not there. Read-side only — the way to write an absent part is
+/// not to write it.</summary>
+public sealed record Assumes : Edge
+{
+    public override string Verb => "when absent, is";
+}
+
+/// <summary>
+/// A packing is only an option while its condition holds.
+///
+/// <para>
+/// Distinct from the key on an <see cref="Offers"/> edge, and the distinction is the point: a key says
+/// <i>which value picks this packing</i>, and this says <i>whether picking it is available at all</i>. A
+/// body is counted because a length arrived, not because some field holds a number meaning "counted".
+/// </para>
+/// </summary>
+public sealed record Enables : Edge
+{
+    public override string Verb => "is only an option while";
+}
+
 /// <summary>A move keeps something in a slot. What it means is the protocol's business.</summary>
 public sealed record Remembers : Edge
 {

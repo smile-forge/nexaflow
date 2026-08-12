@@ -70,9 +70,32 @@ public sealed class Arm(string label, long? key, IReadOnlyList<Field> fields) : 
     /// </summary>
     internal bool Repeats { get; private init; }
 
+    /// <summary>
+    /// What has to hold for this packing to be an option at all, over <c>present.&lt;part&gt;</c>.
+    ///
+    /// <para>
+    /// A different question from the key, and the difference is why it is not one. A key says which value
+    /// picks this packing; this says whether picking it is available. A body is counted because a length
+    /// arrived, not because some field holds a number meaning "counted" — there is no such field.
+    /// </para>
+    ///
+    /// <para>
+    /// The reason this can exist when sibling guards were refused: guards over arbitrary expressions cannot
+    /// be checked for cover or overlap by anything, which is how an unanticipated message binds no fields
+    /// and reports nothing. A condition over presence is different in kind — the parts are declared and
+    /// finite, so the assignments are enumerable and cover and disjointness are <i>proved</i>, by the same
+    /// enumeration that proves a mask's arms exhaustive.
+    /// </para>
+    /// </summary>
+    internal Expr? Condition { get; private init; }
+
     /// <summary>A packing selected by a token it carries rather than by a number a sibling holds.</summary>
     public static Arm On(string label, ProtoValue token, IReadOnlyList<Field> fields, bool repeats = false)
         => new(label, null, fields) { DeclaredKey = token, Repeats = repeats };
+
+    /// <summary>A packing that is an option only while something holds.</summary>
+    public static Arm While(string label, Expr condition, IReadOnlyList<Field> fields)
+        => new(label, null, fields) { Condition = condition };
 
     /// <summary>The packing for a component this document does not know. Never optional where the tokens
     /// are text: nothing can enumerate every string, so the cover can only be closed by a fallback.</summary>
@@ -255,10 +278,23 @@ public abstract record Pattern
     /// This is a second <i>reading</i> of one discriminator, not a second discriminator.
     /// </para>
     /// </param>
-    public sealed record Choice(Expr Key, IReadOnlyList<Arm> Arms, Expr? Selects = null) : Pattern
+    /// <param name="Key">
+    /// Null where the arms carry conditions instead.
+    ///
+    /// <para>
+    /// Some branches have no discriminator anywhere on the wire. HTTP's body is counted, chunked or
+    /// runs to the close of the connection, and which one is decided by <i>which headers turned up</i> —
+    /// there is no field holding a number that means "chunked". Writing one as a key expression would be
+    /// inventing a discriminator to satisfy the shape.
+    /// </para>
+    /// </param>
+    public sealed record Choice(Expr? Key, IReadOnlyList<Arm> Arms, Expr? Selects = null) : Pattern
     {
+        /// <summary>Whether the arms decide for themselves rather than being picked by a value.</summary>
+        public bool Conditioned => Key is null;
+
         /// <summary>Which expression decides, in the direction being walked.</summary>
-        public Expr Deciding(bool encoding) => encoding && Selects is not null ? Selects : Key;
+        public Expr? Deciding(bool encoding) => encoding && Selects is not null ? Selects : Key;
     }
 
     /// <summary>
@@ -468,6 +504,19 @@ public abstract record Pattern
         // pattern cannot see the graph. That is the right way round — a shape should not be the authority
         // on a relationship between two nodes.
         Choice { Arms.Count: 0 } => [$"field '{fieldId}': a choice needs at least one arm"],
+
+        // Two ways of deciding is one of them being ignored, and which is a matter of reading the engine.
+        Choice { Key: not null } c when c.Arms.Any(a => a.Condition is not null) =>
+            [$"field '{fieldId}': it has a discriminator and its arms also say when they are options. "
+           + "Either a value picks the packing or the packings say when they apply, not both."],
+
+        Choice { Key: null } c when c.Arms.Any(a => a.DeclaredKey is not null) =>
+            [$"field '{fieldId}': it has no discriminator, so an arm keyed on one can never be selected. "
+           + "Give the arms conditions, or give the choice something to decide on."],
+
+        Choice { Key: null, Selects: not null } =>
+            [$"field '{fieldId}': it has no discriminator to have two readings of. A condition answers in "
+           + "both directions already — a reader knows what arrived and a writer knows what it was given."],
 
         Assorted { Sorts.Count: 0 } =>
             [$"field '{fieldId}': an assortment needs at least one kind of component"],
