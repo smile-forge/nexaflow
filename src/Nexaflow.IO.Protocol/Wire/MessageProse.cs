@@ -169,6 +169,13 @@ public static class MessageProse
           + "value**, so it is not known until the value is"
           + (v.Minimal ? ". A chain longer than the shortest encoding of its value is refused" : ""),
 
+        Pattern.Prefixed p =>
+            $"an integer whose top {Count(p.Marker, "bit")} say how wide it is — "
+          + string.Join(", ", p.Widths.Select((w, i) => $"{i} means {Count(w, "octet")}"))
+          + " — and whose remaining bits are the value, most significant first. **Its width is a function "
+          + "of its value**, so it is not known until the value is"
+          + (p.Minimal ? ". A value written wider than the narrowest width that holds it is refused" : ""),
+
         Pattern.EscapedInline e =>
             $"a value carried in one marker octet while it is below {e.InlineLimit} (0x{e.InlineLimit:x}); at "
           + $"or above, the marker records how many of the next octets carry it, up to {e.MaxOctets}. "

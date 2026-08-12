@@ -220,6 +220,51 @@ public abstract record Pattern
     public sealed record EscapedInline(long InlineLimit, int MaxOctets, bool Minimal = true) : Pattern;
 
     /// <summary>
+    /// An integer whose leading bits say how wide it is, and whose remaining bits are part of it.
+    ///
+    /// <para>
+    /// The third way a width comes from a value, and genuinely not either of the other two. A
+    /// <see cref="Varint"/> spends a bit per octet on a continue flag and regroups the value into
+    /// seven-bit digits. An <see cref="EscapedInline"/> marker octet is <i>consumed</i> — it either is the
+    /// value or counts what follows, and carries none of it. Here the marker is a few bits at the top of
+    /// the first octet and the rest of that same octet is the value's most significant part, so nothing is
+    /// spent that is not needed and no regrouping happens.
+    /// </para>
+    ///
+    /// <para>
+    /// Reading it needs one octet to know how many more there are, which the resolver already handles —
+    /// the extent declares a dependency on the value and settles after it, as it does for the other two.
+    /// </para>
+    /// </summary>
+    /// <param name="Marker">How many leading bits select the width.</param>
+    /// <param name="Widths">
+    /// The total widths those bits select, in octets, indexed by the marker's value.
+    ///
+    /// <para>
+    /// Required and not defaulted, for the reason every parameterisation here is: doubling — one, two,
+    /// four, eight — is one family's choice and not the notion's, and a default would put that family's
+    /// encoding inside the engine under a general name.
+    /// </para>
+    /// </param>
+    /// <param name="Minimal">When true, a value carried in more octets than the narrowest width that
+    /// holds it is a decode error rather than a value — the same law as everywhere else, and the same
+    /// reason: it is what keeps value → octets injective.</param>
+    public sealed record Prefixed(int Marker, IReadOnlyList<int> Widths, bool Minimal = true) : Pattern
+    {
+        /// <summary>The largest value a given width can hold, once the marker has taken its bits.</summary>
+        public long Ceiling(int width) => (1L << ((width * 8) - Marker)) - 1;
+
+        /// <summary>The narrowest width that holds a value, and which marker selects it.</summary>
+        public int Narrowest(long value)
+        {
+            for (int i = 0; i < Widths.Count; i++)
+                if (value <= Ceiling(Widths[i])) return i;
+
+            return -1;
+        }
+    }
+
+    /// <summary>
     /// A named contiguous region: its children, in order, and nothing else.
     ///
     /// <para>
@@ -490,6 +535,25 @@ public abstract record Pattern
             [$"field '{fieldId}': at a threshold of {e.InlineLimit} the marker can count at most "
            + $"{255 - e.InlineLimit} octet(s), and no more than 8 in any case — {e.MaxOctets} is not "
            + "expressible"],
+
+        Prefixed p when p.Marker is < 1 or > 7 =>
+            [$"field '{fieldId}': the marker must be 1..7 bits, got {p.Marker} — at eight there is nothing "
+           + "of the first octet left to carry the value, which is a different shape"],
+
+        Prefixed p when p.Widths.Count != 1 << p.Marker =>
+            [$"field '{fieldId}': {p.Marker} marker bit(s) select {1 << p.Marker} widths and "
+           + $"{p.Widths.Count} are given. Every value the marker can take has to mean something, or a "
+           + "packet carrying one the document never considered reads as whatever is next."],
+
+        Prefixed p when p.Widths.Any(w => w is < 1 or > 8) =>
+            [$"field '{fieldId}': each width must be 1..8 octets"],
+
+        // Out of order they would still decode, and encoding would pick the first that fits rather than
+        // the narrowest — so the shortest form would depend on how the list happened to be written.
+        Prefixed p when p.Widths.Zip(p.Widths.Skip(1)).Any(pair => pair.Second <= pair.First) =>
+            [$"field '{fieldId}': the widths must increase — {string.Join(", ", p.Widths)}. The marker's "
+           + "value indexes them, so an order that is not increasing makes the shortest encoding of a "
+           + "value a property of the declaration rather than of the value."],
 
         Varint v when v.MaxOctets is < 1 or > 10 =>
             [$"field '{fieldId}': a continuation-encoded integer must be bounded at 1..10 octets, got "

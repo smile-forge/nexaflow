@@ -56,12 +56,27 @@ public class ScopeVocabularyTests
         StringAssert.Contains(issues, "octets that have not been written");
     }
 
+    /// <summary>
+    /// A length <b>may</b> ask what the caller supplied, and this test used to assert the opposite.
+    ///
+    /// <para>
+    /// It read as the mirror image of the one above — a span's length is recovered on the way in, where
+    /// there is no caller to have supplied anything — and the symmetry was the trap. <c>room</c> genuinely
+    /// has no answer while writing, because there is no region yet. <c>inputs</c> has an answer while
+    /// reading, because <c>Decode</c> takes a scope and always did. One of those is a fact about the walk
+    /// and the other was a sentence that sounded like its opposite.
+    /// </para>
+    ///
+    /// <para>
+    /// Kept rather than deleted, and pointed the other way. What it cost was a whole family of protocols:
+    /// anything that agrees a shape during a handshake and then stops sending it could not be written
+    /// down at all.
+    /// </para>
+    /// </summary>
     [TestMethod]
-    public void A_length_may_not_ask_what_the_caller_supplied()
+    public void A_length_may_ask_what_the_caller_supplied_because_a_reader_has_one_too()
     {
-        // The mirror image, and the reason the asymmetry is a property of the site: a span's length is
-        // recovered on the way in, where there is no caller to have supplied anything.
-        var issues = Issues(Probe(
+        Assert.AreEqual("", Issues(Probe(
         [
             new Field
             {
@@ -69,10 +84,7 @@ public class ScopeVocabularyTests
                 Pattern = Pattern.Opaque.Measured(Expr.Parse("inputs.width")),
                 Value = Expr.Parse("inputs.body"),
             },
-        ], ["width", "body"]));
-
-        StringAssert.Contains(issues, "names `inputs`");
-        StringAssert.Contains(issues, "only a packet");
+        ], ["width", "body"])));
     }
 
     [TestMethod]
@@ -230,5 +242,100 @@ public class ScopeVocabularyTests
 
         var ex = Assert.ThrowsExactly<ProtoTypeException>(() => codec.Decode([0x07, 0x08]));
         StringAssert.Contains(ex.Message, "accepts exactly one entry");
+    }
+
+    // ── Where the table was wrong about itself ────────────────────────────────
+
+    /// <summary>
+    /// A span whose length is nowhere in the message, because an earlier exchange agreed it.
+    ///
+    /// <para>
+    /// The sixth defect, and it was in the table built to stop the other five. <c>inputs</c> was banned
+    /// from a reader's sites on the grounds that while decoding there is no caller, only a packet — and
+    /// <c>Decode</c> takes a scope, so there always was one. A value an earlier message left behind is as
+    /// available to a reader as anything on the wire.
+    /// </para>
+    ///
+    /// <para>
+    /// It is not a corner case. A connection-oriented protocol agrees an identifier's length during its
+    /// handshake and then stops sending it, which is the whole reason short headers are short; the ban
+    /// made that inexpressible. Nothing in the engine needed changing — the scope was threaded to every
+    /// expression already — only the table's claim about it.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    public void A_length_can_come_from_what_an_earlier_exchange_agreed()
+    {
+        var message = new MessageDef
+        {
+            Id = "shortHeader",
+            Context =
+            [
+                new Context.Remembered { Key = "idLength", Purpose = "agreed during the handshake." },
+                new Context.Given { Key = "connectionId" },
+            ],
+            Fields =
+            [
+                new Field { Id = "kind", Pattern = U8, Value = Expr.Parse("0x40") },
+                new Field
+                {
+                    Id = "connectionId",
+                    Pattern = Pattern.Opaque.Measured(Expr.Parse("inputs.idLength")),
+                    Value = Expr.Parse("inputs.connectionId"),
+                },
+            ],
+        };
+
+        var issues = new MessageCodec(message).Validate();
+        Assert.AreEqual(0, issues.Count, string.Join("\n", issues));
+
+        var codec = new MessageCodec(message);
+
+        var octets = codec.Encode(new EvalScope().Set("inputs", EvalScope.Record(
+            ("idLength", ProtoValue.Of(4L)),
+            ("connectionId", ProtoValue.Of(new byte[] { 0xde, 0xad, 0xbe, 0xef })))));
+
+        CollectionAssert.AreEqual(new byte[] { 0x40, 0xde, 0xad, 0xbe, 0xef }, octets);
+
+        // And the read, which is the half that could not be written down before. What sizes the span is
+        // not in the span, not in the message, and not in the packet at all.
+        var decoded = codec.Decode(octets, new EvalScope().Set("inputs", EvalScope.Record(
+            ("idLength", ProtoValue.Of(4L)))));
+
+        CollectionAssert.AreEqual(new byte[] { 0xde, 0xad, 0xbe, 0xef }, decoded["connectionId"].AsBytes());
+
+        // The same octets under a different agreement are a different message, which is exactly what makes
+        // this worth having and also what makes it dangerous — so it is declared, and the graph records it.
+        var shorter = codec.Decode([0x40, 0xde, 0xad], new EvalScope().Set("inputs", EvalScope.Record(
+            ("idLength", ProtoValue.Of(2L)))));
+
+        CollectionAssert.AreEqual(new byte[] { 0xde, 0xad }, shorter["connectionId"].AsBytes());
+    }
+
+    /// <summary>
+    /// The structure being written is still a writer's word, and stays banned.
+    ///
+    /// <para>
+    /// Widening the table for <c>inputs</c> was a correction, not a relaxation. <c>item</c> is the one
+    /// genuinely one-directional name left: while reading there is no structure to hand a field, because
+    /// the structure is what is being worked out.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    public void The_structure_being_written_is_still_not_something_a_reader_can_be_asked_for()
+    {
+        var message = Probe(
+        [
+            new Field
+            {
+                Id = "span",
+                Pattern = Pattern.Opaque.Measured(Expr.Parse("item.width")),
+                Value = Expr.Parse("inputs.span"),
+            },
+        ], ["span"]);
+
+        Assert.IsTrue(message.Validate().Any(i => i.Contains("`item`")
+                                               && i.Contains("the structure is what is being worked out")),
+            string.Join("\n", message.Validate()));
     }
 }

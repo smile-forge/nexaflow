@@ -47,6 +47,10 @@ public enum ExprSite
     /// <summary>A rule's condition. Both.</summary>
     Condition,
 
+    /// <summary>What a message does to a state, and what it leaves behind. Read against a scope built
+    /// from the decoded captures and nothing else.</summary>
+    Moving,
+
     /// <summary>How a reference to another node is written down. The one place <c>position</c> means
     /// anything — an offset is a rendering of a relationship, and everywhere else it is an invitation to
     /// think in offsets about things that are relationships.</summary>
@@ -111,20 +115,40 @@ public static class Vocabulary
         new HashSet<string>(StringComparer.Ordinal)
             { Fields, Inputs, Item, Previous, Room, Peek, Carried, Ordinal, Position, Present };
 
+    /// <remarks>
+    /// <c>inputs</c> is available at <b>every</b> site, and it used to be banned from the reader's ones
+    /// with the explanation that while decoding there is no caller, only a packet. That was wrong, and the
+    /// signature was the evidence: <c>Decode</c> takes a scope. A value an earlier exchange left behind is
+    /// as available to a reader as anything on the wire, and a short-header packet whose connection
+    /// identifier has no length in it — the length was agreed during a handshake — is not an exotic case,
+    /// it is how a connection-oriented protocol saves the octets. The ban made state-dependent parsing
+    /// inexpressible in the one place it matters, in the table built to stop exactly this class of
+    /// mistake.
+    ///
+    /// <para>
+    /// <c>item</c> is the genuine writer-only one and stays that way: it is the structure being written,
+    /// and while reading there is no such thing — the structure is what is being worked out.
+    /// </para>
+    /// </remarks>
     private static readonly Dictionary<ExprSite, HashSet<string>> Answerable = new()
     {
         [ExprSite.Value] = [Fields, Inputs, Item, Carried, Ordinal, Present],
-        [ExprSite.Length] = [Fields, Room, Peek, Carried, Ordinal, Present],
-        [ExprSite.Bound] = [Fields, Room, Peek, Carried, Ordinal, Present],
-        [ExprSite.Continuation] = [Fields, Room, Peek, Carried, Ordinal, Present],
-        [ExprSite.Seeding] = [Fields, Carried, Ordinal, Present],
-        [ExprSite.Carry] = [Fields, Carried, Ordinal, Present],
-        [ExprSite.Discriminator] = [Fields, Carried, Ordinal, Present],
-        [ExprSite.Recognition] = [Fields, Room, Peek, Carried, Ordinal, Present],
+        [ExprSite.Length] = [Fields, Inputs, Room, Peek, Carried, Ordinal, Present],
+        [ExprSite.Bound] = [Fields, Inputs, Room, Peek, Carried, Ordinal, Present],
+        [ExprSite.Continuation] = [Fields, Inputs, Room, Peek, Carried, Ordinal, Present],
+        [ExprSite.Seeding] = [Fields, Inputs, Carried, Ordinal, Present],
+        [ExprSite.Carry] = [Fields, Inputs, Carried, Ordinal, Present],
+        [ExprSite.Discriminator] = [Fields, Inputs, Carried, Ordinal, Present],
+        [ExprSite.Recognition] = [Fields, Inputs, Room, Peek, Carried, Ordinal, Present],
         [ExprSite.Selection] = [Fields, Inputs, Item, Carried, Ordinal, Present],
-        [ExprSite.Condition] = [Fields, Carried, Ordinal, Present],
-        [ExprSite.Locating] = [Fields, Position, Carried, Ordinal],
+        [ExprSite.Condition] = [Fields, Inputs, Carried, Ordinal, Present],
+        [ExprSite.Locating] = [Fields, Inputs, Position, Carried, Ordinal],
         [ExprSite.Pairing] = [Item, Previous],
+
+        // A move is read against the decoded captures and nothing else. Not even a region's extent: the
+        // scope carries values, so `.extent` reads as nothing and every comparison against it is quietly
+        // false — which is the failure this table exists for, in the one place it had never reached.
+        [ExprSite.Moving] = [Fields],
     };
 
     public static IReadOnlySet<string> Available(ExprSite site) => Answerable[site];
@@ -144,6 +168,7 @@ public static class Vocabulary
         ExprSite.Condition => "a rule",
         ExprSite.Locating => "a reference",
         ExprSite.Pairing => "an arrangement rule",
+        ExprSite.Moving => "a move",
         _ => site.ToString(),
     };
 
@@ -168,13 +193,14 @@ public static class Vocabulary
               + "separate encode-side selection, and a length or a continuation is a reader's question "
               + "already",
 
-            Inputs or Item when site is ExprSite.Length or ExprSite.Bound or ExprSite.Continuation =>
-                $"`{root}` is what the caller supplied, and {here} is evaluated while decoding, where "
-              + "there is no caller — only a packet",
+            Inputs when site is ExprSite.Moving =>
+                $"`{root}` is a value from outside the message, and {here} is read against what the "
+              + "message itself said and nothing else. What a move needs to know has to have arrived in "
+              + "it, or be kept by an earlier move",
 
-            Inputs or Item =>
-                $"`{root}` is what the caller supplied and {here} is evaluated in both directions; a "
-              + "reader has a packet and no caller",
+            Item =>
+                $"`{root}` is the structure being written, and {here} is evaluated while reading, where "
+              + "there is no such thing — the structure is what is being worked out",
 
             Previous =>
                 $"`{root}` is the structure before this one, which only an arrangement rule has",

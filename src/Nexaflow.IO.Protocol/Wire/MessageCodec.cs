@@ -693,6 +693,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         {
             Pattern.Varint varint => ScanContinuation(field, varint, r),
             Pattern.EscapedInline escaped => MarkerWidth(field, escaped, r),
+            Pattern.Prefixed prefixed => PrefixWidth(field, prefixed, r),
             Pattern.Opaque { Length: { } length } => Bounded(field, Sized(field, length, r), r),
             Pattern.Opaque { Until: { } separator } opaque => Upto(field, separator, opaque.Ceiling, r),
             _ => field.Pattern.StaticWidth
@@ -761,6 +762,22 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                           + "because remembering the padding in order to reproduce it means preserving "
                           + "malformed input instead of refusing it.");
                 }
+                r.Spans.Add(new WireSpan(at, width, path, value));
+                break;
+            }
+
+            case Pattern.Prefixed prefixed:
+            {
+                asRead = UnpackPrefixed(run, prefixed);
+                value = Convert(asRead, field, forward: false);
+
+                if (prefixed.Minimal && prefixed.Narrowest(value.AsInt()) is var narrowest
+                    && narrowest >= 0 && prefixed.Widths[narrowest] != run.Length)
+                    throw new ProtoTypeException(
+                        $"field '{field.Id}': {Hex(run)} carries {value} in {run.Length} octet(s) and "
+                      + $"{prefixed.Widths[narrowest]} would hold it. A value written wider than it needs "
+                      + "decodes cleanly and re-encodes shorter, so it is refused rather than carried.");
+
                 r.Spans.Add(new WireSpan(at, width, path, value));
                 break;
             }
@@ -920,6 +937,50 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         => run[0] < escaped.InlineLimit
             ? ProtoValue.Of((long)run[0])
             : Apply("unminuint", ProtoValue.Of(run[1..].ToArray()));
+
+    /// <summary>
+    /// The prefixed codec. Written here rather than borrowed, because there is nothing to borrow: the
+    /// marker shares an octet with the value, so neither half is a whole-octet operation the converter
+    /// table already has.
+    /// </summary>
+    private static byte[] PackPrefixed(Field? field, long value, Pattern.Prefixed prefixed)
+    {
+        if (value < 0)
+            throw new ProtoTypeException($"a prefixed integer cannot be negative, got {value}");
+
+        int narrowest = prefixed.Narrowest(value);
+
+        if (narrowest < 0)
+            throw new ProtoTypeException(
+                $"{value} needs more than the {prefixed.Widths[^1]} octet(s) this field allows — the widest "
+              + $"it offers holds up to {prefixed.Ceiling(prefixed.Widths[^1])}");
+
+        int width = prefixed.Widths[narrowest];
+        var octets = new byte[width];
+
+        for (int i = width - 1; i >= 0; i--) { octets[i] = (byte)(value & 0xFF); value >>= 8; }
+
+        octets[0] |= (byte)(narrowest << (8 - prefixed.Marker));
+        return octets;
+    }
+
+    private static ProtoValue UnpackPrefixed(ReadOnlySpan<byte> run, Pattern.Prefixed prefixed)
+    {
+        // The marker's own bits come off the first octet; what is left of it is the value's top.
+        long value = run[0] & ((1 << (8 - prefixed.Marker)) - 1);
+
+        for (int i = 1; i < run.Length; i++) value = (value << 8) | run[i];
+
+        return ProtoValue.Of(value);
+    }
+
+    private static int PrefixWidth(Field field, Pattern.Prefixed prefixed, Reading r)
+    {
+        if (r.Offset >= r.Limit)
+            throw new ProtoTypeException($"field '{field.Id}': no octets left for its marker");
+
+        return prefixed.Widths[r.Bytes[r.Offset] >> (8 - prefixed.Marker)];
+    }
 
     private static int MarkerWidth(Field field, Pattern.EscapedInline escaped, Reading r)
     {
@@ -2061,6 +2122,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     {
         Pattern.Varint varint => Pack(OnWire(field, value).AsInt(), varint).Length,
         Pattern.EscapedInline escaped => PackEscaped(OnWire(field, value).AsInt(), escaped).Length,
+        Pattern.Prefixed prefixed => PackPrefixed(field, OnWire(field, value).AsInt(), prefixed).Length,
         Pattern.Opaque { Width: null } => OnWire(field, value).AsBytes().Length,
         _ => throw new ProtoTypeException($"field '{field.Id}' has no way to determine its width"),
     };
@@ -2206,6 +2268,10 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
             case Pattern.EscapedInline escaped:
                 output.AddRange(PackEscaped(value.AsInt(), escaped));
+                break;
+
+            case Pattern.Prefixed prefixed:
+                output.AddRange(PackPrefixed(field, value.AsInt(), prefixed));
                 break;
         }
     }

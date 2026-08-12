@@ -249,6 +249,44 @@ public sealed class Subject : Node
 
     /// <summary>Document-time checks. Cheap, and they catch a state machine that cannot be entered or one
     /// with a state nothing reaches.</summary>
+    /// <summary>
+    /// What a move's expression may name, checked against what its scope actually binds.
+    ///
+    /// <para>
+    /// The last place the vocabulary table did not reach, and the omission had the shape it always has: a
+    /// move is read against the decoded captures alone, so a condition naming <c>inputs</c>, <c>present</c>
+    /// or a region's <c>.extent</c> resolves to nothing and makes every comparison against it quietly
+    /// false. A state machine that silently never fires is worse than one that refuses, because the
+    /// refusal at least happens.
+    /// </para>
+    ///
+    /// <para>
+    /// The field named is deliberately <b>not</b> required to be one the message carries. A move asking
+    /// about a part that may not have arrived is the ordinary case — a connection stays open unless a
+    /// header said otherwise — and reading absent as absent is what makes that expressible.
+    /// </para>
+    /// </summary>
+    private void Reads(Transition transition, Expr expression, string what, List<string> issues)
+    {
+        foreach (var root in Vocabulary.RootsOf(expression))
+        {
+            if (Vocabulary.Available(ExprSite.Moving).Contains(root)) continue;
+
+            issues.Add(Vocabulary.All.Contains(root)
+                ? $"subject '{Id}': {what} '{transition}' names `{root}`, and "
+                + $"{Vocabulary.Why(root, ExprSite.Moving)}."
+                : $"subject '{Id}': {what} '{transition}' names `{root}`, which is not part of the walk's "
+                + "vocabulary at all. A root nothing binds reads as nothing and makes every comparison "
+                + $"against it false. The ones that exist are: {string.Join(", ", Vocabulary.All.Order())}.");
+        }
+
+        foreach (var (field, facet) in MessageDef.FieldReferences(expression))
+            if (!facet.Equals("value", StringComparison.Ordinal))
+                issues.Add($"subject '{Id}': {what} '{transition}' reads the {facet} of '{field}'. A move "
+                         + "sees what the message said, not how it was laid out — only `.value` answers "
+                         + "here, and anything else reads as nothing.");
+    }
+
     public IReadOnlyList<string> Validate()
     {
         List<string> issues = [];
@@ -279,6 +317,12 @@ public sealed class Subject : Node
             if (Distinguishes is { } key && transition.On.NamedAll(key).Count == 0)
                 issues.Add($"subject '{Id}': {transition} is on a message that has no '{key.Id}', so "
                          + "nothing says which one of these it is about");
+
+            Reads(transition, transition.When, "the condition on", issues);
+
+            foreach (var recording in transition.Records)
+                Reads(transition, recording.From, $"what '{transition}' keeps in '{recording.Into.Id}',",
+                      issues);
         }
 
         var reachable = new HashSet<Phase> { Start };
