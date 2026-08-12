@@ -346,6 +346,53 @@ public class IdentifiedComponentCaptureTests
             string.Join("\n", issues));
     }
 
+    // ── Absence ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A component that is simply not there costs the writer nothing.
+    ///
+    /// <para>
+    /// Worth pinning, because optionality is usually where a wire format starts needing lookahead. Here it
+    /// needs none in either direction: on the way out a component exists because the value lists it, and on
+    /// the way in it announces itself, so there is never a point at which the walk has to guess whether
+    /// what it is looking at is one thing absent or the next thing present.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    public void A_component_nobody_asked_for_is_simply_not_written()
+    {
+        var octets = new MessageCodec(Answer()).Encode(new EvalScope().Set("inputs", EvalScope.Record(
+            ("version", ProtoValue.Of("HTTP/1.1")), ("code", ProtoValue.Of("200")),
+            ("reason", ProtoValue.Of("OK")), ("server", ProtoValue.Of("nginx")),
+            ("body", ProtoValue.Of("")),
+            ("headers", new ProtoValue.List([Component("server")])))));
+
+        Assert.AreEqual("HTTP/1.1 200 OK\r\nServer: nginx\r\n\r\n",
+            new string([.. octets.Select(b => (char)b)]));
+    }
+
+    /// <summary>
+    /// Reading one that is not there says so, by name.
+    ///
+    /// <para>
+    /// The diagnostic is the whole test. Before the graph knew which fields belong to a component that may
+    /// be absent, this came out of the converter as <c>expected Text, got Null</c> — true, and from three
+    /// layers below anything an author could act on. What a reader needs to be told is that the header
+    /// saying how long the body is never arrived.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    public void Reading_a_component_that_did_not_arrive_names_it()
+    {
+        var without = Capture.Replace("Content-Length: 12\r\n", "").Replace("hello world!", "");
+
+        var ex = Assert.ThrowsExactly<ProtoTypeException>(
+            () => new MessageCodec(Answer()).Decode([.. without.Select(c => (byte)c)]));
+
+        StringAssert.Contains(ex.Message, "'body' reads 'contentLengthValue'");
+        StringAssert.Contains(ex.Message, "'contentLength' component of 'headers'");
+    }
+
     [TestMethod]
     public void A_text_key_against_a_token_that_reads_octets_is_refused()
     {

@@ -410,6 +410,26 @@ public sealed record MessageDef
     /// document that stacks: what else is in here, and is any of it something we already trust.</summary>
     public IReadOnlyList<Subprotocol> Layers => [.. Graph.Of<Embeds>().Select(e => (Subprotocol)e.To)];
 
+    /// <summary>
+    /// The component a field belongs to, where it belongs to one that might not turn up.
+    ///
+    /// <para>
+    /// This is what makes absence a fact rather than an accident. Every other field of a message is there
+    /// because the walk reached it; a field of an assorted kind is there only if that kind arrived, so a
+    /// read of one has an answer the rest do not have — <i>nobody sent it</i>. Saying that is the whole
+    /// difference between a diagnostic naming the header and one naming a type three layers away.
+    /// </para>
+    /// </summary>
+    public (Field Assortment, Arm Sort)? Optional(Field field)
+    {
+        for (Node? at = field; at is not null; at = Graph.Parent(at))
+            if (at is Arm sort
+                && Graph.To<Offers>(sort).FirstOrDefault()?.From is Field { Pattern: Pattern.Assorted } owner)
+                return (owner, sort);
+
+        return null;
+    }
+
     /// <summary>The set a field draws from, if it declares one.</summary>
     public Admits? DrawnFrom(Node field) => Graph.From<Admits>(field).FirstOrDefault();
 

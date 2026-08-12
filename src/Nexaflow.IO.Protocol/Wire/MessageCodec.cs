@@ -133,6 +133,9 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
         public void Note(string fieldId, ProtoValue value, int extent) => _scopes[^1][fieldId] = (value, extent);
 
+        /// <summary>Whether anything has bound this name yet, anywhere the walk can still see.</summary>
+        public bool Bound(string fieldId) => _scopes.Any(level => level.ContainsKey(fieldId));
+
         /// <summary>What each enclosing chain has threaded this far. A stack, because chains nest and an
         /// inner one's running value must not leak out over the outer one's.</summary>
         private readonly List<ProtoValue> _carried = [ProtoValue.Nothing];
@@ -246,7 +249,10 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 // A declared bound turns the region into a boundary rather than a measurement, which is
                 // what gives "is there room for another" something to mean.
                 if (group.Extent is { } declared)
+                {
+                    Present(field, Roles.Bound, r);
                     r.EnterRegion(field.Id, start + Bounded(field, r.Eval(declared).AsInt(), r));
+                }
 
                 Dictionary<string, ProtoValue> members = new(StringComparer.Ordinal);
 
@@ -334,6 +340,8 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
             case Pattern.Choice choice:
             {
+                Present(field, Roles.Discriminator, r);
+
                 var arm = _message.Choose(field, Keyed(r.Eval(choice.Key)));
                 int start = r.Offset;
 
@@ -353,6 +361,8 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 // The value threaded along, where there is one. A structure that records how far its
                 // identifier has moved since the last cannot be named without this.
                 var carried = chain.Seed is null ? ProtoValue.Nothing : r.Eval(chain.Seed);
+
+                Present(field, Roles.Continuation, r);
 
                 while (Continues(field, chain.Continues, r, instances.Count, carried))
                 {
@@ -458,6 +468,40 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         ProtoValue.Num n when n.Value == Math.Floor(n.Value) => ProtoValue.Of((long)n.Value),
         _ => value,
     };
+
+    /// <summary>
+    /// Refuses a read of a component that did not arrive, before it becomes a type error somewhere else.
+    ///
+    /// <para>
+    /// Through the edges rather than the expression's text: the graph already knows what this expression
+    /// reads and which of those live inside a kind that may be absent, so the check is a lookup rather than
+    /// a scan. What it buys is the sentence — <i>the header that says how long the body is did not
+    /// arrive</i> — instead of a converter complaining that it wanted text and got nothing, which is true,
+    /// unhelpful, and reported from the wrong place.
+    /// </para>
+    /// </summary>
+    private void Present(Field owner, string role, Reading r)
+    {
+        foreach (var read in Graph.From<Reads>(owner))
+        {
+            if (read.Role != role || read.To is not Field target || r.Bound(target.Id)) continue;
+
+            if (_message.Optional(target) is not { } from) continue;
+
+            throw new ProtoTypeException(
+                $"field '{owner.Id}' reads '{target.Id}', which is not in this message: it belongs to the "
+              + $"'{from.Sort.Name}' component of '{from.Assortment.Id}', and no such component arrived. A "
+              + "part that may be absent has to be read as one — nothing here says what to do when nobody "
+              + "sent it.");
+        }
+    }
+
+    /// <summary>A recovered span's length, with the read that produces it checked for having arrived.</summary>
+    private long Sized(Field field, Expr length, Reading r)
+    {
+        Present(field, Roles.Length, r);
+        return r.Eval(length).AsInt();
+    }
 
     private static string ChildPath(string path, Field child, bool exposed)
         => exposed ? child.CaptureName : $"{path}.{child.CaptureName}";
@@ -569,7 +613,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         {
             Pattern.Varint varint => ScanContinuation(field, varint, r),
             Pattern.EscapedInline escaped => MarkerWidth(field, escaped, r),
-            Pattern.Opaque { Length: { } length } => Bounded(field, r.Eval(length).AsInt(), r),
+            Pattern.Opaque { Length: { } length } => Bounded(field, Sized(field, length, r), r),
             Pattern.Opaque { Until: { } separator } opaque => Upto(field, separator, opaque.Ceiling, r),
             _ => field.Pattern.StaticWidth
                  ?? throw new ProtoTypeException($"field '{field.Id}' has no way to determine its width"),
