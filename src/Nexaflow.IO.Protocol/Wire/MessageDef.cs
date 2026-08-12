@@ -1047,11 +1047,35 @@ public sealed record MessageDef
                          + $"({string.Join(", ", options)}) — which applies would come down to the order "
                          + "they were written in");
 
-            if (options.Count == 0 && fallbacks.Count == 0)
-                issues.Add($"field '{field.Id}': with {when}, no packing is an option. Add one, or declare "
-                         + "a packing with no condition to fall back on.");
+            if (options.Count == 0 && fallbacks.Count == 0 && !Forbidden(scope, evaluator))
+                issues.Add($"field '{field.Id}': with {when}, no packing is an option. Add one, declare a "
+                         + "packing with no condition to fall back on, or say that this combination may "
+                         + "never happen — a rule that excludes it is a document meaning it, and nothing "
+                         + "otherwise separates that from having forgotten the case.");
         }
     }
+
+    /// <summary>
+    /// Whether the document says this combination may never happen.
+    ///
+    /// <para>
+    /// Leaving a world with no packing is either a case somebody forgot or a case the protocol calls
+    /// malformed, and those need to look different or the check is worthless in one direction and wrong in
+    /// the other. A rule saying the two may never combine is a document <i>meaning</i> it — and it carries
+    /// the reason, which the absence of a packing never could.
+    /// </para>
+    ///
+    /// <para>
+    /// Only rules answerable from presence alone are consulted. One that also reads a field is about this
+    /// message rather than about which combinations exist, and has no answer in a hypothetical world.
+    /// </para>
+    /// </summary>
+    private bool Forbidden(EvalScope world, Evaluator evaluator)
+        => Rules.OfType<Rule.Excludes>()
+                .Where(r => r.Expressions.All(
+                    e => Vocabulary.RootsOf(e).All(root => root == Vocabulary.Present)))
+                .Any(r => evaluator.Eval(r.One, world) is ProtoValue.Bool { Value: true }
+                       && evaluator.Eval(r.Other, world) is ProtoValue.Bool { Value: true });
 
     /// <summary>
     /// Distinctness, checked against the set it is really about.

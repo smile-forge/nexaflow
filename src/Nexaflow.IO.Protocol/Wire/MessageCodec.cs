@@ -223,7 +223,8 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             foreach (var (name, value) in _bindings[0])
                 if (!byField.ContainsKey(name)) byField[name] = EvalScope.Record(("value", value));
 
-            return new EvalScope().Set("fields", new ProtoValue.Rec(byField));
+            return new EvalScope().Set("fields", new ProtoValue.Rec(byField))
+                                  .Set(Vocabulary.Present, Presence);
         }
 
         public ProtoValue Eval(Expr expression, params (string Root, ProtoValue Value)[] extra)
@@ -955,7 +956,8 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         // Checked before a single octet is produced. A rule that only ran on the way in would let the
         // engine emit a message it would itself refuse to read.
         var evaluator = new Evaluator(_converters);
-        Enforce(new EvalScope().Set("fields", new ProtoValue.Rec(NamedValues(settled))), evaluator);
+        Enforce(new EvalScope().Set("fields", new ProtoValue.Rec(NamedValues(settled)))
+                               .Set(Vocabulary.Present, encoder.Presence(_message)), evaluator);
 
         // And once per structure, for the rules written about one. On the way in these run as each field
         // binds, because an illegal value derails the read and a diagnostic about where it ended up is no
@@ -1315,6 +1317,32 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         /// </summary>
         public readonly Dictionary<Occurrence, HashSet<string>> Arrived = [];
 
+        /// <summary>
+        /// Records which optional parts a run will carry, from the value that says what is in it.
+        ///
+        /// <para>
+        /// At the value rather than at the layout, and the difference is not cosmetic: a packing elsewhere
+        /// asks whether a part turned up in order to <i>decide what shape it is</i>, which happens before
+        /// anything has been placed. Recorded a step later, that question was answered "no" for every part
+        /// and the wrong packing was chosen — invisibly, while the two packings happened to write the same
+        /// octets, and plainly the moment they did not.
+        /// </para>
+        /// </summary>
+        private ProtoValue Announce(Field field, Pattern.Assorted assorted, Occurrence id, ProtoValue value)
+        {
+            HashSet<string> came = new(StringComparer.Ordinal);
+
+            foreach (var item in value is ProtoValue.List list ? list.Items : [])
+                if (item is ProtoValue.Rec rec
+                    && rec.Members.TryGetValue(Pattern.Assorted.Which, out var which) && !which.IsNull
+                    && assorted.Sorts.FirstOrDefault(
+                           s => string.Equals(s.Name, which.AsText(), StringComparison.Ordinal)) is { } sort)
+                    foreach (var part in codec.Inside(sort)) came.Add(part.Id);
+
+            Arrived[id] = came;
+            return value;
+        }
+
         /// <summary>Every optional part known to be present, across every assortment settled so far.</summary>
         public ProtoValue Presence(MessageDef message)
         {
@@ -1660,9 +1688,6 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                                     children.Add(Fixed(frame.Of(part), part, assumed.Value,
                                                        Follows.Start, width: 0));
 
-                        Arrived[nodeId] = [.. assorted.Sorts.Where(s => once.Contains(s)).SelectMany(codec.Inside)
-                                                            .Select(p => p.Id)];
-
                         Components[nodeId] = built;
                         componentExtents = extents;
                         return new FacetResult(list.Items.Count, children);
@@ -1686,7 +1711,8 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
                         Settle = (f, inputs) => f switch
                         {
-                            Facet.Value => FacetResult.Of(listed = codec.Evaluate(field, frame, evaluator, inputs, Presence(codec._message))),
+                            Facet.Value => FacetResult.Of(listed = Announce(field, assorted, nodeId,
+                                codec.Evaluate(field, frame, evaluator, inputs, Presence(codec._message)))),
                             Facet.Realised => Expand(),
                             Facet.Extent => FacetResult.Of(Sum(componentExtents!, inputs)),
                             Facet.Position => FacetResult.Of(after.At(inputs)),

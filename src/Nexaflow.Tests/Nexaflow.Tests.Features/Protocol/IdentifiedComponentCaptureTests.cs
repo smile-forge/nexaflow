@@ -327,6 +327,263 @@ public class IdentifiedComponentCaptureTests
         })],
     };
 
+    // ── Chunked ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// One chunk: a size in hexadecimal, that many octets, and a newline after each.
+    ///
+    /// <para>
+    /// The size is written from the data's extent and the data is sized by the size, which is the ordinary
+    /// two-ended relationship — except that each instance has its own, so it only works because a chain's
+    /// instances get their own names. Instance two's <c>chunkData</c> is its own.
+    /// </para>
+    /// </summary>
+    private static Field Chunk() => new()
+    {
+        Id = "chunk",
+        Pattern = new Pattern.Group(
+        [
+            new Field
+            {
+                Id = "chunkSize",
+                Pattern = Pattern.Opaque.Before(LineEnd),
+                Value = Expr.Parse("fields.chunkData.extent |> hexadecimal()"),
+                Via = "unascii",
+            },
+            Literal("chunkSizeEnd", "\r\n"),
+            new Field
+            {
+                Id = "chunkData",
+                Pattern = Pattern.Opaque.Measured(Expr.Parse("fields.chunkSize.value |> unhexadecimal()")),
+                Value = Expr.Parse("item.chunkData"),
+                Via = "unascii",
+            },
+            Literal("chunkDataEnd", "\r\n"),
+        ]),
+    };
+
+    /// <summary>
+    /// The trailer block, which is the header block again and is <b>declared again</b>.
+    ///
+    /// <para>
+    /// Not a reuse. One declaration appearing in two places would be one node with two parents, and every
+    /// question about it — where does it sit, which of its appearances does this edge mean — would need an
+    /// answer the graph does not have. It is a handful of extra nodes to say it twice, and the copy is in
+    /// the document rather than in the engine.
+    /// </para>
+    /// </summary>
+    private static Field Trailers() => new()
+    {
+        Id = "trailers",
+        Value = Expr.Parse("inputs.trailers"),
+        Pattern = new Pattern.Assorted(
+            new Field
+            {
+                Id = "trailerName",
+                Pattern = Pattern.Opaque.Before(": "),
+                Via = "unascii",
+                Holds = Held.Folding,
+            },
+            [Arm.Otherwise("trailer",
+                [
+                    Literal("trailerColon", ": "),
+                    Line("trailerValue", "item.trailerValue"),
+                    Literal("trailerEnd", "\r\n"),
+                ], repeats: true)],
+            Expr.Parse("room > 0 && peek != 0x0d")),
+    };
+
+    /// <summary>
+    /// The framing rule as RFC 9112 §6.1 states it, implemented rather than half implemented.
+    ///
+    /// <para>
+    /// Three packings, none of them chosen by anything on the wire, and both parts they turn on named in
+    /// every condition — so the four combinations are enumerated at document time and exactly one packing
+    /// applies in three of them. The fourth, where both arrived, is the one the specification calls
+    /// malformed, and it is covered by nothing on purpose.
+    /// </para>
+    /// </summary>
+    private static MessageDef Chunkable()
+    {
+        var answer = Answer();
+        var headers = (Pattern.Assorted)answer.Fields.Single(f => f.Id == "headers").Pattern;
+
+        return answer with
+        {
+            Id = "chunkable",
+            Context = Context.Given.These("version", "code", "reason", "server", "headers", "body",
+                                          "chunks", "trailers"),
+
+            // Not an oversight that no packing covers the fourth combination — a statement, with the
+            // reason attached. Leaving a world uncovered and meaning it looks exactly like leaving one
+            // uncovered by mistake, so the document has to be able to tell them apart, and only a rule can
+            // carry the why.
+            Rules =
+            [
+                new Rule.Excludes
+                {
+                    Within = answer.Root,
+                    One = Expr.Parse("present.contentLengthValue"),
+                    Other = Expr.Parse("present.chunkedValue"),
+                    Because = "RFC 9112 §6.1: a message carrying both a length and a transfer coding is "
+                            + "malformed, because two things claim to say where the body ends and a "
+                            + "receiver that believes the wrong one reads the next message out of this "
+                            + "one's body.",
+                },
+            ],
+            Fields = [.. Answer().Fields.Select(f => f.Id switch
+            {
+                "headers" => new Field
+                {
+                    Id = "headers",
+                    Value = Expr.Parse("inputs.headers"),
+                    Pattern = headers with
+                    {
+                        Sorts = [.. headers.Sorts, Arm.On("chunked", ProtoValue.Of("Transfer-Encoding"),
+                            HeaderLine("chunked", "'chunked'"))],
+                    },
+                },
+
+                "body" => new Field
+                {
+                    Id = "body",
+                    Value = Expr.Parse("inputs.body"),
+                    Pattern = new Pattern.Choice(null,
+                    [
+                        Arm.While("counted",
+                            Expr.Parse("present.contentLengthValue && !present.chunkedValue"),
+                            [new Field
+                            {
+                                Id = "countedBody",
+                                Pattern = Pattern.Opaque.Measured(
+                                    Expr.Parse("fields.contentLengthValue.value |> undecimal()")),
+                                Value = Expr.Parse("inputs.body"),
+                                Via = "unascii",
+                            }]),
+
+                        // Where the shapes have to compose: a run of counted spans, terminated by a size
+                        // of zero, followed by the header block all over again.
+                        Arm.While("inChunks",
+                            Expr.Parse("!present.contentLengthValue && present.chunkedValue"),
+                            [
+                                new Field
+                                {
+                                    Id = "chunks",
+                                    Value = Expr.Parse("inputs.chunks"),
+
+                                    // Another follows while the next size does not begin with a zero — and
+                                    // that is only a sound test because the size is written in its shortest
+                                    // form, which the converter guarantees and the document did not have to.
+                                    Pattern = new Pattern.Chain(Chunk(), Expr.Parse("room > 0 && peek != 0x30")),
+                                },
+                                Literal("lastChunkSize", "0"),
+                                Literal("lastChunkEnd", "\r\n"),
+                                Trailers(),
+                                Literal("afterTrailers", "\r\n"),
+                            ]),
+
+                        Arm.While("toClose",
+                            Expr.Parse("!present.contentLengthValue && !present.chunkedValue"),
+                            [new Field
+                            {
+                                Id = "restOfIt",
+                                Pattern = Pattern.Opaque.Measured(Expr.Parse("room")),
+                                Value = Expr.Parse("inputs.body"),
+                                Via = "unascii",
+                            }]),
+                    ]),
+                },
+
+                _ => f,
+            })],
+        };
+    }
+
+    private const string Chunks =
+        "HTTP/1.1 200 OK\r\n"
+      + "Server: nginx\r\n"
+      + "Transfer-Encoding: chunked\r\n"
+      + "\r\n"
+      + "c\r\nhello world!\r\n"
+      + "3\r\nbye\r\n"
+      + "0\r\n"
+      + "X-Checksum: 7f\r\n"
+      + "\r\n";
+
+    private static byte[] ChunkOctets => [.. Chunks.Select(c => (byte)c)];
+
+    [TestMethod]
+    public void The_chunked_document_validates_and_covers_every_combination()
+    {
+        var issues = new MessageCodec(Chunkable()).Validate();
+        Assert.AreEqual(0, issues.Count, string.Join("\n", issues));
+    }
+
+    [TestMethod]
+    public void A_chunked_body_reads_as_its_pieces_and_its_trailers()
+    {
+        var decoded = new MessageCodec(Chunkable()).Decode(ChunkOctets);
+
+        Assert.AreEqual("inChunks", decoded["body"].AsText());
+
+        CollectionAssert.AreEqual(new[] { "hello world!", "bye" },
+            decoded["chunks"].AsList()
+                .Select(c => ((ProtoValue.Rec)c).Members["chunkData"].AsText()).ToArray());
+
+        var trailer = (ProtoValue.Rec)decoded["trailers"].AsList().Single();
+        Assert.AreEqual("X-Checksum", trailer.Members["trailerName"].AsText());
+        Assert.AreEqual("7f", trailer.Members["trailerValue"].AsText());
+    }
+
+    [TestMethod]
+    public void A_chunked_body_round_trips()
+    {
+        // The composition claim, tested end to end: a counted span inside a repeated structure inside a
+        // conditioned packing, followed by a second assortment, all of it byte-exact.
+        var codec = new MessageCodec(Chunkable());
+        var decoded = codec.Decode(ChunkOctets);
+
+        var again = codec.Encode(new EvalScope().Set("inputs", EvalScope.Record(
+            ("version", decoded["version"]), ("code", decoded["code"]), ("reason", decoded["reason"]),
+            ("server", decoded["serverValue"]), ("body", ProtoValue.Of("")),
+            ("headers", decoded["headers"]),
+            ("chunks", decoded["chunks"]),
+            ("trailers", decoded["trailers"]))));
+
+        CollectionAssert.AreEqual(ChunkOctets, again);
+    }
+
+    [TestMethod]
+    public void Choosing_the_packing_needs_presence_before_anything_is_laid_out()
+    {
+        // A regression, and it hid: presence on the way out was recorded when the header block was laid
+        // out, and a packing asks about it in order to decide what shape it is, which is earlier. Every
+        // part read as absent, `toClose` was selected instead of `counted` — and the two wrote the same
+        // twelve octets, so the capture still matched. Chunked is where they stopped matching.
+        var codec = new MessageCodec(Chunkable());
+
+        Assert.AreEqual("counted", codec.Decode(codec.Encode(new EvalScope().Set("inputs", EvalScope.Record(
+            ("version", ProtoValue.Of("HTTP/1.1")), ("code", ProtoValue.Of("200")),
+            ("reason", ProtoValue.Of("OK")), ("server", ProtoValue.Of("nginx")),
+            ("body", ProtoValue.Of("hello world!")),
+            ("chunks", new ProtoValue.List([])), ("trailers", new ProtoValue.List([])),
+            ("headers", new ProtoValue.List([Component("server"), Component("contentLength")]))))))
+            ["body"].AsText());
+    }
+
+    [TestMethod]
+    public void A_length_and_a_coding_together_is_refused()
+    {
+        // RFC 9112 §6.1 calls it malformed. Nothing in the document says so — it falls out, because the
+        // conditions leave that combination uncovered and the engine will not guess.
+        var both = Chunks.Replace("Server: nginx\r\n", "Server: nginx\r\nContent-Length: 15\r\n");
+
+        var ex = Assert.ThrowsExactly<ProtoTypeException>(
+            () => new MessageCodec(Chunkable()).Decode([.. both.Select(c => (byte)c)]));
+
+        StringAssert.Contains(ex.Message, "no packing is an option");
+    }
+
     [TestMethod]
     public void Framing_turns_on_which_headers_arrived_and_the_cover_is_proved()
     {
