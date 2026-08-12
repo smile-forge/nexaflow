@@ -16,7 +16,10 @@ public readonly record struct ValueRange(ProtoValue From, ProtoValue To)
 
     public bool Admits(ProtoValue value)
     {
-        if (Equals(From, To)) return Equals(From, value);
+        // Through the value's own kind, so a part the document declared case-insensitive is admitted that
+        // way here too. Otherwise the rule would have to be remembered at every site that compares, and it
+        // would be remembered at some of them.
+        if (Equals(From, To)) return ProtoValue.Alike(From, value);
 
         // A run only means anything over something ordered. Anything else is a set of exact values.
         if (From is not ProtoValue.Int low || To is not ProtoValue.Int high || value is not ProtoValue.Int v)

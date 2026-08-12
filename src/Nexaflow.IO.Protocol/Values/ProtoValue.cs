@@ -34,6 +34,31 @@ public abstract record ProtoValue
     public sealed record Bool(bool Value) : ProtoValue;
 
     public sealed record Text(string Value) : ProtoValue;
+
+    /// <summary>
+    /// Text where the spelling is carried and the casing is not part of what it says.
+    ///
+    /// <para>
+    /// A separate kind rather than a comparison rule kept somewhere, because that is what it actually is: a
+    /// header name, a DNS label and a scheme are case-insensitive strings, and a SIP method and a MIME
+    /// boundary are not. Which of the two a part holds is a fact about the part, so the graph declares it
+    /// and everything that compares values gets it for free — an arm's key, a set's membership, a
+    /// distinctness rule, an ordinary <c>==</c>. A rule remembered at each of those sites would be
+    /// remembered at three of them.
+    /// </para>
+    ///
+    /// <para>
+    /// The original spelling is kept, and that matters: two encodings of one message are still two
+    /// encodings. What arrived is what goes back out.
+    /// </para>
+    /// </summary>
+    public sealed record Caseless(string Value) : ProtoValue
+    {
+        public bool Equals(Caseless? other)
+            => other is not null && string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+        public override int GetHashCode() => Value.ToLowerInvariant().GetHashCode(StringComparison.Ordinal);
+    }
     public sealed record Instant(DateTimeOffset Value) : ProtoValue;
     public sealed record Duration(TimeSpan Value) : ProtoValue;
 
@@ -74,12 +99,27 @@ public abstract record ProtoValue
 
     public bool IsNull => this is Null;
 
+    /// <summary>
+    /// Whether two values are the same thing, letting either side's kind decide what same means.
+    ///
+    /// <para>
+    /// One side is enough. A part declared case-insensitive is compared that way even against a key or a
+    /// set member written as ordinary text, because the part is what the specification made a statement
+    /// about — the other side is just how somebody spelled it in a document.
+    /// </para>
+    /// </summary>
+    public static bool Alike(ProtoValue? one, ProtoValue? other)
+        => one is Caseless or Text && other is Caseless or Text && (one is Caseless || other is Caseless)
+            ? string.Equals(one.AsText(), other.AsText(), StringComparison.OrdinalIgnoreCase)
+            : Equals(one, other);
+
     /// <summary>Short kind name, used verbatim in validator and runtime messages so a type error reads
     /// "expects Bytes, got Int" rather than naming a CLR type the document author never wrote.</summary>
     public string Kind => this switch
     {
         Bytes => "Bytes", Int => "Int", Num => "Number", Bool => "Bool", Text => "Text",
-        Instant => "Instant", Duration => "Duration", List => "List", Rec => "Record",
+        Caseless => "Caseless text", Instant => "Instant", Duration => "Duration",
+        List => "List", Rec => "Record",
         _ => "Null",
     };
 
@@ -116,6 +156,7 @@ public abstract record ProtoValue
     public string AsText() => this switch
     {
         Text t => t.Value,
+        Caseless c => c.Value,
         Int i => i.Value.ToString(CultureInfo.InvariantCulture),
         Num n => n.Value.ToString(CultureInfo.InvariantCulture),
         Bool b => b.Value ? "true" : "false",
@@ -146,6 +187,7 @@ public abstract record ProtoValue
         Num n => n.Value.ToString("R", CultureInfo.InvariantCulture),
         Bool b => b.Value ? "true" : "false",
         Text t => t.Value,
+        Caseless c => c.Value,
         Instant t => t.Value.ToString("O"),
         Duration d => d.Value.ToString(),
         List l => "[" + string.Join(", ", l.Items) + "]",

@@ -596,6 +596,34 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     /// what made "the legal values are…" unable to say either.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// A value in the one case its part may be written in.
+    ///
+    /// <para>
+    /// Refused rather than corrected, and refused in both directions. Folding it instead would accept a
+    /// message the specification calls malformed and pass it on looking well formed, which is the whole
+    /// thing the rule was written to stop; and an engine that will not read what it would happily write
+    /// holds two opinions. Same shape as the minimality checks, for the same reason: one legal encoding of
+    /// a value, and the others are not alternatives.
+    /// </para>
+    /// </summary>
+    private static void Spelled(Field field, ProtoValue value)
+    {
+        if (field.Holds is not Held.OneCase required || value is not (ProtoValue.Text or ProtoValue.Caseless))
+            return;
+
+        string text = value.AsText();
+
+        string only = required.Only == Casing.Lower ? text.ToLowerInvariant() : text.ToUpperInvariant();
+
+        if (string.Equals(text, only, StringComparison.Ordinal)) return;
+
+        throw new ProtoTypeException(
+            $"'{field.Id}' is {text}, and this protocol writes it in "
+          + $"{required.Only.ToString().ToLowerInvariant()} case — {only}. That is not a spelling it "
+          + "prefers: a value in any other case is malformed, so it is refused rather than corrected.");
+    }
+
     private void Belongs(Field field, ProtoValue value)
     {
         if (_message.DrawnFrom(field) is not { } edge) return;
@@ -616,6 +644,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
     private void Confine(Field field, ProtoValue value)
     {
+        Spelled(field, value);
         Belongs(field, value);
 
         foreach (var rule in _message.RulesOn(field).OfType<Rule.Domain>())
@@ -1606,8 +1635,8 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                             // picks this kind, which is why writing one by hand is refused. The unknown
                             // kind has no key, so its token comes back from what was read.
                             children.Add(Fixed(component.Of(assorted.Token), assorted.Token,
-                                               codec.Offer(field, sort).Key
-                                               ?? Tokened(field, assorted, list.Items[i], i), within));
+                                               Announced(field, assorted, codec.Offer(field, sort).Key,
+                                                         list.Items[i], i), within));
                             extents.Add(new FacetRef(component.Of(assorted.Token), Facet.Extent));
                             within = Follows.After(component.Of(assorted.Token));
 
@@ -1835,16 +1864,43 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                  + $"assortment offers. Declared: {string.Join(", ", assorted.Sorts.Select(s => s.Name))}");
     }
 
-    /// <summary>The token an unknown component announced itself with, which nothing but the component
-    /// itself can supply — the declaration has no key for the kind it never heard of.</summary>
-    private static ProtoValue Tokened(Field field, Pattern.Assorted assorted, ProtoValue item, int at)
-        => item is ProtoValue.Rec rec
-           && rec.Members.TryGetValue(assorted.Token.CaptureName, out var token) && !token.IsNull
+    /// <summary>
+    /// What a component announces itself with on the way out.
+    ///
+    /// <para>
+    /// What arrived, where there is one, and the declared key otherwise. That order matters as soon as a
+    /// token is compared loosely: a header name is case-insensitive, so <c>content-length</c> and
+    /// <c>Content-Length</c> are the same header — and writing the declared spelling back would still be a
+    /// different message than the one that came in. Two encodings of one message are two encodings.
+    /// </para>
+    ///
+    /// <para>
+    /// It is checked against the key rather than trusted, because a component claiming one kind and
+    /// announcing another would be written as neither.
+    /// </para>
+    /// </summary>
+    private static ProtoValue Announced(Field field, Pattern.Assorted assorted, ProtoValue? key,
+                                        ProtoValue item, int at)
+    {
+        var arrived = item is ProtoValue.Rec rec
+                   && rec.Members.TryGetValue(assorted.Token.CaptureName, out var token) && !token.IsNull
             ? token
+            : null;
+
+        if (key is null)
+            return arrived ?? throw new ProtoTypeException(
+                $"field '{field.Id}': component {at} is of the kind this document does not know, so "
+              + $"nothing says what its '{assorted.Token.Id}' should be. It has to carry the one it "
+              + "arrived with, or a component that was merely unrecognised comes back as a different one.");
+
+        if (arrived is null) return key;
+
+        return ProtoValue.Alike(arrived, key)
+            ? arrived
             : throw new ProtoTypeException(
-                  $"field '{field.Id}': component {at} is of the kind this document does not know, so "
-                + $"nothing says what its '{assorted.Token.Id}' should be. It has to carry the one it "
-                + "arrived with, or a component that was merely unrecognised comes back as a different one.");
+                  $"field '{field.Id}': component {at} says it is the kind announced by {key}, and carries "
+                + $"the '{assorted.Token.Id}' {arrived}. One of those would have to be ignored.");
+    }
 
     /// <summary>The offer that selects one kind. Read from the edge, because that is where the key is.</summary>
     private Offers Offer(Field field, Arm sort)
@@ -2128,6 +2184,11 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     {
         if (forward)
         {
+            // Furthest of all from the wire, so it comes off first: what the octets carry is a spelling,
+            // and the kind is only about how two of them compare.
+            if (field.Folded is not null && value is ProtoValue.Caseless caseless)
+                value = ProtoValue.Of(caseless.Value);
+
             if (field.Through is { } transform) value = transform.Apply(value, evaluator: new Evaluator(_converters));
             return Through(value, field.Via, forward: true, field.Id);
         }
@@ -2144,7 +2205,9 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             value = inverse.Undo(value, evaluator: new Evaluator(_converters));
         }
 
-        return value;
+        return field.Folded is not null && value is ProtoValue.Text text
+            ? new ProtoValue.Caseless(text.Value)
+            : value;
     }
 
     private ProtoValue Through(ProtoValue value, Conversion? via, bool forward, string fieldId)

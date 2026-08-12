@@ -97,7 +97,18 @@ public class IdentifiedComponentCaptureTests
         Pattern = new Pattern.Assorted(
             // No value of its own: what gets written here is the key of whichever kind was selected. A
             // document that also wrote it by hand would have said the same thing twice.
-            new Field { Id = "headerName", Pattern = Pattern.Opaque.Before(": "), Via = "unascii" },
+            new Field
+            {
+                Id = "headerName",
+                Pattern = Pattern.Opaque.Before(": "),
+                Via = "unascii",
+
+                // Not a matching flag and not a converter — a statement about what this part holds. A
+                // converter would fold the value on its way to the wire and a header would go out spelled
+                // differently than it came in; a matching flag would have to be remembered at the arm keys,
+                // at set membership, at a distinctness rule and at every comparison in a condition.
+                Holds = Held.Folding,
+            },
             [
                 Arm.On("server", ProtoValue.Of("Server"),
                     HeaderLine("server", "inputs.server")),
@@ -444,6 +455,142 @@ public class IdentifiedComponentCaptureTests
         Assert.IsTrue(issues.Any(i => i.Contains("2 packings are options at once")), string.Join("\n", issues));
         Assert.IsTrue(issues.Any(i => i.Contains("no contentLengthValue and no serverValue")),
             string.Join("\n", issues));
+    }
+
+    // ── What kind of thing a part holds ───────────────────────────────────────
+
+    /// <summary>
+    /// A header name is a case-insensitive string, and saying so is a declaration about the part.
+    ///
+    /// <para>
+    /// Before it was said, <c>content-length:</c> fell to the unknown-header packing, the body lost its
+    /// length, and nothing about the failure mentioned casing. It could not be fixed with a converter —
+    /// folding the value would fold what gets written, so a header would go out spelled differently than
+    /// it came in — nor with a flag on the matcher, which would then have to be remembered at set
+    /// membership, at distinctness and at every comparison in a condition. Said once about the part, every
+    /// site that compares gets it.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    public void A_header_name_in_any_case_is_the_same_header()
+    {
+        var shouted = Capture.Replace("Content-Length:", "content-LENGTH:")
+                             .Replace("Set-Cookie: a=1", "SET-COOKIE: a=1");
+
+        var decoded = new MessageCodec(Answer()).Decode([.. shouted.Select(c => (byte)c)]);
+
+        Assert.AreEqual("hello world!", decoded["body"].AsText());
+
+        CollectionAssert.AreEqual(
+            new[] { "server", "setCookie", "contentLength", "setCookie", "other" },
+            decoded["headers"].AsList()
+                .Select(c => ((ProtoValue.Rec)c).Members["sort"].AsText()).ToArray());
+    }
+
+    [TestMethod]
+    public void And_it_goes_back_out_spelled_the_way_it_came_in()
+    {
+        // The consequence of matching loosely, and it has to be got right or the engine quietly rewrites
+        // messages. Two encodings of one message are still two encodings — so what arrived is what is
+        // written, and the declared spelling is only used when nothing arrived to keep.
+        var shouted = Capture.Replace("Content-Length:", "content-LENGTH:");
+        var octets = (byte[])[.. shouted.Select(c => (byte)c)];
+
+        var codec = new MessageCodec(Answer());
+        var decoded = codec.Decode(octets);
+
+        var again = codec.Encode(new EvalScope().Set("inputs", EvalScope.Record(
+            ("version", decoded["version"]), ("code", decoded["code"]), ("reason", decoded["reason"]),
+            ("server", decoded["serverValue"]), ("body", decoded["body"]),
+            ("headers", decoded["headers"]))));
+
+        CollectionAssert.AreEqual(octets, again);
+    }
+
+    /// <summary>
+    /// The near-miss: a protocol that requires one case is <b>not</b> a case-insensitive one with a
+    /// preference.
+    ///
+    /// <para>
+    /// HTTP/2 folds nothing — it requires field names in lower case and says an upper-case one must be
+    /// treated as malformed. Modelling that as "insensitive, written lower" would accept the malformed
+    /// message and quietly correct it, which is precisely what the rule exists to prevent. So it is a
+    /// canonicality rule and behaves like the others in this engine: one legal encoding, anything else
+    /// refused, and refused in both directions — an engine that will not read what it would happily write
+    /// holds two opinions.
+    /// </para>
+    /// </summary>
+    private static MessageDef Strict()
+    {
+        var headers = (Pattern.Assorted)Answer().Fields.Single(f => f.Id == "headers").Pattern;
+
+        return Answer() with
+        {
+            Id = "strict",
+            Fields = [.. Answer().Fields.Select(f => f.Id != "headers" ? f : new Field
+            {
+                Id = "headers",
+                Value = Expr.Parse("inputs.headers"),
+                Pattern = headers with
+                {
+                    Token = new Field
+                    {
+                        Id = "headerName",
+                        Pattern = Pattern.Opaque.Before(": "),
+                        Via = "unascii",
+                        Holds = Held.Cased(Casing.Lower),
+                    },
+                    Sorts =
+                    [
+                        Arm.On("server", ProtoValue.Of("server"), HeaderLine("server", "inputs.server")),
+                        Arm.On("contentLength", ProtoValue.Of("content-length"),
+                            HeaderLine("contentLength", "fields.body.extent |> decimal()")),
+                        Arm.On("setCookie", ProtoValue.Of("set-cookie"),
+                            HeaderLine("setCookie", "item.setCookieValue"), repeats: true),
+                        Arm.Otherwise("other", HeaderLine("other", "item.otherValue"), repeats: true),
+                    ],
+                },
+            })],
+        };
+    }
+
+    [TestMethod]
+    public void A_protocol_that_requires_one_case_refuses_the_other_rather_than_correcting_it()
+    {
+        var lowered = Capture.Replace("Server:", "server:").Replace("Set-Cookie:", "set-cookie:")
+                             .Replace("Content-Length:", "content-length:").Replace("X-Trace:", "x-trace:");
+
+        // Conforming: read without complaint.
+        Assert.AreEqual("hello world!",
+            new MessageCodec(Strict()).Decode([.. lowered.Select(c => (byte)c)])["body"].AsText());
+
+        // Not conforming: refused, and named as malformed rather than tidied on the way past.
+        var shouted = lowered.Replace("x-trace:", "X-Trace:");
+
+        var ex = Assert.ThrowsExactly<ProtoTypeException>(
+            () => new MessageCodec(Strict()).Decode([.. shouted.Select(c => (byte)c)]));
+
+        StringAssert.Contains(ex.Message, "refused rather than corrected");
+        StringAssert.Contains(ex.Message, "x-trace");
+    }
+
+    [TestMethod]
+    public void And_refuses_to_write_one_it_would_not_read()
+    {
+        // The other half. A caller supplying an upper-case name gets the same answer, because a check that
+        // only ran on the way in would let the engine emit what it would then refuse.
+        var ex = Assert.ThrowsExactly<ProtoTypeException>(
+            () => new MessageCodec(Strict()).Encode(new EvalScope().Set("inputs", EvalScope.Record(
+                ("version", ProtoValue.Of("HTTP/1.1")), ("code", ProtoValue.Of("200")),
+                ("reason", ProtoValue.Of("OK")), ("server", ProtoValue.Of("nginx")),
+                ("body", ProtoValue.Of("")),
+                ("headers", new ProtoValue.List(
+                [
+                    Component("other", ("headerName", ProtoValue.Of("X-Trace")),
+                                       ("otherValue", ProtoValue.Of("zz"))),
+                ]))))));
+
+        StringAssert.Contains(ex.Message, "refused rather than corrected");
     }
 
     // ── What an absent part means ─────────────────────────────────────────────

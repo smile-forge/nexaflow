@@ -117,6 +117,22 @@ public sealed class Field : Node
     /// </summary>
     public Default? Assumed { get; init; }
 
+    /// <summary>
+    /// What kind of thing this part holds, where that changes what comparing two of them means.
+    ///
+    /// <para>
+    /// Not a converter and not a matching rule: a converter would fold the value on its way to the wire and
+    /// a header would go out spelled differently than it came in, and a matching rule would have to be
+    /// remembered at every site that compares — an arm's key, a set's membership, a distinctness rule, an
+    /// ordinary equality in a condition. Saying it once about the part is the only version of this that
+    /// stays true everywhere.
+    /// </para>
+    /// </summary>
+    public Held Holds { get; init; } = Held.AsWritten;
+
+    /// <summary>Set when comparing two of these ignores case.</summary>
+    internal Held.Caseless? Folded => Holds as Held.Caseless;
+
     public string CaptureName => As ?? Id;
 }
 
@@ -509,7 +525,7 @@ public sealed record MessageDef
     {
         var offered = Offered(field);
 
-        var taken = offered.FirstOrDefault(o => !o.IsFallback && Equals(o.Key, key))
+        var taken = offered.FirstOrDefault(o => !o.IsFallback && ProtoValue.Alike(o.Key, key))
                  ?? offered.FirstOrDefault(o => o.IsFallback)
                  ?? throw new ProtoTypeException(
                         $"field '{field.Id}': {Shown(key)} matches no arm, and none is declared as the "
