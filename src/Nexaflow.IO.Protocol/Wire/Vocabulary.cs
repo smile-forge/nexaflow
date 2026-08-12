@@ -110,10 +110,26 @@ public static class Vocabulary
     /// </summary>
     public const string Present = "present";
 
+    /// <summary>
+    /// What earlier messages left behind — <c>kept.&lt;slot&gt;</c>.
+    ///
+    /// <para>
+    /// A move could say what to put in a slot and not what was already in it, so it could set and never
+    /// accumulate. That rules out the whole of reassembly: a message spread over several frames is exactly
+    /// "what is there already, and then this", and there was no way to write the first half of that down.
+    /// </para>
+    ///
+    /// <para>
+    /// It is the value <i>before</i> this move, so several recordings on one transition all see the same
+    /// thing rather than each other's work. A move is one event and its parts do not happen in an order.
+    /// </para>
+    /// </summary>
+    public const string Kept = "kept";
+
     /// <summary>Everything the walk binds. A root outside this set is not vocabulary at all.</summary>
     public static readonly IReadOnlySet<string> All =
         new HashSet<string>(StringComparer.Ordinal)
-            { Fields, Inputs, Item, Previous, Room, Peek, Carried, Ordinal, Position, Present };
+            { Fields, Inputs, Item, Previous, Room, Peek, Carried, Ordinal, Position, Present, Kept };
 
     /// <remarks>
     /// <c>inputs</c> is available at <b>every</b> site, and it used to be banned from the reader's ones
@@ -148,7 +164,7 @@ public static class Vocabulary
         // A move is read against the decoded captures and nothing else. Not even a region's extent: the
         // scope carries values, so `.extent` reads as nothing and every comparison against it is quietly
         // false — which is the failure this table exists for, in the one place it had never reached.
-        [ExprSite.Moving] = [Fields],
+        [ExprSite.Moving] = [Fields, Kept],
     };
 
     public static IReadOnlySet<string> Available(ExprSite site) => Answerable[site];
@@ -192,6 +208,10 @@ public static class Vocabulary
               + "Where the two directions genuinely decide differently, say so: a choice may declare a "
               + "separate encode-side selection, and a length or a continuation is a reader's question "
               + "already",
+
+            Kept =>
+                $"`{root}` is what earlier messages left behind, and {here} is not read against a state — "
+              + "only a move is",
 
             Inputs when site is ExprSite.Moving =>
                 $"`{root}` is a value from outside the message, and {here} is read against what the "

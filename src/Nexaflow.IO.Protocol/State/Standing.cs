@@ -101,7 +101,7 @@ public sealed class Standing(Subject subject, ConverterTable? converters = null)
     public Progress Observe(MessageDef message, DecodeResult decoded, Bearing way)
     {
         var which = Which(message, decoded);
-        var scope = Scope(decoded);
+        var scope = Scope(decoded, which);
 
         List<Transition> possible = [.. Subject.Transitions.Where(
             t => ReferenceEquals(t.On, message) && t.Way == way && Holds(t.When, scope) && Guarded(t, decoded))];
@@ -185,7 +185,7 @@ public sealed class Standing(Subject subject, ConverterTable? converters = null)
     public bool WouldAccept(MessageDef message, DecodeResult decoded, Bearing way)
     {
         var which = Which(message, decoded);
-        var scope = Scope(decoded);
+        var scope = Scope(decoded, which);
 
         return Subject.Transitions.Any(
             t => ReferenceEquals(t.On, message) && t.Way == way && Holds(t.When, scope)
@@ -244,12 +244,22 @@ public sealed class Standing(Subject subject, ConverterTable? converters = null)
           + $"{string.Join(", ", named.Select(f => f.CaptureName))} is in the packing that arrived");
     }
 
-    private static EvalScope Scope(DecodeResult decoded)
+    /// <summary>
+    /// What a move is read against: this message, and what earlier ones left behind.
+    /// </summary>
+    /// <remarks>
+    /// The second half was missing, and with it anything cumulative. A slot could be set from the message
+    /// and never from itself, so "what is there already, and then this" — which is the whole of reassembly
+    /// — could not be written. What is bound is the state <i>before</i> this move, so two recordings on one
+    /// transition see the same thing rather than each other's: a move is one event.
+    /// </remarks>
+    private EvalScope Scope(DecodeResult decoded, ProtoValue which)
     {
         Dictionary<string, ProtoValue> byField = new(StringComparer.Ordinal);
         foreach (var (name, value) in decoded.Captures) byField[name] = EvalScope.Record(("value", value));
 
-        return new EvalScope().Set("fields", new ProtoValue.Rec(byField));
+        return new EvalScope().Set("fields", new ProtoValue.Rec(byField))
+                              .Set(Vocabulary.Kept, Learned(which));
     }
 
     private bool Holds(Expr condition, EvalScope scope)
