@@ -85,6 +85,21 @@ public sealed class ConverterTable
         t.Add("unbase64", ValueKinds.Text, ValueKinds.Bytes, "base64",
             (v, _) => ProtoValue.Of(Convert.FromBase64String(v.AsText())), "base64 to octets");
 
+        // `safe` is REQUIRED, and it is not a formality. Only RFC 3986's unreserved set is universal;
+        // everything past it is the component's business — a request target keeps '/', a query keeps '&'
+        // and '=', a userinfo keeps neither. A converter that decided for itself would escape the very
+        // characters the component is delimited by, and a target would stop reading back as a target.
+        t.Add("percent", ValueKinds.Text, ValueKinds.Bytes, "unpercent",
+            (v, a) => ProtoValue.Of(PercentEncode(
+                v.AsText(), Required(a, 0, "percent", "the characters this component leaves alone").AsText())),
+            "text to percent-encoded octets, over UTF-8. safe: the characters beyond the unreserved set "
+          + "this component does not escape — required, because which ones those are is a property of the "
+          + "component, not of the notion");
+        t.Add("unpercent", ValueKinds.Bytes, ValueKinds.Text, "percent",
+            (v, _) => ProtoValue.Of(PercentDecode(v.AsBytes())),
+            "percent-encoded octets to text; a '%' not followed by two hex digits is an error rather than "
+          + "a literal");
+
         t.Add("mac", ValueKinds.Text, ValueKinds.Bytes, "unmac",
             (v, _) => ProtoValue.Of(ParseHex(v.AsText())),
             "'aa:bb:cc:dd:ee:ff' to 6 octets — Wake-on-LAN's magic packet");
@@ -195,6 +210,24 @@ public sealed class ConverterTable
         t.Add("undecimal", ValueKinds.Text, ValueKinds.Int, "decimal",
             (v, _) => ProtoValue.Of(long.Parse(v.AsText().Trim(), CultureInfo.InvariantCulture)),
             "decimal ASCII to a value");
+
+        // Distinct from `hex`, which is octets to their hexadecimal rendering. This is a NUMBER written in
+        // hexadecimal, which is a different thing and has a different shortest form: 12 is "c" here and
+        // "0c" there, and a chunked body that wrote the second would still parse and would not be the
+        // octets that arrived.
+        t.Add("hexadecimal", ValueKinds.Numeric, ValueKinds.Text, "unhexadecimal",
+            (v, a) =>
+            {
+                var s = v.AsInt().ToString("x", CultureInfo.InvariantCulture);
+                if (a.Count > 0) s = s.PadLeft((int)a[0].AsInt(), '0');
+                return ProtoValue.Of(s);
+            },
+            "value to lower-case hexadecimal ASCII — an HTTP chunk size. Shortest form unless a width is "
+          + "given, and the shortest form is what makes 'no leading zero' usable as a terminator test");
+        t.Add("unhexadecimal", ValueKinds.Text, ValueKinds.Int, "hexadecimal",
+            (v, _) => ProtoValue.Of(long.Parse(v.AsText().Trim(), NumberStyles.HexNumber,
+                                               CultureInfo.InvariantCulture)),
+            "hexadecimal ASCII to a value");
 
         // The bitwise operators are also converters, because the spec writes masking in pipeline form:
         // `capture.fc |> band(0x80) != 0`. Same semantics as the infix spelling, one implementation.
@@ -554,6 +587,66 @@ public sealed class ConverterTable
         if (n % 2 != 0) throw new ProtoTypeException("hex text has an odd number of digits");
         return Convert.FromHexString(buf[..n]);
     }
+
+    /// <summary>
+    /// Percent-encoding, over UTF-8 octets, escaping everything outside the unreserved set except what the
+    /// caller says this component leaves alone.
+    /// </summary>
+    /// <remarks>
+    /// The escapes are written with upper-case digits, which is the canonical form RFC 3986 §2.1 asks
+    /// producers for and the reason the backward law holds for anything this writes. A capture spelling one
+    /// in lower case decodes to the same text and re-encodes upper, so the pair is a quotient — which is
+    /// legitimate and has to be said, because a byte-exact claim over it would otherwise be quietly false.
+    /// </remarks>
+    private static byte[] PercentEncode(string text, string safe)
+    {
+        List<byte> outp = [];
+
+        foreach (var b in StrictUtf8.GetBytes(text))
+            if (Unreserved(b) || (b < 0x80 && safe.Contains((char)b, StringComparison.Ordinal)))
+                outp.Add(b);
+            else
+            {
+                outp.Add((byte)'%');
+                outp.Add(HexDigit(b >> 4));
+                outp.Add(HexDigit(b & 0x0F));
+            }
+
+        return [.. outp];
+    }
+
+    /// <summary>The way back. A truncated escape is an error rather than a literal '%': carrying on past
+    /// one is how a reader and its peer come to disagree about what a value says while both think they
+    /// read it.</summary>
+    private static string PercentDecode(byte[] octets)
+    {
+        List<byte> outp = [];
+
+        for (int i = 0; i < octets.Length; i++)
+        {
+            if (octets[i] != (byte)'%') { outp.Add(octets[i]); continue; }
+
+            if (i + 2 >= octets.Length
+                || !Uri.IsHexDigit((char)octets[i + 1]) || !Uri.IsHexDigit((char)octets[i + 2]))
+                throw new ProtoTypeException(
+                    "a '%' not followed by two hex digits is not percent-encoded text");
+
+            outp.Add((byte)((Uri.FromHex((char)octets[i + 1]) << 4) | Uri.FromHex((char)octets[i + 2])));
+            i += 2;
+        }
+
+        return StrictUtf8.GetString([.. outp]);
+    }
+
+    /// <summary>The one part of the escaping rule that is universal — RFC 3986 §2.3. Everything else is
+    /// the component's own business and arrives as an argument.</summary>
+    private static bool Unreserved(byte b)
+        => b is >= (byte)'A' and <= (byte)'Z'
+             or >= (byte)'a' and <= (byte)'z'
+             or >= (byte)'0' and <= (byte)'9'
+             or (byte)'-' or (byte)'.' or (byte)'_' or (byte)'~';
+
+    private static byte HexDigit(int nibble) => (byte)(nibble < 10 ? '0' + nibble : 'A' + nibble - 10);
 
     /// <summary>Minimal-width unsigned big-endian octets. How zero encodes is the caller's declaration:
     /// some protocols require a single 0x00, others require no octets at all.</summary>
