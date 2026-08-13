@@ -33,10 +33,18 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
     /// <summary>The declaration, reachable from the nested walk.</summary>
     private MessageDef Message => message;
 
-    /// <summary>What this codec can walk so far, and what it refuses rather than half-doing.</summary>
-    public static bool Handles(Field field) => field.Pattern is Pattern.Scalar or Pattern.Bits
-                                                             or Pattern.Opaque
-                                                             or Pattern.Group or Pattern.Chain;
+    /// <summary>
+    /// What this codec can walk, which is a consequence rather than a claim.
+    /// </summary>
+    /// <remarks>
+    /// It used to be a hand-kept list of the arms <see cref="Write"/> happened to have, and it was wrong in
+    /// both directions at once: it named a shape the writer would have thrown on, and it omitted one the
+    /// writer could not have written — so a document with that field <b>encoded silently without it</b>.
+    /// Now a field is one this walks if something can lay its value down, which is the same question the
+    /// writer asks, so the two cannot disagree.
+    /// </remarks>
+    public static bool Handles(Field field)
+        => field.Pattern.Form is not null || field.Pattern is Pattern.Bits or Pattern.Group or Pattern.Chain;
 
     // ── Writing ───────────────────────────────────────────────────────────────
 
@@ -68,7 +76,7 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
         resolver.Add(laying.Reaching(message.Root, previous: null));
         resolver.Resolve();
 
-        var wire = new Emission();
+        var wire = new BitWriter();
 
         foreach (var field in laying.Order)
         {
@@ -226,7 +234,7 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
     {
         if (field.Pattern.StaticWidth is { } declared) return declared;
 
-        var measured = new Emission();
+        var measured = new BitWriter();
         Write(measured, field, appearance.Value);
 
         return measured.Written / 8;
@@ -239,64 +247,6 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
         "position" => Facet.Position,
         _ => Facet.Value,
     };
-
-    /// <summary>
-    /// Octets, built out of bits.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// The engine's unit of emission is a <b>bit</b>, and an octet is what falls out when eight of them
-    /// have gone by. That is not only for bit groups: it is the one thing that makes a field which is not
-    /// a whole number of octets expressible at all, and there are protocols with them. While a group was
-    /// the alignment unit, "these five bits, then those eleven" could be described and not written.
-    /// </para>
-    /// <para>
-    /// A message that ends mid-octet is an error rather than something padded, for the reason padding is
-    /// always an error unless a document asked for it: the octets that go out have to be the ones the
-    /// document accounted for.
-    /// </para>
-    /// </remarks>
-    private sealed class Emission
-    {
-        private readonly List<byte> _octets = [];
-        private long _held;
-        private int _bits;
-
-        /// <summary>How many bits have gone by.</summary>
-        public int Written { get; private set; }
-
-        public void Put(long value, int width)
-        {
-            for (int at = width - 1; at >= 0; at--)
-            {
-                _held = (_held << 1) | ((value >> at) & 1);
-
-                if (++_bits != 8) continue;
-
-                _octets.Add((byte)_held);
-                _held = 0;
-                _bits = 0;
-            }
-
-            Written += width;
-        }
-
-        public void Put(byte[] octets) { foreach (var octet in octets) Put(octet, 8); }
-
-        /// <summary>What has been written since a mark, for a node to hold as its own octets.</summary>
-        public byte[] Since(int mark)
-            => mark % 8 != 0 || Written % 8 != 0
-                ? []
-                : [.. _octets.Skip(mark / 8).Take((Written - mark) / 8)];
-
-        public byte[] Done(string id)
-            => _bits == 0
-                ? [.. _octets]
-                : throw new ProtoTypeException(
-                      $"message '{id}' comes to {Written} bits, which is not a whole number of octets. "
-                    + "What goes out has to be what the document accounted for, so this is an error rather "
-                    + "than something padded.");
-    }
 
     /// <summary>
     /// What a field's value comes to, from the computation the graph hangs off it.
@@ -533,6 +483,14 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
     {
         if (field.Pattern.StaticWidth is { } declared) return declared;
 
+        // A form that delimits itself is asked where it ends, which is the whole of what a continuation
+        // chain, an escaping marker and a marked integer have in common. Going out their extent falls out
+        // of the value; coming in it falls out of the octets — the same fact, reached from the side that
+        // has it, and neither direction derives it twice.
+        if (field.Pattern.Form is { SelfDelimiting: true } form && form.FixedOctets is null
+            && ahead is not null)
+            return form.Take(new BitCursor(ahead), null, How(field)).Bits / 8;
+
         // A span that ends at something: not a shape of its own, but a span with no width followed by a
         // node holding a fixed value. It runs up to where that value starts, and the value is a node it
         // can be told about rather than a byte run copied into its declaration.
@@ -550,29 +508,24 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
         throw new ProtoTypeException($"field '{field.Id}' has no width and nothing computes its extent");
     }
 
-    private void Write(Emission wire, Field field, ProtoValue value)
+    /// <summary>
+    /// Lays a field down: its own form, or the shape it is made of.
+    /// </summary>
+    /// <remarks>
+    /// Two arms, and only one of them is the walk's business. A form is asked to lay one value down and
+    /// nothing here knows which form it got — that is what stops a new encoding being an edit to the
+    /// engine. The shapes are the cases where a field is written out of <i>several</i> values, which no
+    /// form can be handed.
+    /// </remarks>
+    private void Write(BitWriter wire, Field field, ProtoValue value)
     {
+        if (field.Pattern.Form is { } form) { form.Lay(wire, value, How(field)); return; }
+
         switch (field.Pattern)
         {
-            case Pattern.Scalar scalar:
-                wire.Put(scalar.BigEndian
-                    ? value.AsInt()
-                    : Unfixed(Fixed(value.AsInt(), scalar), scalar with { BigEndian = true }),
-                    scalar.Octets * 8);
-                break;
-
-            // On the way out a span is however many octets it was given: what measures it reads that back
-            // as an extent, which is the other half of one declaration rather than a second one.
-            case Pattern.Opaque { Width: var declared }:
-                wire.Put(declared is { } fixedWidth
-                    ? Sized(value.AsBytes(), fixedWidth, field)
-                    : value.AsBytes());
-                break;
-
-            // Run by run, in order, and the octet boundary is wherever it happens to land.
-            // A run of elements: the field's value is the list, and what it may hold is the shape each
-            // item takes. There is no per-item expression and no item to bind — an element definition
-            // says how one is written, and the list says how many.
+            // A run of elements: the field's value is the list, and what it may hold is the shape each item
+            // takes. There is no per-item expression and no item to bind — an element definition says how
+            // one is written, and the list says how many.
             case Pattern.Chain:
             {
                 var shape = Admitted(field);
@@ -582,6 +535,7 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
                 break;
             }
 
+            // Run by run, in order, and the octet boundary is wherever it happens to land.
             case Pattern.Bits bits:
             {
                 var runs = value as ProtoValue.Rec
@@ -601,17 +555,20 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
 
     private ProtoValue Read(Field field, byte[] taken)
     {
-        ProtoValue value = field.Pattern switch
-        {
-            Pattern.Scalar scalar => ProtoValue.Of(Unfixed(taken, scalar)),
-            Pattern.Opaque => ProtoValue.Of(taken),
-            Pattern.Bits bits => Unpacked(bits, taken),
-            Pattern.Chain => Elements(field, taken),
-            _ => throw new ProtoTypeException($"field '{field.Id}' cannot be read by this walk yet"),
-        };
+        ProtoValue value = field.Pattern.Form is { } form
+            ? form.Take(new BitCursor(taken), taken.Length * 8, How(field)).Value
+            : field.Pattern switch
+            {
+                Pattern.Bits bits => Unpacked(bits, taken),
+                Pattern.Chain => Elements(field, taken),
+                _ => throw new ProtoTypeException($"field '{field.Id}' cannot be read by this walk yet"),
+            };
 
         return field.Via is null ? value : Applied(field, value, forward: false);
     }
+
+    /// <summary>What a form may reach for, and whose field it is when something goes wrong.</summary>
+    private Wiring How(Field field) => new(_converters, field.Id);
 
     /// <summary>The fixed value that follows this node, where one does.</summary>
     private ProtoValue? Ends(Field field)
@@ -700,32 +657,6 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
 
         return back.Apply(value, arguments);
     }
-
-    private static byte[] Fixed(long value, Pattern.Scalar scalar)
-    {
-        var octets = new byte[scalar.Octets];
-
-        for (int i = scalar.Octets - 1; i >= 0; i--) { octets[i] = (byte)(value & 0xFF); value >>= 8; }
-
-        return scalar.BigEndian ? octets : [.. octets.Reverse()];
-    }
-
-    private static long Unfixed(byte[] octets, Pattern.Scalar scalar)
-    {
-        long value = 0;
-
-        foreach (var octet in scalar.BigEndian ? octets : octets.Reverse()) value = (value << 8) | octet;
-
-        return scalar.Signed && octets.Length < 8 && (value & (1L << ((octets.Length * 8) - 1))) != 0
-            ? value - (1L << (octets.Length * 8))
-            : value;
-    }
-
-    private static byte[] Sized(byte[] value, int width, Field field)
-        => value.Length == width
-            ? value
-            : throw new ProtoTypeException(
-                  $"field '{field.Id}' is {width} octet(s) and was given {value.Length}");
 
     private static ProtoValue Unpacked(Pattern.Bits bits, byte[] octets)
     {

@@ -536,6 +536,34 @@ public abstract record Pattern
         // simply says so. A few more nodes; no assumption.
     }
 
+    /// <summary>
+    /// How this pattern's value becomes octets, where it has one value rather than a shape.
+    ///
+    /// <para>
+    /// The line this draws is the one a pattern was conflating: <b>a shape is made of other fields, a form
+    /// is made of octets.</b> <see cref="Group"/>, <see cref="Chain"/> and <see cref="Bits"/> are shapes —
+    /// the walk descends into them or writes them out of several values. Everything else is one value laid
+    /// down some way, and which way is a <see cref="WireForm"/> the codec looks up rather than an arm of a
+    /// switch it has to have been given.
+    /// </para>
+    ///
+    /// <para>
+    /// That is why the three value-width encodings are here and not in the codec: a continuation chain, an
+    /// escaping marker and a marked integer are all "an integer whose width comes from its value", which
+    /// is a fact about the encoding and not about the walk. The walk asks a field for its form and never
+    /// learns what kind it got.
+    /// </para>
+    /// </summary>
+    public WireForm? Form => this switch
+    {
+        Scalar s        => new WireForm.Scalar(s.Octets, s.BigEndian, s.Signed),
+        Opaque o        => new WireForm.Opaque(o.Width),
+        Varint v        => new WireForm.Varint(v.Order, v.MaxOctets, v.Minimal),
+        EscapedInline e => new WireForm.EscapedInline(e.InlineLimit, e.MaxOctets, e.Minimal),
+        Prefixed p      => new WireForm.Prefixed(p.Marker, p.Widths, p.Minimal),
+        _               => null,
+    };
+
     /// <summary>Octets this pattern occupies, where that is fixed. Null means it depends on the value —
     /// which is exactly the case the resolver's facet ordering exists to handle.</summary>
     public int? StaticWidth => this switch
