@@ -68,7 +68,7 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
     {
         var run = RunGraph.Begin(message.Graph, supplied);
         var resolver = new Resolver();
-        var laying = new Laying(this, run, reading: false);
+        var laying = new Laying(this, run, source: null);
 
         // One worklist for both. Where the message goes and what is in it are settled by the same
         // machinery, so a fork decided on a field waits for that field exactly as a length waits for the
@@ -108,9 +108,13 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
     /// derived from something later.
     /// </para>
     /// </remarks>
-    private sealed class Laying(GraphCodec codec, RunGraph run, bool reading)
+    private sealed class Laying(GraphCodec codec, RunGraph run, BitCursor? source)
     {
         private readonly Stack<Queue<Node>> _within = new();
+
+        /// <summary>Whether this is reading. The octets being read <i>are</i> the direction — there is no
+        /// second flag that could disagree with whether there is anything to read from.</summary>
+        private bool Reading => source is not null;
 
         /// <summary>The fields reached, in the order the path reached them.</summary>
         public List<Field> Order { get; } = [];
@@ -119,7 +123,16 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
         {
             var appearance = run.For(place);
             var field = place as Field;
-            bool carries = field is not null && Handles(field);
+
+            // One refusal, on the one path both directions take. It used to live in the reading walk only,
+            // so writing a field nothing could lay down produced a message quietly missing it. A place that
+            // is a field is either one this walks or an error — never something to step over.
+            if (field is not null && !Handles(field))
+                throw new ProtoTypeException(
+                    $"field '{field.Id}' is a {field.Pattern.GetType().Name.ToLowerInvariant()}, which "
+                  + "this walk does not handle yet");
+
+            bool carries = field is not null;
 
             List<FacetRef> before = previous is null ? [] : [new FacetRef(run.For(previous), Facet.Realised)];
             before.AddRange(Deciding(place));
@@ -127,7 +140,12 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
             return new ResolutionNode
             {
                 Id = appearance,
-                NotApplicable = carries
+
+                // Going out, a fact is scheduled: extent waits on value, value waits on whatever the
+                // computation asks for, and the order they settle in is not the order they are laid down.
+                // Coming in, there is nothing to schedule — see Intake. So reading declares every facet
+                // settled on sight and does the work as the place is reached.
+                NotApplicable = carries && !Reading
                     ? new HashSet<Facet> { Facet.Present, Facet.Position, Facet.Emitted }
                     : new HashSet<Facet>
                         { Facet.Present, Facet.Extent, Facet.Value, Facet.Position, Facet.Emitted },
@@ -135,9 +153,9 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
                 DependenciesFor = facet => facet switch
                 {
                     Facet.Realised => before,
-                    Facet.Value => carries ? codec.Waits(run, appearance, field!) : [],
+                    Facet.Value => carries && !Reading ? codec.Waits(run, appearance, field!) : [],
 
-                    Facet.Extent => carries && field!.Pattern.StaticWidth is null
+                    Facet.Extent => carries && !Reading && field!.Pattern.StaticWidth is null
                         ? [new FacetRef(appearance, Facet.Value)]
                         : [],
 
@@ -149,7 +167,12 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
                     switch (facet)
                     {
                         case Facet.Realised:
-                            if (carries) Order.Add(field!);
+                            if (carries)
+                            {
+                                Order.Add(field!);
+
+                                if (source is not null) codec.Intake(run, appearance, field!, source);
+                            }
 
                             return Next(place) is { } next
                                 ? FacetResult.Expanding(null, Reaching(next, place))
@@ -174,7 +197,7 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
             if (codec.Message.Graph.From<Then>(place).Count() < 2) return [];
 
             var deciding = codec.Message.Graph.From<Decides>(place)
-                                .FirstOrDefault(d => d.Reading == reading)
+                                .FirstOrDefault(d => d.Reading == Reading)
                         ?? codec.Message.Graph.From<Decides>(place).FirstOrDefault();
 
             return deciding?.To switch
@@ -205,7 +228,7 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
                 _within.Pop();
             }
 
-            return codec.Onward(run, place, reading);
+            return codec.Onward(run, place, Reading);
         }
     }
 
@@ -348,83 +371,81 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
 
     // ── Reading ───────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Reads a message, by the same walk that writes one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Which places are in a message, in what order, and which way a fork goes is <b>one question</b>, and
+    /// it used to be answered twice — a resolver-scheduled walk going out, a recursive generator coming in.
+    /// They shared only the fork logic, they diverged on what to do with a field neither could handle, and
+    /// the divergence was silent in the direction that mattered.
+    /// </para>
+    /// <para>
+    /// What genuinely differs is not the walk but <i>when facts can be had</i>, and the difference is not
+    /// symmetric. Going out, a value can wait on a field that has not been laid down yet, so the facts are
+    /// scheduled. Coming in there is nothing to schedule: you cannot know an extent without being at the
+    /// position, or a value without the extent, and nothing later can inform anything earlier. So reading
+    /// settles all of a field's facets at the moment the walk reaches it — not a shortcut, but the actual
+    /// shape of reading, and the reason forcing the two directions into one facet graph would have been
+    /// inventing a symmetry that is not there.
+    /// </para>
+    /// </remarks>
     public RunGraph Decode(ReadOnlySpan<byte> octets,
                            IReadOnlyDictionary<string, ProtoValue>? supplied = null)
     {
         var run = RunGraph.Begin(message.Graph, supplied);
-        int at = 0;
+        var resolver = new Resolver();
 
-        foreach (var field in Path(run, reading: true))
-        {
-            var appearance = run.For(field);
-            int width = Width(run, appearance, field, octets[at..].ToArray());
-
-            if (at + width > octets.Length)
-                throw new ProtoTypeException(
-                    $"field '{field.Id}' wants {width} octet(s) and {octets.Length - at} remain");
-
-            var taken = octets.Slice(at, width).ToArray();
-
-            appearance.Settle(Facet.Position, at);
-            appearance.Settle(Facet.Extent, width);
-            appearance.Settle(Facet.Emitted, ProtoValue.Of(taken));
-            appearance.Settle(Facet.Value, Read(field, taken));
-
-            at += width;
-        }
+        resolver.Add(new Laying(this, run, new BitCursor(octets.ToArray()))
+                         .Reaching(message.Root, previous: null));
+        resolver.Resolve();
 
         return run;
     }
 
-    // ── The walk ──────────────────────────────────────────────────────────────
-
     /// <summary>
-    /// Where the message goes, decided as it goes.
+    /// Takes one field off the wire: where it starts, how far it runs, and what it says.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// Lazy on purpose. Each field is handed back before the next way on is worked out, so a fork is
-    /// decided against values that have actually settled — which is the whole difference between walking
-    /// the arrangement and linearising it. Nothing is planned ahead; the path is the run.
-    /// </para>
-    /// <para>
-    /// It starts at the message and not at an arrangement, because a message's ways on <i>are</i> its
-    /// arrangements. Choosing between several is the same fork as choosing between packings, one scale up,
-    /// and this code cannot tell which it is doing.
-    /// </para>
+    /// A form that delimits itself answers the extent and the value together, from one read — which is the
+    /// other half of what splitting <see cref="WireForm"/> out bought. It used to be "work out the width"
+    /// and then "read that many octets", two functions of the same marker bits that had to agree by hand
+    /// and scanned the same octets twice.
     /// </remarks>
-    private IEnumerable<Field> Path(RunGraph run, bool reading)
-        => Chain(run, message.Root, reading);
-
-    private IEnumerable<Field> Chain(RunGraph run, Node? place, bool reading)
+    private void Intake(RunGraph run, RunNode appearance, Field field, BitCursor source)
     {
-        while (place is not null)
+        int began = source.At;
+
+        if (field.Pattern.Form is { SelfDelimiting: true } form && form.FixedOctets is null)
         {
-            var members = message.Graph.From<Holds>(place).OrderBy(h => h.Order).ToList();
+            var taken = form.Take(source, null, How(field));
 
-            if (members.Count > 0)
-            {
-                // A container: its members in order, each its own local run of the path. Their ways on
-                // stay inside, so this cannot wander out of the thing it is walking.
-                foreach (var member in members)
-                    foreach (var field in Chain(run, member.To, reading)) yield return field;
-            }
-            else if (place is Field field)
-            {
-                if (!Handles(field))
-                    throw new ProtoTypeException(
-                        $"field '{field.Id}' is a {field.Pattern.GetType().Name.ToLowerInvariant()}, "
-                      + "which this walk does not read yet");
-
-                yield return field;
-            }
-
-            // Anything else — an arrangement, a fork, an empty packing — stands for part of the message
-            // and emits nothing. It is a place, not a thing on the wire.
-
-            place = Onward(run, place, reading);
+            appearance.Settle(Facet.Position, began / 8);
+            appearance.Settle(Facet.Extent, taken.Bits / 8);
+            appearance.Settle(Facet.Emitted, ProtoValue.Of(source.Since(began)));
+            appearance.Settle(Facet.Value, field.Via is null
+                ? taken.Value
+                : Applied(field, taken.Value, forward: false));
+            return;
         }
+
+        int width = Width(run, appearance, field, source.Ahead());
+
+        if (!source.Holds(width * 8))
+            throw new ProtoTypeException(
+                $"field '{field.Id}' wants {width} octet(s) and {source.Remaining / 8} remain");
+
+        var octets = source.Octets(width, How(field));
+
+        appearance.Settle(Facet.Position, began / 8);
+        appearance.Settle(Facet.Extent, width);
+        appearance.Settle(Facet.Emitted, ProtoValue.Of(octets));
+        appearance.Settle(Facet.Value, Read(field, octets));
     }
+
+
+    // ── The walk ──────────────────────────────────────────────────────────────
 
     /// <summary>
     /// The way on from here: the only one, or the one the deciding node picks.

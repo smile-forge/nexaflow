@@ -373,7 +373,7 @@ public sealed class BitCursor(byte[] octets, int at = 0)
         for (int i = 0; i < bits; i++)
         {
             int bit = At + skip + i;
-            value = (value << 1) | ((octets[bit >> 3] >> (7 - (bit & 7))) & 1);
+            value = (value << 1) | (long)((octets[bit >> 3] >> (7 - (bit & 7))) & 1);
         }
 
         return value;
@@ -396,6 +396,27 @@ public sealed class BitCursor(byte[] octets, int at = 0)
         return taken;
     }
 
-    /// <summary>What is left, from here on, where here is octet-aligned.</summary>
-    public byte[] Rest() => Octets(Remaining / 8, new Wiring(ConverterTable.Default, "?"));
+    /// <summary>What was read since a mark, for a node to hold as its own octets. The counterpart of the
+    /// writer's, and the reason a self-delimiting form need not say what it consumed twice.</summary>
+    public byte[] Since(int mark)
+    {
+        if (mark % 8 != 0 || At % 8 != 0) return [];
+
+        var taken = new byte[(At - mark) / 8];
+
+        for (int i = 0; i < taken.Length; i++) taken[i] = octets[(mark / 8) + i];
+
+        return taken;
+    }
+
+    /// <summary>Everything from here on, without moving — for a form that has to look before it commits,
+    /// and for a span that runs up to something it has to find first.</summary>
+    public byte[] Ahead()
+    {
+        var rest = new byte[Remaining / 8];
+
+        for (int i = 0; i < rest.Length; i++) rest[i] = (byte)Peek(8, skip: i * 8);
+
+        return rest;
+    }
 }

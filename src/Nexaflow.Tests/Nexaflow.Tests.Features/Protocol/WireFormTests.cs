@@ -155,6 +155,67 @@ public class WireFormTests
         StringAssert.Contains(refused.Message, "widest");
     }
 
+    // ── One walk, so one answer ───────────────────────────────────────────────
+
+    /// <summary>
+    /// A field neither direction can handle is refused by both, in the same words.
+    /// </summary>
+    /// <remarks>
+    /// There were two walks — a resolver-scheduled one going out, a recursive generator coming in — and
+    /// the refusal lived only in the second. So reading said which field and why, and writing stepped over
+    /// it and returned a short message that looked fine. Now the refusal is on the one path both take, and
+    /// there is no arrangement of the code in which only one of them has it.
+    /// </remarks>
+    [TestMethod]
+    public void Neither_direction_steps_over_a_field_it_cannot_handle()
+    {
+        var beyond = new MessageDef
+        {
+            Id = "beyond",
+            Context = Context.Given.These("edge", "held"),
+            Fields =
+            [
+                new Field { Id = "before", Pattern = new Pattern.Scalar(1, true), Value = Expr.Parse("inputs.edge") },
+                new Field
+                {
+                    Id = "middle",
+                    Pattern = new Pattern.Assorted(
+                        new Field { Id = "tag", Pattern = new Pattern.Scalar(1, true) },
+                        [new Arm("one", 1, [])],
+                        Expr.Parse("true")),
+                },
+            ],
+        };
+
+        var writing = Assert.ThrowsExactly<ProtoTypeException>(
+            () => new GraphCodec(beyond).Encode(new Dictionary<string, ProtoValue>
+                { ["edge"] = ProtoValue.Of(1L), ["held"] = ProtoValue.Of(1L) }));
+
+        var reading = Assert.ThrowsExactly<ProtoTypeException>(
+            () => new GraphCodec(beyond).Decode(new byte[] { 0xAA, 0x01 }));
+
+        Assert.AreEqual(writing.Message, reading.Message, "one walk, so one answer");
+        StringAssert.Contains(writing.Message, "middle");
+    }
+
+    [TestMethod]
+    public void Reading_settles_every_facet_of_a_field_as_the_walk_reaches_it()
+    {
+        // The asymmetry worth keeping rather than designing away: going out, a value can wait on a field
+        // not laid down yet, so the facts are scheduled. Coming in nothing later can inform anything
+        // earlier, so they all fall out of one read.
+        var message = Around(new Pattern.Varint(GroupOrder.LeastSignificantFirst, 5));
+        var run = new GraphCodec(message).Decode(Encode(message, 300));
+        var middle = run.Nodes.Single(n => n.Of is Field { Id: "middle" });
+
+        foreach (var facet in new[] { Facet.Position, Facet.Extent, Facet.Value, Facet.Emitted })
+            Assert.IsTrue(middle.Has(facet), $"{facet} came off the wire with the rest");
+
+        Assert.AreEqual(1, middle.Settled(Facet.Position), "after the one octet before it");
+        CollectionAssert.AreEqual(new byte[] { 0xAC, 0x02 },
+                                  ((ProtoValue.Bytes)(ProtoValue)middle.Settled(Facet.Emitted)!).Value);
+    }
+
     // ── Reading at whatever alignment it finds ────────────────────────────────
 
     [TestMethod]
