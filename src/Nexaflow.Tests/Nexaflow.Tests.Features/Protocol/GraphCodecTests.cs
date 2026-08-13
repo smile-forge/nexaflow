@@ -176,6 +176,50 @@ public class GraphCodecTests
         StringAssert.Contains(refused.Message, "not a whole number of octets");
     }
 
+    /// <summary>
+    /// A span sized by another field, which is not a shape but a computed extent.
+    /// </summary>
+    /// <remarks>
+    /// The observation that removes two pattern variants: a span whose length is read off elsewhere and a
+    /// region declaring how far it runs are both <i>a computation producing an extent</i>. Nothing in the
+    /// walk knows what a length is — it asks the node what its extent comes from, the same way it asks
+    /// what its value comes from.
+    /// </remarks>
+    [TestMethod]
+    public void A_span_takes_its_width_from_whatever_computes_its_extent()
+    {
+        var counted = new MessageDef
+        {
+            Id = "counted",
+            Context = Context.Given.These("body"),
+            Fields =
+            [
+                new Field
+                {
+                    Id = "length", Pattern = new Pattern.Scalar(1, BigEndian: true),
+                    Value = Expr.Parse("fields.body.extent"),
+                },
+                new Field
+                {
+                    Id = "body",
+                    Pattern = Pattern.Opaque.Measured(Expr.Parse("fields.length.value")),
+                    Value = Expr.Parse("inputs.body"),
+                },
+            ],
+        };
+
+        var read = new GraphCodec(counted).Decode(new byte[] { 3, 0xaa, 0xbb, 0xcc });
+        var body = read.Nodes.Single(n => n.Of is Field { Id: "body" });
+
+        CollectionAssert.AreEqual(new byte[] { 0xaa, 0xbb, 0xcc }, body.Value.AsBytes());
+        Assert.AreEqual(3, body.Settled(Facet.Extent));
+
+        // The extent came from an edge to the length, and nothing in the walk knows what a length is.
+        var measures = counted.ProducerOf(counted.AllFields.Single(f => f.Id == "body"), "extent");
+        Assert.IsNotNull(measures);
+        Assert.AreEqual("length", counted.InputsOf(measures!).Single().To.Name);
+    }
+
     // ── The rule it keeps ─────────────────────────────────────────────────────
 
     /// <summary>

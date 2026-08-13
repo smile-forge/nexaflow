@@ -122,7 +122,19 @@ public sealed class Constant(Values.ProtoValue value, string label) : Node
 /// </summary>
 public sealed record Computes : Edge
 {
-    public override string Verb => "is computed by";
+    /// <summary>
+    /// Which fact about this node the computation produces. A value, unless it says otherwise.
+    /// </summary>
+    /// <remarks>
+    /// Not the role that was deleted. A role told one field's several <i>expressions</i> apart while they
+    /// were text; this says which of the same small closed set of facts everything else already talks in
+    /// is being produced. A span whose length is read off another field and a region declaring how far it
+    /// runs are both a computation producing an <b>extent</b> — which is why neither has to be a shape of
+    /// its own.
+    /// </remarks>
+    public string Facet { get; init; } = "value";
+
+    public override string Verb => Facet == "value" ? "is computed by" : $"takes its {Facet} from";
 }
 
 /// <summary>

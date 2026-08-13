@@ -685,6 +685,9 @@ public sealed record MessageDef
             void Link(Expr expression, string what, Func<string, Field?> lookup)
                 => Compute(graph, field, expression, $"{field.Id}.{what}", lookup);
 
+            void Measure(Expr expression, string what, Func<string, Field?> lookup)
+                => Compute(graph, field, expression, $"{field.Id}.{what}", lookup, "extent");
+
             if (field.Value is not null) Link(field.Value, "value", Visible);
 
             // Each run of a bit group computes itself, and the group takes them in order. Three meanings
@@ -712,12 +715,15 @@ public sealed record MessageDef
                     if (choice.Selects is { } selects) Link(selects, "selection", Visible);
                     break;
 
+                // Both of these produce an extent rather than a value, and saying so is what stops them
+                // being two shapes. A span sized from elsewhere and a region that declares how far it runs
+                // are one relationship: this node's extent comes from that computation.
                 case Pattern.Opaque { Length: { } length }:
-                    Link(length, "length", Visible);
+                    Measure(length, "length", Visible);
                     break;
 
                 case Pattern.Group { Extent: { } extent }:
-                    Link(extent, "bound", Visible);
+                    Measure(extent, "bound", Visible);
                     break;
 
                 case Pattern.Chain chain:
@@ -775,7 +781,7 @@ public sealed record MessageDef
     /// </para>
     /// </remarks>
     private Computation Compute(ProtocolGraph graph, Node owner, Expr expression, string label,
-                                Func<string, Field?> lookup)
+                                Func<string, Field?> lookup, string produces = "value")
     {
         List<Need> wants = [];
 
@@ -797,7 +803,7 @@ public sealed record MessageDef
 
         var computation = new Evaluated { Source = expression, Label = label, Wants = wants };
         graph.Add(computation);
-        graph.Add(new Computes { From = owner, To = computation });
+        graph.Add(new Computes { From = owner, To = computation, Facet = produces });
 
         for (int at = 0; at < wants.Count; at++)
         {
@@ -835,6 +841,11 @@ public sealed record MessageDef
     /// <summary>The computations rooted at a node.</summary>
     public IEnumerable<Computation> Computations(Node owner)
         => Graph.From<Computes>(owner).Select(e => e.To).OfType<Computation>();
+
+    /// <summary>What produces one fact about a node, where something does.</summary>
+    public Computation? ProducerOf(Node owner, string facet)
+        => Graph.From<Computes>(owner).Where(e => e.Facet == facet)
+                .Select(e => e.To).OfType<Computation>().FirstOrDefault();
 
     /// <summary>The conversion applied to a field, as a node, if it has one.</summary>
     public Converted? ConversionOf(Field field)

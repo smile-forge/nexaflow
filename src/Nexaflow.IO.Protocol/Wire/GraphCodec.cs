@@ -32,7 +32,7 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
 
     /// <summary>What this codec can walk so far, and what it refuses rather than half-doing.</summary>
     public static bool Handles(Field field) => field.Pattern is Pattern.Scalar or Pattern.Bits
-                                                             or Pattern.Opaque { Width: not null }
+                                                             or Pattern.Opaque { Until: null }
                                                              or Pattern.Group;
 
     // ── Writing ───────────────────────────────────────────────────────────────
@@ -216,7 +216,7 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
         {
             var field = (Field)node;
             var appearance = run.For(node);
-            int width = Width(field);
+            int width = Width(run, appearance, field);
 
             if (at + width > octets.Length)
                 throw new ProtoTypeException(
@@ -265,9 +265,23 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
 
     // ── Octets ────────────────────────────────────────────────────────────────
 
-    private static int Width(Field field)
-        => field.Pattern.StaticWidth
-        ?? throw new ProtoTypeException($"field '{field.Id}' has no width this walk can work out yet");
+    /// <summary>
+    /// How many octets to take, from the declaration or from whatever computes this node's extent.
+    /// </summary>
+    /// <remarks>
+    /// A span sized by another field is not a shape of its own: it is a node whose <i>extent</i> comes
+    /// from a computation, exactly as a value does. So there is nothing here about lengths — only the same
+    /// question asked of a different facet.
+    /// </remarks>
+    private int Width(RunGraph run, RunNode appearance, Field field)
+    {
+        if (field.Pattern.StaticWidth is { } declared) return declared;
+
+        if (message.ProducerOf(field, "extent") is { } measured && measured is Evaluated evaluated)
+            return (int)_evaluator.Eval(evaluated.Source, Given(run, appearance, measured)).AsInt();
+
+        throw new ProtoTypeException($"field '{field.Id}' has no width and nothing computes its extent");
+    }
 
     private static void Write(Emission wire, Field field, ProtoValue value)
     {
@@ -280,8 +294,12 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
                     scalar.Octets * 8);
                 break;
 
-            case Pattern.Opaque { Width: { } width }:
-                wire.Put(Sized(value.AsBytes(), width, field));
+            // On the way out a span is however many octets it was given: what measures it reads that back
+            // as an extent, which is the other half of one declaration rather than a second one.
+            case Pattern.Opaque { Width: var declared }:
+                wire.Put(declared is { } fixedWidth
+                    ? Sized(value.AsBytes(), fixedWidth, field)
+                    : value.AsBytes());
                 break;
 
             // Run by run, in order, and the octet boundary is wherever it happens to land.
