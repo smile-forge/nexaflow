@@ -28,6 +28,9 @@ public class GraphCodecTests
 {
     private static MessageDef Ntp() => EndToEndCaptureTests.Definition();
 
+    /// <summary>The two octets that end a header line, spelled once.</summary>
+    private const string Crlf = "\r\n";
+
     /// <summary>The corpus's own capture, not one written to suit.</summary>
     private static byte[] Capture() => ProtocolCorpus.Get("ntp").Captures[0].Bytes;
 
@@ -414,6 +417,76 @@ public class GraphCodecTests
         });
 
         CollectionAssert.AreEqual(expected, written);
+    }
+
+    // ── Constants ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A span that ends at a delimiter, which is not a shape but the next node holding a fixed value.
+    /// </summary>
+    /// <remarks>
+    /// The last of the leaf encodings to stop being one. A span with no width followed by a node whose
+    /// value is stated runs up to where that value starts — and the delimiter is <b>not</b> consumed and
+    /// not copied into the span's declaration. It stays the next node's value, so whatever owns it writes
+    /// it back out, and a document can fix it, name it and constrain it like anything else.
+    /// </remarks>
+    [TestMethod]
+    public void A_span_runs_up_to_the_constant_that_follows_it()
+    {
+        var line = new MessageDef
+        {
+            Id = "line",
+            Context = Context.Given.These("text"),
+            Fields =
+            [
+                new Field
+                {
+                    Id = "text", Pattern = Pattern.Opaque.Before(Crlf),
+                    Value = Expr.Parse("inputs.text"),
+                },
+                new Field
+                {
+                    Id = "ending", Pattern = new Pattern.Opaque(2),
+                    Value = Expr.Parse("'0d0a' |> unhex()"),
+                },
+            ],
+        };
+
+        var read = new GraphCodec(line).Decode(System.Text.Encoding.ASCII.GetBytes("hello" + Crlf));
+
+        CollectionAssert.AreEqual(System.Text.Encoding.ASCII.GetBytes("hello"),
+            read.Nodes.Single(n => n.Of is Field { Id: "text" }).Value.AsBytes());
+
+        CollectionAssert.AreEqual(System.Text.Encoding.ASCII.GetBytes(Crlf),
+            read.Nodes.Single(n => n.Of is Field { Id: "ending" }).Value.AsBytes(),
+            "the delimiter is the next node's value, not something the span swallowed");
+    }
+
+    [TestMethod]
+    public void A_stated_value_is_a_node_something_can_point_at()
+    {
+        var line = new MessageDef
+        {
+            Id = "stated",
+            Context = [],
+            Fields =
+            [
+                new Field
+                {
+                    Id = "version", Pattern = new Pattern.Scalar(1, BigEndian: true),
+                    Value = Expr.Parse("4"),
+                },
+            ],
+        };
+
+        var version = line.AllFields.Single();
+        var produces = line.ProducerOf(version, "value");
+
+        // Not an expression that happens to have no inputs: a constant, which is a computation that takes
+        // nothing. One place a value comes from, whether it is a delimiter, a table or a version.
+        Assert.IsInstanceOfType<Constant>(produces);
+        Assert.AreEqual(4L, ((Constant)produces!).Holds.AsInt());
+        Assert.AreEqual(0, produces!.Wants.Count);
     }
 
     // ── The rule it keeps ─────────────────────────────────────────────────────

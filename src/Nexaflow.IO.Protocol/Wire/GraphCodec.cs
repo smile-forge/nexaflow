@@ -35,7 +35,7 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
 
     /// <summary>What this codec can walk so far, and what it refuses rather than half-doing.</summary>
     public static bool Handles(Field field) => field.Pattern is Pattern.Scalar or Pattern.Bits
-                                                             or Pattern.Opaque { Until: null }
+                                                             or Pattern.Opaque
                                                              or Pattern.Group or Pattern.Chain;
 
     // ── Writing ───────────────────────────────────────────────────────────────
@@ -317,18 +317,29 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
             // Asked of the run, not of the group: the run owns its requirements path, which is the whole
             // reason it is a node.
             foreach (var slice in assembled.Slices)
-                runs[slice.Name] = _evaluator.Eval(
-                    slice.Value!, Given(run, appearance, Computation(slice, slice.Value!)));
+                runs[slice.Name] = Computation(slice, slice.Value!) switch
+                {
+                    Constant stated => stated.Holds,
+                    Evaluated evaluated => _evaluator.Eval(evaluated.Runs, Given(run, appearance, evaluated)),
+                    var other => throw new ProtoTypeException($"'{other.Name}' cannot produce a run"),
+                };
 
             var packed = new ProtoValue.Rec(runs);
             appearance.Settle(Facet.Value, packed);
             return packed;
         }
 
-        var value = _evaluator.Eval(
-            field.Value ?? throw new ProtoTypeException(
-                $"field '{field.Id}' has nothing to compute its value, so it cannot be written"),
-            Given(run, appearance, Computation(field, field.Value)));
+        // A constant answers without being run. That is what a constant is, and it is why a fixed
+        // delimiter needs no expression and can be pointed at by the span that ends before it.
+        var value = Computation(field, field.Value
+                ?? throw new ProtoTypeException(
+                       $"field '{field.Id}' has nothing to compute its value, so it cannot be written"))
+            switch
+            {
+                Constant stated => stated.Holds,
+                Evaluated evaluated => _evaluator.Eval(evaluated.Runs, Given(run, appearance, evaluated)),
+                var other => throw new ProtoTypeException($"'{other.Name}' cannot produce a value here"),
+            };
 
         if (field.Via is not null) value = Applied(field, value, forward: true);
 
@@ -396,7 +407,7 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
         foreach (var field in Path(run, reading: true))
         {
             var appearance = run.For(field);
-            int width = Width(run, appearance, field, octets.Length - at);
+            int width = Width(run, appearance, field, octets[at..].ToArray());
 
             if (at + width > octets.Length)
                 throw new ProtoTypeException(
@@ -498,7 +509,7 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
         return deciding.To switch
         {
             Evaluated evaluated => _evaluator.Eval(
-                evaluated.Source, Given(run, run.For(place), evaluated)),
+                evaluated.Runs, Given(run, run.For(place), evaluated)),
 
             // A run of unlike components is decided by what its token said, which is a node's value and
             // needs no expression at all.
@@ -518,16 +529,23 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
     /// from a computation, exactly as a value does. So there is nothing here about lengths — only the same
     /// question asked of a different facet.
     /// </remarks>
-    private int Width(RunGraph run, RunNode appearance, Field field, int remaining = 0)
+    private int Width(RunGraph run, RunNode appearance, Field field, byte[]? ahead = null)
     {
         if (field.Pattern.StaticWidth is { } declared) return declared;
 
-        // A span with nothing sizing it takes what is left, which is what "as many as fit" comes to once
-        // the count has stopped being something anyone declares.
-        if (message.ProducerOf(field, "extent") is null && field.Pattern is Pattern.Chain) return remaining;
+        // A span that ends at something: not a shape of its own, but a span with no width followed by a
+        // node holding a fixed value. It runs up to where that value starts, and the value is a node it
+        // can be told about rather than a byte run copied into its declaration.
+        if (message.ProducerOf(field, "extent") is null && Ends(field) is { } ending && ahead is not null)
+            return Until(ending, field, ahead);
+
+        // A span with nothing sizing it and nothing after it takes what is left, which is what "as many
+        // as fit" comes to once the count has stopped being something anyone declares.
+        if (message.ProducerOf(field, "extent") is null && field.Pattern is Pattern.Chain && ahead is not null)
+            return ahead.Length;
 
         if (message.ProducerOf(field, "extent") is { } measured && measured is Evaluated evaluated)
-            return (int)_evaluator.Eval(evaluated.Source, Given(run, appearance, measured)).AsInt();
+            return (int)_evaluator.Eval(evaluated.Runs, Given(run, appearance, measured)).AsInt();
 
         throw new ProtoTypeException($"field '{field.Id}' has no width and nothing computes its extent");
     }
@@ -593,6 +611,38 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
         };
 
         return field.Via is null ? value : Applied(field, value, forward: false);
+    }
+
+    /// <summary>The fixed value that follows this node, where one does.</summary>
+    private ProtoValue? Ends(Field field)
+        => message.Graph.From<Then>(field).Count() == 1
+        && message.Graph.From<Then>(field).Single().To is Field after
+        && message.ProducerOf(after, "value") is Constant stated
+            ? stated.Holds
+            : null;
+
+    /// <summary>
+    /// How far a span runs when what ends it is the next node's value.
+    /// </summary>
+    /// <remarks>
+    /// The delimiter is not consumed and is not copied into this node's declaration: it stays the next
+    /// node's value, so it is written back out by the thing that owns it and a document can fix it, name
+    /// it and constrain it like anything else.
+    /// </remarks>
+    private static int Until(ProtoValue ending, Field field, byte[] ahead)
+    {
+        var wanted = ending is ProtoValue.Bytes octets
+            ? octets.Value
+            : System.Text.Encoding.ASCII.GetBytes(ending.AsText());
+
+        if (wanted.Length == 0)
+            throw new ProtoTypeException($"field '{field.Id}' runs up to nothing, which ends it at once");
+
+        for (int at = 0; at + wanted.Length <= ahead.Length; at++)
+            if (ahead.AsSpan(at, wanted.Length).SequenceEqual(wanted)) return at;
+
+        throw new ProtoTypeException(
+            $"field '{field.Id}' runs up to {ending}, which is not in the {ahead.Length} octet(s) left");
     }
 
     /// <summary>The one shape a span admits, where it admits exactly one.</summary>

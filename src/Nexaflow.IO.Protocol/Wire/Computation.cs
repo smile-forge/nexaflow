@@ -42,10 +42,16 @@ public readonly record struct Need(string Name, string Facet, Origin From)
 /// Something that takes inputs and produces one value.
 ///
 /// <para>
-/// Three kinds, and from the graph's point of view they behave identically: inputs arrive on incoming
-/// edges in a declared order, one value comes out, and it is held on the node for the run. What differs is
-/// only who is called — a converter from the closed set, the expression engine, or code behind an
-/// interface — which is exactly the sort of difference that should be a subtype and not a flag.
+/// Four kinds, and from the graph's point of view they behave identically: inputs arrive on incoming edges
+/// in a declared order, one value comes out, and it is held on the node for the run. What differs is only
+/// who is called — a converter from the closed set, the expression engine, code behind an interface, or
+/// nobody at all — which is exactly the sort of difference that should be a subtype and not a flag.
+/// </para>
+///
+/// <para>
+/// A constant being one of these rather than a thing of its own is the point of it: there is one place a
+/// value can come from, so a fixed delimiter, a converter's table and a version number that is always four
+/// are all reached the same way and all pointable.
 /// </para>
 /// </summary>
 public abstract class Computation : Node
@@ -55,6 +61,10 @@ public abstract class Computation : Node
 
     /// <summary>Where it sits, for diagnostics — the owning node and what this computes for it.</summary>
     public required string Label { get; init; }
+
+    /// <summary>The expression it was built from, where it came from one. How a computation is found
+    /// again: by the thing the document wrote, rather than by a name for its position.</summary>
+    public Expr? Source { get; init; }
 
     public override string Name => Label;
 }
@@ -71,7 +81,8 @@ public abstract class Computation : Node
 /// </summary>
 public sealed class Evaluated : Computation
 {
-    public required Expr Source { get; init; }
+    /// <summary>What the AST engine runs. Never null here, unlike the base's.</summary>
+    public required Expr Runs { get; init; }
 }
 
 /// <summary>One member of the closed converter set, with its arguments as inputs.</summary>
@@ -95,20 +106,24 @@ public sealed class Coded : Computation
 }
 
 /// <summary>
-/// A value the document states, standing as a node so something can point at it.
+/// A value the document states outright.
 ///
 /// <para>
-/// A producer with no inputs. It exists because an argument to a computation has to be <i>somewhere</i> —
-/// and an argument frozen into the declaration that names the converter is a value nothing can reach, so
-/// two calls needing the same table each carry their own copy of it and no query can tell they are the
-/// same. As a node it is pointed at.
+/// A computation that takes nothing and answers the same thing every time — which is what a constant is,
+/// and why it belongs here rather than being a different kind of thing. Protocols are full of them: a
+/// version that is always four, the two octets that end a header line, a magic number, the argument a
+/// converter is given.
+/// </para>
+///
+/// <para>
+/// It is a node because otherwise it is not anywhere. A value frozen into whatever declaration mentions
+/// it cannot be pointed at, so two places needing the same one each carry a copy and nothing can tell
+/// they are the same — and a span that ends at a delimiter has nothing to name the delimiter <i>by</i>.
 /// </para>
 /// </summary>
-public sealed class Constant(Values.ProtoValue value, string label) : Node
+public sealed class Constant : Computation
 {
-    public Values.ProtoValue Value { get; } = value;
-
-    public override string Name { get; } = label;
+    public required Values.ProtoValue Holds { get; init; }
 }
 
 /// <summary>

@@ -352,7 +352,10 @@ public sealed record MessageDef
                 graph.Add(new Requires
                 {
                     From = applied,
-                    To = new Constant(via.Args[at], $"{via.Name}[{at + 1}]"),
+                    To = new Constant
+                    {
+                        Holds = via.Args[at], Label = $"{via.Name}[{at + 1}]", Wants = [],
+                    },
                     Sequence = at + 1,
                     Facet = "value",
                 });
@@ -758,7 +761,14 @@ public sealed record MessageDef
             if (need is { } wanted && !wants.Contains(wanted)) wants.Add(wanted);
         }
 
-        var computation = new Evaluated { Source = expression, Label = label, Wants = wants };
+        // A computation that cannot vary is a constant, and saying so makes it a node something can
+        // reach. Not only a bare literal: `'0d0a' |> unhex()` names no input either, and leaving it as an
+        // expression would leave the two octets that end a header line unreferenceable — so a span
+        // running up to them would have to carry its own copy of them.
+        Computation computation = Stated(expression, wants) is { } fixedValue
+            ? new Constant { Holds = fixedValue, Label = label, Wants = [], Source = expression }
+            : new Evaluated { Runs = expression, Label = label, Wants = wants, Source = expression };
+
         graph.Add(computation);
         graph.Add(new Computes { From = owner, To = computation, Facet = produces });
 
@@ -789,10 +799,28 @@ public sealed record MessageDef
         return computation;
     }
 
+    /// <summary>
+    /// What an expression comes to, where it needs nothing to come to it.
+    /// </summary>
+    /// <remarks>
+    /// Worked out once here rather than every time a message is built, but that is a side effect. The
+    /// reason is that a value nothing can vary is a value something should be able to <i>point at</i>, and
+    /// while it stays an expression it is reachable only by whoever wrote it.
+    /// </remarks>
+    private static Values.ProtoValue? Stated(Expr expression, IReadOnlyList<Need> wants)
+    {
+        if (wants.Count > 0 || expression.FreeRootNames().Count > 0) return null;
+
+        // A closed expression that will not evaluate is left as one, so the refusal comes from where it
+        // is run and names the field rather than arriving out of the graph build.
+        try { return new Evaluator().Eval(expression, new EvalScope()); }
+        catch (Exception) { return null; }
+    }
+
     /// <summary>The computation a node's named requirements path is rooted at, found by the expression it
     /// was built from — by object identity, which is why a <c>Reads</c> edge needs no role.</summary>
     public Computation? ComputationOf(Node owner, Expr expression)
-        => Graph.From<Computes>(owner).Select(e => e.To).OfType<Evaluated>()
+        => Graph.From<Computes>(owner).Select(e => e.To).OfType<Computation>()
                 .FirstOrDefault(c => ReferenceEquals(c.Source, expression));
 
     /// <summary>The computations rooted at a node.</summary>
@@ -812,7 +840,7 @@ public sealed record MessageDef
     public IReadOnlyList<Values.ProtoValue> ArgumentsOf(Field field)
         => ConversionOf(field) is not { } applied
             ? []
-            : [.. InputsOf(applied).Select(e => e.To).OfType<Constant>().Select(c => c.Value)];
+            : [.. InputsOf(applied).Select(e => e.To).OfType<Constant>().Select(c => c.Holds)];
 
     /// <summary>Where a computation's inputs come from, in argument order.</summary>
     public IEnumerable<Requires> InputsOf(Computation computation)
@@ -826,9 +854,8 @@ public sealed record MessageDef
     /// The computation a node belongs to, and the expression it was rooted at.
     /// </summary>
     public (Node Owner, Expr Root)? Belongs(Computation computation)
-        => Graph.To<Computes>(computation).FirstOrDefault() is { } rooted
-        && computation is Evaluated evaluated
-            ? (rooted.From, evaluated.Source)
+        => Graph.To<Computes>(computation).FirstOrDefault() is { } rooted && computation.Source is { } from
+            ? (rooted.From, from)
             : null;
 
 
