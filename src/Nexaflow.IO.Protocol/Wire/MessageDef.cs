@@ -305,13 +305,6 @@ public sealed record MessageDef
             foreach (var named in concept.Of)
                 graph.Add(new Names { From = concept, To = named });
 
-        // The arrangement, beside the containment the codec still walks. One packing for now, because a
-        // field list is one arrangement; the shape is here so that a second — chosen by state — needs no
-        // new machinery when documents can say so.
-        var arrangement = new Packing($"{Id} as declared");
-        graph.Add(new Packs { From = Root, To = arrangement });
-        Lay(graph, arrangement, Fields);
-
         LinkReads(graph, ScopeFields(Declared), null);
 
         // A conversion is a computation like any other: it takes the value coming past it, plus whatever
@@ -348,6 +341,13 @@ public sealed record MessageDef
 
         // Order comes from where the rule was written unless it says otherwise, and lands on the EDGE:
         // one rule can constrain several nodes and need not sit in the same place at each of them.
+        // The arrangement, beside the containment the codec still walks. After the computations, because
+        // a fork points at the one that decides it. One packing for now, because a field list is one
+        // arrangement; the shape is here so a second — chosen by state — needs no new machinery.
+        var arrangement = new Packing($"{Id} as declared");
+        graph.Add(new Packs { From = Root, To = arrangement });
+        Lay(graph, arrangement, Fields);
+
         for (int i = 0; i < Rules.Count; i++)
             foreach (var target in Rules[i].Applies)
                 graph.Add(new Constrains
@@ -429,42 +429,100 @@ public sealed record MessageDef
     }
 
     /// <summary>
-    /// <summary>Lays a run of nodes out as a path: the first is where the arrangement starts, and each
-    /// one says what follows it.</summary>
-    private void Lay(ProtocolGraph graph, Packing arrangement, IReadOnlyList<Field> fields)
+    /// <summary>Lays a run of fields out as a path, from wherever the walk currently is.</summary>
+    /// <returns>The nodes the path can leave from — several, where the run ended in an alternation.</returns>
+    private IReadOnlyList<Node> Lay(ProtocolGraph graph, Packing? arrangement,
+                                    IReadOnlyList<Field> fields, IReadOnlyList<Node>? from = null)
     {
-        Node? previous = null;
+        var loose = from ?? [];
 
         foreach (var field in fields)
         {
-            var node = Place(graph, field);
+            var (entry, exits) = Place(graph, field);
 
-            if (previous is null) graph.Add(new Starts { From = arrangement, To = node });
-            else graph.Add(new Then { From = previous, To = node });
+            if (arrangement is not null && loose.Count == 0)
+                graph.Add(new Starts { From = arrangement, To = entry });
+            else
+                foreach (var end in loose) graph.Add(new Then { From = end, To = entry });
 
-            previous = node;
+            loose = exits;
         }
+
+        return loose;
     }
 
     /// <summary>
-    /// What stands on the path here: the field, or the set it is really a container for.
+    /// What stands on the path here, and where the path leaves it.
     /// </summary>
     /// <remarks>
     /// A container produces nothing — its members do — so it is not a field, whatever the declaration had
-    /// to call it for want of anywhere else to say so. Members are ordered on the edge, which is genuinely
-    /// ordinal because they are members of one thing, unlike a way on.
+    /// to call it for want of anywhere else to say so. An alternation is the same: a place on the path
+    /// that makes no octets, offering several ways on rather than holding members in order. One node kind
+    /// serves both, told apart by which edges leave it, because "stands for part of the message and emits
+    /// nothing" is one notion.
     /// </remarks>
-    private Node Place(ProtocolGraph graph, Field field)
+    private (Node Entry, IReadOnlyList<Node> Exits) Place(ProtocolGraph graph, Field field)
     {
-        if (field.Pattern is not Pattern.Group group) return field;
+        switch (field.Pattern)
+        {
+            case Pattern.Group group:
+            {
+                var set = new FieldSet(field.Id, field);
+                graph.Add(set);
 
-        var set = new FieldSet(field.Id, field);
-        graph.Add(set);
+                for (int at = 0; at < group.Fields.Count; at++)
+                    graph.Add(new Holds
+                    {
+                        From = set, To = Place(graph, group.Fields[at]).Entry, Order = at,
+                    });
 
-        for (int at = 0; at < group.Fields.Count; at++)
-            graph.Add(new Holds { From = set, To = Place(graph, group.Fields[at]), Order = at });
+                return (set, [set]);
+            }
 
-        return set;
+            case Pattern.Choice choice:
+            {
+                var fork = new FieldSet(field.Id, field);
+                graph.Add(fork);
+
+                // What decides, as a node. A value that keys the ways on rather than a condition per way:
+                // sibling conditions cannot be checked for cover by anything, and keyed ones can.
+                // Queried off the graph being built, never off the property: reaching for that while it
+                // is still being assembled re-enters the build, and the recursion has no bottom.
+                foreach (var deciding in new[] { choice.Key, choice.Selects })
+                    if (deciding is not null
+                        && graph.From<Computes>(field).Select(e => e.To).OfType<Evaluated>()
+                                .FirstOrDefault(c => ReferenceEquals(c.Source, deciding)) is { } decides)
+                        graph.Add(new Decides
+                        {
+                            From = fork, To = decides, Reading = ReferenceEquals(deciding, choice.Key),
+                        });
+
+                List<Node> exits = [];
+
+                foreach (var offer in graph.From<Offers>(field))
+                {
+                    var arm = (Arm)offer.To;
+
+                    // An arm with nothing in it still went somewhere: the path leaves the fork directly,
+                    // so whatever follows the alternation follows it.
+                    if (arm.Fields.Count == 0) { exits.Add(fork); continue; }
+
+                    var (entry, ends) = Place(graph, arm.Fields[0]);
+
+                    graph.Add(new Then
+                    {
+                        From = fork, To = entry, Key = offer.Key, Otherwise = offer.IsFallback,
+                    });
+
+                    exits.AddRange(Lay(graph, null, [.. arm.Fields.Skip(1)], ends));
+                }
+
+                return (fork, exits);
+            }
+
+            default:
+                return (field, [field]);
+        }
     }
 
     /// <summary>The arrangements this message offers.</summary>
@@ -479,6 +537,13 @@ public sealed record MessageDef
     /// anything that holds members. It yields leaves — a group is a place on the path rather than a thing
     /// on the wire of its own.
     /// </remarks>
+    /// <remarks>
+    /// It follows the <b>unbranched</b> path and stops at a fork, which is not a limitation but the
+    /// truth: past an alternation there is no one path, and which way it goes is a value nothing has yet.
+    /// A fork is yielded as a single place, exactly as a container is expanded into its members — the
+    /// engine's walk will carry a decision, and this one is what the arrangement can be checked with
+    /// before there is one.
+    /// </remarks>
     public IEnumerable<Node> Walk(Packing arrangement)
     {
         var at = Graph.From<Starts>(arrangement).FirstOrDefault()?.To;
@@ -487,7 +552,9 @@ public sealed record MessageDef
         {
             foreach (var node in Expand(at)) yield return node;
 
-            at = Graph.From<Then>(at).FirstOrDefault()?.To;
+            var ways = Graph.From<Then>(at).ToList();
+
+            at = ways.Count == 1 && ways[0].Key is null && !ways[0].Otherwise ? ways[0].To : null;
         }
     }
 

@@ -39,15 +39,31 @@ public class ArrangementTests
         TaggedUnionCaptureTests.Definition(),
     ];
 
-    /// <summary>The leaves of a declaration, in the order the field list puts them.</summary>
-    private static IEnumerable<Field> Declared(IEnumerable<Field> fields)
+    /// <summary>
+    /// What the declaration says the unbranched path is: through a container, and up to a fork, which
+    /// stands for itself because past it there is no one path.
+    /// </summary>
+    private static IEnumerable<Node> Declared(MessageDef message, IEnumerable<Field> fields)
     {
         foreach (var field in fields)
-            if (field.Pattern is Pattern.Group group)
-                foreach (var member in Declared(group.Fields)) yield return member;
-            else
-                yield return field;
+            switch (field.Pattern)
+            {
+                case Pattern.Group group:
+                    foreach (var member in Declared(message, group.Fields)) yield return member;
+                    break;
+
+                case Pattern.Choice:
+                    yield return Set(message, field);
+                    break;
+
+                default:
+                    yield return field;
+                    break;
+            }
     }
+
+    private static FieldSet Set(MessageDef message, Field declared)
+        => message.Graph.Nodes.OfType<FieldSet>().Single(s => s.Derived == declared);
 
     [TestMethod]
     public void Every_document_in_the_corpus_lays_out_the_way_its_field_list_says()
@@ -65,7 +81,7 @@ public class ArrangementTests
             }
 
             var laid = message.Walk(arrangement).ToList();
-            var listed = Declared(message.Fields).Cast<Node>().ToList();
+            var listed = Declared(message, message.Fields).ToList();
 
             if (!laid.SequenceEqual(listed))
                 wrong.Add($"{message.Id}:\n      path: {string.Join(", ", laid.Select(n => n.Name))}"
@@ -124,20 +140,31 @@ public class ArrangementTests
         Assert.IsFalse(laid.Contains(declared));
     }
 
-    /// <summary>Containers the arrangement reaches — the top-level path and the sets within it. A chain's
-    /// element and a choice's arms are not laid out yet, so theirs join when those convert.</summary>
+    /// <summary>
+    /// Everything the arrangement reaches that stands for part of the message and emits nothing — a
+    /// container, or a fork. A chain's element is not laid out yet, so its interior joins when that
+    /// converts.
+    /// </summary>
     private static IEnumerable<Field> Contained(IEnumerable<Field> fields)
     {
         foreach (var field in fields)
-            if (field.Pattern is Pattern.Group group)
+            switch (field.Pattern)
             {
-                yield return field;
-                foreach (var deeper in Contained(group.Fields)) yield return deeper;
+                case Pattern.Group group:
+                    yield return field;
+                    foreach (var deeper in Contained(group.Fields)) yield return deeper;
+                    break;
+
+                case Pattern.Choice choice:
+                    yield return field;
+                    foreach (var deeper in Contained(choice.Arms.SelectMany(a => a.Fields)))
+                        yield return deeper;
+                    break;
             }
     }
 
     [TestMethod]
-    public void Every_container_the_arrangement_reaches_is_a_set_rather_than_a_field()
+    public void Everything_that_stands_for_part_of_a_message_and_emits_nothing_is_a_set()
     {
         foreach (var message in Corpus)
         {
