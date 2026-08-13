@@ -674,7 +674,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     /// </summary>
     private void Present(Field owner, Expr? expression, Reading r)
     {
-        foreach (var read in _message.ReadsOf(owner, expression))
+        foreach (var read in _message.InputsOf(owner, expression))
         {
             if (read.To is not Field target || r.Bound(target.Id)) continue;
 
@@ -2212,7 +2212,8 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
         private List<FacetRef> Refs(Field owner, Expr? expression, NameFrame frame)
         {
-            var needs = codec._message.ReadsOf(owner, expression)
+            var needs = codec._message.InputsOf(owner, expression)
+                .Where(r => r.To is Field)
                 .Select(r => new FacetRef(frame.Of((Field)r.To), FacetNamed(r.Facet)))
                 .ToList();
 

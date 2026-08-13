@@ -202,7 +202,7 @@ public sealed record MessageDef
     /// rather than maintained beside it, so it cannot drift from what the document actually reads.
     /// </summary>
     public IEnumerable<Context> Asked
-        => Graph.Of<Draws>().Select(e => (Context)e.To).Where(c => c.Asked).Distinct();
+        => Graph.Of<Requires>().Select(e => e.To).OfType<Context>().Where(c => c.Asked).Distinct();
 
     /// <summary>
     /// The message as nodes and relationships.
@@ -475,116 +475,99 @@ public sealed record MessageDef
     }
 
     /// <summary>
-    /// Turns one expression into terms, and hangs the requirements path off the node that owns it.
+    /// Turns one expression into a computation node, and hangs the requirements path off its owner.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This replaced three text scanners — one for fields, one for context, one for presence — that
-    /// between them were the engine's answer to "what does this expression need". A regular expression
-    /// over source text cannot see that a read sits inside a branch, so every read a case analysis
-    /// mentioned became a prerequisite of every case, and a document that could be read could not be
-    /// written. The edges are the answer now.
+    /// One node for the whole expression. The interior is the AST engine's business — what the graph needs
+    /// to know is what comes in and what goes out, and an expression is a thing that takes inputs and
+    /// returns a value like any other computation.
     /// </para>
     /// <para>
-    /// A reference is <b>one</b> term rather than a stack of member accesses: <c>fields.body.extent</c>
-    /// denotes a fact about another node, and what the graph wants is the edge, not the two dots that
-    /// spell it. Anything reaching further in — <c>fields.head.value.flag</c> — is an ordinary member
-    /// access on top of that one term, so a run of a group still waits for the group.
+    /// The references are read out of the expression once, here, and become <see cref="Requires"/> edges
+    /// in the order they were found. That order is the argument order, so the same machinery serves a
+    /// converter called with three arguments and an expression naming three fields.
     /// </para>
     /// </remarks>
-    private Term Compute(ProtocolGraph graph, Node owner, Expr expression, string label,
-                         Func<string, Field?> lookup)
+    private Computation Compute(ProtocolGraph graph, Node owner, Expr expression, string label,
+                                Func<string, Field?> lookup)
     {
-        var root = Build(expression, label);
-        graph.Add(new Computes { From = owner, To = root });
-        return root;
+        List<Need> wants = [];
 
-        Term Build(Expr e, string at)
+        foreach (var term in expression.Descendants().OfType<Expr.Member>())
         {
-            var term = new Term { Shape = e, Label = at };
-            graph.Add(term);
-
-            switch (e)
+            Need? need = term switch
             {
-                case Expr.Member { Target: Expr.Member { Target: Expr.Root { Name: "fields" } } of } facet:
-                    if (lookup(of.Name) is { } target)
-                        graph.Add(new Reads { From = term, To = target, Facet = facet.Name });
-                    return term;
+                { Target: Expr.Member { Target: Expr.Root { Name: "fields" } } of }
+                    => new Need(of.Name, term.Name, Origin.Part),
+                { Target: Expr.Root { Name: "inputs" } }
+                    => new Need(term.Name, "value", Origin.Outside),
+                { Target: Expr.Root { Name: Vocabulary.Present } }
+                    => new Need(term.Name, "value", Origin.Presence),
+                _ => null,
+            };
 
-                case Expr.Member { Target: Expr.Root { Name: "inputs" } } outside:
-                    if (Context.FirstOrDefault(c => string.Equals(c.Key, outside.Name, StringComparison.Ordinal))
-                        is { } source)
-                        graph.Add(new Draws { From = term, To = source });
-                    return term;
+            if (need is { } wanted && !wants.Contains(wanted)) wants.Add(wanted);
+        }
+
+        var computation = new Evaluated { Source = expression, Label = label, Wants = wants };
+        graph.Add(computation);
+        graph.Add(new Computes { From = owner, To = computation });
+
+        for (int at = 0; at < wants.Count; at++)
+        {
+            var want = wants[at];
+
+            Node? from = want.From switch
+            {
+                Origin.Part => lookup(want.Name),
+                Origin.Outside => Context.FirstOrDefault(
+                    c => string.Equals(c.Key, want.Name, StringComparison.Ordinal)),
 
                 // Asking whether a part turned up depends on the run that would have carried it, and
-                // nothing in the text says so — the name is the part's and what has to settle first is the
-                // assortment. Undeclared, the worklist would read it before the run existed.
-                case Expr.Member { Target: Expr.Root { Name: Vocabulary.Present } } part:
-                    if (Optionals.FirstOrDefault(
-                            o => string.Equals(o.Key.CaptureName, part.Name, StringComparison.Ordinal))
-                        is { Key: not null } known)
-                        graph.Add(new Reads { From = term, To = known.Value.Assortment, Facet = "value" });
-                    return term;
-            }
+                // nothing in the name says so — what has to settle first is the assortment.
+                _ => Optionals.FirstOrDefault(
+                         o => string.Equals(o.Key.CaptureName, want.Name, StringComparison.Ordinal))
+                     is { Key: not null } known ? known.Value.Assortment : null,
+            };
 
-            int ordinal = 0;
-            foreach (var operand in e.Children)
-                graph.Add(new Uses
+            if (from is not null)
+                graph.Add(new Requires
                 {
-                    From = term,
-                    To = Build(operand, $"{at}[{ordinal}]"),
-                    Ordinal = ordinal++,
+                    From = computation, To = from, Sequence = at, Facet = want.Facet,
                 });
-
-            return term;
         }
+
+        return computation;
     }
 
-    /// <summary>
-    /// The term a node's named computation is rooted at, found by the expression it was built from.
-    /// </summary>
-    /// <remarks>
-    /// By object identity, which is what lets the <c>Reads</c> edge stop carrying a role. A role existed to
-    /// tell one field's several expressions apart while they were text; the root term is that distinction,
-    /// so asking for one of them is asking for a node.
-    /// </remarks>
-    public Term? ComputationOf(Node owner, Expr expression)
-        => Graph.From<Computes>(owner).Select(e => (Term)e.To)
-                .FirstOrDefault(t => ReferenceEquals(t.Shape, expression));
-
-    /// <summary>
-    /// The computation a term belongs to: the node that owns it, and the expression it was rooted at.
-    /// </summary>
-    /// <remarks>
-    /// Walking up rather than storing a back-pointer, because the edge is already there and a second copy
-    /// of it would be one more thing that can disagree.
-    /// </remarks>
-    public (Node Owner, Expr Root)? Belongs(Term term)
-    {
-        var top = term;
-        while (Graph.To<Uses>(top).FirstOrDefault() is { } up) top = (Term)up.From;
-
-        return Graph.To<Computes>(top).FirstOrDefault() is { } rooted ? (rooted.From, top.Shape) : null;
-    }
-
-    /// <summary>Every term of one computation, the root included.</summary>
-    public IEnumerable<Term> TermsUnder(Term root)
-        => [root, .. Graph.From<Uses>(root).SelectMany(u => TermsUnder((Term)u.To))];
+    /// <summary>The computation a node's named requirements path is rooted at, found by the expression it
+    /// was built from — by object identity, which is why a <c>Reads</c> edge needs no role.</summary>
+    public Computation? ComputationOf(Node owner, Expr expression)
+        => Graph.From<Computes>(owner).Select(e => e.To).OfType<Evaluated>()
+                .FirstOrDefault(c => ReferenceEquals(c.Source, expression));
 
     /// <summary>The computations rooted at a node.</summary>
-    public IEnumerable<Term> Computations(Node owner)
-        => Graph.From<Computes>(owner).Select(e => (Term)e.To);
+    public IEnumerable<Computation> Computations(Node owner)
+        => Graph.From<Computes>(owner).Select(e => e.To).OfType<Computation>();
 
-    /// <summary>Every read anywhere under a term — the requirements path, walked.</summary>
-    public IEnumerable<Reads> ReadsUnder(Term root)
-        => Graph.From<Reads>(root)
-                .Concat(Graph.From<Uses>(root).SelectMany(u => ReadsUnder((Term)u.To)));
+    /// <summary>Where a computation's inputs come from, in argument order.</summary>
+    public IEnumerable<Requires> InputsOf(Computation computation)
+        => Graph.From<Requires>(computation).OrderBy(e => e.Sequence);
 
-    /// <summary>What one of a node's computations reads. The lookup everything asking about dependencies
-    /// goes through, so there is one walk rather than a scan per caller.</summary>
-    public IEnumerable<Reads> ReadsOf(Node owner, Expr? expression)
-        => expression is null || ComputationOf(owner, expression) is not { } root ? [] : ReadsUnder(root);
+    /// <summary>Where one of a node's computations takes its inputs from.</summary>
+    public IEnumerable<Requires> InputsOf(Node owner, Expr? expression)
+        => expression is null || ComputationOf(owner, expression) is not { } path ? [] : InputsOf(path);
+
+    /// <summary>
+    /// The computation a node belongs to, and the expression it was rooted at.
+    /// </summary>
+    public (Node Owner, Expr Root)? Belongs(Computation computation)
+        => Graph.To<Computes>(computation).FirstOrDefault() is { } rooted
+        && computation is Evaluated evaluated
+            ? (rooted.From, evaluated.Source)
+            : null;
+
 
     /// <summary>Every field in the message, nested ones included, in declaration order.</summary>
     public IEnumerable<Field> AllFields => Descendants(Declared);
@@ -861,21 +844,24 @@ public sealed record MessageDef
     /// </remarks>
     private void CheckNames(List<string> issues)
     {
-        foreach (var term in Graph.Nodes.OfType<Term>())
+        foreach (var computation in Graph.Nodes.OfType<Computation>())
         {
-            if (term.Shape is not Expr.Member
-                    { Target: Expr.Member { Target: Expr.Root { Name: "fields" } } named }
-                || Graph.From<Reads>(term).Any())
-                continue;
+            var answered = InputsOf(computation).Select(e => e.Sequence).ToHashSet();
 
-            // A carry runs inside the structure the chain repeats, so the scope it missed is that one and
-            // saying "in scope there" would send the author looking in the wrong place.
-            bool carried = Belongs(term) is { } owned
-                        && owned.Owner is Field { Pattern: Pattern.Chain chain }
-                        && ReferenceEquals(owned.Root, chain.Carry);
+            for (int at = 0; at < computation.Wants.Count; at++)
+            {
+                if (answered.Contains(at) || computation.Wants[at].From != Origin.Part) continue;
 
-            issues.Add($"message '{Id}': {term.Label} references '{named.Name}', which is not a field "
-                     + (carried ? "of the structure it runs in" : "in scope there"));
+                // A carry runs inside the structure the chain repeats, so the scope it missed is that one
+                // and saying "in scope there" would send the author looking in the wrong place.
+                bool carried = Belongs(computation) is { } owned
+                            && owned.Owner is Field { Pattern: Pattern.Chain chain }
+                            && ReferenceEquals(owned.Root, chain.Carry);
+
+                issues.Add($"message '{Id}': {computation.Label} references "
+                         + $"'{computation.Wants[at].Name}', which is not a field "
+                         + (carried ? "of the structure it runs in" : "in scope there"));
+            }
         }
     }
 
@@ -914,10 +900,10 @@ public sealed record MessageDef
 
         if (unreachable.Count == 0) return;
 
-        foreach (var read in Graph.Of<Reads>())
+        foreach (var read in Graph.Of<Requires>())
         {
             if (read.To is not Field target || !unreachable.TryGetValue(target, out var why)) continue;
-            if (Belongs((Term)read.From) is not { Owner: Field reader } owned) continue;
+            if (Belongs((Computation)read.From) is not { Owner: Field reader } owned) continue;
 
             // A kind's own carry is written on the assortment and read inside the kind, so it names parts
             // that are unaddressable from anywhere else — which is correct, and not a violation here.
@@ -980,7 +966,7 @@ public sealed record MessageDef
                 issues.Add($"message '{Id}': '{field.Id}' is declared beside the message and says nothing "
                          + "about what it holds. Nothing on the wire will fill it in.");
 
-            foreach (var read in Descendants([field]).SelectMany(f => ReadsOf(f, f.Value)))
+            foreach (var read in Descendants([field]).SelectMany(f => InputsOf(f, f.Value)))
                 if (read.To is Field earlier && !settled.Contains(earlier.Id))
                     issues.Add($"message '{Id}': '{field.Id}' is declared beside the message and reads "
                              + $"'{earlier.Id}', which is worked out after it. Move it earlier.");
@@ -993,12 +979,12 @@ public sealed record MessageDef
 
         // A term shaped like an outside value with no edge leaving it is one nothing declared — the same
         // question CheckNames asks about fields, and the same answer: the graph resolved it or it did not.
-        foreach (var term in Graph.Nodes.OfType<Term>())
-            if (term.Shape is Expr.Member { Target: Expr.Root { Name: "inputs" } } wanted
-                && !Graph.From<Draws>(term).Any() && !declared.Contains(wanted.Name))
-                issues.Add($"message '{Id}': {term.Label} reads 'inputs.{wanted.Name}', which the "
-                         + "document never says it needs. An undeclared outside value resolves to "
-                         + "nothing and surfaces much later as a type error somewhere unrelated.");
+        foreach (var computation in Graph.Nodes.OfType<Computation>())
+            foreach (var want in computation.Wants.Where(w => w.From == Origin.Outside))
+                if (!declared.Contains(want.Name))
+                    issues.Add($"message '{Id}': {computation.Label} reads 'inputs.{want.Name}', which "
+                             + "the document never says it needs. An undeclared outside value resolves "
+                             + "to nothing and surfaces much later as a type error somewhere unrelated.");
 
         foreach (var duplicate in Context.GroupBy(c => c.Key, StringComparer.Ordinal).Where(g => g.Count() > 1))
             issues.Add($"message '{Id}': 'inputs.{duplicate.Key}' is declared {duplicate.Count()} times");
@@ -1008,7 +994,8 @@ public sealed record MessageDef
                      + "That sentence is the question they get shown.");
 
         // Declaring a need nothing reads is how a prompt list grows things nobody wants any more.
-        var read = Graph.Of<Draws>().Select(e => ((Context)e.To).Key).ToHashSet(StringComparer.Ordinal);
+        var read = Graph.Of<Requires>().Select(e => e.To).OfType<Context>()
+                        .Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
 
         foreach (var source in Context.Where(c => !read.Contains(c.Key)))
             issues.Add($"message '{Id}': '{source.Key}' is declared and never read");
@@ -1274,12 +1261,10 @@ public sealed record MessageDef
 
         var parts = conditions
             .Select(a => ComputationOf(field, a.Condition!))
-            .Where(t => t is not null)
-            .SelectMany(t => TermsUnder(t!))
-            .Select(t => t.Shape)
-            .OfType<Expr.Member>()
-            .Where(m => m.Target is Expr.Root { Name: Vocabulary.Present })
-            .Select(m => m.Name)
+            .Where(c => c is not null)
+            .SelectMany(c => c!.Wants)
+            .Where(w => w.From == Origin.Presence)
+            .Select(w => w.Name)
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
 
         foreach (var part in parts)

@@ -171,23 +171,6 @@ public sealed record Admits : Edge
 }
 
 /// <summary>
-/// One node reads a facet of another — the dependency the resolver schedules on.
-///
-/// <para>
-/// Leaves a <see cref="Term"/>, not the field that owns the expression. That is the difference between
-/// "this field depends on that one somewhere in one of its computations" and "<i>this operand</i> is that
-/// node's extent" — and it is what makes a read inside a branch distinguishable from one that always
-/// happens, which a scan over expression text could never be.
-/// </para>
-/// </summary>
-public sealed record Reads : Edge
-{
-    public required string Facet { get; init; }
-
-    public override string Verb => $"reads {Facet} of";
-}
-
-/// <summary>
 /// A message can cause a move, going this way.
 ///
 /// <para>
@@ -244,20 +227,6 @@ public sealed record Enables : Edge
 public sealed record Remembers : Edge
 {
     public override string Verb => "keeps something in";
-}
-
-/// <summary>
-/// A node needs a value from outside the message.
-///
-/// <para>
-/// The same shape as a read, and separate from it on purpose: what a document requires <i>in order to
-/// run</i> is a different question from what one of its fields is computed from, and the first is the one
-/// somebody has to answer before anything can happen.
-/// </para>
-/// </summary>
-public sealed record Draws : Edge
-{
-    public override string Verb => "draws";
 }
 
 /// <summary>A constraint applies to a node. Wherever that node is realised — once, or once per structure
