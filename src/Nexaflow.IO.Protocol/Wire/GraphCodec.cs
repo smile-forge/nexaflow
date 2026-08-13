@@ -37,26 +37,141 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
 
     // ── Writing ───────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Writes the message, settling each fact when whatever it waits on has settled.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The order the walk lays fields out in is <b>not</b> the order they can be worked out in. A length
+    /// measures a span that comes after it, so it cannot be written until that span has been — and the
+    /// span may itself hold something derived from a third field. Writing forwards and hoping works for
+    /// well-ordered documents and no others.
+    /// </para>
+    /// <para>
+    /// So the walk says <i>what</i> is in the message and the resolver says <i>when</i> each fact can be
+    /// had: every appearance declares what its value waits on, taken from its own edges, and the worklist
+    /// settles whatever is ready. Nothing here is a pass, and nothing is back-patched.
+    /// </para>
+    /// </remarks>
     public byte[] Encode(IReadOnlyDictionary<string, ProtoValue> supplied)
     {
         var run = RunGraph.Begin(message.Graph, supplied);
+        var order = Path(run, reading: false).ToList();
+        var resolver = new Resolver();
+
+        foreach (var field in order) resolver.Add(Waiting(run, field));
+
+        resolver.Resolve();
+
         var wire = new Emission();
 
-        foreach (var field in Path(run, reading: false))
+        foreach (var field in order)
         {
             var appearance = run.For(field);
             int began = wire.Written;
 
-            var value = Settle(run, appearance, field);
-            Write(wire, field, value);
-
+            Write(wire, field, appearance.Value);
             appearance.Settle(Facet.Position, began / 8);
-            appearance.Settle(Facet.Extent, (wire.Written - began) / 8);
             appearance.Settle(Facet.Emitted, ProtoValue.Of(wire.Since(began)));
         }
 
         return wire.Done(message.Id);
     }
+
+    /// <summary>
+    /// One appearance, as a unit of work: what it waits on, and what to do when the wait is over.
+    /// </summary>
+    private ResolutionNode Waiting(RunGraph run, Field field)
+    {
+        var appearance = run.For(field);
+        var waits = Waits(run, appearance, field);
+
+        return new ResolutionNode
+        {
+            Id = appearance,
+
+            // Position and emission are a linearisation over settled extents rather than a fixed point,
+            // so they are done in one sweep afterwards and are not the worklist's business.
+            NotApplicable = new HashSet<Facet>
+                { Facet.Realised, Facet.Present, Facet.Position, Facet.Emitted },
+
+            DependenciesFor = facet => facet switch
+            {
+                Facet.Value => waits,
+
+                // An extent that is not fixed by the declaration is however many octets the value comes
+                // to, so it waits for the value — the dependency that runs the other way from what a
+                // reader would guess, and the reason this is a worklist and not a sweep.
+                Facet.Extent => field.Pattern.StaticWidth is null
+                    ? [new FacetRef(appearance, Facet.Value)]
+                    : [],
+
+                _ => [],
+            },
+
+            // Whatever settles is written onto the appearance, not only handed back to the worklist. The
+            // run graph is where a fact lives; the worklist only decides when it can be had, and anything
+            // reading this later asks the node.
+            Settle = (facet, _) =>
+            {
+                switch (facet)
+                {
+                    case Facet.Value: return FacetResult.Of(Settle(run, appearance, field));
+
+                    case Facet.Extent:
+                        var width = Sized(appearance, field);
+                        appearance.Settle(Facet.Extent, width);
+                        return FacetResult.Of(width);
+
+                    default: return FacetResult.Of(null);
+                }
+            },
+        };
+    }
+
+    /// <summary>Every fact this appearance's value waits on, taken from the edges that ask for them.</summary>
+    private List<FacetRef> Waits(RunGraph run, RunNode appearance, Field field)
+    {
+        List<FacetRef> waits = [];
+
+        var asking = field.Pattern is Pattern.Bits { Assembled: true } assembled
+            ? assembled.Slices.Where(s => s.Value is not null)
+                       .Select(s => message.ComputationOf(s, s.Value!)).OfType<Computation>()
+            : message.ComputationOf(field, field.Value!) is { } one ? [one] : [];
+
+        foreach (var computation in asking)
+            foreach (var wanted in message.InputsOf(computation))
+                if (wanted.To is Field part)
+                    waits.Add(new FacetRef(run.Reach(appearance, part), Named(wanted.Facet)));
+
+        return [.. waits.Distinct()];
+    }
+
+    /// <summary>
+    /// How wide this is: what the declaration fixes, or however many octets the value came to.
+    /// </summary>
+    /// <remarks>
+    /// Measured by writing it, which is the only honest way to know — a span is as long as what it was
+    /// given. Only reached when the declaration does not say, which is also the only case where the extent
+    /// waits on the value.
+    /// </remarks>
+    private int Sized(RunNode appearance, Field field)
+    {
+        if (field.Pattern.StaticWidth is { } declared) return declared;
+
+        var measured = new Emission();
+        Write(measured, field, appearance.Value);
+
+        return measured.Written / 8;
+    }
+
+    private static Facet Named(string facet) => facet switch
+    {
+        "extent" => Facet.Extent,
+        "octets" => Facet.Emitted,
+        "position" => Facet.Position,
+        _ => Facet.Value,
+    };
 
     /// <summary>
     /// Octets, built out of bits.

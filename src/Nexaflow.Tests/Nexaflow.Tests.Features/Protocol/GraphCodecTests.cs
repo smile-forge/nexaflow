@@ -267,6 +267,91 @@ public class GraphCodecTests
             "two packings cannot both have happened");
     }
 
+    // ── When, as opposed to what ──────────────────────────────────────────────
+
+    /// <summary>
+    /// A length that measures a span written after it.
+    /// </summary>
+    /// <remarks>
+    /// The shape every framed protocol has, and the one a forward walk cannot do: the first field's value
+    /// is a fact about the third field's octets, which do not exist when the walk reaches the first. The
+    /// arrangement says what is in the message; the worklist says when each fact can be had, and the two
+    /// orders are different on purpose.
+    /// </remarks>
+    [TestMethod]
+    public void A_length_can_measure_something_the_walk_has_not_reached_yet()
+    {
+        var framed = new MessageDef
+        {
+            Id = "framed",
+            Context = Context.Given.These("body", "tag"),
+            Fields =
+            [
+                new Field
+                {
+                    Id = "length", Pattern = new Pattern.Scalar(2, BigEndian: true),
+                    Value = Expr.Parse("fields.body.extent"),
+                },
+                new Field
+                {
+                    Id = "tag", Pattern = new Pattern.Scalar(1, BigEndian: true),
+                    Value = Expr.Parse("inputs.tag"),
+                },
+                new Field
+                {
+                    Id = "body",
+                    Pattern = Pattern.Opaque.Measured(Expr.Parse("fields.length.value")),
+                    Value = Expr.Parse("inputs.body"),
+                },
+            ],
+        };
+
+        var written = new GraphCodec(framed).Encode(new Dictionary<string, ProtoValue>
+        {
+            ["tag"] = ProtoValue.Of(0x2aL),
+            ["body"] = ProtoValue.Of(new byte[] { 0xde, 0xad, 0xbe, 0xef, 0x01 }),
+        });
+
+        CollectionAssert.AreEqual(new byte[] { 0x00, 0x05, 0x2a, 0xde, 0xad, 0xbe, 0xef, 0x01 }, written);
+
+        // And back, where the same declaration is read the other way round: the length is on the wire and
+        // the span takes its extent from it.
+        var read = new GraphCodec(framed).Decode(written);
+
+        Assert.AreEqual(5L, read.Nodes.Single(n => n.Of is Field { Id: "length" }).Value.AsInt());
+        CollectionAssert.AreEqual(new byte[] { 0xde, 0xad, 0xbe, 0xef, 0x01 },
+            read.Nodes.Single(n => n.Of is Field { Id: "body" }).Value.AsBytes());
+    }
+
+    [TestMethod]
+    public void A_value_that_waits_on_itself_is_named_rather_than_hung_on()
+    {
+        var circular = new MessageDef
+        {
+            Id = "circular",
+            Context = Context.Given.These("seed"),
+            Fields =
+            [
+                new Field
+                {
+                    Id = "first", Pattern = new Pattern.Scalar(1, BigEndian: true),
+                    Value = Expr.Parse("fields.second.value"),
+                },
+                new Field
+                {
+                    Id = "second", Pattern = new Pattern.Scalar(1, BigEndian: true),
+                    Value = Expr.Parse("fields.first.value"),
+                },
+            ],
+        };
+
+        var refused = Assert.ThrowsExactly<ResolutionException>(
+            () => new GraphCodec(circular).Encode(
+                new Dictionary<string, ProtoValue> { ["seed"] = ProtoValue.Of(1L) }));
+
+        StringAssert.Contains(refused.Message, "depend on each other");
+    }
+
     // ── The rule it keeps ─────────────────────────────────────────────────────
 
     /// <summary>
