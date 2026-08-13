@@ -364,7 +364,7 @@ public sealed record MessageDef
         // a fork points at the one that decides it. One packing for now, because a field list is one
         // arrangement; the shape is here so a second — chosen by state — needs no new machinery.
         var arrangement = new Packing($"{Id} as declared");
-        graph.Add(new Packs { From = Root, To = arrangement });
+        graph.Add(new Then { From = Root, To = arrangement });
         Lay(graph, arrangement, Fields);
 
         for (int i = 0; i < Rules.Count; i++)
@@ -460,7 +460,7 @@ public sealed record MessageDef
             var (entry, exits) = Place(graph, field);
 
             if (arrangement is not null && loose.Count == 0)
-                graph.Add(new Starts { From = arrangement, To = entry });
+                graph.Add(new Then { From = arrangement, To = entry });
             else
                 foreach (var end in loose) graph.Add(new Then { From = end, To = entry });
 
@@ -625,7 +625,7 @@ public sealed record MessageDef
 
     /// <summary>The arrangements this message offers.</summary>
     public IEnumerable<Packing> Arrangements
-        => Graph.From<Packs>(Root).Select(e => e.To).OfType<Packing>();
+        => Graph.From<Then>(Root).Select(e => e.To).OfType<Packing>();
 
     /// <summary>
     /// What an arrangement lays out, in order, groups expanded.
@@ -644,7 +644,7 @@ public sealed record MessageDef
     /// </remarks>
     public IEnumerable<Node> Walk(Packing arrangement)
     {
-        var at = Graph.From<Starts>(arrangement).FirstOrDefault()?.To;
+        var at = Graph.From<Then>(arrangement).FirstOrDefault()?.To;
 
         while (at is not null)
         {

@@ -118,8 +118,8 @@ public class SharedDefinitionTests
         Assert.AreEqual("operation, elapsed, flags, optionCode", string.Join(", ", other));
 
         // The shared run sits third in one and fourth in the other, and neither had to know.
-        Assert.AreSame(Operation, Discover.Graph.Of<Starts>().Single().To);
-        Assert.AreSame(Operation, Offer.Graph.Of<Starts>().Single().To);
+        Assert.AreSame(Operation, Discover.Graph.From<Then>(Discover.Arrangements.Single()).Single().To);
+        Assert.AreSame(Operation, Offer.Graph.From<Then>(Offer.Arrangements.Single()).Single().To);
     }
 
     // ── That it works ─────────────────────────────────────────────────────────

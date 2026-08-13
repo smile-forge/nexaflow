@@ -48,17 +48,11 @@ public sealed class FieldSet(string name, Field? derived = null) : Node
     public Field? Derived { get; } = derived;
 }
 
-/// <summary>A message offers an arrangement.</summary>
-public sealed record Packs : Edge
-{
-    public override string Verb => "can be packed as";
-}
-
-/// <summary>Where an arrangement begins.</summary>
-public sealed record Starts : Edge
-{
-    public override string Verb => "starts at";
-}
+// There is no edge for "a message offers this arrangement", and none for "an arrangement begins here".
+// Both were `Then` wearing another name: the message is a node whose ways on are its arrangements, keyed
+// and decided exactly as an alternation's are, and an arrangement is a node whose one way on is the first
+// thing in it. Naming them separately made packing selection look like a different mechanism from arm
+// selection, and it is the same one at a different scale.
 
 /// <summary>
 /// What comes after this, and under what.
@@ -81,8 +75,15 @@ public sealed record Starts : Edge
 /// their key.
 /// </para>
 /// </summary>
+/// <para>
+/// It runs the whole way down: a message's ways on are its arrangements, an arrangement's one way on is
+/// the first thing in it, and a field's is whatever follows. One edge, four scales, and the fork
+/// mechanism reaches all of them without knowing which it is looking at.
+/// </para>
+/// </summary>
 /// <param name="Key">The value of the deciding node that picks this way on, or null where there is nothing
 /// to decide — and null also for the way on that is taken when nothing else matches.</param>
+/// <remarks>
 public sealed record Then : Edge
 {
     public ProtoValue? Key { get; init; }
@@ -94,6 +95,7 @@ public sealed record Then : Edge
     public override string Verb
         => Otherwise ? "failing everything else, then" : Key is null ? "then" : $"on {Key}, then";
 }
+
 
 /// <summary>
 /// What decides which way on is taken.

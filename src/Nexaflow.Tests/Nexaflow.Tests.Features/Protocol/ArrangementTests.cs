@@ -112,8 +112,9 @@ public class ArrangementTests
         var message = Corpus.First(m => m.Fields.Count > 1);
         var arrangement = message.Arrangements.Single();
 
-        var starts = message.Graph.From<Starts>(arrangement).Single();
-        Assert.AreSame(message.Fields[0], starts.To, "and it starts at the first thing declared");
+        var begins = message.Graph.From<Then>(arrangement).Single();
+        Assert.AreSame(message.Fields[0], begins.To, "and it goes on to the first thing declared");
+        Assert.IsNull(begins.Key, "with nothing to decide, because there is one arrangement");
 
         // One way on, unkeyed, because a field list has nothing to decide. Several keyed ways on are what
         // an alternation will be, and a way on that reaches backwards is what a repetition will be — the
@@ -224,7 +225,7 @@ public class ArrangementTests
         foreach (var document in Corpus)
         {
             var seen = new HashSet<Node>();
-            var reachable = new Queue<Node>(document.Graph.Of<Starts>().Select(e => e.To));
+            var reachable = new Queue<Node>(document.Arrangements.Cast<Node>());
 
             while (reachable.Count > 0)
             {
