@@ -67,25 +67,32 @@ public class ReassemblyCaptureTests
     private static readonly MessageDef TheFrame = new()
     {
         Id = "frame",
-        Context = Context.Given.These("first", "maskingKey", "payload"),
+        Context = Context.Given.These("fin", "opcode", "maskingKey", "payload"),
         Fields =
         [
             new Field
             {
                 Id = "first",
+                // Three runs from three places: one the caller sets, one the protocol reserves, one the
+                // caller sets. There is no single value this could have been written from.
                 Pattern = new Pattern.Bits(
-                    [new BitSlice("fin", 1), new BitSlice("reserved", 3), new BitSlice("opcode", 4)]),
-                Value = Expr.Parse("inputs.first"),
+                [
+                    new BitSlice("fin", 1, Expr.Parse("inputs.fin")),
+                    new BitSlice("reserved", 3, Expr.Parse("0")),
+                    new BitSlice("opcode", 4, Expr.Parse("inputs.opcode")),
+                ]),
             },
 
-            // Not a bit group, because one of its two parts is derived and the other is fixed: a group's
-            // value is one record and there is nothing to build a record out of here. The mask bit is set
-            // and the seven below it are the payload's extent, which is arithmetic either way.
+            // And two runs from two more: a bit this protocol fixes, and a length measured off a field
+            // further down that has not been written yet when this is settled.
             new Field
             {
                 Id = "second",
-                Pattern = U8,
-                Value = Expr.Parse("128 + fields.payload.extent"),
+                Pattern = new Pattern.Bits(
+                [
+                    new BitSlice("masked", 1, Expr.Parse("1")),
+                    new BitSlice("length", 7, Expr.Parse("fields.payload.extent")),
+                ]),
             },
 
             new Field
@@ -100,7 +107,7 @@ public class ReassemblyCaptureTests
             new Field
             {
                 Id = "payload",
-                Pattern = Pattern.Opaque.Measured(Expr.Parse("fields.second.value band 0x7f")),
+                Pattern = Pattern.Opaque.Measured(Expr.Parse("fields.second.value.length")),
                 Value = Expr.Parse("inputs.payload |> xor(inputs.maskingKey)"),
             },
         ],
@@ -182,9 +189,8 @@ public class ReassemblyCaptureTests
 
     private static byte[] FrameOf(long fin, long opcode, string text)
         => new MessageCodec(Frame()).Encode(new EvalScope().Set("inputs", EvalScope.Record(
-            ("first", EvalScope.Record(("fin", ProtoValue.Of(fin)),
-                                       ("reserved", ProtoValue.Of(0L)),
-                                       ("opcode", ProtoValue.Of(opcode)))),
+            ("fin", ProtoValue.Of(fin)),
+            ("opcode", ProtoValue.Of(opcode)),
             ("maskingKey", ProtoValue.Of(Key)),
             ("payload", ProtoValue.Of(System.Text.Encoding.ASCII.GetBytes(text))))));
 
@@ -219,7 +225,7 @@ public class ReassemblyCaptureTests
 
         CollectionAssert.AreEqual(octets, new MessageCodec(Frame()).Encode(
             new EvalScope().Set("inputs", EvalScope.Record(
-                ("first", decoded["first"]),
+                ("fin", decoded["fin"]), ("opcode", decoded["opcode"]),
                 ("maskingKey", decoded["maskingKey"]),
                 ("payload", ProtoValue.Of(Unmask(decoded)))))));
     }

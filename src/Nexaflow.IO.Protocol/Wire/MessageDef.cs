@@ -418,6 +418,16 @@ public sealed record MessageDef
                 Presences(field.Value, Roles.Value);
             }
 
+            // A group written from its runs depends on whatever each run reads, exactly as it would have
+            // depended on them through the one record it used to be written from.
+            foreach (var run in (field.Pattern as Pattern.Bits)?.Slices ?? [])
+                if (run.Value is { } contents)
+                {
+                    Link(contents, Roles.Value, Visible);
+                    Outside(contents, Roles.Value);
+                    Presences(contents, Roles.Value);
+                }
+
             switch (field.Pattern)
             {
                 case Pattern.Choice choice:
@@ -935,6 +945,10 @@ public sealed record MessageDef
         foreach (var field in all)
         {
             if (field.Value is not null) yield return (field, field.Value, "the value", ExprSite.Value);
+
+            foreach (var run in (field.Pattern as Pattern.Bits)?.Slices ?? [])
+                if (run.Value is { } contents)
+                    yield return (field, contents, $"the run '{run.Name}'", ExprSite.Value);
 
             switch (field.Pattern)
             {

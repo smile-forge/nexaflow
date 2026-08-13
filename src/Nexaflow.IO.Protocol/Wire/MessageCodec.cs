@@ -1970,7 +1970,9 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
                 default:
                 {
-                    List<FacetRef> valueNeeds = field.Value is null ? [] : Refs(field, Roles.Value, field.Value, frame);
+                    // Unconditional: a bit group assembled from its runs has no value expression of its
+                    // own and still depends on everything those runs read.
+                    List<FacetRef> valueNeeds = Refs(field, Roles.Value, field.Value, frame);
 
                     // A reference waits for its target to land. Not for the whole layout — only for the
                     // extents between the start and that node, which usually settle long before the rest
@@ -2199,6 +2201,17 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     private ProtoValue Evaluate(Field field, NameFrame frame, Evaluator evaluator,
                                 IReadOnlyDictionary<FacetRef, object?> resolved, ProtoValue presence)
     {
+        // A bit group whose runs say where they come from is assembled here, because a record is not
+        // something the expression language can build and the parts routinely do not arrive together: a
+        // reserved run fixed at zero, a flag the caller set, a length derived from elsewhere.
+        if (field.Pattern is Pattern.Bits { Assembled: true } bits)
+        {
+            var scope = ScopeFor(frame, resolved, presence);
+
+            return new ProtoValue.Rec(bits.Slices.ToDictionary(
+                run => run.Name, run => evaluator.Eval(run.Value!, scope), StringComparer.Ordinal));
+        }
+
         if (field.Value is null)
             throw new ProtoTypeException(
                 $"field '{field.Id}' has no value expression, so it cannot be encoded. A decode-only field "

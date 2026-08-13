@@ -21,7 +21,25 @@ public enum GroupOrder
 /// <summary>One named run of bits inside a <see cref="Pattern.Bits"/> group.</summary>
 /// <param name="Name">Capture name for this run.</param>
 /// <param name="Width">Bits, most-significant first within the group.</param>
-public readonly record struct BitSlice(string Name, int Width);
+/// <param name="Value">
+/// Where this run's value comes from, where the group's parts do not come from one place.
+///
+/// <para>
+/// A bit group's value is a record, and there is nothing in the expression language that builds one — so a
+/// group could only be written from something that was already a record, which meant every part of it had
+/// to arrive together. That is not how protocols pack these: a flags octet is routinely a reserved run
+/// fixed at zero, a bit the caller sets, and a bit derived from something else in the message. TCP's
+/// flags, IPv4's, a WebSocket frame's first two octets are all that shape.
+/// </para>
+///
+/// <para>
+/// Here rather than in a converter because the shapes in this engine already carry the expressions that
+/// are <i>about</i> them — a chain's continuation, a choice's discriminator, a span's recovered length. A
+/// run's contents are about the run in exactly that way, and a converter assembling records positionally
+/// would put the names somewhere they could disagree with the ones the group already declares.
+/// </para>
+/// </param>
+public readonly record struct BitSlice(string Name, int Width, Expr? Value = null);
 
 /// <summary>
 /// One packing of a <see cref="Pattern.Choice"/>.
@@ -126,6 +144,10 @@ public abstract record Pattern
     public sealed record Bits(IReadOnlyList<BitSlice> Slices) : Pattern
     {
         public int TotalBits => Slices.Sum(s => s.Width);
+
+        /// <summary>Whether the runs say where they come from, rather than the group being written from
+        /// one value that is already a record.</summary>
+        public bool Assembled => Slices.Any(s => s.Value is not null);
     }
 
     /// <summary>
@@ -514,6 +536,14 @@ public abstract record Pattern
 
         Bits b when b.Slices.Any(s => s.Width is < 1 or > 32) =>
             [$"field '{fieldId}': each bit slice must be 1..32 bits wide"],
+
+        // Half a group written from its runs and half from a record is two answers to what it holds, and
+        // nothing says which wins.
+        Bits { Assembled: true } b when b.Slices.Any(s => s.Value is null) =>
+            [$"field '{fieldId}': "
+           + string.Join(", ", b.Slices.Where(s => s.Value is null).Select(s => $"'{s.Name}'"))
+           + " say nothing about where they come from while their neighbours do. Either the group is "
+           + "written from one value or every run of it says."],
 
         // The spec's "exactly one extent key" rule, and it is worth being strict about: a span with two
         // answers to how long it is silently prefers one of them, and a span with none reads to the end
