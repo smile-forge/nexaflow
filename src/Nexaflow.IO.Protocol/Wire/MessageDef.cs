@@ -305,6 +305,13 @@ public sealed record MessageDef
             foreach (var named in concept.Of)
                 graph.Add(new Names { From = concept, To = named });
 
+        // The arrangement, beside the containment the codec still walks. One packing for now, because a
+        // field list is one arrangement; the shape is here so that a second — chosen by state — needs no
+        // new machinery when documents can say so.
+        var arrangement = new Packing($"{Id} as declared");
+        graph.Add(new Packs { From = Root, To = arrangement });
+        Lay(graph, arrangement, Fields);
+
         LinkReads(graph, ScopeFields(Declared), null);
 
         // A conversion is a computation like any other: it takes the value coming past it, plus whatever
@@ -422,6 +429,76 @@ public sealed record MessageDef
     }
 
     /// <summary>
+    /// <summary>Lays a run of nodes out as a path: the first is where the arrangement starts, and each
+    /// one says what follows it.</summary>
+    private void Lay(ProtocolGraph graph, Packing arrangement, IReadOnlyList<Field> fields)
+    {
+        Node? previous = null;
+
+        foreach (var field in fields)
+        {
+            if (previous is null) graph.Add(new Starts { From = arrangement, To = field });
+            else graph.Add(new Then { From = previous, To = field });
+
+            // A group is expanded rather than stepped over, and its members are ordered on the edge —
+            // genuinely ordinal, unlike a way on, because they are members of one thing.
+            var members = field.Pattern is Pattern.Group group ? group.Fields : [];
+
+            for (int at = 0; at < members.Count; at++)
+                graph.Add(new Holds { From = field, To = members[at], Order = at });
+
+            foreach (var member in members) Nest(graph, member);
+
+            previous = field;
+        }
+    }
+
+    /// <summary>A member that is itself a group holds its own, all the way down.</summary>
+    private void Nest(ProtocolGraph graph, Field field)
+    {
+        if (field.Pattern is not Pattern.Group group) return;
+
+        for (int at = 0; at < group.Fields.Count; at++)
+        {
+            graph.Add(new Holds { From = field, To = group.Fields[at], Order = at });
+            Nest(graph, group.Fields[at]);
+        }
+    }
+
+    /// <summary>The arrangements this message offers.</summary>
+    public IEnumerable<Packing> Arrangements
+        => Graph.From<Packs>(Root).Select(e => e.To).OfType<Packing>();
+
+    /// <summary>
+    /// What an arrangement lays out, in order, groups expanded.
+    /// </summary>
+    /// <remarks>
+    /// The walk the engine will do: start where the arrangement says, follow what comes next, and expand
+    /// anything that holds members. It yields leaves — a group is a place on the path rather than a thing
+    /// on the wire of its own.
+    /// </remarks>
+    public IEnumerable<Node> Walk(Packing arrangement)
+    {
+        var at = Graph.From<Starts>(arrangement).FirstOrDefault()?.To;
+
+        while (at is not null)
+        {
+            foreach (var node in Expand(at)) yield return node;
+
+            at = Graph.From<Then>(at).FirstOrDefault()?.To;
+        }
+    }
+
+    private IEnumerable<Node> Expand(Node node)
+    {
+        var members = Graph.From<Holds>(node).OrderBy(h => h.Order).Select(h => h.To).ToList();
+
+        if (members.Count == 0) { yield return node; yield break; }
+
+        foreach (var member in members)
+            foreach (var deeper in Expand(member)) yield return deeper;
+    }
+
     /// Resolves every expression's references once, in the scope the expression was written in.
     ///
     /// <para>
