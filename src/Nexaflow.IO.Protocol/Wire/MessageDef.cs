@@ -489,9 +489,7 @@ public sealed record MessageDef
                 // Queried off the graph being built, never off the property: reaching for that while it
                 // is still being assembled re-enters the build, and the recursion has no bottom.
                 foreach (var deciding in new[] { choice.Key, choice.Selects })
-                    if (deciding is not null
-                        && graph.From<Computes>(field).Select(e => e.To).OfType<Evaluated>()
-                                .FirstOrDefault(c => ReferenceEquals(c.Source, deciding)) is { } decides)
+                    if (Decider(graph, field, deciding) is { } decides)
                         graph.Add(new Decides
                         {
                             From = fork, To = decides, Reading = ReferenceEquals(deciding, choice.Key),
@@ -502,28 +500,120 @@ public sealed record MessageDef
                 foreach (var offer in graph.From<Offers>(field))
                 {
                     var arm = (Arm)offer.To;
-
-                    // An arm with nothing in it still went somewhere: the path leaves the fork directly,
-                    // so whatever follows the alternation follows it.
-                    if (arm.Fields.Count == 0) { exits.Add(fork); continue; }
-
-                    var (entry, ends) = Place(graph, arm.Fields[0]);
+                    var (entry, ends) = Packed(graph, field, arm);
 
                     graph.Add(new Then
                     {
                         From = fork, To = entry, Key = offer.Key, Otherwise = offer.IsFallback,
                     });
 
-                    exits.AddRange(Lay(graph, null, [.. arm.Fields.Skip(1)], ends));
+                    exits.AddRange(ends);
                 }
 
                 return (fork, exits);
+            }
+
+            case Pattern.Chain chain:
+            {
+                // The repetition itself makes nothing — its element does, once per pass — so it is a set
+                // like any other container, holding the one shape it repeats.
+                var run = new FieldSet(field.Id, field);
+                graph.Add(run);
+
+                var (entry, exits) = Place(graph, chain.Element);
+                graph.Add(new Holds { From = run, To = entry, Order = 0 });
+
+                // The loop: one way on, from the end of a pass back to the start of one, taken while
+                // there is another. Not taken means the run is over and the walk carries on past the set,
+                // so leaving needs no edge of its own — there is exactly one decision here, not two.
+                foreach (var end in exits)
+                {
+                    graph.Add(new Then { From = end, To = entry, Key = ProtoValue.Of(true) });
+
+                    if (Decider(graph, field, chain.Continues) is { } asks)
+                        graph.Add(new Decides { From = end, To = asks, Reading = true });
+                }
+
+                return (run, [run]);
+            }
+
+            // A run of unlike components, and nothing new: a token, an alternation on what it said, and a
+            // way on that reaches back. Repetition and alternation, composed. If this had needed anything
+            // the other two did not, the claim that one guarded edge covers all of it would be false.
+            case Pattern.Assorted assorted:
+            {
+                var run = new FieldSet(field.Id, field);
+                graph.Add(run);
+
+                var (token, announced) = Place(graph, assorted.Token);
+                graph.Add(new Holds { From = run, To = token, Order = 0 });
+
+                var kinds = new FieldSet($"{field.Id} kinds");
+                graph.Add(kinds);
+
+                foreach (var end in announced) graph.Add(new Then { From = end, To = kinds });
+
+                // Decided by what the token said — a node's value keying the ways on, exactly as a
+                // choice's discriminator does. The only difference is that here it is a field rather than
+                // an expression, which the edge does not care about.
+                graph.Add(new Decides { From = kinds, To = assorted.Token, Reading = true });
+
+                foreach (var offer in graph.From<Offers>(field))
+                {
+                    var (entry, ends) = Packed(graph, field, (Arm)offer.To);
+
+                    graph.Add(new Then
+                    {
+                        From = kinds, To = entry, Key = offer.Key, Otherwise = offer.IsFallback,
+                    });
+
+                    foreach (var last in ends) Again(last);
+                }
+
+                return (run, [run]);
+
+                void Again(Node from)
+                {
+                    graph.Add(new Then { From = from, To = token, Key = ProtoValue.Of(true) });
+
+                    if (Decider(graph, field, assorted.Continues) is { } asks)
+                        graph.Add(new Decides { From = from, To = asks, Reading = true });
+                }
             }
 
             default:
                 return (field, [field]);
         }
     }
+
+    /// <summary>
+    /// One packing of an alternation, laid out — and always a place, even when it holds nothing.
+    /// </summary>
+    /// <remarks>
+    /// A packing with no fields is still a packing: a padding octet is a real option, and a section that
+    /// is simply absent is a real answer. Letting it collapse onto the fork put two different decisions on
+    /// one node — which kind this is, and whether another follows — with nothing to tell them apart.
+    /// </remarks>
+    private (Node Entry, IReadOnlyList<Node> Exits) Packed(ProtocolGraph graph, Field owner, Arm arm)
+    {
+        if (arm.Fields.Count == 0)
+        {
+            var empty = new FieldSet($"{owner.Id} {arm.Name}");
+            graph.Add(empty);
+            return (empty, [empty]);
+        }
+
+        var (entry, ends) = Place(graph, arm.Fields[0]);
+
+        return (entry, Lay(graph, null, [.. arm.Fields.Skip(1)], ends));
+    }
+
+    /// <summary>The computation behind one of a field's decisions, off the graph being built.</summary>
+    private static Evaluated? Decider(ProtocolGraph graph, Field field, Expr? deciding)
+        => deciding is null
+            ? null
+            : graph.From<Computes>(field).Select(e => e.To).OfType<Evaluated>()
+                   .FirstOrDefault(c => ReferenceEquals(c.Source, deciding));
 
     /// <summary>The arrangements this message offers.</summary>
     public IEnumerable<Packing> Arrangements

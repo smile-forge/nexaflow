@@ -37,6 +37,7 @@ public class ArrangementTests
         NestedLengthCaptureTests.Message(),
         NestedVectorCaptureTests.Definition(),
         TaggedUnionCaptureTests.Definition(),
+        PaddedFrameCaptureTests.Definition(),
     ];
 
     /// <summary>
@@ -54,6 +55,18 @@ public class ArrangementTests
 
                 case Pattern.Choice:
                     yield return Set(message, field);
+                    break;
+
+                // A repetition holds the one shape it repeats, so the unbranched path goes through it
+                // exactly once — which is all a description can say. How many there are is a run's answer.
+                case Pattern.Chain chain:
+                    foreach (var member in Declared(message, [chain.Element])) yield return member;
+                    break;
+
+                // A run of unlike components leads with its token; which kind follows is a fork, and the
+                // unbranched path stops there like any other.
+                case Pattern.Assorted assorted:
+                    foreach (var member in Declared(message, [assorted.Token])) yield return member;
                     break;
 
                 default:
@@ -160,6 +173,17 @@ public class ArrangementTests
                     foreach (var deeper in Contained(choice.Arms.SelectMany(a => a.Fields)))
                         yield return deeper;
                     break;
+
+                case Pattern.Chain chain:
+                    yield return field;
+                    foreach (var deeper in Contained([chain.Element])) yield return deeper;
+                    break;
+
+                case Pattern.Assorted assorted:
+                    yield return field;
+                    foreach (var deeper in Contained([assorted.Token, .. assorted.Sorts.SelectMany(s => s.Fields)]))
+                        yield return deeper;
+                    break;
             }
     }
 
@@ -171,17 +195,78 @@ public class ArrangementTests
             var containers = Contained(message.Fields).ToList();
             var sets = message.Graph.Nodes.OfType<FieldSet>().ToList();
 
-            CollectionAssert.AreEquivalent(containers, sets.Select(s => s.Derived!).ToList(),
+            CollectionAssert.AreEquivalent(containers, sets.Where(s => s.Derived is not null).Select(s => s.Derived!).ToList(),
                 $"{message.Id}: one set per container, and nothing else pretending to be one");
         }
     }
 
+    /// <summary>
+    /// A repetition is one way on that reaches back, and the loop is in the <b>description</b> only.
+    /// </summary>
+    /// <remarks>
+    /// Worth being explicit about, because a cycle in a graph looks alarming and this one is not. The
+    /// protocol graph cannot unroll a repetition: how many there are is read off a length field or comes
+    /// from what the caller supplied, so at description time there is no number to unroll to. What gets
+    /// unrolled is the <i>run</i> — one appearance per pass, each holding its own value — which is what
+    /// <c>RunNode</c>'s index is for. A loop over one declaration is not the same values twice.
+    /// </remarks>
     [TestMethod]
-    public void Nothing_on_the_path_is_reached_twice_while_a_field_list_is_all_there_is()
+    public void A_repetition_is_a_way_on_that_reaches_back_and_only_the_description_loops()
     {
-        // A repetition will be a way on that reaches back, and when that arrives this stops being true —
-        // deliberately, and the test that replaces it should say which node the walk returns to. Until
-        // then, a path that revisited anything would be a building error rather than a protocol.
+        var message = Corpus.First(m => m.AllFields.Any(f => f.Pattern is Pattern.Chain));
+        var repeat = message.AllFields.First(f => f.Pattern is Pattern.Chain);
+        var run = message.Graph.Nodes.OfType<FieldSet>().Single(s => s.Derived == repeat);
+
+        var entry = message.Graph.From<Holds>(run).Single().To;
+        var back = message.Graph.Of<Then>().Where(t => t.To == entry && t.Key is not null).ToList();
+
+        Assert.AreEqual(1, back.Count, "one way on, taken while there is another");
+        Assert.IsTrue(message.Graph.From<Decides>(back[0].From).Any(), "and something asks whether there is");
+
+        // Leaving needs no edge of its own: not taking the way back is what ends the run. One decision.
+        Assert.AreEqual(0, message.Graph.From<Then>(back[0].From).Count(t => t.Key is null));
+    }
+
+    /// <summary>
+    /// A run of unlike components is repetition and alternation, composed — and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// The claim the whole arrangement model rests on. An assortment was a pattern of its own, with its
+    /// own validation, its own threading parameters and its own carry-per-kind; here it is a token, a fork
+    /// on what the token said, and a way on that reaches back. If it had needed one edge the other two did
+    /// not, "one guarded edge covers sequence, choice and repeat" would be false.
+    /// </remarks>
+    [TestMethod]
+    public void A_run_of_unlike_components_needs_nothing_the_other_two_did_not()
+    {
+        var message = Corpus.First(m => m.AllFields.Any(f => f.Pattern is Pattern.Assorted));
+        var field = message.AllFields.First(f => f.Pattern is Pattern.Assorted);
+        var assorted = (Pattern.Assorted)field.Pattern;
+
+        var run = message.Graph.Nodes.OfType<FieldSet>().Single(s => s.Derived == field);
+        var token = message.Graph.From<Holds>(run).Single().To;
+
+        Assert.AreSame(assorted.Token, token, "it leads with its token");
+
+        // The fork: keyed ways on, decided by what the token said.
+        var kinds = message.Graph.From<Then>(token).Single().To;
+        Assert.AreSame(assorted.Token, message.Graph.From<Decides>(kinds).Single().To);
+
+        var ways = message.Graph.From<Then>(kinds).ToList();
+        Assert.AreEqual(assorted.Sorts.Count, ways.Count,
+            "one way on per kind — including a kind that holds nothing, which is still a component");
+        Assert.IsTrue(ways.All(w => w.Key is not null || w.Otherwise));
+
+        // And the repeat: every kind ends by reaching back at the token.
+        Assert.IsTrue(message.Graph.Of<Then>().Any(t => t.To == token && t.Key is not null),
+            "a way on that reaches back is what makes it a run rather than one component");
+    }
+
+    [TestMethod]
+    public void The_unbranched_walk_terminates_even_where_the_description_loops()
+    {
+        // It follows only a single unkeyed way on, so a back edge — which is keyed — is never taken. The
+        // description may loop; reading it does not.
         foreach (var message in Corpus)
         {
             var laid = message.Walk(message.Arrangements.Single()).ToList();
