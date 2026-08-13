@@ -217,7 +217,8 @@ public sealed class Subject : Node
     /// rather than a scan.
     /// </para>
     /// </summary>
-    public ProtocolGraph Graph => _graph ??= Build();
+    public ProtocolGraph Graph
+        => _graph ?? (Interlocked.CompareExchange(ref _graph, Build(), null) ?? _graph)!;
     private ProtocolGraph? _graph;
 
     private ProtocolGraph Build()

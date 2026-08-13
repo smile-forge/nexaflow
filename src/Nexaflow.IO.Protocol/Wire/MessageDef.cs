@@ -233,12 +233,31 @@ public sealed record MessageDef
     /// a node it already held. A protocol graph is the static thing; nothing about it depends on a
     /// message, so there is no reason for any of it to arrive late.
     /// </remarks>
-    public ProtocolGraph Graph => _graph ??= Build();
+    public ProtocolGraph Graph => _graph ?? Settled(ref _graph, Build());
 
     private ProtocolGraph? _graph;
 
     /// <summary>Builds the graph now, so that nothing later can be the first to ask for it.</summary>
     internal void Settle() => _ = Graph;
+
+    /// <summary>
+    /// Publishes a worked-out value, keeping the first answer if two callers worked it out at once.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A document is routinely a <c>static readonly</c> shared by everything that speaks it, so two
+    /// callers arriving together both compute — and without this both <i>publish</i>, so a reader can hold
+    /// one answer while a later read gets the other. That is how a walk came to follow ways on that
+    /// belonged to a graph nobody else could see, intermittently and only under load.
+    /// </para>
+    /// <para>
+    /// A lock would be the obvious fix and cannot be had: it needs a field, and the hand-written copy
+    /// constructor does not run field initialisers, so it would arrive null on every copy. Computing twice
+    /// and discarding one costs nothing that matters here.
+    /// </para>
+    /// </remarks>
+    private static T Settled<T>(ref T? slot, T worked) where T : class
+        => Interlocked.CompareExchange(ref slot, worked, null) ?? worked;
 
     /// <summary>
     /// A copy starts with no graph.
@@ -897,7 +916,8 @@ public sealed record MessageDef
     /// be drawn without knowing which assortment settles it.
     /// </para>
     /// </summary>
-    internal IReadOnlyDictionary<Field, (Field Assortment, Arm Sort)> Optionals => _optionals ??= Optionality();
+    internal IReadOnlyDictionary<Field, (Field Assortment, Arm Sort)> Optionals
+        => _optionals ?? Settled(ref _optionals, Optionality());
     private IReadOnlyDictionary<Field, (Field, Arm)>? _optionals;
 
     private Dictionary<Field, (Field, Arm)> Optionality()

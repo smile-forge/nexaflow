@@ -114,8 +114,12 @@ public class SharedDefinitionTests
         var laidOut = Discover.Walk(Discover.Arrangements.Single()).Select(n => n.Name).ToList();
         var other = Offer.Walk(Offer.Arrangements.Single()).Select(n => n.Name).ToList();
 
-        CollectionAssert.AreEqual(new[] { "operation", "hops", "optionCode" }, laidOut);
-        CollectionAssert.AreEqual(new[] { "operation", "elapsed", "flags", "optionCode" }, other);
+        Assert.AreEqual("operation, hops, optionCode", string.Join(", ", laidOut));
+        Assert.AreEqual("operation, elapsed, flags, optionCode", string.Join(", ", other));
+
+        // The shared run sits third in one and fourth in the other, and neither had to know.
+        Assert.AreSame(Operation, Discover.Graph.Of<Starts>().Single().To);
+        Assert.AreSame(Operation, Offer.Graph.Of<Starts>().Single().To);
     }
 
     // ── That it works ─────────────────────────────────────────────────────────
