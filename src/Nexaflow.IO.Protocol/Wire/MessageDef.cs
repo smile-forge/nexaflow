@@ -520,19 +520,14 @@ public sealed record MessageDef
                 var run = new FieldSet(field.Id, field);
                 graph.Add(run);
 
-                var (entry, exits) = Place(graph, chain.Element);
-                graph.Add(new Holds { From = run, To = entry, Order = 0 });
+                graph.Add(new Holds { From = run, To = Place(graph, chain.Element).Entry, Order = 0 });
 
-                // The loop: one way on, from the end of a pass back to the start of one, taken while
-                // there is another. Not taken means the run is over and the walk carries on past the set,
-                // so leaving needs no edge of its own — there is exactly one decision here, not two.
-                foreach (var end in exits)
-                {
-                    graph.Add(new Then { From = end, To = entry, Key = ProtoValue.Of(true) });
-
-                    if (Decider(graph, field, chain.Continues) is { } asks)
-                        graph.Add(new Decides { From = end, To = asks, Reading = true });
-                }
+                // Repeating is a property of the span, not a cycle in the path. A back edge would put a
+                // containment fact into the arrangement — the path would revisit nodes, and "what follows
+                // what" would stop being answerable by reading it. What repeats is *inside* this node;
+                // the run graph is where it unrolls, one appearance per pass.
+                if (Decider(graph, field, chain.Continues) is { } another)
+                    graph.Add(new Decides { From = run, To = another, Reading = true });
 
                 return (run, [run]);
             }
@@ -559,26 +554,20 @@ public sealed record MessageDef
                 graph.Add(new Decides { From = kinds, To = assorted.Token, Reading = true });
 
                 foreach (var offer in graph.From<Offers>(field))
-                {
-                    var (entry, ends) = Packed(graph, field, (Arm)offer.To);
-
                     graph.Add(new Then
                     {
-                        From = kinds, To = entry, Key = offer.Key, Otherwise = offer.IsFallback,
+                        From = kinds,
+                        To = Packed(graph, field, (Arm)offer.To).Entry,
+                        Key = offer.Key,
+                        Otherwise = offer.IsFallback,
                     });
 
-                    foreach (var last in ends) Again(last);
-                }
+                // As with a chain: whether another component follows is this span's business, and the
+                // span is one place on the path however many components turn up inside it.
+                if (Decider(graph, field, assorted.Continues) is { } another)
+                    graph.Add(new Decides { From = run, To = another, Reading = true });
 
                 return (run, [run]);
-
-                void Again(Node from)
-                {
-                    graph.Add(new Then { From = from, To = token, Key = ProtoValue.Of(true) });
-
-                    if (Decider(graph, field, assorted.Continues) is { } asks)
-                        graph.Add(new Decides { From = from, To = asks, Reading = true });
-                }
             }
 
             default:

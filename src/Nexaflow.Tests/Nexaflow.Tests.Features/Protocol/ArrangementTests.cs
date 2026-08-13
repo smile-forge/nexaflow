@@ -201,30 +201,63 @@ public class ArrangementTests
     }
 
     /// <summary>
-    /// A repetition is one way on that reaches back, and the loop is in the <b>description</b> only.
+    /// A repetition is a property of a span, and the path never reaches back.
     /// </summary>
     /// <remarks>
-    /// Worth being explicit about, because a cycle in a graph looks alarming and this one is not. The
-    /// protocol graph cannot unroll a repetition: how many there are is read off a length field or comes
-    /// from what the caller supplied, so at description time there is no number to unroll to. What gets
-    /// unrolled is the <i>run</i> — one appearance per pass, each holding its own value — which is what
-    /// <c>RunNode</c>'s index is for. A loop over one declaration is not the same values twice.
+    /// This was a back edge for one round of the design and that was wrong. What repeats is <i>inside</i>
+    /// the span — a record block holds a record, an option block holds an option — and a cycle in the path
+    /// put a containment fact into the arrangement, so the walk revisited nodes and "what follows what"
+    /// stopped being answerable by reading it. The span is one place however many turn up in it, and the
+    /// unrolling belongs to the run, where the count is finally known.
     /// </remarks>
     [TestMethod]
-    public void A_repetition_is_a_way_on_that_reaches_back_and_only_the_description_loops()
+    public void A_repetition_is_a_span_that_holds_one_shape_and_the_path_never_reaches_back()
     {
         var message = Corpus.First(m => m.AllFields.Any(f => f.Pattern is Pattern.Chain));
         var repeat = message.AllFields.First(f => f.Pattern is Pattern.Chain);
-        var run = message.Graph.Nodes.OfType<FieldSet>().Single(s => s.Derived == repeat);
+        var span = message.Graph.Nodes.OfType<FieldSet>().Single(s => s.Derived == repeat);
 
-        var entry = message.Graph.From<Holds>(run).Single().To;
-        var back = message.Graph.Of<Then>().Where(t => t.To == entry && t.Key is not null).ToList();
+        Assert.AreEqual(1, message.Graph.From<Holds>(span).Count(), "the one shape it repeats");
+        Assert.IsTrue(message.Graph.From<Decides>(span).Any(), "and something asks whether another follows");
 
-        Assert.AreEqual(1, back.Count, "one way on, taken while there is another");
-        Assert.IsTrue(message.Graph.From<Decides>(back[0].From).Any(), "and something asks whether there is");
+        // The whole path, everywhere, for every document: no edge leads anywhere the walk has been.
+        foreach (var document in Corpus)
+        {
+            var seen = new HashSet<Node>();
+            var reachable = new Queue<Node>(document.Graph.Of<Starts>().Select(e => e.To));
 
-        // Leaving needs no edge of its own: not taking the way back is what ends the run. One decision.
-        Assert.AreEqual(0, message.Graph.From<Then>(back[0].From).Count(t => t.Key is null));
+            while (reachable.Count > 0)
+            {
+                var at = reachable.Dequeue();
+                if (!seen.Add(at)) continue;
+
+                foreach (var edge in document.Graph.From<Then>(at)) reachable.Enqueue(edge.To);
+                foreach (var edge in document.Graph.From<Holds>(at)) reachable.Enqueue(edge.To);
+            }
+
+            foreach (var edge in document.Graph.Of<Then>())
+                Assert.IsFalse(Reaches(document, edge.To, edge.From),
+                    $"{document.Id}: {edge.From.Name} leads to {edge.To.Name}, which leads back");
+        }
+    }
+
+    /// <summary>Whether one node can be got to from another by ways on and members.</summary>
+    private static bool Reaches(MessageDef message, Node from, Node target)
+    {
+        HashSet<Node> seen = [];
+        Queue<Node> next = new([from]);
+
+        while (next.Count > 0)
+        {
+            var at = next.Dequeue();
+            if (ReferenceEquals(at, target)) return true;
+            if (!seen.Add(at)) continue;
+
+            foreach (var edge in message.Graph.From<Then>(at)) next.Enqueue(edge.To);
+            foreach (var edge in message.Graph.From<Holds>(at)) next.Enqueue(edge.To);
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -257,9 +290,10 @@ public class ArrangementTests
             "one way on per kind — including a kind that holds nothing, which is still a component");
         Assert.IsTrue(ways.All(w => w.Key is not null || w.Otherwise));
 
-        // And the repeat: every kind ends by reaching back at the token.
-        Assert.IsTrue(message.Graph.Of<Then>().Any(t => t.To == token && t.Key is not null),
-            "a way on that reaches back is what makes it a run rather than one component");
+        // And the repeat: a property of the span, not a cycle. The token is read again on the next pass
+        // because the span says there is one, not because an edge points backwards at it.
+        Assert.IsTrue(message.Graph.From<Decides>(run).Any(),
+            "something has to ask whether another component follows");
     }
 
     [TestMethod]

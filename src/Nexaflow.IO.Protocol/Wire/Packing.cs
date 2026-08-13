@@ -64,17 +64,21 @@ public sealed record Starts : Edge
 /// What comes after this, and under what.
 ///
 /// <para>
-/// <b>One edge doing three jobs, which is the point of it.</b> A single unkeyed edge is "and then". Two or
-/// more leaving one node are an alternation, and which is taken is decided by the
-/// <see cref="Decides"/> node that keys them. An edge reaching back to somewhere the walk has already been
-/// is a repetition. Sequence, choice and repeat stop being three shapes with three sets of rules and
-/// become one relationship read three ways.
+/// A single unkeyed edge is "and then"; two or more leaving one node are an alternation, and which is
+/// taken is decided by the <see cref="Decides"/> node that keys them.
+/// </para>
+///
+/// <para>
+/// <b>It never reaches back.</b> A repetition was a back edge for one round of this design and that was
+/// wrong: what repeats is inside a span, not along the path, and a cycle here put a containment fact into
+/// the arrangement — the walk revisited nodes and "what follows what" stopped being answerable by reading
+/// it. A repeated span is one place on the path, however many components turn up in it, and the
+/// unrolling happens in the run.
 /// </para>
 ///
 /// <para>
 /// There is deliberately <b>no sequence number</b>. A node has one successor, or several told apart by
-/// their key; numbering them would only matter if they fanned out from the arrangement as a flat list,
-/// and in that shape a repetition cannot be expressed at all.
+/// their key.
 /// </para>
 /// </summary>
 /// <param name="Key">The value of the deciding node that picks this way on, or null where there is nothing
