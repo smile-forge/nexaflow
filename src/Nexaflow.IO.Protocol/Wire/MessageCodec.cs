@@ -2204,8 +2204,12 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         {
             var needs = Refs(field, field.Value, frame);
 
+            // The runs own their computations now, so their dependencies are asked of them.
             foreach (var run in (field.Pattern as Pattern.Bits)?.Slices ?? [])
-                if (run.Value is { } contents) needs.AddRange(Refs(field, contents, frame));
+                if (run.Value is { } contents)
+                    needs.AddRange(codec._message.InputsOf(run, contents)
+                        .Where(r => r.To is Field)
+                        .Select(r => new FacetRef(frame.Of((Field)r.To), FacetNamed(r.Facet))));
 
             return [.. needs.Distinct()];
         }

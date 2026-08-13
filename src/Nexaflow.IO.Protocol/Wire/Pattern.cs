@@ -39,7 +39,19 @@ public enum GroupOrder
 /// would put the names somewhere they could disagree with the ones the group already declares.
 /// </para>
 /// </param>
-public readonly record struct BitSlice(string Name, int Width, Expr? Value = null);
+public sealed class BitSlice(string name, int width, Expr? value = null) : Node
+{
+    /// <summary>Capture name for this run, and the name anything pointing at it uses.</summary>
+    public override string Name { get; } = name;
+
+    /// <summary>Bits, most significant first within the group.</summary>
+    public int Width { get; } = width;
+
+    /// <summary>Where this run's value comes from.</summary>
+    public Expr? Value { get; } = value;
+
+    public override string ToString() => $"{Name}:{Width}";
+}
 
 /// <summary>
 /// One packing of a <see cref="Pattern.Choice"/>.

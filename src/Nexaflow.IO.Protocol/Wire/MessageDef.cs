@@ -687,10 +687,19 @@ public sealed record MessageDef
 
             if (field.Value is not null) Link(field.Value, "value", Visible);
 
-            // A group written from its runs depends on whatever each run reads, exactly as it would have
-            // depended on them through the one record it used to be written from.
-            foreach (var run in (field.Pattern as Pattern.Bits)?.Slices ?? [])
-                if (run.Value is { } contents) Link(contents, run.Name, Visible);
+            // Each run of a bit group computes itself, and the group takes them in order. Three meanings
+            // in one octet are three requirements paths, so the computation hangs off the run rather than
+            // off the group — which is also what lets them settle at different times.
+            if (field.Pattern is Pattern.Bits bits)
+                for (int at = 0; at < bits.Slices.Count; at++)
+                {
+                    var run = bits.Slices[at];
+                    graph.Add(run);
+                    graph.Add(new Requires { From = field, To = run, Sequence = at, Facet = "value" });
+
+                    if (run.Value is { } contents)
+                        Compute(graph, run, contents, $"{field.Id}.{run.Name}", Visible);
+                }
 
             switch (field.Pattern)
             {
