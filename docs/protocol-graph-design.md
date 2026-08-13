@@ -117,11 +117,47 @@ good. What changes is what parsing produces.
 The author has said an intermediate broken state is acceptable, so this is a straight line rather than
 green-at-every-step. The corpus is the safety net at the end of it, not during.
 
-1. `Term` nodes, with facets, scheduled by the resolver. Evaluator walks terms.
-2. `Slice` nodes, with facets.
-3. `Packing` and `Then`. `Contains` retired; group, choice, chain and assortment re-expressed.
-4. Delete the compensations in the table above.
-5. Re-green the corpus.
+**1a. `Term` nodes exist and reads leave them. — done, 368 green.** `Expr.Parse` still parses; the graph
+now holds a `Term` per sub-expression, with `Computes` from the owning node, `Uses` between operands, and
+`Reads`/`Draws` from the term that denotes something. A reference collapses to *one* term rather than a
+stack of member accesses. `Roles` is deleted: `Refs`/`Present` take the expression and find its root by
+object identity, so "which of this field's expressions" is a node rather than a string.
+
+Two things that came out of doing it, both worth knowing before the next block:
+
+- **A role was doing work nobody had written down.** Bit-run expressions shared `Roles.Value` with the
+  field's own, so the group's dependencies included its runs' by accident. That is now a sentence in
+  `ValueRefs` — a group written from its runs waits on all of them — and it is temporary: it goes when
+  runs become nodes with their own facets.
+- **The validation scanners are still alive and are load-bearing for diagnostics.** `FieldReferences` and
+  friends remain at six sites in `MessageDef`, all checks rather than dependency derivation. The one that
+  matters is "this expression names a field that is not in scope": the term builder *silently drops* an
+  unresolvable name, so without that check a typo produces a term with no edge and no complaint. The graph
+  can answer it — a term whose `Shape` is reference-shaped and which has no outgoing `Reads` is exactly an
+  unresolved name, and `Belongs` says where to report it. Do that when deleting them.
+
+**1b. Terms are scheduled by the resolver.** Each term gets a `Value` facet; a field's value reads its root
+term's. This is what actually fixes the carry refusal: a `Conditional` settles its condition, then
+*realises only the taken branch*, exactly as a choice realises its arm — so reads under the branch not
+taken never become nodes, and the prerequisite is absent rather than optional. Note that higher-order
+calls (`map`, `fold`, `filter`, `scan`) cannot be static term nodes, because the lambda body runs once per
+item and the list is not known until its source settles: make the *call* one node that runs the evaluator
+over its body internally. Its body's reads are dependencies of the call node, which is sound because the
+body can read nothing the call cannot.
+
+**2. `Slice` nodes.** `BitSlice` becomes a class deriving from `Node` (it is a `readonly record struct`
+today), `Occurrence` and `NameFrame.Of` learn to carry a node that is not a `Field`, and
+`fields.<f>.value.<run>` resolves its `Reads` edge to the run rather than the group. That last part is what
+breaks the HPACK cycle — and it must land in the same block as per-run facets, because a reference
+resolving to the run while scheduling still resolves to the group is worse than either.
+
+**3. `Packing` and `Then`.** `Contains` retired; group, choice, chain and assortment re-expressed. Arm
+selection and packing selection are one mechanism — settled with the author — so build the guarded edge
+once and use it at both scales.
+
+**4.** Delete the compensations in the table above.
+
+**5.** Re-green the corpus.
 
 **Acceptance:** the corpus round-trips as it does today, and the two refusals pinned in
 `HeaderTableCaptureTests` flip to passing without either being edited into agreement.
