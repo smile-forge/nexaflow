@@ -2623,10 +2623,10 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 value = ProtoValue.Of(caseless.Value);
 
             if (field.Through is { } transform) value = transform.Apply(value, evaluator: new Evaluator(_converters));
-            return Through(value, field.Via, forward: true, field.Id);
+            return Through(value, field, forward: true);
         }
 
-        value = Through(value, field.Via, forward: false, field.Id);
+        value = Through(value, field, forward: false);
 
         if (field.Through is { } inverse)
         {
@@ -2643,22 +2643,34 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             : value;
     }
 
-    private ProtoValue Through(ProtoValue value, Conversion? via, bool forward, string fieldId)
+    /// <summary>
+    /// The converter on a field, called with the value flowing past it and its arguments.
+    /// </summary>
+    /// <remarks>
+    /// The arguments come from the <b>graph</b> — the edges out of the conversion's node — rather than
+    /// from the list on the declaration. Identical today, because the only thing an argument can be so far
+    /// is a constant the document stated; the point is that it is now a node an edge reaches, so the
+    /// question "what do this field's octets depend on" has one answer instead of one answer plus a list
+    /// nothing could see.
+    /// </remarks>
+    private ProtoValue Through(ProtoValue value, Field field, bool forward)
     {
-        if (via is null) return value;
+        if (field.Via is not { } via) return value;
 
         if (!_converters.TryGet(via.Name, out var converter) || converter is null)
-            throw new ProtoTypeException($"field '{fieldId}': unknown converter '{via.Name}'");
+            throw new ProtoTypeException($"field '{field.Id}': unknown converter '{via.Name}'");
+
+        var arguments = _message.ArgumentsOf(field);
 
         // Decode applies the inverse, encode the forward direction — one declaration, both ways, and the
         // same arguments: a converter that needs a fraction width needs it in either direction.
-        if (forward) return converter.Apply(value, via.Args);
+        if (forward) return converter.Apply(value, arguments);
 
         if (converter.Inverse is null || !_converters.TryGet(converter.Inverse, out var inverse) || inverse is null)
             throw new ProtoTypeException(
                 $"converter '{via.Name}' declares no inverse, so it cannot be used on a field that must decode");
 
-        return inverse.Apply(value, via.Args);
+        return inverse.Apply(value, arguments);
     }
 
     // ── Octet plumbing ────────────────────────────────────────────────────────

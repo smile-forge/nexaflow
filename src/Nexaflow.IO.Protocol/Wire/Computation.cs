@@ -13,6 +13,10 @@ public enum Origin
 
     /// <summary>Whether a part that might not be there, is.</summary>
     Presence,
+
+    /// <summary>A value the document states outright. Nothing has to answer it — it is already an answer,
+    /// standing as a node so that an argument is something an edge can reach.</summary>
+    Stated,
 }
 
 /// <summary>
@@ -88,6 +92,23 @@ public sealed class Converted : Computation
 public sealed class Coded : Computation
 {
     public required string Implementation { get; init; }
+}
+
+/// <summary>
+/// A value the document states, standing as a node so something can point at it.
+///
+/// <para>
+/// A producer with no inputs. It exists because an argument to a computation has to be <i>somewhere</i> —
+/// and an argument frozen into the declaration that names the converter is a value nothing can reach, so
+/// two calls needing the same table each carry their own copy of it and no query can tell they are the
+/// same. As a node it is pointed at.
+/// </para>
+/// </summary>
+public sealed class Constant(Values.ProtoValue value, string label) : Node
+{
+    public Values.ProtoValue Value { get; } = value;
+
+    public override string Name { get; } = label;
 }
 
 /// <summary>

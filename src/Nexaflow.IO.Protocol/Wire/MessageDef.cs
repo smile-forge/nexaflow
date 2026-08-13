@@ -307,6 +307,38 @@ public sealed record MessageDef
 
         LinkReads(graph, ScopeFields(Declared), null);
 
+        // A conversion is a computation like any other: it takes the value coming past it, plus whatever
+        // arguments it was given, and produces one value. Its arguments become nodes so that the graph can
+        // be asked what a field's octets actually depend on — which, while they were a list frozen into
+        // the declaration, it could not be.
+        foreach (var field in Descendants(Declared).Concat(Descendants(Apart)))
+        {
+            if (field.Via is not { } via) continue;
+
+            var applied = new Converted
+            {
+                Applies = via,
+                Label = $"{field.Id} via {via.Name}",
+
+                // Sequence 0 is the value flowing past — on the way out from the field's own computation,
+                // on the way in from the octets — so it is never an edge. The arguments start at one.
+                Wants = [.. via.Args.Select((_, at) => new Need($"{via.Name}[{at + 1}]", "value",
+                                                                Origin.Stated))],
+            };
+
+            graph.Add(applied);
+            graph.Add(new Computes { From = field, To = applied });
+
+            for (int at = 0; at < via.Args.Count; at++)
+                graph.Add(new Requires
+                {
+                    From = applied,
+                    To = new Constant(via.Args[at], $"{via.Name}[{at + 1}]"),
+                    Sequence = at + 1,
+                    Facet = "value",
+                });
+        }
+
         // Order comes from where the rule was written unless it says otherwise, and lands on the EDGE:
         // one rule can constrain several nodes and need not sit in the same place at each of them.
         for (int i = 0; i < Rules.Count; i++)
@@ -550,6 +582,16 @@ public sealed record MessageDef
     /// <summary>The computations rooted at a node.</summary>
     public IEnumerable<Computation> Computations(Node owner)
         => Graph.From<Computes>(owner).Select(e => e.To).OfType<Computation>();
+
+    /// <summary>The conversion applied to a field, as a node, if it has one.</summary>
+    public Converted? ConversionOf(Field field)
+        => Graph.From<Computes>(field).Select(e => e.To).OfType<Converted>().FirstOrDefault();
+
+    /// <summary>A conversion's arguments, taken from the graph rather than from the declaration.</summary>
+    public IReadOnlyList<Values.ProtoValue> ArgumentsOf(Field field)
+        => ConversionOf(field) is not { } applied
+            ? []
+            : [.. InputsOf(applied).Select(e => e.To).OfType<Constant>().Select(c => c.Value)];
 
     /// <summary>Where a computation's inputs come from, in argument order.</summary>
     public IEnumerable<Requires> InputsOf(Computation computation)
