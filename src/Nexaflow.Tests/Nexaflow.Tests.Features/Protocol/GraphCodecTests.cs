@@ -352,6 +352,70 @@ public class GraphCodecTests
         StringAssert.Contains(refused.Message, "depend on each other");
     }
 
+    // ── One worklist ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A fork that turns on a field, decided while writing.
+    /// </summary>
+    /// <remarks>
+    /// The assumption this replaced: that the path could be worked out first and the values afterwards.
+    /// It holds only while every decision turns on something the caller supplied — and the moment one
+    /// turns on a field, the walk decides against a value nothing has computed and takes the wrong way on
+    /// without saying so. Reaching a place is a fact the worklist settles like any other now, so a fork
+    /// waits for what it needs exactly as a length waits for the span it measures.
+    /// </remarks>
+    [DataTestMethod]
+    [DataRow(1, new byte[] { 0x01, 0xaa, 0xbb })]
+    [DataRow(2, new byte[] { 0x02, 0xcc })]
+    public void A_fork_that_turns_on_a_field_waits_for_that_field(long kind, byte[] expected)
+    {
+        var forked = new MessageDef
+        {
+            Id = "forked",
+            Context = Context.Given.These("kind", "wide", "narrow"),
+            Fields =
+            [
+                new Field
+                {
+                    Id = "kind", Pattern = new Pattern.Scalar(1, BigEndian: true),
+                    Value = Expr.Parse("inputs.kind"),
+                },
+                new Field
+                {
+                    Id = "body",
+                    Pattern = new Pattern.Choice(Expr.Parse("fields.kind.value"),
+                    [
+                        Arm.On("wide", ProtoValue.Of(1L),
+                        [
+                            new Field
+                            {
+                                Id = "wide", Pattern = new Pattern.Scalar(2, BigEndian: true),
+                                Value = Expr.Parse("inputs.wide"),
+                            },
+                        ]),
+                        Arm.On("narrow", ProtoValue.Of(2L),
+                        [
+                            new Field
+                            {
+                                Id = "narrow", Pattern = new Pattern.Scalar(1, BigEndian: true),
+                                Value = Expr.Parse("inputs.narrow"),
+                            },
+                        ]),
+                    ]),
+                },
+            ],
+        };
+
+        var written = new GraphCodec(forked).Encode(new Dictionary<string, ProtoValue>
+        {
+            ["kind"] = ProtoValue.Of(kind),
+            ["wide"] = ProtoValue.Of(0xaabbL),
+            ["narrow"] = ProtoValue.Of(0xccL),
+        });
+
+        CollectionAssert.AreEqual(expected, written);
+    }
+
     // ── The rule it keeps ─────────────────────────────────────────────────────
 
     /// <summary>

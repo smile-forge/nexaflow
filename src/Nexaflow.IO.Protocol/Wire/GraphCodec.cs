@@ -30,6 +30,9 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
     private readonly ConverterTable _converters = converters ?? ConverterTable.Default;
     private readonly Evaluator _evaluator = new(converters ?? ConverterTable.Default);
 
+    /// <summary>The declaration, reachable from the nested walk.</summary>
+    private MessageDef Message => message;
+
     /// <summary>What this codec can walk so far, and what it refuses rather than half-doing.</summary>
     public static bool Handles(Field field) => field.Pattern is Pattern.Scalar or Pattern.Bits
                                                              or Pattern.Opaque { Until: null }
@@ -56,16 +59,18 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
     public byte[] Encode(IReadOnlyDictionary<string, ProtoValue> supplied)
     {
         var run = RunGraph.Begin(message.Graph, supplied);
-        var order = Path(run, reading: false).ToList();
         var resolver = new Resolver();
+        var laying = new Laying(this, run, reading: false);
 
-        foreach (var field in order) resolver.Add(Waiting(run, field));
-
+        // One worklist for both. Where the message goes and what is in it are settled by the same
+        // machinery, so a fork decided on a field waits for that field exactly as a length waits for the
+        // span it measures — and a value fixed before anything ran is simply already settled.
+        resolver.Add(laying.Reaching(message.Root, previous: null));
         resolver.Resolve();
 
         var wire = new Emission();
 
-        foreach (var field in order)
+        foreach (var field in laying.Order)
         {
             var appearance = run.For(field);
             int began = wire.Written;
@@ -79,54 +84,121 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
     }
 
     /// <summary>
-    /// One appearance, as a unit of work: what it waits on, and what to do when the wait is over.
+    /// The path being laid out, one place at a time, as work the resolver schedules.
     /// </summary>
-    private ResolutionNode Waiting(RunGraph run, Field field)
+    /// <remarks>
+    /// <para>
+    /// Reaching a place is a <see cref="Facet.Realised"/> like any other fact, and settling it brings the
+    /// next place into existence. So the walk is not a thing that happens before values are worked out and
+    /// then hands over — the two are the same worklist, and a fork that turns on a field waits for that
+    /// field the way anything waits for anything.
+    /// </para>
+    /// <para>
+    /// Reaching a place waits on two things: having reached the one before it, and whatever the decision
+    /// <i>at</i> it needs. The second is looked up rather than assumed, because assuming it — waiting for
+    /// every decision in the message — invents a cycle wherever a fork turns on a field that is itself
+    /// derived from something later.
+    /// </para>
+    /// </remarks>
+    private sealed class Laying(GraphCodec codec, RunGraph run, bool reading)
     {
-        var appearance = run.For(field);
-        var waits = Waits(run, appearance, field);
+        private readonly Stack<Queue<Node>> _within = new();
 
-        return new ResolutionNode
+        /// <summary>The fields reached, in the order the path reached them.</summary>
+        public List<Field> Order { get; } = [];
+
+        public ResolutionNode Reaching(Node place, Node? previous)
         {
-            Id = appearance,
+            var appearance = run.For(place);
+            var field = place as Field;
+            bool carries = field is not null && Handles(field);
 
-            // Position and emission are a linearisation over settled extents rather than a fixed point,
-            // so they are done in one sweep afterwards and are not the worklist's business.
-            NotApplicable = new HashSet<Facet>
-                { Facet.Realised, Facet.Present, Facet.Position, Facet.Emitted },
+            List<FacetRef> before = previous is null ? [] : [new FacetRef(run.For(previous), Facet.Realised)];
+            before.AddRange(Deciding(place));
 
-            DependenciesFor = facet => facet switch
+            return new ResolutionNode
             {
-                Facet.Value => waits,
+                Id = appearance,
+                NotApplicable = carries
+                    ? new HashSet<Facet> { Facet.Present, Facet.Position, Facet.Emitted }
+                    : new HashSet<Facet>
+                        { Facet.Present, Facet.Extent, Facet.Value, Facet.Position, Facet.Emitted },
 
-                // An extent that is not fixed by the declaration is however many octets the value comes
-                // to, so it waits for the value — the dependency that runs the other way from what a
-                // reader would guess, and the reason this is a worklist and not a sweep.
-                Facet.Extent => field.Pattern.StaticWidth is null
-                    ? [new FacetRef(appearance, Facet.Value)]
-                    : [],
+                DependenciesFor = facet => facet switch
+                {
+                    Facet.Realised => before,
+                    Facet.Value => carries ? codec.Waits(run, appearance, field!) : [],
+
+                    Facet.Extent => carries && field!.Pattern.StaticWidth is null
+                        ? [new FacetRef(appearance, Facet.Value)]
+                        : [],
+
+                    _ => [],
+                },
+
+                Settle = (facet, _) =>
+                {
+                    switch (facet)
+                    {
+                        case Facet.Realised:
+                            if (carries) Order.Add(field!);
+
+                            return Next(place) is { } next
+                                ? FacetResult.Expanding(null, Reaching(next, place))
+                                : FacetResult.Of(null);
+
+                        case Facet.Value: return FacetResult.Of(codec.Settle(run, appearance, field!));
+
+                        case Facet.Extent:
+                            var width = codec.Sized(appearance, field!);
+                            appearance.Settle(Facet.Extent, width);
+                            return FacetResult.Of(width);
+
+                        default: return FacetResult.Of(null);
+                    }
+                },
+            };
+        }
+
+        /// <summary>What the decision at this place needs before it can be made.</summary>
+        private List<FacetRef> Deciding(Node place)
+        {
+            if (codec.Message.Graph.From<Then>(place).Count() < 2) return [];
+
+            var deciding = codec.Message.Graph.From<Decides>(place)
+                                .FirstOrDefault(d => d.Reading == reading)
+                        ?? codec.Message.Graph.From<Decides>(place).FirstOrDefault();
+
+            return deciding?.To switch
+            {
+                Evaluated evaluated =>
+                    [.. codec.Message.InputsOf(evaluated).Where(e => e.To is Field)
+                            .Select(e => new FacetRef(run.Reach(run.For(place), (Field)e.To),
+                                                      Named(e.Facet)))],
+
+                Field announced => [new FacetRef(run.Reach(run.For(place), announced), Facet.Value)],
 
                 _ => [],
-            },
+            };
+        }
 
-            // Whatever settles is written onto the appearance, not only handed back to the worklist. The
-            // run graph is where a fact lives; the worklist only decides when it can be had, and anything
-            // reading this later asks the node.
-            Settle = (facet, _) =>
+        /// <summary>Where the path goes from here: into what this holds, or on to what follows.</summary>
+        private Node? Next(Node place)
+        {
+            var members = codec.Message.Graph.From<Holds>(place).OrderBy(h => h.Order)
+                               .Select(h => h.To).ToList();
+
+            if (members.Count > 0) _within.Push(new Queue<Node>(members));
+
+            while (_within.Count > 0)
             {
-                switch (facet)
-                {
-                    case Facet.Value: return FacetResult.Of(Settle(run, appearance, field));
+                if (_within.Peek().Count > 0) return _within.Peek().Dequeue();
 
-                    case Facet.Extent:
-                        var width = Sized(appearance, field);
-                        appearance.Settle(Facet.Extent, width);
-                        return FacetResult.Of(width);
+                _within.Pop();
+            }
 
-                    default: return FacetResult.Of(null);
-                }
-            },
-        };
+            return codec.Onward(run, place, reading);
+        }
     }
 
     /// <summary>Every fact this appearance's value waits on, taken from the edges that ask for them.</summary>
@@ -137,7 +209,7 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
         var asking = field.Pattern is Pattern.Bits { Assembled: true } assembled
             ? assembled.Slices.Where(s => s.Value is not null)
                        .Select(s => message.ComputationOf(s, s.Value!)).OfType<Computation>()
-            : message.ComputationOf(field, field.Value!) is { } one ? [one] : [];
+            : field.Value is not null && message.ComputationOf(field, field.Value) is { } one ? [one] : [];
 
         foreach (var computation in asking)
             foreach (var wanted in message.InputsOf(computation))
@@ -150,11 +222,6 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
     /// <summary>
     /// How wide this is: what the declaration fixes, or however many octets the value came to.
     /// </summary>
-    /// <remarks>
-    /// Measured by writing it, which is the only honest way to know — a span is as long as what it was
-    /// given. Only reached when the declaration does not say, which is also the only case where the extent
-    /// waits on the value.
-    /// </remarks>
     private int Sized(RunNode appearance, Field field)
     {
         if (field.Pattern.StaticWidth is { } declared) return declared;
