@@ -280,11 +280,16 @@ public sealed class Subject : Node
                 + $"against it false. The ones that exist are: {string.Join(", ", Vocabulary.All.Order())}.");
         }
 
-        foreach (var (field, facet) in MessageDef.FieldReferences(expression))
-            if (!facet.Equals("value", StringComparison.Ordinal))
-                issues.Add($"subject '{Id}': {what} '{transition}' reads the {facet} of '{field}'. A move "
-                         + "sees what the message said, not how it was laid out — only `.value` answers "
-                         + "here, and anything else reads as nothing.");
+        // Matched against the expression rather than walked out of the graph, because a move's
+        // expressions are not in it: a transition points at a message, and what it computes hangs off the
+        // transition, which has no computation edge yet. When it gets one this becomes the same walk
+        // everything else uses.
+        foreach (var read in expression.Descendants().OfType<Expr.Member>())
+            if (read is { Target: Expr.Member { Target: Expr.Root { Name: "fields" } } named }
+                && !read.Name.Equals("value", StringComparison.Ordinal))
+                issues.Add($"subject '{Id}': {what} '{transition}' reads the {read.Name} of "
+                         + $"'{named.Name}'. A move sees what the message said, not how it was laid out — "
+                         + "only `.value` answers here, and anything else reads as nothing.");
     }
 
     public IReadOnlyList<string> Validate()

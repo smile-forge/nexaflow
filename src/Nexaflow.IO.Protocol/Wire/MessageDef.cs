@@ -568,6 +568,14 @@ public sealed record MessageDef
         return Graph.To<Computes>(top).FirstOrDefault() is { } rooted ? (rooted.From, top.Shape) : null;
     }
 
+    /// <summary>Every term of one computation, the root included.</summary>
+    public IEnumerable<Term> TermsUnder(Term root)
+        => [root, .. Graph.From<Uses>(root).SelectMany(u => TermsUnder((Term)u.To))];
+
+    /// <summary>The computations rooted at a node.</summary>
+    public IEnumerable<Term> Computations(Node owner)
+        => Graph.From<Computes>(owner).Select(e => (Term)e.To);
+
     /// <summary>Every read anywhere under a term — the requirements path, walked.</summary>
     public IEnumerable<Reads> ReadsUnder(Term root)
         => Graph.From<Reads>(root)
@@ -972,11 +980,10 @@ public sealed record MessageDef
                 issues.Add($"message '{Id}': '{field.Id}' is declared beside the message and says nothing "
                          + "about what it holds. Nothing on the wire will fill it in.");
 
-            foreach (var (referenced, _) in Descendants([field]).Where(f => f.Value is not null)
-                                                                .SelectMany(f => FieldReferences(f.Value!)))
-                if (!settled.Contains(referenced))
+            foreach (var read in Descendants([field]).SelectMany(f => ReadsOf(f, f.Value)))
+                if (read.To is Field earlier && !settled.Contains(earlier.Id))
                     issues.Add($"message '{Id}': '{field.Id}' is declared beside the message and reads "
-                             + $"'{referenced}', which is worked out after it. Move it earlier.");
+                             + $"'{earlier.Id}', which is worked out after it. Move it earlier.");
         }
     }
 
@@ -984,12 +991,14 @@ public sealed record MessageDef
     {
         var declared = Context.Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
 
-        foreach (var (owner, expression, what, _) in Expressions(AllFields))
-            foreach (var key in ContextReferences(expression).Distinct())
-                if (!declared.Contains(key))
-                    issues.Add($"message '{Id}': {what} of '{owner.Name}' reads 'inputs.{key}', which the "
-                             + "document never says it needs. An undeclared outside value resolves to "
-                             + "nothing and surfaces much later as a type error somewhere unrelated.");
+        // A term shaped like an outside value with no edge leaving it is one nothing declared — the same
+        // question CheckNames asks about fields, and the same answer: the graph resolved it or it did not.
+        foreach (var term in Graph.Nodes.OfType<Term>())
+            if (term.Shape is Expr.Member { Target: Expr.Root { Name: "inputs" } } wanted
+                && !Graph.From<Draws>(term).Any() && !declared.Contains(wanted.Name))
+                issues.Add($"message '{Id}': {term.Label} reads 'inputs.{wanted.Name}', which the "
+                         + "document never says it needs. An undeclared outside value resolves to "
+                         + "nothing and surfaces much later as a type error somewhere unrelated.");
 
         foreach (var duplicate in Context.GroupBy(c => c.Key, StringComparer.Ordinal).Where(g => g.Count() > 1))
             issues.Add($"message '{Id}': 'inputs.{duplicate.Key}' is declared {duplicate.Count()} times");
@@ -999,7 +1008,7 @@ public sealed record MessageDef
                      + "That sentence is the question they get shown.");
 
         // Declaring a need nothing reads is how a prompt list grows things nobody wants any more.
-        var read = Expressions(AllFields).SelectMany(e => ContextReferences(e.Expression)).ToHashSet(StringComparer.Ordinal);
+        var read = Graph.Of<Draws>().Select(e => ((Context)e.To).Key).ToHashSet(StringComparer.Ordinal);
 
         foreach (var source in Context.Where(c => !read.Contains(c.Key)))
             issues.Add($"message '{Id}': '{source.Key}' is declared and never read");
@@ -1263,8 +1272,15 @@ public sealed record MessageDef
             issues.Add($"field '{field.Id}': {fallbacks.Count} packings are options whatever happens, so "
                      + "which one applies is never decided");
 
-        var parts = conditions.SelectMany(a => PresenceReferences(a.Condition!))
-                              .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
+        var parts = conditions
+            .Select(a => ComputationOf(field, a.Condition!))
+            .Where(t => t is not null)
+            .SelectMany(t => TermsUnder(t!))
+            .Select(t => t.Shape)
+            .OfType<Expr.Member>()
+            .Where(m => m.Target is Expr.Root { Name: Vocabulary.Present })
+            .Select(m => m.Name)
+            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
 
         foreach (var part in parts)
             if (!Optionals.Any(o => string.Equals(o.Key.CaptureName, part, StringComparison.Ordinal)))
@@ -1457,32 +1473,4 @@ public sealed record MessageDef
         }
     }
 
-    /// <summary>
-    /// The fields an expression reads, with the facet it needs of each. Dependencies are <b>derived from
-    /// the expression</b> rather than hand-declared alongside it — hand-drawn edges were the reason a
-    /// protocol with no declared dependencies at all had nothing the worklist could see.
-    /// </summary>
-    internal static IEnumerable<(string Field, string Facet)> FieldReferences(Expr e)
-    {
-        foreach (var node in e.Descendants())
-            if (node is Expr.Member { Target: Expr.Member { Target: Expr.Root { Name: "fields" } } inner } outer)
-                yield return (inner.Name, outer.Name);
-    }
-
-    /// <summary>The outside values an expression reads. <c>item</c>, <c>carried</c>, <c>room</c> and the
-    /// rest are the walk's own vocabulary and are not context; they come from the message.</summary>
-    internal static IEnumerable<string> ContextReferences(Expr e)
-    {
-        foreach (var node in e.Descendants())
-            if (node is Expr.Member { Target: Expr.Root { Name: "inputs" } } member)
-                yield return member.Name;
-    }
-
-    /// <summary>The parts an expression asks about the presence of.</summary>
-    internal static IEnumerable<string> PresenceReferences(Expr e)
-    {
-        foreach (var node in e.Descendants())
-            if (node is Expr.Member { Target: Expr.Root { Name: Vocabulary.Present } } member)
-                yield return member.Name;
-    }
 }
