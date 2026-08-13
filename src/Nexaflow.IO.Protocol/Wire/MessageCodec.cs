@@ -400,7 +400,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 // what gives "is there room for another" something to mean.
                 if (group.Extent is { } declared)
                 {
-                    Present(field, Roles.Bound, r);
+                    Present(field, group.Extent, r);
                     r.EnterRegion(field.Id, start + Bounded(field, r.Eval(declared).AsInt(), r));
                 }
 
@@ -514,7 +514,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
             case Pattern.Choice choice:
             {
-                Present(field, Roles.Discriminator, r);
+                Present(field, choice.Deciding(encoding: false), r);
 
                 var arm = choice.Key is { } deciding
                     ? _message.Choose(field, Keyed(r.Eval(deciding)))
@@ -539,7 +539,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 // identifier has moved since the last cannot be named without this.
                 var carried = chain.Seed is null ? ProtoValue.Nothing : r.Eval(chain.Seed);
 
-                Present(field, Roles.Continuation, r);
+                Present(field, chain.Continues, r);
 
                 while (Continues(field, chain.Continues, r, instances.Count, carried))
                 {
@@ -661,11 +661,11 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     /// unhelpful, and reported from the wrong place.
     /// </para>
     /// </summary>
-    private void Present(Field owner, string role, Reading r)
+    private void Present(Field owner, Expr? expression, Reading r)
     {
-        foreach (var read in Graph.From<Reads>(owner))
+        foreach (var read in _message.ReadsOf(owner, expression))
         {
-            if (read.Role != role || read.To is not Field target || r.Bound(target.Id)) continue;
+            if (read.To is not Field target || r.Bound(target.Id)) continue;
 
             if (_message.Optional(target) is not { } from) continue;
 
@@ -694,7 +694,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     /// <summary>A recovered span's length, with the read that produces it checked for having arrived.</summary>
     private long Sized(Field field, Expr length, Reading r)
     {
-        Present(field, Roles.Length, r);
+        Present(field, length, r);
         return r.Eval(length).AsInt();
     }
 
@@ -1717,7 +1717,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                     // octets in it has to be decided some other way out here — by whether the caller
                     // supplied one.
                     var deciding = choice.Deciding(encoding: true);
-                    var keyNeeds = Refs(field, choice.Selects is null ? Roles.Discriminator : Roles.Selection,
+                    var keyNeeds = Refs(field,
                                         deciding, frame);
                     List<FacetRef>? armExtents = null;
                     List<FacetRef>? armEmits = null;
@@ -1780,7 +1780,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
                 case Pattern.Chain chain:
                 {
-                    List<FacetRef> valueNeeds = field.Value is null ? [] : Refs(field, Roles.Value, field.Value, frame);
+                    List<FacetRef> valueNeeds = field.Value is null ? [] : ValueRefs(field, frame);
                     List<FacetRef>? instanceExtents = null;
                     List<FacetRef>? instanceEmits = null;
                     ProtoValue? structures = null;
@@ -1820,8 +1820,8 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                                 carriedId = new Occurrence(field, nodeId, $"[{i}]~carried");
 
                                 children.Add(previous is null
-                                    ? Threaded(carriedId, field, Roles.Seed, frame, chain.Seed!, [])
-                                    : Threaded(carriedId, field, Roles.Carry, previous, chain.Carry!,
+                                    ? Threaded(carriedId, field, frame, chain.Seed!, [])
+                                    : Threaded(carriedId, field, previous, chain.Carry!,
                                                [new FacetRef(previousCarried!, Facet.Value)]));
                             }
 
@@ -1882,7 +1882,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
                 case Pattern.Assorted assorted:
                 {
-                    List<FacetRef> valueNeeds = field.Value is null ? [] : Refs(field, Roles.Value, field.Value, frame);
+                    List<FacetRef> valueNeeds = field.Value is null ? [] : ValueRefs(field, frame);
                     List<FacetRef>? componentExtents = null;
                     List<FacetRef>? componentEmits = null;
                     ProtoValue? listed = null;
@@ -1928,8 +1928,8 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                                 carriedId = new Occurrence(field, nodeId, $"[{i}]~carried");
 
                                 children.Add(before is null
-                                    ? Threaded(carriedId, field, Roles.Seed, frame, assorted.Seed!, [])
-                                    : Threaded(carriedId, field, Roles.Carrying(beforeSort!), before,
+                                    ? Threaded(carriedId, field, frame, assorted.Seed!, [])
+                                    : Threaded(carriedId, field, before,
                                                beforeSort!.Carry ?? Expr.Parse("carried"),
                                                [new FacetRef(beforeCarried!, Facet.Value)]));
                             }
@@ -2027,7 +2027,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 {
                     // Unconditional: a bit group assembled from its runs has no value expression of its
                     // own and still depends on everything those runs read.
-                    List<FacetRef> valueNeeds = Refs(field, Roles.Value, field.Value, frame);
+                    List<FacetRef> valueNeeds = ValueRefs(field, frame);
 
                     // A reference waits for its target to land. Not for the whole layout — only for the
                     // extents between the start and that node, which usually settle long before the rest
@@ -2116,10 +2116,10 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         }
 
         /// <summary>A zero-width node holding what one structure threads to the next.</summary>
-        private ResolutionNode Threaded(Occurrence id, Field owner, string role, NameFrame within,
+        private ResolutionNode Threaded(Occurrence id, Field owner, NameFrame within,
                                         Expr expression, IReadOnlyList<FacetRef> also)
         {
-            var needs = Refs(owner, role, expression, within).Concat(also).Distinct().ToList();
+            var needs = Refs(owner, expression, within).Concat(also).Distinct().ToList();
 
             return new ResolutionNode
             {
@@ -2180,10 +2180,28 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         /// depending on where you read it from.
         /// </para>
         /// </summary>
-        private List<FacetRef> Refs(Field owner, string role, Expr? expression, NameFrame frame)
+        /// <summary>
+        /// Everything a field's <i>value</i> waits on.
+        /// </summary>
+        /// <remarks>
+        /// A bit group written from its runs has no expression of its own — each run has one — so the
+        /// group's value depends on all of them. This used to fall out of the runs sharing the field's
+        /// role, which is exactly the kind of thing a role was doing without saying so; now it is a
+        /// sentence about how a group gets written.
+        /// </remarks>
+        private List<FacetRef> ValueRefs(Field field, NameFrame frame)
         {
-            var needs = codec.Graph.From<Reads>(owner)
-                .Where(r => r.Role == role)
+            var needs = Refs(field, field.Value, frame);
+
+            foreach (var run in (field.Pattern as Pattern.Bits)?.Slices ?? [])
+                if (run.Value is { } contents) needs.AddRange(Refs(field, contents, frame));
+
+            return [.. needs.Distinct()];
+        }
+
+        private List<FacetRef> Refs(Field owner, Expr? expression, NameFrame frame)
+        {
+            var needs = codec._message.ReadsOf(owner, expression)
                 .Select(r => new FacetRef(frame.Of((Field)r.To), FacetNamed(r.Facet)))
                 .ToList();
 

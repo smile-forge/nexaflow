@@ -174,25 +174,15 @@ public sealed record Admits : Edge
 /// One node reads a facet of another — the dependency the resolver schedules on.
 ///
 /// <para>
-/// Derived from an expression, but <i>materialised</i>: it exists in the graph rather than being recovered
-/// by scanning expression text at every encode. That is what makes a reference into an arm that was not
-/// taken something a document check can see, instead of a run-time surprise.
+/// Leaves a <see cref="Term"/>, not the field that owns the expression. That is the difference between
+/// "this field depends on that one somewhere in one of its computations" and "<i>this operand</i> is that
+/// node's extent" — and it is what makes a read inside a branch distinguishable from one that always
+/// happens, which a scan over expression text could never be.
 /// </para>
 /// </summary>
 public sealed record Reads : Edge
 {
     public required string Facet { get; init; }
-
-    /// <summary>Which of the reader's expressions this read belongs to.
-    ///
-    /// <para>
-    /// A field can hold several — a value and a discriminator, a value and a continuation — and they are
-    /// not interchangeable. A chain's continuation reads a count that is only meaningful on the way in;
-    /// treating that as a dependency of the chain's value would make the chain wait on a field that waits
-    /// on the chain, and report a cycle in a document that has none.
-    /// </para>
-    /// </summary>
-    public required string Role { get; init; }
 
     public override string Verb => $"reads {Facet} of";
 }
@@ -256,27 +246,6 @@ public sealed record Remembers : Edge
     public override string Verb => "keeps something in";
 }
 
-/// <summary>The expressions a node can hold, and therefore the roles a read can have.</summary>
-public static class Roles
-{
-    public const string Value = "the value";
-    public const string Discriminator = "the discriminator";
-
-    /// <summary>The encode-side discriminator, where the two directions decide differently — a reader
-    /// asks the region whether a section is there, a writer asks whether it was given one.</summary>
-    public const string Selection = "the selection";
-    public const string Continuation = "the continuation";
-    public const string Seed = "the seed";
-    public const string Carry = "the carry";
-
-    /// <summary>One kind's carry, told apart from its neighbours'. An assortment has a carry per kind, and
-    /// a dependency gathered under one role would make every kind wait on every other kind's fields —
-    /// including ones no component of this message realised.</summary>
-    public static string Carrying(Node sort) => $"the carry on '{sort.Name}'";
-    public const string Length = "the length";
-    public const string Bound = "the region bound";
-}
-
 /// <summary>
 /// A node needs a value from outside the message.
 ///
@@ -288,9 +257,6 @@ public static class Roles
 /// </summary>
 public sealed record Draws : Edge
 {
-    /// <summary>Which of the reader's expressions wants it.</summary>
-    public required string Role { get; init; }
-
     public override string Verb => "draws";
 }
 

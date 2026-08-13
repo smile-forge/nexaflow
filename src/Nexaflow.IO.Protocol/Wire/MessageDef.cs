@@ -383,91 +383,44 @@ public sealed record MessageDef
 
         foreach (var field in here)
         {
-            void Link(Expr expression, string role, Func<string, Field?> lookup)
-            {
-                foreach (var (name, facet) in FieldReferences(expression))
-                    if (lookup(name) is { } target)
-                        graph.Add(new Reads { From = field, To = target, Facet = facet, Role = role });
-            }
+            void Link(Expr expression, string what, Func<string, Field?> lookup)
+                => Compute(graph, field, expression, $"{field.Id}.{what}", lookup);
 
-            void Outside(Expr expression, string role)
-            {
-                foreach (var key in ContextReferences(expression))
-                    if (Context.FirstOrDefault(c => string.Equals(c.Key, key, StringComparison.Ordinal)) is { } source)
-                        graph.Add(new Draws { From = field, To = source, Role = role });
-            }
-
-            // Asking whether a part turned up depends on the run that would have carried it, and nothing
-            // in the expression's text says so — `present.x` names the part, and what has to settle first
-            // is the assortment. Undeclared, the worklist would read it before the run existed.
-            void Presences(Expr expression, string role)
-            {
-                foreach (var part in PresenceReferences(expression))
-                    if (Optionals.FirstOrDefault(o => string.Equals(o.Key.CaptureName, part, StringComparison.Ordinal))
-                        is { Key: not null } known)
-                        graph.Add(new Reads
-                        {
-                            From = field, To = known.Value.Assortment, Facet = "value", Role = role,
-                        });
-            }
-
-            if (field.Value is not null)
-            {
-                Link(field.Value, Roles.Value, Visible);
-                Outside(field.Value, Roles.Value);
-                Presences(field.Value, Roles.Value);
-            }
+            if (field.Value is not null) Link(field.Value, "value", Visible);
 
             // A group written from its runs depends on whatever each run reads, exactly as it would have
             // depended on them through the one record it used to be written from.
             foreach (var run in (field.Pattern as Pattern.Bits)?.Slices ?? [])
-                if (run.Value is { } contents)
-                {
-                    Link(contents, Roles.Value, Visible);
-                    Outside(contents, Roles.Value);
-                    Presences(contents, Roles.Value);
-                }
+                if (run.Value is { } contents) Link(contents, run.Name, Visible);
 
             switch (field.Pattern)
             {
                 case Pattern.Choice choice:
-                    if (choice.Key is { } key)
-                    {
-                        Link(key, Roles.Discriminator, Visible);
-                        Presences(key, Roles.Discriminator);
-                    }
+                    if (choice.Key is { } key) Link(key, "discriminator", Visible);
 
                     foreach (var arm in choice.Arms.Where(a => a.Condition is not null))
-                    {
-                        Link(arm.Condition!, Roles.Discriminator, Visible);
-                        Presences(arm.Condition!, Roles.Discriminator);
-                    }
+                        Link(arm.Condition!, $"when '{arm.Name}'", Visible);
 
-                    if (choice.Selects is { } selects)
-                    {
-                        Link(selects, Roles.Selection, Visible);
-                        Outside(selects, Roles.Selection);
-                        Presences(selects, Roles.Selection);
-                    }
+                    if (choice.Selects is { } selects) Link(selects, "selection", Visible);
                     break;
 
                 case Pattern.Opaque { Length: { } length }:
-                    Link(length, Roles.Length, Visible);
+                    Link(length, "length", Visible);
                     break;
 
                 case Pattern.Group { Extent: { } extent }:
-                    Link(extent, Roles.Bound, Visible);
+                    Link(extent, "bound", Visible);
                     break;
 
                 case Pattern.Chain chain:
                 {
-                    Link(chain.Continues, Roles.Continuation, Visible);
-                    if (chain.Seed is not null) Link(chain.Seed, Roles.Seed, Visible);
+                    Link(chain.Continues, "continuation", Visible);
+                    if (chain.Seed is not null) Link(chain.Seed, "seed", Visible);
 
                     var inside = ScopeFields([chain.Element]);
 
                     if (chain.Carry is not null)
-                        Link(chain.Carry, Roles.Carry,
+                        Link(chain.Carry, "carry",
                              n => inside.FirstOrDefault(f => string.Equals(f.Id, n, StringComparison.Ordinal)));
 
                     LinkReads(graph, inside, [.. here, .. outer ?? []]);
@@ -475,15 +428,15 @@ public sealed record MessageDef
                 }
 
                 case Pattern.Assorted assorted:
-                    Link(assorted.Continues, Roles.Continuation, Visible);
-                    if (assorted.Seed is { } seeded) Link(seeded, Roles.Seed, Visible);
+                    Link(assorted.Continues, "continuation", Visible);
+                    if (assorted.Seed is { } seeded) Link(seeded, "seed", Visible);
 
                     // A kind's carry is written on the kind and read inside it, so it names that kind's
                     // fields — the same inward resolution a chain's carry has.
                     foreach (var sort in assorted.Sorts.Where(a => a.Carry is not null))
                     {
                         var within = ScopeFields(sort.Fields);
-                        Link(sort.Carry!, Roles.Carrying(sort),
+                        Link(sort.Carry!, $"carry on '{sort.Name}'",
                              n => within.FirstOrDefault(f => string.Equals(f.Id, n, StringComparison.Ordinal))
                                ?? Visible(n));
                     }
@@ -497,6 +450,110 @@ public sealed record MessageDef
             }
         }
     }
+
+    /// <summary>
+    /// Turns one expression into terms, and hangs the requirements path off the node that owns it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This replaced three text scanners — one for fields, one for context, one for presence — that
+    /// between them were the engine's answer to "what does this expression need". A regular expression
+    /// over source text cannot see that a read sits inside a branch, so every read a case analysis
+    /// mentioned became a prerequisite of every case, and a document that could be read could not be
+    /// written. The edges are the answer now.
+    /// </para>
+    /// <para>
+    /// A reference is <b>one</b> term rather than a stack of member accesses: <c>fields.body.extent</c>
+    /// denotes a fact about another node, and what the graph wants is the edge, not the two dots that
+    /// spell it. Anything reaching further in — <c>fields.head.value.flag</c> — is an ordinary member
+    /// access on top of that one term, so a run of a group still waits for the group.
+    /// </para>
+    /// </remarks>
+    private Term Compute(ProtocolGraph graph, Node owner, Expr expression, string label,
+                         Func<string, Field?> lookup)
+    {
+        var root = Build(expression, label);
+        graph.Add(new Computes { From = owner, To = root });
+        return root;
+
+        Term Build(Expr e, string at)
+        {
+            var term = new Term { Shape = e, Label = at };
+            graph.Add(term);
+
+            switch (e)
+            {
+                case Expr.Member { Target: Expr.Member { Target: Expr.Root { Name: "fields" } } of } facet:
+                    if (lookup(of.Name) is { } target)
+                        graph.Add(new Reads { From = term, To = target, Facet = facet.Name });
+                    return term;
+
+                case Expr.Member { Target: Expr.Root { Name: "inputs" } } outside:
+                    if (Context.FirstOrDefault(c => string.Equals(c.Key, outside.Name, StringComparison.Ordinal))
+                        is { } source)
+                        graph.Add(new Draws { From = term, To = source });
+                    return term;
+
+                // Asking whether a part turned up depends on the run that would have carried it, and
+                // nothing in the text says so — the name is the part's and what has to settle first is the
+                // assortment. Undeclared, the worklist would read it before the run existed.
+                case Expr.Member { Target: Expr.Root { Name: Vocabulary.Present } } part:
+                    if (Optionals.FirstOrDefault(
+                            o => string.Equals(o.Key.CaptureName, part.Name, StringComparison.Ordinal))
+                        is { Key: not null } known)
+                        graph.Add(new Reads { From = term, To = known.Value.Assortment, Facet = "value" });
+                    return term;
+            }
+
+            int ordinal = 0;
+            foreach (var operand in e.Children)
+                graph.Add(new Uses
+                {
+                    From = term,
+                    To = Build(operand, $"{at}[{ordinal}]"),
+                    Ordinal = ordinal++,
+                });
+
+            return term;
+        }
+    }
+
+    /// <summary>
+    /// The term a node's named computation is rooted at, found by the expression it was built from.
+    /// </summary>
+    /// <remarks>
+    /// By object identity, which is what lets the <c>Reads</c> edge stop carrying a role. A role existed to
+    /// tell one field's several expressions apart while they were text; the root term is that distinction,
+    /// so asking for one of them is asking for a node.
+    /// </remarks>
+    public Term? ComputationOf(Node owner, Expr expression)
+        => Graph.From<Computes>(owner).Select(e => (Term)e.To)
+                .FirstOrDefault(t => ReferenceEquals(t.Shape, expression));
+
+    /// <summary>
+    /// The computation a term belongs to: the node that owns it, and the expression it was rooted at.
+    /// </summary>
+    /// <remarks>
+    /// Walking up rather than storing a back-pointer, because the edge is already there and a second copy
+    /// of it would be one more thing that can disagree.
+    /// </remarks>
+    public (Node Owner, Expr Root)? Belongs(Term term)
+    {
+        var top = term;
+        while (Graph.To<Uses>(top).FirstOrDefault() is { } up) top = (Term)up.From;
+
+        return Graph.To<Computes>(top).FirstOrDefault() is { } rooted ? (rooted.From, top.Shape) : null;
+    }
+
+    /// <summary>Every read anywhere under a term — the requirements path, walked.</summary>
+    public IEnumerable<Reads> ReadsUnder(Term root)
+        => Graph.From<Reads>(root)
+                .Concat(Graph.From<Uses>(root).SelectMany(u => ReadsUnder((Term)u.To)));
+
+    /// <summary>What one of a node's computations reads. The lookup everything asking about dependencies
+    /// goes through, so there is one walk rather than a scan per caller.</summary>
+    public IEnumerable<Reads> ReadsOf(Node owner, Expr? expression)
+        => expression is null || ComputationOf(owner, expression) is not { } root ? [] : ReadsUnder(root);
 
     /// <summary>Every field in the message, nested ones included, in declaration order.</summary>
     public IEnumerable<Field> AllFields => Descendants(Declared);
@@ -807,12 +864,18 @@ public sealed record MessageDef
 
         if (unreachable.Count == 0) return;
 
-        foreach (var reader in AllFields)
-            foreach (var read in Graph.From<Reads>(reader))
-                if (read.To is Field target && unreachable.TryGetValue(target, out var why)
-                    && !Alongside(reader, why.Assortment, why.Sort)
-                    && !(why.Sort is { } owner && read.Role == Roles.Carrying(owner)))
-                    issues.Add($"message '{Id}': '{reader.Id}' reads '{target.Id}' — {why.Why}.");
+        foreach (var read in Graph.Of<Reads>())
+        {
+            if (read.To is not Field target || !unreachable.TryGetValue(target, out var why)) continue;
+            if (Belongs((Term)read.From) is not { Owner: Field reader } owned) continue;
+
+            // A kind's own carry is written on the assortment and read inside the kind, so it names parts
+            // that are unaddressable from anywhere else — which is correct, and not a violation here.
+            if (Alongside(reader, why.Assortment, why.Sort)) continue;
+            if (why.Sort is { } sort && ReferenceEquals(owned.Root, sort.Carry)) continue;
+
+            issues.Add($"message '{Id}': '{reader.Id}' reads '{target.Id}' — {why.Why}.");
+        }
     }
 
     /// <summary>

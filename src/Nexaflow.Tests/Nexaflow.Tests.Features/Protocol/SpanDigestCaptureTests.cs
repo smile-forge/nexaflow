@@ -242,7 +242,7 @@ public class SpanDigestCaptureTests
 
         CollectionAssert.AreEquivalent(
             new[] { "pseudoHeader", "beforeChecksum", "checksumStandsAt", "afterChecksum", "payload" },
-            segment.Graph.From<Reads>(checksum).Where(r => r.Facet == "octets")
+            segment.ReadsOf(checksum, checksum.Value).Where(r => r.Facet == "octets")
                    .Select(r => r.To.Name).ToArray());
     }
 
