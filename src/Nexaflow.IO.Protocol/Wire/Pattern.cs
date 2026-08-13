@@ -409,7 +409,31 @@ public abstract record Pattern
     /// </param>
     /// <param name="Carry">The next <c>carried</c>, evaluated in the structure's own scope once it has
     /// been read, so it can be computed from what that structure said.</param>
-    public sealed record Chain(Field Element, Expr Continues, Expr? Seed = null, Expr? Carry = null) : Pattern
+    /// <param name="Thread">
+    /// What the value threaded along is called, once the run is over.
+    ///
+    /// <para>
+    /// Without it the fold is computed and then dropped. Every structure sees what the ones before it came
+    /// to, and then the walk ends and the answer goes nowhere — which is fine while the thread only exists
+    /// to let a structure name itself, and useless the moment the run is <i>building</i> something. A table
+    /// assembled across a message is exactly that, and so is a running total, a hash, a high-water mark.
+    /// </para>
+    ///
+    /// <para>
+    /// A name rather than a general way to point at an intermediate: everything an edge can target here is
+    /// a declared node with an id, and a carry is already a declared part of this shape, alongside the
+    /// continuation and the seed. Naming it makes it a node. Making arbitrary sub-expressions nodes would
+    /// be a different and much larger idea, and nothing yet needs it.
+    /// </para>
+    ///
+    /// <para>
+    /// It binds as a <b>capture</b> and not as a field — there are no octets, so there is nothing for a
+    /// field to be. A field expression naming it is refused as a reference to something not in scope,
+    /// which is the existing check and the right answer.
+    /// </para>
+    /// </param>
+    public sealed record Chain(Field Element, Expr Continues, Expr? Seed = null, Expr? Carry = null,
+                               string? Thread = null) : Pattern
     {
         public bool Threads => Seed is not null && Carry is not null;
     }
@@ -634,6 +658,10 @@ public abstract record Pattern
             [$"field '{fieldId}': its kinds are named by text and its token '{a.Token.Id}' has no converter, "
            + "so what it reads is octets and no key can ever match one. Every component would take the "
            + "fallback and nothing would say so."],
+
+        Chain { Thread: not null } c when !c.Threads =>
+            [$"field '{fieldId}': it names what it threads and threads nothing. A name for a value that "
+           + "is never computed is a reference to something that will not be there."],
 
         Chain c when (c.Seed is null) != (c.Carry is null) =>
             [$"field '{fieldId}': a chain that threads a value needs both where it starts and how each "

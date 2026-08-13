@@ -304,6 +304,125 @@ public class ReassemblyCaptureTests
             "the second replaces the first rather than being appended to it");
     }
 
+    // ── A fold that leaves the walk ───────────────────────────────────────────
+
+    /// <summary>
+    /// A run whose answer is the run itself, and a state that keeps it.
+    ///
+    /// <para>
+    /// The other half of the same problem. <c>kept</c> let a move accumulate across messages; this is
+    /// accumulation <i>within</i> one — a value every structure contributes to and none of them carries.
+    /// The chain already threaded it and then dropped it on the floor when the walk ended, so the fold was
+    /// computed and unreachable.
+    /// </para>
+    ///
+    /// <para>
+    /// Naming it makes it a node, and the state layer then needs nothing new at all: an ordinary recording
+    /// reads it as it reads any other part of the message. Which is the shape HPACK wants — a table built
+    /// across a header block and handed to the next one — with the table being an ordinary value rather
+    /// than a thing the engine knows about.
+    /// </para>
+    /// </summary>
+    private static readonly MessageDef Ledger = new()
+    {
+        Id = "ledger",
+        Context = Context.Given.These("entries"),
+        Fields =
+        [
+            new Field
+            {
+                Id = "entries",
+                Value = Expr.Parse("inputs.entries"),
+                Pattern = new Pattern.Chain(
+                    new Field { Id = "amount", Pattern = U8, Value = Expr.Parse("item") },
+                    Expr.Parse("room > 0"),
+                    Seed: Expr.Parse("0"),
+                    Carry: Expr.Parse("carried + fields.amount.value"),
+
+                    // Without this the total is worked out and then thrown away.
+                    Thread: "total"),
+            },
+        ],
+    };
+
+    private static readonly Recall Running = new()
+    {
+        Id = "running", About = "everything counted so far, across every message.",
+    };
+
+    private static Subject Counting() => new()
+    {
+        Id = "counting",
+        Start = Whole,
+        Parties = [Us],
+        Transitions =
+        [
+            new Transition
+            {
+                Whose = Us, On = Ledger, Way = Bearing.Received, From = Whole, To = Whole,
+                When = Expr.Parse("true"),
+
+                // Reads the fold as it would read any other part of the message, because that is what it
+                // now is. Nothing here knows the value came from a walk rather than off the wire.
+                // A slot nothing has written yet holds nothing, and nothing is not zero — so the document
+                // says what an empty ledger starts from rather than the engine guessing on its behalf.
+                Records = [new Recording(Expr.Parse("(kept.running ?? 0) + fields.total.value"), Running)],
+                Because = "a ledger adds to the running total.",
+            },
+        ],
+    };
+
+    [TestMethod]
+    public void A_value_every_structure_contributes_to_can_leave_the_walk()
+    {
+        var codec = new MessageCodec(Ledger);
+        Assert.AreEqual(0, codec.Validate().Count, string.Join(" / ", codec.Validate()));
+
+        var decoded = codec.Decode([3, 4, 5]);
+
+        // No structure carries it and the wire never states it.
+        Assert.AreEqual(12L, decoded["total"].AsInt());
+        Assert.AreEqual(3, decoded["entries"].AsList().Count);
+    }
+
+    [TestMethod]
+    public void And_a_move_can_keep_it_without_the_state_layer_learning_anything()
+    {
+        var standing = new Standing(Counting());
+        var codec = new MessageCodec(Ledger);
+
+        standing.Observe(Ledger, codec.Decode([3, 4, 5]), Bearing.Received);
+        Assert.AreEqual(12L, standing.Recalled(Running).AsInt());
+
+        // And across messages, which is the pair of accumulations meeting: one within a message, one
+        // between them, and neither of them a mechanism the engine provides.
+        standing.Observe(Ledger, codec.Decode([10, 20]), Bearing.Received);
+        Assert.AreEqual(42L, standing.Recalled(Running).AsInt());
+    }
+
+    [TestMethod]
+    public void Naming_a_fold_that_is_never_computed_is_refused()
+    {
+        var idle = Ledger with
+        {
+            Id = "idle",
+            Fields =
+            [
+                new Field
+                {
+                    Id = "entries",
+                    Value = Expr.Parse("inputs.entries"),
+                    Pattern = new Pattern.Chain(
+                        new Field { Id = "amount", Pattern = U8, Value = Expr.Parse("item") },
+                        Expr.Parse("room > 0"), Thread: "total"),
+                },
+            ],
+        };
+
+        Assert.IsTrue(new MessageCodec(idle).Validate()
+            .Any(i => i.Contains("names what it threads and threads nothing")));
+    }
+
     /// <summary>
     /// The engine holds no opinion about any of this.
     /// </summary>

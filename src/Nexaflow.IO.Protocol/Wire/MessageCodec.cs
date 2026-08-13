@@ -577,6 +577,10 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                     instances.Add(instance);
                 }
 
+                // What the run came to. Bound as a capture because there are no octets here to be a field
+                // of — and it is the only way the fold escapes the walk that computed it.
+                if (chain.Thread is { } thread) r.Capture(thread, carried);
+
                 return Bind(field, r, new ProtoValue.List(instances), r.Offset - start, exposed);
             }
 
