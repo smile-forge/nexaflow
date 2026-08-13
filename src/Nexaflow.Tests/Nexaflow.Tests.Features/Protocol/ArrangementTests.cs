@@ -94,22 +94,59 @@ public class ArrangementTests
         Assert.AreSame(message.Fields[1], next.To);
     }
 
+    /// <summary>
+    /// A container is a set, and a set is not a field.
+    /// </summary>
+    /// <remarks>
+    /// The distinction the engine did not have: a field <i>produces</i> octets and a set only <i>spans</i>
+    /// the ones its members produced. Every header, sequence and pseudo-header in the corpus is declared as
+    /// a field because there was nowhere else to say it, which gave each of them a value and an emission it
+    /// has no business having.
+    /// </remarks>
     [TestMethod]
-    public void A_group_is_a_place_on_the_path_that_holds_its_members_in_order()
+    public void A_container_is_a_set_that_holds_its_members_in_order_and_makes_nothing_itself()
     {
         var message = Corpus
             .First(m => m.Fields.Any(f => f.Pattern is Pattern.Group { Fields.Count: > 1 }));
 
-        var group = message.Fields.First(f => f.Pattern is Pattern.Group { Fields.Count: > 1 });
-        var members = ((Pattern.Group)group.Pattern).Fields;
+        var declared = message.Fields.First(f => f.Pattern is Pattern.Group { Fields.Count: > 1 });
+        var members = ((Pattern.Group)declared.Pattern).Fields;
 
-        var held = message.Graph.From<Holds>(group).OrderBy(h => h.Order).Select(h => h.To).ToList();
+        var set = message.Graph.Nodes.OfType<FieldSet>().Single(s => s.Derived == declared);
+        var held = message.Graph.From<Holds>(set).OrderBy(h => h.Order).Select(h => h.To).ToList();
 
         CollectionAssert.AreEqual(members.ToArray(), held.ToArray(),
             "its members, ordered on the edge — genuinely ordinal, unlike a way on");
 
-        // And the group is not itself on the wire: the walk goes through it, not over it.
-        Assert.IsFalse(message.Walk(message.Arrangements.Single()).Contains(group));
+        // Neither the set nor the field it was declared as is on the wire: the walk goes through, not over.
+        var laid = message.Walk(message.Arrangements.Single()).ToList();
+        Assert.IsFalse(laid.Contains(set));
+        Assert.IsFalse(laid.Contains(declared));
+    }
+
+    /// <summary>Containers the arrangement reaches — the top-level path and the sets within it. A chain's
+    /// element and a choice's arms are not laid out yet, so theirs join when those convert.</summary>
+    private static IEnumerable<Field> Contained(IEnumerable<Field> fields)
+    {
+        foreach (var field in fields)
+            if (field.Pattern is Pattern.Group group)
+            {
+                yield return field;
+                foreach (var deeper in Contained(group.Fields)) yield return deeper;
+            }
+    }
+
+    [TestMethod]
+    public void Every_container_the_arrangement_reaches_is_a_set_rather_than_a_field()
+    {
+        foreach (var message in Corpus)
+        {
+            var containers = Contained(message.Fields).ToList();
+            var sets = message.Graph.Nodes.OfType<FieldSet>().ToList();
+
+            CollectionAssert.AreEquivalent(containers, sets.Select(s => s.Derived!).ToList(),
+                $"{message.Id}: one set per container, and nothing else pretending to be one");
+        }
     }
 
     [TestMethod]

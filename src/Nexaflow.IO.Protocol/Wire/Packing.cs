@@ -16,11 +16,37 @@ public sealed class Packing(string name) : Node
     public override string Name { get; } = name;
 }
 
-// There is deliberately no separate FieldSet node. A group is expanded by having `Holds` edges, and
-// today every group also occupies octets — it is a field. Making a second node kind for the same notion
-// would mean two ways to be a group, and the walk would have to know both. A set that is *not* a field
-// arrives when a packing is authored directly rather than derived from a field list; it will be a node
-// with `Holds` edges and no pattern, and the walk already handles it.
+/// <summary>
+/// A container: a header, a body, a pseudo-header. The matching concept to the ones specifications name.
+///
+/// <para>
+/// <b>It produces nothing.</b> That is the whole difference from a field, and it is not a technicality: a
+/// field makes octets, and a set only <i>spans</i> the octets its members made. Its extent is a fact about
+/// them rather than something it computed, which is exactly why a length can measure a header while the
+/// header itself writes nothing at all.
+/// </para>
+///
+/// <para>
+/// Modelling a container as a field instead — which is what the engine did, having nothing else to offer —
+/// gives every header, sequence and pseudo-header a value and an emission it has no business having, and
+/// leaves a document with fields that produce nothing yet answer when asked. The documents in the corpus
+/// inherited that from the engine rather than choosing it.
+/// </para>
+/// </summary>
+public sealed class FieldSet(string name, Field? derived = null) : Node
+{
+    public override string Name { get; } = name;
+
+    /// <summary>
+    /// The <c>Pattern.Group</c> field this was made from, while there still is one.
+    /// </summary>
+    /// <remarks>
+    /// Transitional and only that. The codec still walks containment and still wants the field, so the
+    /// arrangement names it here rather than the two structures silently disagreeing about which node a
+    /// header is. It goes when a document can declare a set outright and <c>Pattern.Group</c> is deleted.
+    /// </remarks>
+    public Field? Derived { get; } = derived;
+}
 
 /// <summary>A message offers an arrangement.</summary>
 public sealed record Packs : Edge

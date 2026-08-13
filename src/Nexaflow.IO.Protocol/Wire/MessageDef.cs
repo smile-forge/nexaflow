@@ -437,32 +437,34 @@ public sealed record MessageDef
 
         foreach (var field in fields)
         {
-            if (previous is null) graph.Add(new Starts { From = arrangement, To = field });
-            else graph.Add(new Then { From = previous, To = field });
+            var node = Place(graph, field);
 
-            // A group is expanded rather than stepped over, and its members are ordered on the edge —
-            // genuinely ordinal, unlike a way on, because they are members of one thing.
-            var members = field.Pattern is Pattern.Group group ? group.Fields : [];
+            if (previous is null) graph.Add(new Starts { From = arrangement, To = node });
+            else graph.Add(new Then { From = previous, To = node });
 
-            for (int at = 0; at < members.Count; at++)
-                graph.Add(new Holds { From = field, To = members[at], Order = at });
-
-            foreach (var member in members) Nest(graph, member);
-
-            previous = field;
+            previous = node;
         }
     }
 
-    /// <summary>A member that is itself a group holds its own, all the way down.</summary>
-    private void Nest(ProtocolGraph graph, Field field)
+    /// <summary>
+    /// What stands on the path here: the field, or the set it is really a container for.
+    /// </summary>
+    /// <remarks>
+    /// A container produces nothing — its members do — so it is not a field, whatever the declaration had
+    /// to call it for want of anywhere else to say so. Members are ordered on the edge, which is genuinely
+    /// ordinal because they are members of one thing, unlike a way on.
+    /// </remarks>
+    private Node Place(ProtocolGraph graph, Field field)
     {
-        if (field.Pattern is not Pattern.Group group) return;
+        if (field.Pattern is not Pattern.Group group) return field;
+
+        var set = new FieldSet(field.Id, field);
+        graph.Add(set);
 
         for (int at = 0; at < group.Fields.Count; at++)
-        {
-            graph.Add(new Holds { From = field, To = group.Fields[at], Order = at });
-            Nest(graph, group.Fields[at]);
-        }
+            graph.Add(new Holds { From = set, To = Place(graph, group.Fields[at]), Order = at });
+
+        return set;
     }
 
     /// <summary>The arrangements this message offers.</summary>
