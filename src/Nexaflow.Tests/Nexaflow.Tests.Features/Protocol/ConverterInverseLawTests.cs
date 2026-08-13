@@ -137,6 +137,21 @@ public class ConverterInverseLawTests
            + "|> unpackBits(list(list(0, 0, 1), list(256, 127, 7))) |> hex()", ""),
         ]),
 
+        new("signed / unsigned", "values that fit the declared width",
+        [
+            ("31 |> signed(5) |> unsigned(5)", "31"),
+            ("1 |> signed(5) |> unsigned(5)", "1"),
+            ("0 |> signed(1) |> unsigned(1)", "0"),
+            ("255 |> signed(8) |> unsigned(8)", "255"),
+        ]),
+
+        new("bitsReversed", "self-inverse at a fixed width",
+        [
+            ("13 |> bitsReversed(5) |> bitsReversed(5)", "13"),
+            ("0 |> bitsReversed(3) |> bitsReversed(3)", "0"),
+            ("1 |> bitsReversed(11) |> bitsReversed(11)", "1"),
+        ]),
+
         new("reverse", "self-inverse on any octet run",
         [
             ("'0102030405' |> unhex() |> reverse() |> reverse() |> hex()", "0102030405"),

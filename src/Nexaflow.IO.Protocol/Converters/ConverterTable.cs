@@ -273,6 +273,39 @@ public sealed class ConverterTable
         t.Add("shr", ValueKinds.Numeric, ValueKinds.Int, null,
             (v, a) => ProtoValue.Of(v.AsInt() >> (int)a[0].AsInt()), "shift right (lossy; no inverse)");
 
+        // ── bit runs ─────────────────────────────────────────────────────────
+        // A run of bits is a value like any other and needs the same two things doing to it that octets
+        // do: read as a signed quantity, and read in the other bit order. The width is REQUIRED and
+        // cannot be taken from the run it came off — a converter is handed a value, not a place, and
+        // guessing the width from the magnitude would sign-extend 3 differently depending on the message.
+        t.Add("signed", ValueKinds.Numeric, ValueKinds.Int, "unsigned",
+            (v, a) =>
+            {
+                int width = Width(a, "signed");
+                long value = v.AsInt() & ((1L << width) - 1);
+
+                return ProtoValue.Of((value & (1L << (width - 1))) != 0 ? value - (1L << width) : value);
+            },
+            "a run of bits read as two's complement — width required. A five-bit field holding 0x1f is -1, "
+          + "and nothing about the value itself says so");
+        t.Add("unsigned", ValueKinds.Numeric, ValueKinds.Int, "signed",
+            (v, a) => ProtoValue.Of(v.AsInt() & ((1L << Width(a, "unsigned")) - 1)),
+            "the same run of bits read as a magnitude — width required");
+
+        // Self-inverse, and declared so: reversing twice is the identity for any width.
+        t.Add("bitsReversed", ValueKinds.Numeric, ValueKinds.Int, "bitsReversed",
+            (v, a) =>
+            {
+                int width = Width(a, "bitsReversed");
+                long from = v.AsInt(), turned = 0;
+
+                for (int at = 0; at < width; at++) turned = (turned << 1) | ((from >> at) & 1);
+
+                return ProtoValue.Of(turned);
+            },
+            "a run of bits in the other order — width required, because where the run ends is what decides "
+          + "which bit was first");
+
         t.Add("mod", ValueKinds.Int, ValueKinds.Int, null,
             (v, a) => ProtoValue.Of(((v.AsInt() % a[0].AsInt()) + a[0].AsInt()) % a[0].AsInt()),
             "non-negative modulo — sequence counters that wrap");
@@ -596,6 +629,17 @@ public sealed class ConverterTable
                 $"{converter}() requires {what} as argument {at + 1}. It has no default: which value is "
               + "correct is a property of the protocol, and defaulting it would put that protocol's "
               + "constant in the engine.");
+
+    /// <summary>How wide the run is. Never guessed: the same number means different things at different
+    /// widths, and a converter is handed a value rather than a place it came from.</summary>
+    private static int Width(IReadOnlyList<ProtoValue> args, string converter)
+    {
+        int width = (int)Required(args, 0, converter, "how many bits").AsInt();
+
+        return width is >= 1 and <= 63
+            ? width
+            : throw new ProtoTypeException($"a run of bits is 1..63 wide, not {width}");
+    }
 
     private static bool MsbFirst(IReadOnlyList<ProtoValue> args, int at)
         => Required(args, at, "base128", "order ('msbFirst' or 'lsbFirst')").AsText() switch
