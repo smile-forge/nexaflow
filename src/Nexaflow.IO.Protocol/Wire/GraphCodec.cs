@@ -33,7 +33,7 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
     /// <summary>What this codec can walk so far, and what it refuses rather than half-doing.</summary>
     public static bool Handles(Field field) => field.Pattern is Pattern.Scalar or Pattern.Bits
                                                              or Pattern.Opaque { Until: null }
-                                                             or Pattern.Group;
+                                                             or Pattern.Group or Pattern.Chain;
 
     // ── Writing ───────────────────────────────────────────────────────────────
 
@@ -329,7 +329,7 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
         foreach (var field in Path(run, reading: true))
         {
             var appearance = run.For(field);
-            int width = Width(run, appearance, field);
+            int width = Width(run, appearance, field, octets.Length - at);
 
             if (at + width > octets.Length)
                 throw new ProtoTypeException(
@@ -451,9 +451,13 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
     /// from a computation, exactly as a value does. So there is nothing here about lengths — only the same
     /// question asked of a different facet.
     /// </remarks>
-    private int Width(RunGraph run, RunNode appearance, Field field)
+    private int Width(RunGraph run, RunNode appearance, Field field, int remaining = 0)
     {
         if (field.Pattern.StaticWidth is { } declared) return declared;
+
+        // A span with nothing sizing it takes what is left, which is what "as many as fit" comes to once
+        // the count has stopped being something anyone declares.
+        if (message.ProducerOf(field, "extent") is null && field.Pattern is Pattern.Chain) return remaining;
 
         if (message.ProducerOf(field, "extent") is { } measured && measured is Evaluated evaluated)
             return (int)_evaluator.Eval(evaluated.Source, Given(run, appearance, measured)).AsInt();
@@ -461,7 +465,7 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
         throw new ProtoTypeException($"field '{field.Id}' has no width and nothing computes its extent");
     }
 
-    private static void Write(Emission wire, Field field, ProtoValue value)
+    private void Write(Emission wire, Field field, ProtoValue value)
     {
         switch (field.Pattern)
         {
@@ -481,6 +485,18 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
                 break;
 
             // Run by run, in order, and the octet boundary is wherever it happens to land.
+            // A run of elements: the field's value is the list, and what it may hold is the shape each
+            // item takes. There is no per-item expression and no item to bind — an element definition
+            // says how one is written, and the list says how many.
+            case Pattern.Chain:
+            {
+                var shape = Admitted(field);
+
+                foreach (var item in value.AsList()) Write(wire, shape, item);
+
+                break;
+            }
+
             case Pattern.Bits bits:
             {
                 var runs = value as ProtoValue.Rec
@@ -505,10 +521,50 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
             Pattern.Scalar scalar => ProtoValue.Of(Unfixed(taken, scalar)),
             Pattern.Opaque => ProtoValue.Of(taken),
             Pattern.Bits bits => Unpacked(bits, taken),
+            Pattern.Chain => Elements(field, taken),
             _ => throw new ProtoTypeException($"field '{field.Id}' cannot be read by this walk yet"),
         };
 
         return field.Via is null ? value : Applied(field, value, forward: false);
+    }
+
+    /// <summary>The one shape a span admits, where it admits exactly one.</summary>
+    private Field Admitted(Field field)
+    {
+        var admits = message.Graph.From<Allowed>(field).Select(e => e.To).OfType<Field>().ToList();
+
+        return admits.Count == 1
+            ? admits[0]
+            : throw new ProtoTypeException(
+                  $"field '{field.Id}' admits {admits.Count} shapes, and telling one element from another "
+                + "by what it announces is not something this walk does yet");
+    }
+
+    /// <summary>
+    /// The elements of a span, read until its octets run out.
+    /// </summary>
+    /// <remarks>
+    /// How many there are is never asked and never declared: the span is as long as something else said,
+    /// and the elements are however many fit. That is the whole of what used to be a repetition.
+    /// </remarks>
+    private ProtoValue Elements(Field field, byte[] taken)
+    {
+        var shape = Admitted(field);
+        int width = shape.Pattern.StaticWidth
+            ?? throw new ProtoTypeException(
+                   $"field '{field.Id}' holds '{shape.Id}', whose width this walk cannot work out");
+
+        if (taken.Length % width != 0)
+            throw new ProtoTypeException(
+                $"field '{field.Id}' is {taken.Length} octets and holds {width}-octet elements, so the "
+              + "last one is incomplete");
+
+        List<ProtoValue> items = [];
+
+        for (int at = 0; at < taken.Length; at += width)
+            items.Add(Read(shape, taken[at..(at + width)]));
+
+        return new ProtoValue.List(items);
     }
 
     private ProtoValue Applied(Field field, ProtoValue value, bool forward)

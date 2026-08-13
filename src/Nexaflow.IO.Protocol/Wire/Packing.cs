@@ -116,6 +116,27 @@ public sealed record Decides : Edge
     public override string Verb => Reading ? "on the way in, decided by" : "decided by";
 }
 
+/// <summary>
+/// What may turn up in this span.
+///
+/// <para>
+/// A run of elements is <b>one place</b> on the path holding a list, not a loop. What repeats is inside
+/// the field's own reading of itself: it takes the octets it was given and matches each element against
+/// the definitions this edge points at, until they run out. So there is no way on that reaches back, no
+/// cardinality in the arrangement, and nothing about how many there are anywhere in the description —
+/// which is right, because how many there are is a fact about a message and not about a protocol.
+/// </para>
+///
+/// <para>
+/// It is also the validation the model was missing. A definition sitting off the path can be pointed at
+/// from anywhere, and without this nothing said <i>where</i> it was allowed to appear.
+/// </para>
+/// </summary>
+public sealed record Allowed : Edge
+{
+    public override string Verb => "may contain";
+}
+
 /// <summary>A group's members, in order.</summary>
 public sealed record Holds : Edge
 {

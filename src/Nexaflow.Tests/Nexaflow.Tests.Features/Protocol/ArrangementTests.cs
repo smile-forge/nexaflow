@@ -57,16 +57,10 @@ public class ArrangementTests
                     yield return Set(message, field);
                     break;
 
-                // A repetition holds the one shape it repeats, so the unbranched path goes through it
-                // exactly once — which is all a description can say. How many there are is a run's answer.
-                case Pattern.Chain chain:
-                    foreach (var member in Declared(message, [chain.Element])) yield return member;
-                    break;
-
-                // A run of unlike components leads with its token; which kind follows is a fork, and the
-                // unbranched path stops there like any other.
-                case Pattern.Assorted assorted:
-                    foreach (var member in Declared(message, [assorted.Token])) yield return member;
+                // A run of elements is one place holding a list. What may turn up in it is said by
+                // Allowed edges, and how many do is a fact about a message rather than about a protocol.
+                case Pattern.Chain or Pattern.Assorted:
+                    yield return field;
                     break;
 
                 default:
@@ -175,16 +169,6 @@ public class ArrangementTests
                         yield return deeper;
                     break;
 
-                case Pattern.Chain chain:
-                    yield return field;
-                    foreach (var deeper in Contained([chain.Element])) yield return deeper;
-                    break;
-
-                case Pattern.Assorted assorted:
-                    yield return field;
-                    foreach (var deeper in Contained([assorted.Token, .. assorted.Sorts.SelectMany(s => s.Fields)]))
-                        yield return deeper;
-                    break;
             }
     }
 
@@ -202,44 +186,28 @@ public class ArrangementTests
     }
 
     /// <summary>
-    /// A repetition is a property of a span, and the path never reaches back.
+    /// There is no repetition in the arrangement at all.
     /// </summary>
     /// <remarks>
-    /// This was a back edge for one round of the design and that was wrong. What repeats is <i>inside</i>
-    /// the span — a record block holds a record, an option block holds an option — and a cycle in the path
-    /// put a containment fact into the arrangement, so the walk revisited nodes and "what follows what"
-    /// stopped being answerable by reading it. The span is one place however many turn up in it, and the
-    /// unrolling belongs to the run, where the count is finally known.
+    /// It was a back edge, then a property of a span, and now it is nothing: a run of elements is one
+    /// place holding a list, and what may turn up in it is an <see cref="Allowed"/> edge. How many there
+    /// are is a fact about a message, so a description that carried a cardinality was describing one
+    /// message rather than the protocol.
     /// </remarks>
     [TestMethod]
-    public void A_repetition_is_a_span_that_holds_one_shape_and_the_path_never_reaches_back()
+    public void A_run_of_elements_is_one_place_that_says_what_may_turn_up_in_it()
     {
         var message = Corpus.First(m => m.AllFields.Any(f => f.Pattern is Pattern.Chain));
-        var repeat = message.AllFields.First(f => f.Pattern is Pattern.Chain);
-        var span = message.Graph.Nodes.OfType<FieldSet>().Single(s => s.Derived == repeat);
+        var run = message.AllFields.First(f => f.Pattern is Pattern.Chain);
 
-        Assert.AreEqual(1, message.Graph.From<Holds>(span).Count(), "the one shape it repeats");
-        Assert.IsTrue(message.Graph.From<Decides>(span).Any(), "and something asks whether another follows");
+        Assert.AreEqual(1, message.Graph.From<Allowed>(run).Count(), "the one shape it may hold");
+        Assert.AreEqual(0, message.Graph.From<Holds>(run).Count(), "and it holds no members in order");
 
-        // The whole path, everywhere, for every document: no edge leads anywhere the walk has been.
+        // The whole path, everywhere: no edge leads anywhere that leads back.
         foreach (var document in Corpus)
-        {
-            var seen = new HashSet<Node>();
-            var reachable = new Queue<Node>(document.Arrangements.Cast<Node>());
-
-            while (reachable.Count > 0)
-            {
-                var at = reachable.Dequeue();
-                if (!seen.Add(at)) continue;
-
-                foreach (var edge in document.Graph.From<Then>(at)) reachable.Enqueue(edge.To);
-                foreach (var edge in document.Graph.From<Holds>(at)) reachable.Enqueue(edge.To);
-            }
-
             foreach (var edge in document.Graph.Of<Then>())
                 Assert.IsFalse(Reaches(document, edge.To, edge.From),
                     $"{document.Id}: {edge.From.Name} leads to {edge.To.Name}, which leads back");
-        }
     }
 
     /// <summary>Whether one node can be got to from another by ways on and members.</summary>
@@ -262,39 +230,22 @@ public class ArrangementTests
     }
 
     /// <summary>
-    /// A run of unlike components is repetition and alternation, composed — and nothing else.
+    /// A run of unlike components says what it may contain, and nothing about how many.
     /// </summary>
-    /// <remarks>
-    /// The claim the whole arrangement model rests on. An assortment was a pattern of its own, with its
-    /// own validation, its own threading parameters and its own carry-per-kind; here it is a token, a fork
-    /// on what the token said, and a way on that reaches back. If it had needed one edge the other two did
-    /// not, "one guarded edge covers sequence, choice and repeat" would be false.
-    /// </remarks>
     [TestMethod]
-    public void A_run_of_unlike_components_needs_nothing_the_other_two_did_not()
+    public void A_run_of_unlike_components_names_the_kinds_it_admits()
     {
         var message = Corpus.First(m => m.AllFields.Any(f => f.Pattern is Pattern.Assorted));
         var field = message.AllFields.First(f => f.Pattern is Pattern.Assorted);
         var assorted = (Pattern.Assorted)field.Pattern;
 
-        var run = message.Graph.Nodes.OfType<FieldSet>().Single(s => s.Derived == field);
-        var token = message.Graph.From<Holds>(run).Single().To;
+        var admits = message.Graph.From<Allowed>(field).Select(e => e.To).ToList();
 
-        Assert.AreSame(assorted.Token, token, "it leads with its token");
+        CollectionAssert.AreEquivalent(assorted.Sorts.Cast<Node>().ToList(), admits,
+            "one edge per kind it may hold");
 
-        // The fork: keyed ways on, decided by what the token said.
-        var kinds = message.Graph.From<Then>(token).Single().To;
-        Assert.AreSame(assorted.Token, message.Graph.From<Decides>(kinds).Single().To);
-
-        var ways = message.Graph.From<Then>(kinds).ToList();
-        Assert.AreEqual(assorted.Sorts.Count, ways.Count,
-            "one way on per kind — including a kind that holds nothing, which is still a component");
-        Assert.IsTrue(ways.All(w => w.Key is not null || w.Otherwise));
-
-        // And the repeat: a property of the span, not a cycle. The token is read again on the next pass
-        // because the span says there is one, not because an edge points backwards at it.
-        Assert.IsTrue(message.Graph.From<Decides>(run).Any(),
-            "something has to ask whether another component follows");
+        Assert.AreEqual(0, message.Graph.From<Then>(field).Count(t => t.Key is not null),
+            "and no keyed way on: which kind an element is, is the field's reading of itself");
     }
 
     [TestMethod]

@@ -516,7 +516,7 @@ public sealed record MessageDef
 
                 List<Node> exits = [];
 
-                foreach (var offer in graph.From<Offers>(field))
+                foreach (var offer in graph.From<Offers>(field).ToList())
                 {
                     var arm = (Arm)offer.To;
                     var (entry, ends) = Packed(graph, field, arm);
@@ -532,62 +532,19 @@ public sealed record MessageDef
                 return (fork, exits);
             }
 
+            // A run of elements is one place holding a list. What may turn up in it is said by edges
+            // rather than by a shape, and how many turn up is a fact about a message — so there is no
+            // cardinality here, no way on that reaches back, and nothing to unroll.
             case Pattern.Chain chain:
-            {
-                // The repetition itself makes nothing — its element does, once per pass — so it is a set
-                // like any other container, holding the one shape it repeats.
-                var run = new FieldSet(field.Id, field);
-                graph.Add(run);
+                graph.Add(new Allowed { From = field, To = chain.Element });
+                return (field, [field]);
 
-                graph.Add(new Holds { From = run, To = Place(graph, chain.Element).Entry, Order = 0 });
+            case Pattern.Assorted:
+                // Taken first: adding to the graph is what is being iterated otherwise.
+                foreach (var offer in graph.From<Offers>(field).ToList())
+                    graph.Add(new Allowed { From = field, To = offer.To });
 
-                // Repeating is a property of the span, not a cycle in the path. A back edge would put a
-                // containment fact into the arrangement — the path would revisit nodes, and "what follows
-                // what" would stop being answerable by reading it. What repeats is *inside* this node;
-                // the run graph is where it unrolls, one appearance per pass.
-                if (Decider(graph, field, chain.Continues) is { } another)
-                    graph.Add(new Decides { From = run, To = another, Reading = true });
-
-                return (run, [run]);
-            }
-
-            // A run of unlike components, and nothing new: a token, an alternation on what it said, and a
-            // way on that reaches back. Repetition and alternation, composed. If this had needed anything
-            // the other two did not, the claim that one guarded edge covers all of it would be false.
-            case Pattern.Assorted assorted:
-            {
-                var run = new FieldSet(field.Id, field);
-                graph.Add(run);
-
-                var (token, announced) = Place(graph, assorted.Token);
-                graph.Add(new Holds { From = run, To = token, Order = 0 });
-
-                var kinds = new FieldSet($"{field.Id} kinds");
-                graph.Add(kinds);
-
-                foreach (var end in announced) graph.Add(new Then { From = end, To = kinds });
-
-                // Decided by what the token said — a node's value keying the ways on, exactly as a
-                // choice's discriminator does. The only difference is that here it is a field rather than
-                // an expression, which the edge does not care about.
-                graph.Add(new Decides { From = kinds, To = assorted.Token, Reading = true });
-
-                foreach (var offer in graph.From<Offers>(field))
-                    graph.Add(new Then
-                    {
-                        From = kinds,
-                        To = Packed(graph, field, (Arm)offer.To).Entry,
-                        Key = offer.Key,
-                        Otherwise = offer.IsFallback,
-                    });
-
-                // As with a chain: whether another component follows is this span's business, and the
-                // span is one place on the path however many components turn up inside it.
-                if (Decider(graph, field, assorted.Continues) is { } another)
-                    graph.Add(new Decides { From = run, To = another, Reading = true });
-
-                return (run, [run]);
-            }
+                return (field, [field]);
 
             default:
                 return (field, [field]);
