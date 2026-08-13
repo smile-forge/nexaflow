@@ -112,9 +112,7 @@ public sealed class RunGraph
         {
             var node = run.For(outside);
 
-            if (outside is Context.Fixed { Value: var constant })
-                node.Settle(Facet.Value, constant);
-            else if (supplied?.TryGetValue(outside.Key, out var given) == true)
+            if (supplied?.TryGetValue(outside.Key, out var given) == true)
                 node.Settle(Facet.Value, given);
 
             // Anything else stays unsettled on purpose. A document that reads an input nobody supplied

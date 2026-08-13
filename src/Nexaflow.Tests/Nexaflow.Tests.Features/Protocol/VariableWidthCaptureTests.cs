@@ -153,14 +153,17 @@ public class VariableWidthCaptureTests
     private static MessageDef Liveness(string id) => Framed(id, []);
 
     /// <summary>A length-prefixed string, which is every variable field in the connect packet.</summary>
-    private static Field[] Prefixed(string id, string? via = "unutf8") =>
+    /// <param name="stated">What the document fixes this to, where it fixes it. A value the protocol
+    /// states is not a value from outside it, so it is said here rather than asked of a caller — and it
+    /// becomes a constant in the graph, which is the one place a stated value lives.</param>
+    private static Field[] Prefixed(string id, string? via = "unutf8", string? stated = null) =>
     [
         new Field { Id = $"{id}Length", Pattern = U16, Value = Expr.Parse($"fields.{id}.extent") },
         new Field
         {
             Id = id,
             Pattern = Pattern.Opaque.Measured(Expr.Parse($"fields.{id}Length.value")),
-            Value = Expr.Parse($"inputs.{id}"),
+            Value = Expr.Parse(stated ?? $"inputs.{id}"),
             Via = via,
         },
     ];
@@ -210,10 +213,10 @@ public class VariableWidthCaptureTests
             new Context.Prompted { Key = "willTopic", Purpose = "Where to publish if this connection drops." },
             new Context.Prompted { Key = "userName", Purpose = "The account to connect as." },
             new Context.Secret { Key = "password", Purpose = "The password for that account." },
-            new Context.Fixed { Key = "protocolName", Purpose = "The name this version of the protocol goes by.", Value = ProtoValue.Of("MQTT") },
+
         ],
         [
-            .. Prefixed("protocolName"),
+            .. Prefixed("protocolName", stated: "'MQTT'"),
             new Field { Id = "protocolLevel", Pattern = U8, Value = Expr.Parse("inputs.protocolLevel") },
             flags,
             new Field { Id = "keepAlive", Pattern = U16, Value = Expr.Parse("inputs.keepAlive") },

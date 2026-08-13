@@ -35,11 +35,10 @@ public class RunGraphTests
         Context =
         [
             new Context.Given { Key = "count", Purpose = "how many." },
-            new Context.Fixed { Key = "magic", Value = ProtoValue.Of(0x2aL), Purpose = "the marker." },
         ],
         Fields =
         [
-            new Field { Id = "marker", Pattern = U8, Value = Expr.Parse("inputs.magic") },
+            new Field { Id = "marker", Pattern = U8, Value = Expr.Parse("0x2a") },
             new Field { Id = "count", Pattern = U8, Value = Expr.Parse("inputs.count") },
         ],
     };
@@ -65,11 +64,15 @@ public class RunGraphTests
     }
 
     [TestMethod]
-    public void A_constant_the_document_fixes_needs_nobody_to_supply_it()
+    public void A_value_the_document_states_is_not_an_outside_value_at_all()
     {
-        // The one kind of outside value that is not outside at all: the document states it, so the run
-        // starts with it settled and a caller that never heard of it still builds the message.
-        Assert.AreEqual(0x2aL, Run().For(Outside("magic")).Value.AsInt());
+        // It used to be declared among the inputs, which made it both: something the graph called an
+        // outside value, that the caller had to supply anyway, holding a value nothing read. A stated
+        // value is a constant, and a constant is a node.
+        var marker = Simple.AllFields.Single(f => f.Id == "marker");
+
+        Assert.IsInstanceOfType<Constant>(Simple.ProducerOf(marker, "value"));
+        Assert.IsFalse(Simple.Context.Any(c => c.Key == "magic"), "and nobody is asked for it");
     }
 
     [TestMethod]

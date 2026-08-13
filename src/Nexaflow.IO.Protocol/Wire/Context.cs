@@ -107,12 +107,11 @@ public abstract class Context : Node
         public bool Wraps { get; init; } = true;
     }
 
-    /// <summary>The document's own constant. Distinct from a field the document fixes: this one is a value
-    /// several fields can be written from, not an octet on the wire.</summary>
-    public sealed class Fixed : Context
-    {
-        public required ProtoValue Value { get; init; }
-    }
+    // There is deliberately no kind here for "the document's own constant". A value the document states
+    // is not a value from outside it, and declaring it here made it both: something the graph called an
+    // input, that the caller had to supply anyway, holding a value nothing read. A constant is a
+    // Constant — one node, reached the same way whether it is a delimiter, a converter's table or a
+    // version that is always four — and an expression that says one outright folds into one.
 
     public override string ToString() => $"{GetType().Name.ToLowerInvariant()} {Key}";
 }

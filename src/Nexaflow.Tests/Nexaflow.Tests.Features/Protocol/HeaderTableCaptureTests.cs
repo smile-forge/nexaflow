@@ -282,7 +282,10 @@ public class HeaderTableCaptureTests
             new Context.Given { Key = "reprs", Purpose = "the representations to write, in order." },
             new Context.Remembered { Key = "table", Purpose = "the table the last block left behind." },
             new Context.Remembered { Key = "budget", Purpose = "how large the table may currently be." },
-            new Context.Fixed { Key = "statics", Value = Static, Purpose = "the entries both ends know." },
+            // Supplied rather than stated, which is what it always was: the value on the old declaration
+            // was never read and the caller handed it in regardless. A document-stated value an expression
+            // can name by name is a real gap and is not this.
+            new Context.Given { Key = "statics", Purpose = "the entries both ends know." },
         ],
         Fields =
         [
@@ -337,10 +340,11 @@ public class HeaderTableCaptureTests
         => EvalScope.Record(("sort", ProtoValue.Of("resize")), ("size", ProtoValue.Of(size)));
 
     /// <remarks>
-    /// <c>statics</c> is handed in alongside the rest, which is worth a note: the document declares it as
-    /// a <see cref="Context.Fixed"/> carrying its own value, and nothing in the codec reads that value —
-    /// a fixed context is a <i>declaration</i> that the caller still satisfies. Consistent, but the
-    /// declaration currently looks like it does more than it does.
+    /// <c>statics</c> is handed in alongside the rest, and it should not have to be: the table is RFC 7541
+    /// Appendix A, which the document states rather than asks for. It was declared as a fixed context —
+    /// a kind that claimed to carry its own value while the caller supplied it anyway — and that kind is
+    /// gone. What is missing to do this properly is a stated value an <i>expression</i> can name; a
+    /// converter's argument already reaches one by edge, and an expression has no way to.
     /// </remarks>
     private static EvalScope Inputs(ProtoValue[] reprs, ProtoValue table, long budget = 4096)
         => new EvalScope().Set("inputs", EvalScope.Record(
