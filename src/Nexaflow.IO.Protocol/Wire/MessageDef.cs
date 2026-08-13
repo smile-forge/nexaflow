@@ -476,6 +476,18 @@ public sealed record MessageDef
 
                 case Pattern.Assorted assorted:
                     Link(assorted.Continues, Roles.Continuation, Visible);
+                    if (assorted.Seed is { } seeded) Link(seeded, Roles.Seed, Visible);
+
+                    // A kind's carry is written on the kind and read inside it, so it names that kind's
+                    // fields — the same inward resolution a chain's carry has.
+                    foreach (var sort in assorted.Sorts.Where(a => a.Carry is not null))
+                    {
+                        var within = ScopeFields(sort.Fields);
+                        Link(sort.Carry!, Roles.Carrying(sort),
+                             n => within.FirstOrDefault(f => string.Equals(f.Id, n, StringComparison.Ordinal))
+                               ?? Visible(n));
+                    }
+
 
                     // A kind that repeats gets its own scope, so its expressions resolve there first and
                     // outward after — the same arrangement a chain's instance has, for the same reason.
@@ -798,7 +810,8 @@ public sealed record MessageDef
         foreach (var reader in AllFields)
             foreach (var read in Graph.From<Reads>(reader))
                 if (read.To is Field target && unreachable.TryGetValue(target, out var why)
-                    && !Alongside(reader, why.Assortment, why.Sort))
+                    && !Alongside(reader, why.Assortment, why.Sort)
+                    && !(why.Sort is { } owner && read.Role == Roles.Carrying(owner)))
                     issues.Add($"message '{Id}': '{reader.Id}' reads '{target.Id}' — {why.Why}.");
     }
 
@@ -817,6 +830,12 @@ public sealed record MessageDef
     /// A part of a repeating kind is nameable from that same kind and nowhere else, because within one
     /// component there is exactly one of it. The token is nameable from any kind of its assortment, since
     /// every component has one and it is that component's own.
+    /// </para>
+    ///
+    /// <para>
+    /// A kind's carry is exempt, and hangs off the assortment only because that is where the edge was
+    /// drawn from: it is written on the kind and read inside it, so it names that kind's fields for the
+    /// same reason a chain's carry names its element's. The exemption is by role rather than by reader.
     /// </para>
     /// </summary>
     private bool Alongside(Node reader, Field assortment, Arm? sort)
@@ -975,6 +994,10 @@ public sealed record MessageDef
 
                 case Pattern.Assorted assorted:
                     yield return (field, assorted.Continues, "the continuation", ExprSite.Continuation);
+                    if (assorted.Seed is { } start) yield return (field, start, "the seed", ExprSite.Seeding);
+
+                    foreach (var sort in assorted.Sorts.Where(a => a.Carry is not null))
+                        yield return (field, sort.Carry!, $"the carry on '{sort.Name}'", ExprSite.Carry);
                     break;
 
                 case Pattern.Opaque { Length: { } length }:

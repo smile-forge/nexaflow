@@ -268,6 +268,11 @@ public static class Roles
     public const string Continuation = "the continuation";
     public const string Seed = "the seed";
     public const string Carry = "the carry";
+
+    /// <summary>One kind's carry, told apart from its neighbours'. An assortment has a carry per kind, and
+    /// a dependency gathered under one role would make every kind wait on every other kind's fields —
+    /// including ones no component of this message realised.</summary>
+    public static string Carrying(Node sort) => $"the carry on '{sort.Name}'";
     public const string Length = "the length";
     public const string Bound = "the region bound";
 }

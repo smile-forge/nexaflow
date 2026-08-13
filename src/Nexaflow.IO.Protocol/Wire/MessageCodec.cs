@@ -299,6 +299,19 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
             return new ProtoValue.Rec(bound);
         }
 
+        /// <summary>
+        /// Threads a value over the next component without opening a scope for it.
+        /// </summary>
+        /// <remarks>
+        /// Entering a structure would do this and three other things, and one of them is fatal here: a
+        /// kind declared once keeps its fields in the enclosing scope, which is what makes it nameable
+        /// from outside. So the thread is pushed on its own, and a repeating kind pushes a structure over
+        /// the top of it with the same value.
+        /// </remarks>
+        public void Thread(ProtoValue carried) => _carried.Add(carried);
+
+        public void Unthread() => _carried.RemoveAt(_carried.Count - 1);
+
         public void EnterRegion(string fieldId, int limit)
         {
             if (limit > Limit)
@@ -418,7 +431,9 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 List<ProtoValue> components = [];
                 HashSet<Arm> once = [];
 
-                while (Continues(field, assorted.Continues, r, components.Count, ProtoValue.Nothing))
+                var carried = assorted.Seed is null ? ProtoValue.Nothing : r.Eval(assorted.Seed);
+
+                while (Continues(field, assorted.Continues, r, components.Count, carried))
                 {
                     if (components.Count >= ProtoLimits.MaxChainedInstances)
                         throw new ProtoTypeException(
@@ -453,14 +468,21 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                     // A kind that repeats gets its own scope, exactly as a chain's instance does and for
                     // the same reason: there is more than one of it, so its names cannot be the enclosing
                     // scope's. One that does not, binds outward — which is the entire point.
-                    if (sort.Repeats) r.EnterStructure(ProtoValue.Nothing, components.Count);
+                    r.Thread(carried);
+                    if (sort.Repeats) r.EnterStructure(carried, components.Count);
 
                     foreach (var child in Inside(sort))
                         what[child.CaptureName] =
                             Read(child, r, ChildPath(path, child, exposed && !sort.Repeats),
                                  exposed && !sort.Repeats);
 
+                    // What this kind leaves the thread at, worked out while its fields are still in scope.
+                    // A kind that says nothing passes it through, which is most of them.
+                    var next = sort.Carry is null ? carried : r.Eval(sort.Carry);
+
                     if (sort.Repeats) r.LeaveStructure();
+                    r.Unthread();
+                    carried = next;
 
                     if (r.Offset == before)
                         throw new ProtoTypeException(
@@ -480,6 +502,10 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                 // And which of them turned up, for anything that branches on it. Every optional part, so
                 // one that did not arrive reads false rather than nothing.
                 r.Arrived(assorted.Sorts.SelectMany(Inside).Select(p => p.Id));
+
+                // What the run came to, where it was building something. Bound as a capture for the same
+                // reason a chain's is: there are no octets here for a field to be of.
+                if (assorted.Thread is { } thread) r.Capture(thread, carried);
 
                 // The order, so a run that arrived in one arrangement is written back in the same one —
                 // even though the protocol would have accepted any other.
@@ -1479,9 +1505,10 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
         /// the whole reason an assortment is not a chain.
         /// </para>
         /// </summary>
-        public NameFrame Component(IReadOnlyList<Field> own, Occurrence instance, ProtoValue item)
+        public NameFrame Component(IReadOnlyList<Field> own, Occurrence instance, ProtoValue item,
+                                   Occurrence? carried = null)
             => new(Occurrences(MessageDef.ScopeFields(own), instance), Scope.Child().Set("item", item), this)
-               { Instance = instance };
+               { Instance = instance, Carried = carried };
 
         private static Dictionary<Field, Occurrence> Occurrences(IEnumerable<Field> fields, Occurrence? within)
             => fields.Distinct().ToDictionary(f => f, f => new Occurrence(f, within));
@@ -1883,9 +1910,29 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
                         var within = Follows.Inside(nodeId);
 
+                        NameFrame? before = null;
+                        Arm? beforeSort = null;
+                        Occurrence? beforeCarried = null;
+
                         for (int i = 0; i < list.Items.Count; i++)
                         {
                             var sort = SortOf(field, assorted, list.Items[i], i);
+
+                            // What this component sees threaded to it: the seed for the first, and
+                            // whatever the one before it left for the rest. A kind that says nothing
+                            // passes it through, which is what `carried` alone means.
+                            Occurrence? carriedId = null;
+
+                            if (assorted.Threads)
+                            {
+                                carriedId = new Occurrence(field, nodeId, $"[{i}]~carried");
+
+                                children.Add(before is null
+                                    ? Threaded(carriedId, field, Roles.Seed, frame, assorted.Seed!, [])
+                                    : Threaded(carriedId, field, Roles.Carrying(beforeSort!), before,
+                                               beforeSort!.Carry ?? Expr.Parse("carried"),
+                                               [new FacetRef(beforeCarried!, Facet.Value)]));
+                            }
 
                             if (!sort.Repeats && !once.Add(sort))
                                 throw new ProtoTypeException(
@@ -1900,7 +1947,7 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
                             var component = frame.Component(
                                 [assorted.Token, .. sort.Repeats ? sort.Fields : []],
-                                instance, list.Items[i]);
+                                instance, list.Items[i], carriedId);
 
                             // The token carries no value of its own — what goes there is the key that
                             // picks this kind, which is why writing one by hand is refused. The unknown
@@ -1921,6 +1968,10 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
                             }
 
                             built.Add((sort, component));
+
+                            before = component;
+                            beforeSort = sort;
+                            beforeCarried = carriedId;
                         }
 
                         // A kind nobody asked for still has to answer, because something may read it or

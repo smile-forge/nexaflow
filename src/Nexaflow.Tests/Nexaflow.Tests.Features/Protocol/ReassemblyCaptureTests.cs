@@ -423,6 +423,120 @@ public class ReassemblyCaptureTests
             .Any(i => i.Contains("names what it threads and threads nothing")));
     }
 
+    // ── A run of unlike things, threading one value ───────────────────────────
+
+    /// <summary>
+    /// Components of different kinds, each contributing differently to one accumulating value.
+    ///
+    /// <para>
+    /// The shape a header compression table wants, without being one. A run of self-identifying
+    /// components where a kind adds to what is being built, another leaves it alone, and a later component
+    /// can see what an earlier one did — which is the whole of an indexing table, and is a threaded value
+    /// rather than a structure the engine provides.
+    /// </para>
+    ///
+    /// <para>
+    /// The carry is <b>per kind</b>, and that is the difference from a chain rather than an accident of
+    /// how it was added. A chain repeats one structure so one expression serves it; an assortment is
+    /// heterogeneous, and no single expression describes a kind that appends, a kind that resets and a
+    /// kind that does neither.
+    /// </para>
+    /// </summary>
+    private static readonly MessageDef Tallied = new()
+    {
+        Id = "tallied",
+        Context = Context.Given.These("items"),
+        Fields =
+        [
+            new Field
+            {
+                Id = "items",
+                Value = Expr.Parse("inputs.items"),
+                Pattern = new Pattern.Assorted(
+                    new Field { Id = "kind", Pattern = U8 },
+                    [
+                        // Adds what it carries to the running total.
+                        Arm.On("adds", ProtoValue.Of(1L),
+                            [new Field { Id = "addend", Pattern = U8, Value = Expr.Parse("item.addend") }],
+                            repeats: true)
+                            .Carrying(Expr.Parse("carried + fields.addend.value")),
+
+                        // Puts it back to nothing, and a later component sees that it did.
+                        Arm.On("resets", ProtoValue.Of(2L), []).Carrying(Expr.Parse("0")),
+
+                        // Says nothing, so the thread passes through it untouched. Most components of most
+                        // runs are this one.
+                        Arm.Otherwise("ignores",
+                            [new Field { Id = "ignored", Pattern = U8, Value = Expr.Parse("item.ignored") }],
+                            repeats: true),
+                    ],
+                    Expr.Parse("room > 0"))
+                {
+                    Seed = Expr.Parse("0"),
+                    Thread = "tally",
+                },
+            },
+        ],
+    };
+
+    private static ProtoValue Kind(string sort, params (string, ProtoValue)[] with)
+        => EvalScope.Record([("sort", ProtoValue.Of(sort)), .. with]);
+
+    [TestMethod]
+    public void A_run_of_unlike_components_can_thread_one_value_between_them()
+    {
+        var codec = new MessageCodec(Tallied);
+        Assert.AreEqual(0, codec.Validate().Count, string.Join(" / ", codec.Validate()));
+
+        // add 5, add 7, reset, ignore, add 4 → the reset is seen by everything after it.
+        var decoded = codec.Decode([1, 5, 1, 7, 2, 9, 3, 1, 4]);
+
+        Assert.AreEqual(4L, decoded["tally"].AsInt());
+
+        CollectionAssert.AreEqual(new[] { "adds", "adds", "resets", "ignores", "adds" },
+            decoded["items"].AsList().Cast<ProtoValue.Rec>()
+                            .Select(i => i.Members["sort"].AsText()).ToArray());
+    }
+
+    [TestMethod]
+    public void And_the_same_run_is_written_back_from_what_it_decoded_to()
+    {
+        // The thread exists on both sides. A component's contribution is settled from the one before it,
+        // which on the way out is a node the resolver schedules rather than a loop that assumes an order.
+        var codec = new MessageCodec(Tallied);
+        byte[] octets = [1, 5, 1, 7, 2, 9, 3, 1, 4];
+
+        var decoded = codec.Decode(octets);
+
+        CollectionAssert.AreEqual(octets, codec.Encode(new EvalScope().Set("inputs", EvalScope.Record(
+            ("items", decoded["items"])))));
+    }
+
+    [TestMethod]
+    public void A_run_that_seeds_nothing_and_carries_something_is_refused()
+    {
+        var adrift = Tallied with
+        {
+            Id = "adrift",
+            Fields =
+            [
+                new Field
+                {
+                    Id = "items",
+                    Value = Expr.Parse("inputs.items"),
+                    Pattern = new Pattern.Assorted(
+                        new Field { Id = "kind", Pattern = U8 },
+                        [Arm.Otherwise("any", []).Carrying(Expr.Parse("carried + 1"))],
+                        Expr.Parse("room > 0")),
+                },
+            ],
+        };
+
+        Assert.IsTrue(new MessageCodec(adrift).Validate()
+            .Any(i => i.Contains("nothing says where it starts")),
+            string.Join(" / ", new MessageCodec(adrift).Validate()));
+    }
+
     /// <summary>
     /// The engine holds no opinion about any of this.
     /// </summary>

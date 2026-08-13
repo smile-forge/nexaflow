@@ -111,9 +111,32 @@ public sealed class Arm(string label, long? key, IReadOnlyList<Field> fields) : 
     public static Arm On(string label, ProtoValue token, IReadOnlyList<Field> fields, bool repeats = false)
         => new(label, null, fields) { DeclaredKey = token, Repeats = repeats };
 
+    /// <summary>
+    /// What this kind of component leaves the thread at, where its run threads one.
+    ///
+    /// <para>
+    /// Per kind rather than one for the run, which is the difference from a chain and is not an accident
+    /// of how this was added: a chain repeats one structure so one expression serves it, and an assortment
+    /// is heterogeneous, so what a component contributes depends on which kind it is. A header block
+    /// building a table has kinds that prepend to it, kinds that truncate it and kinds that leave it
+    /// alone, and no single expression describes all three.
+    /// </para>
+    ///
+    /// <para>
+    /// A kind that says nothing passes the thread through unchanged, which is the common case and the
+    /// right default: most components of most runs do not touch what is being accumulated.
+    /// </para>
+    /// </summary>
+    internal Expr? Carry { get; private init; }
+
     /// <summary>A packing that is an option only while something holds.</summary>
     public static Arm While(string label, Expr condition, IReadOnlyList<Field> fields)
         => new(label, null, fields) { Condition = condition };
+
+    /// <summary>The same packing, saying what it leaves the run's threaded value at.</summary>
+    public Arm Carrying(Expr carry)
+        => new(Name, null, Fields) { DeclaredKey = DeclaredKey, Repeats = Repeats,
+                                     Condition = Condition, Carry = carry };
 
     /// <summary>The packing for a component this document does not know. Never optional where the tokens
     /// are text: nothing can enumerate every string, so the cover can only be closed by a fallback.</summary>
@@ -476,6 +499,16 @@ public abstract record Pattern
         IReadOnlyList<Arm> Sorts,
         Expr Continues) : Pattern
     {
+        /// <summary>Where the run's threaded value starts, evaluated before the first component.</summary>
+        public Expr? Seed { get; init; }
+
+        /// <summary>What the threaded value is called once the run is over, so the fold can leave the walk
+        /// that computed it. Exactly as a chain's is, and for the same reason.</summary>
+        public string? Thread { get; init; }
+
+        /// <summary>Whether anything is threaded through this run at all.</summary>
+        public bool Threads => Seed is not null && Sorts.Any(s => s.Carry is not null);
+
         /// <summary>
         /// The member of a component's record that says which kind it is. Present in what a decode produces
         /// and in what an encode consumes, so a decoded run re-encodes as it arrived.
@@ -638,6 +671,18 @@ public abstract record Pattern
 
         Assorted { Sorts.Count: 0 } =>
             [$"field '{fieldId}': an assortment needs at least one kind of component"],
+
+        Assorted a when a.Seed is null && a.Sorts.Any(s => s.Carry is not null) =>
+            [$"field '{fieldId}': its kinds say what they leave the threaded value at and nothing says "
+           + "where it starts. The first component would be adding to nothing."],
+
+        Assorted a when a.Seed is not null && !a.Sorts.Any(s => s.Carry is not null) =>
+            [$"field '{fieldId}': it seeds a threaded value that no kind ever moves on, so every component "
+           + "sees the seed and the run comes to it."],
+
+        Assorted { Thread: not null } a when !a.Threads =>
+            [$"field '{fieldId}': it names what it threads and threads nothing. A name for a value that "
+           + "is never computed is a reference to something that will not be there."],
 
         // The token decides which kind arrived, so a document that also writes it by hand has said the same
         // thing twice and the two can disagree — which would emit a component announcing one kind and
